@@ -4,8 +4,7 @@
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
     CheckFacts, CheckedComposedUnitControlStatePlan, CheckedNormalExitCleanupPlan,
-    CheckedUnitCallableEntry, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitCallableEntry, CheckedUnitStructuralArgumentSourcePlan,
 };
 use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
@@ -137,27 +136,5 @@ fn owner_source(
             parameter_index: u32::try_from(index).ok()?,
         });
     }
-    for operation in plan.operations.iter().rev() {
-        if let CheckedUnitEffectOperationPlan::RebindStructuralLocal { destination, .. } = operation
-            && destination.source
-                == (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol })
-        {
-            // Rebinding publishes the local's new home; the initial producer
-            // remains the identity of its already retired occurrence.
-            return Some(destination.source.clone());
-        }
-        if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralLocal { symbol: local, .. } if *local == symbol)
-        {
-            return Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
-        }
-        if let Some(result) = operation.statement_structural_result_binding()
-            && matches!(program.statement_table.statements(state.statement_nodes).get(result.statement_index as usize),
-                Some(StatementNode::LocalData(local)) if local.symbol == symbol)
-        {
-            return Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: result.binding_ordinal,
-            });
-        }
-    }
-    None
+    super::super::local_storage::source(program, state, &plan.operations, symbol)
 }

@@ -1,0 +1,1 @@
+after `item` was transferred or consumed

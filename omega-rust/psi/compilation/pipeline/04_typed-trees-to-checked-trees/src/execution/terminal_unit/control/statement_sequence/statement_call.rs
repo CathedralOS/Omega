@@ -275,6 +275,7 @@ pub(super) fn plan(
                     .map(|(result, _)| ExpectedCallValueResult::Structural(result))
             }),
         structural_results,
+        operations,
         trace,
     )?;
     let coordinate = operation.call()?.coordinate;

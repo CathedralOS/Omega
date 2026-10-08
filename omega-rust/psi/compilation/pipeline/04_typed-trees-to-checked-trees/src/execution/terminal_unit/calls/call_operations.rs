@@ -64,6 +64,7 @@ pub(in crate::execution) fn build_call_operation(
     allow_field_path_projection: bool,
     expected_call_result: Option<ExpectedCallValueResult<'_>>,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    caller_operations: &[CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
@@ -158,6 +159,7 @@ pub(in crate::execution) fn build_call_operation(
             call,
             expected_call_result.as_ref(),
             caller_structural_results,
+            caller_operations,
             trace,
             coordinate,
             &call_site,
@@ -181,6 +183,7 @@ pub(in crate::execution) fn build_call_operation(
             allow_field_path_projection,
             expected_call_result.as_ref(),
             caller_structural_results,
+            caller_operations,
             trace,
             coordinate,
             &call_site,
@@ -316,6 +319,7 @@ pub(in crate::execution) fn build_call_operation(
         call.statement_index,
         allow_field_path_projection,
         caller_structural_results,
+        caller_operations,
         trace,
     )?;
     // The callee's retained scalar positions: the same authored indices its

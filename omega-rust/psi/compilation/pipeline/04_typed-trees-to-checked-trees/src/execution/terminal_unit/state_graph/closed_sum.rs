@@ -863,6 +863,7 @@ fn subject_call(
         false,
         Some(crate::execution::terminal_unit::calls::ExpectedCallValueResult::Structural(&result)),
         &structural_results,
+        operations,
         trace,
     )?;
     let mut operation = crate::execution::terminal_unit::control::bind_structural_call_result(

@@ -43,6 +43,48 @@ pub(super) fn argument(
     parameter: &StateParameter,
     target_identity: &str,
     allow_projection: bool,
+    operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let mut argument = argument_contract(
+        program,
+        facts,
+        machine,
+        state,
+        call,
+        expression,
+        place,
+        result,
+        parameter,
+        target_identity,
+        allow_projection,
+    )?;
+    // Bind producer operands to the current home without replacing an explicit
+    // loan descriptor: its source already retains captured geometry and access.
+    if matches!(
+        argument.source,
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
+    ) && let facts::PlaceRoot::Symbol(symbol) = place.root
+    {
+        let source_state = program.state_by_symbol(state)?;
+        argument.source =
+            super::super::local_storage::source(program, source_state, operations, symbol)?;
+    }
+    Some(argument)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn argument_contract(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    expression: typed_trees::expression::ExpressionHandle,
+    place: &validation::CanonicalPlace,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    parameter: &StateParameter,
+    target_identity: &str,
+    allow_projection: bool,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let (source_machine, source_state) = validation::find_state_with_machine(program, state)?;
     if let Some(argument) = super::super::reference_results::record_argument(
@@ -562,7 +604,8 @@ pub(super) fn argument(
                 else {
                     return None;
                 };
-                // A whole owned move retains the immutable-binding fence.
+                // Moves consume the checked ownership of the current value;
+                // binding mutability only permits its later reestablishment.
                 // Loans, whole or projected, use the exact captured access
                 // checked above. Borrow formation owns writability and access
                 // rules (including write-only authority); a binding's `mut`
@@ -608,8 +651,7 @@ pub(super) fn argument(
                             )
                     );
                 if !view_binding
-                    && ((access == CheckedStructuralAccess::Owned && local.is_mutable)
-                        || local.symbol != symbol
+                    && (local.symbol != symbol
                         || (access == CheckedStructuralAccess::Owned
                             && !unrestricted
                             && !linear

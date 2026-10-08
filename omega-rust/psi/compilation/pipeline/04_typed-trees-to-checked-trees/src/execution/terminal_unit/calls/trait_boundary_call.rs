@@ -63,6 +63,7 @@ pub(super) fn build(
     call: &checked_trees::FlowCallFact,
     expected_call_result: Option<&super::ExpectedCallValueResult<'_>>,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    caller_operations: &[CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
     coordinate: CheckedUnitCallCoordinate,
     call_site: &validation::CallSite<'_>,
@@ -344,6 +345,7 @@ pub(super) fn build(
                 parameter,
                 &target_identity,
                 false,
+                caller_operations,
             )?);
             continue;
         }

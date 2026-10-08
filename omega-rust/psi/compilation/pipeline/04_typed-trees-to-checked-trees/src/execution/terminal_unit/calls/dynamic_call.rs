@@ -49,6 +49,7 @@ pub(super) fn build(
     allow_field_path_projection: bool,
     expected_call_result: Option<&super::ExpectedCallValueResult<'_>>,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    caller_operations: &[CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
     coordinate: CheckedUnitCallCoordinate,
     call_site: &validation::CallSite<'_>,
@@ -98,6 +99,7 @@ pub(super) fn build(
         call.statement_index,
         allow_field_path_projection,
         caller_structural_results,
+        caller_operations,
         trace,
     )?;
     phase("call operation: dynamic scalar parameters");

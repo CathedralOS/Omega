@@ -1,9 +1,9 @@
-//! A call whose value lands in a structural result binding. A returned
-//! reference or borrowed view carries a loan whose operands must be the
-//! caller's structural parameters or earlier results; any other result must
-//! be a claim-free owned value. Either way the call becomes one ordinary
-//! call with a structural result that carries the binding, and its custody
-//! is decided once here and recorded in the plan (`with_structural_custody`).
+//! A call whose value lands in a structural result binding. Shared operand
+//! admission owns current storage, type and access; this operation owns the
+//! returned contents and custody, not another whitelist of operand producers.
+//! Returned references retain exact captured loans, and claim-bearing results
+//! retain their checked frontier. Both use one ordinary call whose custody is
+//! decided here and recorded in the plan (`with_structural_custody`).
 
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
@@ -11,11 +11,10 @@ use checked_trees::{
 };
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::types::{base_type_identity, machine_binders};
+use crate::execution::terminal_unit::types::machine_binders;
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
-    SymbolHandle, TypeReferenceNode, is_reference,
+    CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralResultBindingPlan,
+    Multiplicity, SymbolHandle, TypeReferenceNode,
 };
 
 pub(super) fn build(
@@ -93,137 +92,17 @@ pub(super) fn build(
             target_state.return_type,
             validation::ContentsRequirement::RepresentedOwned,
         );
-    let result_retains_no_loan = reference_loans.is_empty()
-        && (represented_copy_result
-            || (matches!(
-                result.multiplicity,
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && validation::has_contents(
-                program,
-                target_state.return_type,
-                validation::ContentsRequirement::CleanupOwned,
-            ))
-            || (result.multiplicity == Multiplicity::Unrestricted
-                && validation::is_closed_primitive_array_type(program, target_state.return_type)));
-    // A result signature is available before its ordinary or graph body plan.
-    // The closure pass below retains this call only when that complete body
-    // was produced, avoiding an authored machine-order dependency.
-    phase("call operation: structural result operands");
-    let args_ok = structural_arguments
-        .iter()
-        .enumerate()
-        .all(|(argument_index, argument)| {
-            if argument.access == CheckedStructuralAccess::Owned
-                && (argument.source_parameter_index().is_some()
-                    || argument
-                        .source_structural_result_binding_ordinal()
-                        .is_some())
-                && program
-                    .state_parameters(target_state)
-                    .iter()
-                    .filter(|parameter| {
-                        program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                            && !(false && is_reference(program, parameter.type_reference))
-                    })
-                    .nth(argument_index)
-                    .is_some_and(|parameter| {
-                        // Typed Self names the machine, not its data carrier.
-                        // Use the same checked signature that declares the
-                        // callee's receiver; this also covers non-generic
-                        // attachments without a retained owner application.
-
-                        let carrier = parameter.type_reference;
-                        (validation::is_closed_primitive_array_type(
-                                program,
-                                carrier,
-                            ) || validation::has_contents(
-                                program,
-                                carrier, validation::ContentsRequirement::CleanupOwned) || validation::reference_result_custody::is_reference_record(
-                                program,
-                                carrier,
-                            )
-                            // An owned actual moved into a by-value linear
-                            // formal transfers its claims into the callee;
-                            // the call's claim transfers carry them, so the
-                            // carrier needs no claim-free contents proof.
-                            || crate::checks::type_multiplicity(program, carrier)
-                                == Multiplicity::Linear)
-                            && base_type_identity(program, carrier, &[])
-                                .is_some_and(|identity| identity == argument.type_identity)
-                            // A projected owned operand names the exact
-                            // declared-field subtree whose captured leaf the
-                            // bare reference result loan already replayed.
-                            // Without that proven leaf custody the whole
-                            // carrier spelling stays mandatory.
-                            && (argument.path.is_empty()
-                                || (!reference_loans.is_empty()
-                                    && validation::reference_result_custody::is_reference_record(
-                                        program,
-                                        carrier,
-                                    )
-                                    && argument.path.iter().all(|segment| {
-                                        matches!(
-                                            segment,
-                                            checked_trees::CheckedUnitStructuralPathSegment::Field(
-                                                _
-                                            )
-                                        )
-                                    })))
-                    })
-            {
-                return true;
-            }
-            (argument.source_parameter_index().is_some()
-                // The argument planner already rejoined this loan
-                // to its exact earlier result and captured call access.
-                // Borrowing that live storage does not transfer its owner.
-                || (matches!(
-                    argument.access,
-                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-                )
-                    && argument
-                        .source_structural_result_binding_ordinal()
-                        .is_some())
-                // An exclusive loan of an earlier result or local record,
-                // whole or by fixed field and index path, was rejoined the
-                // same way to its captured `&mut` access. Only a result that
-                // retains no loan admits it, so the loan ends with the call
-                // and the lender keeps its owner.
-                || (argument.access == CheckedStructuralAccess::MutableBorrow
-                    && result_retains_no_loan
-                    && argument
-                        .source_structural_result_binding_ordinal()
-                        .is_some()
-                    && argument.path.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                                | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
-                        )
-                    }))
-                || argument.byte_sequence_literal().is_some()
-                // A range descriptor over an established caller view was
-                // admitted by the same storage judgment every other call
-                // form uses; its root names adjudicated caller storage.
-                || super::view_subslice::is_view_subslice(argument)
-                || matches!(
-                    argument.source,
-                    CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-                ))
-                && matches!(
-                    argument.access,
-                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-                )
-        });
+    // Operand preparation already admitted source identity, declared types,
+    // projections and exact access. Do not apply a second source-family
+    // whitelist here: a named home's current value is not its initializer.
+    // The result judgment below owns returned contents and loans; the shared
+    // custody judgment joins this occurrence's exact claim and loan roster.
     // An ordinary call keeps one route and result binding whatever claims it
     // consumes. Consumed linear claim-carrying inputs become the custody's
     // input transfer roster, and the custody judgment fences that result side
     // itself; a call that consumes none must also carry admitted result
     // contents.
-    if args_ok
-        && (!transfers.is_empty()
+    if (!transfers.is_empty()
             || represented_copy_result
             || !reference_loans.is_empty()
             || !forwarded_reference_sources.is_empty()
@@ -310,10 +189,6 @@ pub(super) fn build(
     None
 }
 
-/// Admit one ordinary structural call and record its custody: the checker's
-/// single judgment over the exact call and ownership facts. Lowering reads
-/// the recorded custody; a call the judgment refuses is not planned.
-
 /// The Module-route structural-custody call parts both admissible sites build.
 pub(super) fn structural_custody_parts(
     coordinate: checked_trees::CheckedUnitCallCoordinate,
@@ -347,6 +222,9 @@ pub(super) fn structural_custody_parts(
     }
 }
 
+/// Admit one ordinary structural call and record its custody: the checker's
+/// single judgment over the exact call and ownership facts. Lowering reads
+/// the recorded custody; a call the judgment refuses is not planned.
 pub(super) fn with_structural_custody(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,

@@ -134,6 +134,7 @@ pub(crate) fn finalize(program: &dyn ::validation::CheckingInput, facts: &mut Ch
                                     true,
                                     None,
                                     &[],
+                                    &[],
                                     &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
                                 )?;
                             match &operation {

@@ -36,6 +36,7 @@ pub(crate) fn structural_call_arguments(
     statement_index: usize,
     allow_field_path_projection: bool,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    caller_operations: &[checked_trees::CheckedUnitEffectOperationPlan],
     trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
@@ -245,6 +246,7 @@ pub(crate) fn structural_call_arguments(
                 target,
                 &target_identity,
                 allow_field_path_projection && callee.supply_mode == MachineSupplyMode::CheckedBody,
+                caller_operations,
             )?);
             continue;
         }
@@ -901,28 +903,30 @@ pub(crate) fn call_claim_transfers(
         }
         let source_parameter_index = argument.source_parameter_index();
         if source_parameter_index.is_none() {
-            // Join an owned local/result move to its producing storage.
-            if (argument.source_local_declaration_ordinal().is_none()
-                && argument
-                    .source_structural_result_binding_ordinal()
-                    .is_none())
-                || (!argument.path.is_empty()
-                    && argument
-                        .source_structural_result_binding_ordinal()
-                        .is_none())
-            {
-                return None;
-            }
-            // A whole linear result moved into this call carries the
-            // producer's live claim, not an entry claim: its transfer events
-            // root at the local the producing statement bound. Publish one
-            // receipt per event so the call's outbound claim set stays exact.
-            if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
-                let (_, root) = caller_structural_results
-                    .iter()
-                    .find(|(result, _)| result.binding_ordinal == binding_ordinal)?;
+            // Permission events name current authored storage, independently
+            // of whether an initializer still supplies that home or a rebind
+            // installed its new value. Never revive the retired producer to
+            // recover the claim; the same exact event roster governs both.
+            let root = match argument.source {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                    let (_, root) = caller_structural_results
+                        .iter()
+                        .find(|(result, _)| result.binding_ordinal == binding_ordinal)?;
+                    Some(*root)
+                }
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                    Some(facts::PlaceRoot::Symbol(symbol))
+                }
+                _ if argument.source_local_declaration_ordinal().is_some()
+                    && argument.path.is_empty() =>
+                {
+                    None
+                }
+                _ => return None,
+            };
+            if let Some(root) = root {
                 let mut claims = Vec::new();
-                for event in events.iter().filter(|event| event.root == *root) {
+                for event in events.iter().filter(|event| event.root == root) {
                     if event.claim_identity == PermissionClaimIdentity::Unknown
                         || claims.contains(&event.claim_identity)
                     {

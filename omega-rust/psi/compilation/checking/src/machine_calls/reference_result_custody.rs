@@ -6,6 +6,10 @@
 //! and made its single-source recognizers a second language restriction.
 //! Construction and projected transfer retain their own source/custody joins;
 //! none of these queries creates authority or replaces borrow checking.
+//! Formation identifies the captured occurrence; current use reads its exact
+//! checked entry constraint. Neither judgment requires a future last-use
+//! release: a carrier may instead move or be replaced after evaluating a RHS.
+//! Retirement alone consumes weakening boundaries and must preserve their phase.
 
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralResultBindingPlan,
@@ -654,18 +658,23 @@ fn construction_sources_with_calls(
         {
             return None;
         }
-        return formal_record_sources(program, reference, u32::try_from(ordinal).ok()?).map(
-            |sources| {
-                sources
-                    .into_iter()
-                    .map(|value| ConstructionSource {
-                        value,
-                        holder: SymbolHandle::default(),
-                        holder_path: Vec::new(),
-                    })
-                    .collect()
+        return record_carrier_sources(
+            program,
+            reference,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(ordinal).ok()?,
             },
-        );
+        )
+        .map(|sources| {
+            sources
+                .into_iter()
+                .map(|value| ConstructionSource {
+                    value,
+                    holder: SymbolHandle::default(),
+                    holder_path: Vec::new(),
+                })
+                .collect()
+        });
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
         call_sources_with_calls(
@@ -1252,18 +1261,18 @@ pub fn terminal_call_reference_sources(
     .map(|sources| sources.into_iter().map(|source| source.value).collect())
 }
 
-/// An owned formal transports its existing reference leaves. The source path
+/// A stored carrier transports its existing reference leaves. The source path
 /// names each borrowed referent; it does not authorize creating a fresh loan
 /// or moving storage through the referent boundary.
-fn formal_record_sources(
+fn record_carrier_sources(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
-    parameter_index: u32,
+    carrier: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     fn visit(
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
-        parameter_index: u32,
+        carrier: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
         path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         output: &mut Vec<checked_trees::CheckedReferenceResultSourcePlan>,
     ) -> Option<()> {
@@ -1273,9 +1282,7 @@ fn formal_record_sources(
             output.push(checked_trees::CheckedReferenceResultSourcePlan {
                 path: path.clone(),
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
-                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index,
-                    },
+                    source: carrier.clone(),
                     path: source_path,
                     type_identity: program.normalized_type_identity(referent).into_string(),
                     access,
@@ -1288,6 +1295,20 @@ fn formal_record_sources(
             reference,
             crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
         ) {
+            return Some(());
+        }
+        if let TypeReferenceNode::FixedArray {
+            element_type,
+            length: typed_trees::types::FixedArrayLength::Literal(length),
+        } = program.type_reference_table.type_reference(reference)
+        {
+            for element_index in 0..*length {
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(element_index).ok()?,
+                ));
+                visit(program, *element_type, carrier, path, output)?;
+                path.pop();
+            }
             return Some(());
         }
         let symbol = match program.type_reference_table.type_reference(reference) {
@@ -1307,7 +1328,7 @@ fn formal_record_sources(
             path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
                 field.path_identity(),
             ));
-            visit(program, field.type_reference, parameter_index, path, output)?;
+            visit(program, field.type_reference, carrier, path, output)?;
             path.pop();
         }
         Some(())
@@ -1316,13 +1337,7 @@ fn formal_record_sources(
         return None;
     }
     let mut output = Vec::new();
-    visit(
-        program,
-        reference,
-        parameter_index,
-        &mut Vec::new(),
-        &mut output,
-    )?;
+    visit(program, reference, &carrier, &mut Vec::new(), &mut output)?;
     Some(output)
 }
 
@@ -1427,7 +1442,7 @@ pub fn local_owes_record_loans(
     is_reference_record(program, reference) && shared_borrowed_parts(program, reference).is_none()
 }
 
-/// Join each stored carrier leaf to its exact captured loan and weakening.
+/// Join each stored carrier leaf to its exact captured loan and activation.
 /// Similar lifetime spelling and UnretainedDerived alone are not authority.
 pub fn local_record_loans(
     program: &dyn crate::CheckingInput,
@@ -1494,18 +1509,7 @@ pub fn local_record_loans(
         // Both sides resolve through the declared aggregate. Owner paths use
         // symbols/ordinals while result paths use declaration identities; the
         // same typed projection walk authenticates fields and fixed slots.
-        let owner_path = loan_place_segments(program, local.type_reference, &source.path)?
-            .into_iter()
-            .map(|segment| match segment {
-                facts::PlaceSegment::Field { symbol } => {
-                    Some(checked_trees::BorrowLoanOwnerSegment::Field(symbol))
-                }
-                facts::PlaceSegment::FixedIndex { index } => {
-                    Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(index))
-                }
-                _ => None,
-            })
-            .collect::<Option<Vec<_>>>()?;
+        let owner_path = loan_owner_path(program, local.type_reference, &source.path)?;
         let mut matching = loans
             .iter()
             .filter(|(_, loan)| facts.borrow.loan_owner_path(loan) == owner_path);
@@ -1594,7 +1598,6 @@ pub fn local_record_loans(
         {
             return None;
         }
-        release_boundary(program, facts, machine, state.symbol, handle)?;
         output.push((origin.value, handle));
     }
     Some(output)
@@ -1656,6 +1659,25 @@ pub fn loan_place_segments(
     Some(segments)
 }
 
+fn loan_owner_path(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<Vec<checked_trees::BorrowLoanOwnerSegment>> {
+    loan_place_segments(program, root, path)?
+        .into_iter()
+        .map(|segment| match segment {
+            facts::PlaceSegment::Field { symbol } => {
+                Some(checked_trees::BorrowLoanOwnerSegment::Field(symbol))
+            }
+            facts::PlaceSegment::FixedIndex { index } => {
+                Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(index))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 /// Reconstruct the supplying holder independently of the surrounding operation.
 /// Its exact captured leaf must still be live when construction transfers it.
 /// This establishes correspondence, not a new reborrow: the owned carrier and
@@ -1696,11 +1718,12 @@ fn construction_source_loan(
         }
         handle
     } else {
-        let prior = local_record_loans(
+        let prior = active_record_loans(
             program,
             facts,
             machine,
             state,
+            statement_index,
             u32::try_from(prior_index).ok()?,
         )?;
         let mut matching = prior
@@ -1712,14 +1735,7 @@ fn construction_source_loan(
         }
         *handle
     };
-    if !record_loan_is_active(
-        program,
-        facts,
-        machine,
-        state.symbol,
-        statement_index,
-        prior,
-    ) {
+    if !record_loan_is_active(facts, machine, state.symbol, statement_index, prior) {
         return None;
     }
     Some(Some((prior_local.symbol, prior)))
@@ -1790,11 +1806,12 @@ fn call_actual_leaf_loan(
     {
         return None;
     }
-    let prior = local_record_loans(
+    let prior = active_record_loans(
         program,
         facts,
         machine,
         state,
+        statement_index,
         u32::try_from(prior_index).ok()?,
     )?;
     let mut matching = prior.iter().filter(|(source, _)| source.path == path);
@@ -1805,31 +1822,112 @@ fn call_actual_leaf_loan(
     Some(*handle)
 }
 
+/// The checked loan constraints available before this exact statement.
+fn statement_entry_constraints(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: u32,
+) -> Option<&[checked_trees::FlowConstraintRef]> {
+    let flow = state_flow(facts, machine, state)?;
+    let entries = facts.flow.control.statements.span(flow.statements)?;
+    let mut entries = entries
+        .iter()
+        .filter(|entry| entry.statement_index == statement_index as usize);
+    let entry = entries.next()?;
+    if entries.next().is_some() {
+        return None;
+    }
+    facts
+        .flow
+        .contexts
+        .constraint_refs
+        .span(entry.entry_constraints)
+}
+
 fn record_loan_is_active(
-    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: u32,
     loan: arena::Handle<checked_trees::BorrowLoanFact>,
 ) -> bool {
-    let Some(flow) = state_flow(facts, machine, state) else {
-        return false;
-    };
-    let Some(entries) = facts.flow.control.statements.span(flow.statements) else {
-        return false;
-    };
-    let mut entries = entries
-        .iter()
-        .filter(|entry| entry.statement_index == statement_index as usize);
-    let Some(entry) = entries.next() else {
-        return false;
-    };
-    entries.next().is_none()
-        && facts.flow.contexts.constraint_refs.span(entry.entry_constraints).is_some_and(|constraints|
+    statement_entry_constraints(facts, machine, state, statement_index).is_some_and(|constraints|
             constraints.iter().filter(|constraint| matches!(constraint.kind, checked_trees::FlowConstraintKind::BorrowLoan { loan: active } if active == loan)).count() == 1)
         && facts.borrow.loans.get(loan).statement_index < statement_index as usize
-        && release_boundary(program, facts, machine, state, loan).is_some_and(|end| statement_index < end)
+}
+
+/// Join the current carrier's declared leaves to the active captured occurrences.
+/// Its declaration identifies storage and type, not the initializer's lifetime:
+/// replacement can install a new occurrence in that same home. Operand custody
+/// reads the checked prefix once instead of replaying an overwritten initializer.
+fn active_record_loans(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    declaration_statement: u32,
+) -> Option<
+    Vec<(
+        checked_trees::CheckedReferenceResultSourcePlan,
+        arena::Handle<checked_trees::BorrowLoanFact>,
+    )>,
+> {
+    if declaration_statement >= statement_index {
+        return None;
+    }
+    let StatementNode::LocalData(local) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(declaration_statement as usize)?
+    else {
+        return None;
+    };
+    let sources = record_carrier_sources(
+        program,
+        local.type_reference,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: local.symbol,
+        },
+    )?;
+    let constraints = statement_entry_constraints(facts, machine, state.symbol, statement_index)?;
+    let loans = constraints
+        .iter()
+        .filter_map(|constraint| {
+            let checked_trees::FlowConstraintKind::BorrowLoan { loan } = constraint.kind else {
+                return None;
+            };
+            (facts.borrow.loans.get(loan).owner_symbol == local.symbol).then_some(loan)
+        })
+        .collect::<Vec<_>>();
+    if sources.len() != loans.len() {
+        return None;
+    }
+    let mut output = Vec::new();
+    for source in sources {
+        let owner_path = loan_owner_path(program, local.type_reference, &source.path)?;
+        let mut matching = loans.iter().copied().filter(|handle| {
+            let loan = facts.borrow.loans.get(*handle);
+            facts.borrow.loan_owner_path(loan) == owner_path
+        });
+        let handle = matching.next()?;
+        let loan = facts.borrow.loans.get(handle);
+        let access = match source.source.access {
+            CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
+            CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
+            CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
+            CheckedStructuralAccess::Owned => return None,
+        };
+        if matching.next().is_some()
+            || loan.statement_index >= statement_index as usize
+            || loan.kind != access
+        {
+            return None;
+        }
+        output.push((source, handle));
+    }
+    Some(output)
 }
 
 /// Whole owned operands retain every captured leaf until their consuming call.
@@ -1842,26 +1940,20 @@ pub fn owned_record_argument(
     source_statement: u32,
 ) -> bool {
     source_statement < statement_index
-        && local_record_loans(program, facts, machine, state, source_statement).is_some_and(
-            |loans| {
-                !loans.is_empty()
-                    && loans.iter().all(|(_, loan)| {
-                        record_loan_is_active(
-                            program,
-                            facts,
-                            machine,
-                            state.symbol,
-                            statement_index,
-                            *loan,
-                        )
-                    })
-            },
+        && active_record_loans(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            source_statement,
         )
+        .is_some_and(|loans| !loans.is_empty())
 }
 
 /// Resolve an authored member projection against a record type, yielding the
 /// field-identity path and the projected type. The spelling matches the leaf
-/// paths `formal_record_sources` and `local_record_loans` reconstruct, so one
+/// paths `record_carrier_sources` and `local_record_loans` reconstruct, so one
 /// resolver keeps those joins from drifting.
 pub(crate) fn declared_field_path<'a>(
     program: &dyn crate::CheckingInput,
@@ -1917,22 +2009,20 @@ pub fn projected_record_argument(
 ) -> bool {
     !path.is_empty()
         && source_statement < statement_index
-        && local_record_loans(program, facts, machine, state, source_statement).is_some_and(
-            |loans| {
-                !loans.is_empty()
-                    && loans.iter().all(|(source, loan)| {
-                        source.path.starts_with(path)
-                            && record_loan_is_active(
-                                program,
-                                facts,
-                                machine,
-                                state.symbol,
-                                statement_index,
-                                *loan,
-                            )
-                    })
-            },
+        && active_record_loans(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            source_statement,
         )
+        .is_some_and(|loans| {
+            !loans.is_empty()
+                && loans
+                    .iter()
+                    .all(|(source, _)| source.path.starts_with(path))
+        })
 }
 
 /// A projected operand may root at a nested call's anonymous result instead
@@ -2000,14 +2090,7 @@ fn sources_replay_active_leaf_loans(
                     source,
                 )
                 .is_some_and(|loan| {
-                    record_loan_is_active(
-                        program,
-                        facts,
-                        machine,
-                        state.symbol,
-                        statement_index,
-                        loan,
-                    )
+                    record_loan_is_active(facts, machine, state.symbol, statement_index, loan)
                 })
         })
 }
@@ -2110,26 +2193,16 @@ pub fn record_argument(
     {
         return None;
     }
-    let loans = local_record_loans(program, facts, machine, state, result.statement_index)?;
+    let loans = active_record_loans(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        result.statement_index,
+    )?;
     let (source, loan) = loans.iter().find(|(source, _)| source.path == path)?;
-    let flow = state_flow(facts, machine, state.symbol)?;
-    let mut entries = facts
-        .flow
-        .control
-        .statements
-        .span(flow.statements)?
-        .iter()
-        .filter(|entry| entry.statement_index == statement_index as usize);
-    let entry = entries.next()?;
-    if entries.next().is_some()
-        || facts.flow.contexts.constraint_refs.span(entry.entry_constraints)?.iter()
-            .filter(|constraint| matches!(constraint.kind, checked_trees::FlowConstraintKind::BorrowLoan { loan: active } if active == *loan))
-            .count() != 1
-    {
-        return None;
-    }
-    if statement_index <= result.statement_index
-        || statement_index >= release_boundary(program, facts, machine, state.symbol, *loan)?
+    if !record_loan_is_active(facts, machine, state.symbol, statement_index, *loan)
         || source.source.type_identity != program.normalized_type_identity(referent).as_str()
     {
         return None;

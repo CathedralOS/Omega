@@ -196,6 +196,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     false,
                     Some(ExpectedCallValueResult::Structural(&result)),
                     &scoped_results,
+                    &preparation,
                     trace,
                 )?;
                 let mut operation = bind_structural_call_result(operation, result.clone())?;
@@ -724,6 +725,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
             false,
             Some(ExpectedCallValueResult::Structural(&result)),
             structural_results,
+            operations,
             trace,
         )?;
         let operation = bind_structural_call_result(operation, result.clone())?;

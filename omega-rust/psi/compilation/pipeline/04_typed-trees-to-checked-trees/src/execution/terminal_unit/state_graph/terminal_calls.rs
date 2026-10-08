@@ -321,6 +321,7 @@ pub(super) fn arm_call(
                 scalar_result.map(|result| ExpectedCallValueResult::Scalar(result.primitive_type))
             }),
         &structural_results,
+        &preparation,
         trace,
     )?;
     trace.phase("state graph: terminator: terminal call arm: result binding");
