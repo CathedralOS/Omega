@@ -64,6 +64,7 @@ pub use proof_contracts::parameter_domains::{
     parameter_domain_constraints, parameter_domain_constraints_with_substitutions,
 };
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
+pub use value_custody::type_shapes::exact_constrained_shells;
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
 };

@@ -191,7 +191,7 @@ pub(crate) fn head_data_symbol(
 /// The constraint slices of each `Constrained` shell `handle` carries,
 /// reached through `Reference` peels, outermost first. `None` when any shell
 /// demands a non-`Exact` arithmetic domain.
-pub(crate) fn exact_constrained_shells<'p>(
+pub fn exact_constrained_shells<'p>(
     program: &'p dyn crate::CheckingInput,
     mut handle: TypeReferenceHandle,
 ) -> Option<Vec<&'p [TypeConstraintNode]>> {

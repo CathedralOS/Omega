@@ -321,38 +321,18 @@ fn enforced_literal_range_minimum(
     program: &dyn ::validation::CheckingInput,
     handle: typed_trees::types::TypeReferenceHandle,
 ) -> Option<i64> {
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            enforced_literal_range_minimum(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let constraints = program.type_reference_table.constraints(*constraints);
-            if constraints.iter().any(|constraint| {
-                matches!(
-                    constraint,
-                    TypeConstraintNode::ArithmeticDomain(domain)
-                        if *domain != numerics::arithmetic::ArithmeticDomain::Exact
-                )
-            }) {
-                return None;
-            }
-            constraints
-                .iter()
-                .find_map(|constraint| match constraint {
-                    TypeConstraintNode::Range { minimum, .. } => {
-                        validation::closed_integer_range_bound(program, *minimum)
-                            .and_then(|value| value.to_i64())
-                    }
-                    _ => None,
-                })
-                .or_else(|| enforced_literal_range_minimum(program, *base_type))
-        }
-        _ => None,
-    }
+    use typed_trees::types::TypeConstraintNode;
+    validation::exact_constrained_shells(program, handle)?
+        .iter()
+        .find_map(|constraints| {
+            constraints.iter().find_map(|constraint| match constraint {
+                TypeConstraintNode::Range { minimum, .. } => {
+                    validation::closed_integer_range_bound(program, *minimum)
+                        .and_then(|value| value.to_i64())
+                }
+                _ => None,
+            })
+        })
 }
 
 /// Route (b) for CALL arguments: same floor, machine resolved from the
