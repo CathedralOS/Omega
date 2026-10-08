@@ -211,10 +211,6 @@ impl CompileRequest {
         self
     }
 
-    pub fn with_package_sources(mut self, sources: Arc<PackageCompilationSourceInputs>) -> Self {
-        self.shared.package_sources = Some(sources);
-        self
-    }
 
     /// Supply the package's sources and accepted input policy once. Each
     /// target independently admits the resulting package custody.

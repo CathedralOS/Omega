@@ -12,7 +12,6 @@ use target::NativeApplicationMetadata;
 
 use crate::{
     OptimizationRollbackReceipt, RetainedNativeArtifact, RetainedTerminalArtifact,
-    TerminalNativeRealizationProposal,
 };
 use artifacts::compile_timings::PhaseTiming;
 use native_artifact::{
@@ -251,21 +250,6 @@ impl CompileReport {
         self.build_observation
     }
 
-    /// Transfer companion custody when consuming a retained primary artifact
-    /// into another product. Artifact-only reports cannot lose their payload.
-    pub fn take_build_outputs(&mut self) -> Option<crate::RetainedBuildOutputs> {
-        if matches!(
-            self.product,
-            CompileProduct::TerminalArtifact(_)
-                | CompileProduct::RetainedNativeArtifact(_)
-                | CompileProduct::RetainedDynamicElfArtifact(_)
-        ) && !self.wrote_output
-        {
-            self.build_outputs.take()
-        } else {
-            None
-        }
-    }
 
     /// Record companions after their package owner has published them.
     pub(crate) fn record_build_output_publication(mut self) -> Result<Self, String> {
@@ -635,21 +619,7 @@ impl CompileReport {
         Ok(self)
     }
 
-    pub fn terminal_callback_placements(
-        &self,
-    ) -> Option<&[backend_plan::BoundNominalCallbackPlacement]> {
-        self.retained_terminal_artifact()
-            .map(RetainedTerminalArtifact::callback_placements)
-    }
 
-    /// Borrow the target-constrained native proposal without detaching it from
-    /// the retained Terminal product or its report custody.
-    pub fn terminal_native_realization_proposal(
-        &self,
-    ) -> Option<&TerminalNativeRealizationProposal> {
-        self.retained_terminal_artifact()
-            .and_then(RetainedTerminalArtifact::native_realization_proposal)
-    }
 
     /// Transfer the complete Terminal product without dropping its callback
     /// sidecar. There is deliberately no consuming artifact-only projection.
@@ -660,14 +630,6 @@ impl CompileReport {
         }
     }
 
-    /// Transfer the complete non-clonable pre-publication native payload out
-    /// of this report. Other requested products return `None`.
-    pub fn into_retained_native_artifact(self) -> Option<RetainedNativeArtifact> {
-        match self.product {
-            CompileProduct::RetainedNativeArtifact(product) => Some(product.artifact),
-            _ => None,
-        }
-    }
 
     pub fn executable_publication(&self) -> Option<&ExecutablePublicationReceipt> {
         match &self.product {
@@ -689,13 +651,6 @@ impl CompileReport {
         }
     }
 
-    /// The flat-file receipt of a published dynamically linked ELF output.
-    pub fn dynamic_elf_publication(&self) -> Option<&DynamicElfPublicationReceipt> {
-        match &self.product {
-            CompileProduct::DynamicElfExecutable(product) => Some(&product.executable),
-            _ => None,
-        }
-    }
 
     /// Returns the installed `.app` package root only after independently
     /// replaying the complete report custody checks, including the
