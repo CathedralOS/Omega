@@ -572,15 +572,9 @@ fn collect_lifetime_bindings(
                 conflict,
             );
         }
-        (
-            TypeReferenceNode::Constrained {
-                base_type: required,
-                ..
-            },
-            TypeReferenceNode::Constrained {
-                base_type: actual, ..
-            },
-        ) => collect_lifetime_bindings(program, *required, *actual, parameters, bindings, conflict),
+        typed_trees::constrained_type_reference_pair!(required, actual) => {
+            collect_lifetime_bindings(program, *required, *actual, parameters, bindings, conflict)
+        }
         (TypeReferenceNode::Constrained { base_type, .. }, _) => {
             collect_lifetime_bindings(program, *base_type, actual, parameters, bindings, conflict)
         }
