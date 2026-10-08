@@ -226,4 +226,125 @@ pub(crate) mod test_support {
         let descriptors = plan_elf_dynamic_section_descriptors(payloads).unwrap();
         plan_elf_procedure_linkage_relocations(descriptors).unwrap()
     }
+    /// One dynamic-executable import entry shared by the dynamic-table
+    /// fixtures.
+    #[derive(Clone, Copy)]
+    pub(crate) struct DynamicImportFixture {
+        pub(crate) object: &'static [u8],
+        pub(crate) symbol: &'static [u8],
+        pub(crate) version: &'static [u8],
+        pub(crate) instruction_offsets: &'static [usize],
+    }
+
+    /// The imported-symbol image and Linux interpreter the dynamic-table
+    /// fixtures stage before their own descriptor or tag assertions.
+    pub(crate) fn dynamic_import_inputs(
+        target: TargetProfile,
+        imports: &[DynamicImportFixture],
+        symbol_prefix: &'static str,
+        locator_expect: &'static str,
+        interpreter_expect: &'static str,
+    ) -> crate::PlannedElfDynamicLinkInputs {
+        use arena::Handle;
+        use image::{
+            FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
+            FinalImageSection, FinalImageSymbol,
+        };
+        use object_file::{RelocationKind, SymbolKind};
+        use target::{ForeignLocatorCandidate, normalize_foreign_locator};
+
+        let relocation_count = imports
+            .iter()
+            .map(|fixture| fixture.instruction_offsets.len())
+            .sum();
+        let mut image = FinalImage::with_capacity(
+            target.native_target(),
+            FinalImageMemory {
+                text: vec![0; 64],
+                ..FinalImageMemory::default()
+            },
+            Handle::invalid(),
+            imports.len(),
+            imports.len(),
+            relocation_count,
+        );
+        for (index, fixture) in imports.iter().enumerate() {
+            let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
+                name: format!("{symbol_prefix}{index}"),
+                section: FinalImageSection::None,
+                offset: 0,
+                size: 0,
+                kind: SymbolKind::Import,
+            });
+            image.symbol_table.imports.insert(FinalImageImport {
+                symbol_handle,
+                import: FinalImageImportPlan::Normalized(
+                    normalize_foreign_locator(
+                        ForeignLocatorCandidate::ElfVersioned {
+                            object: fixture.object.to_vec(),
+                            symbol: fixture.symbol.to_vec(),
+                            version: fixture.version.to_vec(),
+                        },
+                        target,
+                    )
+                    .expect(locator_expect),
+                ),
+            });
+            for instruction_offset in fixture.instruction_offsets {
+                let (relocation_offset, kind) = match target {
+                    TargetProfile::LinuxX64 => {
+                        image.memory.text[*instruction_offset] = 0xe8;
+                        (instruction_offset + 1, RelocationKind::X86_64Relative32)
+                    }
+                    TargetProfile::LinuxArm64 => {
+                        image.memory.text[*instruction_offset..*instruction_offset + 4]
+                            .copy_from_slice(&[0, 0, 0, 0x94]);
+                        (*instruction_offset, RelocationKind::Aarch64Branch26)
+                    }
+                    _ => unreachable!("dynamic-table fixtures use a Linux target"),
+                };
+                image
+                    .relocation_table
+                    .relocations
+                    .insert(FinalImageRelocation {
+                        section: FinalImageSection::Text,
+                        offset: relocation_offset,
+                        byte_width: 4,
+                        symbol_handle,
+                        addend: 0,
+                        kind,
+                    });
+            }
+        }
+        let interpreter_path = match target {
+            TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2".as_slice(),
+            TargetProfile::LinuxArm64 => b"/lib/ld-linux-\xfb-aarch64.so.1".as_slice(),
+            _ => unreachable!("dynamic-table fixtures use a Linux target"),
+        };
+        let interpreter = normalize_elf_interpreter_plan(interpreter_path.to_vec(), target)
+            .expect(interpreter_expect);
+        plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link inputs")
+    }
+
+    /// The section/descriptor/linkage/tag staging chain the dynamic-table
+    /// fixtures replay after building their import image.
+    pub(crate) fn dynamic_tag_plan(
+        inputs: crate::PlannedElfDynamicLinkInputs,
+    ) -> crate::ValidatedElfDynamicTagPlan {
+        use crate::{
+            plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections, plan_elf_dynamic_tags,
+            plan_elf_procedure_linkage_relocations, plan_elf_procedure_linkage_section_descriptors,
+            plan_elf_procedure_linkage_templates, serialize_elf_dynamic_sections,
+        };
+        let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");
+        let payloads = serialize_elf_dynamic_sections(sections).expect("valid dynamic payloads");
+        let base = plan_elf_dynamic_section_descriptors(payloads).expect("valid base descriptors");
+        let linkage =
+            plan_elf_procedure_linkage_relocations(base).expect("valid procedure linkage");
+        let templates =
+            plan_elf_procedure_linkage_templates(linkage).expect("valid linkage templates");
+        let descriptors = plan_elf_procedure_linkage_section_descriptors(templates)
+            .expect("valid linkage descriptors");
+        plan_elf_dynamic_tags(descriptors).expect("valid semantic dynamic tags")
+    }
 }

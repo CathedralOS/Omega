@@ -389,41 +389,19 @@ mod tests {
         plan_elf_dynamic_table_section_descriptor, validate_candidate, validate_contents,
         validate_name,
     };
-    use crate::{
-        plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
-        plan_elf_dynamic_sections, plan_elf_dynamic_tags, plan_elf_procedure_linkage_relocations,
-        plan_elf_procedure_linkage_section_descriptors, plan_elf_procedure_linkage_templates,
-        serialize_elf_dynamic_sections, serialize_elf_dynamic_table,
-    };
-    use arena::Handle;
-    use image::{
-        FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-        FinalImageSection, FinalImageSymbol,
-    };
-    use object_file::{RelocationKind, SymbolKind};
-    use target::{
-        ForeignLocatorCandidate, TargetProfile, normalize_elf_interpreter_plan,
-        normalize_foreign_locator,
-    };
-
-    #[derive(Clone, Copy)]
-    struct ImportFixture {
-        object: &'static [u8],
-        symbol: &'static [u8],
-        version: &'static [u8],
-        instruction_offsets: &'static [usize],
-    }
+    use crate::serialize_elf_dynamic_table;
+    use target::TargetProfile;
 
     const FIRST_SITES: &[usize] = &[0, 32];
     const SECOND_SITES: &[usize] = &[16];
-    const IMPORTS: [ImportFixture; 2] = [
-        ImportFixture {
+    const IMPORTS: [crate::test_support::DynamicImportFixture; 2] = [
+        crate::test_support::DynamicImportFixture {
             object: b"liba\xff.so",
             symbol: b"alpha\xfe",
             version: b"V1\xfd",
             instruction_offsets: FIRST_SITES,
         },
-        ImportFixture {
+        crate::test_support::DynamicImportFixture {
             object: b"libb.so",
             symbol: b"beta",
             version: b"V2",
@@ -431,95 +409,18 @@ mod tests {
         },
     ];
 
-    fn interpreter_path(target: TargetProfile) -> &'static [u8] {
-        match target {
-            TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2",
-            TargetProfile::LinuxArm64 => b"/lib/ld-linux-\xfb-aarch64.so.1",
-            _ => unreachable!("dynamic descriptor fixture uses a Linux target"),
-        }
-    }
-
     fn payload(
         target: TargetProfile,
-        imports: &[ImportFixture],
+        imports: &[crate::test_support::DynamicImportFixture],
     ) -> ValidatedElfDynamicTablePayload {
-        let relocation_count = imports
-            .iter()
-            .map(|fixture| fixture.instruction_offsets.len())
-            .sum();
-        let mut image = FinalImage::with_capacity(
-            target.native_target(),
-            FinalImageMemory {
-                text: vec![0; 64],
-                ..FinalImageMemory::default()
-            },
-            Handle::invalid(),
-            imports.len(),
-            imports.len(),
-            relocation_count,
-        );
-        for (index, fixture) in imports.iter().enumerate() {
-            let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-                name: format!("__omega_dynamic_descriptor_import_{index}"),
-                section: FinalImageSection::None,
-                offset: 0,
-                size: 0,
-                kind: SymbolKind::Import,
-            });
-            image.symbol_table.imports.insert(FinalImageImport {
-                symbol_handle,
-                import: FinalImageImportPlan::Normalized(
-                    normalize_foreign_locator(
-                        ForeignLocatorCandidate::ElfVersioned {
-                            object: fixture.object.to_vec(),
-                            symbol: fixture.symbol.to_vec(),
-                            version: fixture.version.to_vec(),
-                        },
-                        target,
-                    )
-                    .expect("valid dynamic-descriptor locator"),
-                ),
-            });
-            for instruction_offset in fixture.instruction_offsets {
-                let (relocation_offset, kind) = match target {
-                    TargetProfile::LinuxX64 => {
-                        image.memory.text[*instruction_offset] = 0xe8;
-                        (instruction_offset + 1, RelocationKind::X86_64Relative32)
-                    }
-                    TargetProfile::LinuxArm64 => {
-                        image.memory.text[*instruction_offset..*instruction_offset + 4]
-                            .copy_from_slice(&[0, 0, 0, 0x94]);
-                        (*instruction_offset, RelocationKind::Aarch64Branch26)
-                    }
-                    _ => unreachable!(),
-                };
-                image
-                    .relocation_table
-                    .relocations
-                    .insert(FinalImageRelocation {
-                        section: FinalImageSection::Text,
-                        offset: relocation_offset,
-                        byte_width: 4,
-                        symbol_handle,
-                        addend: 0,
-                        kind,
-                    });
-            }
-        }
-        let interpreter = normalize_elf_interpreter_plan(interpreter_path(target).to_vec(), target)
-            .expect("valid dynamic-descriptor interpreter");
-        let inputs = plan_elf_dynamic_link_inputs(image, interpreter).expect("valid link inputs");
-        let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");
-        let payloads = serialize_elf_dynamic_sections(sections).expect("valid payloads");
-        let descriptors =
-            plan_elf_dynamic_section_descriptors(payloads).expect("valid base descriptors");
-        let linkage =
-            plan_elf_procedure_linkage_relocations(descriptors).expect("valid linkage plan");
-        let templates =
-            plan_elf_procedure_linkage_templates(linkage).expect("valid linkage templates");
-        let descriptors = plan_elf_procedure_linkage_section_descriptors(templates)
-            .expect("valid linkage descriptors");
-        let tags = plan_elf_dynamic_tags(descriptors).expect("valid dynamic tags");
+        let tags =
+            crate::test_support::dynamic_tag_plan(crate::test_support::dynamic_import_inputs(
+                target,
+                imports,
+                "__omega_dynamic_descriptor_import_",
+                "valid dynamic-descriptor locator",
+                "valid dynamic-descriptor interpreter",
+            ));
         serialize_elf_dynamic_table(tags).expect("valid dynamic payload")
     }
 
