@@ -276,10 +276,10 @@ pub(super) fn establish(
                 } else if bare_carrier && argument.path.is_empty() {
                     live.references
                         .get(&(argument.place, Vec::new()))
-                        .filter(|leaf| leaf.result.structural_type == nested)
+                        .filter(|leaf| leaf.contract.structural_type() == nested)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                        .result
-                        .multiplicity
+                        .contract
+                        .multiplicity()
                 } else if let Some(home) = live.structural_homes.get(&argument.place) {
                     if types.subtree(home.structural_type(), &argument.path) != Some(nested)
                         || home.access() != StructuralAccess::Owned

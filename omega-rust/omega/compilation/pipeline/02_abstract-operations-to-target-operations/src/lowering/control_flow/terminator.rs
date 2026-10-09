@@ -77,8 +77,8 @@ fn owned_root_type(
             .map(|parameter| parameter.structural_type);
     }
     live.references.get(&(place, Vec::new())).and_then(|leaf| {
-        (leaf.result.multiplicity == StructuralMultiplicity::Affine)
-            .then_some(leaf.result.structural_type)
+        (leaf.contract.multiplicity() == StructuralMultiplicity::Affine)
+            .then_some(leaf.contract.structural_type())
     })
 }
 
@@ -276,10 +276,12 @@ pub(super) fn lower_terminator(
             .block_entry(edge.target)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         super::transfers::re_home_bound_references(
+            function,
+            structural_types,
             &edge.structural_bindings,
             &destination.structural_parameters,
             live,
-        );
+        )?;
         Ok(TargetControlSuccessor {
             psi_edge: edge.psi_edge,
             target: edge.target,
@@ -642,10 +644,12 @@ pub(super) fn lower_terminator(
                 .block_entry(*target)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             super::transfers::re_home_bound_references(
+                function,
+                structural_types,
                 structural_bindings,
                 &destination.structural_parameters,
                 live,
-            );
+            )?;
             let cleanup_actions = cleanup(live, cleanup_actions)?;
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::Jump {

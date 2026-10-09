@@ -35,37 +35,94 @@ pub(super) fn validate_parameters(
 
 /// Owned edge values re-home only loan leaves beneath their selected paths.
 /// Every source is captured before changing keys, including back-edge swaps.
-/// Formation identity, result row, root, parent and referent stay put.
+/// Formation rows, backing roots and referents stay put. Receiving parameter
+/// occurrences get their declared contract; all parent links follow the same
+/// simultaneous correspondence so no producer descriptor is invented.
 pub(super) fn re_home_bound_references(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
     bindings: &[abstract_operations::AbstractStructuralBinding],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     live: &mut LiveDefinitions,
-) {
+) -> Result<(), LoweringError> {
+    if bindings.len() != parameters.len() {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
     let mut moved = Vec::new();
+    let mut selected_sources = BTreeSet::new();
+    let mut selected_identities = BTreeSet::new();
+    let mut destinations = BTreeSet::new();
     for (binding, parameter) in bindings.iter().zip(parameters) {
+        if binding.parameter != parameter.place {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
         if parameter.access != terminal_psi::StructuralAccess::Owned
             || binding.argument.access != terminal_psi::StructuralAccess::Owned
         {
             continue;
         }
-        for ((carrier, path), custody) in &live.references {
-            if *carrier == binding.argument.place
-                && let Some(relative) = path.strip_prefix(binding.argument.path.as_slice())
+        // Required declaration leaves, not whichever rows happen to survive,
+        // define the selected roster. Stage the complete simultaneous move
+        // before removing anything, so swaps never read a replaced descriptor.
+        let paths = references::leaf_paths(types, parameter.structural_type, live.references.len())
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+        for relative in &paths {
+            let mut selected = binding.argument.path.clone();
+            selected.extend_from_slice(relative);
+            let source = (binding.argument.place, selected);
+            let destination = (parameter.place, relative.clone());
+            let custody = live
+                .references
+                .get(&source)
+                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+            if references::leaf_referent(types, parameter.structural_type, relative)
+                != Some(custody.referent)
+                || !selected_sources.insert(source.clone())
+                || !selected_identities.insert(custody.identity.clone())
+                || !destinations.insert(destination.clone())
             {
-                moved.push((
-                    (*carrier, path.clone()),
-                    (parameter.place, relative.to_vec()),
-                    custody.clone(),
-                ));
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            moved.push((source, destination, custody.clone(), parameter.clone()));
+        }
+        if live.references.keys().any(|(carrier, path)| {
+            *carrier == binding.argument.place
+                && path
+                    .strip_prefix(binding.argument.path.as_slice())
+                    .is_some_and(|relative| !paths.iter().any(|expected| expected == relative))
+        }) {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
-    for (source, _, _) in &moved {
+    if destinations.iter().any(|destination| {
+        live.references.contains_key(destination) && !selected_sources.contains(destination)
+    }) {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    for (source, _, _, _) in &moved {
         live.references.remove(source);
     }
-    for (_, destination, custody) in moved {
+    let identities: Vec<_> = moved
+        .iter()
+        .map(|(_, destination, custody, _)| (custody.identity.clone(), destination.clone()))
+        .collect();
+    for (_, destination, mut custody, parameter) in moved {
+        custody.identity = destination.clone();
+        custody.contract = references::ReferenceCarrierContract::Parameter(parameter);
         live.references.insert(destination, custody);
     }
+    // Parent and child bindings are simultaneous. A transported child retains
+    // the receiving occurrence of its transported parent, not the old home.
+    for leaf in live.references.values_mut() {
+        for parent in &mut leaf.parents {
+            if let Some((_, destination)) = identities.iter().find(|(source, _)| source == parent) {
+                *parent = destination.clone();
+            }
+        }
+        leaf.parents.sort();
+        leaf.parents.dedup();
+    }
+    Ok(())
 }
 
 pub(super) fn enter(block: &AbstractBlockEntry, live: &mut LiveDefinitions) {
@@ -182,8 +239,7 @@ fn address_join_argument(
             && (home.qualifications().is_empty() || owner_loan)
             && home.projected_qualifications().is_empty())
         .then(|| home.structural_type())
-    } else if let Some(source) = function.structural_parameter(argument.place)
-    {
+    } else if let Some(source) = function.structural_parameter(argument.place) {
         (loan_access_permitted(source.access, parameter.access)
             && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
             && source.qualifications.is_empty()
@@ -278,7 +334,8 @@ pub(super) fn validate_successors(
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let place = binding.argument.place;
-                let source_type = function.structural_parameter(place)
+                let source_type = function
+                    .structural_parameter(place)
                     .map(|source| source.structural_type)
                     .or_else(|| {
                         live.structural_homes

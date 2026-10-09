@@ -491,7 +491,7 @@ pub(in crate::legalization) fn read(
                     | terminal_psi::StructuralAccess::MutableBorrow),
             }) => {
                 let leaf = custody.readable_leaf(place, &[])?;
-                if &leaf.result != result || leaf.referent != *referent {
+                if !leaf.matches_operation_result(result) || leaf.referent != *referent {
                     return None;
                 }
                 through_reference = true;

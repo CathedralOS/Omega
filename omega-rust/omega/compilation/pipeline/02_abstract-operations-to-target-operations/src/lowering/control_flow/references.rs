@@ -120,11 +120,10 @@ pub(super) struct ReferenceCustody {
     pub(super) root: ReferenceRoot,
     /// All possible immediate parent identities; selection suspends each parent.
     pub(super) parents: Vec<(PlaceId, Vec<StructuralPathSegment>)>,
-    /// The operation that formed this leaf's carrier identity, when the leaf
-    /// descends from a body operation rather than an ingress parameter.
-    pub(super) operation: Option<OperationId>,
-    /// The structural result row that published this leaf's carrier identity.
-    pub(super) result: StructuralOperationResult,
+    /// The actual current carrier declaration, not a selected producer row.
+    pub(super) contract: ReferenceCarrierContract,
+    /// Every admitted formation that can arrive at this occurrence.
+    pub(super) formations: Vec<ReferenceFormation>,
     /// This leaf's primitive referent type.
     pub(super) referent: StructuralTypeId,
 }
@@ -627,7 +626,7 @@ fn source_contract(
     }
     live.references
         .get(&(place, Vec::new()))
-        .map(|leaf| leaf.result.structural_type)
+        .map(|leaf| leaf.contract.structural_type())
 }
 
 /// Borrow storage through its published contract, regardless of whether it
@@ -997,6 +996,12 @@ enum CallRegion {
 }
 
 mod access_paths;
+mod copies;
+pub(super) use copies::copied_leaves;
+mod occurrences;
+pub(super) use occurrences::{ReferenceCarrierContract, ReferenceFormation};
+mod arrivals;
+pub(super) use arrivals::merge_arrivals;
 
 /// Whether `place` is currently suspended as a live loan's referent root.
 /// Cleanup cannot discard storage that an outstanding carrier still names.
@@ -1188,6 +1193,26 @@ pub(super) fn check_operation_access(
     place: PlaceId,
 ) -> bool {
     match operation {
+        AbstractOperation::StructuralLeafCopy {
+            psi_operation,
+            result,
+            source,
+            path,
+        } => {
+            // Descriptor copies are observations of carrier storage, not owned
+            // accesses to its suspended referent. The copy owner authenticates
+            // every selected shared leaf before publishing fresh occurrences.
+            if contains_reference(types, result.structural_type) {
+                return copied_leaves(function, types, live, result, *source, path, *psi_operation)
+                    .is_err();
+            }
+            match path {
+                abstract_operations::StructuralCopyPath::Ordinary(path) => {
+                    check_projected_shared_access(function, live, types, place, path, None)
+                }
+                abstract_operations::StructuralCopyPath::Case(_) => check_root_access(live, place),
+            }
+        }
         // Atomic mutation is sanctioned shared access to the original cell,
         // not replacement of its enclosing record or stored descriptors.
         AbstractOperation::AtomicEvent { event, .. } => event.location().is_some_and(|location| {
@@ -1540,8 +1565,17 @@ pub(super) fn establish(
         identity: (result.place, Vec::new()),
         root,
         parents,
-        operation: Some(*psi_operation),
-        result: result.clone(),
+        contract: ReferenceCarrierContract::Operation {
+            operation: *psi_operation,
+            result: result.clone(),
+        },
+        formations: vec![ReferenceFormation {
+            identity: (result.place, Vec::new()),
+            contract: ReferenceCarrierContract::Operation {
+                operation: *psi_operation,
+                result: result.clone(),
+            },
+        }],
         referent,
     };
     live.references.insert((result.place, Vec::new()), custody);
@@ -1844,8 +1878,17 @@ pub(super) fn call_results(
                     identity: (result.place, mapping.path.clone()),
                     root,
                     parents,
-                    operation: Some(psi_operation),
-                    result: result.clone(),
+                    contract: ReferenceCarrierContract::Operation {
+                        operation: psi_operation,
+                        result: result.clone(),
+                    },
+                    formations: vec![ReferenceFormation {
+                        identity: (result.place, mapping.path.clone()),
+                        contract: ReferenceCarrierContract::Operation {
+                            operation: psi_operation,
+                            result: result.clone(),
+                        },
+                    }],
                     referent: expected,
                 }
             };
@@ -1857,8 +1900,7 @@ pub(super) fn call_results(
             // The selected descriptor is one result resource, conservatively
             // pinning the complete union of the consumed input permissions.
             leaf.identity = (result.place, mapping.path.clone());
-            leaf.result = result.clone();
-            leaf.operation = Some(psi_operation);
+            leaf.reform(psi_operation, result);
         }
         if !identities.insert(leaf.identity.clone())
             || roots.iter().any(|(root, prior_access)| {
@@ -2101,16 +2143,11 @@ pub(super) fn entry(
                     identity,
                     root: ReferenceRoot::Ingress(parameter.place, path.clone()),
                     parents: Vec::new(),
-                    operation: None,
-                    result: StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
-                        place: parameter.place,
-                        structural_type: parameter.structural_type,
-                        multiplicity: parameter.multiplicity,
-                        qualifications: parameter.qualifications.clone(),
-                        projected_qualifications: parameter.projected_qualifications.clone(),
-                        claims: Vec::new(),
-                    },
+                    contract: ReferenceCarrierContract::Parameter(parameter.clone()),
+                    formations: vec![ReferenceFormation {
+                        identity: (parameter.place, path.clone()),
+                        contract: ReferenceCarrierContract::Parameter(parameter.clone()),
+                    }],
                     referent: leaf_referent(types, parameter.structural_type, &path)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                 },

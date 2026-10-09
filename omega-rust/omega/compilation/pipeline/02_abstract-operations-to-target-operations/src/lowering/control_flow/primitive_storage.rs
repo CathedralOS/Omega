@@ -372,7 +372,7 @@ pub(super) fn lower(
                 (*structural_type, StructuralAccess::SharedBorrow)
             } else if let Some(custody) = live.references.get(&(place, Vec::new())).and_then(
                 |custody| match types
-                    .get(&custody.result.structural_type)
+                    .get(&custody.contract.structural_type())
                     .map(|declaration| &declaration.shape)
                 {
                     Some(StructuralTypeShape::Reference {
@@ -386,7 +386,7 @@ pub(super) fn lower(
                 // custody; choosing a static origin would lose a callee's
                 // runtime selection among several admissible referents.
                 let (referent, access) = match types
-                    .get(&custody.result.structural_type)
+                    .get(&custody.contract.structural_type())
                     .map(|declaration| &declaration.shape)
                 {
                     Some(StructuralTypeShape::Reference { referent, access }) => {
@@ -398,7 +398,7 @@ pub(super) fn lower(
                     .structural_homes
                     .get(&place)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if home.operation_result().map(|(_, result)| result) != Some(&custody.result)
+                if !custody.contract.matches_home(home)
                     || custody.referent != referent
                     || home.has_claims()
                     || home.multiplicity() == StructuralMultiplicity::Linear

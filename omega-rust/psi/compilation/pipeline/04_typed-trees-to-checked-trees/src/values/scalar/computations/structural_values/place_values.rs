@@ -125,11 +125,6 @@ impl Builder<'_, '_> {
         // authored leaf must keep its symbol until binding resolves that roster.
         // StructuralLocal already represents both live locals and named formals;
         // independent source replay still checks the exact authored root.
-        let symbol = self
-            .authored_parameters
-            .iter()
-            .find(|parameter| false && (parameter.symbol == symbol || self.machine == symbol))
-            .map_or(symbol, |parameter| parameter.symbol);
         let source =
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
         // The borrowed lane admits a runtime `Index` segment: the selector

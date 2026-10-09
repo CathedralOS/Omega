@@ -3,7 +3,7 @@
 //! the read-only observation contract — copying never opens a restoration
 //! window, so this leg re-checks only the static shape the verifier's
 //! admission committed to: the fresh result row (`Unrestricted`, or an
-//! `Affine` `SharedBorrow` loan relocation on either path), a readable
+//! `Affine` shared descriptor disposal occurrence), a readable
 //! source signature, and the ordinary or case-qualified path landing on the
 //! exact leaf type. Case membership is proved before this lowering runs;
 //! selecting a payload's declared type cannot establish its active case.
@@ -18,7 +18,6 @@ use semantic_vocabulary::{
 use terminal_psi::{
     Operation, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    find_structural_type,
 };
 
 use crate::lowering::LoweringError;
@@ -38,10 +37,9 @@ pub(super) fn lower(
     // Membership metadata was decided on the exact source occurrence in Psi.
     // It survives every snapshot without changing storage or copy permission;
     // bytes are not a separate qualification-custody mode.
-    // An `Affine` `SharedBorrow` result is a loan relocation instead of a
-    // copy: the verifier registers a live reference carrier rooted at the
-    // source, on either path.
-    let shared_borrow_loan = result.multiplicity == StructuralMultiplicity::Affine
+    // A shared descriptor's affine disposal does not make its backing affine
+    // payload. Copy its value with independent custody, never a source-home loan.
+    let shared_descriptor_copy = result.multiplicity == StructuralMultiplicity::Affine
         && structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
                 && matches!(
@@ -52,7 +50,7 @@ pub(super) fn lower(
                     }
                 )
         });
-    if (result.multiplicity != StructuralMultiplicity::Unrestricted && !shared_borrow_loan)
+    if (result.multiplicity != StructuralMultiplicity::Unrestricted && !shared_descriptor_copy)
         || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()
         || !matches!(
@@ -87,18 +85,9 @@ pub(super) fn lower(
         ),
     }
     .ok_or_else(invalid)?;
-    // A `&`-leaf copy mints the reference descriptor over the selected
-    // storage, so its result is the `SharedBorrow` declaration whose
-    // referent is the leaf — not the leaf storage itself.
-    let expected_type = find_structural_type(structural_types, result.structural_type)
-        .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::Reference {
-                referent,
-                access: StructuralAccess::SharedBorrow,
-            } => Some(referent),
-            _ => None,
-        })
-        .unwrap_or(result.structural_type);
+    // All copies name the selected value's own type, including descriptors.
+    // Reference formation is the separate EstablishReference operation.
+    let expected_type = result.structural_type;
     if selected_type != expected_type
         && !byte_carrier_leaf_copy(
             structural_types,

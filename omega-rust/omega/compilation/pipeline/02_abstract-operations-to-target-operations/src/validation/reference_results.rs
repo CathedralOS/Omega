@@ -7,9 +7,11 @@
 //! descend through the callee's formal ingress, and surviving leaves keep the
 //! root they were formed with. This module recomputes the same roster from the
 //! caller's own operation stream alone: entry seeding, carrier moves, record
-//! relocations, call results, and edge discards follow first-arrival scheduling.
-//! Every later arrival must carry the same complete live leaf roster; only
-//! dominating definitions, not custody, are inherited from the dominator.
+//! relocations, call results, and edge discards reach a fixed point over actual
+//! predecessor exits. Selected owned parameter leaves retain every incoming
+//! root; all other live leaves agree exactly. Only dominating definitions, not
+//! custody, are inherited from the dominator. Cached entries are replaced from
+//! current exits, never merged with stale snapshots from an earlier iteration.
 //! Retained rows are compared against this independent derivation rather than
 //! trusted. Producer admission gates that cannot change an emitted row —
 //! suspended-root checks, parent/child exclusivity, referent typing — are
@@ -30,6 +32,8 @@ use terminal_psi::{
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction, find_structural_case, find_structural_type,
 };
+mod arrivals;
+use arrivals::merge_arrivals;
 
 /// Which retained row family a source `BoundaryCall` lowered into. Only the
 /// installed-provider lane replays the call's custody effects; a settlement
@@ -1327,6 +1331,62 @@ fn apply(
     boundary_calls: &BTreeMap<OperationId, BoundaryCallRow>,
 ) -> Option<()> {
     match operation {
+        AbstractOperation::StructuralLeafCopy {
+            result,
+            source,
+            path,
+            ..
+        } => {
+            if custody.homes.contains_key(&result.place)
+                || custody
+                    .leaves
+                    .keys()
+                    .any(|(carrier, _)| *carrier == result.place)
+            {
+                return None;
+            }
+            if contains_reference(declarations, result.structural_type) {
+                let abstract_operations::StructuralCopyPath::Ordinary(path) = path else {
+                    return None;
+                };
+                let (root, _) = source_contract(function, custody, *source)?;
+                if leaf_type(declarations, root, path) != Some(result.structural_type) {
+                    return None;
+                }
+                let mut copies = Vec::new();
+                for relative in
+                    leaf_paths(declarations, result.structural_type, custody.leaves.len())?
+                {
+                    let selected = leaf_type(declarations, result.structural_type, &relative)?;
+                    if !matches!(
+                        lookup(declarations, selected)?.shape,
+                        StructuralTypeShape::Reference {
+                            access: StructuralAccess::SharedBorrow,
+                            ..
+                        }
+                    ) {
+                        return None;
+                    }
+                    let mut selected = path.clone();
+                    selected.extend_from_slice(&relative);
+                    let original = custody.leaves.get(&(*source, selected))?;
+                    copies.push((
+                        (result.place, relative),
+                        Leaf {
+                            root: original.root.clone(),
+                            structural_type: result.structural_type,
+                            multiplicity: result.multiplicity,
+                        },
+                    ));
+                }
+                // Replay keeps the source roster. A descriptor copy establishes
+                // independent carrier storage, never a move or a new backing.
+                custody.leaves.extend(copies);
+            }
+            custody
+                .homes
+                .insert(result.place, (result.structural_type, result.multiplicity));
+        }
         AbstractOperation::EstablishReference { result, source, .. } => {
             // A result place already carrying leaves — or already established
             // as a home — cannot be re-established on an admissible plan.
@@ -1601,7 +1661,11 @@ fn apply_terminator(
                             moved.push((
                                 (*carrier, path.clone()),
                                 (parameter.place, relative.to_vec()),
-                                leaf.clone(),
+                                Leaf {
+                                    root: leaf.root.clone(),
+                                    structural_type: parameter.structural_type,
+                                    multiplicity: parameter.multiplicity,
+                                },
                             ));
                         }
                     }
@@ -1742,49 +1806,112 @@ pub(super) fn expected(
     ));
     let mut exits: Vec<Option<Custody>> = vec![None; entries.len()];
     let mut arrivals = vec![None; entries.len()];
-    arrivals[entry_position] = Some(initial.leaves.clone());
     let mut expected = BTreeMap::new();
-    for (position, dominator) in dominator_schedule(&incoming, &outgoing, entry_position)? {
-        let mut custody = match dominator {
-            None => initial.clone(),
-            Some(dominator) => exits[dominator].clone()?,
-        };
-        custody.leaves = arrivals[position].as_ref()?.clone();
-        custody.edge_exits.clear();
-        let range = &ranges[position];
-        for operation in &function.operations[range.start..range.end - 1] {
-            apply(
-                &mut custody,
-                &mut expected,
-                operation,
-                function,
-                source_functions,
-                declarations,
-                boundary_calls,
-            )?;
-        }
-        apply_terminator(
-            &mut custody,
-            &function.operations[range.end - 1],
-            function,
-            declarations,
-        )?;
-        // Do not deduplicate edges by target or intersect carrier keys: two
-        // arrivals may hold different referents or contracts at the same path.
-        // A processed target still retains its entry roster for backedge checks.
-        for (target, leaves) in &custody.edge_exits {
-            let target_position = entries
-                .iter()
-                .position(|candidate| candidate.block == *target)?;
-            if let Some(existing) = &arrivals[target_position] {
-                if existing != leaves {
-                    return None;
-                }
+    let schedule = dominator_schedule(&incoming, &outgoing, entry_position)?;
+    let mut processed = vec![None; entries.len()];
+    loop {
+        let mut changed = false;
+        let mut deferred = false;
+        'blocks: for &(position, dominator) in &schedule {
+            let leaves = if position == entry_position {
+                initial.leaves.clone()
             } else {
-                arrivals[target_position] = Some(leaves.clone());
+                let mut current = None;
+                for &predecessor in &incoming[position] {
+                    let Some(exit) = &exits[predecessor] else {
+                        continue;
+                    };
+                    for (target, incoming_leaves) in &exit.edge_exits {
+                        if *target != entries[position].block {
+                            continue;
+                        }
+                        if let Some(existing) = &mut current {
+                            if merge_arrivals(function, *target, existing, incoming_leaves)
+                                .is_none()
+                            {
+                                // An upstream replay may still replace a predecessor
+                                // snapshot. Never union unrelated leaves to proceed.
+                                deferred = true;
+                                continue 'blocks;
+                            }
+                        } else {
+                            current = Some(incoming_leaves.clone());
+                        }
+                    }
+                }
+                let Some(current) = current else {
+                    deferred = true;
+                    continue;
+                };
+                current
+            };
+            let mut custody = match dominator {
+                None => initial.clone(),
+                Some(dominator) => {
+                    let Some(custody) = exits[dominator].clone() else {
+                        deferred = true;
+                        continue;
+                    };
+                    custody
+                }
+            };
+            arrivals[position] = Some(leaves.clone());
+            if processed[position].as_ref() == Some(&leaves) {
+                continue;
+            }
+            changed = true;
+            custody.leaves = leaves;
+            processed[position] = Some(custody.leaves.clone());
+            custody.edge_exits.clear();
+            let range = &ranges[position];
+            for operation in &function.operations[range.start..range.end - 1] {
+                apply(
+                    &mut custody,
+                    &mut expected,
+                    operation,
+                    function,
+                    source_functions,
+                    declarations,
+                    boundary_calls,
+                )?;
+            }
+            apply_terminator(
+                &mut custody,
+                &function.operations[range.end - 1],
+                function,
+                declarations,
+            )?;
+            exits[position] = Some(custody);
+        }
+        if !changed {
+            if deferred {
+                return None;
+            }
+            break;
+        }
+    }
+    // Every current edge participates in the final check, including multiple
+    // edges from one predecessor. Missing arrivals cannot grant a live leaf.
+    for (position, predecessors) in incoming.iter().enumerate() {
+        if position == entry_position {
+            continue;
+        }
+        let mut complete = None;
+        for &predecessor in predecessors {
+            for (target, leaves) in &exits[predecessor].as_ref()?.edge_exits {
+                if *target != entries[position].block {
+                    continue;
+                }
+                if let Some(existing) = &mut complete {
+                    merge_arrivals(function, *target, existing, leaves)?;
+                } else {
+                    complete = Some(leaves.clone());
+                }
             }
         }
-        exits[position] = Some(custody);
+        if complete.as_ref() != arrivals[position].as_ref() {
+            return None;
+        }
     }
     Some(expected)
 }

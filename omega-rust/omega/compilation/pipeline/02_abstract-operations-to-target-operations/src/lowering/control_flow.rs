@@ -1,6 +1,8 @@
 //! Ordinary control graphs: definitions belong to dominating blocks, but
 //! reference custody follows actual post-transfer, post-cleanup edges. Every
-//! arrival must agree with the first, including backedges, before publication.
+//! selected owned parameter retains its incoming formations, backing roots
+//! and immediate parents. Other live leaves agree exactly. Replay reaches a
+//! fixed point over current predecessor exits before publishing the graph.
 use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -52,7 +54,8 @@ use target_operations::{TargetControlBlock, TargetControlGraph, TargetScalarBloc
 use terminator::lower_terminator;
 
 /// Exact custody after simultaneous edge transfer and cleanup. Descriptor
-/// identity, backing and parents survive relocation under the receiving keys.
+/// formation, backing and parents survive relocation. Selected occurrences
+/// use their actual receiving parameter identity and contract.
 #[derive(Clone)]
 struct ReferenceEdgeCustody {
     target: semantic_vocabulary::BlockId,
@@ -144,7 +147,7 @@ impl LiveDefinitions {
     fn reference_arrival(
         &self,
         target: semantic_vocabulary::BlockId,
-        machine: MachineId,
+        function: &AbstractFunction,
     ) -> Result<ReferenceEdgeCustody, LoweringError> {
         if self.reference_edge_exits.is_empty() {
             return Ok(self.reference_edge_exit(target));
@@ -155,12 +158,15 @@ impl LiveDefinitions {
             .filter(|exit| exit.target == target);
         let mut arrival = exits
             .next()
-            .ok_or_else(|| LoweringError::unsupported_control_flow(machine))?
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
             .clone();
         for other in exits {
-            if arrival.references != other.references {
-                return Err(LoweringError::unsupported_control_flow(machine));
-            }
+            references::merge_arrivals(
+                function,
+                target,
+                &mut arrival.references,
+                &other.references,
+            )?;
             arrival
                 .drained_loan_roots
                 .retain(|root| other.drained_loan_roots.contains(root));
@@ -451,6 +457,7 @@ pub(super) fn lower(
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let mut live_exits: Vec<Option<LiveDefinitions>> = vec![None; entries.len()];
     let mut reference_entries = vec![None; entries.len()];
+    let mut drained_entries = vec![None; entries.len()];
     let mut lowered = vec![None; entries.len()];
     let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
     let initial = LiveDefinitions {
@@ -479,159 +486,225 @@ pub(super) fn lower(
         drained_loan_roots: BTreeSet::new(),
         reference_edge_exits: Vec::new(),
     };
-    for (position, dominator) in schedule {
-        let mut live = match dominator {
-            None => initial.clone(),
-            Some(dominator) => live_exits[dominator]
-                .as_ref()
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                .clone(),
-        };
-        if position != entry_position {
-            let predecessor = incoming[position]
-                .iter()
-                .find_map(|predecessor| live_exits[*predecessor].as_ref())
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let arrival =
-                predecessor.reference_arrival(entries[position].block, function.machine)?;
-            // Ordinary homes and scalar definitions still come from the
-            // dominator. Loan membership must come from an incoming edge:
-            // overlaying it would revive a child moved out by both arms.
-            live.references = arrival.references;
-            live.drained_loan_roots = arrival.drained_loan_roots;
-        }
-        live.reference_edge_exits.clear();
-        reference_entries[position] = Some(live.references.clone());
-        if position != entry_position {
-            transfers::enter(&entries[position], &mut live);
-            // Outgoing reference carriers were captured on the selected edge
-            // before its cleanup; rebasing again here would corrupt swaps.
-            for parameter in entries[position]
-                .structural_parameters
-                .iter()
-                .filter(|parameter| {
-                    matches!(
-                        parameter.access,
-                        StructuralAccess::SharedBorrow
-                            | StructuralAccess::MutableBorrow
-                            | StructuralAccess::WriteOnlyBorrow
+    loop {
+        let mut changed = false;
+        let mut deferred = false;
+        'blocks: for &(position, dominator) in &schedule {
+            let mut live = match dominator {
+                None => initial.clone(),
+                Some(dominator) => match live_exits[dominator].as_ref() {
+                    Some(exit) => exit.clone(),
+                    None => {
+                        deferred = true;
+                        continue;
+                    }
+                },
+            };
+            if position != entry_position {
+                let mut predecessors = incoming[position]
+                    .iter()
+                    .filter_map(|predecessor| live_exits[*predecessor].as_ref());
+                let Some(predecessor) = predecessors.next() else {
+                    deferred = true;
+                    continue;
+                };
+                let mut arrival =
+                    match predecessor.reference_arrival(entries[position].block, function) {
+                        Ok(arrival) => arrival,
+                        Err(_) => {
+                            deferred = true;
+                            continue;
+                        }
+                    };
+                for predecessor in predecessors {
+                    let other =
+                        match predecessor.reference_arrival(entries[position].block, function) {
+                            Ok(arrival) => arrival,
+                            Err(_) => {
+                                deferred = true;
+                                continue 'blocks;
+                            }
+                        };
+                    if references::merge_arrivals(
+                        function,
+                        entries[position].block,
+                        &mut arrival.references,
+                        &other.references,
                     )
-                })
-            {
-                if transfers::is_address_join(parameter, structural_types) {
-                    live.address_joins.insert(parameter.place);
-                } else {
-                    live.block_views.insert(parameter.place);
+                    .is_err()
+                    {
+                        deferred = true;
+                        continue 'blocks;
+                    }
+                    arrival
+                        .drained_loan_roots
+                        .retain(|root| other.drained_loan_roots.contains(root));
                 }
+                // Ordinary homes and scalar definitions still come from the
+                // dominator. Loan membership must come from an incoming edge:
+                // overlaying it would revive a child moved out by both arms.
+                live.references = arrival.references;
+                live.drained_loan_roots = arrival.drained_loan_roots;
             }
-            // Each owned arrival has storage determined by its declaration.
-            // Neighboring instructions cannot erase its transfer or cleanup
-            // custody; optional dead-storage removal belongs to optimization.
-            for parameter in entries[position]
-                .structural_parameters
-                .iter()
-                .filter(|parameter| parameter.access == StructuralAccess::Owned)
+            live.reference_edge_exits.clear();
+            if reference_entries[position].as_ref() == Some(&live.references)
+                && drained_entries[position].as_ref() == Some(&live.drained_loan_roots)
             {
-                let home = aggregate_results::block_home(
-                    entries[position].block,
-                    parameter,
-                    structural_types,
-                )?;
-                if live
-                    .structural_homes
-                    .insert(parameter.place, home)
-                    .is_some()
+                continue;
+            }
+            changed = true;
+            reference_entries[position] = Some(live.references.clone());
+            drained_entries[position] = Some(live.drained_loan_roots.clone());
+            if position != entry_position {
+                transfers::enter(&entries[position], &mut live);
+                // Outgoing reference carriers were captured on the selected edge
+                // before its cleanup; rebasing again here would corrupt swaps.
+                for parameter in
+                    entries[position]
+                        .structural_parameters
+                        .iter()
+                        .filter(|parameter| {
+                            matches!(
+                                parameter.access,
+                                StructuralAccess::SharedBorrow
+                                    | StructuralAccess::MutableBorrow
+                                    | StructuralAccess::WriteOnlyBorrow
+                            )
+                        })
                 {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                    if transfers::is_address_join(parameter, structural_types) {
+                        live.address_joins.insert(parameter.place);
+                    } else {
+                        live.block_views.insert(parameter.place);
+                    }
                 }
-            }
-            live.owned_arrivals.extend(
-                entries[position]
+                // Each owned arrival has storage determined by its declaration.
+                // Neighboring instructions cannot erase its transfer or cleanup
+                // custody; optional dead-storage removal belongs to optimization.
+                for parameter in entries[position]
                     .structural_parameters
                     .iter()
                     .filter(|parameter| parameter.access == StructuralAccess::Owned)
-                    .map(|parameter| parameter.place),
-            );
-        }
-        let range = ranges[position].clone();
-        let mut operations = Vec::new();
-        let provenance = &mut block_provenance[position];
-        for operation in &function.operations[range.start..range.end - 1] {
-            lower_operation(
-                operation,
+                {
+                    let home = aggregate_results::block_home(
+                        entries[position].block,
+                        parameter,
+                        structural_types,
+                    )?;
+                    if live
+                        .structural_homes
+                        .insert(parameter.place, home)
+                        .is_some()
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                }
+                live.owned_arrivals.extend(
+                    entries[position]
+                        .structural_parameters
+                        .iter()
+                        .filter(|parameter| parameter.access == StructuralAccess::Owned)
+                        .map(|parameter| parameter.place),
+                );
+            }
+            let range = ranges[position].clone();
+            let mut operations = Vec::new();
+            block_provenance[position] = TerminalPsiProvenance::default();
+            let provenance = &mut block_provenance[position];
+            for operation in &function.operations[range.start..range.end - 1] {
+                lower_operation(
+                    operation,
+                    function,
+                    target,
+                    functions,
+                    dynamic_dispatch,
+                    structural_types,
+                    boundary_machines,
+                    settlements,
+                    installed_calls,
+                    scalar_abis,
+                    native_callbacks,
+                    &prepared,
+                    &parameters_by_place,
+                    &mut live,
+                    &mut operations,
+                    provenance,
+                )?;
+            }
+            transfers::validate_successors(
+                &function.operations[range.end - 1],
+                function,
+                &live,
+                structural_types,
+            )?;
+            calls::lower_cleanup_calls(
+                &function.operations[range.end - 1],
                 function,
                 target,
                 functions,
-                dynamic_dispatch,
                 structural_types,
+                &prepared,
+                &live,
+                &mut operations,
+            )?;
+            let terminator = lower_terminator(
+                &function.operations[range.end - 1],
+                function,
+                &prepared,
+                &mut live,
+                structural_types,
+                target,
                 boundary_machines,
                 settlements,
-                installed_calls,
-                scalar_abis,
-                native_callbacks,
-                &prepared,
-                &parameters_by_place,
-                &mut live,
-                &mut operations,
                 provenance,
             )?;
+            lowered[position] = Some(TargetControlBlock {
+                block: entries[position].block,
+                structural_parameters: entries[position].structural_parameters.clone(),
+                parameters: entries[position]
+                    .parameters
+                    .iter()
+                    .map(|parameter| TargetScalarBlockParameter {
+                        value: parameter.value,
+                        scalar_type: parameter.scalar_type,
+                    })
+                    .collect(),
+                operations,
+                terminator,
+            });
+            live_exits[position] = Some(live);
         }
-        transfers::validate_successors(
-            &function.operations[range.end - 1],
-            function,
-            &live,
-            structural_types,
-        )?;
-        calls::lower_cleanup_calls(
-            &function.operations[range.end - 1],
-            function,
-            target,
-            functions,
-            structural_types,
-            &prepared,
-            &live,
-            &mut operations,
-        )?;
-        let terminator = lower_terminator(
-            &function.operations[range.end - 1],
-            function,
-            &prepared,
-            &mut live,
-            structural_types,
-            target,
-            boundary_machines,
-            settlements,
-            provenance,
-        )?;
-        lowered[position] = Some(TargetControlBlock {
-            block: entries[position].block,
-            structural_parameters: entries[position].structural_parameters.clone(),
-            parameters: entries[position]
-                .parameters
-                .iter()
-                .map(|parameter| TargetScalarBlockParameter {
-                    value: parameter.value,
-                    scalar_type: parameter.scalar_type,
-                })
-                .collect(),
-            operations,
-            terminator,
-        });
-        live_exits[position] = Some(live);
-    }
-    // First arrival permits cyclic graphs to be replayed once. Every edge,
-    // including a later arm or backedge, must carry the same exact permission
-    // roster before any lowered graph is returned. This mirrors checked IR
-    // ownership, rather than intersecting availability and erasing obligations.
-    for (position, predecessors) in incoming.iter().enumerate() {
-        for predecessor in predecessors {
-            let arrival = live_exits[*predecessor]
-                .as_ref()
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                .reference_arrival(entries[position].block, function.machine)?;
-            if reference_entries[position].as_ref() != Some(&arrival.references) {
+        if !changed {
+            if deferred {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            break;
+        }
+    }
+    // Initial arrivals seed cyclic replay. Publication uses every latest edge,
+    // including later arms and backedges: only selected owned leaves combine
+    // provenance, while unrelated permission must agree exactly.
+    for (position, predecessors) in incoming.iter().enumerate() {
+        let mut arrivals = predecessors.iter().map(|predecessor| {
+            live_exits[*predecessor]
+                .as_ref()
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+                .reference_arrival(entries[position].block, function)
+        });
+        let Some(first) = arrivals.next() else {
+            continue;
+        };
+        let mut arrival = first?;
+        for other in arrivals {
+            references::merge_arrivals(
+                function,
+                entries[position].block,
+                &mut arrival.references,
+                &other?.references,
+            )?;
+        }
+        if reference_entries[position].as_ref() != Some(&arrival.references) {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
     let blocks = lowered

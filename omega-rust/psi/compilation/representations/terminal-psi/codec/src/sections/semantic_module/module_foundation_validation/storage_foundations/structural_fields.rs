@@ -20,10 +20,6 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     module: &TerminalModule,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let is_case_copy = matches!(
-        &operation.kind,
-        OperationKind::StructuralCaseLeafCopy { .. }
-    );
     let (OperationKind::StructuralLeafCopy { .. } | OperationKind::StructuralCaseLeafCopy { .. }) =
         &operation.kind
     else {
@@ -31,11 +27,10 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     };
     if operation.result.structural().is_none_or(|result| {
         (result.multiplicity != StructuralMultiplicity::Unrestricted
-            // An affine shared descriptor can relocate a proven payload's
-            // loan. Plain affine contents have no copying authority: they
-            // transfer through an owned projection, not this observation.
-            && !(is_case_copy
-                && result.multiplicity == StructuralMultiplicity::Affine
+            // Descriptor disposal is affine even though shared access is
+            // copyable. The copy retains backing and parent obligations;
+            // ordinary affine payloads still require an owned transfer.
+            && !(result.multiplicity == StructuralMultiplicity::Affine
                 && module.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
                         && matches!(declaration.shape, StructuralTypeShape::Reference {

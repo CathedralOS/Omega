@@ -690,9 +690,10 @@ pub(crate) fn validate_structural_root_operations(
                     // owned-copy shape: an `Affine` non-reference leaf minted
                     // out of a proven-active case payload transfers custody
                     // to the successor — no stored value moves. An `Affine`
-                    // `SharedBorrow` result is a loan relocation instead of a
-                    // copy: the verifier registers it as a live reference
-                    // carrier rooted at the source, on either path.
+                    // `SharedBorrow` result is an independently retired
+                    // descriptor copy: its exact reference type stays intact
+                    // and the original occurrence remains live. Reference
+                    // custody, not referent bytes, is duplicated.
                     let owned_case_copy =
                         matches!(path, abstract_operations::StructuralCopyPath::Case(_))
                             && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
@@ -704,7 +705,7 @@ pub(crate) fn validate_structural_root_operations(
                                     )
                                 },
                             );
-                    let shared_borrow_loan = result.multiplicity
+                    let shared_descriptor_copy = result.multiplicity
                         == terminal_psi::StructuralMultiplicity::Affine
                         && structural_types.get(&result.structural_type).is_some_and(
                             |declaration| {
@@ -740,37 +741,29 @@ pub(crate) fn validate_structural_root_operations(
                             }
                             && match path {
                                 abstract_operations::StructuralCopyPath::Ordinary(path) => {
-                                    // A `&`-leaf copy mints the reference
-                                    // descriptor over the selected storage:
-                                    // the compared type is the referent, not
-                                    // the `SharedBorrow` declaration itself.
+                                    // Copy the selected descriptor value, not
+                                    // a fresh reference over its source home.
+                                    // Backing and immediate parents are retained
+                                    // by the independent custody replay.
                                     // A byte-carrier copy mints the overlaid
                                     // record out of a `u8` element window
                                     // instead of the spelled leaf type.
-                                    let expected = shared_borrow_referent_or_self(
-                                        structural_types,
-                                        result.structural_type,
-                                    );
+                                    let expected = result.structural_type;
                                     let selected = crate::unit_validation::structural_catalog::resolve_leaf_copy_path(structural_types, signature.structural_type, path);
                                     selected == Some(expected)
                                         || crate::unit_validation::structural_catalog::byte_carrier_leaf_window(structural_types, signature.structural_type, path, expected)
                                 },
                                 abstract_operations::StructuralCopyPath::Case(path) => {
-                                    // A `&`-leaf copy mints the reference
-                                    // descriptor over the selected payload:
-                                    // the compared type is the referent, not
-                                    // the `SharedBorrow` declaration itself.
-                                    let expected = shared_borrow_referent_or_self(
-                                        structural_types,
-                                        result.structural_type,
-                                    );
+                                    // Case evidence selects the value, not a
+                                    // fresh borrow over its descriptor home.
+                                    let expected = result.structural_type;
                                     terminal_semantics::canonical_case_leaf_type(structural_types.values().copied(), signature.structural_type, path) == Some(expected)
                                 }
                             }
                         }) && (result.multiplicity
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             || owned_case_copy
-                            || shared_borrow_loan)
+                            || shared_descriptor_copy)
                             && result.projected_qualifications.is_empty()
                             && result.claims.is_empty()
                             && matches!(
@@ -1226,22 +1219,4 @@ fn window_field_type(
         field,
     )
     .map(|projection| projection.structural_type)
-}
-
-/// The type a leaf copy actually mints: the referent when `structural_type`
-/// is a `SharedBorrow` reference declaration, the type itself otherwise.
-fn shared_borrow_referent_or_self(
-    structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    structural_type: StructuralTypeId,
-) -> StructuralTypeId {
-    structural_types
-        .get(&structural_type)
-        .and_then(|declaration| match declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference {
-                referent,
-                access: terminal_psi::StructuralAccess::SharedBorrow,
-            } => Some(referent),
-            _ => None,
-        })
-        .unwrap_or(structural_type)
 }

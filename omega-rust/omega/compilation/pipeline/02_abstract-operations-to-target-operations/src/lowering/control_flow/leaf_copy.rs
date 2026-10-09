@@ -43,6 +43,15 @@ pub(super) fn copy(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
+    let copied = super::references::copied_leaves(
+        function,
+        types,
+        live,
+        result,
+        *source,
+        path,
+        *psi_operation,
+    )?;
     copy_extent(
         *psi_operation,
         result,
@@ -54,7 +63,9 @@ pub(super) fn copy(
         live,
         operations,
         provenance,
-    )
+    )?;
+    live.references.extend(copied);
+    Ok(())
 }
 
 /// Copy the extent `path` names beneath a `root_type` root at `source` into

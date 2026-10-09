@@ -137,11 +137,14 @@ pub(super) fn copied_place_type(
     program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
 ) -> bool {
-    // Stored loan descriptors carry affine custody even when source-level
-    // shared access is unrestricted. Transfer their existing Place/Projection;
-    // copying the descriptor as a referent would mint a different loan.
-    if validation::reference_result_custody::stored_loan_parts(program, expected).is_some() {
-        return false;
+    // Copy the stored value, not its referent. A shared descriptor has its own
+    // disposal occurrence but preserves the captured backing and immediate
+    // parents; consuming the source would contradict shared multiplicity.
+    // Exclusive descriptors still require an owned transfer.
+    if let Some((_, access)) =
+        validation::reference_result_custody::stored_loan_parts(program, expected)
+    {
+        return access == checked_trees::CheckedStructuralAccess::SharedBorrow;
     }
     // A stored `&'a [T]` view leaf copies the view value out of the carrier
     // the same way an `Unrestricted` named leaf does — the referent's loan
@@ -210,24 +213,16 @@ pub(in crate::values::scalar::computations) fn needs_copied_place_root(
         return false;
     };
     if place.segments.is_empty() {
-        // A whole owned root reads its declared contents directly: any
-        // non-view reference carrier stays on the borrowed-leaf lane below,
-        // while an owned `[copy]` root copies into a fresh result with an
-        // empty path. A bare `&`-view name is the degenerate copied leaf —
-        // the view itself is the `Unrestricted` leaf the copy transfers.
-        let root_is_view =
-            matches!(
-                program.type_reference_table.type_reference(root),
-                TypeReferenceNode::Reference {
-                    access: language_semantics::ReferenceAccess::Shared,
-                    ..
-                }
-            ) && (crate::execution::terminal_unit::types::borrowed_slice_view(program, root)
-                || crate::execution::terminal_unit::types::borrowed_named_view(program, root));
+        // A whole shared reference copies its descriptor with an empty path;
+        // adding Referent would copy or reborrow different storage. Exclusive
+        // descriptors remain transfers, while other copyable owned roots
+        // supply their declared value without consuming the source.
+        let root_is_shared = validation::reference_shell(program, root)
+            .is_some_and(|shell| shell.access == language_semantics::ReferenceAccess::Shared);
         if matches!(
             program.type_reference_table.type_reference(root),
             TypeReferenceNode::Reference { .. }
-        ) && !root_is_view
+        ) && !root_is_shared
         {
             return false;
         }

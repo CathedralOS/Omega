@@ -2177,32 +2177,25 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_lowering/computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: runtime-selected constructors retain every possible captured loan
-    through the receiving leaf. Completed-binding cleanup accepts an exact join
-    parameter, and native custody follows actual post-transfer/post-cleanup
-    edges rather than reviving the dominator's moved children. On macOS arm64,
-    `pass/borrows/runtime_selected_reference_child_retirement_exit` exits 0 in
-    both engines through public `omega run --both` after local package review:
-    both arms transfer the same child, its last read restores backing mutation,
-    and disjoint scalar siblings remain usable. The only-one-arm child transfer
-    control `fail/borrows/selected_reference_child_live_source_write` rejects
-    mutation while the receiving leaf is live. Exact field/fixed-array
-    retirement and ordinary helper storage bindings remain covered by the
-    borrow corpus. The encoded `IntegerAt` call ABI remains in scope.
-    Remaining: source-only returned-origin reconstruction in
+  - State: shared descriptor copies retain the original occurrence and its
+    complete immediate parents, with independent retirement. Selected owned
+    parameters retain every incoming formation and backing origin; unrelated
+    live custody agrees exactly across current post-transfer/post-cleanup edges.
+    Keep the public command in the
+    [cohort fixture](tests/omega/pass/borrows/runtime_selected_shared_reference_cohort_exit/README.md)
+    at 0 in both engines on macOS arm64 after ordinary package review: both
+    selections and both descriptor retirement orders restore mutation only
+    after the complete cohort ends. The live-copy write and only-one-arm
+    transfer controls remain rejected. The encoded `IntegerAt` call ABI remains
+    in scope. Remaining: source-only returned-origin reconstruction in
     `reference_result_custody::aggregate_construction_sources` still handles
     record/array constructors but not `match` results. Carry every alternative's
     complete source-to-result paths through helper return/call substitution.
-    Distinct arm-formed permissions also need a checked join that retains their
-    complete origins and immediate-parent obligations; current IR requires
-    identical live-reference custody on every incoming edge. Do not weaken that
-    invariant in native consumers alone. Retirement separately retains possible
-    transfers and proves which source paths transfer on every arm.
-    Shared initializer reuse is legal (`Reference` is unrestricted), but the
-    retained structural-value producer currently spells stored-reference
-    operands as owned transfers. Represent descriptor copying/reborrowing and
-    its complete shared cohort so a source child remains observable after a
-    selected constructor receives it, without restoring the parent too early.
+    Distinct arm-formed reborrows of different backing roots and parent sets
+    still need end-to-end checked correspondence through helper results and
+    state forwarding; copied descriptors from one common child do not prove
+    that capability. Retirement separately retains possible transfers and
+    proves which source paths transfer on every arm.
     Calls and stores without a retained receiving-holder association still
     require their checked correspondence before parent retirement can be proved.
   - Constraints: shared loans cannot gain mutation authority by widening the
