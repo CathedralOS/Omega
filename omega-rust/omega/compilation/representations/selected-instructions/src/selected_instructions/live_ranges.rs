@@ -5,8 +5,9 @@
 
 mod identity;
 pub use identity::{
-    live_range_function_digest, live_range_identity, live_range_identity_from_digests,
+    live_range_function_digest, live_range_identity_from_digests,
 };
+pub(crate) use identity::{ live_range_identity};
 
 use crate::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,

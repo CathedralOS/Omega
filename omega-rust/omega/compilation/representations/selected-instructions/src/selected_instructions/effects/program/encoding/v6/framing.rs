@@ -6,7 +6,7 @@ use super::{
     SelectedInstructionPlanIdentity, TargetRegisterEnvironmentIdentity, VERSION,
     decode_instruction, decode_target, identity, pre_allocation_machine_effect_identity,
 };
-pub fn encode_terminal_pre_allocation_machine_effect_plan(
+pub(crate) fn encode_terminal_pre_allocation_machine_effect_plan(
     plan: &PreAllocationMachineEffectPlan,
 ) -> Vec<u8> {
     let content = identity::encode_terminal_pre_allocation_machine_effect_content(plan);
@@ -18,7 +18,7 @@ pub fn encode_terminal_pre_allocation_machine_effect_plan(
     encoded
 }
 
-pub fn decode_terminal_pre_allocation_machine_effect_plan(
+pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
     encoded: &[u8],
 ) -> Result<PreAllocationMachineEffectPlan, PreAllocationMachineEffectDecodeError> {
     let mut cursor = Cursor::new(encoded);
