@@ -89,7 +89,7 @@ fn recover_identity(cursor: &mut ObservationCursor<'_>) -> Option<PackageKeyIden
 }
 
 fn encode_disposition(disposition: &TerminalAuthorityDisposition, out: &mut Vec<u8>) {
-    out.extend_from_slice(&(disposition.classes().len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (disposition.classes().len() as u64).to_le_bytes());
     for class in disposition.classes() {
         out.push(authority_class_tag(*class));
     }
@@ -126,7 +126,7 @@ fn encode_binding(binding: &AcceptedSemanticBinding, out: &mut Vec<u8>) {
         out,
         |digest, out| out.extend_from_slice(digest.as_bytes()),
     );
-    out.extend_from_slice(&(binding.terminal_authority_permissions().len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (binding.terminal_authority_permissions().len() as u64).to_le_bytes());
     for permission in binding.terminal_authority_permissions() {
         encode_permission(permission, out);
     }
@@ -226,14 +226,14 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
         |identity, out| encode_identity(*identity, out),
     );
     encode_string(&method.requirement_identity, out);
-    out.extend_from_slice(&(method.parameter_count as u64).to_le_bytes());
-    out.extend_from_slice(&(method.parameter_type_identities.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (method.parameter_count as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (method.parameter_type_identities.len() as u64).to_le_bytes());
     for identity in &method.parameter_type_identities {
         encode_string(identity, out);
     }
-    out.extend_from_slice(&(method.entry_claims.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (method.entry_claims.len() as u64).to_le_bytes());
     for claim in &method.entry_claims {
-        out.extend_from_slice(&(claim.parameter_index as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(out, (claim.parameter_index as u64).to_le_bytes());
         encode_string(&claim.carrier_identity, out);
         encode_string(&claim.domain, out);
         encode_predicate_body(&claim.predicate_body, out);
@@ -252,37 +252,37 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
         out,
         |identity, out| encode_string(identity, out),
     );
-    out.extend_from_slice(&(method.result_claims.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (method.result_claims.len() as u64).to_le_bytes());
     for claim in &method.result_claims {
         encode_string(&claim.domain, out);
         encode_carry(&claim.effective_carry, out);
     }
-    out.extend_from_slice(&(method.service_reach.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (method.service_reach.len() as u64).to_le_bytes());
     for reach in &method.service_reach {
         encode_string(reach, out);
     }
-    out.extend_from_slice(&(method.synchronous_invocations.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (method.synchronous_invocations.len() as u64).to_le_bytes());
     for invocation in &method.synchronous_invocations {
         encode_string(invocation, out);
     }
     out.push(u8::from(method.may_suspend));
     out.push(u8::from(method.may_block));
     out.push(u8::from(method.terminates_guarantee));
-    out.extend_from_slice(&(method.termination_premises.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (method.termination_premises.len() as u64).to_le_bytes());
     for premise in &method.termination_premises {
         encode_string(&premise.profile, out);
         match premise.subject {
             ServiceProgressSubject::ProviderReceiver => out.push(0),
             ServiceProgressSubject::Parameter(index) => {
                 out.push(1);
-                out.extend_from_slice(&(index as u64).to_le_bytes());
+                crate::codec_bytes::push_encoded(out, (index as u64).to_le_bytes());
             }
         }
-        out.extend_from_slice(&(premise.subject_projections.len() as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(out, (premise.subject_projections.len() as u64).to_le_bytes());
         for projection in &premise.subject_projections {
             encode_string(projection, out);
         }
-        out.extend_from_slice(&(premise.establishment_routes.len() as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(out, (premise.establishment_routes.len() as u64).to_le_bytes());
         for route in &premise.establishment_routes {
             out.push(match route.kind {
                 ServiceProgressEstablishmentRouteKind::CheckedRequirement => 0,
@@ -294,7 +294,7 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
     encode_optional(
         method.calling_plan_report_fingerprint.as_ref(),
         out,
-        |value, out| out.extend_from_slice(&value.to_le_bytes()),
+        |value, out| crate::codec_bytes::push_encoded(out, value.to_le_bytes()),
     );
     encode_optional(
         method.calling_plan_commitment.as_ref(),
@@ -421,7 +421,7 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
         out,
         |identity, out| encode_identity(*identity, out),
     );
-    out.extend_from_slice(&(schema.methods.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (schema.methods.len() as u64).to_le_bytes());
     for method in &schema.methods {
         encode_service_method(method, out);
     }
@@ -484,16 +484,16 @@ fn encode_generated_source_bundle(bundle: &PackageGeneratedSourceBundle, out: &m
     let closure = bundle.dependency_closure();
     encode_identity(closure.root(), out);
     out.push(declaration_kind_tag(closure.root_role()));
-    out.extend_from_slice(&(closure.packages().len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (closure.packages().len() as u64).to_le_bytes());
     for package in closure.packages() {
         encode_identity(*package, out);
     }
-    out.extend_from_slice(&(closure.dependencies().len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (closure.dependencies().len() as u64).to_le_bytes());
     for binding in closure.dependencies() {
         encode_dependency_binding(binding, out);
     }
     out.extend_from_slice(&bundle.source_consumption_commitment().digest());
-    out.extend_from_slice(&(bundle.sources().len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (bundle.sources().len() as u64).to_le_bytes());
     for source in bundle.sources() {
         push_framed(out, source.relative_path());
         push_framed(out, source.bytes());
@@ -556,11 +556,11 @@ fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
         out,
         |namespace, out| encode_string(namespace, out),
     );
-    out.extend_from_slice(&(unit.relative_path().len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (unit.relative_path().len() as u64).to_le_bytes());
     for component in unit.relative_path() {
         encode_string(component, out);
     }
-    out.extend_from_slice(&unit.byte_count().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, unit.byte_count().to_le_bytes());
     out.extend_from_slice(&unit.content_digest());
 }
 
@@ -596,7 +596,7 @@ fn recover_consumed_unit(cursor: &mut ObservationCursor<'_>) -> Option<ConsumedS
 fn encode_component_description(description: &IndependentComponentDescription, out: &mut Vec<u8>) {
     encode_identity(description.package(), out);
     let subject = description.expected_subject();
-    out.extend_from_slice(&subject.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, subject.vocabulary_marker.get().to_le_bytes());
     out.extend_from_slice(subject.program_fingerprint.as_bytes());
     push_framed(out, description.description());
 }
@@ -621,7 +621,7 @@ fn recover_component_description(
 /// Encode one record's payload.
 pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
     out.extend_from_slice(RECORD_MAGIC);
-    out.extend_from_slice(&RECORD_VERSION.to_le_bytes());
+    crate::codec_bytes::push_encoded(out, RECORD_VERSION.to_le_bytes());
     out.extend_from_slice(&review.package_identity.digest());
     encode_string(&review.name, out);
     out.extend_from_slice(&review.lineage);
@@ -648,24 +648,24 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
             push_framed(out, &framed);
         },
     );
-    out.extend_from_slice(&(review.restricted_build_requests.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (review.restricted_build_requests.len() as u64).to_le_bytes());
     for request in &review.restricted_build_requests {
         let mut framed = Vec::new();
         build_record_codec::encode_restricted_build_request(request, &mut framed);
         push_framed(out, &framed);
     }
-    out.extend_from_slice(&(review.semantic_bindings.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (review.semantic_bindings.len() as u64).to_le_bytes());
     for binding in &review.semantic_bindings {
         encode_binding(binding, out);
     }
-    out.extend_from_slice(&(review.semantic_binding_candidates.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (review.semantic_binding_candidates.len() as u64).to_le_bytes());
     for candidate in &review.semantic_binding_candidates {
         encode_candidate(candidate, out);
     }
     encode_generated_source_bundle(&review.generated_source_bundle, out);
     push_framed(out, &review.policy_bytes);
     out.push(u8::from(review.facts.tolerated_unsettled_service_fields));
-    out.extend_from_slice(&(review.facts.consumed_units.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (review.facts.consumed_units.len() as u64).to_le_bytes());
     for unit in &review.facts.consumed_units {
         encode_consumed_unit(unit, out);
     }
@@ -680,7 +680,7 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
         out,
         encode_candidate,
     );
-    out.extend_from_slice(&review.policy_canonical_bytes.to_le_bytes());
+    crate::codec_bytes::push_encoded(out, review.policy_canonical_bytes.to_le_bytes());
 }
 
 pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
