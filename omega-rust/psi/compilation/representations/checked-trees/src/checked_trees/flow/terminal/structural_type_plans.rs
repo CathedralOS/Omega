@@ -43,6 +43,13 @@ pub struct CheckedStructuralPathQualification {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralTypePlan {
     pub identity: String,
+    /// Exact source contents admit affine disposal without executing a hook,
+    /// settling a linear claim, or disposing borrowed referent storage. This
+    /// is a type capability, not proof that any particular place is live or
+    /// that its loans have ended. Selected graph custody consumes this beside
+    /// its owned, claim-free operation and qualification judgments; a missing
+    /// final-exit drop does not erase this capability.
+    pub no_code_affine_cleanup: bool,
     pub shape: CheckedUnitStructuralTypeShape,
 }
 

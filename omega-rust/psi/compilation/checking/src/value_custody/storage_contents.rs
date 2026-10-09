@@ -147,6 +147,73 @@ pub fn has_contents(
     check_contents_requirement(program, reference, &[], requirement)
 }
 
+/// Ask the same contents judgment under the exact retained type telescope.
+/// Unknown actuals remain opaque; substitutions never supply live custody.
+pub fn has_contents_with_substitutions(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    requirement: ContentsRequirement,
+) -> bool {
+    check_contents_requirement(program, reference, substitutions, requirement)
+}
+
+/// A shape collector can hold a selected data declaration and its exact
+/// parameter telescope without manufacturing a source TypeReference. Reuse
+/// the contents engine on that declaration input; unrelated lexical binders
+/// do not become arguments of the data application.
+pub fn data_has_contents(
+    program: &dyn crate::CheckingInput,
+    data: &typed_trees::data::DataDefinition,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    requirement: ContentsRequirement,
+) -> bool {
+    // A closed instance retains its source application. Its base declaration
+    // owns nominal cleanup even when the instantiated shell has another symbol.
+    // That generated concrete origin is already resolved; outer lexical binders
+    // are not additional arguments of its retained closed application.
+    if let Some(application) = data.generic_instance {
+        return has_contents(program, application, requirement);
+    }
+    let parameters = program.data_type_parameters(data);
+    let arguments = if parameters.is_empty() {
+        Vec::new()
+    } else {
+        let Some(arguments) = contents_arguments(program, substitutions, parameters, requirement)
+        else {
+            return false;
+        };
+        let Some(arguments) = parameters
+            .iter()
+            .map(|parameter| {
+                arguments
+                    .iter()
+                    .rev()
+                    .find(|(symbol, _)| *symbol == parameter.symbol)
+                    .map(|(_, argument)| (parameter.symbol, argument.clone()))
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        arguments
+    };
+    let resolved = ContentType::Data(
+        data.symbol,
+        arguments
+            .into_iter()
+            .map(|(_, argument)| argument)
+            .collect(),
+    );
+    check_contents(
+        program,
+        &resolved,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        requirement,
+    )
+}
+
 /// Classify a record whose fields are each either plain owned contents or a
 /// shared view — a `&[T]` or `&'a V` member whose `&` shell carries the
 /// field's `Unrestricted` multiplicity while its referent's loan stays with
@@ -239,13 +306,9 @@ fn check_contents_requirement(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     requirement: ContentsRequirement,
 ) -> bool {
-    let mut arguments = Vec::new();
-    for (symbol, argument) in substitutions {
-        let Some(argument) = resolve(program, *argument, &arguments, requirement) else {
-            return false;
-        };
-        arguments.push((*symbol, argument));
-    }
+    let Some(arguments) = contents_arguments(program, substitutions, &[], requirement) else {
+        return false;
+    };
     resolve(program, reference, &arguments, requirement).is_some_and(|resolved| {
         check_contents(
             program,
@@ -255,6 +318,51 @@ fn check_contents_requirement(
             requirement,
         )
     })
+}
+
+/// Resolve each actual under the retained earlier telescope, as the source
+/// application did. Data and reference input modes share this one environment.
+fn contents_arguments(
+    program: &dyn crate::CheckingInput,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    parameters: &[typed_trees::data::TypeParameter],
+    requirement: ContentsRequirement,
+) -> Option<Vec<(SymbolHandle, ContentType)>> {
+    let mut arguments = Vec::new();
+    for (symbol, argument) in substitutions {
+        let argument = match parameters
+            .iter()
+            .find(|parameter| parameter.symbol == *symbol)
+        {
+            Some(parameter) => {
+                resolve_parameter_argument(program, parameter, *argument, &arguments, requirement)
+            }
+            None => resolve(program, *argument, &arguments, requirement),
+        }?;
+        arguments.push((*symbol, argument));
+    }
+    Some(arguments)
+}
+
+fn resolve_parameter_argument(
+    program: &dyn crate::CheckingInput,
+    parameter: &typed_trees::data::TypeParameter,
+    reference: TypeReferenceHandle,
+    arguments: &[(SymbolHandle, ContentType)],
+    requirement: ContentsRequirement,
+) -> Option<ContentType> {
+    match parameter.kind {
+        typed_trees::data::TypeParameterKind::Type => {
+            resolve(program, reference, arguments, requirement)
+        }
+        typed_trees::data::TypeParameterKind::Const { .. }
+            if matches!(program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()) =>
+        {
+            Some(ContentType::ConstValue)
+        }
+        _ => None,
+    }
 }
 
 fn resolve(
@@ -330,19 +438,14 @@ fn resolve(
             let resolved = parameters
                 .iter()
                 .zip(source_arguments)
-                .map(|(parameter, reference)| match parameter.kind {
-                    typed_trees::data::TypeParameterKind::Type => {
-                        resolve(program, *reference, arguments, requirement)
-                    }
-                    typed_trees::data::TypeParameterKind::Const { .. }
-                        if matches!(
-                            program.type_reference_table.type_reference(*reference),
-                            TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()
-                        ) =>
-                    {
-                        Some(ContentType::ConstValue)
-                    }
-                    _ => None,
+                .map(|(parameter, reference)| {
+                    resolve_parameter_argument(
+                        program,
+                        parameter,
+                        *reference,
+                        arguments,
+                        requirement,
+                    )
                 })
                 .collect::<Option<Vec<_>>>()?;
             if lifetime_arguments.is_empty()

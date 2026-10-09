@@ -7,6 +7,11 @@
 //! it. Fields and array elements collect the same stored value shapes,
 //! including provider receipts and stored reference shells. Their multiplicity
 //! and cleanup remain obligations of the operations that use that storage.
+//! Plain finite source contents additionally retain their no-code disposal
+//! capability. A selected move may remove a common exit disposition while the
+//! skipped alternative still owns the value; the graph's existing custody
+//! solver needs this independent authority to settle that live complement.
+//! Nominal hooks, linear descendants and stored loans never gain this capability.
 
 use super::*;
 
@@ -217,6 +222,7 @@ impl<'program> ShapeCollector<'program> {
         }
         let identity = closed_data_identity(self.program, data, binders);
         let plan = CheckedUnitStructuralTypePlan {
+            no_code_affine_cleanup: false,
             identity: identity.clone(),
             shape: CheckedUnitStructuralTypeShape::Record {
                 storage: None,
@@ -413,6 +419,7 @@ impl<'program> ShapeCollector<'program> {
             })
             .into_string();
         let plan = CheckedUnitStructuralTypePlan {
+            no_code_affine_cleanup: false,
             identity: identity.clone(),
             shape: CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
@@ -494,6 +501,12 @@ impl<'program> ShapeCollector<'program> {
             binders,
             substitutions,
         );
+        let no_code_affine_cleanup = validation::has_contents_with_substitutions(
+            self.program,
+            validation::structural_identity_type(self.program, type_reference, substitutions),
+            substitutions,
+            validation::ContentsRequirement::RepresentedOwned,
+        );
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
             // Byte views and bounded byte carriers spell their implicit
             // element through the collection establishment operation. The
@@ -536,6 +549,11 @@ impl<'program> ShapeCollector<'program> {
                 }
             }
             let plan = CheckedUnitStructuralTypePlan {
+                no_code_affine_cleanup: no_code_affine_cleanup
+                    && matches!(
+                        carrier,
+                        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                    ),
                 identity: identity.clone(),
                 // A view type's identity peels the reference shell, so
                 // `&mut [u8]` and `&write [u8]` register under one identity.
@@ -563,6 +581,7 @@ impl<'program> ShapeCollector<'program> {
             let element_type_identity = self.add_type(element, binders, substitutions);
             self.in_progress.remove(&identity);
             let plan = CheckedUnitStructuralTypePlan {
+                no_code_affine_cleanup: false,
                 identity: identity.clone(),
                 shape: CheckedUnitStructuralTypeShape::BorrowedSliceView {
                     element_type_identity: element_type_identity?,
@@ -589,6 +608,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity.clone(),
                 CheckedUnitStructuralTypePlan {
+                    no_code_affine_cleanup,
                     identity: identity.clone(),
                     shape: CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
                 },
@@ -661,6 +681,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity.clone(),
                 CheckedUnitStructuralTypePlan {
+                    no_code_affine_cleanup,
                     identity: identity.clone(),
                     shape: CheckedUnitStructuralTypeShape::FixedArray {
                         element_type_identity,
@@ -760,6 +781,12 @@ impl<'program> ShapeCollector<'program> {
         if !self.in_progress.insert(identity.clone()) {
             return None;
         }
+        let no_code_affine_cleanup = validation::data_has_contents(
+            self.program,
+            &data,
+            &substitutions,
+            validation::ContentsRequirement::RepresentedOwned,
+        );
         let members = self.program.data_members(&data).to_vec();
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || !matches!(
@@ -837,6 +864,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity.clone(),
                 CheckedUnitStructuralTypePlan {
+                    no_code_affine_cleanup,
                     identity: identity.clone(),
                     shape: if matches!(shape_kind, DataShapeKind::Mixed) {
                         CheckedUnitStructuralTypeShape::Mixed { fields, cases }
@@ -885,6 +913,7 @@ impl<'program> ShapeCollector<'program> {
         self.types.insert(
             identity.clone(),
             CheckedUnitStructuralTypePlan {
+                no_code_affine_cleanup,
                 identity: identity.clone(),
                 shape: CheckedUnitStructuralTypeShape::Record {
                     fields,
@@ -1052,6 +1081,7 @@ impl<'program> ShapeCollector<'program> {
             })
             .into_string();
         let plan = CheckedUnitStructuralTypePlan {
+            no_code_affine_cleanup: false,
             identity: identity.clone(),
             shape: CheckedUnitStructuralTypeShape::FusedServiceBinding,
         };
