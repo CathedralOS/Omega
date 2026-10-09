@@ -111,7 +111,7 @@ crashes Trap
 
     state clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
         let clause: Clause = SyntaxTrees::clause(syntax, index);
-        transition clause.kind == kind && clause.expression > 0 {
+        transition clause.kind == kind && clause.has_expression {
             true -> fact(resolver, sources, syntax, scope, index, end, kind, clause.expression)
             _ -> next(resolver, sources, syntax, scope, index + 1, end, kind)
         }
@@ -140,7 +140,7 @@ crashes Trap
 
     state clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, index: u64 in Trapping, end: u64 in Trapping) {
         let clause: Clause = SyntaxTrees::clause(syntax, index);
-        transition clause.kind == ClauseKind::Where && clause.expression > 0 {
+        transition clause.kind == ClauseKind::Where && clause.has_expression {
             true -> fact(resolver, sources, syntax, item, index, end, clause.expression)
             _ -> next(resolver, sources, syntax, item, index + 1, end)
         }

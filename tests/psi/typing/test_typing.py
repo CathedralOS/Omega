@@ -783,6 +783,15 @@ def main() -> None:
         "OperandMismatch",
         b"a * b",
     )
+
+    # A fact whose root is the set's first expression types.
+    accepted(
+        program,
+        "fact-rooted-at-the-first-expression",
+        b"machine f(b: bool)\nrequires b\n{}",
+        ((b"b!3", "bool"),),
+    )
+
     # A non-Unit result is dropped only through `_ = call();`.
     accepted(
         program,

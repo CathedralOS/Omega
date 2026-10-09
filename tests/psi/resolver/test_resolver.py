@@ -803,6 +803,15 @@ def main() -> None:
         ),
     )
     rejected(program, "fact-unknown-name", b"machine f(x: u64)\nrequires y > 0\n{}", UNKNOWN_NAME, b"y")
+    # A fact whose root is the set's first expression (handle zero) binds:
+    # a clause's fact is present by its flag, not by a nonzero handle.
+    accepted(
+        program,
+        "fact-rooted-at-the-first-expression",
+        b"machine f(b: bool)\nrequires b\n{}",
+        (builtin("bool"),),
+        (parameter(0),),
+    )
     # `result` names the returned value in `ensures` facts only, and an
     # entry parameter spelled `result` shadows it.
     accepted(

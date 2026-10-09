@@ -81,7 +81,7 @@ crashes Trap
 
     state clause(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
         let clause: Clause = SyntaxTrees::clause(syntax, index);
-        transition clause.kind == kind && clause.expression > 0 {
+        transition clause.kind == kind && clause.has_expression {
             true -> fact(typer, sources, syntax, resolution, index, end, kind, clause.expression)
             _ -> next(typer, sources, syntax, resolution, index + 1, end, kind)
         }
