@@ -43,4 +43,23 @@ impl StructuralAccess {
             StructuralAccess::Owned => false,
         }
     }
+
+    /// `true` when `referent` access satisfies `self` through a `Referent`
+    /// projection — the loan-chain compatibility axis. A loan can never
+    /// grant ownership, so `Owned` referents admit nothing and an `Owned`
+    /// source never qualifies.
+    pub fn admits_referent(self, referent: StructuralAccess) -> bool {
+        match self {
+            StructuralAccess::SharedBorrow => matches!(
+                referent,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ),
+            StructuralAccess::MutableBorrow => referent == StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow => matches!(
+                referent,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ),
+            StructuralAccess::Owned => false,
+        }
+    }
 }

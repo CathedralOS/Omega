@@ -755,18 +755,7 @@ pub(super) fn reference_source_type(
                 // Preserve the existing terminal spelling for a direct leaf.
                 return (position + 1 == source.path.len()).then_some(current);
             };
-            let compatible = match source.access {
-                StructuralAccess::SharedBorrow => matches!(
-                    access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ),
-                StructuralAccess::MutableBorrow => *access == StructuralAccess::MutableBorrow,
-                StructuralAccess::WriteOnlyBorrow => matches!(
-                    access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                ),
-                StructuralAccess::Owned => false,
-            };
+            let compatible = source.access.admits_referent(*access);
             if !compatible {
                 return None;
             }
