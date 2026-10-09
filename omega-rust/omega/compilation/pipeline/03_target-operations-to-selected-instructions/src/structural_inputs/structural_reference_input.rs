@@ -289,7 +289,15 @@ fn storage_projection_regions(
                 (StructuralPathSegment::Referent, _) => return None,
                 _ => continue,
             };
-        if shape(carrier, declarations)? != ValueShape::integer(descriptor_size, 8) {
+        if shape(carrier, declarations)? != ValueShape::integer(descriptor_size, 8)
+            || !scalar_access_within_storage(
+                root,
+                byte_offset,
+                descriptor_size,
+                &region_elements,
+                declarations,
+            )
+        {
             return None;
         }
         let first_index = elements.len();
