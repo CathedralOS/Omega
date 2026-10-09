@@ -102,7 +102,7 @@ impl BoundaryCallingPlanRealization {
         }
     }
 
-    pub fn replayed_validated_plan(
+    pub(crate) fn replayed_validated_plan(
         &self,
     ) -> Result<ValidatedBoundaryEntryPlan, calling_conventions::PlanDiagnostic> {
         let signature = CallSignature {

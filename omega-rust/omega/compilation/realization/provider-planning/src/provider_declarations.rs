@@ -14,7 +14,7 @@ use typed_trees::TypedTrees;
 
 /// Static target-default declarations have their own admission path. Authored
 /// Build overrides instead enter through executed call receipts below.
-pub fn harvest_provider_selections(
+pub(crate) fn harvest_provider_selections(
     context: ProviderPlanningContext<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {

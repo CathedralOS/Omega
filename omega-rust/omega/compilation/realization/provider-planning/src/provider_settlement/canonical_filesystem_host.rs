@@ -126,7 +126,7 @@ fn toolchain_filesystem_leaves(target_name: &str) -> &'static [ToolchainFilesyst
 /// The toolchain-settled plan and the exact symbols receiver admission
 /// needs to join it: the boundary trait (fused erasure + provenance schema
 /// declaration) and the row-aligned requirement machine symbols.
-pub type MintedFilesystemHostPlan = super::ToolchainSettledMint;
+pub(crate) type MintedFilesystemHostPlan = super::ToolchainSettledMint;
 
 /// Mint the canonical `FilesystemHost` provider plan for this build, or `Ok(None)`
 /// when the build accepts no filesystem binding, selects no target,
@@ -136,7 +136,7 @@ pub type MintedFilesystemHostPlan = super::ToolchainSettledMint;
 /// selected facts, the fused-service erasure binding, and the
 /// post-derivation review provenance, and deliberately excludes it from
 /// candidate plans and pre-selection provenance replay.
-pub fn mint_canonical_filesystem_host_plan(
+pub(crate) fn mint_canonical_filesystem_host_plan(
     typed: &TypedTrees,
     accepted_binding: Option<&AcceptedSemanticBinding>,
     target_name: Option<&'static str>,

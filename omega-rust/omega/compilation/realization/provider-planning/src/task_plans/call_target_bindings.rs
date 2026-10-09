@@ -46,7 +46,7 @@ use task_plans::{CallTargetBinding, TaskStackFrameId, ValidatedActivationPlan};
 /// as a checked body — a binding's evidence is the callee's validated
 /// call-graph subtree, which only a checked body can produce.
 #[derive(Debug, Clone)]
-pub struct CallTargetAssignment {
+pub(crate) struct CallTargetAssignment {
     /// Frame owning the unresolved call the provider resolves.
     pub frame: TaskStackFrameId,
     /// Name of the reachable state inside `frame` whose flow row owns the
@@ -79,7 +79,7 @@ pub struct CallTargetAssignment {
 /// machine state rejects: the site stays uncovered because no honest binding
 /// exists for it, not because the derivation silently thinned the set. Two
 /// rows answering one site coordinate reject as contradictory claims.
-pub fn derive_call_target_bindings(
+pub(crate) fn derive_call_target_bindings(
     program: &CheckedTrees,
     target: NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],

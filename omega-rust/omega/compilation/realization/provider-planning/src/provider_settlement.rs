@@ -27,10 +27,11 @@ mod independent_components;
 mod semantic_roles;
 
 pub use canonical_filesystem_host::{
-    MintedFilesystemHostPlan, mint_canonical_filesystem_host_plan,
 };
+pub(crate) use canonical_filesystem_host::{
+    MintedFilesystemHostPlan, mint_canonical_filesystem_host_plan};
 pub use composition_modes::verify_selected_compositions_are_realized;
-pub use independent_components::verify_independent_component_descriptions;
+pub(crate) use independent_components::verify_independent_component_descriptions;
 
 use crate::ProviderSelection;
 use crate::SelectedProviderReviewProvenance;
@@ -90,7 +91,7 @@ fn resolve_canonical_host_binding<'trees>(
 
 /// The toolchain-settled mint output shared by the canonical host plans:
 /// the plan plus the exact symbols the provenance and erasure joins need.
-pub struct ToolchainSettledMint {
+pub(crate) struct ToolchainSettledMint {
     pub plan: ProviderPlan,
     pub trait_symbol: symbols::SymbolHandle,
     /// Row-aligned with `plan.rows`: the requirement's own machine symbol.

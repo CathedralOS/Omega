@@ -50,7 +50,7 @@ fn verification_request(
 /// admission profile, in iteration order. `package_name` names the owning
 /// package in rejection diagnostics; callers holding only custody identities
 /// supply a lookup that yields `None` and leave the package unnamed.
-pub fn verify_independent_component_descriptions<'a>(
+pub(crate) fn verify_independent_component_descriptions<'a>(
     descriptions: impl IntoIterator<Item = &'a IndependentComponentDescription>,
     accepted_assumptions: &BTreeSet<[u8; 32]>,
     package_name: impl Fn(PackageKeyIdentity) -> Option<&'a str>,

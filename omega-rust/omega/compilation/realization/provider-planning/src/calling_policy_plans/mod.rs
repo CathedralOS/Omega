@@ -23,20 +23,23 @@ mod plan_computation;
 mod policy_implementations;
 
 pub use boundary_signatures::{
-    BoundaryCallbackBinder, BoundaryDirectCallbackParameter, BoundaryNativeParameter,
+    BoundaryCallbackBinder,
     BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, BoundaryValueClass,
     BoundaryValueField, BoundaryValueShape, MaterializedBoundarySignature,
 };
+pub(crate) use boundary_signatures::{ BoundaryDirectCallbackParameter, BoundaryNativeParameter};
 pub use callback_bindings::{
     BoundaryCallingPlanRealization, SelectedCallbackPlacement,
     close_outbound_callback_materializations, validate_nominal_callback_placement_bindings,
 };
 pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
-pub use opaque_representations::{
-    BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
+pub use opaque_representations::{ BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
+pub(crate) use opaque_representations::{
+    BoundaryOpaqueRepresentationMovement};
 pub use plan_computation::{
-    compute_boundary_calling_plans, evaluate_calling_policy_plan,
-    evaluate_compatibility_boundary_entry_plan, materialized_boundary_signature_from_abi,
+    compute_boundary_calling_plans,
 };
+pub(crate) use plan_computation::{ evaluate_calling_policy_plan,
+    evaluate_compatibility_boundary_entry_plan, materialized_boundary_signature_from_abi};

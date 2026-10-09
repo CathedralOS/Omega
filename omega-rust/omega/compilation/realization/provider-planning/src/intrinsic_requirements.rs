@@ -88,7 +88,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
         })
     }
 
-    pub fn from_requirement(
+    pub(crate) fn from_requirement(
         typed: &'typed TypedTrees,
         requirement: &'typed typed_trees::machine::Machine,
     ) -> Option<Self> {
@@ -161,7 +161,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
     }
 
     /// Whether a provider-plan schema is exactly this requirement's slot.
-    pub fn schema_binds(
+    pub(crate) fn schema_binds(
         &self,
         context: crate::ProviderPlanningContext<'_>,
         schema: &ServiceSchema,

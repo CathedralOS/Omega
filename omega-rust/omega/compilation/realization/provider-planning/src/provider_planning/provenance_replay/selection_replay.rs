@@ -18,7 +18,7 @@ use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, S
 /// Replay each selected plan's retained provenance: its schema, requirement
 /// kinds, realizations, satisfies edges and row bindings must rejoin the
 /// typed program, and its target must equal the evaluated-binding target.
-pub fn replay_selected_provider_provenance(
+pub(crate) fn replay_selected_provider_provenance(
     context: ProviderPlanningContext<'_>,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     selected: &[crate::SelectedProviderPlanWithProvenance],

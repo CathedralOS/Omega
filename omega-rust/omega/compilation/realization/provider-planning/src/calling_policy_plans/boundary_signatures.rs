@@ -68,7 +68,7 @@ impl MaterializedBoundarySignature {
     }
 
     /// Source-free public shape input for the backend's ABI classifier.
-    pub fn value_graph(&self) -> BoundaryValueGraph<'_> {
+    pub(crate) fn value_graph(&self) -> BoundaryValueGraph<'_> {
         BoundaryValueGraph {
             shapes: &self.shapes,
             fields: &self.fields,
