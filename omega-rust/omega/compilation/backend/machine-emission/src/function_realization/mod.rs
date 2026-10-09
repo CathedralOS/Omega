@@ -22,7 +22,6 @@ pub(crate) use carriers::{
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt};
 pub use carriers::{
     StagedFixedFrameFunctionRelativeRealization};
-pub(crate) use codec::FunctionRelativeOptimizationRealizationManifestDecodeError;
 pub use error::FunctionRelativeOptimizationRealizationError;
 pub use fixed_frame::{
     stage_fixed_frame_function_relative_realization,

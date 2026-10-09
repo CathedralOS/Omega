@@ -33,27 +33,10 @@ impl FunctionFragmentReplayInputs {
         self.realization.machine()
     }
 
-    pub fn resolved_layout(&self) -> &machine_code::ResolvedMachineLayout {
-        self.layout_optimization().layout()
-    }
-
     pub(crate) fn layout_optimization(
         &self,
     ) -> &resolved_layout_to_resolved_layout::ResolvedLayoutOptimization {
         self.realization.layout_optimization()
-    }
-
-    /// The canonical frame protocol retained for independent replay.
-    pub fn frame_protocol(
-        &self,
-    ) -> Option<&crate::frame_protocol::ValidatedTargetFrameProtocolEncoding> {
-        Some(self.realization.protocol())
-    }
-
-    /// The target-owned geometry the frame protocol encodes. Present exactly
-    /// where [`Self::frame_protocol`] is.
-    pub fn frame_layout(&self) -> Option<&crate::frame_layout::ValidatedTargetFrameLayout> {
-        Some(self.realization.frame())
     }
 
     pub fn register_homes(

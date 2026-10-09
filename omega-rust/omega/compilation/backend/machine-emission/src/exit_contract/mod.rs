@@ -15,7 +15,6 @@ mod compute;
 mod error;
 mod identity;
 mod layout_optimization;
-mod stage;
 mod validation;
 mod validation_rules;
 
@@ -29,11 +28,6 @@ pub use machine_code::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 
-pub(crate) use stage::{
-    stage_whole_function_exit_contract_after_x86_branch_relaxation,
-    stage_whole_function_exit_contract_with_frame,
-    validate_whole_function_exit_contract_after_x86_branch_relaxation,
-    validate_whole_function_exit_contract_with_frame};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedWholeFunctionExitContract {

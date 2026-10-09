@@ -137,12 +137,8 @@ pub use private_callback::{
 };
 
 // `code_layout<Machine>()` descriptions projected from placed text.
-mod code_layout;
 
 
 // Target-owned x86-64 byte recipes outside the route.
-mod entry_exit_stub;
-mod startup_trampoline;
-mod x86_fma;
 
 

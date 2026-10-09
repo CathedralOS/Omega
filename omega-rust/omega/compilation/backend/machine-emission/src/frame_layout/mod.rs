@@ -66,7 +66,7 @@ pub(crate) fn stage_target_frame_layout(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TargetFrameLayoutReceipt {
+pub struct TargetFrameLayoutReceipt {
     identity: TargetFrameLayoutIdentity,
     post_allocation_machine: PostAllocationMachineIdentity,
     callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
@@ -90,41 +90,8 @@ impl TargetFrameLayoutReceipt {
     pub const fn post_allocation_machine(self) -> PostAllocationMachineIdentity {
         self.post_allocation_machine
     }
-    pub const fn callee_saved_requirements(self) -> AllocatedCalleeSavedRequirementIdentity {
-        self.callee_saved_requirements
-    }
-    pub const fn callee_save_storage(self) -> NonAuthoritativeCalleeSaveStorageIdentity {
-        self.callee_save_storage
-    }
     pub const fn target(self) -> NativeTarget {
         self.target
-    }
-    pub const fn abi(self) -> FrameAbiPreservationConvention {
-        self.abi
-    }
-    pub const fn policy(self) -> TargetFrameLayoutPolicy {
-        self.policy
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn framed_function_count(self) -> usize {
-        self.framed_function_count
-    }
-    pub const fn calling_function_count(self) -> usize {
-        self.calling_function_count
-    }
-    pub const fn callee_save_slot_count(self) -> usize {
-        self.callee_save_slot_count
-    }
-    pub const fn saved_link_count(self) -> usize {
-        self.saved_link_count
-    }
-    pub const fn probed_function_count(self) -> usize {
-        self.probed_function_count
-    }
-    pub const fn max_frame_size_bytes(self) -> u64 {
-        self.max_frame_size_bytes
     }
 }
 
