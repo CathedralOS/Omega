@@ -249,7 +249,7 @@ impl StructuralJudge<'_> {
     }
 }
 
-fn boolean_term(value: bool) -> StructuralTerm {
+pub(super) fn boolean_term(value: bool) -> StructuralTerm {
     StructuralTerm::Constructor {
         data: "bool".to_owned(),
         case: value.to_string(),

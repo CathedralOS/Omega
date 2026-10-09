@@ -10,6 +10,7 @@ use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_parameters, owner_symbol, selected_call_contract,
 };
 use super::selected_contracts::{bound_term, capture_equations, independent_application};
+use super::value_predicates::boolean_term;
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
 use symbols::SymbolHandle;
@@ -479,14 +480,6 @@ impl NormalReturnPath<'_> {
             .normal_results
             .push((expression, self.value.clone()));
         self
-    }
-}
-
-fn boolean_term(value: bool) -> StructuralTerm {
-    StructuralTerm::Constructor {
-        data: "bool".to_owned(),
-        case: value.to_string(),
-        fields: Vec::new(),
     }
 }
 

@@ -569,7 +569,7 @@ fn slice_subject_carrier(
     } else {
         parameter.type_reference
     };
-    slice_carrier_type(program, reference)
+    crate::value_custody::type_shapes::has_slice_base(program, reference)
 }
 
 /// The unsigned primitive carrier under any constrained shells on the ranked
@@ -592,9 +592,6 @@ fn unsigned_subject_carrier(
 
 /// The slice carrier under any reference or constrained shells. A ranked
 /// subject without an exact slice base cannot carry a length projection.
-fn slice_carrier_type(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -> bool {
-    crate::value_custody::type_shapes::has_slice_base(program, reference)
-}
 
 /// The unsigned primitive carrier under any constrained shells. A ranked
 /// subject or endpoint without an exact unsigned base cannot carry a
