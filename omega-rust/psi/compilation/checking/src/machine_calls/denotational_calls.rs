@@ -142,6 +142,20 @@ pub(crate) fn has_observation_free_checked_closure(
                 .services(machine.service_reach_row)
                 .is_empty()
         {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "DENOTATION observation closure machine={:?} name={} supply={:?} body={} owned={} reach={}",
+                    machine.symbol,
+                    machine.name,
+                    machine.supply_mode,
+                    machine.body_is_present,
+                    program.machine_owned_data(machine).len(),
+                    program
+                        .service_reach_rows
+                        .services(machine.service_reach_row)
+                        .len(),
+                );
+            }
             return false;
         }
         for state in program.machine_states(machine) {
@@ -150,6 +164,12 @@ pub(crate) fn has_observation_free_checked_closure(
                 .iter()
                 .any(|parameter| parameter.is_mutable)
             {
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "DENOTATION observation closure machine={:?} name={} state={:?} has mutable parameters",
+                        machine.symbol, machine.name, state.symbol,
+                    );
+                }
                 return false;
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
@@ -180,6 +200,12 @@ pub(crate) fn has_observation_free_checked_closure(
                     }
                 };
                 if !allowed {
+                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        eprintln!(
+                            "DENOTATION observation closure machine={:?} name={} state={:?} statement={statement:?}",
+                            machine.symbol, machine.name, state.symbol,
+                        );
+                    }
                     return false;
                 }
             }
