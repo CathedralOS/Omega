@@ -1100,6 +1100,17 @@ pub(crate) fn resolve_structural_arguments(
         .collect()
 }
 
+/// The one structural value `argument` resolves to — a batch of one.
+pub(crate) fn resolve_single_structural_argument(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    argument: &StructuralArgument,
+) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+    resolve_structural_arguments(structural_types, values, std::slice::from_ref(argument))?
+        .pop()
+        .ok_or_else(malformed)
+}
+
 /// Resolve a typed projection onto its original runtime backing. Case steps
 /// choose a declaration namespace but add no physical storage component.
 /// The execution loop validates every selected discriminator before dispatch;

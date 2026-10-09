@@ -28,7 +28,7 @@ use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::bind_affine_frontier;
 use crate::custody::bind_arguments;
 use crate::custody::bind_structural_arguments;
-use crate::custody::resolve_structural_arguments;
+use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::scalar_array::TerminalScalarArrayValue;
@@ -454,13 +454,11 @@ impl TerminalExecution<'_> {
                         }
                     } else {
                         let root = value;
-                        let view = resolve_structural_arguments(
+                        let view = resolve_single_structural_argument(
                             &self.program.structural_types(),
                             &self.structural_values,
-                            std::slice::from_ref(argument),
-                        )?
-                        .pop()
-                        .ok_or(malformed())?;
+                            &argument,
+                        )?;
                         if view.structural_type != parameter.structural_type {
                             return Err(TerminalInterpretError::StructuralArgumentType {
                                 place: parameter.place,

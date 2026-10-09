@@ -684,13 +684,11 @@ impl TerminalExecution<'_> {
             }
             _ => {
                 let view = if element_scalar.is_none() {
-                    let collection = crate::custody::resolve_structural_arguments(
+                    let collection = crate::custody::resolve_single_structural_argument(
                         &self.program.structural_types(),
                         &self.structural_values,
-                        std::slice::from_ref(source),
-                    )?
-                    .pop()
-                    .ok_or_else(malformed)?;
+                        &source,
+                    )?;
                     ElementView::structural(
                         collection,
                         extent,

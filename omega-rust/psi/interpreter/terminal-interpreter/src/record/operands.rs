@@ -1,7 +1,7 @@
 //! Constructor operands move their affine complement and linear claims together.
 //! Stage custody before removing any runtime cells so malformed later operands
 //! cannot consume an earlier child or its still-live siblings.
-use crate::custody::resolve_structural_arguments;
+use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::StructuralRuntimePlace;
@@ -174,13 +174,11 @@ impl TerminalExecution<'_> {
         let homes = consumed
             .iter()
             .map(|argument| {
-                let child = resolve_structural_arguments(
+                let child = resolve_single_structural_argument(
                     &self.program.structural_types(),
                     &self.structural_values,
-                    std::slice::from_ref(argument),
-                )?
-                .pop()
-                .ok_or(malformed())?;
+                    &argument,
+                )?;
                 Ok(StructuralRuntimePlace::from(&child))
             })
             .collect::<Result<Vec<_>, TerminalInterpretError>>()?;

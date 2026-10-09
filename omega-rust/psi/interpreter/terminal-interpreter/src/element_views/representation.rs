@@ -137,13 +137,11 @@ impl TerminalExecution<'_> {
             let (root, home) =
                 self.array_storage_root_staged(source.place, &mut cursor, &mut BTreeMap::new())?;
             let values = BTreeMap::from([(source.place, root)]);
-            let referent = crate::custody::resolve_structural_arguments(
+            let referent = crate::custody::resolve_single_structural_argument(
                 &self.program.structural_types(),
                 &values,
-                std::slice::from_ref(source),
-            )?
-            .pop()
-            .ok_or_else(malformed)?;
+                &source,
+            )?;
             if referent.structural_type != collection || !referent.qualifications.is_empty() {
                 return Err(malformed());
             }

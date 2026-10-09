@@ -3,7 +3,7 @@ pub(crate) mod storage;
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::resolve_structural_arguments;
+use crate::custody::{resolve_single_structural_argument, resolve_structural_arguments};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
@@ -395,13 +395,8 @@ impl TerminalExecution<'_> {
         let length = byte_array_length(&self.program.structural_types(), array_type)
             .ok_or_else(malformed)?;
         let values = BTreeMap::from([(source.place, root)]);
-        let mut referent = resolve_structural_arguments(
-            &self.program.structural_types(),
-            &values,
-            std::slice::from_ref(source),
-        )?
-        .pop()
-        .ok_or_else(malformed)?;
+        let mut referent =
+            resolve_single_structural_argument(&self.program.structural_types(), &values, &source)?;
         let array = ArrayStorage {
             referent: StructuralRuntimePlace::from(&referent),
             home,
@@ -585,13 +580,11 @@ impl TerminalExecution<'_> {
         } else {
             &self.structural_values
         };
-        let mut referent = resolve_structural_arguments(
+        let mut referent = resolve_single_structural_argument(
             &self.program.structural_types(),
             values,
-            std::slice::from_ref(&backing_argument),
-        )?
-        .pop()
-        .ok_or_else(malformed)?;
+            &backing_argument,
+        )?;
         if !root.qualifications.is_empty() || !referent.qualifications.is_empty() {
             return Err(malformed());
         }

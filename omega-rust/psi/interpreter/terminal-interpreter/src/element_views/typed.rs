@@ -6,7 +6,7 @@
 //! and activation home; only the selected scalar crosses the bit mapping.
 
 use super::{ElementView, ElementViewBacking, ElementViewHome};
-use crate::custody::resolve_structural_arguments;
+use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
@@ -108,15 +108,11 @@ impl TerminalExecution<'_> {
             // no opaque structural identity and cannot contain record fields.
             None
         } else {
-            Some(
-                resolve_structural_arguments(
-                    &self.program.structural_types(),
-                    &self.structural_values,
-                    std::slice::from_ref(source),
-                )?
-                .pop()
-                .ok_or_else(malformed)?,
-            )
+            Some(resolve_single_structural_argument(
+                &self.program.structural_types(),
+                &self.structural_values,
+                &source,
+            )?)
         };
         Ok(TypedElementView {
             collection,
