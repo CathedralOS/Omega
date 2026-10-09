@@ -12,6 +12,7 @@
 //! `component_eras/` owns era ledgers and progress evidence.
 //! These are realization records, not the source language's effect analysis.
 
+mod fnv1a;
 mod provider_evidence;
 pub mod provider_grants;
 
