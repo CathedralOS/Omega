@@ -45,7 +45,7 @@ pub(crate) use calls::{
 /// A collection descriptor's closed extent, using the same checked geometry
 /// as ranking and saved-argument proofs. Immutable bindings retain their
 /// initializer only while writes and exclusive exposure cannot replace it.
-pub(crate) fn closed_collection_length(
+pub fn closed_collection_length(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,

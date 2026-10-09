@@ -55,6 +55,29 @@ impl<'program> Engine<'program> {
         self.strict_symbol_bindings_valid
     }
 
+    /// Copy captured closed values into a fresh judgment without its live
+    /// hypotheses. Reading a saved initializer may retain an immutable bound
+    /// value, but later guards cannot retroactively describe its evaluation.
+    pub(in crate::proof_contracts::contract_entailment) fn closed_symbol_bindings(
+        &self,
+    ) -> Option<Vec<StrictArithmeticSymbolBinding>> {
+        if !self.strict_symbol_bindings_valid {
+            return None;
+        }
+        Some(
+            self.strict_symbol_bindings
+                .iter()
+                .flatten()
+                .filter_map(|(symbol, value)| {
+                    Some(StrictArithmeticSymbolBinding {
+                        symbol: *symbol,
+                        value: StrictArithmeticBindingValue::Integer(value.constant_value()?),
+                    })
+                })
+                .collect(),
+        )
+    }
+
     /// Register a private atom of a scoped roster. Unsigned atoms carry the
     /// same implicit `>= 0` as unsigned parameters; the matrix seeds it on the
     /// next hypothesis installation.

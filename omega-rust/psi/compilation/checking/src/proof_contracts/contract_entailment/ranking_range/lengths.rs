@@ -19,6 +19,8 @@ use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
+mod calls;
+
 pub(super) fn is_slice(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -> bool {
     crate::value_custody::type_shapes::has_slice_base(program, reference)
 }
@@ -361,10 +363,24 @@ fn evaluate_length(
             {
                 return None;
             }
-            produced_length(program, machine, state, local.initial_value, depth + 1)
+            let mut captured = Engine::strict_with_symbol_bindings(
+                program,
+                machine,
+                &engine.closed_symbol_bindings()?,
+            );
+            return evaluate_length(
+                program,
+                machine,
+                state,
+                local.initial_value,
+                &[],
+                &mut captured,
+                depth + 1,
+            );
         }
         ExpressionNode::ArrayLiteral(values) => Some(values.len() as u64),
-        ExpressionNode::Call(call) => slice_view_call_length(program, machine, state, call),
+        ExpressionNode::Call(call) => slice_view_call_length(program, machine, state, call)
+            .or_else(|| calls::normal_return_length(program, call, engine)),
         _ => None,
     }?;
     Some(Polynomial::constant(BigInt::from_u64(length)))

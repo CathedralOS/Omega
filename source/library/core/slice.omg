@@ -53,7 +53,9 @@ requires
 
 boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
-    start <= end && end <= items.len;
+    start <= end && end <= items.len
+ensures
+    result.len == end - start;
 
 boundary operator Slice::range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
 requires

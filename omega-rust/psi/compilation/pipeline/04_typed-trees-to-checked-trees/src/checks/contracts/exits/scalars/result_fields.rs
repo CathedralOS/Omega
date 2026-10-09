@@ -148,9 +148,33 @@ impl ExitScalars<'_, '_> {
     }
 
     pub(super) fn result_field_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
-        let (value, remaining) = self.result_projection(expression)?;
         let state =
             validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
+        // Descriptor metadata is a value projection too. Rebase the exact
+        // reserved result onto the returned view; the shared geometry query
+        // retains captured closed values and excludes later live hypotheses.
+        if let Some(receiver) = validation::collection_length_receiver(
+            self.program,
+            self.machine,
+            Some(state),
+            expression,
+        ) && validation::reserved_result_owner(self.program, receiver)
+            .is_some_and(|(owner, _)| owner == self.machine.symbol)
+        {
+            let returned = exit_return_expression(self.program, self.exit);
+            if !self.return_expression_is_stable(returned) {
+                return None;
+            }
+            return validation::closed_collection_length(
+                self.program,
+                self.machine,
+                state,
+                returned,
+            )
+            .map(numerics::bignum::BigInt::from_u64)
+            .map(ScalarValue::Integer);
+        }
+        let (value, remaining) = self.result_projection(expression)?;
         if remaining.is_empty() {
             let reference =
                 validation::reserved_result_place(self.program, expression)?.type_reference;

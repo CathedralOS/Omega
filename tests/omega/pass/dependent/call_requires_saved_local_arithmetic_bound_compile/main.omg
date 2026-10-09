@@ -9,7 +9,9 @@ machine Main::main(main: &mut Main) -> u64 {
     transition { _ -> Main::outer(main, items) }
 }
 
-machine Main::outer(main: &mut Main, items: &[i32]) -> u64 {
+machine Main::outer(main: &mut Main, items: &[i32]) -> u64
+requires items.len < 18446744073709551615
+{
     let n: u64 = items.len + 1;
     transition { _ -> Main::inner(main, items, n) }
 }
