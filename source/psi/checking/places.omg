@@ -324,6 +324,62 @@ crashes Trap
     let lower: Bound = Bound::exactly(floor);
     Zone::constrain(&mut checker.zone, 0, subject, upper);
     Zone::constrain(&mut checker.zone, subject, 0, lower);
+    transition { _ -> saved(checker, subject, upper, lower, 0) }
+
+    // The range is a fact of the place's type, so it holds on every path:
+    // a zone saved before the place was entered (an open `&&`/`||` context
+    // or transition) takes it too, or a later join would lose it.
+    state saved(checker: &mut Checker, subject: u64 in Trapping, upper: Bound, lower: Bound, index: u64 in Trapping) {
+        transition index < checker.saved_count && index < 8 {
+            true -> ranged(checker, subject, upper, lower, index)
+            _ -> done()
+        }
+    }
+
+    state ranged(checker: &mut Checker, subject: u64 in Trapping, upper: Bound, lower: Bound, index: u64 in Trapping)
+    requires index < 8
+    {
+        checker.merged = checker.saved[index];
+        Zone::constrain(&mut checker.merged, 0, subject, upper);
+        Zone::constrain(&mut checker.merged, subject, 0, lower);
+        checker.saved[index] = checker.merged;
+        transition { _ -> saved(checker, subject, upper, lower, index + 1) }
+    }
+
+    state done() {}
+}
+
+// Every subject place's carrier range, again. A state's arrival replaces the
+// zone its places were entered in, and widening may have dropped a bound
+// that only the carrier implied; the range holds on every arrival all the
+// same.
+pub machine Checker::restore_ranges(checker: &mut Checker, typing: &Typing)
+crashes Trap
+{
+    transition { _ -> next(checker, typing, 0) }
+
+    state next(checker: &mut Checker, typing: &Typing, index: u64 in Trapping) {
+        transition index < checker.place_count {
+            true -> visit(checker, typing, index)
+            _ -> done()
+        }
+    }
+
+    state visit(checker: &mut Checker, typing: &Typing, index: u64 in Trapping) {
+        let candidate: Place = Checker::place_at(checker, index);
+        transition candidate.subject > 0 {
+            true -> ranged(checker, typing, index, candidate)
+            _ -> next(checker, typing, index + 1)
+        }
+    }
+
+    state ranged(checker: &mut Checker, typing: &Typing, index: u64 in Trapping, candidate: Place) {
+        let carrier: BuiltinType = Checker::place_carrier(typing, candidate.kind, candidate.type_handle);
+        Checker::enter_range(checker, candidate.subject, carrier);
+        transition { _ -> next(checker, typing, index + 1) }
+    }
+
+    state done() {}
 }
 
 // Forget every fact about `place` and the places it contains, as a write to

@@ -376,6 +376,31 @@ def main() -> None:
         b"a[j + 1]",
     )
 
+    # A failed equality excludes one value: beside a proven order an
+    # unsigned divisor known unequal to zero is at least one.
+    accepted(
+        program,
+        "unequal-divisor-from-a-passed-literal-arm",
+        b"machine f(a: u64, b: u64) -> u64 { transition b == 0 { true -> (0) _ -> (a / b) } }",
+    )
+    accepted(
+        program,
+        "unequal-divisor-from-a-failed-disjunction",
+        b"machine f(a: u64, b: u64) -> u64 { transition { a == 0 || b == 0 -> (0) _ -> (a / b) } }",
+    )
+
+    accepted(
+        program,
+        "unequal-field-divisor-from-a-failed-disjunction",
+        b"data E [copy] { negative: bool; magnitude: u64 in Wrapping; }\n"
+        b"machine m(left: E, right: E) -> u64 in Wrapping {\n"
+        b"    transition left.magnitude == 0 || right.magnitude == 0 {\n"
+        b"        true -> (0)\n"
+        b"        _ -> (left.magnitude / right.magnitude)\n"
+        b"    }\n"
+        b"}",
+    )
+
     # A loop's facts settle over every predecessor of its head.
     accepted(
         program,
@@ -418,6 +443,48 @@ def main() -> None:
         b"}",
         "IndexOutOfBounds",
         b"a[i]",
+    )
+    # A widened arrival may drop a bound only a carrier implied; the state's
+    # places keep their carrier ranges all the same.
+    accepted(
+        program,
+        "widened-field-keeps-its-carrier-range",
+        b"data U { length: u64; }\n"
+        b"data L { source: U; cursor: u64 in Trapping; index: u64 in Trapping; depth: u64 in Trapping; }\n"
+        b"machine m(l: &mut L) -> u64 in Trapping {\n"
+        b"    l.depth = 1;\n"
+        b"    transition { _ -> scan(l) }\n"
+        b"\n"
+        b"    state scan(l: &mut L) -> u64 in Trapping {\n"
+        b"        transition l.cursor < l.source.length {\n"
+        b"            true -> pair(l)\n"
+        b"            _ -> done(l)\n"
+        b"        }\n"
+        b"    }\n"
+        b"\n"
+        b"    state pair(l: &mut L) -> u64 in Trapping {\n"
+        b"        l.index = l.cursor + 1;\n"
+        b"        transition l.index < l.source.length {\n"
+        b"            true -> open(l)\n"
+        b"            _ -> advance(l)\n"
+        b"        }\n"
+        b"    }\n"
+        b"\n"
+        b"    state open(l: &mut L) -> u64 in Trapping {\n"
+        b"        l.depth = l.depth + 1;\n"
+        b"        l.cursor = l.cursor + 2;\n"
+        b"        transition { _ -> scan(l) }\n"
+        b"    }\n"
+        b"\n"
+        b"    state advance(l: &mut L) -> u64 in Trapping {\n"
+        b"        l.cursor = l.cursor + 1;\n"
+        b"        transition { _ -> scan(l) }\n"
+        b"    }\n"
+        b"\n"
+        b"    state done(l: &mut L) -> u64 in Trapping {\n"
+        b"        l.source.length as u64 in Trapping\n"
+        b"    }\n"
+        b"}",
     )
 
     # Crash routes: Trapping operations and crash statements are sites, a

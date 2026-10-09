@@ -79,6 +79,7 @@ crashes Trap
             OperatorKind::Greater -> related(checker, syntax, right, left, true)
             OperatorKind::GreaterEqual -> related(checker, syntax, right, left, false)
             OperatorKind::Equal -> equal(checker, syntax, left, right)
+            OperatorKind::NotEqual -> unequal(checker, syntax, left, right)
             _ -> next(checker, syntax)
         }
     }
@@ -108,6 +109,38 @@ crashes Trap
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
         Checker::constrain_difference(checker, left, right, zero);
         Checker::constrain_difference(checker, right, left, zero);
+        transition { _ -> next(checker, syntax) }
+    }
+
+    // `left != right` excludes one value, which a difference bound holds
+    // only beside an order the facts already prove: `left >= right` becomes
+    // `left >= right + 1` (an unsigned value known nonzero is at least one),
+    // and `left <= right` becomes `left <= right - 1`. Both at once make the
+    // point unreachable.
+    state unequal(checker: &mut Checker, syntax: &SyntaxTrees, left: Value, right: Value) {
+        let below: ExactInteger = ExactInteger { negative: true, magnitude: 1 };
+        let at_least: bool = Checker::proves_at_most(checker, right, left);
+        let at_most: bool = Checker::proves_at_most(checker, left, right);
+        transition at_least {
+            true -> raised(checker, syntax, left, right, at_most, below)
+            _ -> lowered(checker, syntax, left, right, at_most, below)
+        }
+    }
+
+    state raised(checker: &mut Checker, syntax: &SyntaxTrees, left: Value, right: Value, at_most: bool, below: ExactInteger) {
+        Checker::constrain_difference(checker, right, left, below);
+        transition { _ -> lowered(checker, syntax, left, right, at_most, below) }
+    }
+
+    state lowered(checker: &mut Checker, syntax: &SyntaxTrees, left: Value, right: Value, at_most: bool, below: ExactInteger) {
+        transition at_most {
+            true -> capped(checker, syntax, left, right, below)
+            _ -> next(checker, syntax)
+        }
+    }
+
+    state capped(checker: &mut Checker, syntax: &SyntaxTrees, left: Value, right: Value, below: ExactInteger) {
+        Checker::constrain_difference(checker, left, right, below);
         transition { _ -> next(checker, syntax) }
     }
 

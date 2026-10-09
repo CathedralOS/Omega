@@ -361,6 +361,7 @@ crashes Trap
 
     state arrived(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, state: StateItem, checking: bool) {
         Checker::arrive(checker, offset);
+        Checker::restore_ranges(checker, typing);
         transition { _ -> opened(checker, syntax, resolution, typing, state, checking) }
     }
 
