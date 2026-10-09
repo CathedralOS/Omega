@@ -514,19 +514,16 @@ fn generated_post_handoff_writer_report_fingerprint(
     source_slot_count: usize,
     steps: &[GeneratedPostHandoffWriterStep],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
-    hash_fingerprint_bytes(&mut hash, b"omega.post-handoff-writer.v1");
-    hash_fingerprint_u64(&mut hash, POST_HANDOFF_WRITER_CONTEXT_ABI_V1);
-    hash_fingerprint_u64(&mut hash, byte_len as u64);
-    hash_fingerprint_byte(
-        &mut hash,
-        match byte_order {
-            ByteOrder::LittleEndian => 0,
-            ByteOrder::BigEndian => 1,
-        },
-    );
-    hash_fingerprint_u64(&mut hash, source_slot_count as u64);
-    hash_fingerprint_u64(&mut hash, steps.len() as u64);
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(b"omega.post-handoff-writer.v1");
+    hash.u64(POST_HANDOFF_WRITER_CONTEXT_ABI_V1);
+    hash.u64(byte_len as u64);
+    hash.byte(match byte_order {
+        ByteOrder::LittleEndian => 0,
+        ByteOrder::BigEndian => 1,
+    });
+    hash.u64(source_slot_count as u64);
+    hash.u64(steps.len() as u64);
     for step in steps {
         for value in [
             step.container_byte_offset,
@@ -536,25 +533,10 @@ fn generated_post_handoff_writer_report_fingerprint(
             u64::from(step.width),
             step.source_slot as u64,
         ] {
-            hash_fingerprint_u64(&mut hash, value);
+            hash.u64(value);
         }
     }
-    if hash == 0 { 1 } else { hash }
-}
-
-fn hash_fingerprint_u64(hash: &mut u64, value: u64) {
-    hash_fingerprint_bytes(hash, &value.to_le_bytes());
-}
-
-fn hash_fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        hash_fingerprint_byte(hash, *byte);
-    }
-}
-
-fn hash_fingerprint_byte(hash: &mut u64, byte: u8) {
-    *hash ^= u64::from(byte);
-    *hash = hash.wrapping_mul(0x100000001b3);
+    hash.finish().max(1)
 }
 
 /// Bit-range and slot checks for one generated writer step inside a

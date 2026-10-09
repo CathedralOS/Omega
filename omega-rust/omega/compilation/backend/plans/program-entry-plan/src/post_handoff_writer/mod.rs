@@ -336,20 +336,14 @@ fn emitted_writer_report_fingerprint(
     normalized_plan_report_fingerprint: u64,
     bytes: &[u8],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
-    let mut mix_bytes = |values: &[u8]| {
-        for value in values {
-            hash ^= u64::from(*value);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-    };
-    mix_bytes(b"omega.post-handoff-writer-emission.v1");
-    mix_bytes(&[match architecture {
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(b"omega.post-handoff-writer-emission.v1");
+    hash.byte(match architecture {
         Architecture::X86_64 => 0,
         Architecture::Aarch64 => 1,
-    }]);
-    mix_bytes(&normalized_plan_report_fingerprint.to_le_bytes());
-    mix_bytes(&(bytes.len() as u64).to_le_bytes());
-    mix_bytes(bytes);
-    if hash == 0 { 1 } else { hash }
+    });
+    hash.u64(normalized_plan_report_fingerprint);
+    hash.u64(bytes.len() as u64);
+    hash.bytes(bytes);
+    hash.finish().max(1)
 }

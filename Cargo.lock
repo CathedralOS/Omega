@@ -1421,6 +1421,7 @@ version = "0.1.0"
 dependencies = [
  "diagnostics",
  "layout-plans",
+ "semantic-vocabulary",
 ]
 
 [[package]]
@@ -1446,6 +1447,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "post-handoff-writer-plan",
+ "semantic-vocabulary",
  "sha2",
  "target",
  "terminal-psi",

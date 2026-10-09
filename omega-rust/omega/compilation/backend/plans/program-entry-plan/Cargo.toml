@@ -19,6 +19,7 @@ installed-writer = [
 [dependencies]
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
+semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 calling-conventions = { path = "../../calling-conventions" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
 post-handoff-writer-plan = { path = "../post-handoff-writer-plan", optional = true }

@@ -15,8 +15,7 @@ pub(crate) fn local_schema_field_discriminator(schema: &str, field: &str) -> u64
     // sentinel.
     let mut hash = crate::fnv::OFFSET_BASIS;
     for byte in schema.bytes().chain(*b"::").chain(field.bytes()) {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x100000001b3);
+        crate::fnv::byte(&mut hash, byte);
     }
     if hash == 0 { 1 } else { hash }
 }
