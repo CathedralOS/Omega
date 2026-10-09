@@ -63,9 +63,7 @@ pub(crate) fn boolean_input_budget(
         charge_boolean_expansion(&mut remaining, depth)?;
         match expression {
             CheckedBooleanExpression::Not(operand) => pending.push((operand, depth + 1)),
-            CheckedBooleanExpression::And { left, right }
-            | CheckedBooleanExpression::Or { left, right }
-            | CheckedBooleanExpression::Equal { left, right } => {
+            facts::checked_boolean_triple_pattern!(left,right, ..) => {
                 pending.extend([(left.as_ref(), depth + 1), (right.as_ref(), depth + 1)]);
             }
             _ => {}

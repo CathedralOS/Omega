@@ -430,9 +430,7 @@ fn boolean_evidence_is_crash_lane_lowerable(
                 && scalar_evidence_is_crash_lane_lowerable(right)
         }
         CheckedBooleanExpression::Not(operand) => boolean_evidence_is_crash_lane_lowerable(operand),
-        CheckedBooleanExpression::Equal { left, right }
-        | CheckedBooleanExpression::And { left, right }
-        | CheckedBooleanExpression::Or { left, right } => {
+        facts::checked_boolean_triple_pattern!(left,right, ..) => {
             boolean_evidence_is_crash_lane_lowerable(left)
                 && boolean_evidence_is_crash_lane_lowerable(right)
         }

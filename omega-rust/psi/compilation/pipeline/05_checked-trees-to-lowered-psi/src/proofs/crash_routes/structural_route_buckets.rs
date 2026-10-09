@@ -518,9 +518,7 @@ fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression)
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
         CheckedBooleanExpression::Not(operand) => contains_structural_atomic_proposition(operand),
-        CheckedBooleanExpression::Equal { left, right }
-        | CheckedBooleanExpression::And { left, right }
-        | CheckedBooleanExpression::Or { left, right } => {
+        facts::checked_boolean_triple_pattern!(left,right, ..) => {
             contains_structural_atomic_proposition(left)
                 || contains_structural_atomic_proposition(right)
         }

@@ -588,9 +588,7 @@ fn boolean_expression_needs_no_bindings(
         | CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::Local { .. } => true,
         CheckedBooleanExpression::Not(operand) => boolean_expression_needs_no_bindings(operand),
-        CheckedBooleanExpression::Equal { left, right }
-        | CheckedBooleanExpression::And { left, right }
-        | CheckedBooleanExpression::Or { left, right } => {
+        facts::checked_boolean_triple_pattern!(left,right, ..) => {
             boolean_expression_needs_no_bindings(left)
                 && boolean_expression_needs_no_bindings(right)
         }

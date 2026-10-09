@@ -1354,9 +1354,7 @@ impl ScalarBindings {
                 return unsupported("Boolean storage read names no established storage");
             }
             CheckedBooleanExpression::Not(operand) => self.boolean(operand)?,
-            CheckedBooleanExpression::Equal { left, right }
-            | CheckedBooleanExpression::And { left, right }
-            | CheckedBooleanExpression::Or { left, right } => {
+            facts::checked_boolean_triple_pattern!(left,right, ..) => {
                 self.boolean(left)?;
                 self.boolean(right)?;
             }

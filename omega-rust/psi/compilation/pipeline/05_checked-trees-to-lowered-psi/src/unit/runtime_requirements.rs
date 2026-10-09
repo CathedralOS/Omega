@@ -60,9 +60,7 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => Ok(()),
         CheckedBooleanExpression::Not(operand) => validate_namespace(operand),
-        CheckedBooleanExpression::Equal { left, right }
-        | CheckedBooleanExpression::And { left, right }
-        | CheckedBooleanExpression::Or { left, right } => {
+        facts::checked_boolean_triple_pattern!(left,right, ..) => {
             validate_namespace(left)?;
             validate_namespace(right)
         }

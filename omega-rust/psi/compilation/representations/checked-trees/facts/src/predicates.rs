@@ -575,3 +575,12 @@ pub enum CheckedRuntimeIndex {
     /// lowering selects with the local's established value.
     Local { position: u32 },
 }
+
+#[macro_export]
+macro_rules! checked_boolean_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::CheckedBooleanExpression::Equal { $($fields)* }
+            | $crate::CheckedBooleanExpression::And { $($fields)* }
+            | $crate::CheckedBooleanExpression::Or { $($fields)* }
+    };
+}

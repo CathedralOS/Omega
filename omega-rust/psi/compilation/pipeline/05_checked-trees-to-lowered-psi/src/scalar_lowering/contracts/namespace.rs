@@ -13,9 +13,7 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
             ))
         }
         CheckedBooleanExpression::Not(operand) => validate(operand),
-        CheckedBooleanExpression::Equal { left, right }
-        | CheckedBooleanExpression::And { left, right }
-        | CheckedBooleanExpression::Or { left, right } => {
+        facts::checked_boolean_triple_pattern!(left,right, ..) => {
             validate(left)?;
             validate(right)
         }
