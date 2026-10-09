@@ -109,6 +109,7 @@ impl<'facts> InvocationContexts<'facts> {
     /// named operator and ordinary requirement calls retain their own source
     /// identities while sharing the same detached-value/live-view context law.
     pub(crate) fn for_selected_expression(
+        program: &dyn ::validation::CheckingInput,
         facts: &'facts CheckFacts,
         expression: ExpressionHandle,
         selected: symbols::SymbolHandle,
@@ -139,9 +140,15 @@ impl<'facts> InvocationContexts<'facts> {
         if let ([], [(handle, _)]) = (spelled.as_slice(), named.as_slice()) {
             return Self::from_named_use(&facts.flow, &facts.semantic, *handle, operands);
         }
+        // Ordinary calls retain their entry-state target; boundary requirement
+        // selections name the declaration. Compare that established owner
+        // identity without weakening occurrence or operand custody.
         let mut calls = facts.flow.control.calls.iter().filter_map(|(_, call)| {
             (call.authored_expression == expression
-                && call.authored_target == selected
+                && validation::find_machine_by_entry_state(program, call.authored_target)
+                    .map(|(machine, _)| machine.symbol)
+                    .unwrap_or(call.authored_target)
+                    == selected
                 && call.authored_source_custody_valid
                 && facts
                     .flow

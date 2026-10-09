@@ -93,6 +93,7 @@ pub(super) fn raw_result_is_finite(
         return true;
     }
     let contexts = super::super::operators::InvocationContexts::for_selected_expression(
+        program,
         facts,
         operation.expression,
         operation.selected,
