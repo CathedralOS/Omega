@@ -8,7 +8,6 @@
 //! runtime root, image, installation, or publication authority.
 
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
-use symbols::SymbolHandle;
 
 use crate::TerminalPsiIdentity;
 
@@ -199,7 +198,7 @@ impl CheckedProgramEntryReceiverEligibility {
 pub struct CheckedProgramEntryTerminalReceipt {
     source_signature_identity: [u8; 32],
     source_machine_name: String,
-    source_machine_symbol: SymbolHandle,
+    declaration: crate::NominalDeclarationIdentity,
     terminal_psi_identity: TerminalPsiIdentity,
     terminal_entry: MachineId,
     receiver_eligibility: Option<CheckedProgramEntryReceiverEligibility>,
@@ -209,7 +208,7 @@ impl CheckedProgramEntryTerminalReceipt {
     pub fn new(
         source_signature_identity: [u8; 32],
         source_machine_name: String,
-        source_machine_symbol: SymbolHandle,
+        declaration: crate::NominalDeclarationIdentity,
         terminal_psi_identity: TerminalPsiIdentity,
         terminal_entry: MachineId,
         receiver_eligibility: Option<CheckedProgramEntryReceiverEligibility>,
@@ -217,7 +216,7 @@ impl CheckedProgramEntryTerminalReceipt {
         Self {
             source_signature_identity,
             source_machine_name,
-            source_machine_symbol,
+            declaration,
             terminal_psi_identity,
             terminal_entry,
             receiver_eligibility,
@@ -238,12 +237,10 @@ impl CheckedProgramEntryTerminalReceipt {
         &self.source_machine_name
     }
 
-    /// The exact checked machine this Terminal entry was produced from.
-    /// Settlement compares this symbol, not the display name: a qualified name
-    /// cannot rejoin the selected identity when another package declares a
-    /// same-named machine.
-    pub const fn source_machine_symbol(&self) -> SymbolHandle {
-        self.source_machine_symbol
+    /// Exact package/toolchain-owned declaration, independent of source arenas.
+    /// Display names cannot distinguish same-named declarations across packages.
+    pub const fn declaration(&self) -> &crate::NominalDeclarationIdentity {
+        &self.declaration
     }
 
     pub const fn terminal_psi_identity(&self) -> TerminalPsiIdentity {

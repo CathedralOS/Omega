@@ -7,10 +7,10 @@ use effects::provider_plan::{
 use language_semantics::CarryPolicy;
 
 use crate::{
-    OptimizedProgramStorageSemanticCallingApplication, ProgramEntryPhysicalContractPlan,
-    ProgramEntrySourceExtentFieldRole, ProgramEntrySourceReceiverSignature,
-    ProgramEntrySourceResultSignature, ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
-    SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan,
+    OptimizedProgramStorageSemanticCallingApplication, ProgramEntryExtentFieldRole,
+    ProgramEntryPhysicalContractPlan, ProgramEntryReceiverSignature, ProgramEntryResultSignature,
+    ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole, SelectedProgramEntrySignature,
+    SelectedProgramStorageEntryPlan,
 };
 
 pub(super) const PROGRAM_STORAGE_ENTRY_OWNER: &str = "ProgramStorageEntry";
@@ -23,7 +23,7 @@ pub(super) const EXTENT_FIELD_SHAPE: ValueShape = ValueShape::integer(8, 8);
 pub(super) struct ValidatedSemanticEntryInputs {
     pub(super) target: target::NativeTarget,
     pub(super) slot: target::ProgramEntrySlotDeclaration,
-    pub(super) source: SelectedProgramEntrySourceSignature,
+    pub(super) source: SelectedProgramEntrySignature,
     pub(super) boundary: ValidatedBoundaryEntryPlan,
     pub(super) method: ServiceMethod,
     pub(super) semantic_application_report_fingerprint: u64,
@@ -34,7 +34,7 @@ pub(super) struct ValidatedSemanticEntryInputs {
 pub(super) fn validate(
     target: target::NativeTarget,
     selected: &SelectedProgramStorageEntryPlan,
-    source: &SelectedProgramEntrySourceSignature,
+    source: &SelectedProgramEntrySignature,
     semantic_application: &OptimizedProgramStorageSemanticCallingApplication<'_>,
 ) -> Result<ValidatedSemanticEntryInputs, ProgramStorageEntryDiagnostic> {
     let slot = selected.target_slot();
@@ -56,8 +56,8 @@ pub(super) fn validate(
     // mutable storage are both exact. The receiver's identity is part of the
     // checked source signature, so its custody never re-derives from bytes.
     match source.receiver() {
-        ProgramEntrySourceReceiverSignature::Free => {}
-        ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        ProgramEntryReceiverSignature::Free => {}
+        ProgramEntryReceiverSignature::ProvisionedMutable {
             normalized_type_identity,
             ..
         } if !normalized_type_identity.is_empty() => {}
@@ -68,7 +68,7 @@ pub(super) fn validate(
             ));
         }
     }
-    if source.result() != ProgramEntrySourceResultSignature::Unit {
+    if source.result() != ProgramEntryResultSignature::Unit {
         return Err(ProgramStorageEntryDiagnostic(
             "optimized semantic ProgramStorage entry requires one Unit source".into(),
         ));
@@ -164,7 +164,7 @@ fn selected_method(
 fn validate_method(
     method: &ServiceMethod,
     semantic_application: &OptimizedProgramStorageSemanticCallingApplication<'_>,
-    source: [&crate::ProgramEntrySourceVisibleParameterSignature; 2],
+    source: [&crate::ProgramEntryVisibleParameterSignature; 2],
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     if method.requirement_owner != PROGRAM_STORAGE_ENTRY_OWNER
         || method.name != PROGRAM_STORAGE_ENTRY_METHOD
@@ -239,7 +239,7 @@ fn validate_claim(
 }
 
 fn validate_source_root(
-    parameter: &crate::ProgramEntrySourceVisibleParameterSignature,
+    parameter: &crate::ProgramEntryVisibleParameterSignature,
     role: ProgramStorageEntryRootRole,
     parameter_index: usize,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
@@ -249,10 +249,10 @@ fn validate_source_root(
         || parameter.visible_parameter_index() != parameter_index
         || parameter.value_shape() != EXTENT_SHAPE
         || layout.shape() != EXTENT_SHAPE
-        || base.role() != ProgramEntrySourceExtentFieldRole::Base
+        || base.role() != ProgramEntryExtentFieldRole::Base
         || base.byte_offset() != 0
         || base.shape() != EXTENT_FIELD_SHAPE
-        || length.role() != ProgramEntrySourceExtentFieldRole::Length
+        || length.role() != ProgramEntryExtentFieldRole::Length
         || length.byte_offset() != 8
         || length.shape() != EXTENT_FIELD_SHAPE
         || parameter.is_const()

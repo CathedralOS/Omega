@@ -3,7 +3,7 @@
 use calling_conventions::ValuePlacement;
 use effects::provider_plan::ServiceEntryClaim;
 
-use crate::ProgramEntrySourceVisibleParameterSignature;
+use crate::ProgramEntryVisibleParameterSignature;
 
 use super::validation::ValidatedSemanticEntryInputs;
 use super::{
@@ -57,7 +57,7 @@ pub(super) fn construct(
 }
 
 fn semantic_root(
-    source: &ProgramEntrySourceVisibleParameterSignature,
+    source: &ProgramEntryVisibleParameterSignature,
     claim: &ServiceEntryClaim,
     placement: &ValuePlacement,
 ) -> OptimizedProgramStorageSemanticRoot {

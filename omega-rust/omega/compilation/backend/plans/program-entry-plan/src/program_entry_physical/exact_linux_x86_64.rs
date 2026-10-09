@@ -125,5 +125,4 @@ pub fn exact_linux_x86_64_physical_boundary_entry_plan() -> ValidatedBoundaryEnt
         .expect("the closed target-authored Linux x86-64 physical entry plan must remain valid")
 }
 
-impl ProgramEntryPhysicalContractPlan {
-}
+impl ProgramEntryPhysicalContractPlan {}

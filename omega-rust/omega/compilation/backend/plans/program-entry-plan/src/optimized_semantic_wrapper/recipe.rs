@@ -2,7 +2,7 @@
 
 use calling_conventions::{CallingPolicy, MachineRegister};
 
-use crate::{ProgramEntrySourceExtentFieldRole, ProgramStorageEntryRootRole};
+use crate::{ProgramEntryExtentFieldRole, ProgramStorageEntryRootRole};
 
 use super::{
     OptimizedProgramStorageSemanticReceiverStorage,
@@ -72,7 +72,7 @@ pub(super) fn expected_steps(
         copy(
             ProgramStorageEntryRootRole::Image,
             0,
-            ProgramEntrySourceExtentFieldRole::Base,
+            ProgramEntryExtentFieldRole::Base,
             MachineRegister::X86Rcx,
             0,
             32,
@@ -80,7 +80,7 @@ pub(super) fn expected_steps(
         copy(
             ProgramStorageEntryRootRole::Image,
             0,
-            ProgramEntrySourceExtentFieldRole::Length,
+            ProgramEntryExtentFieldRole::Length,
             MachineRegister::X86Rcx,
             8,
             40,
@@ -88,7 +88,7 @@ pub(super) fn expected_steps(
         copy(
             ProgramStorageEntryRootRole::InitialStorage,
             1,
-            ProgramEntrySourceExtentFieldRole::Base,
+            ProgramEntryExtentFieldRole::Base,
             MachineRegister::X86Rdx,
             0,
             48,
@@ -96,7 +96,7 @@ pub(super) fn expected_steps(
         copy(
             ProgramStorageEntryRootRole::InitialStorage,
             1,
-            ProgramEntrySourceExtentFieldRole::Length,
+            ProgramEntryExtentFieldRole::Length,
             MachineRegister::X86Rdx,
             8,
             56,
@@ -165,7 +165,7 @@ fn receiver_frame_byte_count(
 pub(super) fn copy(
     role: ProgramStorageEntryRootRole,
     parameter_index: usize,
-    field: ProgramEntrySourceExtentFieldRole,
+    field: ProgramEntryExtentFieldRole,
     source_register: MachineRegister,
     source_byte_offset: u16,
     outgoing_stack_byte_offset: u32,

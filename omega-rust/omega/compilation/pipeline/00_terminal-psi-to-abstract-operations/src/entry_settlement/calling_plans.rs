@@ -15,10 +15,10 @@ use calling_conventions::{
     BoundaryCallingApplication, BoundarySignatureGeometry, BoundaryValueClass,
 };
 use effects::provider_plan::ServiceMethod;
-use program_entry_plan::{SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan};
+use program_entry_plan::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
 
 pub fn validate_paired_calling_plans(
-    source: &SelectedProgramEntrySourceSignature,
+    source: &SelectedProgramEntrySignature,
     semantic: &BoundaryCallingApplication,
     physical: &BoundaryCallingApplication,
     storage: &SelectedProgramStorageEntryPlan,

@@ -13,16 +13,23 @@
 //! its x86-64 template selection under `optimized_semantic_wrapper/encoding`),
 //! and the optional `post_handoff_writer` the plan a provider replays after
 //! handoff. `uefi` holds the two planning-only UEFI invocation plans.
+//! `entry_signature.rs` owns the completed declaration/layout contract. Source
+//! capture belongs to provider planning; no source arena is needed here.
 
+mod entry_signature;
 mod optimized_semantic_entry;
 mod optimized_semantic_wrapper;
 #[cfg(feature = "installed-writer")]
 mod post_handoff_writer;
 mod program_entry_physical;
 mod selected_entry;
-mod source_signature;
 mod uefi;
 
+pub use entry_signature::{
+    ProgramEntryExtentFieldLayout, ProgramEntryExtentFieldRole, ProgramEntryExtentValueLayout,
+    ProgramEntryReceiverSignature, ProgramEntryResultSignature, ProgramEntrySignatureIdentity,
+    ProgramEntryVisibleParameterSignature, SelectedProgramEntrySignature,
+};
 pub use optimized_semantic_entry::{
     OptimizedProgramStoragePhysicalEntryDisposition,
     OptimizedProgramStorageSemanticCallingApplication,
@@ -82,13 +89,6 @@ pub use selected_entry::boundary_entry_storage::{
 pub use selected_entry::diagnostic::ProgramStorageEntryDiagnostic;
 pub use selected_entry::root_role::ProgramStorageEntryRootRole;
 pub use selected_entry::service_establishment::ProgramEntryFusedServiceEstablishment;
-pub use source_signature::{
-    ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
-    ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
-    ProgramEntrySourceResultSignature, ProgramEntrySourceSignatureIdentity,
-    ProgramEntrySourceVisibleParameterSignature, SelectedProgramEntrySourceSignature,
-    selected_program_storage_source_extent_value_layout,
-};
 pub use uefi::uefi_handle_protocol::{
     UEFI_HANDLE_PROTOCOL_GUID_POINTER_TYPE_IDENTITY, UEFI_HANDLE_PROTOCOL_HANDLE_TYPE_IDENTITY,
     UEFI_HANDLE_PROTOCOL_INTERFACE_OUT_TYPE_IDENTITY, UEFI_HANDLE_PROTOCOL_SERVICE_IDENTITY,

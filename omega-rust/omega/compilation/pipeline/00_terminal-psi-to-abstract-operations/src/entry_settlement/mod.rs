@@ -34,10 +34,9 @@ pub fn validate_native_program_entry_settlement(
     if checked_entry.source_signature_identity() != program_entry.source.identity().bytes() {
         return Err(NativeProgramEntrySettlementError::SourceSignatureSubstitution);
     }
-    // Settle the exact selected machine symbol, not a display name: a build
-    // product operand resolved lexically can legitimately share its qualified
-    // name spelling with a declaration in another package.
-    if checked_entry.source_machine_symbol() != program_entry.source.machine_symbol() {
+    // The source owner closes arena coordinates into exact package/toolchain
+    // declaration identity. Display names alone cannot distinguish packages.
+    if checked_entry.declaration() != program_entry.source.declaration() {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
     let module = artifact.semantic_module();
@@ -59,6 +58,13 @@ pub fn validate_native_program_entry_settlement(
         .count();
     if entry_count != 1 {
         return Err(NativeProgramEntrySettlementError::TerminalEntryMultiplicity(entry_count));
+    }
+    if module
+        .machine(checked_entry.terminal_entry())
+        .and_then(|machine| machine.declaration.as_ref())
+        .is_none_or(|declaration| &declaration.machine != checked_entry.declaration())
+    {
+        return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
     validate_receiver_eligibility(module, checked_entry, program_entry)?;
     service_establishment::validate_terminal_rows(
@@ -109,7 +115,8 @@ fn validate_receiver_eligibility(
         {
             return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
         }
-        let entry = module.machine(module.entry)
+        let entry = module
+            .machine(module.entry)
             .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
         let mut declarations = module
             .structural_types

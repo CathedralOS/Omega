@@ -17,7 +17,6 @@ installed-writer = [
 ]
 
 [dependencies]
-typed-trees = { path = "../../../../../psi/compilation/representations/typed-trees" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 calling-conventions = { path = "../../calling-conventions" }
@@ -27,11 +26,8 @@ effects = { path = "../provider-evidence" }
 function-identity = { path = "../../../../foundation/function-identity" }
 isa-aarch64 = { path = "../../instruction-set-architectures/isa-aarch64", optional = true }
 isa-x86_64 = { path = "../../instruction-set-architectures/isa-x86_64" }
-layout = { path = "../../layout" }
 target = { path = "../../target" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
-symbols = { path = "../../../../../psi/foundation/symbols" }
 language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
 sha2 = "0.10.9"
-

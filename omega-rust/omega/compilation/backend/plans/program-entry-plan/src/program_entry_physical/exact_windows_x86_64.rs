@@ -95,5 +95,4 @@ pub fn exact_windows_x86_64_physical_boundary_entry_plan() -> ValidatedBoundaryE
         .expect("the closed target-authored Windows x86-64 physical entry plan must remain valid")
 }
 
-impl ProgramEntryPhysicalContractPlan {
-}
+impl ProgramEntryPhysicalContractPlan {}

@@ -59,5 +59,4 @@ pub fn exact_macos_arm64_physical_boundary_entry_plan() -> ValidatedBoundaryEntr
         .expect("the closed target-authored macOS ARM64 physical entry plan must remain valid")
 }
 
-impl ProgramEntryPhysicalContractPlan {
-}
+impl ProgramEntryPhysicalContractPlan {}

@@ -76,7 +76,7 @@ pub(crate) fn produce_retained_terminal_artifact(
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<ProducedRetainedTerminal, Vec<Diagnostic>> {
     let selected_program_entry = checked.admit_terminal_production()?;
-    let entry_machine_symbol = selected_program_entry.source_signature().machine_symbol();
+    let entry_machine_symbol = selected_program_entry.machine_symbol();
     let source_signature_identity = selected_program_entry.source_signature().identity().bytes();
     // The accumulator steps out of the checked record across the measured
     // legs below so each closure may borrow the record while it is timed; it

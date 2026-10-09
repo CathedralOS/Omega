@@ -58,10 +58,7 @@ impl SelectedExecution {
         let Some(entry) = self.selected_program_entry.as_ref() else {
             return Vec::new();
         };
-        crate::program_entry_service_requirements(
-            &self.program,
-            entry.source_signature().machine_symbol(),
-        )
+        crate::program_entry_service_requirements(&self.program, entry.machine_symbol())
     }
 
     /// Whether the selected program entry tolerated a `Binding` field whose
@@ -180,7 +177,7 @@ pub fn settle_selected_execution(
     let exact_component_progress_root = settlement.selected_program_entry.as_ref().map(|entry| {
         let source = entry.source_signature();
         provider_planning::component_progress::ExactComponentProgressRoot::new(
-            source.machine_symbol(),
+            entry.machine_symbol(),
             source.normalized_callable_identity(),
         )
     });
@@ -252,7 +249,7 @@ pub fn settle_selected_execution(
     if let Some(entry) = settlement.selected_program_entry.as_mut() {
         let establishments = crate::derive_fused_program_entry_establishments(
             &checked.program,
-            entry.source_signature(),
+            entry,
             &settlement.selected_provider_provenance,
             settlement.permit_unsettled_fused_service_fields,
         )?;

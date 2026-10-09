@@ -34,16 +34,14 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
             shape: StructuralTypeShape::FusedServiceBinding,
         },
     ];
-    let source = program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+    let source = program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(
         target::TargetProfile::MacosArm64.program_entry_slot(),
-        symbols::SymbolHandle::from_arena_index(1),
-        symbols::SymbolHandle::from_arena_index(2),
+        terminal_psi::NominalDeclarationIdentity::new("package:test::Main::entry".into()).unwrap(),
         "Main::entry".into(),
         "entry".into(),
         "Main::entry()".into(),
-        program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable {
             source_position: 0,
-            source_symbol: symbols::SymbolHandle::from_arena_index(3),
             normalized_type_identity: "Main".into(),
         },
         Vec::new(),
@@ -1161,16 +1159,14 @@ fn hosted_receiver_binding(
     receiver_alignment: u64,
 ) -> super::HostedReceiverBinding {
     let target = physical.target_slot().owner.native_target();
-    let source = program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+    let source = program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(
         physical.target_slot(),
-        symbols::SymbolHandle::from_arena_index(1),
-        symbols::SymbolHandle::from_arena_index(2),
+        terminal_psi::NominalDeclarationIdentity::new("package:test::Main::main".into()).unwrap(),
         "Main".into(),
         "main".into(),
         "Main::main".into(),
-        program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable {
             source_position: 0,
-            source_symbol: symbols::SymbolHandle::from_arena_index(3),
             normalized_type_identity: "named(name(Main))".into(),
         },
         Vec::new(),
@@ -1179,7 +1175,7 @@ fn hosted_receiver_binding(
     let checked_entry = terminal_psi::CheckedProgramEntryTerminalReceipt::new(
         source.identity().bytes(),
         source.machine_name().into(),
-        source.machine_symbol(),
+        source.declaration().clone(),
         terminal_psi::TerminalPsiIdentity {
             vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
             program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([7; 32]),

@@ -99,7 +99,7 @@ pub(crate) fn check_selected_execution(
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
         selected_program_entry
             .as_ref()
-            .map(|entry| entry.source_signature().machine_symbol()),
+            .map(|entry| entry.machine_symbol()),
         &selected_provider_provenance,
     )?;
     let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);

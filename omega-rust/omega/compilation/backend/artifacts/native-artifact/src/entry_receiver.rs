@@ -34,7 +34,7 @@ pub fn admit_executable_entry_receiver(
     // explicit semantic wrappers retain their own boundaries.
     let source_provisions_receiver = matches!(
         program_entry.source().receiver(),
-        program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+        program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable { .. }
     );
     let lowered_entry = plan.function(plan.entry);
     let terminal_entry = terminal.machine(terminal.entry);

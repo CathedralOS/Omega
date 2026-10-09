@@ -6,8 +6,7 @@ use calling_conventions::{
 
 use crate::{
     OptimizedProgramStoragePhysicalEntryDisposition, OptimizedProgramStorageSemanticEntryContract,
-    ProgramEntrySourceReceiverSignature, ProgramStorageEntryDiagnostic,
-    ProgramStorageEntryRootRole,
+    ProgramEntryReceiverSignature, ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
 };
 
 use super::recipe::{
@@ -31,7 +30,7 @@ pub(super) fn receiver_storage(
 ) -> Result<Option<OptimizedProgramStorageSemanticReceiverStorage>, ProgramStorageEntryDiagnostic> {
     let declared = matches!(
         contract.source_signature().receiver(),
-        ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+        ProgramEntryReceiverSignature::ProvisionedMutable { .. }
     );
     match (receiver, declared) {
         (None, false) => Ok(None),
@@ -86,7 +85,7 @@ pub(super) fn validate(
         || (plan.receiver.is_some()
             != matches!(
                 plan.source.source_signature().receiver(),
-                ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+                ProgramEntryReceiverSignature::ProvisionedMutable { .. }
             ))
         || plan.encoding_disposition
             != OptimizedProgramStorageSemanticWrapperEncodingDisposition::TargetEncodingRequiredV1

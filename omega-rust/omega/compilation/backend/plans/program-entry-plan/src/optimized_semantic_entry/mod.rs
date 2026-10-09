@@ -8,12 +8,10 @@ mod construction;
 mod validation;
 
 use crate::{
-    ProgramEntryPhysicalContractPlan, ProgramEntrySourceSignatureIdentity,
-    ProgramStorageEntryRootRole,
+    ProgramEntryPhysicalContractPlan, ProgramEntrySignatureIdentity, ProgramStorageEntryRootRole,
 };
 use crate::{
-    ProgramStorageEntryDiagnostic, SelectedProgramEntrySourceSignature,
-    SelectedProgramStorageEntryPlan,
+    ProgramStorageEntryDiagnostic, SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan,
 };
 use calling_conventions::{
     BoundaryEntryPlan, ValidatedBoundaryEntryPlan, ValuePlacement, ValueShape,
@@ -30,7 +28,7 @@ use language_semantics::CarryPolicy;
 pub fn bind_optimized_program_storage_semantic_entry_contract(
     target: target::NativeTarget,
     selected: &SelectedProgramStorageEntryPlan,
-    source: &SelectedProgramEntrySourceSignature,
+    source: &SelectedProgramEntrySignature,
     semantic_application: &OptimizedProgramStorageSemanticCallingApplication<'_>,
 ) -> Result<OptimizedProgramStorageSemanticEntryContract, ProgramStorageEntryDiagnostic> {
     let validated = validation::validate(target, selected, source, semantic_application)?;
@@ -167,8 +165,8 @@ pub struct OptimizedProgramStorageSemanticEntryContract {
     target: target::NativeTarget,
     target_slot: target::ProgramEntrySlotDeclaration,
     requirement_identity: String,
-    source_signature: SelectedProgramEntrySourceSignature,
-    source_signature_identity: ProgramEntrySourceSignatureIdentity,
+    source_signature: SelectedProgramEntrySignature,
+    source_signature_identity: ProgramEntrySignatureIdentity,
     semantic_boundary_entry_plan: BoundaryEntryPlan,
     semantic_calling_plan_report_fingerprint: u64,
     /// Compact report coordinate of the exact source calling-plan application
@@ -195,11 +193,11 @@ impl OptimizedProgramStorageSemanticEntryContract {
         &self.requirement_identity
     }
 
-    pub const fn source_signature(&self) -> &SelectedProgramEntrySourceSignature {
+    pub const fn source_signature(&self) -> &SelectedProgramEntrySignature {
         &self.source_signature
     }
 
-    pub const fn source_signature_identity(&self) -> ProgramEntrySourceSignatureIdentity {
+    pub const fn source_signature_identity(&self) -> ProgramEntrySignatureIdentity {
         self.source_signature_identity
     }
 

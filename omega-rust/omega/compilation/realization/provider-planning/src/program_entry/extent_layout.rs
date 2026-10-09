@@ -9,11 +9,11 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// UEFI/Microsoft program-storage source schema. A future SysV/AAPCS source
 /// schema must retain and classify its own structural graph rather than
 /// passing this fence.
-pub fn selected_program_storage_source_extent_value_layout(
+pub(super) fn capture(
     typed: &TypedTrees,
     slot: target::ProgramEntrySlotDeclaration,
     type_reference: TypeReferenceHandle,
-) -> Result<crate::ProgramEntrySourceExtentValueLayout, String> {
+) -> Result<program_entry_plan::ProgramEntryExtentValueLayout, String> {
     if slot.owner != target::TargetProfile::UefiX64
         || slot.schema != target::ProgramEntrySchema::ProgramStorageApplication
         || slot.visible_parameters != target::ProgramEntryVisibleParameters::ImageAndInitialStorage
@@ -53,7 +53,11 @@ pub fn selected_program_storage_source_extent_value_layout(
     else {
         return Err("selected program-storage Extent must declare exactly two fields".into());
     };
-    if base.relevance.is_erased()
+    if !data_symbol.is_valid()
+        || !base.symbol.is_valid()
+        || !length.symbol.is_valid()
+        || base.symbol == length.symbol
+        || base.relevance.is_erased()
         || length.relevance.is_erased()
         || base.name.as_str() != "base"
         || length.name.as_str() != "length"
@@ -95,12 +99,9 @@ pub fn selected_program_storage_source_extent_value_layout(
             child.alignment,
         ))
     };
-    crate::ProgramEntrySourceExtentValueLayout::from_checked_record(
-        *data_symbol,
-        base.symbol,
+    program_entry_plan::ProgramEntryExtentValueLayout::from_checked_record(
         base_field.byte_offset,
         scalar_shape(base_field)?,
-        length.symbol,
         length_field.byte_offset,
         scalar_shape(length_field)?,
         shape,

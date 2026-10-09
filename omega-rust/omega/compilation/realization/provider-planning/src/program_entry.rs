@@ -11,6 +11,7 @@
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
+mod extent_layout;
 mod root_bindings;
 pub use root_bindings::collect_root_bindings;
 
@@ -398,10 +399,10 @@ fn provisioned_entry_context_from_parameters<'program>(
 /// Recheck the selected source signature and retain its final layout evidence.
 /// An earlier product description neither settles providers nor authorizes
 /// omission of this check against the completed product.
-pub fn validate_selected_program_entry_shape(
+fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
-) -> Result<program_entry_plan::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
+) -> Result<SelectedEntryDeclaration, Vec<Diagnostic>> {
     let machine_name = selected.machine_name;
     // Description issuance only needs an interface. Final admission still
     // requires the exact selected executable machine and its real entry state.
@@ -427,10 +428,9 @@ pub fn validate_selected_program_entry_shape(
     // visible-parameter roles.
     let visible = visible_entry_parameters(typed, parameters, &context);
     let receiver = context.as_ref().map_or(
-        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
-        |context| program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        program_entry_plan::ProgramEntryReceiverSignature::Free,
+        |context| program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable {
             source_position: context.source_position,
-            source_symbol: context.parameter.symbol,
             normalized_type_identity: typed
                 .normalized_type_identity(context.parameter.type_reference)
                 .into_string(),
@@ -446,7 +446,7 @@ pub fn validate_selected_program_entry_shape(
                 _ => unreachable!("selected source shape validation fixed visible arity"),
             };
             let extent_value_layout =
-                program_entry_plan::selected_program_storage_source_extent_value_layout(
+                extent_layout::capture(
                     typed,
                     selected.slot,
                     parameter.type_reference,
@@ -457,7 +457,7 @@ pub fn validate_selected_program_entry_shape(
                 ))
             })?;
             let value_shape = extent_value_layout.shape();
-            Ok(program_entry_plan::SelectedProgramEntrySourceSignature::visible_parameter(
+            Ok(program_entry_plan::SelectedProgramEntrySignature::visible_parameter(
                 role,
                 index,
                 typed
@@ -471,10 +471,41 @@ pub fn validate_selected_program_entry_shape(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|diagnostic| vec![diagnostic])?;
-    program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+    if !machine.symbol.is_valid()
+        || !entry.symbol.is_valid()
+        || context
+            .as_ref()
+            .is_some_and(|context| !context.parameter.symbol.is_valid())
+    {
+        return Err(vec![Diagnostic::error(
+            "selected source signature contains an invalid declaration coordinate",
+        )]);
+    }
+    // Only this declaration's owner participates in its nominal identity. Do
+    // not hash the entire source set to close one entry's source coordinate.
+    let declaration_source = typed
+        .symbols
+        .symbol_provenance_source_span(machine.symbol)
+        .map(|span| span.source_id);
+    let exact_sources = package_compilation::toolchain_source_identities(
+        typed
+            .symbols
+            .source_files()
+            .filter(|file| Some(file.source_id) == declaration_source),
+    )?;
+    let declaration = typed
+        .exact_owner_nominal_identity(machine.symbol, &exact_sources)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected program entry has no exact declaration owner",
+            )]
+        })?
+        .into_string();
+    let declaration = terminal_psi::NominalDeclarationIdentity::new(declaration)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+    let signature = program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(
         selected.slot,
-        machine.symbol,
-        entry.symbol,
+        declaration,
         machine.name.as_str().to_owned(),
         entry.name.as_str().to_owned(),
         typed
@@ -483,7 +514,24 @@ pub fn validate_selected_program_entry_shape(
         receiver,
         visible_parameters,
     )
-    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])
+    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])?;
+    Ok(SelectedEntryDeclaration {
+        machine: machine.symbol,
+        state: entry.symbol,
+        context_parameter: context
+            .map_or_else(Default::default, |context| context.parameter.symbol),
+        signature,
+    })
+}
+
+/// Source-only coordinates stay beside the producer that can interpret them.
+/// Native consumers receive `signature`, never this record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SelectedEntryDeclaration {
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    context_parameter: symbols::SymbolHandle,
+    signature: program_entry_plan::SelectedProgramEntrySignature,
 }
 
 /// Retain both authored applications: their source/signature commitments are
@@ -504,31 +552,41 @@ pub struct SelectedProgramEntryCallingPlans {
 /// authority through this carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedCompilerProgramEntry {
-    source_signature: program_entry_plan::SelectedProgramEntrySourceSignature,
+    declaration: SelectedEntryDeclaration,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
     fused_service_establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
 }
 
 impl SelectedCompilerProgramEntry {
     fn new(
-        source_signature: program_entry_plan::SelectedProgramEntrySourceSignature,
+        declaration: SelectedEntryDeclaration,
         calling_plans: Option<SelectedProgramEntryCallingPlans>,
     ) -> Self {
         Self {
-            source_signature,
+            declaration,
             calling_plans,
             fused_service_establishments: Vec::new(),
         }
     }
 
     pub fn machine_name(&self) -> &str {
-        self.source_signature.machine_name()
+        self.declaration.signature.machine_name()
     }
 
-    pub const fn source_signature(
-        &self,
-    ) -> &program_entry_plan::SelectedProgramEntrySourceSignature {
-        &self.source_signature
+    pub const fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
+        &self.declaration.signature
+    }
+
+    pub const fn machine_symbol(&self) -> symbols::SymbolHandle {
+        self.declaration.machine
+    }
+
+    pub const fn state_symbol(&self) -> symbols::SymbolHandle {
+        self.declaration.state
+    }
+
+    pub const fn context_parameter(&self) -> symbols::SymbolHandle {
+        self.declaration.context_parameter
     }
 
     pub const fn calling_plans(&self) -> Option<&SelectedProgramEntryCallingPlans> {
@@ -549,10 +607,10 @@ impl SelectedCompilerProgramEntry {
             self.fused_service_establishments.clear();
             return Ok(());
         }
-        let source_identity = self.source_signature.identity();
-        let target_slot = self.source_signature.target_slot();
+        let source_identity = self.source_signature().identity();
+        let target_slot = self.source_signature().target_slot();
         let receiver_identity = self
-            .source_signature
+            .source_signature()
             .receiver()
             .normalized_type_identity()
             .ok_or("a free ProgramEntry cannot establish receiver fields")?;
@@ -576,20 +634,6 @@ impl SelectedCompilerProgramEntry {
         }
         self.fused_service_establishments = establishments;
         Ok(())
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        program_entry_plan::SelectedProgramEntrySourceSignature,
-        Option<SelectedProgramEntryCallingPlans>,
-        Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
-    ) {
-        (
-            self.source_signature,
-            self.calling_plans,
-            self.fused_service_establishments,
-        )
     }
 }
 

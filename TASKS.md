@@ -2454,9 +2454,11 @@ crash and native exit behavior.
   - Boundary applications and comparisons now settle from canonical demands,
     checked body candidates and selected Build rows; no checked-application scope
     crosses publication. Build exclusions retain selected service identities,
-    and native proposal construction no longer takes checked trees. Finish the
-    remaining entry, callback, exclusion-admission and provider-installation
-    joins without checked/lowered source inputs.
+    and native proposal construction no longer takes checked trees. Entry
+    receipts and signatures use portable declaration identities; source entry
+    selection and Extent capture remain producer-side. Finish callback,
+    exclusion-admission and provider-installation joins without checked/lowered
+    source inputs, then move initial source-dependent selection behind Terminal.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`
     decisions: target-family body substitution, calling plans, program-entry

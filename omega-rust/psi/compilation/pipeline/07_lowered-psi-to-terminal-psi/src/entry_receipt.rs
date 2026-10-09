@@ -14,6 +14,7 @@ mod receiver_eligibility;
 pub enum ProgramEntryTerminalReceiptError {
     TerminalEntryMultiplicity(usize),
     NonUnitEntry,
+    MissingEntryDeclaration,
     TerminalIdentity(terminal_codec::CodecError),
     ArtifactSemanticIdentityMismatch,
 }
@@ -49,6 +50,10 @@ pub fn prepare_program_entry_receipt(
     if entry.result != TerminalMachineResult::Unit {
         return Err(ProgramEntryTerminalReceiptError::NonUnitEntry);
     }
+    let declaration = entry
+        .declaration
+        .as_ref()
+        .ok_or(ProgramEntryTerminalReceiptError::MissingEntryDeclaration)?;
     let identity = terminal_psi_identity(&optimized_lowered.semantic_module)
         .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)?;
     let receiver_eligibility =
@@ -56,7 +61,7 @@ pub fn prepare_program_entry_receipt(
     Ok(CheckedProgramEntryTerminalReceipt::new(
         source_signature_identity,
         selection.name.clone(),
-        selection.machine,
+        declaration.machine.clone(),
         identity,
         optimized_lowered.semantic_module.entry,
         receiver_eligibility,

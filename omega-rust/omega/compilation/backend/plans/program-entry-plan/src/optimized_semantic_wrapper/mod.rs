@@ -39,8 +39,7 @@ use crate::{
     ProgramStorageEntryDiagnostic,
 };
 use crate::{
-    ProgramEntrySourceExtentFieldRole, ProgramEntrySourceSignatureIdentity,
-    ProgramStorageEntryRootRole,
+    ProgramEntryExtentFieldRole, ProgramEntrySignatureIdentity, ProgramStorageEntryRootRole,
 };
 use calling_conventions::{CallingPolicy, MachineRegister};
 
@@ -205,7 +204,7 @@ pub enum OptimizedProgramStorageSemanticWrapperStep {
     CopyIncomingIndirectExtentWord {
         role: ProgramStorageEntryRootRole,
         parameter_index: usize,
-        field: ProgramEntrySourceExtentFieldRole,
+        field: ProgramEntryExtentFieldRole,
         source_register: MachineRegister,
         source_byte_offset: u16,
         outgoing_stack_byte_offset: u32,
@@ -233,7 +232,7 @@ pub enum OptimizedProgramStorageSemanticWrapperStep {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizedProgramStorageSemanticWrapperPlan {
     source: OptimizedProgramStorageSemanticEntryContract,
-    source_signature_identity: ProgramEntrySourceSignatureIdentity,
+    source_signature_identity: ProgramEntrySignatureIdentity,
     shadow_byte_count: u32,
     outgoing_frame_byte_count: u32,
     outgoing_release_byte_count: u32,
@@ -253,7 +252,7 @@ impl OptimizedProgramStorageSemanticWrapperPlan {
         &self.source
     }
 
-    pub const fn source_signature_identity(&self) -> ProgramEntrySourceSignatureIdentity {
+    pub const fn source_signature_identity(&self) -> ProgramEntrySignatureIdentity {
         self.source_signature_identity
     }
 

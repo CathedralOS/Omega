@@ -3,7 +3,7 @@ use object_file::StagedValidatedOptimizedObjectArtifact;
 use program_entry_plan::{
     OptimizedProgramStorageSemanticCallingApplication,
     OptimizedProgramStorageSemanticEntryContract, OptimizedProgramStorageSemanticReceiverLayout,
-    ProgramEntrySourceReceiverSignature, bind_optimized_program_storage_semantic_entry_contract,
+    ProgramEntryReceiverSignature, bind_optimized_program_storage_semantic_entry_contract,
 };
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
 use terminal_psi::{
@@ -66,7 +66,7 @@ pub fn receiver_layout(
 > {
     if !matches!(
         contract.source_signature().receiver(),
-        ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+        ProgramEntryReceiverSignature::ProvisionedMutable { .. }
     ) {
         return Ok(None);
     }
@@ -323,7 +323,7 @@ pub fn validate_entry_shape(
     if receiver.is_some()
         != matches!(
             contract.source_signature().receiver(),
-            ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+            ProgramEntryReceiverSignature::ProvisionedMutable { .. }
         )
     {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);

@@ -747,7 +747,6 @@ dependencies = [
  "sha2",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
- "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
@@ -1423,15 +1422,12 @@ dependencies = [
  "isa-aarch64",
  "isa-x86_64",
  "language-semantics",
- "layout",
  "layout-plans",
  "post-handoff-writer-plan",
  "sha2",
- "symbols",
  "target",
  "terminal-psi",
  "terminal-semantics",
- "typed-trees",
 ]
 
 [[package]]
@@ -2121,7 +2117,6 @@ dependencies = [
  "language-semantics",
  "semantic-vocabulary",
  "sha2",
- "symbols",
 ]
 
 [[package]]

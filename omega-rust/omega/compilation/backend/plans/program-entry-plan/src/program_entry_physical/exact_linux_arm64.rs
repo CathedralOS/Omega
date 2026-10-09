@@ -146,5 +146,4 @@ pub fn exact_linux_arm64_physical_boundary_entry_plan() -> ValidatedBoundaryEntr
         .expect("the closed target-authored Linux ARM64 physical entry plan must remain valid")
 }
 
-impl ProgramEntryPhysicalContractPlan {
-}
+impl ProgramEntryPhysicalContractPlan {}

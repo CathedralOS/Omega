@@ -777,7 +777,6 @@ fn interpret_checked_fixture(
             "checked fixture has no selected ProgramEntry",
         );
     };
-    let signature = entry.source_signature();
     let mut input = match fixture_input(fixture_dir) {
         Ok(input) => input,
         Err(error) => return terminal_execution::Observation::failure(error),
@@ -788,10 +787,13 @@ fn interpret_checked_fixture(
     }
     let outcome = checked_interpreter::interpret_entry(
         &checked.execution().program,
-        checked_interpreter::BuildMachineEntry::Symbol(signature.machine_symbol()),
+        checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
         &input_bytes,
         checked_interpreter::InterpretOptions {
-            provisioned_context_parameter: signature.receiver().source_symbol(),
+            provisioned_context_parameter: entry
+                .context_parameter()
+                .is_valid()
+                .then(|| entry.context_parameter()),
             ..checked_interpreter::InterpretOptions::default()
         },
     );

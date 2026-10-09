@@ -37,7 +37,6 @@ task-plans = { path = "../../runtime/task-plans" }
 isa-aarch64 = { path = "../../instruction-set-architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../instruction-set-architectures/isa-x86_64" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
-symbols = { path = "../../../../../psi/foundation/symbols" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
@@ -63,6 +62,5 @@ checked-trees-to-lowered-psi = { path = "../../../../../psi/compilation/pipeline
 source-files-to-tokens = { path = "../../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-symbols = { path = "../../../../../psi/foundation/symbols" }
 tokens-to-syntax-trees = { path = "../../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }

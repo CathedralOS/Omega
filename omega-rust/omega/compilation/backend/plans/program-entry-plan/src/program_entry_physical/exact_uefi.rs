@@ -120,5 +120,4 @@ pub fn exact_uefi_x64_physical_boundary_entry_plan() -> ValidatedBoundaryEntryPl
     )
 }
 
-impl ProgramEntryPhysicalContractPlan {
-}
+impl ProgramEntryPhysicalContractPlan {}

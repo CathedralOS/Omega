@@ -228,8 +228,11 @@ Backend callback planning no longer depends on checked-tree records.
 Calling-policy evaluation retains its validated ABI application as backend-owned
 output. Native entry and registrar settlement consume that application, not the
 evaluator's typed handles, source spans or policy execution state. Their contract
-joins do not rerun calling-plan validation. The initial source-aware planning
-and source-entry signature remain migration work, not part of Terminal Psi.
+joins do not rerun calling-plan validation. Entry signatures and Psi entry
+receipts join by exact package/toolchain declaration identity, not source-arena
+handles. Source coordinates and Extent layout capture stay with provider planning;
+backend entry plans and image emission consume the completed signature. The
+initial source-aware selection and planning remain migration work.
 
 [`omega/compilation/realization/trust-model/`](omega/compilation/realization/trust-model/README.md)
 owns trust obligation reconstruction and admission, consuming source

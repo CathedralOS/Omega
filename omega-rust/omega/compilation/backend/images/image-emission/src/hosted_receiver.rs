@@ -15,13 +15,13 @@ mod instructions;
 use diagnostics::Diagnostic;
 use program_entry_plan::{
     ProgramEntryFusedServiceEstablishment, ProgramEntryPhysicalContractPlan,
-    SelectedProgramEntrySourceSignature,
+    SelectedProgramEntrySignature,
 };
 pub(crate) use terminal_semantics::zero_valid_record_storage;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostedReceiverBinding {
-    source: SelectedProgramEntrySourceSignature,
+    source: SelectedProgramEntrySignature,
     checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical: ProgramEntryPhysicalContractPlan,
     services: Vec<ProgramEntryFusedServiceEstablishment>,
@@ -36,7 +36,7 @@ pub struct HostedReceiverBinding {
 impl crate::ObjectArtifact {}
 
 impl HostedReceiverBinding {
-    pub const fn source(&self) -> &SelectedProgramEntrySourceSignature {
+    pub const fn source(&self) -> &SelectedProgramEntrySignature {
         &self.source
     }
     pub const fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan {
@@ -630,7 +630,7 @@ fn prepare_windows_x86_64(
 /// `validate_binding` rejects any pairing drift before bytes exist.
 pub fn bind_hosted_receiver(
     artifact: &mut crate::ObjectArtifact,
-    source: &SelectedProgramEntrySourceSignature,
+    source: &SelectedProgramEntrySignature,
     checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical: &ProgramEntryPhysicalContractPlan,
     services: &[ProgramEntryFusedServiceEstablishment],
@@ -821,7 +821,7 @@ fn windows_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContr
 /// replay its checked source receipt before installing this conditional bridge.
 fn receiver_layout(
     artifact: &crate::ObjectArtifact,
-    source: &SelectedProgramEntrySourceSignature,
+    source: &SelectedProgramEntrySignature,
     checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
     services: &[ProgramEntryFusedServiceEstablishment],
     determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
@@ -865,14 +865,15 @@ fn receiver_layout(
     else {
         return Err(invalid());
     };
-    // The checked receipt and the source signature join by exact symbol and
-    // signature identity. Their machine names are display payloads spelled
-    // by two producers -- Psi's receipt carries the module-qualified display
-    // path (`left::Runner::run`), the source signature the attached name
-    // (`Runner::run`) -- so the names differ for any module-qualified entry
-    // and bind nothing the symbol does not; they are not compared.
+    // Join exact declaration ownership, not source arena coordinates or display
+    // names. Module-qualified and attached display spellings may legitimately
+    // differ; the portable declaration identity binds the package and path.
     if checked_entry.source_signature_identity() != source.identity().bytes()
-        || checked_entry.source_machine_symbol() != source.machine_symbol()
+        || checked_entry.declaration() != source.declaration()
+        || terminal
+            .machine(terminal.entry)
+            .and_then(|machine| machine.declaration.as_ref())
+            .is_none_or(|declaration| &declaration.machine != source.declaration())
         || checked_entry.terminal_entry() != terminal.entry
         || checked_entry.terminal_entry() != function.machine
         || checked_entry.terminal_psi_identity()
@@ -1006,7 +1007,7 @@ struct ErasedRowUse {
 fn validate_receiver_fields(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     fields: &[terminal_psi::StructuralFieldDeclaration],
-    source: &SelectedProgramEntrySourceSignature,
+    source: &SelectedProgramEntrySignature,
     receiver_identity: &str,
     attachment_type_identity: &str,
     rows: ErasedRows<'_>,

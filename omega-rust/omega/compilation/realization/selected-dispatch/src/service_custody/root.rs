@@ -59,17 +59,18 @@ pub fn program_entry_service_requirements(
 
 pub fn derive_fused_program_entry_establishments(
     checked: &CheckedTrees,
-    source: &program_entry_plan::SelectedProgramEntrySourceSignature,
+    entry: &provider_planning::program_entry::SelectedCompilerProgramEntry,
     selected: &[SelectedProviderReviewProvenance],
     permit_unsettled: bool,
 ) -> Result<Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>, Vec<Diagnostic>> {
+    let source = entry.source_signature();
     let Some(receiver_identity) = source.receiver().normalized_type_identity() else {
         return Ok(Vec::new());
     };
     let matching_machines = checked
         .machines()
         .iter()
-        .filter(|machine| machine.symbol == source.machine_symbol())
+        .filter(|machine| machine.symbol == entry.machine_symbol())
         .collect::<Vec<_>>();
     let [machine] = matching_machines.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
@@ -80,7 +81,7 @@ pub fn derive_fused_program_entry_establishments(
     let matching_states = checked
         .machine_states(machine)
         .iter()
-        .filter(|state| state.symbol == source.state_symbol())
+        .filter(|state| state.symbol == entry.state_symbol())
         .collect::<Vec<_>>();
     let [state] = matching_states.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
@@ -97,7 +98,7 @@ pub fn derive_fused_program_entry_establishments(
                 )]
             })?;
     if source.receiver().source_position() != Some(context.source_position)
-        || source.receiver().source_symbol() != Some(context.parameter.symbol)
+        || entry.context_parameter() != context.parameter.symbol
     {
         return Err(vec![Diagnostic::error(
             "selected ProgramEntry context occurrence drifted before Fused establishment",

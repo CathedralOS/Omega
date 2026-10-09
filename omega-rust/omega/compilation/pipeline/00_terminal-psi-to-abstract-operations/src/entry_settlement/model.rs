@@ -9,7 +9,7 @@ use terminal_psi::CheckedProgramEntryTerminalReceipt;
 #[derive(Debug, Clone, Copy)]
 pub struct NativeProgramEntrySettlement<'entry> {
     pub checked_entry: Option<&'entry CheckedProgramEntryTerminalReceipt>,
-    pub(crate) source: &'entry program_entry_plan::SelectedProgramEntrySourceSignature,
+    pub(crate) source: &'entry program_entry_plan::SelectedProgramEntrySignature,
     pub(crate) semantic_calling_application: Option<&'entry BoundaryCallingApplication>,
     pub(crate) physical_calling_application: Option<&'entry BoundaryCallingApplication>,
     pub(crate) storage_entry: Option<&'entry program_entry_plan::SelectedProgramStorageEntryPlan>,
@@ -19,7 +19,7 @@ pub struct NativeProgramEntrySettlement<'entry> {
 
 impl<'entry> NativeProgramEntrySettlement<'entry> {
     pub const fn new(
-        source: &'entry program_entry_plan::SelectedProgramEntrySourceSignature,
+        source: &'entry program_entry_plan::SelectedProgramEntrySignature,
         calling_plans: Option<(
             &'entry BoundaryCallingApplication,
             &'entry BoundaryCallingApplication,
@@ -56,7 +56,7 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
         self
     }
 
-    pub const fn source(self) -> &'entry program_entry_plan::SelectedProgramEntrySourceSignature {
+    pub const fn source(self) -> &'entry program_entry_plan::SelectedProgramEntrySignature {
         self.source
     }
 
@@ -171,7 +171,7 @@ pub struct ValidatedNativeProgramEntryCallingPlans {
 pub struct ValidatedNativeProgramEntrySettlement {
     pub(crate) checked_entry: CheckedProgramEntryTerminalReceipt,
     pub(crate) target: target::NativeTarget,
-    pub(crate) source: program_entry_plan::SelectedProgramEntrySourceSignature,
+    pub(crate) source: program_entry_plan::SelectedProgramEntrySignature,
     pub(crate) semantic_calling_application: Option<BoundaryCallingApplication>,
     /// Retain the plans admitted with the exact calling applications. Downstream
     /// wrapper construction borrows this result instead of replaying admission.
@@ -212,7 +212,7 @@ impl ValidatedNativeProgramEntrySettlement {
         self.target
     }
 
-    pub const fn source(&self) -> &program_entry_plan::SelectedProgramEntrySourceSignature {
+    pub const fn source(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
         &self.source
     }
 

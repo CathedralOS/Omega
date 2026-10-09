@@ -86,7 +86,7 @@ impl BuildConfig {
                 {
                     Some(_) => selected_entry
                         .iter()
-                        .map(|entry| entry.source_signature().machine_symbol())
+                        .map(|entry| entry.machine_symbol())
                         .collect(),
                     None => self
                         .root_bindings

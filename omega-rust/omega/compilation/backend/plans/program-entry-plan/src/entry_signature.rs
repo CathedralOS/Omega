@@ -1,28 +1,23 @@
-//! Checked declaration signature for the exact source machine selected by a
-//! target-owned `ProgramEntry` slot.
+//! Source-independent signature for one target-owned `ProgramEntry` slot.
 //!
-//! This carrier is captured from typed trees before they are consumed by
-//! checked/backend lowering. It owns no runtime value, `Extent`, root
-//! authority, placement, or call plan. For the currently admitted
+//! The source owner captures declaration identity and the completed value
+//! layout. Arena coordinates never cross this boundary. It owns no runtime
+//! value, `Extent`, root authority, placement, or call plan. For the currently admitted
 //! program-storage schema it also retains the exact address-free `Extent`
 //! record graph needed to distinguish its fields from a size-only lookalike.
-
-mod extent_layout;
-pub use extent_layout::selected_program_storage_source_extent_value_layout;
 
 use crate::ProgramStorageEntryRootRole;
 use sha2::{Digest, Sha256};
 
-const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v2\0";
+const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v3\0";
 
 /// Source-path-free identity of one exact checked `ProgramEntry` signature.
-/// Arena handles remain private replay coordinates; normalized callable/type
-/// identities and the complete target-owned slot and value layout define the
-/// durable join key.
+/// Exact declaration ownership, normalized callable/type identities and the
+/// complete target-owned slot and value layout define the durable join key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ProgramEntrySourceSignatureIdentity([u8; 32]);
+pub struct ProgramEntrySignatureIdentity([u8; 32]);
 
-impl ProgramEntrySourceSignatureIdentity {
+impl ProgramEntrySignatureIdentity {
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
@@ -33,31 +28,22 @@ impl ProgramEntrySourceSignatureIdentity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProgramEntrySourceReceiverSignature {
+pub enum ProgramEntryReceiverSignature {
     Free,
     ProvisionedMutable {
         /// Formal declaration position, not a dense Terminal or ABI parameter index.
         source_position: u32,
-        /// Arena-local replay coordinate; excluded from the durable signature identity.
-        source_symbol: symbols::SymbolHandle,
         normalized_type_identity: String,
     },
 }
 
-impl ProgramEntrySourceReceiverSignature {
+impl ProgramEntryReceiverSignature {
     pub const fn source_position(&self) -> Option<u32> {
         match self {
             Self::Free => None,
             Self::ProvisionedMutable {
                 source_position, ..
             } => Some(*source_position),
-        }
-    }
-
-    pub const fn source_symbol(&self) -> Option<symbols::SymbolHandle> {
-        match self {
-            Self::Free => None,
-            Self::ProvisionedMutable { source_symbol, .. } => Some(*source_symbol),
         }
     }
 
@@ -73,31 +59,26 @@ impl ProgramEntrySourceReceiverSignature {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramEntrySourceResultSignature {
+pub enum ProgramEntryResultSignature {
     Unit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramEntrySourceExtentFieldRole {
+pub enum ProgramEntryExtentFieldRole {
     Base,
     Length,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProgramEntrySourceExtentFieldLayout {
-    role: ProgramEntrySourceExtentFieldRole,
-    symbol: symbols::SymbolHandle,
+pub struct ProgramEntryExtentFieldLayout {
+    role: ProgramEntryExtentFieldRole,
     byte_offset: u16,
     shape: calling_conventions::ValueShape,
 }
 
-impl ProgramEntrySourceExtentFieldLayout {
-    pub const fn role(&self) -> ProgramEntrySourceExtentFieldRole {
+impl ProgramEntryExtentFieldLayout {
+    pub const fn role(&self) -> ProgramEntryExtentFieldRole {
         self.role
-    }
-
-    pub const fn symbol(&self) -> symbols::SymbolHandle {
-        self.symbol
     }
 
     pub const fn byte_offset(&self) -> u16 {
@@ -112,48 +93,37 @@ impl ProgramEntrySourceExtentFieldLayout {
 /// Exact checked record graph for the ordinary value portion of one
 /// `Extent in Granted`. Domain authority is deliberately absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProgramEntrySourceExtentValueLayout {
-    data_symbol: symbols::SymbolHandle,
+pub struct ProgramEntryExtentValueLayout {
     shape: calling_conventions::ValueShape,
-    fields: [ProgramEntrySourceExtentFieldLayout; 2],
+    fields: [ProgramEntryExtentFieldLayout; 2],
 }
 
-impl ProgramEntrySourceExtentValueLayout {
-    pub const fn data_symbol(&self) -> symbols::SymbolHandle {
-        self.data_symbol
-    }
-
+impl ProgramEntryExtentValueLayout {
     pub const fn shape(&self) -> calling_conventions::ValueShape {
         self.shape
     }
 
-    pub const fn fields(&self) -> &[ProgramEntrySourceExtentFieldLayout; 2] {
+    pub const fn fields(&self) -> &[ProgramEntryExtentFieldLayout; 2] {
         &self.fields
     }
 
     pub fn from_checked_record(
-        data_symbol: symbols::SymbolHandle,
-        base_symbol: symbols::SymbolHandle,
         base_offset: u16,
         base_shape: calling_conventions::ValueShape,
-        length_symbol: symbols::SymbolHandle,
         length_offset: u16,
         length_shape: calling_conventions::ValueShape,
         shape: calling_conventions::ValueShape,
     ) -> Result<Self, String> {
         let layout = Self {
-            data_symbol,
             shape,
             fields: [
-                ProgramEntrySourceExtentFieldLayout {
-                    role: ProgramEntrySourceExtentFieldRole::Base,
-                    symbol: base_symbol,
+                ProgramEntryExtentFieldLayout {
+                    role: ProgramEntryExtentFieldRole::Base,
                     byte_offset: base_offset,
                     shape: base_shape,
                 },
-                ProgramEntrySourceExtentFieldLayout {
-                    role: ProgramEntrySourceExtentFieldRole::Length,
-                    symbol: length_symbol,
+                ProgramEntryExtentFieldLayout {
+                    role: ProgramEntryExtentFieldRole::Length,
                     byte_offset: length_offset,
                     shape: length_shape,
                 },
@@ -165,17 +135,13 @@ impl ProgramEntrySourceExtentValueLayout {
 
     fn validate_capture(&self) -> Result<(), String> {
         let scalar = calling_conventions::ValueShape::integer(8, 8);
-        if !self.data_symbol.is_valid()
-            || self.shape != calling_conventions::ValueShape::integer(16, 8)
-            || self.fields[0].role != ProgramEntrySourceExtentFieldRole::Base
+        if self.shape != calling_conventions::ValueShape::integer(16, 8)
+            || self.fields[0].role != ProgramEntryExtentFieldRole::Base
             || self.fields[0].byte_offset != 0
             || self.fields[0].shape != scalar
-            || self.fields[1].role != ProgramEntrySourceExtentFieldRole::Length
+            || self.fields[1].role != ProgramEntryExtentFieldRole::Length
             || self.fields[1].byte_offset != 8
             || self.fields[1].shape != scalar
-            || !self.fields[0].symbol.is_valid()
-            || !self.fields[1].symbol.is_valid()
-            || self.fields[0].symbol == self.fields[1].symbol
         {
             return Err(
                 "selected source Extent must be the exact {base: addr@0, length: u64@8} x86-64 record"
@@ -187,19 +153,19 @@ impl ProgramEntrySourceExtentValueLayout {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProgramEntrySourceVisibleParameterSignature {
+pub struct ProgramEntryVisibleParameterSignature {
     role: ProgramStorageEntryRootRole,
     /// Receiver-excluded ordinal in the target schema's visible list. This is
     /// not a source formal index or an outbound ABI parameter index.
     visible_parameter_index: usize,
     normalized_type_identity: String,
     value_shape: calling_conventions::ValueShape,
-    extent_value_layout: ProgramEntrySourceExtentValueLayout,
+    extent_value_layout: ProgramEntryExtentValueLayout,
     is_const: bool,
     is_mutable: bool,
 }
 
-impl ProgramEntrySourceVisibleParameterSignature {
+impl ProgramEntryVisibleParameterSignature {
     pub const fn role(&self) -> ProgramStorageEntryRootRole {
         self.role
     }
@@ -218,7 +184,7 @@ impl ProgramEntrySourceVisibleParameterSignature {
         self.value_shape
     }
 
-    pub const fn extent_value_layout(&self) -> &ProgramEntrySourceExtentValueLayout {
+    pub const fn extent_value_layout(&self) -> &ProgramEntryExtentValueLayout {
         &self.extent_value_layout
     }
 
@@ -231,41 +197,38 @@ impl ProgramEntrySourceVisibleParameterSignature {
     }
 }
 
-/// Sealed typed-tree evidence for one selected source continuation signature.
+/// Completed declaration and value-layout evidence for one selected entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedProgramEntrySourceSignature {
+pub struct SelectedProgramEntrySignature {
     target_slot: target::ProgramEntrySlotDeclaration,
-    machine_symbol: symbols::SymbolHandle,
-    state_symbol: symbols::SymbolHandle,
+    declaration: terminal_psi::NominalDeclarationIdentity,
     machine_name: String,
     state_name: String,
     normalized_callable_identity: String,
-    receiver: ProgramEntrySourceReceiverSignature,
-    visible_parameters: Vec<ProgramEntrySourceVisibleParameterSignature>,
-    result: ProgramEntrySourceResultSignature,
+    receiver: ProgramEntryReceiverSignature,
+    visible_parameters: Vec<ProgramEntryVisibleParameterSignature>,
+    result: ProgramEntryResultSignature,
 }
 
-impl SelectedProgramEntrySourceSignature {
-    pub fn from_checked_typed_entry(
+impl SelectedProgramEntrySignature {
+    pub fn from_checked_declaration(
         target_slot: target::ProgramEntrySlotDeclaration,
-        machine_symbol: symbols::SymbolHandle,
-        state_symbol: symbols::SymbolHandle,
+        declaration: terminal_psi::NominalDeclarationIdentity,
         machine_name: String,
         state_name: String,
         normalized_callable_identity: String,
-        receiver: ProgramEntrySourceReceiverSignature,
-        visible_parameters: Vec<ProgramEntrySourceVisibleParameterSignature>,
+        receiver: ProgramEntryReceiverSignature,
+        visible_parameters: Vec<ProgramEntryVisibleParameterSignature>,
     ) -> Result<Self, String> {
         let signature = Self {
             target_slot,
-            machine_symbol,
-            state_symbol,
+            declaration,
             machine_name,
             state_name,
             normalized_callable_identity,
             receiver,
             visible_parameters,
-            result: ProgramEntrySourceResultSignature::Unit,
+            result: ProgramEntryResultSignature::Unit,
         };
         signature.validate_capture()?;
         Ok(signature)
@@ -275,12 +238,8 @@ impl SelectedProgramEntrySourceSignature {
         self.target_slot
     }
 
-    pub const fn machine_symbol(&self) -> symbols::SymbolHandle {
-        self.machine_symbol
-    }
-
-    pub const fn state_symbol(&self) -> symbols::SymbolHandle {
-        self.state_symbol
+    pub const fn declaration(&self) -> &terminal_psi::NominalDeclarationIdentity {
+        &self.declaration
     }
 
     pub fn machine_name(&self) -> &str {
@@ -295,24 +254,23 @@ impl SelectedProgramEntrySourceSignature {
         &self.normalized_callable_identity
     }
 
-    pub const fn receiver(&self) -> &ProgramEntrySourceReceiverSignature {
+    pub const fn receiver(&self) -> &ProgramEntryReceiverSignature {
         &self.receiver
     }
 
-    pub fn visible_parameters(&self) -> &[ProgramEntrySourceVisibleParameterSignature] {
+    pub fn visible_parameters(&self) -> &[ProgramEntryVisibleParameterSignature] {
         &self.visible_parameters
     }
 
-    pub const fn result(&self) -> ProgramEntrySourceResultSignature {
+    pub const fn result(&self) -> ProgramEntryResultSignature {
         self.result
     }
 
-    /// Recompute the canonical source-signature join identity. Symbol handles
-    /// are intentionally excluded because the normalized callable and type
-    /// identities already bind semantic ownership while arena numbering is a
-    /// property of one frontend run.
-    pub fn identity(&self) -> ProgramEntrySourceSignatureIdentity {
+    /// Recompute the canonical signature join identity, including exact package
+    /// or toolchain ownership rather than frontend arena numbering.
+    pub fn identity(&self) -> ProgramEntrySignatureIdentity {
         let mut canonical = SOURCE_SIGNATURE_SCHEMA.to_vec();
+        push_string(&mut canonical, self.declaration.canonical());
         push_string(&mut canonical, self.target_slot.owner.target_name());
         push_string(&mut canonical, self.target_slot.slot_name);
         canonical.push(match self.target_slot.schema {
@@ -351,8 +309,8 @@ impl SelectedProgramEntrySourceSignature {
         });
         push_string(&mut canonical, &self.normalized_callable_identity);
         match &self.receiver {
-            ProgramEntrySourceReceiverSignature::Free => canonical.push(1),
-            ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            ProgramEntryReceiverSignature::Free => canonical.push(1),
+            ProgramEntryReceiverSignature::ProvisionedMutable {
                 source_position,
                 normalized_type_identity,
                 ..
@@ -384,27 +342,25 @@ impl SelectedProgramEntrySourceSignature {
             push_shape(&mut canonical, parameter.extent_value_layout.shape);
             for field in &parameter.extent_value_layout.fields {
                 canonical.push(match field.role {
-                    ProgramEntrySourceExtentFieldRole::Base => 1,
-                    ProgramEntrySourceExtentFieldRole::Length => 2,
+                    ProgramEntryExtentFieldRole::Base => 1,
+                    ProgramEntryExtentFieldRole::Length => 2,
                 });
                 canonical.extend_from_slice(&field.byte_offset.to_le_bytes());
                 push_shape(&mut canonical, field.shape);
             }
         }
         canonical.push(match self.result {
-            ProgramEntrySourceResultSignature::Unit => 1,
+            ProgramEntryResultSignature::Unit => 1,
         });
-        ProgramEntrySourceSignatureIdentity(Sha256::digest(canonical).into())
+        ProgramEntrySignatureIdentity(Sha256::digest(canonical).into())
     }
 
     fn validate_capture(&self) -> Result<(), String> {
         if self.target_slot != self.target_slot.owner.program_entry_slot()
-            || !self.machine_symbol.is_valid()
-            || !self.state_symbol.is_valid()
             || self.machine_name.is_empty()
             || self.state_name.is_empty()
             || self.normalized_callable_identity.is_empty()
-            || self.result != ProgramEntrySourceResultSignature::Unit
+            || self.result != ProgramEntryResultSignature::Unit
         {
             return Err("selected source signature is not one exact typed Unit entry".into());
         }
@@ -412,10 +368,6 @@ impl SelectedProgramEntrySourceSignature {
             .receiver
             .normalized_type_identity()
             .is_some_and(str::is_empty)
-            || self
-                .receiver
-                .source_symbol()
-                .is_some_and(|symbol| !symbol.is_valid())
             || self.visible_parameters.iter().any(|parameter| {
                 parameter.normalized_type_identity.is_empty()
                     || parameter.value_shape.byte_size == 0
@@ -439,11 +391,11 @@ impl SelectedProgramEntrySourceSignature {
         visible_parameter_index: usize,
         normalized_type_identity: String,
         value_shape: calling_conventions::ValueShape,
-        extent_value_layout: ProgramEntrySourceExtentValueLayout,
+        extent_value_layout: ProgramEntryExtentValueLayout,
         is_const: bool,
         is_mutable: bool,
-    ) -> ProgramEntrySourceVisibleParameterSignature {
-        ProgramEntrySourceVisibleParameterSignature {
+    ) -> ProgramEntryVisibleParameterSignature {
+        ProgramEntryVisibleParameterSignature {
             role,
             visible_parameter_index,
             normalized_type_identity,

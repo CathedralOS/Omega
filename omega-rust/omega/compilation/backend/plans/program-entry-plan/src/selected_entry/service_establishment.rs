@@ -1,7 +1,7 @@
 //! Source-free receipt for a Fused service established in one selected
 //! application-root occurrence.
 
-use crate::ProgramEntrySourceSignatureIdentity;
+use crate::ProgramEntrySignatureIdentity;
 use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 
 /// Exact semantic authority supplied while provisioning one selected
@@ -13,7 +13,7 @@ use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 /// the generated entry bridge is responsible for establishing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramEntryFusedServiceEstablishment {
-    source_signature_identity: ProgramEntrySourceSignatureIdentity,
+    source_signature_identity: ProgramEntrySignatureIdentity,
     target_slot: target::ProgramEntrySlotDeclaration,
     receiver_type_identity: String,
     attachment_type_identity: String,
@@ -47,7 +47,7 @@ impl ProgramEntryFusedServiceEstablishment {
     /// receiver field carries a single segment.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        source_signature_identity: ProgramEntrySourceSignatureIdentity,
+        source_signature_identity: ProgramEntrySignatureIdentity,
         target_slot: target::ProgramEntrySlotDeclaration,
         receiver_type_identity: String,
         attachment_type_identity: String,
@@ -89,7 +89,7 @@ impl ProgramEntryFusedServiceEstablishment {
         })
     }
 
-    pub const fn source_signature_identity(&self) -> ProgramEntrySourceSignatureIdentity {
+    pub const fn source_signature_identity(&self) -> ProgramEntrySignatureIdentity {
         self.source_signature_identity
     }
 
