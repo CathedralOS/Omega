@@ -1045,9 +1045,8 @@ fail/domains/exit_ensures_unproven rejected 226ms expected @c08960bee2b1+wt
 	cannot prove ensures contract for exit from Main::main at statement 0: main.player in Player::Alive
 fail/domains/implicit_semantic_domain_local_weakening rejected 216ms expected @2d8ed253669f
 	implicit domain weakening in machine `Main::main` state `main` local `raw` drops `Degrees`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 489ms expected @41c7c3df5137+wt
+fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 2463ms expected @f78ed53f446c
 	cannot prove requires contract for call accept from Main::main: main.items[0] in Item::Valid (invalidated by prior mutation of main.items[index].value; main.items[0].value is part of Item::Valid)
-	cannot prove index `index` is within length 2 in Main::main::main
 fail/domains/module_domain_broad_import_hides_leaf rejected 236ms expected @2d8ed253669f
 	data `Main` field `span` uses `in Distance`, but no `domain` named `Distance` is declared for `u64` (domains are bound to their storage type)
 fail/domains/named_const_subject_binding rejected 16ms expected @9ed8b7d0772d
@@ -1347,6 +1346,8 @@ fail/generics/grouped_decimal_const_suffix_rejected rejected 9ms expected @1e24b
 	const argument expression for `FixedBuffer` is invalid for `u64`: expression is not a symbolic integer const expression
 fail/generics/grouped_decimal_const_zero_division_rejected rejected 13ms expected @1e24b2973189
 	const argument expression for `FixedBuffer` is invalid for `u64`: division by zero is invalid
+fail/generics/index_equality_foreign_algebra rejected 2049ms expected @f78ed53f446c
+	index compatibility condition `index-equality:Indexed:cannot_borrow_other_application::entry:statement-1:Indexed<1 + 2>==Indexed<3>` is not established: actual `Indexed<1 + 2>` and expected `Indexed<3>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/indexed_domain_capacity_invalid_initializer rejected 141ms expected @f64782b89114+wt
 	construction of `DomainBytes<u64 in AtMost<256>, 256>` field `length` cannot be proven within its declared range `-9223372036854775808..=256`; constrain the value, construct with a literal in range, or widen the field
 	`as ... in AtMost<256>` cannot mint: a `AtMost<256>` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
