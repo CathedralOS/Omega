@@ -24,6 +24,7 @@ pub(super) fn validate(
         machine,
         state_name,
         current_state,
+        statement_index,
         symbols,
         ..
     } = *scope;
@@ -105,6 +106,52 @@ pub(super) fn validate(
     // Nominal guard: `let f: Foo = self.bar` binds a `Bar` value to a `Foo`
     // local -- wrong data type. Only an initialized `let` has a value.
     if local_data.initial_value.is_valid() {
+        if crate::value_custody::reference_access::is_reference_destination(
+            program,
+            local_data.type_reference,
+        ) {
+            use crate::value_custody::reference_access::ReferenceAccessRefusal;
+            let prior_statements = current_state.map_or(&[][..], |state| {
+                &program.statement_table.statements(state.statement_nodes)[..statement_index]
+            });
+            // Receiving a loan in a local has the same access obligation as
+            // passing it to a call or storing it in a constructed field. The
+            // selected source, not the local's declared access or an unrelated
+            // exclusive sibling, supplies permission over its backing.
+            if let Some(refusal) =
+                crate::value_custody::reference_access::receiving_reference_access_refusal(
+                    program,
+                    machine,
+                    current_state,
+                    prior_statements,
+                    local_data.initial_value,
+                    local_data.type_reference,
+                )
+            {
+                let reason = match refusal {
+                    ReferenceAccessRefusal::ExplicitWriteOnlyRequired => {
+                        "requires explicit write-only attenuation; pass `&write ...`"
+                    }
+                    ReferenceAccessRefusal::WriteOnlyMayNotRead => {
+                        "may read, but the source supplies only write-only authority"
+                    }
+                    ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { access, .. } => {
+                        if access == language_semantics::ReferenceAccess::WriteOnly {
+                            "requires exclusive source access; shared or immutable storage cannot supply it"
+                        } else {
+                            "requires mutable source access; shared or immutable storage cannot supply it"
+                        }
+                    }
+                    ReferenceAccessRefusal::MutableSourceRequired => {
+                        "requires mutable source access; shared or immutable storage cannot supply it"
+                    }
+                    ReferenceAccessRefusal::NamedPlaceRequired { .. } => {
+                        "requires a named source place; a temporary cannot lend exclusive access"
+                    }
+                };
+                diagnostics.push(Diagnostic::error(format!("{owner} {reason}")));
+            }
+        }
         expression_types::report_data_type_conflict(
             program,
             machine,

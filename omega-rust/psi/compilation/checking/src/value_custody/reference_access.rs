@@ -1,6 +1,6 @@
 //! Receiving a reference value cannot manufacture the source's access.
 //!
-//! Calls and structural field construction share this judgment at the exact
+//! Calls, local initialization and field construction share this judgment at the exact
 //! receiving leaf. A mutable slot or byte-compatible shape is not authority
 //! over its referent. Declared reference forwarding preserves every enclosing
 //! access, while lifetime, exclusivity, element/domain correspondence and
@@ -27,7 +27,7 @@ pub(crate) enum ReferenceAccessRefusal {
     },
 }
 
-/// This is the call's existing access rule generalized to receiving fields;
+/// The shared access rule for every receiving reference leaf;
 /// it grants no loan and never derives permission from a destination type.
 pub(crate) fn receiving_reference_access_refusal(
     program: &dyn crate::CheckingInput,
