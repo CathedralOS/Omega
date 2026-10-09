@@ -95,27 +95,3 @@ pub(crate) struct CompositionActivation {
     pub provider_evidence: SelectedTaskRuntimeProviderFact,
 }
 
-/// Priority rows for the whole composition.
-///
-/// No priority surface exists in the source language or the settled plan
-/// vocabulary today, so the model records the dimension's absence
-/// explicitly instead of publishing an empty set that a proof machine could
-/// mistake for "all activations unprioritized".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CompositionPriorities {
-    /// The composition carries no retained priority evidence.
-    NotRetained,
-}
-
-/// Wait/wake edges between distinct activations: joins, channel handoffs
-/// and other cross-activation unblocking.
-///
-/// The settled vocabulary retains only intra-activation suspension
-/// crossings; no inter-activation waits-for relation is extractable yet,
-/// so the model records the absence explicitly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CompositionCrossActivationEdges {
-    /// No inter-activation wait/wake evidence is retained.
-    NotRetained,
-}
-

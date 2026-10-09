@@ -156,42 +156,6 @@ impl PackageCompilationSubject {
     pub fn consumed_units(&self) -> &[ConsumedSourceUnit] {
         &self.consumed_units
     }
-    /// Construct the package/source subject from canonical parts for custody
-    /// coverage. The retained shape must match what
-    /// [`derive_package_compilation_subject`] produces: `root` is the closure
-    /// root, the consumed rows are nonempty, strictly ordered, and unique, and
-    /// every row naming a package resolves inside the retained closure.
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn for_test(
-        root: semantic_vocabulary::PackageKeyIdentity,
-        dependency_closure: super::PackageDependencyClosure,
-        source_consumption_commitment: PackageSourceConsumptionCommitment,
-        consumed_units: Vec<ConsumedSourceUnit>,
-    ) -> Result<Self, &'static str> {
-        if dependency_closure.root() != root {
-            return Err("package compilation subject root disagrees with its dependency closure");
-        }
-        if consumed_units.is_empty() {
-            return Err("package compilation subject requires consumed source units");
-        }
-        if consumed_units.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err("package compilation subject requires strictly ordered unique units");
-        }
-        let packages = dependency_closure.packages();
-        if consumed_units
-            .iter()
-            .filter_map(ConsumedSourceUnit::package)
-            .any(|package| !packages.contains(&package))
-        {
-            return Err("consumed source unit names a package outside the dependency closure");
-        }
-        Ok(Self {
-            root,
-            dependency_closure,
-            source_consumption_commitment,
-            consumed_units,
-        })
-    }
 }
 
 impl PackageSourceConsumptionCommitment {

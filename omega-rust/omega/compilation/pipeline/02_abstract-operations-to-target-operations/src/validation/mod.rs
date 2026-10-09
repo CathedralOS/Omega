@@ -20,7 +20,6 @@ pub(crate) mod structural_shapes;
 mod structural_signatures;
 pub(crate) mod whole_plan;
 
-
 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
@@ -61,10 +60,6 @@ impl AbstractToTargetTranslationValidationReceipt {
 
     pub const fn entry(&self) -> MachineId {
         self.entry
-    }
-
-    pub const fn function_count(&self) -> usize {
-        self.function_roster.len()
     }
 
     pub(crate) fn function_roster(&self) -> &[AbstractToTargetFunctionRosterReceipt] {
