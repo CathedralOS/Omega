@@ -121,6 +121,7 @@ pub(crate) use proof_integer::{
     proof_integer_nonnegative, proof_nat_cast, validate_proof_fact_integer_casts,
     validate_proof_integer_casts,
 };
+pub(crate) use ranking_range::closed_collection_length;
 pub use ranking_range::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
     ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,

@@ -15,6 +15,7 @@ mod field_coordinates;
 mod fields;
 pub use fields::unique_literal_field;
 mod lengths;
+
 mod meanings;
 mod projections;
 mod requirements;
@@ -40,6 +41,22 @@ pub(crate) use calls::{
     call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
     prove_ranking_range_call_entry,
 };
+
+/// A collection descriptor's closed extent, using the same checked geometry
+/// as ranking and saved-argument proofs. Immutable bindings retain their
+/// initializer only while writes and exclusive exposure cannot replace it.
+pub(crate) fn closed_collection_length(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    collection: ExpressionHandle,
+) -> Option<u64> {
+    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    saved_arguments::install(program, machine, state, &[], &mut engine);
+    lengths::actual(program, machine, state, collection, &[], &mut engine)?
+        .constant_value()?
+        .to_u64()
+}
 
 /// The scalar rank produced by an independently selected ranking view.
 #[derive(Clone, Copy)]
