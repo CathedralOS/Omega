@@ -15,7 +15,7 @@ const X86_SCALAR_FMA_DIFFERENTIAL_SCHEMA: &[u8] = b"omega.x86-scalar-fma-differe
 const X86_SCALAR_FMA_PROVIDER_SCHEMA: &[u8] = b"omega.x86-scalar-fma-provider.v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum X86TargetFeature {
+pub enum X86TargetFeature {
     Avx,
     Fma3,
 }
@@ -345,7 +345,7 @@ impl AdmittedX86ScalarFmaProvider {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum X86ScalarFmaAdmissionError {
+pub enum X86ScalarFmaAdmissionError {
     UnsupportedProfile(TargetProfile),
     MissingExactFeatureSet,
     ProfileMismatch,

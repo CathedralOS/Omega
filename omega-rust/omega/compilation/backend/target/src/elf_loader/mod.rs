@@ -85,7 +85,7 @@ impl NormalizedElfInterpreterPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ElfInterpreterPlanValidationError {
+pub enum ElfInterpreterPlanValidationError {
     UnsupportedTarget { target: TargetProfile },
     EmptyPath,
     RelativePath,
