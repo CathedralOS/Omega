@@ -695,11 +695,8 @@ fn instantiate_call_contract_payload(
             let Some(application) = program.proof_facts.get(contract.fact).as_proposition() else {
                 return;
             };
-            let binder_labels = application
-                .binder_arguments
-                .iter()
-                .map(|argument| argument.display_name())
-                .collect::<Vec<_>>();
+            let (binder_labels, _) =
+                crate::labels::proposition_label_sources(application, program);
             (application.clone(), binder_labels)
         }
     };

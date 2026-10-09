@@ -4,7 +4,7 @@
 //! reconstructing backing, current extent location and placement, not demand
 //! that the owner and descriptor have the same type or predicate roster.
 use crate::LegalizationError;
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use abstract_operations::AbstractOperationPlan;
 use calling_conventions::{CallPlan, ValueShape};
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{OperationId, StructuralPlaceKind};

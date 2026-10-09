@@ -3,5 +3,5 @@
 mod source_diff;
 
 pub(crate) use source_diff::{
-    PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits,
+    PackageSourcePatchError, PackageSourcePatchLimits,
     render_package_source_patch};
