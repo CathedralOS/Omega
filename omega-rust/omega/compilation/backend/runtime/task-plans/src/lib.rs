@@ -13,9 +13,11 @@
 //! executor selection, invocation receipts, stack composition, composition
 //! model, identities and report fingerprints beneath it.
 
+mod fnv1a;
 mod task_plans;
 
 pub use semantic_vocabulary::{ClaimId, SuspensionCrossingId};
+pub(crate) use task_plans::StackPlan;
 pub use task_plans::activation_plan_facts::{
     SelectedTaskRuntimeProviderFact, TaskActivationPlanFact, TaskActivationPlanSet,
     TaskSpecializationCommitment, TaskStartOperation,
@@ -31,15 +33,14 @@ pub use task_plans::identities::{
     TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId, ValueLayoutId,
 };
 pub use task_plans::stack_composition::{
-    AdmittedSameStackContribution, CallTargetBinding,
-    SameStackContributionAdmissionCandidate, SameStackContributionCommitment,
-    SameStackProviderPlanCommitment, StackCallContribution, TaskStackFrameSummary,
-    UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary, admit_same_stack_contribution, compose_task_stack_demand, project_wcsu_stack_plan, task_stack_frame_validation_identity,
-    validate_task_stack_frame_summary,
+    AdmittedSameStackContribution, CallTargetBinding, SameStackContributionAdmissionCandidate,
+    SameStackContributionCommitment, SameStackProviderPlanCommitment, StackCallContribution,
+    TaskStackFrameSummary, UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary,
+    admit_same_stack_contribution, compose_task_stack_demand, project_wcsu_stack_plan,
+    task_stack_frame_validation_identity, validate_task_stack_frame_summary,
 };
 pub use task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing,
-    LiveCarryDemand, LiveCarryStorage, TaskArgumentLayout,
-    ValidatedActivationPlan, validate_wcsu_activation_plan,
+    LiveCarryDemand, LiveCarryStorage, TaskArgumentLayout, ValidatedActivationPlan,
+    validate_wcsu_activation_plan,
 };
-pub(crate) use task_plans::{ StackPlan};
