@@ -119,7 +119,7 @@ pub fn project_build_declaration_from_source(
 }
 
 /// Project only the role value from an already-parsed syntax tree.
-pub fn project_build_declaration_from_syntax_trees(
+pub(crate) fn project_build_declaration_from_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<BuildDeclaration, BuildDeclarationError> {
     project_build_declaration_syntax(syntax_trees)
@@ -219,7 +219,7 @@ pub fn project_build_entry_syntax(
 }
 
 /// Project the role and retain the exact validated root build entry.
-pub fn project_build_declaration_syntax(
+pub(crate) fn project_build_declaration_syntax(
     syntax_trees: &SyntaxTrees,
 ) -> Result<BuildDeclarationSyntaxProjection, BuildDeclarationError> {
     let build = match project_build_entry_syntax(syntax_trees) {
