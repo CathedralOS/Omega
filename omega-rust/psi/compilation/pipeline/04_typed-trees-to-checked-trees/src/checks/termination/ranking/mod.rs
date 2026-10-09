@@ -538,7 +538,12 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
             validation::RankingRangeMeasure::SliceLength(*subject),
             validation::RankingRangePremises::RankInvariant,
         )?,
-        None => vec![entry],
+        // An unranged witness has no invocation-fixed premises. Its
+        // slice may shrink, and a scalar element computed from it is
+        // a dependent payload rather than another slice carrier.
+        // The shared telescope demotes those duplicate dependencies
+        // unless a range obligation independently requires them.
+        None => Vec::new(),
     };
     let mappings = validation::discover_state_entry_mappings(program, machine, entry, &required)?;
     let adjacency = graph::machine_adjacency(program, machine);
