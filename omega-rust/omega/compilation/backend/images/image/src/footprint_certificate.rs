@@ -15,7 +15,7 @@ use diagnostics::Diagnostic;
 use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
 use sha2::{Digest, Sha256};
 
-pub const FINAL_FOOTPRINT_CERTIFICATE_MARKER: &str = "omega.final-footprint-certificate.current";
+pub(crate) const FINAL_FOOTPRINT_CERTIFICATE_MARKER: &str = "omega.final-footprint-certificate.current";
 
 macro_rules! footprint_digest {
     ($name:ident) => {
@@ -39,7 +39,7 @@ footprint_digest!(FinalFootprintPlacementBindingDigest);
 footprint_digest!(FinalFootprintCertificateDigest);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum FinalFootprintClass {
+pub(crate) enum FinalFootprintClass {
     CompilerFunctions,
     CompilerFunctionRelocationEnvelope,
     CompilerFunctionCallReturnMechanics,
@@ -90,7 +90,7 @@ impl FinalFootprintClass {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FinalFootprintCoverage {
+pub(crate) struct FinalFootprintCoverage {
     pub enumeration_complete: bool,
     pub region_enumeration_complete: bool,
     pub footprint_enumeration_complete: bool,
@@ -128,7 +128,7 @@ impl FinalFootprintCoverage {
         }
     }
 
-    pub fn validate_normalized(&self) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_normalized(&self) -> Result<(), Diagnostic> {
         for (name, classes) in [
             ("covered", &self.covered_classes),
             (
@@ -234,7 +234,7 @@ impl FinalFootprintCoverage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FinalFootprintCertificate {
+pub(crate) struct FinalFootprintCertificate {
     pub marker: &'static str,
     pub certificate_digest: FinalFootprintCertificateDigest,
     /// Compact report compatibility only.

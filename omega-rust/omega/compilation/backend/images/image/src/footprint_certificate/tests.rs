@@ -537,7 +537,7 @@ optimization_core::custody_field_inventory! {
     /// custody join binds. The retained seals are absent: a stale seal is
     /// itself the substitution and stays authored explicitly in the test, as
     /// do the no-entry custody legs built on the binding-free fixture.
-    pub enum FinalFootprintCertificateFieldForTest {
+    pub(crate) enum FinalFootprintCertificateFieldForTest {
         SubstitutedMarker,
         SubstitutedBoundaryContractCoordinate,
         DroppedBoundaryContractCoordinate,
@@ -932,7 +932,7 @@ optimization_core::custody_field_inventory! {
     /// `joined_replay` pins which of the two published axes each leg
     /// diverges, because the strong digest chain and the compact fingerprint
     /// chain do not cover the same inputs.
-    pub enum FinalFootprintCertificateCompactFieldForTest {
+    pub(crate) enum FinalFootprintCertificateCompactFieldForTest {
         SubstitutedImplementationFragmentCount,
         SubstitutedCallbackPlacementCoordinate,
         DroppedCoveredClass,

@@ -558,7 +558,7 @@ impl WcsuStackPlanProjection {
 
     /// Whether the projected bound covers every live call in the reachable
     /// graph. A partial projection cannot authorize runtime stack backing.
-    pub fn is_exact(&self) -> bool {
+    pub(crate) fn is_exact(&self) -> bool {
         self.unresolved_calls.is_empty()
     }
 
@@ -655,7 +655,7 @@ pub fn project_wcsu_stack_plan(
 /// into the same stack representation. The result publishes exact only when
 /// no unresolved site remains: bindings never erase rows they did not name,
 /// and a bound subtree's own unresolved sites stay in the roster.
-pub fn cover_unresolved_call_sites(
+pub(crate) fn cover_unresolved_call_sites(
     projection: &WcsuStackPlanProjection,
     bindings: &[CallTargetBinding],
 ) -> Result<WcsuStackPlanProjection, TaskPlanDiagnostic> {

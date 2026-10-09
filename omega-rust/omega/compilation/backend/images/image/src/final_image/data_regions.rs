@@ -846,7 +846,7 @@ mod tests {
         /// record against the committed final data bytes. The two retained
         /// seal fields are absent: a stale seal is itself the substitution
         /// and stays authored explicitly in the test.
-        pub enum PlacedDataInventoryFieldForTest {
+        pub(crate) enum PlacedDataInventoryFieldForTest {
             SubstitutedDataBaseAddress,
             OverflowingDataBaseAddress,
             ExtendedDataByteCount,
@@ -1049,7 +1049,7 @@ mod tests {
         /// re-derive: the honestly resealed record stays canonical at the
         /// byte join, and the substitution is exposed only by the diverging
         /// published inventory identity.
-        pub enum PlacedDataIdentityBoundFieldForTest {
+        pub(crate) enum PlacedDataIdentityBoundFieldForTest {
             CompilerDataRemarkedAsBindingSlot,
             CompilerDataRemarkedAsPadding,
             BindingSlotRemarkedAsCompilerData,

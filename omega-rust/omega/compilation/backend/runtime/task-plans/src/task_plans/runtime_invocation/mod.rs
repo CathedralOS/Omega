@@ -17,7 +17,7 @@ use crate::{
 /// Validation binds every copied field back to the Omega-owned static
 /// activation fact before lifecycle accounting may consume the receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TaskRuntimeInvocationReceiptCandidate {
+pub(crate) struct TaskRuntimeInvocationReceiptCandidate {
     pub receipt: TaskRuntimeInvocationReceiptId,
     pub invocation: TaskRuntimeInvocationId,
     pub runtime: TaskRuntimeId,
@@ -33,7 +33,7 @@ pub struct TaskRuntimeInvocationReceiptCandidate {
 /// Checked-tree symbol handles remain in the compilation sidecar; runtime
 /// accounting needs only the specialization, operation, provider, and plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TaskRuntimeActivationBinding {
+pub(crate) struct TaskRuntimeActivationBinding {
     pub specialization_report_fingerprint: u64,
     pub specialization_commitment: TaskSpecializationCommitment,
     pub operation: TaskStartOperation,
@@ -45,7 +45,7 @@ pub struct TaskRuntimeActivationBinding {
 /// The retained carrier is independent of checked-tree symbol handles: only
 /// normalized Omega realization identity crosses into runtime accounting.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedTaskRuntimeInvocationReceipt {
+pub(crate) struct ValidatedTaskRuntimeInvocationReceipt {
     identity: TaskRuntimeInvocationBindingId,
     pub(crate) candidate: TaskRuntimeInvocationReceiptCandidate,
     activation: TaskRuntimeActivationBinding,
@@ -73,7 +73,7 @@ impl ValidatedTaskRuntimeInvocationReceipt {
 /// Bind a provider invocation receipt to one exact post-check activation fact.
 /// Static provider/requirement/operation drift rejects before the normalized
 /// lifecycle ledger can acquire operational or storage custody.
-pub fn validate_task_runtime_invocation_receipt(
+pub(crate) fn validate_task_runtime_invocation_receipt(
     activation: &TaskActivationPlanFact,
     candidate: TaskRuntimeInvocationReceiptCandidate,
 ) -> Result<ValidatedTaskRuntimeInvocationReceipt, TaskPlanDiagnostic> {

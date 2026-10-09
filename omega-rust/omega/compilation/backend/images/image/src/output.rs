@@ -137,7 +137,7 @@ pub struct CompilerEntryRegionBindingEvidence {
 }
 
 impl CompilerEntryRegionBindingEvidence {
-    pub fn recomputed_evidence_digest(&self) -> CompilerEntryRegionBindingDigest {
+    pub(crate) fn recomputed_evidence_digest(&self) -> CompilerEntryRegionBindingDigest {
         let mut digest = Sha256::new();
         digest.update(b"omega.compiler-entry-region-binding.sha256.v2\0");
         let identity = self.function_identity;
@@ -156,11 +156,11 @@ impl CompilerEntryRegionBindingEvidence {
         CompilerEntryRegionBindingDigest::from_digest(digest.finalize().into())
     }
 
-    pub fn has_valid_evidence_digest(&self) -> bool {
+    pub(crate) fn has_valid_evidence_digest(&self) -> bool {
         self.evidence_digest == self.recomputed_evidence_digest()
     }
 
-    pub fn recomputed_evidence_report_fingerprint(&self) -> u64 {
+    pub(crate) fn recomputed_evidence_report_fingerprint(&self) -> u64 {
         let mut hash = FNV_OFFSET;
         let identity = self.function_identity;
         fingerprint_bytes(&mut hash, &identity.to_bytes());

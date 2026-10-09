@@ -14,7 +14,7 @@ use crate::{
 /// local liveness judgment, while address stability follows from the selected
 /// fixed nonmoving stack lease.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ExecutorPreservationAxis {
+pub(crate) enum ExecutorPreservationAxis {
     Cpu,
     HostThread,
 }
@@ -25,7 +25,7 @@ pub enum ExecutorPreservationAxis {
 /// conformance/receipt it validated. This is evidence identity, not a freely
 /// authored runtime behavior bit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ExecutorPreservationEvidence {
+pub(crate) struct ExecutorPreservationEvidence {
     axis: ExecutorPreservationAxis,
     identity: ExecutorPreservationEvidenceId,
 }
@@ -50,14 +50,14 @@ impl ExecutorPreservationEvidence {
 /// Exact runtime instance and preservation evidence selected for one
 /// provider-independent activation plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutorSelectionCandidate {
+pub(crate) struct ExecutorSelectionCandidate {
     pub runtime: TaskRuntimeId,
     pub runtime_instance: TaskRuntimeInstanceId,
     pub preservation: Vec<ExecutorPreservationEvidence>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedExecutorSelection {
+pub(crate) struct ValidatedExecutorSelection {
     identity: ExecutorSelectionId,
     candidate: ExecutorSelectionCandidate,
     plan: ValidatedActivationPlan,
@@ -81,7 +81,7 @@ impl ValidatedExecutorSelection {
 /// demanded CPU/thread preservation. Checked providers and opaque admitted
 /// providers both arrive as exact per-axis evidence identities; absence fails
 /// closed, and multiple identities for one axis reject rather than guessing.
-pub fn validate_executor_selection(
+pub(crate) fn validate_executor_selection(
     plan: &ValidatedActivationPlan,
     mut candidate: ExecutorSelectionCandidate,
 ) -> Result<ValidatedExecutorSelection, TaskPlanDiagnostic> {
