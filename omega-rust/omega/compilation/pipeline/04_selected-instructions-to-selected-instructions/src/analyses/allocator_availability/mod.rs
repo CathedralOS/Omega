@@ -101,13 +101,9 @@ pub enum AllocatorAvailabilityError {
     PlanMismatch,
 }
 
-impl std::fmt::Display for AllocatorAvailabilityError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "terminal allocator-availability derivation failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    AllocatorAvailabilityError,
+    "terminal allocator-availability derivation failed"
+);
 
 impl std::error::Error for AllocatorAvailabilityError {}

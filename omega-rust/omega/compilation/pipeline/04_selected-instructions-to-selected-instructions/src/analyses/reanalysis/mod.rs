@@ -133,13 +133,9 @@ pub enum OptimizedSelectedReanalysisError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedSelectedReanalysisError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized transformed-selected reanalysis failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    OptimizedSelectedReanalysisError,
+    "optimized transformed-selected reanalysis failed"
+);
 
 impl std::error::Error for OptimizedSelectedReanalysisError {}

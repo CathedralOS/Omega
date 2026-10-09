@@ -171,8 +171,7 @@ impl PressureRematerializationPlan {
                     let victim = VirtualRegisterId(cursor.u32()?);
                     let current_view = RegisterViewId(cursor.u16()?);
                     let reclaimed_view = RegisterViewId(cursor.u16()?);
-                    let original_materialize =
-                        SelectedInstructionId(cursor.u32()?);
+                    let original_materialize = SelectedInstructionId(cursor.u32()?);
                     let source_value = ValueId::new(cursor.u64()?)
                         .ok_or(PressureRematerializationDecodeError::InvalidValueId)?;
                     let value = decode_integer_value(&mut cursor)?;
@@ -379,11 +378,10 @@ pub enum PressureRematerializationError {
     NoAction,
 }
 
-impl std::fmt::Display for PressureRematerializationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "terminal pressure rematerialization failed: {self:?}")
-    }
-}
+failed_display!(
+    PressureRematerializationError,
+    "terminal pressure rematerialization failed"
+);
 impl std::error::Error for PressureRematerializationError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

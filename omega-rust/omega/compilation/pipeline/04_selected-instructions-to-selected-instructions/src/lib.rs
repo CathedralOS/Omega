@@ -63,6 +63,17 @@ macro_rules! validated_analysis_accessors {
     };
 }
 
+/// `Display` for the crate's `<context> failed: {self:?}` error convention.
+macro_rules! failed_display {
+    ($type:ty, $message:literal) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, concat!($message, ": {:?}"), self)
+            }
+        }
+    };
+}
+
 mod analyses;
 mod codec_bytes;
 mod cursor;
@@ -78,6 +89,7 @@ pub use selected_optimization::optimization_output::{
 pub use selected_optimization::optimize_selected_instructions;
 
 // Current selected-program facts and their independent validation.
+pub(crate) use analyses::materialize_allocator_availability;
 pub use analyses::{
     AllocationLegalityError, LiveRangeError, LivenessError, MachineEffectStageError,
     OptimizedAllocationLegalityCustodyError, OptimizedSelectedReanalysisError,
@@ -90,12 +102,10 @@ pub use analyses::{
     ValidatedSelectedAnalysis, ValidatedSpillChoices, analyze_allocation_legality,
     analyze_allocation_legality_reusing, analyze_live_ranges, analyze_live_ranges_reusing,
     analyze_liveness, analyze_liveness_reusing, analyze_machine_effects, choose_spill_victims,
-    classify_pressure_recovery,
-    stage_optimized_allocation_legality,
+    classify_pressure_recovery, stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_selected_reanalysis,
 };
-pub(crate) use analyses::{ materialize_allocator_availability};
 pub(crate) use analyses::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityError,
     AllocatorAvailabilityValidationReceipt, FixedPrecoloredIntervalValidationReceipt,

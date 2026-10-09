@@ -127,13 +127,9 @@ pub enum FixedPrecoloredIntervalError {
     NonCanonicalFunctions,
 }
 
-impl std::fmt::Display for FixedPrecoloredIntervalError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "fixed/precolored interval analysis failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    FixedPrecoloredIntervalError,
+    "fixed/precolored interval analysis failed"
+);
 
 impl std::error::Error for FixedPrecoloredIntervalError {}

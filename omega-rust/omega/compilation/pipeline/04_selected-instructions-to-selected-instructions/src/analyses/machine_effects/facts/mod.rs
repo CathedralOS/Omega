@@ -142,11 +142,7 @@ pub enum MachineEffectError {
     CountOverflow,
 }
 
-impl std::fmt::Display for MachineEffectError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "machine-effect analysis failed: {self:?}")
-    }
-}
+failed_display!(MachineEffectError, "machine-effect analysis failed");
 
 impl std::error::Error for MachineEffectError {}
 

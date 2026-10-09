@@ -197,13 +197,9 @@ impl OptimizedFixedPrecoloredSegmentHomeCustodyError {
     }
 }
 
-impl std::fmt::Display for OptimizedFixedPrecoloredSegmentHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "fixed/precolored segment-home staging failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    "fixed/precolored segment-home staging failed"
+);
 
 impl std::error::Error for OptimizedFixedPrecoloredSegmentHomeCustodyError {}

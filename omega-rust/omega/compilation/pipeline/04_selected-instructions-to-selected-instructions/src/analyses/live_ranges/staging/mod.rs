@@ -216,10 +216,9 @@ pub enum OptimizedLiveRangeCustodyError {
     Analysis(LiveRangeError),
 }
 
-impl std::fmt::Display for OptimizedLiveRangeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "optimized live-range staging failed: {self:?}")
-    }
-}
+failed_display!(
+    OptimizedLiveRangeCustodyError,
+    "optimized live-range staging failed"
+);
 
 impl std::error::Error for OptimizedLiveRangeCustodyError {}

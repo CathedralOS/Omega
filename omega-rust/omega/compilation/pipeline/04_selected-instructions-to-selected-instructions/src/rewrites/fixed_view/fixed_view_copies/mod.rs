@@ -194,13 +194,9 @@ pub enum OptimizedFixedViewCopyCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedFixedViewCopyCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized fixed-view copy staging failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    OptimizedFixedViewCopyCustodyError,
+    "optimized fixed-view copy staging failed"
+);
 
 impl std::error::Error for OptimizedFixedViewCopyCustodyError {}

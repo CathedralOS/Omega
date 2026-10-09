@@ -220,10 +220,6 @@ pub enum LiveRangeError {
     },
 }
 
-impl std::fmt::Display for LiveRangeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "Terminal live-range derivation failed: {self:?}")
-    }
-}
+failed_display!(LiveRangeError, "Terminal live-range derivation failed");
 
 impl std::error::Error for LiveRangeError {}

@@ -681,13 +681,9 @@ pub enum OptimizedPreAllocationCustodyError {
     },
 }
 
-impl std::fmt::Display for OptimizedPreAllocationCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized pre-allocation staging failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    OptimizedPreAllocationCustodyError,
+    "optimized pre-allocation staging failed"
+);
 
 impl std::error::Error for OptimizedPreAllocationCustodyError {}

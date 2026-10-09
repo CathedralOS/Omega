@@ -159,13 +159,6 @@ pub enum SpillChoiceError {
     UsageMismatch,
 }
 
-impl std::fmt::Display for SpillChoiceError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "Terminal recovery-victim choice failed: {self:?}"
-        )
-    }
-}
+failed_display!(SpillChoiceError, "Terminal recovery-victim choice failed");
 
 impl std::error::Error for SpillChoiceError {}

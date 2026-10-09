@@ -90,12 +90,8 @@ pub enum SelectedInstructionOptimizationError {
     MissingExecution,
 }
 
-impl std::fmt::Display for SelectedInstructionOptimizationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "selected-instruction optimization failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    SelectedInstructionOptimizationError,
+    "selected-instruction optimization failed"
+);
 impl std::error::Error for SelectedInstructionOptimizationError {}

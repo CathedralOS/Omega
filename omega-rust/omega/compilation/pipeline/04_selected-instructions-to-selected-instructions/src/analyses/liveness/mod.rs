@@ -171,10 +171,6 @@ pub enum LivenessError {
     },
 }
 
-impl std::fmt::Display for LivenessError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "Terminal selected liveness failed: {self:?}")
-    }
-}
+failed_display!(LivenessError, "Terminal selected liveness failed");
 
 impl std::error::Error for LivenessError {}

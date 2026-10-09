@@ -124,13 +124,9 @@ pub enum RecoveryClassificationError {
     UsageMismatch,
 }
 
-impl std::fmt::Display for RecoveryClassificationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "Terminal recovery classification failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    RecoveryClassificationError,
+    "Terminal recovery classification failed"
+);
 
 impl std::error::Error for RecoveryClassificationError {}

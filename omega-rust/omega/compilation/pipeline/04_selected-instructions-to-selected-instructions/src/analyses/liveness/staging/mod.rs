@@ -172,10 +172,9 @@ pub enum OptimizedLivenessCustodyError {
     Analysis(LivenessError),
 }
 
-impl std::fmt::Display for OptimizedLivenessCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "optimized liveness staging failed: {self:?}")
-    }
-}
+failed_display!(
+    OptimizedLivenessCustodyError,
+    "optimized liveness staging failed"
+);
 
 impl std::error::Error for OptimizedLivenessCustodyError {}

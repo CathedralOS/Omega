@@ -208,13 +208,9 @@ pub enum OptimizedAllocationLegalityCustodyError {
     MissingRequiredActiveResidentRematerializationView(&'static str),
 }
 
-impl std::fmt::Display for OptimizedAllocationLegalityCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized allocation-legality staging failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    OptimizedAllocationLegalityCustodyError,
+    "optimized allocation-legality staging failed"
+);
 
 impl std::error::Error for OptimizedAllocationLegalityCustodyError {}

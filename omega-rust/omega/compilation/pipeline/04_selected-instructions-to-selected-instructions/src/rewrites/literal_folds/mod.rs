@@ -446,10 +446,9 @@ pub enum OptimizedLiteralFoldCustodyError {
     },
 }
 
-impl std::fmt::Display for OptimizedLiteralFoldCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "optimized literal-fold staging failed: {self:?}")
-    }
-}
+failed_display!(
+    OptimizedLiteralFoldCustodyError,
+    "optimized literal-fold staging failed"
+);
 
 impl std::error::Error for OptimizedLiteralFoldCustodyError {}

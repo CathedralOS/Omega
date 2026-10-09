@@ -10,10 +10,6 @@ pub enum MachineEffectStageError {
     Analysis(MachineEffectError),
 }
 
-impl std::fmt::Display for MachineEffectStageError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "machine-effect analysis failed: {self:?}")
-    }
-}
+failed_display!(MachineEffectStageError, "machine-effect analysis failed");
 
 impl std::error::Error for MachineEffectStageError {}

@@ -962,11 +962,7 @@ pub enum LiteralFoldError {
     },
 }
 
-impl std::fmt::Display for LiteralFoldError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "terminal literal fold failed: {self:?}")
-    }
-}
+failed_display!(LiteralFoldError, "terminal literal fold failed");
 
 impl std::error::Error for LiteralFoldError {}
 

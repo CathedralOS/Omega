@@ -60,13 +60,9 @@ pub enum FixedPrecoloredSplitRequirementError {
     NonCanonicalFunctions,
 }
 
-impl std::fmt::Display for FixedPrecoloredSplitRequirementError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "fixed/precolored split-requirement analysis failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    FixedPrecoloredSplitRequirementError,
+    "fixed/precolored split-requirement analysis failed"
+);
 
 impl std::error::Error for FixedPrecoloredSplitRequirementError {}

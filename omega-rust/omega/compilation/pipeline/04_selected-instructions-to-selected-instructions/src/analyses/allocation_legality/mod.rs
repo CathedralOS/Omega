@@ -178,13 +178,9 @@ pub enum AllocationLegalityError {
     },
 }
 
-impl std::fmt::Display for AllocationLegalityError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "Terminal allocation-legality derivation failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    AllocationLegalityError,
+    "Terminal allocation-legality derivation failed"
+);
 
 impl std::error::Error for AllocationLegalityError {}

@@ -43,13 +43,9 @@ pub enum FixedPrecoloredSegmentHomeError {
     NonCanonicalFunctions,
 }
 
-impl std::fmt::Display for FixedPrecoloredSegmentHomeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "fixed/precolored segment-home assignment failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    FixedPrecoloredSegmentHomeError,
+    "fixed/precolored segment-home assignment failed"
+);
 
 impl std::error::Error for FixedPrecoloredSegmentHomeError {}

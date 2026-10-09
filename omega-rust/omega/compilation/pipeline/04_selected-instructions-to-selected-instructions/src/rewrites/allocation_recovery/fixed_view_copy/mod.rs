@@ -197,14 +197,10 @@ pub enum FixedViewCopyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for FixedViewCopyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "Terminal fixed-view copy materialization failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    FixedViewCopyError,
+    "Terminal fixed-view copy materialization failed"
+);
 
 impl std::error::Error for FixedViewCopyError {}
 
