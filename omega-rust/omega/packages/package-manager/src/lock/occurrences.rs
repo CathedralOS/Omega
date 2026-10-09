@@ -15,7 +15,7 @@ use target::TargetProfile;
 
 /// Explicit checked context metadata; retaining it grants no compilation authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PackageCheckedContext {
+pub struct PackageCheckedContext {
     purpose: DependencyPurpose,
     target: TargetProfile,
     build_execution_profile: Option<TargetProfile>,
@@ -47,7 +47,7 @@ impl PackageCheckedContext {
 /// One package's authorized occurrences: the exact purposes it serves for the
 /// enclosing closure's target.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackagePurposeCoverage {
+pub struct PackagePurposeCoverage {
     package: PackageKey,
     purposes: Vec<DependencyPurpose>,
 }
@@ -66,7 +66,7 @@ impl PackagePurposeCoverage {
 /// The complete occurrence roster of one canonical source closure, in the
 /// subject's canonical package order.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageOccurrenceRoster {
+pub struct PackageOccurrenceRoster {
     coverages: Vec<PackagePurposeCoverage>,
 }
 
@@ -133,7 +133,7 @@ impl PackageOccurrenceRoster {
     }
 
     /// Coverages in the subject's canonical package order.
-    pub(crate) fn coverages(&self) -> &[PackagePurposeCoverage] {
+    pub fn coverages(&self) -> &[PackagePurposeCoverage] {
         &self.coverages
     }
 
@@ -147,7 +147,7 @@ impl PackageOccurrenceRoster {
     }
 
     /// Whether (package, purpose) is an authorized occurrence in the closure.
-    pub(crate) fn is_occurrence(&self, package: &PackageKey, purpose: DependencyPurpose) -> bool {
+    pub fn is_occurrence(&self, package: &PackageKey, purpose: DependencyPurpose) -> bool {
         self.purposes(package)
             .is_some_and(|purposes| purposes.contains(&purpose))
     }
@@ -163,7 +163,7 @@ impl PackageOccurrenceRoster {
 
 /// A closed failure while deriving occurrence coverage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackageOccurrenceRosterError {
+pub enum PackageOccurrenceRosterError {
     /// The subject names a package outside its own canonical package set, or
     /// leaves a package unreachable; validated subjects never exhibit either.
     UnknownPackage,

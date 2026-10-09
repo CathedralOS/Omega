@@ -5,7 +5,7 @@ use super::CanonicalSourceClosureSubjectError as Error;
 /// Owned payload/storage charged during recovery, including discarded scratch.
 /// This is resource accounting only, not a source or acceptance assertion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) struct CanonicalSourceClosureSubjectRecoveryUsage {
+pub struct CanonicalSourceClosureSubjectRecoveryUsage {
     pub(super) owned_bytes: usize,
     pub(super) packages: usize,
     pub(super) authored_dependency_requests: usize,

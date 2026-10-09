@@ -51,6 +51,40 @@ pub(super) struct PreparedProjectTarget {
 }
 
 impl PreparedLocalProject {
+
+    /// Split for one exact target's review route: the shared entry and source
+    /// closure plus that target's accepted policy section. A prepared project
+    /// that does not cover `profile`, or whose own section failed, rejects
+    /// here rather than silently substituting another target's consent.
+    pub(super) fn into_review_parts(
+        self,
+        profile: TargetProfile,
+    ) -> Result<
+        (
+            PathBuf,
+            ResolvedPackageSourceClosure,
+            Option<PackageLockTarget>,
+        ),
+        PrepareLocalProjectError,
+    > {
+        let PreparedLocalProject {
+            entry_path,
+            source_closure,
+            targets,
+            ..
+        } = self;
+        let target = targets
+            .into_iter()
+            .find(|target| target.profile == profile)
+            .ok_or_else(|| {
+                PrepareLocalProjectError::Locked(format!(
+                    "prepared project covers no section for exact target {}",
+                    profile.target_name(),
+                ))
+            })?;
+        Ok((entry_path, source_closure, target.accepted?))
+    }
+
     /// Split for a multi-target route: every requested target's section beside
     /// the shared entry path and source closure.
     pub(super) fn into_target_review_parts(

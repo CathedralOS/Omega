@@ -5,7 +5,7 @@ use package_evidence::encoding::PackageReviewEncodingError;
 use std::fmt;
 
 #[derive(Debug)]
-pub(crate) enum PackagePolicyChangeError {
+pub enum PackagePolicyChangeError {
     TargetMismatch,
     CandidateReview {
         package: Option<Box<PackageKey>>,

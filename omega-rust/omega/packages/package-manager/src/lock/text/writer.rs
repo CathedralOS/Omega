@@ -16,7 +16,7 @@ impl PackageLock {
     /// Emit only records recoverable under these ceilings. Each child is
     /// decoded once for exact resource accounting and immediately dropped;
     /// no duplicate full lock or acceptance certificate is constructed.
-    pub(crate) fn canonical_text_with_limits(
+    pub fn canonical_text_with_limits(
         &self,
         limits: PackageLockRecoveryLimits,
     ) -> Result<String, Error> {

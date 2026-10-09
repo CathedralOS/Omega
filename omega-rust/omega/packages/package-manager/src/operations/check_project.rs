@@ -155,6 +155,48 @@ pub struct CheckedProjectTargetOutcome {
     pub target: TargetProfile,
     pub result: Result<CompileReport, CheckPreparedLocalProjectError>,
 }
+
+/// Run scoped candidate checking and report its final checked root. Generated
+/// source and semantic bindings enter through the candidate pipeline; reporting
+/// uses the retained result after staging disposal without another build run.
+/// This is the per-target route of [`check_prepared_local_project_for_targets`]
+/// for one target, staging directly into `build_dir`.
+pub fn check_prepared_local_project(
+    request: PreparedLocalProjectCheckRequest,
+) -> Result<CompileReport, CheckPreparedLocalProjectError> {
+    let PreparedLocalProjectCheckRequest {
+        prepared,
+        build_dir,
+        target_profiles,
+        verify,
+        build_snapshot,
+        timings,
+    } = request;
+    let [target_profile] = target_profiles.as_slice() else {
+        return Err(CheckPreparedLocalProjectError::Report(
+            "check_prepared_local_project needs a single-target request",
+        ));
+    };
+    let target_profile = *target_profile;
+    let (entry_path, source_closure, accepted_target) = prepared
+        .into_review_parts(target_profile)
+        .map_err(CheckPreparedLocalProjectError::Prepare)?;
+    let mut preparation = PackageSourcePreparation::for_closure(&source_closure);
+    check_one_prepared_target(
+        PreparedProjectTarget {
+            profile: target_profile,
+            accepted: Ok(accepted_target),
+        },
+        &source_closure,
+        &entry_path,
+        &build_dir,
+        build_snapshot.as_ref(),
+        verify,
+        timings,
+        &mut preparation,
+    )
+}
+
 /// The same check for every requested target under one prepared source union.
 /// All targets share the prepared project's resolved closure and one
 /// source custody, so a package's binding-independent parse

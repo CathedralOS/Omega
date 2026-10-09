@@ -14,29 +14,43 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
 use package_source::{IdentityError, ImmutableSourceResolution};
-pub(crate) use reconcile::{
-    DependencyRequestPath, ExactTargetPackageSourceClosure, PackageSourceClosureLimits, PackageSourceClosureResolutionError, ResolvedPackageSourceClosure};
-pub(crate) use resolve::{
-    GitDependencyPins, GitResolutionOptions, ResolveDependencySourceError,
-    ResolveExternalLocalPackageClosureError,
-    resolve_external_local_project_closure, resolve_staged_external_local_project_closure};
-pub(crate) use resolve::{ resolve_locked_local_project_closure};
-pub(crate) use root_request::PackageRootSourceRequest;
-use std::collections::{BTreeMap, BTreeSet};
-pub use subject::{ CanonicalSourceClosureSubjectFingerprint,
+pub use reconcile::{
+    DependencyRequestPath, DependencyRequestPathStep, ExactTargetPackageSourceClosure,
+    PackageSourceClosureConflict, PackageSourceClosureConflictCandidate,
+    PackageSourceClosureLimitKind, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
+    ResolvedDependencySourceRequest, ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
+    ResolvedRootPackageSourceRequest,
 };
-pub(crate) use subject::{
+pub use resolve::{
+    GitDependencyPins, GitDependencyPinsError, GitResolutionOptions, ResolveDependencySourceError,
+    ResolveExternalLocalPackageClosureError, ResolveGitPackageClosureError,
+    ResolveWorkspacePackageClosureError, resolve_external_local_package_closure,
+    resolve_external_local_project_closure, resolve_git_package_closure,
+    resolve_git_project_closure, resolve_selected_git_package_closure,
+    resolve_selected_git_project_closure, resolve_staged_external_local_project_closure,
+    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+    resolve_workspace_project_closure, resolve_workspace_project_closure_in_context,
+};
+pub use resolve::{
+    ResolveLockedPackageClosureError, resolve_locked_local_project_closure,
+    resolve_locked_package_source_closure,
+};
+pub use root_request::PackageRootSourceRequest;
+use std::collections::{BTreeMap, BTreeSet};
+pub use subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
-    CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
-    CanonicalSourceClosureSubjectError,
-    CanonicalSourceClosureSubjectLimits};
+    CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
+    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint,
+    CanonicalSourceClosureSubjectLimits, CanonicalSourceClosureSubjectRecoveryUsage,
+    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
+};
 
 /// A package's stable identity paired with one immutable source selection.
 ///
 /// This is source-resolution output only. It does not represent compiler
 /// evidence, capability admission, or an accepted package instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ResolvedSourceIdentity {
+pub struct ResolvedSourceIdentity {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
 }
@@ -73,7 +87,7 @@ impl ResolvedSourceIdentity {
 /// One requester-local dependency edge: its authorized context, authored
 /// ordinal within that context, import alias, and exact package target.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ResolvedDependency {
+pub struct ResolvedDependency {
     purpose: DependencyPurpose,
     dependency_index: usize,
     alias: AliasName,
@@ -116,7 +130,7 @@ impl ResolvedDependency {
 
 /// One resolved package and the dependency edges authored by that package.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ResolvedPackageNode {
+pub struct ResolvedPackageNode {
     source: ResolvedSourceIdentity,
     dependencies: Vec<ResolvedDependency>,
 }
@@ -144,7 +158,7 @@ impl ResolvedPackageNode {
 /// resolved by exact `PackageKey`; a package with the same declared name but a
 /// different source lineage cannot satisfy the edge.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ResolvedPackageClosure {
+pub struct ResolvedPackageClosure {
     root: PackageKey,
     root_role: BuildDeclarationKind,
     packages: Vec<ResolvedPackageNode>,
@@ -262,7 +276,7 @@ impl ResolvedPackageClosure {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PackageClosureValidationError {
+pub enum PackageClosureValidationError {
     InvalidRootRole {
         role: BuildDeclarationKind,
     },

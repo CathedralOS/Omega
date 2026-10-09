@@ -7,21 +7,21 @@ use package_source::WorkspaceLineageIdentity;
 use std::fmt;
 
 #[derive(Debug)]
-pub(crate) enum ResolveWorkspacePackageClosureError {
+pub enum ResolveWorkspacePackageClosureError {
     Root(ResolvePackageSourceError),
     RootRequestMismatch,
     Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
 }
 
 #[derive(Debug)]
-pub(crate) enum ResolveExternalLocalPackageClosureError {
+pub enum ResolveExternalLocalPackageClosureError {
     Root(ResolvePackageSourceError),
     RootRequestMismatch,
     Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
 }
 
 #[derive(Debug)]
-pub(crate) enum ResolveGitPackageClosureError {
+pub enum ResolveGitPackageClosureError {
     Root(ResolvePackageSourceError),
     RootRequestMismatch,
     RootWorkspace(ResolveDependencySourceError),
@@ -72,7 +72,7 @@ impl fmt::Display for ResolveWorkspacePackageClosureError {
 impl std::error::Error for ResolveWorkspacePackageClosureError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ResolveDependencySourceError {
+pub enum ResolveDependencySourceError {
     InvalidPath {
         location: String,
         reason: String,

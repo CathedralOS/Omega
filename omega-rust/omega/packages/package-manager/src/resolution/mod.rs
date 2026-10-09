@@ -5,9 +5,10 @@
 //! custody. [`graph`] follows those bindings, rejects conflicts, and gives the
 //! complete closure a canonical review subject. [`package_compilation_inputs`]
 //! revalidates that custody at the compiler handoff.
-pub(crate) use compiler_input::PackageCompilationScope;
 
 mod compiler_input;
 pub mod graph;
 pub mod source;
 
+pub(crate) use compiler_input::PackageCompilationScope;
+pub use compiler_input::{package_compilation_inputs, package_compilation_inputs_for};

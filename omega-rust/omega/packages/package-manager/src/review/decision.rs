@@ -2,9 +2,10 @@
 
 mod policy;
 
-pub(crate) use policy::{ PackagePolicyDecisionSubject,
+pub use policy::{
+    PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionSubject,
     PackagePolicyResolution, PackagePolicyReviewError, recover_package_policy_review,
-    render_package_policy_review,
+    render_package_policy_review, resolve_package_policy_decisions,
 };
 
 /// Root-project policy for one exact blocking candidate change.
@@ -13,7 +14,7 @@ pub(crate) use policy::{ PackagePolicyDecisionSubject,
 /// prompt, reviewer identity, audit receipt, signature, or proof that anyone
 /// inspected the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum ReviewOnlyRootPolicyDisposition {
+pub enum ReviewOnlyRootPolicyDisposition {
     AcceptCandidateChange,
     RejectCandidateChange,
 }

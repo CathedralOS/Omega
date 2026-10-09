@@ -19,12 +19,32 @@ use package_source::{ExternalSourceContext, SourceLineage};
 use package_source::{LocalSourceLimits, SourceResolver};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+
+/// Resolve an external-local package closure beneath private resolver storage.
+pub fn resolve_external_local_package_closure(
+    live_root: impl AsRef<Path>,
+    source_context: ExternalSourceContext,
+    storage: &SourceResolver,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    resolve_external_local_declared_closure(
+        live_root.as_ref(),
+        source_context,
+        storage,
+        source_limits,
+        closure_limits,
+        false,
+        GitResolutionOptions::default(),
+    )
+}
+
 /// Resolve a local compilation root and its complete declared dependency
 /// closure. The root may be an application or a package; every dependency is
 /// still required to be a package. The Git policy in `options` applies to
 /// every dependency, including requests first discovered in transitive
 /// sources; accepted pins must belong to this exact root request.
-pub(crate) fn resolve_external_local_project_closure(
+pub fn resolve_external_local_project_closure(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     storage: &SourceResolver,
@@ -49,7 +69,7 @@ pub(crate) fn resolve_external_local_project_closure(
 /// `options` carries the invocation-wide Git selection policy; accepted pins
 /// (an install or selective update preserving unchanged accepted Git
 /// requests) must belong to the original live root request and context.
-pub(crate) fn resolve_staged_external_local_project_closure(
+pub fn resolve_staged_external_local_project_closure(
     stage: &StagedLocalSnapshot,
     source_context: ExternalSourceContext,
     storage: &SourceResolver,

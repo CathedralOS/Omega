@@ -7,19 +7,22 @@ mod rendering;
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, validate_static_dependency_source,
 };
-pub(crate) use planning::{ plan_dependency_addition_from_source,
+pub use planning::{
+    plan_dependency_addition, plan_dependency_addition_from_source, plan_dependency_replacement,
     plan_dependency_replacement_from_source,
 };
+pub use rendering::canonical_dependency_statement;
 use rendering::source_digest;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+const BUILD_FILE_NAME: &str = "build.omg";
 const BUILD_MACHINE_NAME: &str = "build";
 const BUILDER_PARAMETER_NAME: &str = "builder";
 
 /// A conservative, non-mutating plan for changing one `build.omg` dependency.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum BuildDependencyEditPlan {
+pub enum BuildDependencyEditPlan {
     /// The exact requested row is already present.
     Unchanged,
     /// The source has a canonical edit point and may be replaced atomically
@@ -31,7 +34,7 @@ pub(crate) enum BuildDependencyEditPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BuildFileReplacement {
+pub struct BuildFileReplacement {
     build_path: PathBuf,
     expected_sha256: [u8; 32],
     replacement_source: String,
@@ -44,7 +47,7 @@ impl BuildFileReplacement {
     /// Both sources must have valid ordinary dependency projections. The expected
     /// digest covers the exact `before` bytes. This does not read or write the
     /// path, verify its current contents, or certify the proposed change.
-    pub(crate) fn from_sources(
+    pub fn from_sources(
         build_path: PathBuf,
         before: &str,
         proposed: String,
@@ -64,21 +67,21 @@ impl BuildFileReplacement {
         }
     }
 
-
-
-    pub(crate) fn replacement_source(&self) -> &str {
-        &self.replacement_source
+    pub fn build_path(&self) -> &Path {
+        &self.build_path
     }
+
     pub fn expected_sha256(&self) -> &[u8; 32] {
         &self.expected_sha256
     }
-    pub fn build_path(&self) -> &Path {
-        &self.build_path
+
+    pub fn replacement_source(&self) -> &str {
+        &self.replacement_source
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BuildDependencyManualPatch {
+pub struct BuildDependencyManualPatch {
     build_path: PathBuf,
     expected_sha256: [u8; 32],
     reason: BuildDependencyManualReason,
@@ -103,22 +106,33 @@ impl BuildDependencyManualPatch {
         }
     }
 
+    pub fn build_path(&self) -> &Path {
+        &self.build_path
+    }
 
+    pub fn expected_sha256(&self) -> &[u8; 32] {
+        &self.expected_sha256
+    }
 
     pub fn reason(&self) -> BuildDependencyManualReason {
         self.reason
     }
 
+    /// Canonical, compiler-generated text for the accepted row, when this is a
+    /// replacement. This is never copied from package source.
+    pub fn current_statement(&self) -> Option<&str> {
+        self.current_statement.as_deref()
+    }
 
     /// Canonical, compiler-generated text for the requested row. Every
     /// caller-controlled string is escaped as an Omega literal.
-    pub(crate) fn proposed_statement(&self) -> &str {
+    pub fn proposed_statement(&self) -> &str {
         &self.proposed_statement
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BuildDependencyManualReason {
+pub enum BuildDependencyManualReason {
     NonCanonicalBuildSignature,
     NonCanonicalBuildBodyLayout,
     NonCanonicalDependencyRows,
@@ -161,7 +175,7 @@ impl fmt::Display for BuildDependencyManualReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum BuildDependencyEditError {
+pub enum BuildDependencyEditError {
     ReadBuildFile { path: PathBuf, message: String },
     InvalidBuildFileEncoding { path: PathBuf },
     InvalidBuild(DependencyProjectionError),

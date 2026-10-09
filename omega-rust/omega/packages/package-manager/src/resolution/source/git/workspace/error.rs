@@ -3,7 +3,7 @@ use build_declarations::{ProjectName, WorkspaceMemberPath};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum GitWorkspaceSelectionLimit {
+pub enum GitWorkspaceSelectionLimit {
     DeclarationBytes,
     TotalDeclarationBytes,
     WorkspaceMembers,
@@ -20,7 +20,7 @@ impl GitWorkspaceSelectionLimit {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum GitWorkspaceSelectionError {
+pub enum GitWorkspaceSelectionError {
     ResourceLimit {
         limit: GitWorkspaceSelectionLimit,
         maximum: usize,

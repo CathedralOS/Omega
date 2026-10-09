@@ -4,7 +4,7 @@ use crate::declarations::dependencies::read::PackageSelection;
 use package_source::{GitSourceRequest, GitTransportProfile};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitPackageSourceRequest {
+pub struct GitPackageSourceRequest {
     acquisition: GitSourceRequest,
     selection: PackageSelection,
 }

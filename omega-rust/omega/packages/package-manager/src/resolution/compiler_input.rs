@@ -7,7 +7,30 @@ use package_compilation::{
 };
 use std::collections::BTreeSet;
 
+/// Translate resolver-owned closure custody into the compiler's independently
+/// validated package-aware input graph.
+///
+/// Package identities come from `PackageKey`; snapshot paths remain routing
+/// custody only. `PackageCompilationInputs::new` canonicalizes and rechecks the
+/// complete graph rather than trusting the package-side structural verdict.
+pub fn package_compilation_inputs(
+    closure: &ResolvedPackageSourceClosure,
+) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
+    package_compilation_inputs_for(closure, closure.graph().root())
+}
 
+/// Build the independently validated compiler graph for one package and only
+/// its transitive dependencies inside an already closed source custody graph.
+///
+/// Re-rooting is required when every dependency is compiled for its own review:
+/// passing unrelated sibling packages would correctly fail the compiler's
+/// unreachable-package check.
+pub fn package_compilation_inputs_for(
+    closure: &ResolvedPackageSourceClosure,
+    root: &crate::declarations::PackageKey,
+) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
+    PackageCompilationScope::new(closure, root).compilation_inputs()
+}
 
 /// One request-local re-rooting of immutable package topology. Reusing the
 /// selection does not retain a filesystem-verification verdict: each consumer
@@ -42,6 +65,11 @@ impl<'closure> PackageCompilationScope<'closure> {
         &self.reachable
     }
 
+    pub(crate) fn compilation_inputs(
+        &self,
+    ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
+        self.compilation_inputs_reusing(&mut None)
+    }
 
     /// Build the inputs, capturing the root's canonical build-source index
     /// only when `root_binding` holds none yet. The snapshot root is immutable

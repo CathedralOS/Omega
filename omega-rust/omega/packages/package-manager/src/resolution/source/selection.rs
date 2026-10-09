@@ -7,7 +7,7 @@ use std::fmt;
 
 /// Recheckable source-selection evidence retained outside package source bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PackageSourceSelectionEvidence {
+pub enum PackageSourceSelectionEvidence {
     /// The source root itself is the selected package.
     Root,
     /// A declared member was selected from an authenticated Git workspace.
@@ -31,7 +31,7 @@ impl PackageSourceSelectionEvidence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PackageSourceSelectionEvidenceError {
+pub enum PackageSourceSelectionEvidenceError {
     Selection(GitWorkspaceSelectionError),
 }
 

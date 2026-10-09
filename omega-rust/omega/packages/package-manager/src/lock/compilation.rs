@@ -7,7 +7,7 @@ use package_compilation::AcceptedSemanticBinding;
 /// Source, purpose, and target are supplied by the containing occurrence;
 /// ordinary compilation must verify those coordinates before using this data.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct AcceptedPackageCompilation {
+pub struct AcceptedPackageCompilation {
     compiler_identity: [u8; 32],
     semantic_bindings: Vec<AcceptedSemanticBinding>,
 }

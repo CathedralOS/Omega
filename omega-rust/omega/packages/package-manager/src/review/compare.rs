@@ -9,16 +9,19 @@ mod risk;
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
-pub(crate) use locked_policy::{LockedPolicyComparisonError};
-pub(crate) use policy::{
+pub use locked_policy::{LockedPolicyComparisonError, compare_locked_package_policies};
+pub use policy::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
-    PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath, PackagePolicyReplacementSite, compare_package_policy_changes};
+    PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath,
+    PackagePolicyDependencyPathStep, PackagePolicyPackageChange, PackagePolicyReplacementSite,
+    PackagePolicyRowChange, PackagePolicySourceReplacement, compare_package_policy_changes,
+};
 pub(crate) use risk::{ChangedRowRisk, changed_review_risk};
 
 /// Exact compatibility contract broken by changing the selected project root's
 /// authored role without changing its package identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum ReviewOnlyRootRoleContract {
+pub enum ReviewOnlyRootRoleContract {
     DependencyCompatibility,
     ApplicationActivation,
 }
@@ -35,7 +38,7 @@ impl ReviewOnlyRootRoleContract {
 /// Directional review result for one stable root key whose authored role
 /// changed. This is blocking review evidence, not an admission decision.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ReviewOnlyRootRoleChange {
+pub struct ReviewOnlyRootRoleChange {
     root: PackageKey,
     baseline_role: BuildDeclarationKind,
     candidate_role: BuildDeclarationKind,
@@ -57,5 +60,9 @@ impl ReviewOnlyRootRoleChange {
 
     pub const fn broken_contract(&self) -> ReviewOnlyRootRoleContract {
         self.broken_contract
+    }
+
+    pub const fn is_blocking(&self) -> bool {
+        true
     }
 }
