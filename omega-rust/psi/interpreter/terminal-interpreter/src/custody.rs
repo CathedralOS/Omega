@@ -1,7 +1,7 @@
 //! Runtime custody operates on the source-selected cleanup schedule. A nominal
 //! hook borrows its receiver; it does not dispose the receiver's descendants.
-//! Recursive actions are contiguous, so the following action determines when
-//! a hook must retain its descendants, not whether the containing home dies.
+//! The checked partition marks retaining hooks explicitly: their descendant
+//! actions can follow on a later selected edge, not merely the next action.
 //! The checked dying-owner partition publishes home retirement explicitly.
 //! A replacement disposes a selected region while retaining its parent. Reserved home
 //! geometry can include fields that never became values, so it cannot decide

@@ -285,18 +285,22 @@ mod tests {
     use semantic_vocabulary::{ClaimId, MachineId, PlaceId, StructuralTypeId};
 
     #[test]
-    fn nominal_cleanup_round_trip_retains_projected_path() {
+    fn nominal_cleanup_round_trip_retains_path_and_descendant_custody() {
         let mut previous_encoding = None;
-        for path in [
-            Vec::new(),
-            vec![StructuralPathSegment::Field("children".into())],
-            vec![
-                StructuralPathSegment::Field("children".into()),
-                StructuralPathSegment::FixedIndex(1),
-            ],
+        for (path, retains_descendants) in [
+            (Vec::new(), false),
+            (Vec::new(), true),
+            (vec![StructuralPathSegment::Field("children".into())], false),
+            (
+                vec![
+                    StructuralPathSegment::Field("children".into()),
+                    StructuralPathSegment::FixedIndex(1),
+                ],
+                false,
+            ),
         ] {
             let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
-                retains_descendants: false,
+                retains_descendants,
                 place: PlaceId::new(1).unwrap(),
                 path,
                 structural_type: StructuralTypeId::new(2).unwrap(),

@@ -671,6 +671,9 @@ defines the complete product bar.
     `pass/drops/runtime_case_selected_cleanup_continuations_exit` (0) for
     captured scalar returns, computed temporaries, parent retention and
     projected return/state-transfer custody across selected cleanup blocks.
+    Independent foreign-unit admission still expects a complete cleanup
+    partition on one edge; qualify retained parents and selected multi-edge
+    partitions without treating a retaining hook as completed disposal.
     Keep `borrowed_sum_population` and
     `borrowed_nested_sum_replacement` as direct-assignment execution controls;
     do not rewrite them to explicitly detach and drop the old value.

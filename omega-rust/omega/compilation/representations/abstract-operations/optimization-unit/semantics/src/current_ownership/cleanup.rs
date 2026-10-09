@@ -320,7 +320,7 @@ pub(super) fn consume_owner_cleanup(
         _ => (actions, false),
     };
     let intrinsic_retirement = matches!(actions, [TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
-        || matches!(actions, [TerminalAffineCleanupAction::InvokeNominal(cleanup)] if cleanup.place == place && cleanup.path.is_empty());
+        || matches!(actions, [TerminalAffineCleanupAction::InvokeNominal(cleanup)] if cleanup.place == place && cleanup.path.is_empty() && !cleanup.retains_descendants);
     if !explicit_retirement && !intrinsic_retirement {
         return Err(mismatch());
     }
@@ -492,6 +492,11 @@ pub(super) fn valid_nominal_cleanup(
     };
     cleanup.cleanup_machine != caller.machine
         && bounded_nominal_cleanup_receiver_shape(&source.shape)
+        // The bounded receiver above has no structural descendants. Its hook
+        // disposes one leaf; retaining custody is not evidence of disposal.
+        // Selected multi-edge parent partitions need their own frontier proof,
+        // not acceptance as the complete leaf partition checked here.
+        && !cleanup.retains_descendants
         && target.attachment == Some(cleanup.structural_type)
         && target.nominal_cleanup_subject == Some(cleanup.structural_type)
         && (cleanup.consumed_claims.is_empty() || target.published_service_ceiling.is_empty())
