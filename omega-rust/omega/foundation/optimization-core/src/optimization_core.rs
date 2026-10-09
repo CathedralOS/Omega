@@ -37,8 +37,9 @@ pub(crate) fn encode_work_counters(fields: [u64; 5]) -> [u8; 40] {
 
 pub use post_terminal::{
     PostTerminalOptimizationSelectionProjection, PostTerminalOptimizationSelections,
-    PreTerminalOptimizationSelection,
 };
+pub(crate) use post_terminal::{
+    PreTerminalOptimizationSelection};
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
 const SELECTION_ENCODING_VERSION: u32 = 15;

@@ -110,22 +110,24 @@ pub use artifacts::{
     OptimizedTerminalOrdinaryCallableEntryIdentity, RelocationFreeObjectContainerIdentity,
     RelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
-pub use bundle::{
-    IdentityBundleDecodeError, OptimizationIdentityBundle, OptimizationIdentityBundleIdentity,
+pub use bundle::{ OptimizationIdentityBundle, OptimizationIdentityBundleIdentity,
 };
+pub(crate) use bundle::{
+    IdentityBundleDecodeError};
 pub use decisions::{
     OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
     OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizationWorkloadProfileIdentity,
     TargetCostModelIdentity, TransformationLedgerIdentity,
 };
-pub use error::IdentityDecodeError;
+pub(crate) use error::IdentityDecodeError;
 pub use rules_and_facts::{
-    AcceptedObligationFactIdentity, DuplicateOptimizationRuleIdentity,
+    AcceptedObligationFactIdentity,
     OptimizationCandidateIdentity, OptimizationPassIdentity, OptimizationRuleIdentity,
     OptimizationRuleSetIdentity, OwnershipFrontierFactIdentity, ProofQuestionIdentity,
     ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
+pub(crate) use rules_and_facts::{ DuplicateOptimizationRuleIdentity};
 pub use stages::{
     FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,

@@ -12,12 +12,14 @@ mod error;
 mod rule;
 
 pub use analysis::{AnalysisInvalidationSet, AnalysisKind, AnalysisSet};
-pub use budget::{
-    InvalidOptimizationWorkBudget, OPTIMIZATION_REFERENCE_EXTENT, OptimizationWorkBudget,
+pub use budget::{ OPTIMIZATION_REFERENCE_EXTENT, OptimizationWorkBudget,
 };
+pub(crate) use budget::{
+    InvalidOptimizationWorkBudget};
 pub use decision::{OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationSafetyClass};
-pub use error::CoreContractDecodeError;
-pub use rule::{InvalidOptimizationRuleContract, OptimizationRuleContract};
+pub(crate) use error::CoreContractDecodeError;
+pub use rule::{ OptimizationRuleContract};
+pub(crate) use rule::{InvalidOptimizationRuleContract};
 
 #[cfg(test)]
 mod tests;
