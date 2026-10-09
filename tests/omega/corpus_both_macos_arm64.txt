@@ -7,7 +7,8 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 7.57, "load1_start": 5.12, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 4.52, "load1_start": 3.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -212,9 +213,11 @@ pass/capabilities/runtime_qualified_record_return_exit built 3402ms exit:0 inter
 pass/collections/case_array_computed_index_match_exit built 3066ms exit:20 interpreter-exit:20 interpreter:agrees @0c36a0fe0b35
 pass/collections/record_array_field_access_exit built 1498ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3b6b4258b4af+wt
 pass/collections/runtime_array_child_membership_transport_exit built 1737ms exit:0 interpreter-exit:0 interpreter:agrees @1fb1b73fcfb5
+pass/collections/runtime_borrowed_element_float_guard_exit built 7353ms exit:70 interpreter-exit:70 interpreter:agrees @1152c1496b39
 pass/collections/runtime_double_indexed_rmw_exit built 3222ms exit:1 interpreter-exit:1 interpreter:agrees @056c1343fac1+wt
 pass/collections/runtime_element_view_selector_snapshot_exit built 1744ms exit:0 interpreter-exit:0 interpreter:agrees @86ae3811c141+wt
 pass/collections/runtime_fixed_vec_contract_chain_exit built 1377ms exit:70 interpreter-exit:70 interpreter:agrees @7d0f77ba72b8+wt
+pass/collections/runtime_hoisted_index_write_exit built 2564ms exit:7 interpreter-exit:7 interpreter:agrees @1152c1496b39
 pass/collections/runtime_indexed_assignment_selector_snapshot_exit built 1745ms exit:0 interpreter-exit:0 interpreter:agrees @86ae3811c141+wt
 pass/collections/runtime_indexed_boolean_field_guard_exit built 12986ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt
 pass/collections/runtime_indexed_bounded_element_read_exit built 3968ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
@@ -512,6 +515,7 @@ pass/slices/runtime_inline_mutable_view_call_write_exit built 1701ms exit:0 inte
 pass/slices/runtime_literal_view_return_exit built 6859ms exit:105 interpreter-exit:105 interpreter:agrees @3fa817733300+wt
 pass/slices/runtime_machine_entry_view_requires_index_exit built 1976ms exit:70 interpreter-exit:70 interpreter:agrees @0991904fed3b+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 7114ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
+pass/slices/runtime_published_view_length_bounds_cast_exit built 2000ms exit:0 interpreter-exit:0 interpreter:agrees @1152c1496b39
 pass/slices/runtime_shared_subslice_return_exit built 1916ms exit:70 interpreter-exit:70 interpreter:agrees @45782ade0cba+wt
 pass/slices/runtime_shared_whole_view_return_exit built 6232ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/slices/runtime_subslice_len_exit built 4666ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
@@ -546,6 +550,7 @@ pass/text/nested_mutable_receiver_byte_result_exit built 1409ms exit:70 interpre
 pass/text/qualified_byte_state_snapshot_exit built 1726ms exit:70 interpreter-exit:70 interpreter:agrees @a0c004371ad8+wt
 pass/text/qualified_byte_value_forwarding_exit built 1779ms exit:70 interpreter-exit:70 interpreter:agrees @d633d9554974+wt
 pass/text/runtime_number_to_decimal_exit built 2784ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
+pass/text/runtime_slice_indexed_string_guard_exit built 2006ms exit:70 interpreter-exit:70 interpreter:agrees @1152c1496b39
 pass/text/runtime_view_local_boundary_write_exit built 2772ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @f76d8aa42d2a
 pass/text/runtime_view_local_call_argument_exit built 2582ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
 pass/text/runtime_view_local_call_initialized_exit built 2313ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
