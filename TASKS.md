@@ -434,15 +434,6 @@ helper that passes does not close an item.
     partitioning and cleanup. Entry provisioning now joins explicit source
     positions; remove remaining attachment-driven discovery without changing
     provider or storage authority.
-  - Scratch fields become ordinary locals; pass only live values across
-    states. Temporary-scoping design is deferred and not a prerequisite.
-    `omega run --both samples/cli/algorithms/maze_flood/main.omg` must exit 0
-    with its documented 235-byte output in both engines. Native does; Terminal
-    interpretation fails with `runtime execution failed:
-    Execution(VerifiedOperationMalformed)` (status 201). Keep search and row/input
-    storage local, with only the Console binding in Main. Preserve the
-    later-state/repeated-loan control
-    `pass/text/borrowed_bounded_byte_indexed_write_exit` (70).
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the

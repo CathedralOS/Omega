@@ -250,6 +250,7 @@ pass/control_flow/runtime_float_payload_snapshot_after_case_replacement_exit bui
 pass/control_flow/runtime_guard_case_survives_disjoint_conjunct_exit built 3216ms exit:70 interpreter-exit:70 interpreter:agrees @b4917edeec20+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit built 2367ms exit:2 interpreter-exit:2 interpreter:agrees @0c36a0fe0b35
 pass/control_flow/runtime_later_state_shared_array_loan built 857ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
+pass/control_flow/runtime_local_record_array_byte_render_exit built 2445ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @3ce7a1b77a43+wt
 pass/control_flow/runtime_namespace_local_state_loan built 777ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/control_flow/runtime_nested_case_pattern_guard_meet_exit built 1534ms exit:0 interpreter-exit:0 interpreter:agrees @194c7a0f42ea+wt
 pass/control_flow/runtime_projected_case_large_offset_exit built 5787ms exit:70 interpreter-exit:70 interpreter:agrees @441e8f33f8c7+wt

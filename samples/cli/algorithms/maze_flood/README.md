@@ -7,7 +7,8 @@ omega run --both samples/cli/algorithms/maze_flood/main.omg
 ```
 
 Press Enter at the closing prompt (EOF also works). Native execution and the
-checked interpreter must both exit **0**. The maze's shortest distances are:
+Terminal interpreter must both exit **0**. For `--both`, provide finite input
+ending at EOF before compilation. The maze's shortest distances are:
 
 ```text
  0  1  2  3  4
@@ -25,6 +26,13 @@ each output line and the closing input buffer have their own local storage.
 Each displayed row has two trailing spaces, making 16 bytes before LF. The
 complete expected stdout, including banner, PASS line and closing prompt, is
 235 bytes.
+
+The byte-identical compiler regression checks that complete output independently
+in native and Terminal execution, together with empty stderr and exit 0:
+
+```text
+python3 tools/corpus_gate.py --both --filter control_flow/runtime_local_record_array_byte_render_exit
+```
 
 This example composes guarded array reads/writes, loops, integer arithmetic,
 and byte rendering. `render_row` returns a Boolean while mutating a borrowed
