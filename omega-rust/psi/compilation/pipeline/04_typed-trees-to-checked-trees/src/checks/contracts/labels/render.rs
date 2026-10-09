@@ -88,18 +88,7 @@ pub(super) fn call_label(
     call: &TableCallExpression,
     render: &dyn Fn(ExpressionHandle) -> String,
 ) -> String {
-    let arguments = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .iter()
-        .map(|argument| render(*argument))
-        .collect::<Vec<_>>()
-        .join(", ");
-    if call.receiver.is_valid() {
-        format!("{}.{}({arguments})", render(call.receiver), call.target)
-    } else {
-        format!("{}({arguments})", call.target)
-    }
+    typed_trees::expression::display_call_label(&program.expression_table, call, render)
 }
 
 pub(super) fn indexed_label(

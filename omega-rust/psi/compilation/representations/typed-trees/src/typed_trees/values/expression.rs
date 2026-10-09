@@ -24,7 +24,7 @@ mod shape;
 mod table_copies;
 mod tree_conversion;
 
-pub use display::display_name_path;
+pub use display::{display_call_label, display_name_path};
 pub use index_authority::{
     IndexExpressionAuthority, OpenIndexNormalization, OpenIndexOperationSelection,
 };

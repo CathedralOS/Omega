@@ -74,24 +74,11 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
                 "::",
             )
         ),
-        ExpressionNode::Call(call) => {
-            let arguments = program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|argument| instantiate(*argument))
-                .collect::<Vec<_>>()
-                .join(", ");
-            if call.receiver.is_valid() {
-                format!(
-                    "{}.{}({arguments})",
-                    instantiate(call.receiver),
-                    call.target
-                )
-            } else {
-                format!("{}({arguments})", call.target)
-            }
-        }
+        ExpressionNode::Call(call) => typed_trees::expression::display_call_label(
+            &program.expression_table,
+            call,
+            instantiate,
+        ),
         ExpressionNode::Float(value) => value.to_string(),
         ExpressionNode::UndeterminedNaN(format) => {
             format!("<{} NaN without payload>", format.name())

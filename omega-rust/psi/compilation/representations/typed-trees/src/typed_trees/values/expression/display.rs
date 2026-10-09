@@ -1,8 +1,8 @@
 use diagnostics::{bracketed_display_names, comma_join_display};
 
 use crate::expression::{
-    BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression, ExpressionNode,
-    ExpressionTable, RangeExpression, StaticMachineArgument, TableBinaryExpression,
+    BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression, ExpressionHandle,
+    ExpressionNode, ExpressionTable, RangeExpression, StaticMachineArgument, TableBinaryExpression,
     TableCallExpression, TableCastExpression, TableUnaryExpression, UnaryExpression, UnaryOperator,
 };
 use crate::name::Identifier;
@@ -206,6 +206,27 @@ pub fn display_name_path(path: &[Identifier], separator: &str) -> String {
     let mut display_name = String::with_capacity(byte_count);
     write_display_name_path(path, separator, &mut display_name);
     display_name
+}
+
+/// The display label of a table-held call: each argument rendered in order,
+/// `receiver.target(arguments)` when the call carries a receiver and
+/// `target(arguments)` otherwise.
+pub fn display_call_label(
+    table: &ExpressionTable,
+    call: &TableCallExpression,
+    render: impl Fn(ExpressionHandle) -> String,
+) -> String {
+    let arguments = table
+        .expression_handles(call.arguments)
+        .iter()
+        .map(|argument| render(*argument))
+        .collect::<Vec<_>>()
+        .join(", ");
+    if call.receiver.is_valid() {
+        format!("{}.{}({arguments})", render(call.receiver), call.target)
+    } else {
+        format!("{}({arguments})", call.target)
+    }
 }
 
 fn write_display_name_path(path: &[Identifier], separator: &str, out: &mut String) {

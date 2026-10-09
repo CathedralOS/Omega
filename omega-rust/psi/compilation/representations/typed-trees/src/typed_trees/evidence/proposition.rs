@@ -202,9 +202,7 @@ fn normalized_evidence_requirements(
             return;
         }
         visited.push(visit);
-        let Some(definition) = program
-            .trait_definition_by_symbol(trait_symbol)
-        else {
+        let Some(definition) = program.trait_definition_by_symbol(trait_symbol) else {
             return;
         };
         for requirement in program.trait_machine_signatures(definition) {
@@ -607,8 +605,7 @@ impl crate::TypedTrees {
         if visiting.contains(&application.proposition) {
             return None;
         }
-        let declaration = self
-            .proposition_definition_by_symbol(application.proposition)?;
+        let declaration = self.proposition_definition_by_symbol(application.proposition)?;
         let binders = self.proposition_binders(declaration);
         let parameters = self.proposition_parameters(declaration);
         if binders.len() != binder_labels.len()
@@ -813,8 +810,7 @@ impl crate::TypedTrees {
         if visiting.contains(&application.proposition) {
             return None;
         }
-        let declaration = self
-            .proposition_definition_by_symbol(application.proposition);
+        let declaration = self.proposition_definition_by_symbol(application.proposition);
         if declaration.is_none()
             && self.symbols.get(application.proposition).kind
                 == symbols::SymbolKind::PropositionParameter
@@ -1042,18 +1038,7 @@ fn render_expression(
             )
         ),
         ExpressionNode::Call(call) => {
-            let arguments = program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|argument| render(*argument))
-                .collect::<Vec<_>>()
-                .join(", ");
-            if call.receiver.is_valid() {
-                format!("{}.{}({arguments})", render(call.receiver), call.target)
-            } else {
-                format!("{}({arguments})", call.target)
-            }
+            crate::expression::display_call_label(&program.expression_table, call, render)
         }
         ExpressionNode::Float(value) => value.to_string(),
         ExpressionNode::UndeterminedNaN(format) => format!("<undetermined NaN {}>", format.name()),
