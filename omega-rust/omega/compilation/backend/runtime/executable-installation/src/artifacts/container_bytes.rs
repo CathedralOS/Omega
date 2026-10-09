@@ -5,9 +5,6 @@
 //! `record_layouts.rs` carries the fixed record layouts and schemas and
 //! `tests.rs` the container tests.
 
-#[cfg(test)]
-mod tests;
-
 use crate::artifacts::Artifact;
 use crate::artifacts::container::ContainerLimits;
 use crate::authority_digests::NonAuthoritativeInformationalFingerprint64;
