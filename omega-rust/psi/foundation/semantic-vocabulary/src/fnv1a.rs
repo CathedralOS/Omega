@@ -2,6 +2,7 @@
 //! computations. `finish` returns the raw digest; sites with nonzero-digest
 //! contracts apply their own sentinel normalization on top.
 
+#[derive(Clone, Copy)]
 pub struct Fnv1a(u64);
 
 impl Fnv1a {

@@ -192,32 +192,23 @@ fn crossing_declaration_name<'program>(
     }
 }
 
-struct StableCrossingHash(u64);
+struct StableCrossingHash(semantic_vocabulary::Fnv1a);
 
 impl StableCrossingHash {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-
     fn new() -> Self {
-        Self(Self::OFFSET)
+        Self(semantic_vocabulary::Fnv1a::new())
     }
 
     fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(Self::PRIME);
+        self.0.byte(byte);
     }
 
     fn string(&mut self, value: &str) {
-        for byte in value.as_bytes() {
-            self.byte(*byte);
-        }
-        self.byte(0);
+        self.0.string_terminated(value);
     }
 
     fn usize(&mut self, value: usize) {
-        for byte in (value as u64).to_le_bytes() {
-            self.byte(byte);
-        }
+        self.0.u64(value as u64);
     }
 
     fn policy(&mut self, policy: CarryPolicy) {
@@ -231,7 +222,7 @@ impl StableCrossingHash {
     }
 
     fn finish(self) -> u64 {
-        self.0.max(1)
+        self.0.finish().max(1)
     }
 }
 

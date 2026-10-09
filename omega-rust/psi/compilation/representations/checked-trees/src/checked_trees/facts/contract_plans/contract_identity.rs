@@ -158,14 +158,14 @@ pub fn contract_identity(
 }
 
 pub(super) struct ContractHasher {
-    report: u64,
+    report: semantic_vocabulary::Fnv1a,
     commitment: Sha256,
 }
 
 impl ContractHasher {
     pub(super) fn new(domain: &[u8]) -> Self {
         let mut identity = Self {
-            report: 0xcbf29ce484222325,
+            report: semantic_vocabulary::Fnv1a::new(),
             commitment: Sha256::new(),
         };
         identity.write(domain);
@@ -174,7 +174,7 @@ impl ContractHasher {
 
     pub(super) fn complete(self) -> MachineContractIdentity {
         MachineContractIdentity {
-            report_fingerprint: self.report,
+            report_fingerprint: self.report.finish(),
             commitment: MachineContractCommitment::from_digest(self.commitment.finalize().into()),
         }
     }
@@ -188,15 +188,12 @@ macro_rules! integer_writes {
 
 impl Hasher for ContractHasher {
     fn finish(&self) -> u64 {
-        self.report
+        self.report.finish()
     }
 
     fn write(&mut self, bytes: &[u8]) {
         self.commitment.update(bytes);
-        for byte in bytes {
-            self.report ^= u64::from(*byte);
-            self.report = self.report.wrapping_mul(0x100000001b3);
-        }
+        self.report.bytes(bytes);
     }
 
     integer_writes!(write_u8: u8, write_u16: u16, write_u32: u32, write_u64: u64,
