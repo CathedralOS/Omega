@@ -142,11 +142,11 @@ pub use final_image::{
     PlacedDataRegionInventoryDigest, PlacedExecutableGapBytesDigest,
     PlacedExecutableRegion, PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
     PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, final_image_symbol_digest, place_data_extent,
-    place_data_regions, place_executable_regions, validate_placed_data_region_inventory,
-    validate_placed_executable_region_inventory,
+    place_data_regions, place_executable_regions,
+    validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
 };
+pub use relocation_envelope::validate_final_text_relocation_envelope;
 #[cfg(test)]
-pub(crate) use final_image::PlacedExecutableGap;
 pub use footprint_certificate::{ FinalFootprintCertificateDigest, FinalFootprintCoverageDigest,
     FinalFootprintPlacementBindingDigest,
 };
@@ -159,8 +159,6 @@ pub use output::{
     ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
     emitted_direct_executable_output,
 };
-pub(crate) use output::{ CompilerEntryFootprintBindingEvidence, CompilerEntryRegionBindingEvidence};
-pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use symbols::{
     final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address, final_image_symbol_name,
 };

@@ -12,9 +12,3 @@
 //! relocation origins, and strong byte identities. Compact reports cannot stand
 //! in for those checks. The crate root documents the still-separate footprint
 //! certificate integration; successful linkage must not imply that it ran.
-
-use crate::{FinalImage, FinalImageSection};
-use diagnostics::Diagnostic;
-use object_file::{ObjectPlan, SectionKind, SymbolKind, SymbolSection};
-
-use crate::symbols::final_image_symbol_handle;
