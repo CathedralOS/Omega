@@ -678,14 +678,7 @@ where
             .iter()
             .zip(&instruction.operands[register_arguments..])
         {
-            let register = match *location {
-                ValueLocation::Register { register, .. } => register,
-                ValueLocation::Indirect {
-                    pointer: calling_conventions::IndirectPointerLocation::Register(register),
-                    ..
-                } => register,
-                _ => return Err(invalid()),
-            };
+            let register = location.direct_register().ok_or_else(invalid)?;
             if !fixed_view(operand, register) {
                 return Err(invalid());
             }
