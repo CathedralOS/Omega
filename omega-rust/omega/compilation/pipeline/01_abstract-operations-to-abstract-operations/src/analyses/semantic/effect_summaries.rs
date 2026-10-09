@@ -304,8 +304,7 @@ fn operation_effect(
         // A restoration window extracts and reseats storage beneath a
         // mutable-borrowed root: structural state, unobservable from scalar
         // consumers but never erasable, duplicable, or reorderable.
-        | O::MoveStructuralField { .. }
-        | O::StoreStructuralField { .. }
+        | abstract_operations::move_or_store_structural_field_pattern!()
         // A leaf copy observes the readable root's subtree and establishes
         // a fresh owned value: structural state, unobservable from scalar
         // consumers but never erasable, duplicable, or reorderable.
@@ -366,7 +365,7 @@ fn operation_effect(
             }
         }
         O::StructuralCase { .. } => (EffectClass::Control, No, Yes, No, No),
-        O::Jump { .. } | O::Conditional { .. } | O::Return { .. } | O::ReturnUnit { .. } => {
+        abstract_operations::jump_or_conditional_pattern!() | abstract_operations::return_or_return_unit_pattern!() => {
             (EffectClass::Control, No, May, No, No)
         }
     }

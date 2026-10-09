@@ -4,13 +4,10 @@ pub(crate) fn is_terminator(operation: &abstract_operations::AbstractOperation) 
     use abstract_operations::AbstractOperation as O;
     matches!(
         operation,
-        O::Jump { .. }
-            | O::Conditional { .. }
+        abstract_operations::jump_or_conditional_pattern!()
             | O::StructuralCase { .. }
-            | O::Return { .. }
-            | O::ReturnUnit { .. }
-            | O::ReturnStructural { .. }
-            | O::Crash { .. }
+            | abstract_operations::return_or_return_unit_pattern!()
+            | abstract_operations::return_structural_or_crash_pattern!()
             | O::ExternalCompletion { .. }
     )
 }

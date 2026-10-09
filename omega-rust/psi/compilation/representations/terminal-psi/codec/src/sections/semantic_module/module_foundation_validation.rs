@@ -530,7 +530,7 @@ fn validate_operation_foundation(
         OperationKind::StructuralCaseMembership { .. } => {
             storage_foundations::validate_structural_case_membership(operation)?
         }
-        OperationKind::StructuralLeafCopy { .. } | OperationKind::StructuralCaseLeafCopy { .. } => {
+        terminal_psi::structural_leaf_copy_pair_pattern!() => {
             storage_foundations::validate_structural_leaf_copy(module, operation)?
         }
         OperationKind::ByteSequenceRead { .. } => {

@@ -77,19 +77,15 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::ReleaseReference { .. }
         // Restoration windows carry custody, not a scalar result a
         // dead-scalar rule may retire; the pair stays ineligible.
-        | O::MoveStructuralField { .. }
-        | O::StoreStructuralField { .. }
+        | abstract_operations::move_or_store_structural_field_pattern!()
         | O::StructuralLeafCopy { .. }
         // A Trapping primitive's crash is observable even when its result
         // is unused, so an unused instance is never dead.
         | O::TrappingInteger { .. }
-        | O::Jump { .. }
-        | O::Conditional { .. }
+        | abstract_operations::jump_or_conditional_pattern!()
         | O::StructuralCase { .. }
-        | O::Return { .. }
-        | O::ReturnUnit { .. }
-        | O::ReturnStructural { .. }
-        | O::Crash { .. } => None,
+        | abstract_operations::return_or_return_unit_pattern!()
+        | abstract_operations::return_structural_or_crash_pattern!() => None,
         O::ExternalCompletion { .. } => None,
     }
 }

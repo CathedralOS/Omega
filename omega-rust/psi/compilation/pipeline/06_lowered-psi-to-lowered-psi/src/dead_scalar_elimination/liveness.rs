@@ -225,10 +225,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::StructuralCaseMembership { .. }
         // Borrowed-storage window operations move custody of structural
         // places only; they carry no scalar operands.
-        | O::MoveStructuralField { .. }
-        | O::StoreStructuralField { .. }
-        | O::StructuralLeafCopy { .. }
-        | O::StructuralCaseLeafCopy { .. }
+        | terminal_psi::move_or_store_structural_field_pattern!()
+        | terminal_psi::structural_leaf_copy_pair_pattern!()
         | O::EstablishByteSequenceLiteral { .. }
         | O::ElementViewLength { .. }
         | O::EstablishTrivialAffineLocal { .. }

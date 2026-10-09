@@ -195,8 +195,7 @@ pub(crate) fn realize(
     let relocated_affine: BTreeSet<PlaceId> = nodes
         .iter()
         .filter_map(|node| match &node.operation {
-            O::EstablishCase { result, .. }
-            | O::EstablishRecord { result, .. }
+            abstract_operations::establish_case_or_record_result_pattern!(result)
             | O::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..

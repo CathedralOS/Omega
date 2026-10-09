@@ -421,8 +421,7 @@ fn operation_observations(
         // the extraction and the repair are structural-state events that no
         // pass may erase, duplicate, or reorder against other observations
         // of the same storage.
-        | O::MoveStructuralField { .. }
-        | O::StoreStructuralField { .. }
+        | abstract_operations::move_or_store_structural_field_pattern!()
         // A leaf copy reads the borrowed root's subtree and establishes a
         // fresh owned value: a structural-state event that no pass may erase
         // or reorder against other observations of the same storage.
@@ -444,13 +443,13 @@ fn operation_observations(
         | O::Call { .. } => (vec![event(C::InternalCall)], May, May),
         O::BoundaryCall { .. } => (vec![event(C::BoundaryCall)], May, May),
         O::PortWrite { .. } => (vec![event(C::Service)], No, No),
-        O::Jump { .. } | O::Conditional { .. } => (vec![event(C::ControlTransfer)], No, No),
+        abstract_operations::jump_or_conditional_pattern!() => (vec![event(C::ControlTransfer)], No, No),
         O::StructuralCase { .. } => (
             vec![event(C::StructuralState), event(C::ControlTransfer)],
             No,
             No,
         ),
-        O::Return { .. } | O::ReturnUnit { .. } => (vec![event(C::NormalExit)], No, No),
+        abstract_operations::return_or_return_unit_pattern!() => (vec![event(C::NormalExit)], No, No),
         O::ReturnStructural { .. } => (
             vec![event(C::StructuralState), event(C::NormalExit)],
             No,

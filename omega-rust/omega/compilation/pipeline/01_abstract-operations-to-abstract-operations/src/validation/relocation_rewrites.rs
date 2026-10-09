@@ -23,8 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /// no traversal re-establishes.
 pub(crate) fn restricted_produced_root(operation: &O) -> bool {
     match operation {
-        O::EstablishCase { result, .. }
-        | O::EstablishRecord { result, .. }
+        abstract_operations::establish_case_or_record_result_pattern!(result)
         | O::CallStructural {
             result: AbstractStructuralCallResult::Structural { result, .. },
             ..
@@ -64,14 +63,7 @@ pub(crate) fn scalar_case_result_consumed(
         .any(|node| {
             matches!(
                 &node.operation,
-                O::CallStructural {
-                    structural_arguments,
-                    ..
-                }
-                | O::BoundaryCall {
-                    structural_arguments,
-                    ..
-                } if structural_arguments.iter().any(|argument| {
+                abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) if structural_arguments.iter().any(|argument| {
                     argument.place == picked
                         && argument.access == terminal_psi::StructuralAccess::Owned
                         && argument.path.is_empty()
@@ -103,8 +95,7 @@ pub(crate) fn restricted_member_produced_root(
         .flat_map(|block| block.nodes.iter())
         .filter(|node| produced_place_root(&node.operation) == Some(root))
         .all(|node| match &node.operation {
-            O::EstablishCase { result, .. }
-            | O::EstablishRecord { result, .. }
+            abstract_operations::establish_case_or_record_result_pattern!(result)
             | O::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -181,8 +172,7 @@ pub(crate) fn scalar_case_result_contained(
                 // declaration's own place — the admissibility gate confines an
                 // affine result to the field-free shape, so no structural field
                 // argument can spell `picked` here.
-                O::EstablishCase { result, .. }
-                | O::EstablishRecord { result, .. }
+                abstract_operations::establish_case_or_record_result_pattern!(result)
                 | O::CallStructural {
                     result: AbstractStructuralCallResult::Structural { result, .. },
                     ..
@@ -663,7 +653,7 @@ pub(crate) fn substitute_invariant_scalar_operands(
         // place, structural type, result case, result custody, field
         // identities, and bounded-integer range obligations stay byte-exact
         // inside the moved operation.
-        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => {
+        abstract_operations::establish_case_or_record_fields_pattern!(fields) => {
             for field in fields {
                 if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &mut field.value {
                     substitute(value, substitution);
@@ -748,7 +738,7 @@ pub(crate) fn substitute_invariant_call_roots(
                 }
             }
         }
-        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => {
+        abstract_operations::establish_case_or_record_fields_pattern!(fields) => {
             for field in fields.iter_mut() {
                 if let terminal_psi::RecordFieldValue::Structural(argument) = &mut field.value
                     && let Some(root) = rewrites.get(&argument.place)

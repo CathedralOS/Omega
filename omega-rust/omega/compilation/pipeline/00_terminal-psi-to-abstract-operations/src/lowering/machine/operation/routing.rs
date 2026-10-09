@@ -464,7 +464,7 @@ pub(super) fn lower(
         | OperationKind::ScalarStructuralField { .. } => {
             structural_scalar_fields::lower(operation, block, machine, structural_types)
         }
-        OperationKind::MoveStructuralField { .. } | OperationKind::StoreStructuralField { .. } => {
+        terminal_psi::move_or_store_structural_field_pattern!() => {
             borrowed_windows::lower(operation, machine, structural_types)
         }
         OperationKind::StructuralLeafCopy { source, path } => structural_leaf_copy::lower(

@@ -425,14 +425,7 @@ pub(super) fn validate_current_ownership_cfg(
                 O::EstablishCase { .. }
                 | O::EstablishRecord { .. }
                 | O::EstablishStructuralArray { .. } => record_arguments.as_slice(),
-                O::CallStructural {
-                    structural_arguments,
-                    ..
-                }
-                | O::BoundaryCall {
-                    structural_arguments,
-                    ..
-                } => structural_arguments.as_slice(),
+                abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments.as_slice(),
                 // A window repair consumes its value exactly like one owned
                 // whole call argument: live-owned custody in, once.
                 O::StoreStructuralField { value, .. } => std::slice::from_ref(value),

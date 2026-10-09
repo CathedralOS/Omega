@@ -51,8 +51,7 @@ pub(crate) fn reconstruct_declared_places(
             | O::EstablishElementView { result, .. }
             | O::ElementViewSubslice { result, .. }
             | O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
-            | O::EstablishCase { result, .. }
-            | O::EstablishRecord { result, .. }
+            | abstract_operations::establish_case_or_record_result_pattern!(result)
             | O::EstablishZeroedStructural { result, .. }
             | O::EstablishStructuralLocal { result, .. }
             | O::EstablishReference { result, .. }
@@ -125,7 +124,7 @@ pub(crate) fn validate_operation_places(
                 require(argument.place, known)?;
             }
         }
-        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => {
+        abstract_operations::establish_case_or_record_fields_pattern!(fields) => {
             for initializer in fields {
                 if let terminal_psi::RecordFieldValue::Structural(argument) = &initializer.value {
                     require(argument.place, known)?;

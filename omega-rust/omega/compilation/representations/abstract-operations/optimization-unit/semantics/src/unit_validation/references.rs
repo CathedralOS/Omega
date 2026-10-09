@@ -621,8 +621,7 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
         | O::ByteSequenceSubslice { result, .. }
         | O::EstablishByteSequenceConcatenation { result, .. }
                 | O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
-        | O::EstablishCase { result, .. }
-        | O::EstablishRecord { result, .. }
+        | abstract_operations::establish_case_or_record_result_pattern!(result)
         | O::EstablishZeroedStructural { result, .. }
         | O::EstablishReference { result, .. }
         // A window extraction publishes a structural result too; its type

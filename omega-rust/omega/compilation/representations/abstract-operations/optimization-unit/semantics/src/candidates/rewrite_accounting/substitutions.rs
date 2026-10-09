@@ -22,8 +22,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
                 replace(element);
             }
         }
-        O::EstablishCase { fields, .. }
-        | O::EstablishRecord { fields, .. } => {
+        abstract_operations::establish_case_or_record_fields_pattern!(fields) => {
             for initializer in fields {
                 if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &mut initializer.value
                 {
@@ -147,12 +146,10 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         // A restoration window's fields are structural places and
         // declarations — custody identity, never scalar uses a value
         // substitution may rewrite.
-        | O::MoveStructuralField { .. }
-        | O::StoreStructuralField { .. }
+        | abstract_operations::move_or_store_structural_field_pattern!()
         | O::StructuralLeafCopy { .. }
         | O::ReturnUnit { .. }
-        | O::ReturnStructural { .. }
-        | O::Crash { .. } => {}
+        | abstract_operations::return_structural_or_crash_pattern!() => {}
     }
 }
 

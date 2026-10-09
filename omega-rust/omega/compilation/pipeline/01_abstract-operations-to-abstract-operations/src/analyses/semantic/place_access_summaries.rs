@@ -804,7 +804,7 @@ fn scan_operation(
         O::ReturnStructural { source, .. } => {
             pending.attribute(context, *source, Vec::new(), AccessKind::Read);
         }
-        O::Jump { .. } | O::Conditional { .. } | O::Return { .. } | O::ReturnUnit { .. } => {}
+        abstract_operations::jump_or_conditional_pattern!() | abstract_operations::return_or_return_unit_pattern!() => {}
         O::CallStructural {
             callee,
             structural_arguments,

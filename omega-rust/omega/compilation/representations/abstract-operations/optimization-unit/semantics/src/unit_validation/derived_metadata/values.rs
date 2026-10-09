@@ -31,7 +31,7 @@ pub(crate) fn expected_uses(
         O::EstablishReference { storage, .. } => {
             storage.iter().map(|view| view.byte_offset).collect()
         }
-        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
+        abstract_operations::establish_case_or_record_fields_pattern!(fields) => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {
                 terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(*value),

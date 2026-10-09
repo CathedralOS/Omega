@@ -1337,3 +1337,22 @@ macro_rules! integer_arithmetic_operations {
             | $crate::OperationKind::SaturatingIntegerMultiply { .. }
     };
 }
+
+/// Shared or-pattern rosters for the OperationKind variant pairs consumers
+/// match verbatim. Expands to real patterns so match exhaustiveness is
+/// preserved.
+#[macro_export]
+macro_rules! move_or_store_structural_field_pattern {
+    () => {
+        $crate::OperationKind::MoveStructuralField { .. }
+            | $crate::OperationKind::StoreStructuralField { .. }
+    };
+}
+
+#[macro_export]
+macro_rules! structural_leaf_copy_pair_pattern {
+    () => {
+        $crate::OperationKind::StructuralLeafCopy { .. }
+            | $crate::OperationKind::StructuralCaseLeafCopy { .. }
+    };
+}

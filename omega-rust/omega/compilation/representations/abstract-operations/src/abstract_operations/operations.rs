@@ -1116,3 +1116,68 @@ pub struct IntegerArithmeticOperands {
     /// The divisor or right operand.
     pub right: ValueId,
 }
+
+/// Shared or-pattern rosters for the AbstractOperation variant pairs consumers
+/// match verbatim. Each macro expands to real patterns so match exhaustiveness
+/// is preserved; binding names arrive as parameters because macro-local
+/// bindings cannot reach the arm body.
+#[macro_export]
+macro_rules! return_or_return_unit_pattern {
+    () => {
+        $crate::AbstractOperation::Return { .. } | $crate::AbstractOperation::ReturnUnit { .. }
+    };
+}
+
+#[macro_export]
+macro_rules! jump_or_conditional_pattern {
+    () => {
+        $crate::AbstractOperation::Jump { .. } | $crate::AbstractOperation::Conditional { .. }
+    };
+}
+
+#[macro_export]
+macro_rules! establish_case_or_record_fields_pattern {
+    ($fields:ident) => {
+        $crate::AbstractOperation::EstablishCase { $fields, .. }
+            | $crate::AbstractOperation::EstablishRecord { $fields, .. }
+    };
+}
+
+#[macro_export]
+macro_rules! establish_case_or_record_result_pattern {
+    ($result:ident) => {
+        $crate::AbstractOperation::EstablishCase { $result, .. }
+            | $crate::AbstractOperation::EstablishRecord { $result, .. }
+    };
+}
+
+#[macro_export]
+macro_rules! return_structural_or_crash_pattern {
+    () => {
+        $crate::AbstractOperation::ReturnStructural { .. } | $crate::AbstractOperation::Crash { .. }
+    };
+}
+
+#[macro_export]
+macro_rules! call_structural_or_boundary_call_pattern {
+    ($structural_arguments:ident) => {
+        $crate::AbstractOperation::CallStructural { $structural_arguments, .. }
+            | $crate::AbstractOperation::BoundaryCall { $structural_arguments, .. }
+    };
+}
+
+#[macro_export]
+macro_rules! move_or_store_structural_field_pattern {
+    () => {
+        $crate::AbstractOperation::MoveStructuralField { .. }
+            | $crate::AbstractOperation::StoreStructuralField { .. }
+    };
+}
+
+#[macro_export]
+macro_rules! structural_leaf_copy_pair_pattern {
+    () => {
+        $crate::AbstractOperation::StructuralLeafCopy { .. }
+            | $crate::AbstractOperation::StructuralCaseLeafCopy { .. }
+    };
+}

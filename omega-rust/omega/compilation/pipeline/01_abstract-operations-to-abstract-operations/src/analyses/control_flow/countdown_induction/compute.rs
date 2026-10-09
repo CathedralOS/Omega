@@ -2,7 +2,7 @@
 
 use super::{
     CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, ExactUnsignedTripCount, LoopRegion,
-    MachineId, O, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
+    O, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
     PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, UnsignedCountdownLoopSummary,
     ValidatedOptimizerCycleComponents, recompute_psi_optimization_unit_identity, region, shape,
 };

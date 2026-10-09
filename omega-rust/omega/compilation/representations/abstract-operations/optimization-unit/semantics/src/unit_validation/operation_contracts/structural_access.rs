@@ -906,8 +906,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 // establishment lends mutable, a shared one lends shared.
                 O::EstablishElementView { result, .. } => (result, view_access(caller, operation)?),
                 O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
-                | O::EstablishCase { result, .. }
-                | O::EstablishRecord { result, .. }
+                | abstract_operations::establish_case_or_record_result_pattern!(result)
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishStructuralLocal { result, .. }
                 | O::EstablishReference { result, .. }

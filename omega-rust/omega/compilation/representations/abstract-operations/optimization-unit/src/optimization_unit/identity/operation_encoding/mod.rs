@@ -35,8 +35,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::EstablishStructuralLocal { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
-        | O::MoveStructuralField { .. }
-        | O::StoreStructuralField { .. }
+        | abstract_operations::move_or_store_structural_field_pattern!()
         | O::StructuralLeafCopy { .. }
         | O::EstablishRecord { .. } => structural::encode(bytes, operation),
 
@@ -86,11 +85,9 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::IntegerArithmetic { .. }
         | O::TrappingInteger { .. } => scalar::encode(bytes, operation),
 
-        O::Jump { .. }
-        | O::Conditional { .. }
+        abstract_operations::jump_or_conditional_pattern!()
         | O::StructuralCase { .. }
-        | O::Return { .. }
-        | O::ReturnUnit { .. }
+        | abstract_operations::return_or_return_unit_pattern!()
         | O::ReturnStructural { .. }
         | O::ExternalCompletion { .. }
         | O::Crash { .. } => control::encode(bytes, operation),

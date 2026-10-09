@@ -716,7 +716,7 @@ fn adapt(
                     graph.normal_exits.push(position);
                     step.may_escape = true;
                 }
-                O::Return { .. } | O::ReturnUnit { .. } => {
+                abstract_operations::return_or_return_unit_pattern!() => {
                     graph.normal_exits.push(position);
                 }
                 _ => {}

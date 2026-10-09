@@ -86,7 +86,7 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         O::EstablishStructuralArray { elements, .. } => {
             elements.iter().map(|argument| argument.place).collect()
         }
-        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
+        abstract_operations::establish_case_or_record_fields_pattern!(fields) => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {
                 terminal_psi::RecordFieldValue::Structural(argument) => Some(argument.place),

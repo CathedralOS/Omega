@@ -204,7 +204,7 @@ pub(crate) fn constructor_arguments(
     operation: &O,
 ) -> impl Iterator<Item = &terminal_psi::StructuralArgument> {
     let fields = match operation {
-        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields.as_slice(),
+        abstract_operations::establish_case_or_record_fields_pattern!(fields) => fields.as_slice(),
         _ => &[],
     };
     let elements = match operation {

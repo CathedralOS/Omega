@@ -1,6 +1,5 @@
 //! Provenance uniqueness, logical fuel, and effect-chain replay.
 use crate::OptimizationUnitValidationError;
-use abstract_operations::AbstractOperation as O;
 use optimization_unit::{PsiOptimizationFunction, PsiProvenance};
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -36,10 +35,8 @@ pub(crate) fn validate_provenance_fuel_effects(
             let is_exact_terminal = node.successors.is_empty()
                 && matches!(
                     node.operation,
-                    O::Return { .. }
-                        | O::ReturnUnit { .. }
-                        | O::ReturnStructural { .. }
-                        | O::Crash { .. }
+                    abstract_operations::return_or_return_unit_pattern!()
+                        | abstract_operations::return_structural_or_crash_pattern!()
                 );
             for site in &node.provenance {
                 if edge_provenance.contains_key(site) {

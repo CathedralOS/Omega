@@ -661,7 +661,7 @@ fn shared_join_live_blocks(
                 | O::ByteSequenceRead { .. }
                 | O::StructuralByteSequenceFieldLength { .. }
                 | O::StructuralByteSequenceFieldRead { .. } => true,
-                O::Jump { .. } | O::Conditional { .. } => {
+                abstract_operations::jump_or_conditional_pattern!() => {
                     inputs
                         .iter()
                         .filter(|place| names.contains(place))

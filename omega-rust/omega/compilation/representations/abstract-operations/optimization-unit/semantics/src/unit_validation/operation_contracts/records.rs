@@ -342,8 +342,7 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
             let result = match &node.operation {
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishStructuralArray { result, .. }
-                | O::EstablishCase { result, .. }
-                | O::EstablishRecord { result, .. }
+                | abstract_operations::establish_case_or_record_result_pattern!(result)
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }
                 | O::MoveStructuralField { result, .. }

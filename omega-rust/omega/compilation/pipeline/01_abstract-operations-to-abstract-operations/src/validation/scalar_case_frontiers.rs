@@ -261,14 +261,7 @@ fn case_result_owned_sites(
 /// still leaves the root alive at the exit, so it does not count here.
 fn operation_consumes_place(operation: &O, place: PlaceId) -> bool {
     match operation {
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
-            structural_arguments,
-            ..
-        } => structural_arguments.iter().any(|argument| {
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments.iter().any(|argument| {
             argument.place == place
                 && argument.access == terminal_psi::StructuralAccess::Owned
                 && argument.path.is_empty()

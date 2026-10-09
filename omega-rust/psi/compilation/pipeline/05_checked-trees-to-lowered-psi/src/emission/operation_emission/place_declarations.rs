@@ -17,7 +17,7 @@
 use std::collections::BTreeSet;
 
 use semantic_vocabulary::StructuralPlaceKind;
-use terminal_psi::{OperationKind, StructuralPlaceDeclaration, TerminalModule};
+use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
 
 pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule) {
     for machine in &mut module.machines {
@@ -31,8 +31,7 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
             for operation in &block.operations {
                 if !matches!(
                     operation.kind,
-                    OperationKind::StructuralLeafCopy { .. }
-                        | OperationKind::StructuralCaseLeafCopy { .. }
+                    terminal_psi::structural_leaf_copy_pair_pattern!()
                 ) {
                     continue;
                 }

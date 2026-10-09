@@ -72,8 +72,7 @@ impl TerminalFuelSchedule {
             | OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::AtomicAccess { .. }
             | OperationKind::StructuralScalarFieldStore { .. }
-            | OperationKind::MoveStructuralField { .. }
-            | OperationKind::StoreStructuralField { .. }
+            | terminal_psi::move_or_store_structural_field_pattern!()
             | OperationKind::ByteSequenceStore { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldLength { .. }
@@ -90,8 +89,7 @@ impl TerminalFuelSchedule {
             | OperationKind::BooleanConstant { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::StructuralCaseMembership { .. }
-            | OperationKind::StructuralLeafCopy { .. }
-            | OperationKind::StructuralCaseLeafCopy { .. }
+            | terminal_psi::structural_leaf_copy_pair_pattern!()
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanNot { .. }
             | OperationKind::BooleanEqual { .. }

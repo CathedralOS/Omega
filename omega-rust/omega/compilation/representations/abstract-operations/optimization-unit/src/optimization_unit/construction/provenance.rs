@@ -3,7 +3,7 @@ use super::super::{AbstractOperation, PsiProvenance};
 pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<PsiProvenance> {
     use AbstractOperation as O;
     let site = match operation {
-        O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => {
+        abstract_operations::jump_or_conditional_pattern!() | O::StructuralCase { .. } => {
             return Vec::new();
         }
         O::Return { psi_edge, .. }

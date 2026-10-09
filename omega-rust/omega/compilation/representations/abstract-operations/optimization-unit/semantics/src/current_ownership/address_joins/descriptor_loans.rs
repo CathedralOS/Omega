@@ -332,7 +332,7 @@ impl DescriptorLoans {
         let position = (block, node);
         // Normal return cleanup closes the activation after its scalar result
         // is observed. It is not a move while an escaped child can still run.
-        let moved = if matches!(operation, O::Return { .. } | O::ReturnUnit { .. }) {
+        let moved = if matches!(operation, abstract_operations::return_or_return_unit_pattern!()) {
             &[][..]
         } else {
             moved
@@ -521,8 +521,7 @@ fn operation_observations(
         operation,
         O::ElementViewLength { .. }
             | O::ByteSequenceLength { .. }
-            | O::Jump { .. }
-            | O::Conditional { .. }
+            | abstract_operations::jump_or_conditional_pattern!()
     ) {
         return Vec::new();
     }
@@ -688,14 +687,7 @@ fn operation_observations(
         } => {
             retain(*source, byte_field_projection(*source, path, *field));
         }
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
-            structural_arguments,
-            ..
-        } => {
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => {
             for argument in structural_arguments {
                 let mut projection = projected(argument.place, &argument.path, None);
                 // A callee can read through a descriptor stored inside an

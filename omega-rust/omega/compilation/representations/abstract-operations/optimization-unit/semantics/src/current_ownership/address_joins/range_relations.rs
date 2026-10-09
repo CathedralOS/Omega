@@ -77,10 +77,8 @@ impl RangeRelations {
                     .iter()
                     .filter_map(|case| edge(case.target, &[], None))
                     .collect(),
-                O::Return { .. }
-                | O::ReturnUnit { .. }
-                | O::ReturnStructural { .. }
-                | O::Crash { .. } => Vec::new(),
+                abstract_operations::return_or_return_unit_pattern!()
+                | abstract_operations::return_structural_or_crash_pattern!() => Vec::new(),
                 _ => positions
                     .iter()
                     .position(|next| *next == (position.0, position.1 + 1))

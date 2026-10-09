@@ -181,8 +181,7 @@ pub(super) fn adapt(
                         Projection::window(*start, *end, position),
                     );
                 }
-                OperationKind::StructuralLeafCopy { .. }
-                | OperationKind::StructuralCaseLeafCopy { .. } => {
+                terminal_psi::structural_leaf_copy_pair_pattern!() => {
                     let destination = DescriptorLocation::whole(result?.place);
                     let source = match &operation.kind {
                         OperationKind::StructuralLeafCopy { source, path } => {

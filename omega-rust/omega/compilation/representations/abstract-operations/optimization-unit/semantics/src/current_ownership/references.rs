@@ -139,14 +139,7 @@ pub(super) fn entry_references(
 /// One operation's structural-argument slice.
 fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
     match operation {
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
-            structural_arguments,
-            ..
-        } => structural_arguments.as_slice(),
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments.as_slice(),
         // A window repair consumes its value like one owned whole call
         // argument; any reference leaves it carries settle with the store.
         O::StoreStructuralField { value, .. } => std::slice::from_ref(value),

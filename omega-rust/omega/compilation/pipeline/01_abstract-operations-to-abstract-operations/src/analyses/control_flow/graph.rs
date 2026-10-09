@@ -39,7 +39,7 @@ fn function_control_flow(function: &PsiOptimizationFunction) -> FunctionControlF
                         .unwrap()
                         .extend([when_true.target, when_false.target]);
                 }
-                O::Return { .. } | O::ReturnUnit { .. } | O::ReturnStructural { .. } => {
+                abstract_operations::return_or_return_unit_pattern!() | O::ReturnStructural { .. } => {
                     exits.get_mut(&block.id).unwrap().push(ExitKind::Normal);
                 }
                 O::Crash { .. } => exits.get_mut(&block.id).unwrap().push(ExitKind::Crash),

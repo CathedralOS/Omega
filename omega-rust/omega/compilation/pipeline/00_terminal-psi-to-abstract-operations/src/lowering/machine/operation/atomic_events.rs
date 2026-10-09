@@ -333,8 +333,7 @@ fn latest_write(
         | OperationKind::ScalarStructuralField { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
-        | OperationKind::StructuralLeafCopy { .. }
-        | OperationKind::StructuralCaseLeafCopy { .. }
+        | terminal_psi::structural_leaf_copy_pair_pattern!()
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldRead { .. } => {}
         _ => {

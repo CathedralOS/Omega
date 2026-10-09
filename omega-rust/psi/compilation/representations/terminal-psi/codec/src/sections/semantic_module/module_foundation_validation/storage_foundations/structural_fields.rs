@@ -20,7 +20,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     module: &TerminalModule,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let (OperationKind::StructuralLeafCopy { .. } | OperationKind::StructuralCaseLeafCopy { .. }) =
+    let (terminal_psi::structural_leaf_copy_pair_pattern!()) =
         &operation.kind
     else {
         unreachable!("dispatched validate_structural_leaf_copy")
@@ -507,8 +507,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                     // observation source: the call's declared result custody
                     // is the local's own, as it is for an in-module call.
                     | OperationKind::BoundaryCall { .. }
-                    | OperationKind::StructuralLeafCopy { .. }
-                    | OperationKind::StructuralCaseLeafCopy { .. }
+                    | terminal_psi::structural_leaf_copy_pair_pattern!()
                     // A loan carrier is equally a readable observation source:
                     // `&cells[i]` mints its referent storage through the
                     // reference establishment, and a view local reads its

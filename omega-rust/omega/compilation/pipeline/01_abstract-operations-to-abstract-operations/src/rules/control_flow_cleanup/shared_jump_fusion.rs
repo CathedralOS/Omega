@@ -124,10 +124,8 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                     || !matches!(terminal.provenance.first(), Some(PsiProvenance::Edge(_)))
                     || !matches!(
                         terminal.operation,
-                        O::Return { .. }
-                            | O::ReturnUnit { .. }
-                            | O::ReturnStructural { .. }
-                            | O::Crash { .. }
+                        abstract_operations::return_or_return_unit_pattern!()
+                            | abstract_operations::return_structural_or_crash_pattern!()
                     )
                 {
                     continue;

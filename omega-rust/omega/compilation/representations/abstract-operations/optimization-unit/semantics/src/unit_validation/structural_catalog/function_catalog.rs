@@ -251,8 +251,7 @@ pub(crate) fn validate_function_structural_catalog(
             | O::ByteSequenceSubslice { result, .. }
             | O::EstablishScalarArray { result, .. }
             | O::EstablishStructuralArray { result, .. }
-            | O::EstablishCase { result, .. }
-            | O::EstablishRecord { result, .. }
+            | abstract_operations::establish_case_or_record_result_pattern!(result)
             | O::EstablishZeroedStructural { result, .. }
             | O::MoveStructuralField { result, .. }
             | O::StructuralLeafCopy { result, .. }

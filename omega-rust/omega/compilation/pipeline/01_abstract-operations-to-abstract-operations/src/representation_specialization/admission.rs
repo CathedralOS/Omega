@@ -147,7 +147,7 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
 fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &StructuralArgument> {
     let mut operands: Vec<&StructuralArgument> = Vec::new();
     match operation {
-        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => {
+        abstract_operations::establish_case_or_record_fields_pattern!(fields) => {
             for initializer in fields {
                 if let Some(argument) = initializer.value.as_structural() {
                     operands.push(argument);
@@ -158,14 +158,7 @@ fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &Structur
             operands.push(source);
         }
         O::StoreStructuralField { value, .. } => operands.push(value),
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
-            structural_arguments,
-            ..
-        } => operands.extend(structural_arguments.iter()),
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => operands.extend(structural_arguments.iter()),
         _ => {}
     }
     operands.into_iter()

@@ -6,7 +6,7 @@ pub(crate) fn expected_provenance(
     operation: &abstract_operations::AbstractOperation,
 ) -> Vec<PsiProvenance> {
     match operation {
-        O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => Vec::new(),
+        abstract_operations::jump_or_conditional_pattern!() | O::StructuralCase { .. } => Vec::new(),
         O::Return { psi_edge, .. }
         | O::ReturnUnit { psi_edge, .. }
         | O::ExternalCompletion { psi_edge, .. }
@@ -106,7 +106,7 @@ pub(crate) fn provenance_matches_operation(
     let expected = expected_provenance(operation);
     if expected.is_empty() {
         match operation {
-            O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => true,
+            abstract_operations::jump_or_conditional_pattern!() | O::StructuralCase { .. } => true,
             _ => provenance.is_empty(),
         }
     } else {

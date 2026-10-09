@@ -143,15 +143,13 @@ pub(crate) fn operation_scalar_types_match(
         | O::EstablishRecord { .. }
         // Restoration-window ops carry only structural places; their scalar
         // surface is empty, so there is nothing for this contract to check.
-        | O::MoveStructuralField { .. }
-        | O::StoreStructuralField { .. }
+        | abstract_operations::move_or_store_structural_field_pattern!()
         | O::StructuralByteViewFieldStore { .. }
         | O::StructuralLeafCopy { .. }
         | O::PortWrite { .. }
         | O::StructuralCase { .. }
         | O::ReturnUnit { .. }
-        | O::ReturnStructural { .. }
-        | O::Crash { .. } => true,
+        | abstract_operations::return_structural_or_crash_pattern!() => true,
         // The read's result is the field's Boolean or integer type; the
         // structural-root pass matches it against the declared field.
         O::StructuralScalarFieldRead { result, .. } => {

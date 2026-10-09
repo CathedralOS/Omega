@@ -106,10 +106,8 @@ impl PsiOptimizationRule for AdjacentBlockMergeRule {
                             || (matches!(node.provenance.first(), Some(PsiProvenance::Edge(_)))
                                 && matches!(
                                     node.operation,
-                                    O::Return { .. }
-                                        | O::ReturnUnit { .. }
-                                        | O::ReturnStructural { .. }
-                                        | O::Crash { .. }
+                                    abstract_operations::return_or_return_unit_pattern!()
+                                        | abstract_operations::return_structural_or_crash_pattern!()
                                 ))))
                         || (matches!(node.operation, O::Conditional { .. })
                             && node.successors.len() == 2

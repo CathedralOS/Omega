@@ -708,8 +708,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::StructuralByteSequenceFieldStore { .. }
                     | OperationKind::StructuralByteViewFieldStore { .. }
                     | OperationKind::StructuralCaseMembership { .. }
-                    | OperationKind::StructuralLeafCopy { .. }
-                    | OperationKind::StructuralCaseLeafCopy { .. }
+                    | terminal_psi::structural_leaf_copy_pair_pattern!()
                     | OperationKind::WriteOnlyPrimitiveStore { .. }
                     | OperationKind::ByteSequenceLength { .. }
                     | OperationKind::ByteSequenceRead { .. }
@@ -764,8 +763,7 @@ pub(crate) fn derive_component_inventory(
                     // grants no outgoing boundary or port authority.
                     | OperationKind::TrappingInteger { .. }
                     | OperationKind::FloatResultPolicy { .. }
-                    | OperationKind::MoveStructuralField { .. }
-                    | OperationKind::StoreStructuralField { .. }
+                    | terminal_psi::move_or_store_structural_field_pattern!()
                     | OperationKind::EstablishByteSequenceConcatenation { .. } => {}
                 }
             }

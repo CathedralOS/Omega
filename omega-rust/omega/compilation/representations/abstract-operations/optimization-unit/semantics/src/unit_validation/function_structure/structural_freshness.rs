@@ -148,14 +148,7 @@ pub(super) fn structural_metadata_may_change(
             destination.place() == root
                 && terminal_semantics::structural_paths_may_overlap(path, written)
         }
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
-            structural_arguments,
-            ..
-        } => structural_arguments.iter().any(|argument| {
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments.iter().any(|argument| {
             matches!(
                 argument.access,
                 StructuralAccess::MutableBorrow
@@ -208,13 +201,10 @@ pub(super) fn structural_metadata_may_change(
         | O::IntegerArithmetic { .. }
         | O::TrappingInteger { .. }
         | O::Call { .. }
-        | O::Jump { .. }
-        | O::Conditional { .. }
+        | abstract_operations::jump_or_conditional_pattern!()
         | O::StructuralCase { .. }
-        | O::Return { .. }
-        | O::ReturnUnit { .. }
-        | O::ReturnStructural { .. }
-        | O::Crash { .. } => false,
+        | abstract_operations::return_or_return_unit_pattern!()
+        | abstract_operations::return_structural_or_crash_pattern!() => false,
         // Other effects have no independently established disjoint write
         // footprint here.
         _ => true,

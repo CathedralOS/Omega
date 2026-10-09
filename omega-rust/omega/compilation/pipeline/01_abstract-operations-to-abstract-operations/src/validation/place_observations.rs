@@ -202,8 +202,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
         | O::StructuralScalarFieldRead { .. }
-        | O::Jump { .. }
-        | O::Conditional { .. }
+        | abstract_operations::jump_or_conditional_pattern!()
         | O::StructuralCase { .. }
         | O::PortWrite { .. }
         | O::EstablishByteSequenceLiteral { .. }
@@ -538,10 +537,8 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::Call { .. }
         | O::PortWrite { .. }
-        | O::Jump { .. }
-        | O::Conditional { .. }
-        | O::Return { .. }
-        | O::ReturnUnit { .. }
+        | abstract_operations::jump_or_conditional_pattern!()
+        | abstract_operations::return_or_return_unit_pattern!()
         | O::Crash { .. } => {}
         // Atomic events, dynamic calls, descriptor stores, and any variant
         // not modeled above fail closed: the exclusivity scan refuses rather
@@ -614,8 +611,7 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
         | O::ByteSequenceSubslice { result, .. }
         | O::EstablishScalarArray { result, .. }
         | O::EstablishStructuralArray { result, .. }
-        | O::EstablishCase { result, .. }
-        | O::EstablishRecord { result, .. }
+        | abstract_operations::establish_case_or_record_result_pattern!(result)
         | O::CallStructural {
             result: AbstractStructuralCallResult::Structural { result, .. },
             ..
@@ -1248,14 +1244,7 @@ fn structural_argument_roots(
     access: terminal_psi::StructuralAccess,
 ) -> BTreeSet<PlaceId> {
     let structural_arguments = match operation {
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments,
         _ => return BTreeSet::new(),
     };
     structural_arguments
