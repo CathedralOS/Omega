@@ -693,9 +693,7 @@ pass/core/content_conservation_contract incomplete 1258ms @e007e1d70f35+wt
 pass/core/content_retained_custody_round_trip built 311ms
 pass/core/extent_core_surface checked 196ms
 pass/core/extent_root_provider_adapter built 3863ms exit:0 @693920652f41
-pass/core/interrupt_obligations_surface rejected 1747ms regressed-from:checked @835baa6033eb+wt
-	direct call `restore` names public boundary requirement `InterruptMaskGuard::restore`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptMaskGuard::restore` before calling it
-	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
+pass/core/interrupt_obligations_surface checked 508ms @3e42cf204024+wt
 pass/core/numeric_cross_signed_conversion_surface built 13837ms exit:70
 pass/core/numeric_signed_narrowing_policies built 4173ms exit:0 @5a7ed5b57d00+wt
 pass/core/numeric_signed_to_unsigned_policies built 4529ms exit:0 @5a7ed5b57d00+wt
@@ -1122,8 +1120,7 @@ pass/locals/runtime_local_record_array_element_field_reads_exit built 5683ms exi
 pass/locals/runtime_local_view_member_element_read_exit built 2189ms exit:70 @9beb2be72f2d+wt
 pass/locals/static_local_field_names_exit built 3382ms exit:0 @9beb2be72f2d+wt
 pass/machines/static_namespace_constant_exit built 3677ms exit:0 @9beb2be72f2d+wt
-pass/memory/address_translation_canary rejected 2012ms regressed-from:checked @835baa6033eb+wt
-	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
+pass/memory/address_translation_canary checked 602ms @3e42cf204024+wt
 pass/memory/bump_allocator_canary built 732ms
 pass/memory/interrupt_table_canary rejected 1746ms regressed-from:checked @693920652f41
 	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
@@ -1670,6 +1667,7 @@ pass/time/runtime_clock_out_parameter_loans_exit built 12905ms exit:0 @5dbb9140b
 pass/time/runtime_clock_shared_import_slots_exit built 12954ms exit:0 @b8b69519109d+wt
 pass/time/runtime_duration_core_exit built 14314ms exit:70 @fb2178def922
 pass/time/runtime_fs_mtime_system_time_interop_exit built 7991ms exit:70 @ad65d2640206+wt
+pass/time/runtime_kernel_clock_wait_loans_exit built 2083ms @3e42cf204024+wt
 pass/time/runtime_time_elapsed_since_exit built 12008ms exit:70 @dfbd9bc4ec99+wt
 pass/time/runtime_time_host_native_darwin_exit built 2086ms exit:70 @dfbd9bc4ec99+wt
 pass/time/runtime_time_host_native_darwin_x86_64_exit built 9486ms @22d7c734257c+wt
