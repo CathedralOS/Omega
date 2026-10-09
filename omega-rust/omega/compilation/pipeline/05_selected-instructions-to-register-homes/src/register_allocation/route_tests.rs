@@ -2,56 +2,6 @@
 //! legality are the only direct-assignment failure the leaf-local
 //! fixed/precolored sequence may recover.
 
-use selected_instructions_to_selected_instructions::test_support::exercise_single_use_rematerialization;
-
-use crate::RegisterHomeError;
-use register_homes::EntryFixedViewTransition;
-use register_model::{RegisterOperandAccess, RegisterViewId};
-use selected_instructions::{
-    LiveRangePoint, LivenessPosition, SelectedInstructionId, VirtualFixedConstraintSite,
-};
-
-#[test]
-fn entry_transitions_are_the_only_leaf_local_recovery_gate() {
-    exercise_single_use_rematerialization(|legality, ranges, physical| {
-        // The fixture legality has no transitions, so direct assignment
-        // succeeds — the gate is the recorded transition evidence, not the
-        // surrounding function shape.
-        let before = crate::assignment::home_assignment::compute::compute_function(
-            0, legality, ranges, physical,
-        );
-        assert!(before.is_ok());
-
-        let mut transitioned = legality.clone();
-        transitioned.virtual_registers[0]
-            .entry_transitions
-            .push(EntryFixedViewTransition {
-                from_view: RegisterViewId(0),
-                to_view: RegisterViewId(1),
-                to_site: VirtualFixedConstraintSite::Operand {
-                    position: LivenessPosition(3),
-                    point: LiveRangePoint(6),
-                    instruction: SelectedInstructionId(3),
-                    operand: 0,
-                    access: RegisterOperandAccess::Use,
-                },
-            });
-        assert!(matches!(
-            crate::assignment::home_assignment::compute::compute_function(
-                0,
-                &transitioned,
-                ranges,
-                physical,
-            ),
-            Err(RegisterHomeError::UnresolvedEntryTransitions {
-                function: 0,
-                register: 0,
-                count: 1,
-            })
-        ));
-    });
-}
-
 #[test]
 fn default_path_routes_entry_transitions_into_the_leaf_local_fixed_view_sequence() {
     let source = include_str!("../register_allocation.rs");

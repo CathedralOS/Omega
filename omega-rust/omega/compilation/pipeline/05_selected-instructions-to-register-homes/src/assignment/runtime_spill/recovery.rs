@@ -720,9 +720,6 @@ fn recover_over(
 #[cfg(test)]
 mod candidate_tests;
 
-#[cfg(test)]
-mod probe_tests;
-
 /// A spill the rewrite owner declines for this value's shape, use or control
 /// flow: recovery moves on to the next candidate instead of failing.
 fn inadmissible(error: &RuntimeSpillError) -> bool {

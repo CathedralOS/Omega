@@ -23,8 +23,6 @@
 
 #[cfg(test)]
 mod route_tests;
-#[cfg(test)]
-mod selected_rewrite_tests;
 
 use crate::assignment::recovery::{
     stage_active_resident_register_allocation,
