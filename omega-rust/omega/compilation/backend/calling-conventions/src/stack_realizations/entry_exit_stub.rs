@@ -95,8 +95,7 @@ pub(crate) struct X86_64DeriverStub {
     pub contexts: Vec<X86_64DeriverStubContext>,
 }
 
-impl X86_64DeriverStub {
-}
+impl X86_64DeriverStub {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ValidatedX86_64DeriverStub {
@@ -353,8 +352,6 @@ fn stub_report_fingerprint(stub: &X86_64DeriverStub) -> u64 {
         hash.u64(match context.mechanism {
             X86_64ArrivalMechanism::Exception => 0,
             X86_64ArrivalMechanism::ExternalInterrupt => 1,
-            X86_64ArrivalMechanism::NonMaskableInterrupt => 2,
-            X86_64ArrivalMechanism::SoftwareInterrupt => 3,
         });
         hash.u64(match context.error_code {
             X86_64ErrorCodeDisposition::HardwarePushed => 0,

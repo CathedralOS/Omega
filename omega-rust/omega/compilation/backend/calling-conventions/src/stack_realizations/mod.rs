@@ -159,8 +159,6 @@ pub(crate) enum X86_64GateKind {
 pub(crate) enum X86_64ArrivalMechanism {
     Exception,
     ExternalInterrupt,
-    NonMaskableInterrupt,
-    SoftwareInterrupt,
 }
 
 /// The stack selection performed atomically by x86-64 hardware.
@@ -272,12 +270,6 @@ fn validate_x86_64_arrival_context(
         X86_64ArrivalMechanism::ExternalInterrupt if vector < 32 => {
             return Err(PlanDiagnostic(format!(
                 "x86-64 arrival context 0x{:016x} classifies reserved vector {vector} as an external interrupt",
-                context.context.get()
-            )));
-        }
-        X86_64ArrivalMechanism::NonMaskableInterrupt if vector != 2 => {
-            return Err(PlanDiagnostic(format!(
-                "x86-64 arrival context 0x{:016x} classifies vector {vector} as the non-maskable interrupt",
                 context.context.get()
             )));
         }
@@ -401,8 +393,6 @@ fn x86_64_installed_facts_report_fingerprint(facts: &X86_64InstalledHardwareEntr
         hash.u64(match context.mechanism {
             X86_64ArrivalMechanism::Exception => 0,
             X86_64ArrivalMechanism::ExternalInterrupt => 1,
-            X86_64ArrivalMechanism::NonMaskableInterrupt => 2,
-            X86_64ArrivalMechanism::SoftwareInterrupt => 3,
         });
         hash.u64(u64::from(context.interrupted_privilege));
         hash.u64(u64::from(context.entry_privilege));
@@ -469,5 +459,6 @@ impl Fnv1a {
 }
 
 mod entry_exit_stub;
+
 #[cfg(test)]
 mod tests;
