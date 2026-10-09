@@ -2539,25 +2539,6 @@ crash and native exit behavior.
   revision, with no timeout replacing the actual diagnostic. Native execution
   remains the owning capability task's acceptance.
 
-- **PROJECTED-CASE-DISPATCH.** (new-scope) Retire the remaining projected-subject
-  guard route. Runtime-index subjects still take membership/guard dispatch
-  (`pass/control_flow/runtime_indexed_case_dispatch_exit`). Its ordinary hoist
-  already has an `EstablishReference` plan; stage 04 `state_graph/closed_sum.rs`
-  declines because the affine carrier's multiplicity differs from the source
-  reference type, then treats the reference shell as the inspected sum. Reuse
-  that actual carrier with a referent projection; do not replay its initializer.
-  Extend the ordinary capture owner for evaluated/local selectors where needed.
-  Stage 05 must bind payload snapshots to the captured subject and end its
-  temporary loan after capture, before arm execution.
-  Omega must resolve the retained reference's backing sum, not interpret the
-  descriptor's byte extent as the sum's storage. Preserve outer-case dominance,
-  original-root custody and exact selector evaluation. No synthetic operation
-  may stand in for a missing selector-evidence owner.
-  Acceptance: one-case and n-case runtime-projected dispatch with payload
-  forwarding run through `omega run --both`; existing field/fixed-index,
-  large-offset, borrowed and computed-subject dispatch fixtures retain their
-  authored results, and invalid case/ownership controls still reject.
-
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the remaining `regressed-from:` rows in
   `tests/omega/corpus_native_macos_arm64.txt`. Read the live roster with

@@ -157,9 +157,7 @@ fn retained_reference_parents(
         // Only the owner's existing whole no-code disposition moves to exit.
         if !machine.blocks.iter().any(|block| {
             block.terminator.cleanup_rosters().any(|(_, actions)| {
-                actions
-                    .iter()
-                    .any(|action| *action == TerminalAffineCleanupAction::DiscardRoot(source.place))
+                actions.contains(&TerminalAffineCleanupAction::DiscardRoot(source.place))
             })
         }) {
             return Err(LoweringError::Unsupported(
