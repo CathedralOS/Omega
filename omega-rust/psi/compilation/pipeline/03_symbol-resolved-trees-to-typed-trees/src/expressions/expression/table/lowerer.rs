@@ -540,6 +540,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::Name(path) => {
+                if self.program.is_some_and(|program| {
+                    program.symbols.builtin_type_member(path.symbol)
+                        == Some(symbols::BuiltinTypeMember::AddressBound)
+                }) {
+                    self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Int)?;
+                }
                 if let Some(program) = self.program
                     && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant
                 {

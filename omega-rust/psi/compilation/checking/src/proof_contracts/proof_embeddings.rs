@@ -29,7 +29,7 @@ pub(crate) use calls::validate_integer_embedding_calls;
 pub(crate) struct IntegerEmbedding {
     pub(crate) primitive: PrimitiveType,
     pub(crate) minimum: BigInt,
-    pub(crate) maximum: BigInt,
+    pub(crate) maximum: Option<BigInt>,
 }
 
 pub(crate) fn validate_proof_embeddings(
@@ -73,6 +73,9 @@ pub(crate) fn validate_proof_embeddings(
                 }
             }
         }
+    }
+    for expression in crate::mathematical_applications::expression_nodes(program) {
+        collect_expression_nodes(program, expression, &mut proof_nodes, &mut proof_seen);
     }
     for proposition in program.propositions() {
         if let PropositionBody::Transparent { proposition } = &proposition.body {
@@ -138,6 +141,18 @@ pub(crate) fn validate_proof_embeddings(
     }
 
     for (handle, node) in program.expression_table.iter_expressions() {
+        let mathematical = match node {
+            ExpressionNode::Name(path) => {
+                program.symbols.builtin_type_member(path.symbol).is_some()
+            }
+            ExpressionNode::Call(call) => {
+                crate::mathematical_applications::selected_definition(program, call).is_some()
+            }
+            _ => false,
+        };
+        if mathematical && (!proof_seen.contains(&handle) || runtime_seen.contains(&handle)) {
+            diagnostics.push(Diagnostic::error("mathematical terms are proof-only and cannot be used as executable values or statements"));
+        }
         let ExpressionNode::Call(call) = node else {
             continue;
         };
@@ -175,6 +190,14 @@ pub(crate) fn validate_proof_embeddings(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
+                if let Some(call) = statement.as_call()
+                    && program
+                        .mathematical_definitions()
+                        .iter()
+                        .any(|definition| definition.symbol == call.target_symbol)
+                {
+                    diagnostics.push(Diagnostic::error("a mathematical definition denotes a proof term, not an executable statement call"));
+                }
                 if let Some(call) = statement.as_call()
                     && (program
                         .symbols
@@ -218,7 +241,14 @@ pub(crate) fn integer_embedding(
     expression: ExpressionHandle,
 ) -> Option<IntegerEmbedding> {
     let primitive = expression_primitive(program, expression)?;
-    let (minimum, maximum) = primitive_range(primitive)?;
+    let (minimum, maximum) = if primitive == PrimitiveType::Addr {
+        // Addr denotes the selected model, not the legacy hosted u64 payload.
+        // Its upper range is related to the exact symbolic bound below.
+        (BigInt::zero(), None)
+    } else {
+        let (minimum, maximum) = primitive_range(primitive)?;
+        (minimum, Some(maximum))
+    };
     Some(IntegerEmbedding {
         primitive,
         minimum,

@@ -1085,10 +1085,35 @@ pub fn fixed_core_declaration_symbols()
     })
 }
 
+/// Mathematical members owned by a builtin carrier. Their child slots, not
+/// authored names, identify them after resolution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinTypeMember {
+    /// The selected address model's exclusive upper bound in proof Int.
+    AddressBound,
+}
+
+impl BuiltinTypeMember {
+    pub const fn owner(self) -> BuiltinTypeAtom {
+        match self {
+            Self::AddressBound => BuiltinTypeAtom::Address,
+        }
+    }
+
+    pub const fn ordinal(self) -> usize {
+        0
+    }
+}
+
 pub fn builtin_type_member_symbols(
-    _builtin_type: BuiltinType,
+    builtin_type: BuiltinTypeAtom,
 ) -> impl Iterator<Item = (SymbolKind, SymbolNameRef<'static>)> {
-    std::iter::empty()
+    (builtin_type == BuiltinTypeMember::AddressBound.owner())
+        .then_some((
+            SymbolKind::MathematicalDefinition,
+            SymbolNameRef::Static("Bound"),
+        ))
+        .into_iter()
 }
 
 #[cfg(test)]

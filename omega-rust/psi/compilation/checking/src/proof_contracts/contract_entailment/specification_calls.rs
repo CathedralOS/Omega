@@ -20,6 +20,103 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
 
+#[derive(Clone, Copy)]
+enum SpecificationCaller<'program> {
+    Machine(&'program Machine, Option<&'program State>),
+    Declaration(SymbolHandle, &'program [StateParameter]),
+}
+
+impl<'program> SpecificationCaller<'program> {
+    fn symbol(self) -> SymbolHandle {
+        match self {
+            Self::Machine(machine, _) => machine.symbol,
+            Self::Declaration(symbol, _) => symbol,
+        }
+    }
+
+    fn state_scope(self) -> Option<(&'program Machine, &'program State)> {
+        match self {
+            Self::Machine(machine, Some(state)) => Some((machine, state)),
+            _ => None,
+        }
+    }
+
+    fn expression_owner(self) -> SymbolHandle {
+        self.state_scope()
+            .map_or(self.symbol(), |(_, state)| state.symbol)
+    }
+
+    fn parameters(
+        self,
+        program: &'program dyn crate::CheckingInput,
+    ) -> Vec<&'program StateParameter> {
+        match self {
+            Self::Machine(machine, state) => program
+                .machine_states(machine)
+                .first()
+                .into_iter()
+                .chain(state)
+                .flat_map(|state| program.state_parameters(state))
+                .collect(),
+            Self::Declaration(_, parameters) => parameters.iter().collect(),
+        }
+    }
+
+    fn term(
+        self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<StructuralTerm> {
+        match self {
+            Self::Machine(machine, Some(state)) => {
+                super::structural_terms::structural_term_in_scope(
+                    program,
+                    Some((machine, state, Default::default())),
+                    expression,
+                )
+            }
+            Self::Machine(machine, None) => {
+                super::structural_terms::structural_term_for_parameters(
+                    program,
+                    machine.symbol,
+                    program
+                        .machine_states(machine)
+                        .first()
+                        .map(|entry| program.state_parameters(entry))
+                        .unwrap_or_default(),
+                    expression,
+                )
+            }
+            Self::Declaration(symbol, parameters) => {
+                super::structural_terms::structural_term_for_parameters(
+                    program, symbol, parameters, expression,
+                )
+            }
+        }
+    }
+}
+
+/// Mathematical declarations reuse the same independently formed call
+/// precondition judgment under their own exact parameter telescope. They have
+/// no synthetic machine, entry state or operational binding environment.
+pub(crate) fn validate_mathematical_call_requirements(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::mathematical::MathematicalDefinition,
+    expression: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let parameters = crate::mathematical_applications::ordinary_parameters(program, definition);
+    validate_expression(
+        program,
+        SpecificationCaller::Declaration(definition.symbol, &parameters),
+        expression,
+        &[],
+        &format!("mathematical definition `{}`", definition.name),
+        diagnostics,
+        &mut Vec::new(),
+    );
+}
+
 pub(crate) fn validate_specification_call_requirements(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -35,8 +132,7 @@ pub(crate) fn validate_specification_call_requirements(
     for root in roots {
         validate_expression(
             program,
-            machine,
-            state,
+            SpecificationCaller::Machine(machine, state),
             root,
             prior_facts,
             owner,
@@ -49,8 +145,7 @@ pub(crate) fn validate_specification_call_requirements(
 #[allow(clippy::too_many_arguments)]
 fn validate_expression(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
+    caller: SpecificationCaller<'_>,
     expression: ExpressionHandle,
     prior_facts: &[ExpressionHandle],
     owner: &str,
@@ -66,8 +161,7 @@ fn validate_expression(
     children(program, node, |child| {
         validate_expression(
             program,
-            machine,
-            state,
+            caller,
             child,
             prior_facts,
             owner,
@@ -110,23 +204,7 @@ fn validate_expression(
         .map(|(parameter, argument)| {
             Some((
                 parameter.name.as_str().to_owned(),
-                match state {
-                    Some(state) => super::structural_terms::structural_term_in_scope(
-                        program,
-                        Some((machine, state, Default::default())),
-                        *argument,
-                    )?,
-                    None => super::structural_terms::structural_term_for_parameters(
-                        program,
-                        machine.symbol,
-                        program
-                            .machine_states(machine)
-                            .first()
-                            .map(|entry| program.state_parameters(entry))
-                            .unwrap_or_default(),
-                        *argument,
-                    )?,
-                },
+                caller.term(program, *argument)?,
             ))
         })
         .collect::<Option<Vec<_>>>();
@@ -142,7 +220,12 @@ fn validate_expression(
         })
         .collect::<Vec<_>>();
     let structural_names_unique = names_are_unambiguous(program, &structural_facts, &arguments);
-    let judge = StructuralJudge::from_requires(program, machine, &structural_facts);
+    let judge = StructuralJudge::from_declaration_requires(
+        program,
+        caller.symbol(),
+        &structural_facts,
+        true,
+    );
     // Named proposition requirements are an erased evidence lane, not Boolean
     // facts for the structural/arithmetic prover. The checked-tree contract
     // evidence binder validates each supplied term's exact owner, proposition
@@ -189,7 +272,7 @@ fn validate_expression(
                                 parameters,
                                 *required,
                                 substitution,
-                                state.map(|state| (machine, state)),
+                                caller.state_scope(),
                             ),
                             StructuralJudgment::Proven
                         )
@@ -197,8 +280,7 @@ fn validate_expression(
             structural
                 || arithmetic_requirement(
                     program,
-                    machine,
-                    state,
+                    caller,
                     &contract_owner,
                     prior_facts,
                     *required,
@@ -624,8 +706,7 @@ fn selected_machine(
 
 fn arithmetic_requirement(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
+    caller: SpecificationCaller<'_>,
     callee: &SelectedCallContract<'_>,
     prior_facts: &[ExpressionHandle],
     requirement: ExpressionHandle,
@@ -634,48 +715,39 @@ fn arithmetic_requirement(
     use super::{
         ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
         ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-        scoped_arithmetic_implication,
     };
     let parameters = owner_parameters(program, callee);
     if parameters.len() != arguments.len() {
         return false;
     }
     let mut bindings = Vec::new();
-    for caller_state in program
-        .machine_states(machine)
-        .first()
-        .into_iter()
-        .chain(state)
-    {
-        for parameter in program.state_parameters(caller_state) {
-            let Some(primitive) = crate::value_custody::recasts::exact_primitive_type(
-                program,
-                parameter.type_reference,
-            ) else {
-                continue;
-            };
-            if !primitive.accepts_integer_literal()
-                || !parameter.symbol.is_valid()
-                || bindings.iter().any(|binding: &ScopedArithmeticBinding| {
-                    binding.binder == ScopedArithmeticBinder::Symbol(parameter.symbol)
-                })
-            {
-                continue;
-            }
-            bindings.push(ScopedArithmeticBinding {
-                binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
-                value: ScopedArithmeticValue::Atom {
-                    identity: format!("\0specification:{:?}", parameter.symbol),
-                    unsigned: !primitive.is_signed_integer(),
-                },
-            });
+    for parameter in caller.parameters(program) {
+        let Some(primitive) =
+            crate::value_custody::recasts::exact_primitive_type(program, parameter.type_reference)
+        else {
+            continue;
+        };
+        if !primitive.accepts_integer_literal()
+            || !parameter.symbol.is_valid()
+            || bindings.iter().any(|binding: &ScopedArithmeticBinding| {
+                binding.binder == ScopedArithmeticBinder::Symbol(parameter.symbol)
+            })
+        {
+            continue;
         }
+        bindings.push(ScopedArithmeticBinding {
+            binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
+            value: ScopedArithmeticValue::Atom {
+                identity: format!("\0specification:{:?}", parameter.symbol),
+                unsigned: !primitive.is_signed_integer(),
+            },
+        });
     }
     let hypotheses = prior_facts
         .iter()
         .map(|expression| ScopedArithmeticHypothesis {
             proposition: ScopedArithmeticExpression {
-                owner: state.map_or(machine.symbol, |state| state.symbol),
+                owner: caller.expression_owner(),
                 expression: *expression,
                 bindings: bindings.clone(),
             },
@@ -693,7 +765,7 @@ fn arithmetic_requirement(
             .map(|(parameter, argument)| ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
                 value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
-                    owner: state.map_or(machine.symbol, |state| state.symbol),
+                    owner: caller.expression_owner(),
                     expression: *argument,
                     bindings: bindings.clone(),
                 }),
@@ -701,7 +773,12 @@ fn arithmetic_requirement(
             .collect(),
     };
     matches!(
-        scoped_arithmetic_implication(program, machine, &hypotheses, &goal),
+        super::scoped_arithmetic::scoped_arithmetic_implication_for_declaration(
+            program,
+            caller.symbol(),
+            &hypotheses,
+            &goal
+        ),
         StrictArithmeticImplicationJudgment::Proven
     )
 }

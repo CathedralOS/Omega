@@ -522,9 +522,22 @@ pub(crate) fn named_value_type_reference(
     program: &dyn crate::CheckingInput,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<TypeReferenceHandle> {
+    if program.symbols.builtin_type_member(path.symbol)
+        == Some(symbols::BuiltinTypeMember::AddressBound)
+    {
+        return crate::proof_contracts::proof_embeddings::proof_int_type_reference(program);
+    }
     let [_] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
+    if let Some(reference) =
+        crate::proof_contracts::mathematical_applications::parameter_type_reference(
+            program,
+            path.symbol,
+        )
+    {
+        return Some(reference);
+    }
     // Static value binders live in the shared declaration arena, including
     // domain telescopes with no executable machine/state. Their exact symbol
     // supplies the declared carrier; a same-spelled binder supplies nothing.

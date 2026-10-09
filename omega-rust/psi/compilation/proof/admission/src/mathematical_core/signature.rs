@@ -146,6 +146,14 @@ impl Signature {
     }
 }
 
+/// The declaration position whose formation failed. Positions belong to the
+/// supplied signature; source attribution stays with its producing owner.
+#[derive(Debug)]
+pub struct SignatureCheckError {
+    pub declaration: usize,
+    pub error: CoreError,
+}
+
 /// Check each declaration of `declarations` under the signature formed
 /// by the ones before it, and return the checked signature.
 ///
@@ -160,16 +168,31 @@ pub fn check_signature(
     declarations: &[Declaration],
     budget: &mut Budget,
 ) -> Result<Signature, CoreError> {
+    check_signature_with_attribution(arena, declarations, budget).map_err(|failure| failure.error)
+}
+
+/// Check the complete ordered signature once, retaining the first failing
+/// declaration without rechecking every prefix to recover its position.
+pub fn check_signature_with_attribution(
+    arena: &mut TermArena,
+    declarations: &[Declaration],
+    budget: &mut Budget,
+) -> Result<Signature, SignatureCheckError> {
     let mut signature = Signature::new();
-    for declaration in declarations {
-        {
-            let context = Context::with_level_arity(declaration.level_arity)
-                .with_signature(signature.clone());
+    for (position, declaration) in declarations.iter().enumerate() {
+        let context =
+            Context::with_level_arity(declaration.level_arity).with_signature(signature.clone());
+        let formed = (|| {
             infer_sort(arena, &context, declaration.ty, budget)?;
             if let Some(body) = declaration.body {
                 check_type(arena, &context, body, declaration.ty, budget)?;
             }
-        }
+            Ok::<_, CoreError>(())
+        })();
+        formed.map_err(|error| SignatureCheckError {
+            declaration: position,
+            error,
+        })?;
         signature.push(declaration.clone());
     }
     Ok(signature)

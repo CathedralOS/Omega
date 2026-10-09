@@ -30,6 +30,9 @@ pub fn decide_primitive(
             PrimitiveJudgment::IntegerCarrierBound,
             Proposition::IntegerMathLessOrEqual(left, right),
         ) => mathematical_integer_carrier_bound(left, right),
+        (PrimitiveJudgment::IntegerCarrierBound, Proposition::IntegerMathLessThan(left, right)) => {
+            mathematical_integer_carrier_bound_exclusive(left, right)?
+        }
         (PrimitiveJudgment::ReflexiveEquality, Proposition::Equal(left, right)) => left == right,
         (PrimitiveJudgment::ReflexiveEquality, Proposition::IntegerMathEqual(left, right)) => {
             left == right
@@ -134,6 +137,37 @@ fn mathematical_integer_carrier_bound(left: &IntegerMathTerm, right: &IntegerMat
         } else {
             source_type.maximum_value()
         })
+}
+
+/// An address model's exclusive bound is maximum + 1 in unbounded Math.
+/// Numeric closure preserves the model on MathValue and validates it against
+/// the exact context before reaching this rule. Even a 128-bit model needs
+/// no overflowing fixed-width literal for its one-past endpoint.
+fn mathematical_integer_carrier_bound_exclusive(
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+) -> Result<bool, KernelError> {
+    let IntegerMathTerm::MathValue { source_type, .. } = left else {
+        return Ok(false);
+    };
+    if !source_type.is_address() {
+        return Ok(false);
+    }
+    let bound = IntegerMathTerm::Add(
+        Box::new(IntegerMathTerm::IntegerLiteral(
+            semantic_vocabulary::IntegerMathLiteral::from_integer_value(
+                source_type.maximum_value(),
+            ),
+        )),
+        Box::new(IntegerMathTerm::IntegerLiteral(
+            semantic_vocabulary::IntegerMathLiteral::from_integer_value(
+                semantic_vocabulary::IntegerValue::Unsigned(1),
+            ),
+        )),
+    );
+    compare_integer_math_terms(right, &bound)
+        .map(|comparison| comparison.is_some_and(|ordering| ordering.is_eq()))
+        .map_err(KernelError::ClosedIntegerEvaluation)
 }
 
 pub(crate) fn compare_integer_literals(

@@ -1,6 +1,7 @@
 use super::{PrimitiveJudgment, Proposition, PropositionContext, ScalarTerm, decide_primitive};
 use semantic_vocabulary::{
-    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
+    IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ScalarType,
+    ValueId,
 };
 
 #[test]
@@ -177,4 +178,54 @@ fn mathematical_address_bounds_reject_carrier_identity_drift_and_count_narrowing
     let count_maximum = IntegerMathTerm::literal(IntegerValue::Unsigned(u128::from(u64::MAX)));
     let narrowed = Proposition::IntegerMathLessOrEqual(value, count_maximum);
     assert!(decide_primitive(&context, &narrowed, PrimitiveJudgment::IntegerCarrierBound).is_err());
+}
+
+#[test]
+fn exclusive_address_bounds_use_unbounded_math_and_exact_model_custody() {
+    for bits in [16, 32, 64, 128] {
+        let address = IntegerType::address(bits).expect("address model");
+        let value = ValueId::new(1).expect("value identity");
+        let context = PropositionContext::from_value_types([(value, ScalarType::Integer(address))])
+            .expect("exact model context");
+        let endpoint = IntegerMathTerm::Add(
+            Box::new(IntegerMathTerm::IntegerLiteral(
+                IntegerMathLiteral::from_integer_value(address.maximum_value()),
+            )),
+            Box::new(IntegerMathTerm::IntegerLiteral(
+                IntegerMathLiteral::from_integer_value(IntegerValue::Unsigned(1)),
+            )),
+        );
+        let goal = Proposition::IntegerMathLessThan(
+            IntegerMathTerm::MathValue {
+                source_type: address,
+                value,
+            },
+            endpoint,
+        );
+        assert!(decide_primitive(&context, &goal, PrimitiveJudgment::IntegerCarrierBound).is_ok());
+        let wrong_model =
+            IntegerType::address(if bits == 16 { 32 } else { 16 }).expect("other model");
+        let wrong_bound = IntegerMathTerm::Add(
+            Box::new(IntegerMathTerm::IntegerLiteral(
+                IntegerMathLiteral::from_integer_value(wrong_model.maximum_value()),
+            )),
+            Box::new(IntegerMathTerm::IntegerLiteral(
+                IntegerMathLiteral::from_integer_value(IntegerValue::Unsigned(1)),
+            )),
+        );
+        assert!(
+            decide_primitive(
+                &context,
+                &Proposition::IntegerMathLessThan(
+                    IntegerMathTerm::MathValue {
+                        source_type: address,
+                        value
+                    },
+                    wrong_bound,
+                ),
+                PrimitiveJudgment::IntegerCarrierBound
+            )
+            .is_err()
+        );
+    }
 }

@@ -21,8 +21,8 @@ mod source_queries;
 #[cfg(test)]
 mod tests;
 use super::{
-    BuiltinFunction, BuiltinType, BuiltinTypeAtom, FixedCoreDeclaration, Symbol, SymbolHandle,
-    SymbolKind, SymbolName, SymbolNameRef, SymbolPath,
+    BuiltinFunction, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember, FixedCoreDeclaration, Symbol,
+    SymbolHandle, SymbolKind, SymbolName, SymbolNameRef, SymbolPath,
 };
 use child_batches::{SupplementalChildHandles, SupplementalChildren};
 
@@ -1064,6 +1064,23 @@ impl SymbolTable {
         self.child_handles(self.root)?
             .nth(offset)
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::MathematicalDefinition)
+    }
+
+    /// The member's compiler-installed slot beneath its exact builtin owner.
+    /// A package member with the same spelling never supplies this identity.
+    pub fn builtin_type_member_symbol(&self, member: BuiltinTypeMember) -> Option<SymbolHandle> {
+        self.child_handles(
+            self.child_handles(self.root)?
+                .nth(member.owner().ordinal())?,
+        )?
+        .nth(member.ordinal())
+        .filter(|symbol| self.get(*symbol).kind == SymbolKind::MathematicalDefinition)
+    }
+
+    pub fn builtin_type_member(&self, symbol: SymbolHandle) -> Option<BuiltinTypeMember> {
+        symbol.is_valid().then_some(())?;
+        let member = BuiltinTypeMember::AddressBound;
+        (self.builtin_type_member_symbol(member) == Some(symbol)).then_some(member)
     }
 
     pub fn builtin_type_symbol(&self, builtin_type: BuiltinType) -> Option<SymbolHandle> {

@@ -9,6 +9,18 @@ use super::super::{
 use super::{Engine, OpaqueTerm, Polynomial};
 
 impl<'program> Engine<'program> {
+    pub(in crate::proof_contracts::contract_entailment) fn strict_for_declaration(
+        program: &'program dyn crate::CheckingInput,
+        owner: SymbolHandle,
+    ) -> Self {
+        let mut engine = Self::for_proof_integer_formation(program);
+        engine.machine_symbol = owner;
+        engine.source_owner = owner;
+        engine.proof_integer_formation = false;
+        engine.strict_symbol_bindings = Some(Vec::new());
+        engine
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn strict_with_symbol_bindings(
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,

@@ -117,7 +117,7 @@ use numerics::bignum::BigInt;
 use super::{FixedCore, FixedCoreVocabulary};
 use proof_admission::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
-    TermArena, TermHandle, check_signature, infer_sort,
+    TermArena, TermHandle, check_signature_with_attribution, infer_sort,
 };
 use source::SourceSpan;
 use symbols::SymbolHandle;
@@ -254,6 +254,7 @@ struct Elaborator<'a> {
     /// resolved once — sort classification consults it before any authored
     /// spelling.
     fixed_core: FixedCoreVocabulary,
+    address_bound: Option<u32>,
     /// Source span of the declaration under elaboration, for diagnostics.
     span: Option<SourceSpan>,
 }
@@ -297,6 +298,7 @@ pub(crate) fn check_mathematical_signature(
         generalized_levels: 0,
         scope: Vec::new(),
         fixed_core: FixedCoreVocabulary::resolve(&program.symbols),
+        address_bound: None,
         span: None,
     };
     for definition in program.mathematical_definitions() {
@@ -666,31 +668,51 @@ impl<'a> Elaborator<'a> {
         ))
     }
 
-    /// Re-decide the built signature: check each authored declaration's
-    /// The `Type 0` proposition one machine expression denotes, when it
-    /// prefix in authored order so a failure names its declaration, then
-    /// keep the last prefix's checked signature — it covers the whole
-    /// list, since carriers always land before the declaration whose
-    /// elaboration interned them.
+    /// Form the complete signature once. The kernel checks each declaration
+    /// against its preceding prefix and reports its position; application
+    /// judgments then borrow that same checked signature.
     fn check(mut self) -> Result<CheckedMathematicalSignature, Vec<diagnostics::Diagnostic>> {
-        let mut signature = Signature::new();
-        for (index, &position) in self.authored.iter().enumerate() {
+        let applications = self.source_applications()?;
+        let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+        let signature =
+            check_signature_with_attribution(&mut self.arena, &self.declarations, &mut budget)
+                .map_err(|failure| {
+                    let authored = self
+                        .authored
+                        .iter()
+                        .position(|position| *position as usize >= failure.declaration);
+                    if let Some(index) = authored {
+                        let definition = &self.program.mathematical_definitions()[index];
+                        self.span = self.program.symbols.symbol_source_span(definition.symbol);
+                        self.refuse(format!(
+                            "mathematical declaration `{}` fails kernel checking: {:?}",
+                            definition.name, failure.error
+                        ))
+                    } else {
+                        self.span = None;
+                        self.refuse(format!(
+                            "mathematical application signature fails checking: {:?}",
+                            failure.error
+                        ))
+                    }
+                })?;
+        for (expression, term, domains) in applications {
+            let context = domains.into_iter().fold(
+                Context::empty().with_signature(signature.clone()),
+                |context, domain| context.extend(domain),
+            );
             let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-            match check_signature(
-                &mut self.arena,
-                &self.declarations[..=position as usize],
-                &mut budget,
-            ) {
-                Ok(checked) => signature = checked,
-                Err(error) => {
-                    let definition = &self.program.mathematical_definitions()[index];
-                    self.span = self.program.symbols.symbol_source_span(definition.symbol);
-                    return Err(self.refuse(format!(
-                        "mathematical declaration `{}` fails kernel checking: {error:?}",
-                        definition.name
-                    )));
-                }
-            }
+            proof_admission::infer_type(&mut self.arena, &context, term, &mut budget).map_err(
+                |error| {
+                    self.refuse(format!(
+                        "mathematical application `{}` fails checking: {error:?}",
+                        self.program.render_proof_expression(
+                            expression,
+                            typed_trees::proposition::ProofSubstitutions::None
+                        )
+                    ))
+                },
+            )?;
         }
         Ok(CheckedMathematicalSignature {
             arena: self.arena,

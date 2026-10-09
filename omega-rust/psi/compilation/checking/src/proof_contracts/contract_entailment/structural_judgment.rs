@@ -264,6 +264,20 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
+        Self::from_declaration_requires(
+            program,
+            judged_machine.symbol,
+            requires,
+            resolve_applications,
+        )
+    }
+
+    pub(super) fn from_declaration_requires(
+        program: &'program dyn crate::CheckingInput,
+        owner: SymbolHandle,
+        requires: &[ExpressionHandle],
+        resolve_applications: bool,
+    ) -> Self {
         let licenses = crate::frozen_program::frozen_memo(
             program,
             |memos| &memos.license_candidates,
@@ -276,7 +290,7 @@ impl<'program> StructuralJudge<'program> {
                 |memos| &memos.entry_machines,
                 || EntryMachines::of(program),
             ),
-            machine_symbol: judged_machine.symbol,
+            machine_symbol: owner,
             normal_results: Vec::new(),
             capture_sequence: 0,
             normal_guarantees: Vec::new(),
@@ -288,8 +302,14 @@ impl<'program> StructuralJudge<'program> {
             case_facts: Vec::new(),
             case_substitutions: Vec::new(),
             hypotheses_contradictory: false,
-            ring_licenses: licenses.ring_licenses(program, judged_machine),
-            semiring_licenses: licenses.semiring_licenses(program, judged_machine),
+            ring_licenses: program
+                .machine(owner)
+                .map(|machine| licenses.ring_licenses(program, machine))
+                .unwrap_or_default(),
+            semiring_licenses: program
+                .machine(owner)
+                .map(|machine| licenses.semiring_licenses(program, machine))
+                .unwrap_or_default(),
         };
         for fact in requires {
             judge.intake(program, *fact);
@@ -312,6 +332,19 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn declaration_term(&self, expression: ExpressionHandle) -> Option<StructuralTerm> {
+        if let Some(definition) = self
+            .program
+            .mathematical_definitions()
+            .iter()
+            .find(|definition| definition.symbol == self.machine_symbol)
+        {
+            return super::structural_terms::structural_term_for_parameters(
+                self.program,
+                definition.symbol,
+                &crate::mathematical_applications::ordinary_parameters(self.program, definition),
+                expression,
+            );
+        }
         let machine = self.program.machine(self.machine_symbol)?;
         let state = self.program.machine_states(machine).first()?;
         super::structural_terms::structural_term_for_parameters(
@@ -322,7 +355,47 @@ impl<'program> StructuralJudge<'program> {
         )
     }
 
+    pub(super) fn declaration_expression_type(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        if let Some(definition) = self
+            .program
+            .mathematical_definitions()
+            .iter()
+            .find(|definition| definition.symbol == self.machine_symbol)
+        {
+            return crate::parameter_expression_result_type_reference(
+                self.program,
+                definition.symbol,
+                &crate::mathematical_applications::ordinary_parameters(self.program, definition),
+                expression,
+            );
+        }
+        let machine = self.program.machine(self.machine_symbol)?;
+        let state = self.program.machine_states(machine).first()?;
+        crate::parameter_expression_result_type_reference(
+            self.program,
+            machine.symbol,
+            self.program.state_parameters(state),
+            expression,
+        )
+    }
+
     fn has_identity_equality_meaning(&self, expression: ExpressionHandle) -> bool {
+        if let Some(definition) = self
+            .program
+            .mathematical_definitions()
+            .iter()
+            .find(|definition| definition.symbol == self.machine_symbol)
+        {
+            return super::structural_terms::has_identity_equality_meaning(
+                self.program,
+                definition.symbol,
+                &crate::mathematical_applications::ordinary_parameters(self.program, definition),
+                expression,
+            );
+        }
         let Some(machine) = self.program.machine(self.machine_symbol) else {
             return false;
         };

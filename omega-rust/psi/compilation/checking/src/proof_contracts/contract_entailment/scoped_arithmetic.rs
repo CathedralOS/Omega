@@ -161,14 +161,27 @@ pub fn scoped_arithmetic_implication(
     hypotheses: &[ScopedArithmeticHypothesis],
     goal: &ScopedArithmeticExpression,
 ) -> StrictArithmeticImplicationJudgment {
-    let mut calls = calls::ScopedCalls::new(program, context_machine);
+    scoped_arithmetic_implication_for_declaration(program, context_machine.symbol, hypotheses, goal)
+}
+
+pub(super) fn scoped_arithmetic_implication_for_declaration(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    hypotheses: &[ScopedArithmeticHypothesis],
+    goal: &ScopedArithmeticExpression,
+) -> StrictArithmeticImplicationJudgment {
+    let mut calls = calls::ScopedCalls::for_declaration(program, owner);
     let Some(goal) = calls.expression(goal) else {
         return StrictArithmeticImplicationJudgment::Unknown;
     };
     let Some(hypotheses) = calls.hypotheses(hypotheses) else {
         return StrictArithmeticImplicationJudgment::Unknown;
     };
-    let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, &[]);
+    let mut engine = if let Some(machine) = program.machine(owner) {
+        Engine::strict_with_symbol_bindings(program, machine, &[])
+    } else {
+        Engine::strict_for_declaration(program, owner)
+    };
     // Declare the goal's atoms first so their sign facts seed with the
     // hypotheses; the goal roster is installed again before judging.
     if !engine.install_scoped_expression(&goal) {

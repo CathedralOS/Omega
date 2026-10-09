@@ -9,8 +9,116 @@ use super::{
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::StaticMachineArgument;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 impl Elaborator<'_> {
+    /// Form applications demanded outside mathematical declaration bodies.
+    /// The same Pi spine, prefix application and capture-avoiding kernel
+    /// substitution judge these uses. Exact source carriers additionally keep
+    /// fixed integer widths and arithmetic policies distinct before embedding.
+    pub(super) fn source_applications(
+        &mut self,
+    ) -> Result<
+        Vec<(
+            ExpressionHandle,
+            proof_admission::TermHandle,
+            Vec<proof_admission::TermHandle>,
+        )>,
+        Vec<Diagnostic>,
+    > {
+        let owned = validation::mathematical_applications::expression_nodes(self.program);
+        let calls = self
+            .program
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(expression, node)| {
+                let ExpressionNode::Call(call) = node else {
+                    return None;
+                };
+                (self.authored_index.contains_key(&call.target_symbol)
+                    && !owned.contains(&expression))
+                .then_some((expression, call.clone()))
+            })
+            .collect::<Vec<_>>();
+        let mut applications = Vec::with_capacity(calls.len());
+        for (expression, call) in calls {
+            validation::mathematical_applications::validate_source_application(self.program, &call)
+                .map_err(|reason| {
+                    self.refuse(format!(
+                        "invalid mathematical application `{}`: {reason}",
+                        call.target
+                    ))
+                })?;
+            self.scope.clear();
+            self.level_binders.clear();
+            self.level_names.clear();
+            self.generalized_levels = 0;
+            let mut pending = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            let mut seen = Vec::new();
+            while let Some(operand) = pending.pop() {
+                if !self.program.expression_table.expression_is_valid(operand)
+                    || seen.contains(&operand)
+                {
+                    continue;
+                }
+                seen.push(operand);
+                let node = self.program.expression_table.expression(operand);
+                if let ExpressionNode::Name(path) = node
+                    && (path.symbol.is_valid()
+                        || validation::reserved_result_place(self.program, operand).is_some())
+                    && !self.authored_index.contains_key(&path.symbol)
+                    && self
+                        .program
+                        .symbols
+                        .builtin_type_member(path.symbol)
+                        .is_none()
+                    && !self.scope.iter().any(|entry| {
+                        if path.symbol.is_valid() {
+                            entry.symbol == Some(path.symbol)
+                        } else {
+                            self.program
+                                .expression_table
+                                .name_path_members(path.members)
+                                .last()
+                                .is_some_and(|name| entry.symbol.is_none() && entry.name == *name)
+                        }
+                    })
+                    && let Some(reference) =
+                        validation::mathematical_applications::operand_type_reference(
+                            self.program,
+                            operand,
+                        )
+                {
+                    let name = self
+                        .program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .last()
+                        .cloned()
+                        .unwrap_or_default();
+                    let symbol = path.symbol.is_valid().then_some(path.symbol);
+                    let domain = self.elaborate_type_reference(reference)?;
+                    self.push_scope(symbol, name, domain);
+                }
+                validation::expression_traversal::children(self.program, node, |child| {
+                    pending.push(child)
+                });
+            }
+            let term = self.elaborate_expression(expression)?;
+            applications.push((
+                expression,
+                term,
+                self.scope.iter().map(|entry| entry.domain).collect(),
+            ));
+        }
+        self.scope.clear();
+        Ok(applications)
+    }
+
     pub(super) fn elaborate_callee(
         &mut self,
         symbol: SymbolHandle,

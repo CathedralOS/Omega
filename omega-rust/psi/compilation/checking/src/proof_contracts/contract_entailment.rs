@@ -92,7 +92,7 @@ mod refuted_requires;
 mod result_bounds;
 mod scoped_arithmetic;
 mod self_induction;
-mod specification_calls;
+pub(crate) mod specification_calls;
 mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;

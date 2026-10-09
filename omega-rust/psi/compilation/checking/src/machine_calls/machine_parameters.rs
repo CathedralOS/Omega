@@ -10,7 +10,6 @@ mod callable_shape;
 mod closed_types;
 pub use closed_types::closed_static_call_type_bindings;
 pub(crate) mod contract_facts;
-mod mathematical_occurrences;
 mod nominal_admission;
 mod type_refinement;
 pub(super) use type_refinement::infer_call_type_arguments;
@@ -166,7 +165,7 @@ pub(crate) fn form_static_machine_selections(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> FormedStaticMachineSelections {
     let mut selections = FormedStaticMachineSelections::default();
-    let mathematical_expressions = mathematical_occurrences::expression_nodes(program);
+    let mathematical_expressions = crate::mathematical_applications::expression_nodes(program);
     // Every call site resolves its machine/state target through this index;
     // the program is frozen for the duration of the pass so one build covers
     // all lookups.

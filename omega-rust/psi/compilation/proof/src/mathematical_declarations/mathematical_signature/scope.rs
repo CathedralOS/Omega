@@ -15,6 +15,23 @@ impl<'a> Elaborator<'a> {
         symbol: SymbolHandle,
         name: &Identifier,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        if self.program.symbols.builtin_type_member(symbol)
+            == Some(symbols::BuiltinTypeMember::AddressBound)
+        {
+            // Symbolic Int owned by the exact address carrier, not a host-size
+            // literal or an authored assumption. Numeric closure belongs to
+            // the selected address model; signature formation needs its type.
+            let ty = self.integer_constant();
+            let position = match self.address_bound {
+                Some(position) => position,
+                None => {
+                    let position = self.push_assumption(ty);
+                    self.address_bound = Some(position);
+                    position
+                }
+            };
+            return Ok(self.constant(position));
+        }
         if let Some(term) = self.scope_term_for_symbol(symbol) {
             return Ok(term);
         }

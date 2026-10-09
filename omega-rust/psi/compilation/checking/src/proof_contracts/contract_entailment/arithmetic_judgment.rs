@@ -288,6 +288,7 @@ pub(super) struct Engine<'program> {
     /// `matrix[a][b]` = best known lower bound of `a - b`.
     matrix: BTreeMap<String, BTreeMap<String, BigInt>>,
     pub(super) requires_unsatisfiable: bool,
+    mathematical_applications: Vec<SymbolHandle>,
 }
 
 const ZERO_ATOM: &str = "\u{0}zero";
@@ -338,6 +339,7 @@ impl<'program> Engine<'program> {
             opaque_terms: Vec::new(),
             matrix: BTreeMap::new(),
             requires_unsatisfiable: false,
+            mathematical_applications: Vec::new(),
         }
     }
     /// Range queries mint endpoint terms before installing their hypotheses.
@@ -534,6 +536,7 @@ impl<'program> Engine<'program> {
             opaque_terms: Vec::new(),
             matrix: BTreeMap::new(),
             requires_unsatisfiable: false,
+            mathematical_applications: Vec::new(),
         }
     }
 
@@ -631,6 +634,14 @@ impl<'program> Engine<'program> {
     ) -> bool {
         let mut fully_visible = true;
         for fact in facts {
+            if self.is_mathematical_application(*fact) {
+                fully_visible &= self
+                    .with_mathematical_body(*fact, |engine, body| {
+                        engine.collect_comparisons(&[body], comparisons)
+                    })
+                    .unwrap_or(false);
+                continue;
+            }
             for conjunct in self.conjuncts(*fact) {
                 match self.comparison_polynomials(conjunct) {
                     Some(comparison) => comparisons.push(comparison),
@@ -756,6 +767,13 @@ impl<'program> Engine<'program> {
     /// Judge a full ensures fact: an `&&` chain proves when every conjunct
     /// proves, and is disproved when any conjunct is.
     pub(super) fn judge(&mut self, fact: ExpressionHandle) -> Judgment {
+        if self.is_mathematical_application(fact) {
+            return self
+                .with_mathematical_body(fact, |engine, body| engine.judge(body))
+                .unwrap_or(Judgment::Unknown {
+                    goal_in_language: false,
+                });
+        }
         let conjuncts = self.conjuncts(fact);
         if conjuncts.len() > 1 {
             // A disproved conjunct disproves the chain even if an earlier
@@ -892,6 +910,11 @@ impl<'program> Engine<'program> {
         &mut self,
         fact: ExpressionHandle,
     ) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
+        if self.is_mathematical_application(fact) {
+            return self.with_mathematical_body(fact, |engine, body| {
+                engine.comparison_polynomials(body)
+            })?;
+        }
         let node = self.program.expression_table.expression(fact).clone();
         let ExpressionNode::Binary(binary) = node else {
             return None;
@@ -1002,6 +1025,11 @@ impl<'program> Engine<'program> {
             ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),
             ExpressionNode::Borrow(inner) => self.normalize(inner.target),
             ExpressionNode::Name(path) => {
+                if self.program.symbols.builtin_type_member(path.symbol)
+                    == Some(symbols::BuiltinTypeMember::AddressBound)
+                {
+                    return Some(self.address_model_bound()?);
+                }
                 if let Some(bindings) = &self.strict_symbol_bindings {
                     let [member] = self
                         .program
@@ -1133,6 +1161,13 @@ impl<'program> Engine<'program> {
                 _ => None,
             },
             ExpressionNode::Call(call) => {
+                if crate::mathematical_applications::selected_definition(self.program, &call)
+                    .is_some()
+                {
+                    return self.with_mathematical_body(expression, |engine, body| {
+                        engine.normalize(body)
+                    })?;
+                }
                 if crate::proof_contracts::proof_embeddings::is_exact_embed_call(
                     self.program,
                     &call,
@@ -1205,6 +1240,85 @@ impl<'program> Engine<'program> {
                 .is_some_and(|source| source.primitive.is_fixed_integer())
     }
 
+    fn is_mathematical_application(&self, expression: ExpressionHandle) -> bool {
+        self.program
+            .expression_table
+            .call_node(expression)
+            .is_some_and(|call| {
+                crate::mathematical_applications::selected_definition(self.program, call).is_some()
+            })
+    }
+
+    /// Read a transparent checked body under simultaneous exact substitutions.
+    /// Actuals resolve in the caller roster before any formal is installed.
+    /// Fixed-carrier computations keep their selected denotation, not a replay
+    /// of the source arithmetic as unbounded mathematics.
+    fn with_mathematical_body<T>(
+        &mut self,
+        expression: ExpressionHandle,
+        read: impl FnOnce(&mut Self, ExpressionHandle) -> T,
+    ) -> Option<T> {
+        let call = self.program.expression_table.call_node(expression)?;
+        let definition = crate::mathematical_applications::selected_definition(self.program, call)?;
+        let typed_trees::mathematical::MathematicalBody::Definition(body) = definition.body else {
+            return None;
+        };
+        let parameters = self.program.mathematical_parameters(definition.parameters);
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        if parameters.len() != arguments.len()
+            || self.mathematical_applications.contains(&definition.symbol)
+            || self.mathematical_applications.len() >= 128
+        {
+            return None;
+        }
+        let bindings = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| {
+                let value = if crate::proof_contracts::proof_embeddings::integer_embedding(
+                    self.program,
+                    *argument,
+                )
+                .is_some()
+                {
+                    self.normalize_integer_embedding(*argument)?
+                } else {
+                    self.normalize(*argument)?
+                };
+                Some((parameter.symbol, value))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let owner = self.source_owner;
+        let symbols = self.strict_symbol_bindings.replace(bindings);
+        let result = self.strict_result_binding.take();
+        let occurrences = std::mem::take(&mut self.strict_occurrences);
+        self.source_owner = definition.symbol;
+        self.mathematical_applications.push(definition.symbol);
+        let value = read(self, body);
+        self.mathematical_applications.pop();
+        self.source_owner = owner;
+        self.strict_symbol_bindings = symbols;
+        self.strict_result_binding = result;
+        self.strict_occurrences = occurrences;
+        Some(value)
+    }
+
+    fn address_model_bound(&mut self) -> Option<Polynomial> {
+        let bound = self
+            .program
+            .symbols
+            .builtin_type_member_symbol(symbols::BuiltinTypeMember::AddressBound)?;
+        let model = self.program.symbols.get(bound).parent;
+        (self.program.symbols.builtin_type_atom(model) == Some(symbols::BuiltinTypeAtom::Address))
+            .then_some(())?;
+        let polynomial = Polynomial::atom(format!("\0address-model-bound:{model:?}:{bound:?}"));
+        self.bounds.push((polynomial.clone(), BigInt::from_i64(1)));
+        Some(polynomial)
+    }
+
     fn normalize_integer_embedding(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
         let embedding =
             crate::proof_contracts::proof_embeddings::integer_embedding(self.program, expression)?;
@@ -1241,8 +1355,16 @@ impl<'program> Engine<'program> {
             ))
         });
         self.bounds.push((polynomial.clone(), embedding.minimum));
-        self.bounds
-            .push((polynomial.neg(), embedding.maximum.negate()));
+        if let Some(maximum) = embedding.maximum {
+            self.bounds.push((polynomial.neg(), maximum.negate()));
+        } else {
+            // Exact address model: embed(address) < Bound. The strict one-past
+            // relation grants no fixed-width count conversion or address
+            // realization. The target-neutral checker keeps Bound symbolic.
+            let bound = self.address_model_bound()?;
+            self.bounds
+                .push((bound.sub(&polynomial), BigInt::from_i64(1)));
+        }
         self.seed_matrix();
         self.close_matrix();
         Some(polynomial)

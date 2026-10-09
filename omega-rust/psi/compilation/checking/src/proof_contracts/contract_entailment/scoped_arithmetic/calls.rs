@@ -34,9 +34,16 @@ pub(super) struct ScopedCalls<'program> {
 
 impl<'program> ScopedCalls<'program> {
     pub(super) fn new(program: &'program dyn crate::CheckingInput, context: &Machine) -> Self {
+        Self::for_declaration(program, context.symbol)
+    }
+
+    pub(super) fn for_declaration(
+        program: &'program dyn crate::CheckingInput,
+        context: SymbolHandle,
+    ) -> Self {
         Self {
             program,
-            context: context.symbol,
+            context,
             remaining: 4096,
             depth: 0,
             scopes: Vec::new(),

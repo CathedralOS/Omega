@@ -224,6 +224,13 @@ impl<'a> Elaborator<'a> {
     /// return type of a `machine` declaration, which carries no kernel
     /// declaration and lets its calls intern as opaque constants.
     pub(super) fn declaration_result_carrier(&self, symbol: SymbolHandle) -> Option<ScalarCarrier> {
+        if self.program.symbols.builtin_type_member(symbol)
+            == Some(symbols::BuiltinTypeMember::AddressBound)
+            || self.program.symbols.builtin_function_for_symbol(symbol)
+                == Some(symbols::BuiltinFunction::IntegerEmbed)
+        {
+            return Some(ScalarCarrier::Integer);
+        }
         if let Some(&position) = self.authored_positions.get(&symbol) {
             let mut ty = self.declarations[position as usize].ty;
             while let Term::Pi { codomain, .. } = self.arena.get(ty) {

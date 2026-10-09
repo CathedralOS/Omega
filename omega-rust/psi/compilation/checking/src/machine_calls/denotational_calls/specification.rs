@@ -41,6 +41,7 @@ pub(crate) fn validate_specification_calls(
             ),
         }
     }
+    pending.extend(crate::mathematical_applications::expression_nodes(program));
     for proposition in program.propositions() {
         if let PropositionBody::Transparent { proposition } = &proposition.body {
             match proposition {
@@ -67,6 +68,19 @@ pub(crate) fn validate_specification_calls(
         let ExpressionNode::Call(call) = node else {
             continue;
         };
+        if crate::mathematical_applications::selected_definition(program, call).is_some() {
+            // Checked mathematical signature formation owns the dependent
+            // application. It has no operational closure to classify.
+            if let Err(reason) =
+                crate::mathematical_applications::validate_source_application(program, call)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "invalid mathematical application `{}`: {reason}",
+                    call.target
+                )));
+            }
+            continue;
+        }
         let (machine, state) = match selected_call_contract(program, call) {
             Some(SelectedCallContract::Concrete(machine, state)) => (machine, state),
             Some(SelectedCallContract::Operator(operator)) => {

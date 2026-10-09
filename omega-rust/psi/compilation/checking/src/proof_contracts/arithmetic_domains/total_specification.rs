@@ -950,6 +950,30 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
 
     let mut seen = Vec::new();
 
+    for definition in program.mathematical_definitions() {
+        let parameters = crate::mathematical_applications::ordinary_parameters(program, definition);
+        for expression in crate::mathematical_applications::definition_roots(program, definition) {
+            crate::proof_contracts::contract_entailment::specification_calls::validate_mathematical_call_requirements(
+                program, definition, expression, diagnostics,
+            );
+            validate_facts(
+                program,
+                &[ProofFact::Expression(expression)],
+                &format!("mathematical definition `{}`", definition.name),
+                AbstractSpecificationBindings {
+                    owner_symbol: definition.symbol,
+                    parameters: &parameters,
+                    ..Default::default()
+                },
+                false,
+                &mut ValueEnvironment::new(),
+                &mut Vec::new(),
+                &mut seen,
+                diagnostics,
+            );
+        }
+    }
+
     for proposition in program.propositions() {
         use typed_trees::proposition::{PropositionBody, PropositionFormula};
         if let PropositionBody::Transparent {

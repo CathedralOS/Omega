@@ -224,7 +224,8 @@ pub use quotient::{
     QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily, quotient_scheme,
 };
 pub use signature::{
-    Declaration, Signature, assumption_closure, check_signature, judgment_assumption_closure,
+    Declaration, Signature, SignatureCheckError, assumption_closure, check_signature,
+    check_signature_with_attribution, judgment_assumption_closure,
 };
 pub use substitution::{instantiate_levels, shift, substitute};
 pub use term::{Level, Sort, Term, TermArena, TermHandle};

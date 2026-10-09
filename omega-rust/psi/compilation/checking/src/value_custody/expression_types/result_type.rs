@@ -167,6 +167,11 @@ fn result_type(
             )
         }
         ExpressionNode::Call(call) => (|| {
+            if let Some(reference) =
+                crate::mathematical_applications::result_type_reference(program, call)
+            {
+                return Some(reference);
+            }
             let selected_operator =
                 typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {
                     crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)
