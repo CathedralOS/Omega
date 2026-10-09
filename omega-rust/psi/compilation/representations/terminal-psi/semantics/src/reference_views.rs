@@ -49,13 +49,32 @@ pub fn reference_storage_view_is_compatible(stored: ScalarType, logical: ScalarT
     }
 }
 
-/// A logical scalar's byte footprint when every admitted backing interpretation
-/// has that footprint. A thin foreign pointer carries no codec, so a logical
-/// width alone cannot justify exporting an internal descriptor: wider integer
-/// observations can still name narrower storage. This query grants neither
-/// access nor lifetime authority and does not replace source/view admission.
-pub fn reference_storage_fixed_byte_width(logical: ScalarType) -> Option<u8> {
+/// The byte footprint a thin foreign pointer may expose for a borrowed scalar
+/// descriptor lent with `access`. A thin ABI carries no codec, so every
+/// admitted backing of the loan must have exactly this footprint.
+///
+/// A shared loan can observe narrower backing through representation
+/// implication: wider integer observations name narrower storage. Its
+/// footprint is therefore fixed only when the logical type admits no
+/// narrower interpretation.
+///
+/// A mutable loan received by a callee without a checked body cannot name
+/// narrower backing. Mutable views require representation equivalence, and the
+/// one narrower source, authored `IntegerAt` storage, admits only writes proved
+/// to fit. Such a callee may perform any write of its formal's type, so Psi's
+/// invocation admission rejects that loan before Terminal publication
+/// (`fail/layouts/encoded_scalar_boundary_loan_requires_fit`). Its footprint
+/// is the logical width. Write-only loans keep the shared rule until their
+/// boundary admission is settled. This query grants neither access nor
+/// lifetime authority and does not replace source/view admission.
+pub fn reference_storage_export_byte_width(
+    logical: ScalarType,
+    access: StructuralAccess,
+) -> Option<u8> {
     let width = reference_storage_byte_width(logical)?;
+    if access == StructuralAccess::MutableBorrow {
+        return Some(width);
+    }
     let same_width = |stored| {
         !reference_storage_view_is_compatible(stored, logical)
             || reference_storage_byte_width(stored) == Some(width)

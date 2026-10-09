@@ -102,7 +102,7 @@ pub use record_field::{
     observed_field_declaration, record_field_carrier, static_field_projection,
 };
 pub use reference_views::{
-    reference_source_compatible, reference_storage_byte_width, reference_storage_fixed_byte_width,
+    reference_source_compatible, reference_storage_byte_width, reference_storage_export_byte_width,
     reference_storage_source_compatible, reference_storage_view_is_compatible,
     scalar_reference_view_is_total, scalar_reference_view_value,
 };

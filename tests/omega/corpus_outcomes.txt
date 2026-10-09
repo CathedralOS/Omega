@@ -1404,6 +1404,8 @@ fail/layouts/encoded_foreign_view_requires_same_geometry rejected 199ms expected
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ForeignWide` are not representation-compatible
 fail/layouts/encoded_integer_requires_total_decode rejected 19ms expected @d56a61c738bf
 	plan-laid value type `UnsignedWord<PortableByte>`: field `value` cannot totally decode a 64-bit unsigned integer into `i64`
+fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 535ms expected @0fbb0c88da07+wt
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
 fail/layouts/encoded_view_opaque_write_requires_fit rejected 256ms expected @d1ebe54629b8
 	IntegerAt call in write_first requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
 fail/layouts/plan_laid_dynamic_plan rejected 79ms expected @2d8ed253669f

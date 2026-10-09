@@ -261,12 +261,13 @@ fn referent_pointer(
         None
     };
     if let Some(scalar) = thin_scalar
-        && terminal_semantics::reference_storage_fixed_byte_width(scalar).map(u32::from)
+        && terminal_semantics::reference_storage_export_byte_width(scalar, semantic.access)
+            .map(u32::from)
             != Some(target.shape.byte_size)
     {
         // A thin ABI carries no codec. Retain the refusal when the original
-        // backing can be narrower than the foreign formal; logical width is
-        // not permission to expose adjacent bytes.
+        // backing of this loan can be narrower than the foreign formal;
+        // logical width is not permission to expose adjacent bytes.
         return Err(SelectedInstructionError::custody());
     }
     let pointer_place = semantic.place;

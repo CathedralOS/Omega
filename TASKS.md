@@ -1934,7 +1934,13 @@ then independent claimed restoration slices -> final closure.
   validation. Floating-point output retains exact IEEE bits; Boolean output is
   its canonical byte, not text. Thin foreign pointers may unwrap an internal
   scalar descriptor only when the existing storage-view relation proves its
-  exact byte footprint; ambiguous-width scalar exports remain unavailable.
+  exact byte footprint; a mutable loan exports its logical width, while shared
+  and write-only ambiguous-width scalar exports remain unavailable. That
+  mutable rule relies on Psi rejecting narrowed (`IntegerAt`) storage before a
+  bodiless callee; Psi still accepts a narrower `&mut i8` or a refined field
+  passed to a wider `&mut` formal whose callee may write out of range, and
+  lowering refuses both today, so whoever completes that lowering must add the
+  invocation fit admission.
   Preserve `host/runtime_descriptor_immutable_primitive_loans_exit`: taking
   an address must keep one original owned home for direct imports, captured
   references, helper/state forwarding and later scalar/index reads. Copied
