@@ -85,6 +85,13 @@ pub struct StructuralParameterDeclaration {
 }
 
 impl StructuralParameterDeclaration {
+    /// The declaration arriving at `place`, when present in `declarations`.
+    pub fn find_by_place(declarations: &[Self], place: PlaceId) -> Option<&Self> {
+        declarations
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
+
     /// Whether the parameter is the callee slot a nominal cleanup binds to:
     /// position zero, the cleanup's structural type and receiver place, and a
     /// mutably writable borrow access.
