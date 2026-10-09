@@ -51,7 +51,7 @@ pub fn validate_optimized_resolved_selected_form_layout<S: ValidatedSelectedAnal
 /// Independently admit retained current data, without a producer-stage history.
 /// Content identity alone is insufficient: replay checks the selected program,
 /// machine, target decoding, offsets, fixups, and exact optimization records.
-pub fn admit_resolved_machine_layout<S: ValidatedSelectedAnalysis>(
+pub(crate) fn admit_resolved_machine_layout<S: ValidatedSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
