@@ -5816,8 +5816,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  457 parser cases, `tests/psi/resolver/test-resolver.sh` all 260 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 82 typing cases; run
+  457 parser cases, `tests/psi/resolver/test-resolver.sh` all 262 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 86 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -5877,7 +5877,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   machine's `requires` and `ensures` facts and a state's `requires` facts
   bind in their body's parameter scope, `result` naming the returned value
   unless a parameter spells it, and a data declaration's `where` facts bind
-  its fields bare; a case's own `where` facts bind no names yet. A fact's
+  its fields bare, a case's own `where` facts its payload fields first. A fact's
   callee names a machine or a proposition (both of one spelling are
   ambiguous), and a proposition applies only as a whole fact: inside a larger
   fact it rejects as unsupported, and in a body, transition target or constant
@@ -5907,29 +5907,34 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `satisfies` machine's signature to be its requirement's under the clause's
   trait arguments, selects an arithmetic or order operator over data
   among the machines binding its token at an operand's data, and drops a
-  non-Unit result only through the intentional discard `_ = call();`. Anonymous floats land once at `f32` or `f64` and formats never
+  non-Unit result only through the intentional discard `_ = call();`; an
+  assignment to a name holding an exclusive loan writes its referent. Anonymous floats land once at `f32` or `f64` and formats never
   mix; a generic machine call binds its parameters from explicit static
   arguments and by unifying parameter and argument types, and a generic
   construction infers its data's arguments from its fields; value-position
   matches, memberships, trait requirement calls, generic conformance members,
   target-scoped family calls, declared and case domain qualifiers and equality
   needing a declared conformance reject as unsupported. The typing gate types the
-  whole psi package, its 58 units, as one source set (60,888 expressions, 275
+  whole psi package, its 60 units, as one source set (65,381 expressions, 280
   interned types). Checking (`source/psi/checking/`) walks each body
   over one difference-bound zone of its integer places, joining each
-  state's arrivals to a fixed point, and proves every index, Exact
-  operation, divisor, shift count and `as` conversion (which keeps its value
-  whatever the target's policy); `requires` facts at each call and jump,
-  `ensures` facts at each normal return (assumed of a call's result), and
-  data `where` facts at each construction and after each field store; crash
-  routes settle over the call graph, a `satisfies` machine publishing only
-  causes its requirement declares. A case's own `where` facts, a proposition
-  application owed at a call, return or construction (assumed, one establishes
-  nothing), contract refinement beyond crash causes and termination promises
-  reject as unsupported. `tests/psi/checking/test-checking.sh` passes 64
-  checking cases and checks the whole psi package in 7 seconds, stopping
-  first at `ExactInteger::multiply`'s divisor, nonzero only by a failed
-  `== 0` guard: the zone holds no disequality yet. The parser harness reads all 42 product source files whole and 65
+  state's arrivals to a fixed point (a state carries the field paths its
+  reads, its successors and its callees' `requires` facts demand), and
+  proves every index, Exact operation, divisor, shift count and `as`
+  conversion (which keeps its value whatever the target's policy);
+  `requires` facts at each call and jump, `ensures` facts at each normal
+  return (assumed of a call's result), data `where` facts at each
+  construction and after each field store, and a case's own `where` facts at
+  each construction of that case (assumed in a chosen arm). A call forgets
+  below an exclusive argument only what its callee's derived write frame may
+  write; crash routes settle over the call graph, a `satisfies` machine
+  publishing only causes its requirement declares. A proposition application
+  owed at a call, return or construction (assumed, one establishes nothing),
+  a store into a field a case's own fact names, contract refinement beyond
+  crash causes and termination promises reject as unsupported; checking
+  reports each rejected machine's first rejection.
+  `tests/psi/checking/test-checking.sh` passes 88 checking cases and accepts
+  the whole psi package, 60 units, in 26 seconds. The parser harness reads all 42 product source files whole and 65
   of the 100 `source/library/std` and `core` files; the other 35 stop first at
   12 retired `boundary requirement` and 6 retired `boundary operator`
   declarations awaiting library migration, 9 retired range suffixes awaiting

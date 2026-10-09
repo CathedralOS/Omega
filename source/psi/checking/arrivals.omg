@@ -6,13 +6,13 @@ use psi::syntax::syntax;
 use psi::types::types;
 
 // Field paths an arrival carries. Besides a state's integer parameters, a
-// jump projects every integer place it knows below an argument that is a
+// jump projects the integer places it knows below an argument that is a
 // place (`table.count` for a parameter `table: &mut Table`), so a guard on a
 // field reaches the state the guard selects. A path is the parameter's
 // offset and up to four projections, each a field or a slice's `.len` with
-// the type of the place it reaches. A state keeps up to 16 paths, numbered
-// after its integer parameters in the order jumps first projected them;
-// its body enters them as places in that order, so its subjects match its
+// the type of the place it reaches. A state keeps the up to 40 paths its
+// demand derives (demand.omg), numbered after its integer parameters; its
+// body enters them as places in that order, so its subjects match its
 // arrival zone's. A path one jump did not project is unknown in that jump's
 // contribution.
 pub data ArrivalStep [copy] {
@@ -41,6 +41,43 @@ pub machine ArrivalPath::step(path: ArrivalPath, index: u64 in Trapping) -> Arri
 
     state chosen(step: ArrivalStep) -> ArrivalStep {
         step
+    }
+}
+
+// The first `count` steps of `path`, collected deepest first, in order from
+// the parameter, as a path of that depth.
+pub machine ArrivalPath::reversed(path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath
+crashes Trap
+{
+    let mut ordered: ArrivalPath = path;
+    ordered.depth = count;
+    transition { _ -> swap(ordered, 0, count) }
+
+    state swap(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
+        transition low * 2 + 1 < count {
+            true -> swapped(path, low, count)
+            _ -> finished(path)
+        }
+    }
+
+    state swapped(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
+        let high: u64 in Trapping = count - 1 - low;
+        transition low < 4 && high < 4 {
+            true -> exchanged(path, low, high, count)
+            _ -> finished(path)
+        }
+    }
+
+    state exchanged(path: ArrivalPath, low: u64 in Trapping, high: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
+        let lower: ArrivalStep = ArrivalPath::step(path, low);
+        let higher: ArrivalStep = ArrivalPath::step(path, high);
+        let moved: ArrivalPath = ArrivalPath::with_step(path, low, higher);
+        let result: ArrivalPath = ArrivalPath::with_step(moved, high, lower);
+        transition { _ -> swap(result, low + 1, count) }
+    }
+
+    state finished(path: ArrivalPath) -> ArrivalPath {
+        path
     }
 }
 
@@ -73,13 +110,13 @@ pub machine ArrivalPath::with_step(path: ArrivalPath, index: u64 in Trapping, st
 pub machine Checker::path_count(checker: &Checker, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition offset < 80 {
+    transition offset < 128 {
         true -> read(checker, offset)
         _ -> invalid()
     }
 
     state read(checker: &Checker, offset: u64 in Trapping) -> u64 in Trapping
-    requires offset < 80
+    requires offset < 128
     {
         checker.path_counts[offset] as u64 in Trapping
     }
@@ -92,13 +129,13 @@ crashes Trap
 pub machine Checker::set_path_count(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping)
 crashes Trap
 {
-    transition offset < 80 {
+    transition offset < 128 {
         true -> write(checker, offset, count)
         _ -> invalid()
     }
 
     state write(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         checker.path_counts[offset] = count as u64;
     }
@@ -111,20 +148,20 @@ crashes Trap
 pub machine Checker::arrival_path(checker: &Checker, offset: u64 in Trapping, index: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
-    transition offset < 80 && index < 16 {
-        true -> slot(checker, offset * 16 + index)
+    transition offset < 128 && index < 40 {
+        true -> slot(checker, offset * 40 + index)
         _ -> invalid()
     }
 
     state slot(checker: &Checker, slot: u64 in Trapping) -> ArrivalPath {
-        transition slot < 1280 {
+        transition slot < 5120 {
             true -> read(checker, slot)
             _ -> invalid()
         }
     }
 
     state read(checker: &Checker, slot: u64 in Trapping) -> ArrivalPath
-    requires slot < 1280
+    requires slot < 5120
     {
         checker.paths[slot]
     }
@@ -137,20 +174,20 @@ crashes Trap
 machine Checker::store_arrival_path(checker: &mut Checker, offset: u64 in Trapping, index: u64 in Trapping, path: ArrivalPath)
 crashes Trap
 {
-    transition offset < 80 && index < 16 {
-        true -> slot(checker, offset * 16 + index, path)
+    transition offset < 128 && index < 40 {
+        true -> slot(checker, offset * 40 + index, path)
         _ -> invalid()
     }
 
     state slot(checker: &mut Checker, slot: u64 in Trapping, path: ArrivalPath) {
-        transition slot < 1280 {
+        transition slot < 5120 {
             true -> write(checker, slot, path)
             _ -> invalid()
         }
     }
 
     state write(checker: &mut Checker, slot: u64 in Trapping, path: ArrivalPath)
-    requires slot < 1280
+    requires slot < 5120
     {
         checker.paths[slot] = path;
     }
@@ -196,36 +233,8 @@ crashes Trap
     }
 
     state reversed(path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
-        let mut ordered: ArrivalPath = path;
-        ordered.depth = count;
-        transition { _ -> swap(ordered, 0, count) }
-    }
-
-    state swap(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
-        transition low * 2 + 1 < count {
-            true -> swapped(path, low, count)
-            _ -> finished(path)
-        }
-    }
-
-    state swapped(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
-        let high: u64 in Trapping = count - 1 - low;
-        transition low < 4 && high < 4 {
-            true -> exchanged(path, low, high, count)
-            _ -> finished(path)
-        }
-    }
-
-    state exchanged(path: ArrivalPath, low: u64 in Trapping, high: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
-        let lower: ArrivalStep = ArrivalPath::step(path, low);
-        let higher: ArrivalStep = ArrivalPath::step(path, high);
-        let moved: ArrivalPath = ArrivalPath::with_step(path, low, higher);
-        let result: ArrivalPath = ArrivalPath::with_step(moved, high, lower);
-        transition { _ -> swap(result, low + 1, count) }
-    }
-
-    state finished(path: ArrivalPath) -> ArrivalPath {
-        path
+        let ordered: ArrivalPath = ArrivalPath::reversed(path, count);
+        ordered
     }
 
     state outside(path: ArrivalPath) -> ArrivalPath {
@@ -267,22 +276,22 @@ machine Checker::same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
     }
 }
 
-// The index of `path` among state `offset`'s paths, appended when new and
-// there is room; 16 when it has none.
-pub machine Checker::path_index(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
+// The index of `path` among state `offset`'s paths, the ones its demand
+// derived (demand.omg); 40 when it has none.
+pub machine Checker::path_index(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
 crashes Trap
 {
     let count: u64 in Trapping = Checker::path_count(checker, offset);
     transition { _ -> search(checker, offset, path, count, 0) }
 
-    state search(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
-        transition index < count && index < 16 {
+    state search(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+        transition index < count && index < 40 {
             true -> compare(checker, offset, path, count, index)
-            _ -> append(checker, offset, path, count)
+            _ -> found(40)
         }
     }
 
-    state compare(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    state compare(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         let existing: ArrivalPath = Checker::arrival_path(checker, offset, index);
         let same: bool = Checker::same_path(existing, path);
         transition same {
@@ -291,21 +300,31 @@ crashes Trap
         }
     }
 
-    state append(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> u64 in Trapping {
-        transition count < 16 {
-            true -> appended(checker, offset, path, count)
-            _ -> found(16)
-        }
-    }
-
-    state appended(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> u64 in Trapping {
-        Checker::store_arrival_path(checker, offset, count, path);
-        Checker::set_path_count(checker, offset, count + 1);
-        transition { _ -> found(count) }
-    }
-
     state found(index: u64 in Trapping) -> u64 in Trapping {
         index
+    }
+}
+
+// Add `path` to state `offset`'s paths when it is new and there is room.
+// Whether it was added.
+pub machine Checker::add_arrival_path(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool
+crashes Trap
+{
+    let index: u64 in Trapping = Checker::path_index(checker, offset, path);
+    let count: u64 in Trapping = Checker::path_count(checker, offset);
+    transition index == 40 && count < 40 && path.depth > 0 && path.depth <= 4 {
+        true -> appended(checker, offset, path, count)
+        _ -> unchanged()
+    }
+
+    state appended(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> bool {
+        Checker::store_arrival_path(checker, offset, count, path);
+        Checker::set_path_count(checker, offset, count + 1);
+        true
+    }
+
+    state unchanged() -> bool {
+        false
     }
 }
 
@@ -318,7 +337,7 @@ crashes Trap
     transition { _ -> next(checker, typing, offset, first_parameter, count, 0, true) }
 
     state next(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
-        transition index < count && index < 16 {
+        transition index < count && index < 40 {
             true -> path(checker, typing, offset, first_parameter, count, index, matched)
             _ -> finished(matched)
         }
@@ -422,7 +441,7 @@ crashes Trap
         first_subject: u64 in Trapping,
         slot: u64 in Trapping
     ) -> u64 in Trapping {
-        transition slot < 16 && first_subject + slot < 64 {
+        transition slot < 40 && first_subject + slot < 64 {
             true -> cleared(checker, syntax, typing, expression, item, offset, first_subject, slot)
             _ -> parameter(checker, syntax, typing, expression, item, offset, first_subject, 0)
         }
@@ -531,7 +550,7 @@ crashes Trap
     ) -> u64 in Trapping {
         let slot: u64 in Trapping = Checker::path_index(checker, offset, path);
         let value: Value = Checker::place_value(checker, candidate + 1);
-        transition slot < 16 && first_subject + slot < 64 {
+        transition slot < 40 && first_subject + slot < 64 {
             true -> stored(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate, first_subject + slot, value)
             _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate + 1)
         }

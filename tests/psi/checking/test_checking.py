@@ -491,6 +491,80 @@ def main() -> None:
         b"}",
     )
 
+    # A state's arrival carries the paths it, its successors and its
+    # callees' `requires` facts read, not the first 16 a wide value's jump
+    # happened to touch.
+    accepted(
+        program,
+        "guard-survives-a-wide-arrival",
+        b"data P { f0: u64; f1: u64; f2: u64; f3: u64; f4: u64; f5: u64; f6: u64; f7: u64; f8: u64; f9: u64; f10: u64; f11: u64; f12: u64; f13: u64; f14: u64; f15: u64; f16: u64; f17: u64; f18: u64; f19: u64; count: u64; items: [u8; 16] in Trapping; }\n"
+        b"machine use20(a0: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64, a8: u64, a9: u64, a10: u64, a11: u64, a12: u64, a13: u64, a14: u64, a15: u64, a16: u64, a17: u64, a18: u64, a19: u64) {}\n"
+        b"machine m(p: &mut P) {\n"
+        b"    use20(p.f0, p.f1, p.f2, p.f3, p.f4, p.f5, p.f6, p.f7, p.f8, p.f9, p.f10, p.f11, p.f12, p.f13, p.f14, p.f15, p.f16, p.f17, p.f18, p.f19);\n"
+        b"    transition { _ -> root(p) }\n"
+        b"\n"
+        b"    state root(p: &mut P) {\n"
+        b"        transition p.count < 16 {\n"
+        b"            true -> bounded(p)\n"
+        b"            _ -> {}\n"
+        b"        }\n"
+        b"    }\n"
+        b"\n"
+        b"    state bounded(p: &mut P) {\n"
+        b"        p.items[p.count] = 1;\n"
+        b"    }\n"
+        b"}",
+    )
+    accepted(
+        program,
+        "guard-survives-a-wide-state",
+        b"data P { f0: u64; f1: u64; f2: u64; f3: u64; f4: u64; f5: u64; f6: u64; f7: u64; f8: u64; f9: u64; f10: u64; f11: u64; f12: u64; f13: u64; f14: u64; f15: u64; f16: u64; f17: u64; f18: u64; f19: u64; count: u64; items: [u8; 16] in Trapping; }\n"
+        b"machine use20(a0: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64, a8: u64, a9: u64, a10: u64, a11: u64, a12: u64, a13: u64, a14: u64, a15: u64, a16: u64, a17: u64, a18: u64, a19: u64) {}\n"
+        b"machine m(p: &mut P) {\n"
+        b"    transition p.count < 16 {\n"
+        b"        true -> store(p)\n"
+        b"        _ -> {}\n"
+        b"    }\n"
+        b"\n"
+        b"    state store(p: &mut P) {\n"
+        b"        use20(p.f0, p.f1, p.f2, p.f3, p.f4, p.f5, p.f6, p.f7, p.f8, p.f9, p.f10, p.f11, p.f12, p.f13, p.f14, p.f15, p.f16, p.f17, p.f18, p.f19);\n"
+        b"        p.items[p.count] = 1;\n"
+        b"    }\n"
+        b"}",
+    )
+    accepted(
+        program,
+        "callee-requirement-demands-a-lent-field",
+        b"data T { count: u64; items: [u8; 16] in Trapping; }\n"
+        b"machine T::put(t: &mut T)\nrequires t.count < 16\n{ t.items[t.count] = 1; }\n"
+        b"machine m(t: &mut T) {\n"
+        b"    transition t.count < 16 {\n"
+        b"        true -> later(t)\n"
+        b"        _ -> {}\n"
+        b"    }\n"
+        b"\n"
+        b"    state later(t: &mut T) { transition { _ -> put(t) } }\n"
+        b"    state put(t: &mut T) { T::put(t); }\n"
+        b"}",
+    )
+    # An established value's `where` facts hold on every path, so a field
+    # first read in a `&&` right operand keeps them past the join.
+    accepted(
+        program,
+        "domain-fact-entered-in-a-right-operand",
+        b"data Table where args <= 16, { args: u64; }\n"
+        b"machine Table::rel(t: &mut Table, first: u64, count: u64) -> u64 {\n"
+        b"    transition count > 0 && first <= t.args {\n"
+        b"        true -> release(t, first)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state release(t: &mut Table, first: u64) -> u64\n"
+        b"    requires first <= 16\n"
+        b"    { (first) }\n"
+        b"}",
+    )
+
     # Write frames: a machine call forgets, below an exclusive argument, only
     # what its callee may write there: the fields it, its callees and its
     # states store, or the whole referent it may replace.

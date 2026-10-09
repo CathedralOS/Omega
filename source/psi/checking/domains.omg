@@ -120,7 +120,33 @@ crashes Trap
         checker.fields_parent = field.parent;
         let assumed: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
         checker.fields_parent = parent;
-        transition { _ -> next(checker, syntax, resolution, typing, index + 1) }
+        transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, 0) }
+    }
+
+    // The facts hold of the established value on every path: a zone saved
+    // before the field was entered (an open `&&`/`||` context or a
+    // transition's) takes them too, or a later join or restore would lose
+    // them. The places the facts name exist by now, so assuming them there
+    // enters none.
+    state saved(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, field: Place, item: DataItem, slot: u64 in Trapping) {
+        transition slot < checker.saved_count && slot < 8 {
+            true -> into_saved(checker, syntax, resolution, typing, index, field, item, slot)
+            _ -> next(checker, syntax, resolution, typing, index + 1)
+        }
+    }
+
+    state into_saved(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, field: Place, item: DataItem, slot: u64 in Trapping)
+    requires slot < 8
+    {
+        checker.stashed = checker.zone;
+        checker.zone = checker.saved[slot];
+        let parent: u64 in Trapping = checker.fields_parent;
+        checker.fields_parent = field.parent;
+        let assumed: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
+        checker.fields_parent = parent;
+        checker.saved[slot] = checker.zone;
+        checker.zone = checker.stashed;
+        transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, slot + 1) }
     }
 
     state done() {}
@@ -254,7 +280,7 @@ crashes Trap
 }
 
 // Whether a fact's tree names `field` (a data fact's bare field name).
-machine Checker::mentions_field(syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, wanted: u64 in Trapping) -> bool
+pub machine Checker::mentions_field(syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, wanted: u64 in Trapping) -> bool
 crashes Trap
 {
     let tree: Expression = SyntaxTrees::expression(syntax, root);

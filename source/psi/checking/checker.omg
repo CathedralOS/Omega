@@ -1,5 +1,6 @@
 use psi::checking::arrivals;
 use psi::checking::contracts;
+use psi::checking::demand;
 use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::flow;
@@ -71,23 +72,23 @@ pub data Checker {
     machine: u64 in Trapping;
     first_state: u64 in Trapping;
     state_count: u64 in Trapping;
-    arrivals: [Zone; 80];
-    reached: [bool; 80];
-    loosenings: [u64; 80];
+    arrivals: [Zone; 128];
+    reached: [bool; 128];
+    loosenings: [u64; 128];
     // The order in which states were first reached, and the body being
     // walked (zero for the entry, a state's offset plus one): a jump into a
     // state reached no later than its own is a back edge, and only a back
     // edge's target widens, since every cycle has one.
-    discovery: [u64; 80];
+    discovery: [u64; 128];
     discovered: u64;
     walking: u64;
-    queued: [bool; 80];
-    queue: [u64; 80];
+    queued: [bool; 128];
+    queue: [u64; 128];
     queue_count: u64;
     projection: [Value; 64];
-    // Each state's arrival field paths (arrivals.omg), 16 per state.
-    paths: [ArrivalPath; 1280];
-    path_counts: [u64; 80];
+    // Each state's arrival field paths (arrivals.omg), 40 per state.
+    paths: [ArrivalPath; 5120];
+    path_counts: [u64; 128];
     // While a target's `requires` facts are decided, its parameters from
     // `argument_first` stand for these argument values.
     arguments: [Value; 64];
@@ -113,6 +114,9 @@ pub data Checker {
     // operation borrows it and stored back after.
     previous: Zone;
     merged: Zone;
+    // The current zone while a saved one takes an established value's
+    // domain facts (domains.omg).
+    stashed: Zone;
     trap_route: bool;
     abort_route: bool;
     // Machine calls, caller and callee, for settling crash routes.
@@ -254,7 +258,7 @@ crashes Trap
     checker.queue_count = 0;
     checker.discovered = 0;
     checker.walking = 0;
-    transition item.state_count <= 80 {
+    transition item.state_count <= 128 {
         true -> arrivals(checker, syntax, resolution, typing, index, item, 0)
         _ -> too_many(checker, item)
     }
@@ -272,6 +276,7 @@ crashes Trap
     }
 
     state explore(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+        Checker::derive_demand(checker, syntax, resolution, typing, item);
         Checker::open_entry(checker, syntax, resolution, typing, item);
         Checker::walk_body(checker, syntax, resolution, typing, item.first_statement, item.statement_count, false);
         transition { _ -> drain(checker, syntax, resolution, typing, index, item) }
@@ -416,13 +421,13 @@ crashes Trap
 machine Checker::reset_arrival(checker: &mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
-    transition offset < 80 {
+    transition offset < 128 {
         true -> reset(checker, offset)
         _ -> invalid()
     }
 
     state reset(checker: &mut Checker, offset: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         checker.reached[offset] = false;
         checker.queued[offset] = false;
@@ -439,13 +444,13 @@ crashes Trap
 machine Checker::was_reached(checker: &Checker, offset: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition offset < 80 {
+    transition offset < 128 {
         true -> read(checker, offset)
         _ -> invalid()
     }
 
     state read(checker: &Checker, offset: u64 in Trapping) -> bool
-    requires offset < 80
+    requires offset < 128
     {
         checker.reached[offset]
     }
@@ -458,13 +463,13 @@ crashes Trap
 machine Checker::arrive(checker: &mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
-    transition offset < 80 {
+    transition offset < 128 {
         true -> copy(checker, offset)
         _ -> invalid()
     }
 
     state copy(checker: &mut Checker, offset: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         checker.zone = checker.arrivals[offset];
     }
@@ -483,25 +488,25 @@ crashes Trap
     }
 
     state pop(checker: &mut Checker, index: u64) -> u64 in Trapping {
-        transition index < 80 {
+        transition index < 128 {
             true -> read(checker, index)
             _ -> invalid()
         }
     }
 
     state read(checker: &mut Checker, index: u64) -> u64 in Trapping
-    requires index < 80
+    requires index < 128
     {
         let offset: u64 = checker.queue[index];
         checker.queue_count = index;
-        transition offset < 80 {
+        transition offset < 128 {
             true -> unqueued(checker, offset)
             _ -> invalid()
         }
     }
 
     state unqueued(checker: &mut Checker, offset: u64) -> u64 in Trapping
-    requires offset < 80
+    requires offset < 128
     {
         checker.queued[offset] = false;
         offset as u64 in Trapping
@@ -515,13 +520,13 @@ crashes Trap
 machine Checker::enqueue(checker: &mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
-    transition offset < 80 {
+    transition offset < 128 {
         true -> candidate(checker, offset)
         _ -> invalid()
     }
 
     state candidate(checker: &mut Checker, offset: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         let queued: bool = checker.queued[offset];
         transition queued {
@@ -531,16 +536,16 @@ crashes Trap
     }
 
     state push(checker: &mut Checker, offset: u64 in Trapping, index: u64)
-    requires offset < 80
+    requires offset < 128
     {
-        transition index < 80 {
+        transition index < 128 {
             true -> write(checker, offset, index)
             _ -> invalid()
         }
     }
 
     state write(checker: &mut Checker, offset: u64 in Trapping, index: u64)
-    requires offset < 80, index < 80
+    requires offset < 128, index < 128
     {
         checker.queue[index] = offset as u64;
         checker.queue_count = index + 1;
@@ -698,13 +703,13 @@ crashes Trap
 machine Checker::join_arrival(checker: &mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
-    transition offset < 80 {
+    transition offset < 128 {
         true -> arrival(checker, offset)
         _ -> invalid()
     }
 
     state arrival(checker: &mut Checker, offset: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         let reached: bool = checker.reached[offset];
         transition reached {
@@ -714,7 +719,7 @@ crashes Trap
     }
 
     state first(checker: &mut Checker, offset: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         let order: u64 in Trapping = checker.discovered as u64 in Trapping;
         let next: u64 in Trapping = order + 1;
@@ -726,7 +731,7 @@ crashes Trap
     }
 
     state loosen(checker: &mut Checker, offset: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         checker.previous = checker.arrivals[offset];
         checker.merged = checker.arrivals[offset];
@@ -738,7 +743,7 @@ crashes Trap
     }
 
     state loosened(checker: &mut Checker, offset: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         let count: u64 in Trapping = checker.loosenings[offset] as u64 in Trapping;
         let next: u64 in Trapping = count + 1;
@@ -751,14 +756,14 @@ crashes Trap
     }
 
     state widen(checker: &mut Checker, offset: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         Zone::widen(&mut checker.merged, &checker.previous);
         transition { _ -> store(checker, offset) }
     }
 
     state store(checker: &mut Checker, offset: u64 in Trapping)
-    requires offset < 80
+    requires offset < 128
     {
         checker.arrivals[offset] = checker.merged;
         Checker::enqueue(checker, offset);
@@ -1066,13 +1071,13 @@ machine Checker::back_edge(checker: &Checker, offset: u64 in Trapping) -> bool
 crashes Trap
 {
     let walking: u64 in Trapping = checker.walking as u64 in Trapping;
-    transition walking > 0 && walking <= 80 && offset < 80 {
+    transition walking > 0 && walking <= 128 && offset < 128 {
         true -> compared(checker, offset, walking - 1)
         _ -> forward()
     }
 
     state compared(checker: &Checker, offset: u64 in Trapping, source: u64 in Trapping)
-    requires offset < 80, source < 80
+    requires offset < 128, source < 128
     {
         let target_order: u64 = checker.discovery[offset];
         let source_order: u64 = checker.discovery[source];
