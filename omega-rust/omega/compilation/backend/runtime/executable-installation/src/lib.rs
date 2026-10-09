@@ -21,6 +21,7 @@ mod artifacts;
 mod authority_digests;
 mod entry_references;
 mod executable_installation;
+mod fnv1a;
 mod installation;
 mod owned_image_provider;
 mod placement;
@@ -31,11 +32,10 @@ mod test_support;
 #[cfg(test)]
 mod tests;
 
-pub use artifacts::{ Artifact,
-};
+pub use artifacts::Artifact;
 pub use authority_digests::{
-    AdmissionReceiptId, ArtifactContentDigest, ArtifactId,
-    CodePlacementId, DeclaredFootprintDigest, DestinationPreparationReceiptId, EntryContractDigest,
+    AdmissionReceiptId, ArtifactContentDigest, ArtifactId, CodePlacementId,
+    DeclaredFootprintDigest, DestinationPreparationReceiptId, EntryContractDigest,
     EntryReferenceFactDigest, EntrySetId, FinalBytesDigest, FinalValidationId,
     ImportedContractSetDigest, InstallationFactDigest, InstallationScopeDigest,
     InstallationScopeId, InstalledCodeId, MachineContractSetId, MachineFootprintId,
@@ -44,16 +44,14 @@ pub use authority_digests::{
     PlacementPlanId, RelocationSetId, ReplacementFactDigest, RetirementFactDigest,
 };
 #[cfg(test)]
-pub(crate) use executable_installation::{ admit_executable, install_validated,
-    materialize_and_freeze, retire_installed};
-pub use installation::{ InstallationError, InstalledCode, InstalledCodeContext,
+pub(crate) use executable_installation::{
+    admit_executable, install_validated, materialize_and_freeze, retire_installed,
 };
 #[cfg(test)]
-pub(crate) use installation::{
-    InstallationRegistryAuthority};
+pub(crate) use installation::InstallationRegistryAuthority;
+pub use installation::{InstallationError, InstalledCode, InstalledCodeContext};
 pub use post_handoff_writer::{
     ResolvedPostHandoffEntryWriterContext, ValidatedPreparedPostHandoffWriterDestination,
 };
 #[cfg(test)]
-pub(crate) use retirement::quarantine::{
-    QuarantinedInstallation};
+pub(crate) use retirement::quarantine::QuarantinedInstallation;

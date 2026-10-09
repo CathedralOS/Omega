@@ -617,7 +617,6 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterConsumerValidationError<'mapping,
     pub(crate) fn into_written(self) -> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         self.written
     }
-
 }
 
 impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
@@ -642,7 +641,6 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
         self.context.binds_invocation(invocation)
     }
-
 
     /// Independently replay the exact non-clonable writer context, destination
     /// preparation, and complete producer-captured byte image before an owning
@@ -694,7 +692,6 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     /// destination when a later consumer rejects validation. No byte or
     /// authority is reconstructed by this transition.
 
-
     fn into_parts(
         self,
     ) -> (
@@ -708,13 +705,6 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
 }
 
 impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'bytes> {
-
-
-
-
-
-
-
     pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
         &self.written.context
     }
@@ -722,8 +712,6 @@ impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'b
     pub fn bytes(&self) -> &[u8] {
         self.written.bytes
     }
-
-
 
     pub fn into_parts(
         self,
@@ -819,7 +807,6 @@ impl ResolvedPostHandoffEntryWriterContext {
     pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
         self.invocation == *invocation
     }
-
 }
 
 fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
@@ -830,11 +817,8 @@ fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
     invocation: &PostHandoffWriterInvocationPlan,
     packed_words: &[u64],
 ) -> NonAuthoritativeWriterContextFingerprint64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    let mut mix = |value: u64| {
-        hash ^= value;
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    };
+    let mut hash = crate::fnv1a::Fnv1a::new();
+    let mut mix = |value: u64| hash.u64_mix(value);
     mix(installed_code.normalized_identity());
     mix(artifact.normalized_identity());
     mix(destination_site.base_address);
@@ -882,8 +866,9 @@ fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
     for word in packed_words {
         mix(*word);
     }
+    let hash = hash.finish();
     NonAuthoritativeWriterContextFingerprint64::from_compatibility_value(if hash == 0 {
-        0xcbf2_9ce4_8422_2325
+        crate::fnv1a::OFFSET_BASIS
     } else {
         hash
     })
