@@ -229,8 +229,11 @@ Backend callback planning no longer depends on checked-tree records.
 Psi identifies callback uses from their declared calling policy and retains
 the exact checked entry resource receipt. Native ABI plan hashes are not
 callback checking facts; Omega binds the checked entry to its evaluated calling
-application without rewriting the nominal-use facts. The typed provider-schema
-table still retains target calling identities and must move to realization.
+application without rewriting the nominal-use facts. Evaluated calling applications
+belong to provider settlement, not typed trees. Schema derivation receives those
+applications explicitly; package review joins the exact schema commitment to
+the retained realization. Callback materialization borrows the checked program
+and updates only its native application, without reopening the source owner.
 
 Calling-policy evaluation retains its validated ABI application as backend-owned
 output. Native entry and registrar settlement consume that application, not the

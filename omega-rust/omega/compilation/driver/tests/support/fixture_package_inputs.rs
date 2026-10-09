@@ -641,7 +641,12 @@ fn derive_program_entry_binding(
     })?;
     checked
         .execution()
-        .candidate_service_binding(role, standard_library, schema)
+        .candidate_service_binding(
+            &checked.providers().boundary_calling_plan_realizations,
+            role,
+            standard_library,
+            schema,
+        )
         .map(Some)
         .map_err(|diagnostic| vec![diagnostic])
 }
@@ -844,6 +849,7 @@ fn dangerous_service_bindings(
             preliminary
                 .execution()
                 .candidate_service_binding(
+                    &preliminary.providers().boundary_calling_plan_realizations,
                     AcceptedSemanticBindingRole::FilesystemHostService,
                     owner,
                     "FilesystemHost",
@@ -856,6 +862,7 @@ fn dangerous_service_bindings(
             preliminary
                 .execution()
                 .candidate_service_binding(
+                    &preliminary.providers().boundary_calling_plan_realizations,
                     AcceptedSemanticBindingRole::TimeHostService,
                     owner,
                     "TimeHost",

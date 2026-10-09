@@ -28,20 +28,6 @@ macro_rules! digest_commitment {
     };
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundaryCallingPlanIdentity {
-    pub boundary_trait: symbols::SymbolHandle,
-    /// Concrete boundary trait argument tuple. These handles are internal
-    /// lookup identity only and never enter the published contract hash.
-    /// Empty for a non-generic boundary declaration.
-    pub boundary_arguments: Vec<crate::types::TypeReferenceHandle>,
-    pub requirement_machine: symbols::SymbolHandle,
-    /// Compact compatibility/report coordinate. Exact plan authority uses the
-    /// adjacent strong commitment.
-    pub report_fingerprint: u64,
-    pub commitment: BoundaryCallingPlanCommitment,
-}
-
 /// Compiler-owned authority that licenses one routed `Binding<R>` carrier to
 /// enter the existing provider-attachment specialization path. Erasure is a
 /// requirement-level decision; which provider plan realizes the requirement

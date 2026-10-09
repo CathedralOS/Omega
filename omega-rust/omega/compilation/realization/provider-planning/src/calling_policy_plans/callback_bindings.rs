@@ -671,16 +671,16 @@ fn bound_private_callback_materialization(
 
 /// Re-evaluate outbound registrar policies only after the checked native
 /// layout pipeline has published its authoritative private-demand catalog.
-/// The target-neutral typed reports are deliberately not consulted here.
+/// Only realization-owned applications change; the checked source stays borrowed.
 pub fn close_outbound_callback_materializations(
-    checked: checked_trees::CheckedTrees,
+    checked: &checked_trees::CheckedTrees,
     realizations: &mut [BoundaryCallingPlanRealization],
     native_target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     let layout_plan =
-        layout::build_layout_plan(&checked, native_target, opaque_representation_selections)
+        layout::build_layout_plan(checked, native_target, opaque_representation_selections)
             .map_err(|diagnostic| vec![diagnostic])?;
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
         &checked.typed,
@@ -690,7 +690,6 @@ pub fn close_outbound_callback_materializations(
         }),
     );
 
-    let mut closed_plan_identities = Vec::new();
     for realization in realizations {
         let mut signature = realization.materialized_signature.clone();
         let direct_demands = close_direct_callback_parameters(&mut signature, native_target)
@@ -864,26 +863,8 @@ pub fn close_outbound_callback_materializations(
         realization.native_parameters = signature.native_parameters.clone();
         realization.callback_context_closed = true;
         realization.materialized_signature = signature;
-
-        closed_plan_identities.push(typed_trees::typed_trees::BoundaryCallingPlanIdentity {
-            boundary_trait: realization.boundary_trait,
-            boundary_arguments: realization.boundary_arguments.clone(),
-            requirement_machine: realization.requirement_machine,
-            report_fingerprint: new_fingerprint,
-            commitment: realization.commitment,
-        });
     }
-    // Target settlement still carries refined plan keys alongside this source
-    // product until PROVIDER-SELECTION-AFTER-TERMINAL moves that boundary.
-    // Consume and construct its new result; never reopen a frozen typed owner.
-    let mut typed = checked.typed.into_inner();
-    for identity in closed_plan_identities {
-        typed.record_boundary_calling_plan(identity);
-    }
-    Ok(checked_trees::CheckedTrees::with_roots(
-        typed,
-        checked.facts,
-    ))
+    Ok(())
 }
 
 fn close_direct_callback_parameters(

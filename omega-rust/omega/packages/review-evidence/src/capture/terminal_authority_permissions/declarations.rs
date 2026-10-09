@@ -51,6 +51,10 @@ pub(super) fn resolve_services<'a>(
                 compilation.checking_input,
                 source::DependencyScope::Product,
             ),
+            &compilation
+                .custody
+                .providers()
+                .boundary_calling_plan_realizations,
             definition,
         )
         .ok_or_else(|| rejected("accepted declaration is not a boundary service schema"))?;

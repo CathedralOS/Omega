@@ -4,24 +4,29 @@
 
 use crate::calling_policy_plans::boundary_signatures::{
     call_signature_from_top_level_requirement, call_signature_from_typed,
-    collect_boundary_signatures, compatibility_call_signature, exact_compatibility_overload_index};
+    collect_boundary_signatures, compatibility_call_signature, exact_compatibility_overload_index,
+};
 use crate::calling_policy_plans::build_time_decoding::{
     CALLBACK_FIELD_PATH_CAPACITY, CALLBACK_MATERIALIZATION_CAPACITY, PARAMETER_CAPACITY,
-    VALUE_FIELD_CAPACITY, VALUE_SHAPE_CAPACITY, case, decode_boundary_plan_result};
+    VALUE_FIELD_CAPACITY, VALUE_SHAPE_CAPACITY, case, decode_boundary_plan_result,
+};
 use crate::calling_policy_plans::callback_bindings::{
-    callback_materialization_context, validate_retained_callback_binders};
+    callback_materialization_context, validate_retained_callback_binders,
+};
 use crate::calling_policy_plans::policy_implementations::{
-    boundary_policy_instances, selected_policy_machine};
+    boundary_policy_instances, selected_policy_machine,
+};
 use crate::calling_policy_plans::{
-    BoundaryCallingPlanRealization, BoundaryNativeParameterOrigin,
-    BoundaryNativeParameterShape, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
-    MaterializedBoundarySignature};
+    BoundaryCallingPlanRealization, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
+    BoundaryValueClass, BoundaryValueField, BoundaryValueShape, MaterializedBoundarySignature,
+};
 use build_time_evaluation::BuildTimeValue;
 use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{
     BoundaryEntryPlan, BoundaryPlanResult, CallSignature, CallingPolicy, NativePlace,
     ValidatedBoundaryEntryPlan, ValueShape, evaluate_ordinary_boundary_entry_plan,
-    validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result};
+    validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
+};
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 use sha2::Digest;
@@ -139,9 +144,9 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
 
 /// Discover concrete `Calling<Policy>` relationships, evaluate the selected implementation row once for
 /// every method in the boundary service surface, and retain only canonical
-/// evaluated identities on the typed program.
+/// evaluated applications in the realization output. Source trees are borrowed.
 pub fn compute_boundary_calling_plans(
-    typed: &mut TypedTrees,
+    typed: &TypedTrees,
     native_target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
@@ -325,13 +330,6 @@ pub fn compute_boundary_calling_plans(
     for realization in &evaluated {
         validate_retained_callback_binders(realization)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        typed.record_boundary_calling_plan(typed_trees::typed_trees::BoundaryCallingPlanIdentity {
-            boundary_trait: realization.boundary_trait,
-            boundary_arguments: realization.boundary_arguments.clone(),
-            requirement_machine: realization.requirement_machine,
-            report_fingerprint: realization.report_fingerprint,
-            commitment: realization.commitment,
-        });
     }
     Ok(evaluated)
 }

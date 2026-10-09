@@ -77,6 +77,7 @@ pub struct DerivedProviderPlan {
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
     context: ProviderPlanningContext<'a>,
+    calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&'a str>,
     evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &'a [SelectedTargetMachineOrigin],
@@ -87,10 +88,12 @@ impl<'a> ProviderPlanDerivation<'a> {
     /// evaluated.
     pub const fn unevaluated(
         context: ProviderPlanningContext<'a>,
+        calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
     ) -> Self {
         Self {
             context,
+            calling_plans,
             selected_target,
             evaluated_bindings: None,
             target_machine_origins: &[],
@@ -102,12 +105,14 @@ impl<'a> ProviderPlanDerivation<'a> {
     /// the program it was just evaluated from.
     pub fn evaluated(
         context: ProviderPlanningContext<'a>,
+        calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
         evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target_machine_origins: &'a [SelectedTargetMachineOrigin],
     ) -> Self {
         Self {
             context,
+            calling_plans,
             selected_target,
             evaluated_bindings: Some(evaluated_bindings),
             target_machine_origins,
@@ -120,6 +125,7 @@ impl<'a> ProviderPlanDerivation<'a> {
 pub fn derive_satisfies_plans(derivation: ProviderPlanDerivation<'_>) -> Vec<DerivedProviderPlan> {
     derive_provider_plans(
         derivation.context,
+        derivation.calling_plans,
         derivation.selected_target,
         derivation.evaluated_bindings,
         derivation.target_machine_origins,

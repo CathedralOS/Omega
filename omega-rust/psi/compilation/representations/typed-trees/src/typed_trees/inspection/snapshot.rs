@@ -71,8 +71,6 @@ pub struct TypedTreesSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub machine_specializations: Vec<MachineSpecializationSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub boundary_calling_plans: Vec<BoundaryCallingPlanSnapshot>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fused_service_erasures: Vec<FusedServiceErasureSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ranking_expression_custody: Vec<RankingExpressionCustodySnapshot>,
@@ -300,17 +298,6 @@ pub struct MachineSpecializationSnapshot {
     pub accepted_template_commitment: Option<String>,
 }
 
-/// The canonical calling-policy identity selected for one boundary trait's
-/// concrete requirement machine.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct BoundaryCallingPlanSnapshot {
-    pub boundary_trait: u32,
-    pub boundary_arguments: Vec<TypeReferenceSnapshot>,
-    pub requirement_machine: u32,
-    pub report_fingerprint: u64,
-    pub commitment: String,
-}
-
 /// A compiler-owned authorization to erase one exact routed service carrier.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FusedServiceErasureSnapshot {
@@ -455,7 +442,6 @@ impl TypedTreesSnapshot {
                 wire_encode_obligation_count: program.wire_encode_obligations.len(),
                 wire_schema_plan_count: program.wire_schema_plans.len(),
                 machine_specialization_count: program.machine_specializations.len(),
-                boundary_calling_plan_count: program.boundary_calling_plans.len(),
                 fused_service_erasure_count: program.fused_service_erasures.len(),
                 open_index_normalization_count: program.expression_table.open_index_normalization_count(),
                 evidence_forwarding_count: program.evidence_forwardings.len(),
@@ -622,21 +608,6 @@ impl TypedTreesSnapshot {
                         .clone(),
                 })
                 .collect(),
-            boundary_calling_plans: program
-                .boundary_calling_plans
-                .iter()
-                .map(|plan| BoundaryCallingPlanSnapshot {
-                    boundary_trait: plan.boundary_trait.arena_index(),
-                    boundary_arguments: plan
-                        .boundary_arguments
-                        .iter()
-                        .map(|argument| type_reference_snapshot(program, *argument))
-                        .collect(),
-                    requirement_machine: plan.requirement_machine.arena_index(),
-                    report_fingerprint: plan.report_fingerprint,
-                    commitment: hex_digest(&plan.commitment.as_bytes()),
-                })
-                .collect(),
             fused_service_erasures: program
                 .fused_service_erasures
                 .iter()
@@ -770,7 +741,6 @@ pub struct TypedTableSnapshot {
     pub wire_encode_obligation_count: usize,
     pub wire_schema_plan_count: usize,
     pub machine_specialization_count: usize,
-    pub boundary_calling_plan_count: usize,
     pub fused_service_erasure_count: usize,
     pub open_index_normalization_count: usize,
     pub evidence_forwarding_count: usize,

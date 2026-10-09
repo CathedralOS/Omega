@@ -71,6 +71,7 @@ pub(crate) fn prepare_checked_build(
     let candidates = provider_planning::derive_satisfies_plans(
         provider_planning::ProviderPlanDerivation::evaluated(
             context,
+            &[],
             execution_profile.map(target::TargetProfile::target_name),
             &bindings,
             &declarations.origins,

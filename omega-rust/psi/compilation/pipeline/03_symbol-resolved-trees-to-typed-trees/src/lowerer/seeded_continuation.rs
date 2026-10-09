@@ -475,9 +475,7 @@ fn lower_body_completion(
             .machine_position_by_symbol(symbol)
             .ok_or_else(violation)?;
         let mut declaration = lowerer.typed_trees.machines()[ordinal].clone();
-        let implementation = source
-            .machine(symbol)
-            .ok_or_else(violation)?;
+        let implementation = source.machine(symbol).ok_or_else(violation)?;
         crate::declarations::machine::complete_machine_body(
             &mut lowerer,
             implementation,
@@ -638,9 +636,7 @@ fn completed_typed_base_is_retained(
     }
     let mut comparison = candidate.clone();
     for &symbol in selected {
-        let Some(ordinal) = base
-            .machine_position_by_symbol(symbol)
-        else {
+        let Some(ordinal) = base.machine_position_by_symbol(symbol) else {
             return false;
         };
         let old = &base.machines()[ordinal];
@@ -908,9 +904,6 @@ pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedT
         && candidate
             .target_machine_families
             .starts_with(&base.target_machine_families)
-        && candidate
-            .boundary_calling_plans
-            .starts_with(&base.boundary_calling_plans)
         && candidate
             .evidence_forwardings
             .starts_with(&base.evidence_forwardings)

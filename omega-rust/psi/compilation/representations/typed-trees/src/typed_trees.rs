@@ -51,7 +51,7 @@ pub mod values;
 mod wire_schema_queries;
 
 pub use commitments::{
-    BoundaryCallingPlanCommitment, BoundaryCallingPlanIdentity, ClosedConformanceApplication,
+    BoundaryCallingPlanCommitment, ClosedConformanceApplication,
     ClosedConformanceApplicationCommitment, ClosedConformanceConstArgument,
     ClosedConformanceRowIdentity, FusedServiceErasureAuthorization, MachineSpecialization,
     MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
@@ -177,11 +177,6 @@ pub struct TypedTrees {
     /// Seeded typing preserves the base prefix and appends new families in
     /// name order within the extension cohort.
     pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,
-    /// Canonical calling-policy identities evaluated for concrete boundary
-    /// requirements. The key is semantic (boundary trait + requirement
-    /// machine), while the policy type/source body is deliberately absent:
-    /// only the validated plan fingerprint is public contract material.
-    pub boundary_calling_plans: Vec<BoundaryCallingPlanIdentity>,
     /// Exact source semantic-role inputs supplied by package admission or an
     /// explicitly proposed review role. These describe callable completion;
     /// they grant no selected provider or execution authority.
@@ -461,7 +456,6 @@ impl TypedTrees {
             machine_specializations: Vec::new(),
             dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
-            boundary_calling_plans: Vec::new(),
             boundary_completion_declarations: Arena::default(),
             fused_service_erasures: Vec::new(),
             evidence_forwardings: Vec::new(),

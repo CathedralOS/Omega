@@ -138,6 +138,7 @@ pub(crate) type MintedFilesystemHostPlan = super::ToolchainSettledMint;
 /// candidate plans and pre-selection provenance replay.
 pub(crate) fn mint_canonical_filesystem_host_plan(
     typed: &TypedTrees,
+    calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     accepted_binding: Option<&AcceptedSemanticBinding>,
     target_name: Option<&'static str>,
     already_selected: &[ProviderPlan],
@@ -146,6 +147,7 @@ pub(crate) fn mint_canonical_filesystem_host_plan(
         target_name.map_or(&[], toolchain_filesystem_leaves);
     super::mint_toolchain_settled_plan(
         typed,
+        calling_plans,
         accepted_binding,
         target_name,
         already_selected,

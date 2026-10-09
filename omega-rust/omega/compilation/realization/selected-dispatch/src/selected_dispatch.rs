@@ -18,14 +18,13 @@ mod float_comparisons;
 mod float_intrinsic;
 mod operator_adapter;
 
-pub use float_intrinsic::{
-    SelectedCompilerIntrinsicExecutionIdentity,
-};
+pub use float_intrinsic::SelectedCompilerIntrinsicExecutionIdentity;
 pub(crate) use float_intrinsic::{
     derive_selected_compiler_intrinsic_execution_identity,
-    derive_selected_primitive_float_binary_execution};
-pub use operator_adapter::{ CheckedOperatorAuthoredUseKind,
-    derive_checked_nongeneric_operator_application_realizations,
+    derive_selected_primitive_float_binary_execution,
+};
+pub use operator_adapter::{
+    CheckedOperatorAuthoredUseKind, derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
 };
 
@@ -33,6 +32,7 @@ pub use operator_adapter::{ CheckedOperatorAuthoredUseKind,
 /// Failure publishes nothing.
 pub(crate) fn settle_selected_execution_dispatch(
     mut checked: Arc<CheckedTrees>,
+    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_provider_plans: &SelectedProviderPlanFacts,
     selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
 ) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
@@ -51,6 +51,7 @@ pub(crate) fn settle_selected_execution_dispatch(
     // exclusive custody of an otherwise shareable checked program.
     crate::boundary_dispatch::settle_selected_boundary_adapter_dispatch(
         &mut checked,
+        calling_plans,
         selected_provider_plans,
     )?;
     let executions = float_comparisons::selected_executions(

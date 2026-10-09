@@ -43,7 +43,7 @@ pub(crate) fn check_selected_execution(
         .unwrap_or_else(target::NativeTarget::host);
     let boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
-            &mut typed,
+            &typed,
             selected_native_target,
             &build_config.opaque_representation_selections,
             package_inputs,
@@ -182,6 +182,7 @@ pub(crate) fn check_selected_execution(
     let selected_execution_settlement = settle_selected_execution(
         checked,
         SelectedExecutionRequest {
+            calling_plans: &providers.boundary_calling_plan_realizations,
             selected_program_entry,
             selected_target_profile,
             package_inputs,

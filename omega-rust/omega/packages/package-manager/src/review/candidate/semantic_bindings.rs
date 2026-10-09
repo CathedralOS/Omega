@@ -367,7 +367,12 @@ pub(super) fn candidate_service_bindings(
         };
         let binding = checked
             .execution()
-            .candidate_service_binding(*role, **package, path)
+            .candidate_service_binding(
+                &checked.providers().boundary_calling_plan_realizations,
+                *role,
+                **package,
+                path,
+            )
             .map_err(
                 |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                     consumer: consumer.clone(),
@@ -399,6 +404,7 @@ pub(super) fn candidate_service_bindings(
                 &checked.typed,
                 source::DependencyScope::Product,
             ),
+            &checked.providers().boundary_calling_plan_realizations,
             definition,
         ) else {
             return Err(
@@ -462,7 +468,12 @@ pub(super) fn candidate_target_entry_binding(
     let path = checked.typed.symbols.display_path(definition.symbol, "::");
     let binding = checked
         .execution()
-        .candidate_service_binding(role, owner.identity(), &path)
+        .candidate_service_binding(
+            &checked.providers().boundary_calling_plan_realizations,
+            role,
+            owner.identity(),
+            &path,
+        )
         .map_err(
             |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                 consumer: owner.clone(),
@@ -474,6 +485,7 @@ pub(super) fn candidate_target_entry_binding(
             &checked.typed,
             source::DependencyScope::Product,
         ),
+        &checked.providers().boundary_calling_plan_realizations,
         definition,
     )
     .ok_or_else(

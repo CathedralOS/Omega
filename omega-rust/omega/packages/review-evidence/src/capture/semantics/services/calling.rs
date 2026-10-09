@@ -26,19 +26,6 @@ pub(super) fn project(
         };
     };
     let arguments = boundary_arguments(compilation, schema, provider_type)?;
-    let retained = compilation.boundary_calling_plan_identity_for_arguments(
-        schema_symbol,
-        arguments,
-        requirement,
-    );
-    if retained.map(|identity| identity.report_fingerprint)
-        != method.calling_plan_report_fingerprint
-        || retained.map(|identity| identity.commitment) != method.calling_plan_commitment
-    {
-        return Err(rejected(
-            "service method changes its exact typed calling application",
-        ));
-    }
     let candidates = compilation
         .custody
         .providers()
@@ -50,23 +37,20 @@ pub(super) fn project(
                 && candidate.boundary_arguments == arguments
         })
         .collect::<Vec<_>>();
-    let Some(retained) = retained else {
-        return if candidates.is_empty() {
-            Ok(None)
-        } else {
-            Err(rejected(
-                "calling realization has no typed service application",
-            ))
-        };
-    };
+    if candidates.is_empty()
+        && method.calling_plan_report_fingerprint.is_none()
+        && method.calling_plan_commitment.is_none()
+    {
+        return Ok(None);
+    }
     let Some(candidate) = candidates.first().copied() else {
         return Err(rejected(
             "service method has no exact target-closed calling realization",
         ));
     };
     if candidates.iter().any(|other| *other != candidate)
-        || candidate.report_fingerprint != retained.report_fingerprint
-        || candidate.commitment != retained.commitment
+        || Some(candidate.report_fingerprint) != method.calling_plan_report_fingerprint
+        || Some(candidate.commitment) != method.calling_plan_commitment
     {
         return Err(rejected(
             "service method has ambiguous or stale calling realization",

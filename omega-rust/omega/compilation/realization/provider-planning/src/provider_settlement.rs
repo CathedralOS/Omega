@@ -45,6 +45,7 @@ use typed_trees::TypedTrees;
 /// filesystem host binding.
 fn resolve_canonical_host_binding<'trees>(
     typed: &'trees TypedTrees,
+    calling_plans: &[BoundaryCallingPlanRealization],
     binding: &AcceptedSemanticBinding,
 ) -> Result<
     (
@@ -66,6 +67,7 @@ fn resolve_canonical_host_binding<'trees>(
             }
             let schema = crate::service_schema::from_typed(
                 crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+                calling_plans,
                 definition,
             )?;
             (schema.trait_package_identity == Some(binding.package())
@@ -113,6 +115,7 @@ pub(super) struct ToolchainSettledLeaf {
 /// identity and diagnostic label.
 fn mint_toolchain_settled_plan(
     typed: &TypedTrees,
+    calling_plans: &[BoundaryCallingPlanRealization],
     accepted_binding: Option<&AcceptedSemanticBinding>,
     target_name: Option<&'static str>,
     already_selected: &[ProviderPlan],
@@ -129,8 +132,8 @@ fn mint_toolchain_settled_plan(
     if leaves.is_empty() {
         return Ok(None);
     }
-    let (definition, schema) =
-        resolve_canonical_host_binding(typed, binding).map_err(|error| vec![error])?;
+    let (definition, schema) = resolve_canonical_host_binding(typed, calling_plans, binding)
+        .map_err(|error| vec![error])?;
     let signatures = typed.trait_machine_signatures(definition);
     if already_selected.iter().any(|selected| {
         selected.schema.trait_package_identity == schema.trait_package_identity
@@ -292,6 +295,7 @@ pub fn settle_checked_providers(
         let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
         let derived = derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
             context,
+            &boundary_calling_plan_realizations,
             target_name,
             &evaluated_via_bindings,
             &settled_target_machines.origins,
@@ -323,6 +327,7 @@ pub fn settle_checked_providers(
     // below without entering the pre-selection derivation provenance.
     let toolchain_filesystem_plan = canonical_filesystem_host::mint_canonical_filesystem_host_plan(
         typed,
+        &boundary_calling_plan_realizations,
         package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
         }),

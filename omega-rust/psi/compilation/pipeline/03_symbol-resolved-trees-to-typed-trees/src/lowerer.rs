@@ -423,7 +423,6 @@ impl Lowerer<'_> {
             dynamic_slots: _,
             // Family records are produced after all typed bodies settle.
             target_machine_families: _,
-            boundary_calling_plans: _,
             boundary_completion_declarations: _,
             fused_service_erasures: _,
             evidence_forwardings,

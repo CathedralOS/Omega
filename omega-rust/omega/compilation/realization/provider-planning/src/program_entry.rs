@@ -829,6 +829,7 @@ pub fn validate_selected_program_entry_calling_plan(
     }
     let service_schema = crate::service_schema::from_typed(
         crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        realizations,
         schema,
     )
     .ok_or_else(|| {

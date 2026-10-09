@@ -110,6 +110,7 @@ impl SelectedExecution {
     /// normalized-schema coordinates for a required bound replay.
     pub fn candidate_service_binding(
         &self,
+        calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
         role: AcceptedSemanticBindingRole,
         package: semantic_vocabulary::PackageKeyIdentity,
         declaration_path: &str,
@@ -129,6 +130,7 @@ impl SelectedExecution {
                         typed,
                         source::DependencyScope::Product,
                     ),
+                    calling_plans,
                     definition,
                 )
             })
@@ -154,6 +156,8 @@ impl SelectedExecution {
 /// second asserted component root. This remains a checked-tree realization
 /// boundary; it does not claim the intended Terminal-only provider handoff.
 pub struct SelectedExecutionRequest<'a> {
+    pub calling_plans:
+        &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub selected_target_profile: Option<target::TargetProfile>,
@@ -190,6 +194,7 @@ pub fn settle_selected_execution(
         )?;
     checked.program = crate::settle_selected_execution_dispatch(
         checked.program,
+        settlement.calling_plans,
         &checked.selected_provider_plan_facts,
         &settlement.selected_provider_provenance,
     )?;
@@ -200,6 +205,7 @@ pub fn settle_selected_execution(
     };
     let resolved_exit_bindings = crate::retain_selected_compiler_intrinsic_review_identities(
         &checked.program,
+        settlement.calling_plans,
         &checked.selected_provider_plan_facts,
         &mut settlement.selected_provider_provenance,
         settlement
@@ -210,11 +216,23 @@ pub fn settle_selected_execution(
     )?;
     let resolved_filesystem_binding =
         accepted_binding(AcceptedSemanticBindingRole::FilesystemHostService)
-            .map(|binding| crate::resolve_accepted_service_binding(&checked.program, binding))
+            .map(|binding| {
+                crate::resolve_accepted_service_binding(
+                    &checked.program,
+                    settlement.calling_plans,
+                    binding,
+                )
+            })
             .transpose()
             .map_err(|diagnostic| vec![diagnostic])?;
     let resolved_time_host_binding = accepted_binding(AcceptedSemanticBindingRole::TimeHostService)
-        .map(|binding| crate::resolve_accepted_service_binding(&checked.program, binding))
+        .map(|binding| {
+            crate::resolve_accepted_service_binding(
+                &checked.program,
+                settlement.calling_plans,
+                binding,
+            )
+        })
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
     // Package lookup is keyed by the exact role of this target's entry slot;
@@ -225,7 +243,13 @@ pub fn settle_selected_execution(
         .and_then(|slot| slot.physical_contract_package)
         .map(package_compilation::program_entry_semantic_binding_role)
         .and_then(accepted_binding)
-        .map(|binding| crate::resolve_accepted_service_binding(&checked.program, binding))
+        .map(|binding| {
+            crate::resolve_accepted_service_binding(
+                &checked.program,
+                settlement.calling_plans,
+                binding,
+            )
+        })
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
     let task_activations = provider_planning::task_plans::elaborate_task_activation_plans(
@@ -249,6 +273,7 @@ pub fn settle_selected_execution(
     if let Some(entry) = settlement.selected_program_entry.as_mut() {
         let establishments = crate::derive_fused_program_entry_establishments(
             &checked.program,
+            settlement.calling_plans,
             entry,
             &settlement.selected_provider_provenance,
             settlement.permit_unsettled_fused_service_fields,

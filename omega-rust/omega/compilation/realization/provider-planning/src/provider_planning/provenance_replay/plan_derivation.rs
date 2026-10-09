@@ -22,6 +22,7 @@ use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, S
 
 pub(crate) fn derive_provider_plans(
     context: ProviderPlanningContext<'_>,
+    calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
@@ -150,7 +151,7 @@ pub(crate) fn derive_provider_plans(
             );
             let requirement_symbol = clause.requirement_symbol;
             if let Some((schema_declaration, schema_trait, schema)) =
-                provider_plan_schema_target(context, clause.symbol)
+                provider_plan_schema_target(context, calling_plans, clause.symbol)
             {
                 let plan_name = satisfies_plan_name(&target, &schema_trait, &provider_type);
                 let position = derived_plan_position(
@@ -203,13 +204,14 @@ pub(crate) fn derive_provider_plans(
         selected_target,
         evaluated_bindings,
     ));
-    let named = derive_named_provider_plans(context, selected_target, &plans);
+    let named = derive_named_provider_plans(context, calling_plans, selected_target, &plans);
     plans.extend(named);
     plans
 }
 
 fn derive_named_provider_plans(
     context: ProviderPlanningContext<'_>,
+    calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
     candidates: &[DerivedProviderPlan],
 ) -> Vec<DerivedProviderPlan> {
@@ -232,8 +234,12 @@ fn derive_named_provider_plans(
             let arguments = typed
                 .type_reference_table
                 .type_reference_handles(implementation.arguments);
-            let schema =
-                crate::service_schema::from_typed_instance(context, definition, arguments)?;
+            let schema = crate::service_schema::from_typed_instance(
+                context,
+                calling_plans,
+                definition,
+                arguments,
+            )?;
             let provider_type = typed.symbols.display_path(implementation.symbol, "::");
             let package = typed.symbols.symbol_package_identity(implementation.symbol);
             let origin_package = typed
@@ -505,13 +511,15 @@ fn derive_top_level_requirement_plans(
 /// schema on behalf of the data that owns its machine.
 fn provider_plan_schema_target(
     context: ProviderPlanningContext<'_>,
+    calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     satisfied_trait_symbol: symbols::SymbolHandle,
 ) -> Option<(ProviderSchemaDeclaration, String, ServiceSchema)> {
     let definition =
         context.typed.traits().iter().find(|definition| {
             definition.is_boundary && definition.symbol == satisfied_trait_symbol
         })?;
-    let schema = crate::service_schema::from_typed_instance(context, definition, &[])?;
+    let schema =
+        crate::service_schema::from_typed_instance(context, calling_plans, definition, &[])?;
     Some((
         ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
         schema.trait_name.clone(),

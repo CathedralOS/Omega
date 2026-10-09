@@ -27,9 +27,10 @@ use typed_trees::TypedTrees;
 /// All fallible work completes before publishing the association set.
 pub(crate) fn settle_selected_boundary_adapter_dispatch(
     checked: &mut Arc<CheckedTrees>,
+    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_plans: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let dispatch = plan_selected_boundary_adapter_dispatch(checked, selected_plans)?;
+    let dispatch = plan_selected_boundary_adapter_dispatch(checked, calling_plans, selected_plans)?;
     if checked.facts.boundary_adapter_dispatch != dispatch {
         Arc::make_mut(checked).facts.boundary_adapter_dispatch = dispatch;
     }
@@ -44,6 +45,7 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
 /// custody remain independently checked by `service_custody` before native use.
 fn selected_service_plan_matches_requirement(
     typed: &TypedTrees,
+    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_plans: &effects::SelectedProviderPlanFacts,
     requirement: symbols::SymbolHandle,
 ) -> bool {
@@ -55,6 +57,7 @@ fn selected_service_plan_matches_requirement(
                     typed,
                     source::DependencyScope::Product,
                 ),
+                calling_plans,
                 definition,
             )
         })
@@ -71,6 +74,7 @@ fn selected_service_plan_matches_requirement(
 
 fn plan_selected_boundary_adapter_dispatch(
     checked: &CheckedTrees,
+    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_plans: &effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<checked_trees::CheckedBoundaryAdapterDispatch>, Vec<Diagnostic>> {
     // Review retains checked Build bodies, but this operation realizes only
@@ -160,7 +164,12 @@ fn plan_selected_boundary_adapter_dispatch(
                 if typed.fused_service_erasure(requirement).is_none() {
                     continue;
                 }
-                if !selected_service_plan_matches_requirement(typed, selected_plans, requirement) {
+                if !selected_service_plan_matches_requirement(
+                    typed,
+                    calling_plans,
+                    selected_plans,
+                    requirement,
+                ) {
                     diagnostics.push(Diagnostic::error(format!(
                         "routed service field `{}::{}` has no exact Fused selected-provider-plan join",
                         data.name, field.name,
@@ -314,6 +323,7 @@ fn plan_selected_boundary_adapter_dispatch(
             };
             if !selected_service_plan_matches_requirement(
                 typed,
+                calling_plans,
                 selected_plans,
                 receipt.requirement,
             ) {

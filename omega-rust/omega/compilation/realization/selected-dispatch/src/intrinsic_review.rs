@@ -36,6 +36,7 @@ impl ResolvedAcceptedSemanticBinding {
 /// claim or synthesize a provider plan.
 pub(crate) fn resolve_accepted_service_binding(
     checked: &CheckedTrees,
+    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     binding: &package_compilation::AcceptedSemanticBinding,
 ) -> Result<ResolvedAcceptedSemanticBinding, Diagnostic> {
     if !matches!(
@@ -77,6 +78,7 @@ pub(crate) fn resolve_accepted_service_binding(
                     &checked.typed,
                     source::DependencyScope::Product,
                 ),
+                calling_plans,
                 definition,
             )?;
             (schema.trait_package_identity == Some(binding.package())
@@ -110,6 +112,7 @@ pub(crate) fn resolve_accepted_service_binding(
 /// identity exists.
 pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     checked: &CheckedTrees,
+    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],
     selected_target: Option<&str>,
@@ -243,6 +246,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             (Some(binding), [declaration_symbol]) => {
                 match resolve_terminal_authority_permissions_for_symbol(
                     checked,
+                    calling_plans,
                     binding,
                     *declaration_symbol,
                 ) {
@@ -332,6 +336,7 @@ fn accumulate_accepted_row_match(
 
 fn resolve_terminal_authority_permissions_for_symbol(
     checked: &CheckedTrees,
+    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     binding: &package_compilation::AcceptedSemanticBinding,
     declaration_symbol: SymbolHandle,
 ) -> Result<(), Diagnostic> {
@@ -353,6 +358,7 @@ fn resolve_terminal_authority_permissions_for_symbol(
             &checked.typed,
             source::DependencyScope::Product,
         ),
+        calling_plans,
         definition,
     ) else {
         return Err(Diagnostic::error(format!(

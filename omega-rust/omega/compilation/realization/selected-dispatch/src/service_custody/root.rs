@@ -59,6 +59,7 @@ pub fn program_entry_service_requirements(
 
 pub(crate) fn derive_fused_program_entry_establishments(
     checked: &CheckedTrees,
+    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     entry: &provider_planning::program_entry::SelectedCompilerProgramEntry,
     selected: &[SelectedProviderReviewProvenance],
     permit_unsettled: bool,
@@ -334,6 +335,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
                 checked,
                 source::DependencyScope::Product,
             ),
+            calling_plans,
             requirement,
         ) else {
             diagnostics.push(Diagnostic::error(format!(

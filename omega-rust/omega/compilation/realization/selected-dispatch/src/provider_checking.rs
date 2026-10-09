@@ -113,18 +113,17 @@ impl ProviderCheckingInputs {
     /// source. Errors retain the original selected-provider diagnostics.
     pub fn bind(
         self,
-        mut program: CheckedProgram,
+        program: CheckedProgram,
         settlement: ProviderCheckingRequest<'_>,
     ) -> Result<CheckedProviderProgram, Vec<Diagnostic>> {
         if let Some(native_target) = settlement.native_target {
-            program =
-                provider_planning::calling_policy_plans::close_outbound_callback_materializations(
-                    program,
-                    settlement.boundary_calling_plan_realizations,
-                    native_target,
-                    settlement.opaque_representation_selections,
-                    settlement.package_inputs,
-                )?;
+            provider_planning::calling_policy_plans::close_outbound_callback_materializations(
+                &program,
+                settlement.boundary_calling_plan_realizations,
+                native_target,
+                settlement.opaque_representation_selections,
+                settlement.package_inputs,
+            )?;
         }
         let callback_placements =
             provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(

@@ -7,6 +7,7 @@
 //! exact symbol, paired with package identity. An authored leaf is not unique
 //! even inside one package; replay must use the same projection as derivation.
 
+use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::planning_context::ProviderPlanningContext;
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
@@ -26,11 +27,15 @@ pub fn is_product_declaration(
 
 /// PRV2: reify a typed boundary trait's callable surface. `None` for a
 /// non-boundary trait (only boundary traits have service schemas).
+/// Calling applications come from the requested realization; source trees
+/// never contain target ABI identities. Build-only schema derivation supplies
+/// no native applications.
 pub fn from_typed(
     context: ProviderPlanningContext<'_>,
+    calling_plans: &[BoundaryCallingPlanRealization],
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
 ) -> Option<ServiceSchema> {
-    from_typed_instance(context, trait_definition, &[])
+    from_typed_instance(context, calling_plans, trait_definition, &[])
 }
 
 /// Reify one concrete generic boundary instance. The argument tuple is
@@ -38,6 +43,7 @@ pub fn from_typed(
 /// policy type/source names remain absent from the published schema.
 pub(crate) fn from_typed_instance(
     context: ProviderPlanningContext<'_>,
+    calling_plans: &[BoundaryCallingPlanRealization],
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
 ) -> Option<ServiceSchema> {
@@ -49,6 +55,7 @@ pub(crate) fn from_typed_instance(
     let mut visited = Vec::new();
     collect_service_methods(
         program,
+        calling_plans,
         trait_definition,
         trait_definition.symbol,
         boundary_arguments,
@@ -265,6 +272,7 @@ pub fn from_typed_boundary_requirement(
 
 fn collect_service_methods(
     program: &typed_trees::TypedTrees,
+    calling_plans: &[BoundaryCallingPlanRealization],
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     policy_owner: symbols::SymbolHandle,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
@@ -282,6 +290,7 @@ fn collect_service_methods(
         };
         collect_service_methods(
             program,
+            calling_plans,
             parent,
             policy_owner,
             boundary_arguments,
@@ -299,11 +308,11 @@ fn collect_service_methods(
         {
             continue;
         }
-        let calling_plan = program.boundary_calling_plan_identity_for_arguments(
-            policy_owner,
-            boundary_arguments,
-            signature.symbol,
-        );
+        let calling_plan = calling_plans.iter().find(|application| {
+            application.boundary_trait == policy_owner
+                && application.boundary_arguments == boundary_arguments
+                && application.requirement_machine == signature.symbol
+        });
         methods.push(ServiceMethod {
             completion: validation::boundary_requirement_completion(program, signature.symbol),
             name: signature.name.as_str().to_owned(),

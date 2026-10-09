@@ -1,6 +1,6 @@
 //! The trait, conformance, boundary calling plan, machine and state tables.
 
-use crate::typed_trees::{BoundaryCallingPlanIdentity, TypedTrees};
+use crate::typed_trees::TypedTrees;
 use crate::{data, machine, signature, trait_definition, types};
 use symbols::SymbolHandle;
 
@@ -245,67 +245,6 @@ impl TypedTrees {
     ) -> &[trait_definition::TraitRequirement] {
         self.trait_requirements
             .span_or_empty(trait_definition.requires)
-    }
-
-    pub fn record_boundary_calling_plan(&mut self, identity: BoundaryCallingPlanIdentity) {
-        if let Some(existing) = self.boundary_calling_plans.iter_mut().find(|candidate| {
-            candidate.boundary_trait == identity.boundary_trait
-                && candidate.boundary_arguments == identity.boundary_arguments
-                && candidate.requirement_machine == identity.requirement_machine
-        }) {
-            *existing = identity;
-        } else {
-            self.boundary_calling_plans.push(identity);
-        }
-    }
-
-    pub fn boundary_calling_plan_report_fingerprint(
-        &self,
-        boundary_trait: symbols::SymbolHandle,
-        requirement_machine: symbols::SymbolHandle,
-    ) -> Option<u64> {
-        self.boundary_calling_plan_report_fingerprint_for_arguments(
-            boundary_trait,
-            &[],
-            requirement_machine,
-        )
-    }
-
-    pub fn boundary_calling_plan_report_fingerprint_for_arguments(
-        &self,
-        boundary_trait: symbols::SymbolHandle,
-        boundary_arguments: &[crate::types::TypeReferenceHandle],
-        requirement_machine: symbols::SymbolHandle,
-    ) -> Option<u64> {
-        self.boundary_calling_plans
-            .iter()
-            .find(|identity| {
-                identity.boundary_trait == boundary_trait
-                    && identity.boundary_arguments == boundary_arguments
-                    && identity.requirement_machine == requirement_machine
-            })
-            .map(|identity| identity.report_fingerprint)
-    }
-
-    pub fn boundary_calling_plan_identity_for_arguments(
-        &self,
-        boundary_trait: symbols::SymbolHandle,
-        boundary_arguments: &[crate::types::TypeReferenceHandle],
-        requirement_machine: symbols::SymbolHandle,
-    ) -> Option<&BoundaryCallingPlanIdentity> {
-        self.boundary_calling_plans.iter().find(|identity| {
-            identity.boundary_trait == boundary_trait
-                && identity.boundary_arguments == boundary_arguments
-                && identity.requirement_machine == requirement_machine
-        })
-    }
-
-    pub fn boundary_calling_plan_identity(
-        &self,
-        boundary_trait: symbols::SymbolHandle,
-        requirement_machine: symbols::SymbolHandle,
-    ) -> Option<&BoundaryCallingPlanIdentity> {
-        self.boundary_calling_plan_identity_for_arguments(boundary_trait, &[], requirement_machine)
     }
 
     pub fn push_trait_machine_signature(

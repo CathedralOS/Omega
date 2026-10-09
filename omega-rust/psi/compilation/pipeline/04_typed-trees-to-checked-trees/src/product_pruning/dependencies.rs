@@ -82,13 +82,6 @@ pub(super) fn interface_retention_set(
         }
     }
 
-    // Boundary calling plans bind an exact requirement machine to a validated
-    // policy; their requirement surface is product interface.
-    for plan in &program.boundary_calling_plans {
-        retain_symbol(&mut retained, index, plan.requirement_machine);
-        retain_symbol(&mut retained, index, plan.boundary_trait);
-    }
-
     // Selected nominal machine uses (registration/callback selections) are
     // Omega-bound callables; the selected machine is always product surface.
     for nominal_use in &facts.nominal_machine_uses.uses {
