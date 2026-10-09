@@ -26,13 +26,12 @@ pub(crate) fn seal_recovery_classifications(
         .functions
         .iter()
         .filter(|function| {
-            matches!(
-                function
-                    .classification
-                    .as_ref()
-                    .map(|row| &row.classification),
-                Some(RecoveryClassification::ImmediateU64RematerializationCandidate { .. })
-            )
+            function.classification.as_ref().is_some_and(|row| {
+                matches!(
+                    &row.classification,
+                    RecoveryClassification::ImmediateU64RematerializationCandidate { .. }
+                )
+            })
         })
         .count();
     let receipt = RecoveryClassificationValidationReceipt {

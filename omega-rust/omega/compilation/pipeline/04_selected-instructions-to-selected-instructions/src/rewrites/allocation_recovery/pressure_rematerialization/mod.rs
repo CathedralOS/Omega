@@ -48,7 +48,14 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
     policy: PressureRematerializationPolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedPressureRematerialization, PressureRematerializationError> {
-    let computed = compute::compute_terminal_pressure_rematerialization(
+    // The plan and its transformed program were derived together in this
+    // compile; nothing re-derives them before admission.
+    let compute::ComputedPressureRematerialization {
+        plan,
+        transformed,
+        applied,
+        rewritten_uses,
+    } = compute::compute_terminal_pressure_rematerialization(
         selected,
         ranges,
         legality,
@@ -61,14 +68,6 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
         policy,
         budget,
     )?;
-    // The plan and its transformed program were derived together in this
-    // compile; nothing re-derives them before admission.
-    let compute::ComputedPressureRematerialization {
-        plan,
-        transformed,
-        applied,
-        rewritten_uses,
-    } = computed;
     let receipt = receipt::bind(
         &plan,
         plan.transformed_selected,

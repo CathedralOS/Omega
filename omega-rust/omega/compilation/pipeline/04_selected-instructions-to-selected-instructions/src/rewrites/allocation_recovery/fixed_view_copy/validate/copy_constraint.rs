@@ -9,14 +9,12 @@ pub(super) fn validated_copy_row<'a>(
     constraints: &'a ValidatedRegisterConstraintCatalog,
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<&'a RegisterInstructionConstraint, FixedViewCopyError> {
-    let Some(row) = constraints
+    let row = constraints
         .catalog()
         .constraints
         .iter()
         .find(|candidate| candidate.key == keys.copy_i64)
-    else {
-        return Err(FixedViewCopyError::CopyConstraintMismatch);
-    };
+        .ok_or_else(|| FixedViewCopyError::CopyConstraintMismatch)?;
     let operand_shape = row.operands.as_slice();
     let [source, result] = operand_shape else {
         return Err(FixedViewCopyError::CopyConstraintMismatch);

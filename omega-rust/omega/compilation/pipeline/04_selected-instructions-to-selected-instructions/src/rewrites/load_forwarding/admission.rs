@@ -509,9 +509,7 @@ pub(super) fn admit<'source>(
             break;
         }
     }
-    let Some(value) = resolved[block_index] else {
-        return Err(StoredLoadForwardingError::UnsupportedPair);
-    };
+    let value = resolved[block_index].ok_or(StoredLoadForwardingError::UnsupportedPair)?;
     // When the load's own block sits on a deferred cycle — walked
     // predecessors reach back to it — the span after the load runs between
     // the carried register and the next iteration's read. It must be as

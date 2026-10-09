@@ -175,10 +175,8 @@ pub fn validate_selected_lowering_optimization_custody(
     if run.selections != *run.source.selections()
         || run.custody.selections != run.source.selections().identity()
         || run.custody.budget != expected_budget
+        || projected != run.selected_lowering_selections
     {
-        return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
-    }
-    if projected != run.selected_lowering_selections {
         return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
     }
     for step in &run.steps {
@@ -242,10 +240,10 @@ pub fn validate_selected_lowering_optimization_custody(
             expected_budget,
         )?,
     };
-    if terminal.fold.receipt().applied_count() != 0 {
-        return Err(OptimizedLiteralFoldCustodyError::TerminalAttemptApplied);
-    }
-    if terminal.fold.receipt().source_selected() != terminal.fold.receipt().transformed_selected() {
+    if terminal.fold.receipt().applied_count() != 0
+        || terminal.fold.receipt().source_selected()
+            != terminal.fold.receipt().transformed_selected()
+    {
         return Err(OptimizedLiteralFoldCustodyError::TerminalAttemptApplied);
     }
     let mut previous_measure = run.source.legality().receipt().virtual_register_count();

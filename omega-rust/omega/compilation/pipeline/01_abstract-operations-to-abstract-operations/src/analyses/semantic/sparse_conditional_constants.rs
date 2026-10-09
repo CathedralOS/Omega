@@ -169,8 +169,7 @@ fn sparse_conditional_constants(
         };
         let next = match (&*target, incoming) {
             (LatticeValue::Unknown, incoming) => incoming,
-            (_, LatticeValue::Unknown) => return false,
-            (LatticeValue::Overdefined, _) => return false,
+            (_, LatticeValue::Unknown) | (LatticeValue::Overdefined, _) => return false,
             (_, LatticeValue::Overdefined) => LatticeValue::Overdefined,
             (
                 LatticeValue::Constant(current, current_support),
