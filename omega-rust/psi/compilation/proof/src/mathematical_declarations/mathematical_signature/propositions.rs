@@ -131,6 +131,12 @@ impl<'a> Elaborator<'a> {
                 language_core::OperatorSpelling::Equal,
                 &references,
             );
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT mathematical equality owner={:?} expression={handle:?} carrier={carrier:?} references={references:?} identity={identity}",
+                self.source_owner,
+            );
+        }
         if !identity {
             // IEEE comparison and custom operators produce a Boolean. Typing
             // their proposition does not authorize reflexive resident-value
