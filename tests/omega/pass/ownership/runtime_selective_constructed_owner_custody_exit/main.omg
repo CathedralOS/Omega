@@ -41,14 +41,16 @@ machine generic_transfer(enabled: bool) -> bool {
     observed == enabled
 }
 
-machine consume_pair(value: Pair) -> u64 { value.left.value + value.right.value }
+machine consume_pair(value: Pair) -> bool {
+    value.left.value == 11 && value.right.value == 9
+}
 machine replace_then_select(enabled: bool) -> bool {
     let mut pair: Pair = Pair {
         left: Token { value: 7 },
         right: Token { value: 9 }
     };
     pair.left = Token { value: 11 };
-    let observed: bool = enabled && consume_pair(pair) == 20;
+    let observed: bool = enabled && consume_pair(pair);
     observed == enabled
 }
 
