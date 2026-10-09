@@ -15,7 +15,6 @@
 pub(crate) mod activation_plan_facts;
 pub mod composition_model;
 pub(crate) mod diagnostic;
-pub mod executor_selection;
 pub(crate) mod identities;
 pub(crate) mod report_fingerprints;
 pub mod runtime_invocation;

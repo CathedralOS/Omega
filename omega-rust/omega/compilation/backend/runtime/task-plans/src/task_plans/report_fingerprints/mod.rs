@@ -3,8 +3,7 @@
 
 use crate::task_plans::stack_composition::WcsuStackPlanProjection;
 use crate::{
-    ActivationPlanCandidate, ExecutorPreservationAxis, ExecutorSelectionCandidate,
-    LiveCarryStorage,   ValidatedActivationPlan};
+    ActivationPlanCandidate, LiveCarryStorage,   ValidatedActivationPlan};
 use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
 pub(crate) fn activation_plan_report_fingerprint(
@@ -40,8 +39,7 @@ pub(crate) fn activation_plan_report_fingerprint(
                 LiveCarryStorage::Persistent => 1,
                 LiveCarryStorage::Parameter => 2,
                 LiveCarryStorage::Local => 3,
-                LiveCarryStorage::CallArgument => 4,
-            });
+                LiveCarryStorage::CallArgument => 4});
             fingerprint.word(live.claims.len() as u64);
             for claim in &live.claims {
                 fingerprint.word(claim.get());
@@ -51,32 +49,12 @@ pub(crate) fn activation_plan_report_fingerprint(
             fingerprint.flag(live.effective.host_thread == CarryHostThread::Origin);
             fingerprint.byte(match live.effective.address {
                 CarryAddress::Movable => 1,
-                CarryAddress::Stable => 2,
-            });
+                CarryAddress::Stable => 2});
         }
     }
     fingerprint.flag(plan.carry_obligations.preserve_cpu);
     fingerprint.flag(plan.carry_obligations.preserve_host_thread);
     fingerprint.flag(plan.cancellation_required);
-    fingerprint.finish()
-}
-
-pub(crate) fn executor_selection_report_fingerprint(
-    plan: &ValidatedActivationPlan,
-    candidate: &ExecutorSelectionCandidate,
-) -> u64 {
-    let mut fingerprint = Fingerprint::new();
-    fingerprint.word(plan.normalized_identity().normalized_identity());
-    fingerprint.word(candidate.runtime.normalized_identity());
-    fingerprint.word(candidate.runtime_instance.normalized_identity());
-    fingerprint.word(candidate.preservation.len() as u64);
-    for evidence in &candidate.preservation {
-        fingerprint.byte(match evidence.axis() {
-            ExecutorPreservationAxis::Cpu => 1,
-            ExecutorPreservationAxis::HostThread => 2,
-        });
-        fingerprint.word(evidence.identity().normalized_identity());
-    }
     fingerprint.finish()
 }
 

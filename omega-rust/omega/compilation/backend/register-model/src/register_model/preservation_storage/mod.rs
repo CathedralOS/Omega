@@ -78,10 +78,6 @@ impl ValidatedPreservationStorageCatalog {
         self.catalog.physical_register_model
     }
 
-    pub(crate) fn into_catalog(self) -> PreservationStorageCatalog {
-        self.catalog
-    }
-
     const fn new(
         catalog: PreservationStorageCatalog,
         identity: PreservationStorageCatalogIdentity,
