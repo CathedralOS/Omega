@@ -513,8 +513,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                     // element fields through the view descriptor the same way
                     // the store arm admits it as a write destination.
                     | OperationKind::EstablishReference { .. }
-                    | OperationKind::EstablishElementView { .. }
-                    | OperationKind::EstablishMutableElementView { .. }
+                    | terminal_psi::element_view_establish_pair_pattern!(..)
             )
         })
         .filter_map(|producer| producer.result.structural().map(|local| (producer, local)))
@@ -535,8 +534,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 local.structural_type,
                 match &producer.kind {
                     OperationKind::EstablishReference { source, .. }
-                    | OperationKind::EstablishElementView { source, .. }
-                    | OperationKind::EstablishMutableElementView { source, .. } => source.access,
+                    | terminal_psi::element_view_establish_pair_pattern!(source, ..) => source.access,
                     _ => terminal_psi::StructuralAccess::Owned,
                 },
             ),

@@ -714,8 +714,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::ByteSequenceRead { .. }
                     | OperationKind::ByteSequenceWrite { .. }
                     | OperationKind::ByteSequenceSubslice { .. }
-                    | OperationKind::EstablishElementView { .. }
-                    | OperationKind::EstablishMutableElementView { .. }
+                    | terminal_psi::element_view_establish_pair_pattern!(..)
                     | OperationKind::ElementViewLength { .. }
                     | OperationKind::ElementViewRead { .. }
                     | OperationKind::ElementViewWrite { .. }

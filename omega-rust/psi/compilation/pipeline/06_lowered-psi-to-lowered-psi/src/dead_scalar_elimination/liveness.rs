@@ -236,8 +236,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::PortWrite { .. } => {}
-        O::EstablishElementView { region, .. }
-        | O::EstablishMutableElementView { region, .. } => {
+        terminal_psi::element_view_establish_pair_pattern!(region, ..) => {
             // Formation consumes the captured byte endpoints even when no
             // later scalar observes them outside the structural descriptor.
             if let terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } = region {

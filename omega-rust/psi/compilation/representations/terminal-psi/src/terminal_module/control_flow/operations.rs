@@ -1372,3 +1372,11 @@ macro_rules! integer_less_or_equal_pair_pattern {
             | $crate::OperationKind::IntegerLessOrEqual { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! element_view_establish_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::OperationKind::EstablishElementView { $($fields)* }
+            | $crate::OperationKind::EstablishMutableElementView { $($fields)* }
+    };
+}

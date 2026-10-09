@@ -113,8 +113,7 @@ pub(super) fn adapt(
                         },
                     ));
                 }
-                OperationKind::EstablishElementView { source, .. }
-                | OperationKind::EstablishMutableElementView { source, .. }
+                terminal_psi::element_view_establish_pair_pattern!(source, ..)
                 | OperationKind::EstablishReference { source, .. } => {
                     let destination = DescriptorLocation::whole(result?.place);
                     let (source_location, mut backing_projection) = captured_storage_source(
@@ -126,18 +125,9 @@ pub(super) fn adapt(
                     step.derivations
                         .push((source_location.clone(), destination.clone()));
                     let preserves_coordinates = match &operation.kind {
-                        OperationKind::EstablishElementView {
-                            source,
+                        terminal_psi::element_view_establish_pair_pattern!(source,
                             element,
-                            region,
-                            ..
-                        }
-                        | OperationKind::EstablishMutableElementView {
-                            source,
-                            element,
-                            region,
-                            ..
-                        } => crate::runtime_structural_path_tip(
+                            region, ..) => crate::runtime_structural_path_tip(
                             module.structural_types.iter(),
                             *graph.place_types.get(&source.place)?,
                             &source.path,

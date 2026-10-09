@@ -50,8 +50,7 @@ impl TerminalFuelSchedule {
             | OperationKind::ByteSequenceSubslice { .. }
             | OperationKind::ByteSequencePredicate { .. }
             | OperationKind::ByteSequenceEqual { .. }
-            | OperationKind::EstablishElementView { .. }
-            | OperationKind::EstablishMutableElementView { .. }
+            | terminal_psi::element_view_establish_pair_pattern!(..)
             | OperationKind::ElementViewLength { .. }
             | OperationKind::ElementViewRead { .. }
             | OperationKind::ElementViewWrite { .. }
