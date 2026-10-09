@@ -618,17 +618,6 @@ pub(super) fn owned_argument_placement(placement: &calling_conventions::ValuePla
     end == placement.shape.byte_size
 }
 
-pub(super) fn bounded_owned_byte_type(
-    source: &LegalizedScalarFunction,
-    structural_type: semantic_vocabulary::StructuralTypeId,
-) -> bool {
-    source.structural.as_ref().is_some_and(|signature| {
-        signature.structural_types.iter().any(|declaration| {
-            declaration.id == structural_type && declaration.shape.is_bounded_owned_byte_sequence()
-        })
-    })
-}
-
 pub(super) fn indirect_argument(
     placement: &calling_conventions::ValuePlacement,
 ) -> Option<(calling_conventions::IndirectPointerLocation, u32)> {
