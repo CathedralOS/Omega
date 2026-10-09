@@ -263,8 +263,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::BooleanEqual { left, right }
         | O::IeeeFloatCompare { left, right, .. }
         | O::IntegerEqual { left, right }
-        | O::IntegerLessThan { left, right }
-        | O::IntegerLessOrEqual { left, right }
+        | terminal_psi::integer_less_or_equal_pair_pattern!(left, right, ..)
         | O::IntegerBitwiseAnd { left, right }
         | O::IntegerBitwiseOr { left, right }
         | O::IntegerBitwiseXor { left, right }

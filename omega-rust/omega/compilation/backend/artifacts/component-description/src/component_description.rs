@@ -732,8 +732,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::BooleanNot { .. }
                     | OperationKind::BooleanEqual { .. }
                     | OperationKind::IntegerEqual { .. }
-                    | OperationKind::IntegerLessThan { .. }
-                    | OperationKind::IntegerLessOrEqual { .. }
+                    | terminal_psi::integer_less_or_equal_pair_pattern!(..)
                     | OperationKind::IntegerBitwiseNot { .. }
                     | OperationKind::IntegerBitwiseAnd { .. }
                     | OperationKind::IntegerBitwiseOr { .. }

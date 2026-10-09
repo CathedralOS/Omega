@@ -41,8 +41,7 @@ pub(crate) fn settle_comparison_occurrences(
                 operation.kind,
                 OperationKind::IeeeFloatCompare { .. }
                     | OperationKind::IntegerEqual { .. }
-                    | OperationKind::IntegerLessThan { .. }
-                    | OperationKind::IntegerLessOrEqual { .. }
+                    | terminal_psi::integer_less_or_equal_pair_pattern!(..)
             ) {
                 continue;
             }
@@ -119,8 +118,7 @@ pub(crate) fn settle_comparison_occurrences(
                 }
                 (
                     OperationKind::IntegerEqual { .. }
-                    | OperationKind::IntegerLessThan { .. }
-                    | OperationKind::IntegerLessOrEqual { .. },
+                    | terminal_psi::integer_less_or_equal_pair_pattern!(..),
                     CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
                         operation: comparison,
                         integer_type,

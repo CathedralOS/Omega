@@ -122,8 +122,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let (OperationKind::IntegerLessThan { left, right }
-        | OperationKind::IntegerLessOrEqual { left, right }) = operation.kind
+        let (terminal_psi::integer_less_or_equal_pair_pattern!(left, right, ..)) = operation.kind
         else {
             unreachable!("dispatched execute_integer_less_than")
         };

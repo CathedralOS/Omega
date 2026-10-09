@@ -492,8 +492,7 @@ pub(super) fn lower(
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. } => boolean::lower(operation),
         OperationKind::IntegerEqual { .. }
-        | OperationKind::IntegerLessThan { .. }
-        | OperationKind::IntegerLessOrEqual { .. } => {
+        | terminal_psi::integer_less_or_equal_pair_pattern!(..) => {
             integer_constants_and_relations::lower(operation)
         }
         OperationKind::IntegerBitwiseNot { .. } => integer_bitwise::lower(operation),

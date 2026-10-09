@@ -81,8 +81,7 @@ pub(super) fn derive_operator_physical_span(
             if matches!(
                 operation.kind,
                 OperationKind::IntegerEqual { .. }
-                    | OperationKind::IntegerLessThan { .. }
-                    | OperationKind::IntegerLessOrEqual { .. }
+                    | terminal_psi::integer_less_or_equal_pair_pattern!(..)
             ) {
                 return derive_integer_comparison_span(occurrence, execution, object, image);
             }

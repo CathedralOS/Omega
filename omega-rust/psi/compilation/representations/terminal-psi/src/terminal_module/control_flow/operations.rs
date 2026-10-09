@@ -1364,3 +1364,11 @@ macro_rules! call_structural_pair_pattern {
             | $crate::OperationKind::CallStructuralWithScalarArguments { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! integer_less_or_equal_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::OperationKind::IntegerLessThan { $($fields)* }
+            | $crate::OperationKind::IntegerLessOrEqual { $($fields)* }
+    };
+}

@@ -193,8 +193,7 @@ fn scalar_leaf_inputs(operation: &OperationKind) -> Option<ScalarLeafInputs> {
         | OperationKind::IntegerWiden { operand } => Some(ScalarLeafInputs::Unary(*operand)),
         OperationKind::BooleanEqual { left, right }
         | OperationKind::IntegerEqual { left, right }
-        | OperationKind::IntegerLessThan { left, right }
-        | OperationKind::IntegerLessOrEqual { left, right }
+        | terminal_psi::integer_less_or_equal_pair_pattern!(left, right, ..)
         | OperationKind::IntegerBitwiseAnd { left, right }
         | OperationKind::IntegerBitwiseOr { left, right }
         | OperationKind::IntegerBitwiseXor { left, right }
