@@ -115,9 +115,7 @@ pub(crate) fn commit_cleanup_action(
             live_claims.retain(|_, claim| claim.place != Some(*place));
         }
         TerminalAffineCleanupAction::DiscardResidual(discard) => {
-            let root = structural_values.get(&discard.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
-            )?;
+            let root = crate::custody::verified_structural_place(structural_values, discard.place)?;
             if discard.path.is_empty()
                 || resolve_structural_path_type(
                     structural_types,
@@ -162,9 +160,7 @@ pub(crate) fn commit_cleanup_action(
                 cleanup,
                 next,
             )?;
-            let root = structural_values.get(&cleanup.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
-            )?;
+            let root = crate::custody::verified_structural_place(structural_values, cleanup.place)?;
             let value = project_structural_value(structural_types, root, &cleanup.path)?;
             // The selected nominal owner cannot die beneath an outstanding
             // reference; disjoint siblings retain their own storage and loans.
@@ -616,9 +612,7 @@ pub(crate) fn bind_structural_primitive_values(
                 actual: argument.value.scalar_type(),
             });
         }
-        let view = structural_values.get(&parameter.place).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
-        )?;
+        let view = crate::custody::verified_structural_place(structural_values, parameter.place)?;
         let place = StructuralRuntimePlace::from(view);
         if entry_places
             .insert(argument.argument_index, place.clone())
@@ -838,9 +832,7 @@ pub(crate) fn consume_affine_projection(
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     argument: &StructuralArgument,
 ) -> Result<(), TerminalInterpretError> {
-    let root = values.get(&argument.place).ok_or(
-        TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
-    )?;
+    let root = crate::custody::verified_structural_place(values, argument.place)?;
     crate::structural_inputs::case_membership::validate_case_projection(
         structural_types,
         values,
@@ -1110,12 +1102,23 @@ pub(crate) fn resolve_structural_arguments(
     arguments
         .iter()
         .map(|argument| {
-            let value = values.get(&argument.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
-            )?;
+            let value = crate::custody::verified_structural_place(values, argument.place)?;
             project_structural_value(structural_types, value, &argument.path)
         })
         .collect()
+}
+
+/// The value admitted at `place` — admission proves the key exists, so a
+/// miss reports a defect through the verified arm.
+pub(crate) fn verified_structural_place<'v, V>(
+    values: &'v BTreeMap<PlaceId, V>,
+    place: PlaceId,
+) -> Result<&'v V, TerminalInterpretError> {
+    values
+        .get(&place)
+        .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+            place,
+        ))
 }
 
 /// The one structural value `argument` resolves to — a batch of one.

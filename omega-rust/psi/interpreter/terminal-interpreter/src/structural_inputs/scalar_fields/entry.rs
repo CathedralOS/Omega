@@ -25,9 +25,7 @@ pub(crate) fn validate(
         if zero_initialized_arguments.contains(&(position as u32)) {
             continue;
         }
-        let root = roots.get(&parameter.place).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
-        )?;
+        let root = crate::custody::verified_structural_place(roots, parameter.place)?;
         validate_type(
             types,
             root.structural_type,

@@ -124,8 +124,9 @@ impl TerminalExecution<'_> {
                 && parameter.projected_qualifications.is_empty()
                 && argument.path.is_empty()
             {
-                let bytes = self.byte_sequence_values.get(&argument.place).ok_or(
-                    TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
+                let bytes = crate::custody::verified_structural_place(
+                    &self.byte_sequence_values,
+                    argument.place,
                 )?;
                 let ByteSequenceBinding::Immutable(snapshot) = self
                     .reborrow_byte_sequence_binding(
@@ -160,8 +161,9 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
-            let bytes = self.byte_sequence_values.get(&argument.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
+            let bytes = crate::custody::verified_structural_place(
+                &self.byte_sequence_values,
+                argument.place,
             )?;
             let bytes = self.reborrow_byte_sequence_binding(bytes, resolved, parameter.access)?;
             if values.insert(parameter.place, bytes).is_some() {

@@ -62,9 +62,7 @@ pub(crate) fn bind(
             .structural_parameters
             .get(argument.argument_index as usize)
             .ok_or_else(invalid)?;
-        let root = structural_values.get(&parameter.place).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
-        )?;
+        let root = crate::custody::verified_structural_place(structural_values, parameter.place)?;
         let parent_type =
             resolve_structural_path_type(structural_types, root.structural_type, &argument.path)
                 .map_err(|_| invalid())?;
@@ -112,9 +110,7 @@ pub(crate) fn bind(
         {
             continue;
         }
-        let root = structural_values.get(&source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )?;
+        let root = crate::custody::verified_structural_place(structural_values, source)?;
         // A case payload is readable only while its case is active; the
         // read itself checks the stored discriminator and the payload cell.
         if terminal_semantics::case_payload_carrier(

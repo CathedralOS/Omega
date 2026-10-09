@@ -227,9 +227,7 @@ impl TerminalExecution<'_> {
         &self,
         source: PlaceId,
     ) -> Result<u64, TerminalInterpretError> {
-        match self.byte_sequence_values.get(&source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )? {
+        match crate::custody::verified_structural_place(&self.byte_sequence_values, source)? {
             ByteSequenceBinding::Immutable(view) => {
                 u64::try_from(view.len()).map_err(|_| malformed())
             }

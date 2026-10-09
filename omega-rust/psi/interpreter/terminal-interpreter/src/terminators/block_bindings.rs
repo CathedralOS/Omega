@@ -386,9 +386,8 @@ impl TerminalExecution<'_> {
                 }
                 continue;
             }
-            let value = self.structural_values.get(&argument.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
-            )?;
+            let value =
+                crate::custody::verified_structural_place(&self.structural_values, argument.place)?;
             // A projected owned argument binds the selected subtree, keeping
             // the root's opaque identity and the exact moved path. The caller
             // discharges the residual complement on the same edge.

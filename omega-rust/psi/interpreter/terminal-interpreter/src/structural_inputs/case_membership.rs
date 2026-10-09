@@ -296,8 +296,9 @@ impl TerminalExecution<'_> {
                 .structural_parameters
                 .get(contents.argument_index as usize)
                 .ok_or(malformed())?;
-            let root = self.structural_values.get(&parameter.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
+            let root = crate::custody::verified_structural_place(
+                &self.structural_values,
+                parameter.place,
             )?;
             let selected_type = resolve_structural_path_type(
                 &self.program.structural_types(),

@@ -750,9 +750,7 @@ impl TerminalExecution<'_> {
                 shared_view,
             ));
         }
-        let view = structural_values.get(&place).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(place),
-        )?;
+        let view = crate::custody::verified_structural_place(structural_values, place)?;
         if view.structural_type != structural_type {
             return Err(malformed());
         }

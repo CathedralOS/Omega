@@ -834,9 +834,7 @@ impl TerminalExecution<'_> {
         &self,
         source: PlaceId,
     ) -> Result<(TerminalStructuralValue, Option<AggregateViewTip>), TerminalInterpretError> {
-        let value = self.structural_values.get(&source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )?;
+        let value = crate::custody::verified_structural_place(&self.structural_values, source)?;
         if !matches!(
             self.program
                 .structural_types()
