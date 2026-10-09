@@ -88,10 +88,9 @@ pub(super) fn complete(
                 destination,
                 path,
                 field,
-                value,
+                ..
             } = &operation.kind
             {
-                transfer(&mut frontier, value)?;
                 let mut stored = path.clone();
                 if let Some(field) = field {
                     stored.push(StructuralPathSegment::Field(
@@ -204,6 +203,7 @@ pub(super) fn complete(
 
 pub(super) fn operands(kind: &OperationKind) -> Vec<&StructuralArgument> {
     match kind {
+        OperationKind::StoreStructuralField { value, .. } => vec![value],
         OperationKind::EstablishStructuralArray { elements } => elements.iter().collect(),
         OperationKind::EstablishRecord { fields }
         | OperationKind::EstablishStructuralCase { fields, .. } => fields
