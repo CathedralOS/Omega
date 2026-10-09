@@ -280,7 +280,7 @@ pub(in crate::checks) fn proposition(
     {
         return None;
     }
-    bind_occurrences(program, callable, expression, value)
+    bind_occurrences(program, facts, callable, expression, value)
 }
 
 pub(in crate::checks) fn scalar_term(
@@ -290,25 +290,37 @@ pub(in crate::checks) fn scalar_term(
     expression: ExpressionHandle,
     value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
 ) -> Option<ScopedArithmeticValue> {
-    if !super::super::has_builtin_operators(program, &facts.operators, expression)
-        || !callable.builtin_meaning(program, expression)
-        || !term(program, &facts.operators, callable, expression)
-    {
-        return None;
-    }
-    let admitted_remainder =
-        admitted_wrapping_unsigned_remainder(program, &facts.operators, callable, expression);
-    let expression = admitted_remainder.unwrap_or(expression);
-    let term = bind_occurrences(program, callable, expression, value)?;
-    Some(if admitted_remainder.is_some() {
+    let (expression, remainder) = admitted_scalar_expression(program, facts, callable, expression)?;
+    let term = bind_occurrences(program, facts, callable, expression, value)?;
+    Some(if remainder {
         ScopedArithmeticValue::AdmittedIntegerRemainder(term)
     } else {
         ScopedArithmeticValue::Term(term)
     })
 }
 
+/// One admission owner for scalar denotations and captured call actuals.
+/// Selected builtin meaning and policy precede every polynomial interpretation.
+fn admitted_scalar_expression(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+) -> Option<(ExpressionHandle, bool)> {
+    if !super::super::has_builtin_operators(program, &facts.operators, expression)
+        || !callable.builtin_meaning(program, expression)
+        || !term(program, &facts.operators, callable, expression)
+    {
+        return None;
+    }
+    let remainder =
+        admitted_wrapping_unsigned_remainder(program, &facts.operators, callable, expression);
+    Some((remainder.unwrap_or(expression), remainder.is_some()))
+}
+
 fn bind_occurrences(
     program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
     mut value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
@@ -321,10 +333,15 @@ fn bind_occurrences(
     );
     let mut bindings = Vec::new();
     for occurrence in occurrences {
-        let reference = callable.scalar_reference(program, occurrence)?;
-        let primitive = program
-            .primitive_type_reference(reference)
-            .filter(|primitive| primitive.is_fixed_integer())?;
+        // Opaque calls may receive noninteger values. They are independently
+        // formed inputs, not polynomial leaves of the integer result.
+        let Some(primitive) = callable
+            .scalar_reference(program, occurrence)
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .filter(|primitive| primitive.is_fixed_integer())
+        else {
+            continue;
+        };
         let binder = match program.expression_table.expression(occurrence) {
             ExpressionNode::Member(_) => ScopedArithmeticBinder::Occurrence(occurrence),
             ExpressionNode::Name(path)
@@ -346,6 +363,40 @@ fn bind_occurrences(
         bindings.push(ScopedArithmeticBinding {
             binder,
             value: value(occurrence, primitive)?,
+        });
+    }
+    let mut arguments = Vec::new();
+    validation::expression_traversal::visit_post_order_with_handles(
+        program,
+        expression,
+        &mut Vec::new(),
+        |_, node| {
+            if let ExpressionNode::Call(call) = node {
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    if !arguments.contains(argument) {
+                        arguments.push(*argument);
+                    }
+                }
+            }
+        },
+    );
+    for argument in arguments {
+        let Some((selected, remainder)) =
+            admitted_scalar_expression(program, facts, callable, argument)
+        else {
+            continue;
+        };
+        let term = ScopedArithmeticExpression {
+            expression: selected,
+            bindings: bindings.clone(),
+        };
+        bindings.push(ScopedArithmeticBinding {
+            binder: ScopedArithmeticBinder::Occurrence(argument),
+            value: if remainder {
+                ScopedArithmeticValue::AdmittedIntegerRemainder(term)
+            } else {
+                ScopedArithmeticValue::Term(term)
+            },
         });
     }
     Some(ScopedArithmeticExpression {

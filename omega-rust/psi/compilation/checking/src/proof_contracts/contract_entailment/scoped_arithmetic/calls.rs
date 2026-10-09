@@ -123,6 +123,13 @@ impl<'program> ScopedCalls<'program> {
             return Some(prepared.clone());
         }
         self.step()?;
+        if !self
+            .program
+            .expression_table
+            .expression_is_valid(source.expression)
+        {
+            return None;
+        }
         let mut prepared = source.clone();
         for binding in &mut prepared.bindings {
             binding.value = self.value(&binding.value)?;
@@ -212,10 +219,32 @@ impl<'program> ScopedCalls<'program> {
                     {
                         bindings.push(ScopedArithmeticBinding {
                             binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
-                            value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
-                                expression: *argument,
-                                bindings: prepared.bindings.clone(),
-                            }),
+                            // The source owner captures admitted argument
+                            // denotations before contract substitution. An
+                            // unobserved actual remains opaque; its spelling
+                            // cannot supply a polynomial or unfold a body.
+                            value: prepared
+                                .bindings
+                                .iter()
+                                .find(|binding| {
+                                    binding.binder == ScopedArithmeticBinder::Occurrence(*argument)
+                                })
+                                .map(|binding| binding.value.clone())
+                                .unwrap_or_else(|| ScopedArithmeticValue::Atom {
+                                    identity: format!("\0scoped-actual:{scope}:{argument:?}"),
+                                    unsigned: self
+                                        .program
+                                        .primitive_type_reference(parameter.type_reference)
+                                        .is_some_and(|primitive| {
+                                            matches!(
+                                                primitive,
+                                                PrimitiveType::U8
+                                                    | PrimitiveType::U16
+                                                    | PrimitiveType::U32
+                                                    | PrimitiveType::U64
+                                            )
+                                        }),
+                                }),
                         });
                     }
                 }
@@ -278,7 +307,7 @@ impl<'program> ScopedCalls<'program> {
         let mut pending = vec![(expression, false)];
         while let Some((expression, returning)) = pending.pop() {
             self.step()?;
-            if ordered.contains(&expression) {
+            if !expression.is_valid() || ordered.contains(&expression) {
                 continue;
             }
             if returning {
@@ -336,7 +365,7 @@ impl<'program> ScopedCalls<'program> {
         let mut visited = Vec::new();
         while let Some(expression) = pending.pop() {
             self.step()?;
-            if visited.contains(&expression) {
+            if !expression.is_valid() || visited.contains(&expression) {
                 continue;
             }
             visited.push(expression);
