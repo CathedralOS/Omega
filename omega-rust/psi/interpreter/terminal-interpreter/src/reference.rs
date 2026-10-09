@@ -365,8 +365,8 @@ impl TerminalExecution<'_> {
                 machine
                     .structural_place(source.place)
                     .is_some_and(|place| match place.kind {
-                        terminal_psi::StructuralPlaceKind::ByteSequenceLiteral { .. } => true,
-                        terminal_psi::StructuralPlaceKind::OperationResult { producer, .. } => {
+                        semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. } => true,
+                        semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } => {
                             machine
                                 .operation(producer)
                                 .and_then(|operation| operation.result.structural())
