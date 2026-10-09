@@ -181,7 +181,7 @@ impl GitSourceRequest {
     #[doc(hidden)]
     /// A test repository on disk; `remote_locator` names the lineage it stands
     /// in for, otherwise a fixture locator is derived from the path.
-    pub fn for_local_test_repository(
+    pub(crate) fn for_local_test_repository(
         repository: &Path,
         revision: Option<String>,
         remote_locator: Option<&str>,

@@ -51,7 +51,7 @@ impl SourceResolver {
     /// This is the explicit hardened-mode constructor for CI, bootstrap, and
     /// other infrastructure that supplies its own private storage boundary.
     /// Ordinary commands must use [`Self::for_current_user`].
-    pub fn for_hardened_base(
+    pub(crate) fn for_hardened_base(
         base: impl AsRef<Path>,
         choices: PrimaryGitChoices<'_>,
     ) -> Result<Self, SourceResolveError> {

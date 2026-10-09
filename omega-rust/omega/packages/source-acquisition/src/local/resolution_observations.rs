@@ -8,7 +8,7 @@ use std::sync::Arc;
 /// never permission to reopen the checkout after acquisition. Persistence is
 /// a separate operation for transaction and review custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CapturedLocalSource {
+pub(crate) struct CapturedLocalSource {
     pub(super) requested_root: PathBuf,
     pub(super) normalized: ResolvedSourceTree,
     pub(super) tree: Arc<source::CapturedSourceTree>,
@@ -40,7 +40,7 @@ pub use crate::tree::{
 /// snapshot custody, and the final exact-tree rehash. It records successful
 /// source resolution; package review and lock admission remain separate.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LocalSourceResolutionObservation {
+pub(crate) struct LocalSourceResolutionObservation {
     pub(super) schema_version: u32,
     pub(super) identity: String,
     pub(super) custody_identity: String,
@@ -55,7 +55,7 @@ impl LocalSourceResolutionObservation {
         &self.identity
     }
 
-    pub fn custody_identity(&self) -> &str {
+    pub(crate) fn custody_identity(&self) -> &str {
         &self.custody_identity
     }
 }

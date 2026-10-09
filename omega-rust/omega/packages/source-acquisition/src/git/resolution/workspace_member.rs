@@ -27,7 +27,7 @@ use super::selection::GitRevisionSelection;
 mod recorded;
 pub use recorded::resolve_git_workspace_member_at_revision_in_lanes;
 
-pub fn resolve_git_workspace_member<Planner>(
+pub(crate) fn resolve_git_workspace_member<Planner>(
     request: &GitSourceRequest,
     resolver: &SourceResolver,
     limits: LocalSourceLimits,
@@ -54,7 +54,7 @@ where
     result
 }
 
-pub fn resolve_git_workspace_member_in_lanes<Planner>(
+pub(crate) fn resolve_git_workspace_member_in_lanes<Planner>(
     primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,
     git_lane: &RetainedStorageLane,

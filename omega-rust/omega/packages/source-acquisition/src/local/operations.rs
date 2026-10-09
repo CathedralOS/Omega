@@ -172,7 +172,7 @@ pub fn resolve_local_source_snapshot_in_lane(
     }
 }
 
-pub fn resolve_local_source_snapshot(
+pub(crate) fn resolve_local_source_snapshot(
     root: impl AsRef<Path>,
     resolver: &SourceResolver,
     limits: LocalSourceLimits,

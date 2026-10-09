@@ -35,10 +35,11 @@ pub use pinned_source::resolve_git_source_from_pin_in_lane;
 
 pub use exact_revision::{GitExactRevisionAcquisition, resolve_git_source_at_revision_in_lane};
 
-pub use workspace_member::{
-    resolve_git_workspace_member, resolve_git_workspace_member_at_revision_in_lanes,
-    resolve_git_workspace_member_from_pin_in_lanes, resolve_git_workspace_member_in_lanes,
+pub use workspace_member::{ resolve_git_workspace_member_at_revision_in_lanes,
+    resolve_git_workspace_member_from_pin_in_lanes,
 };
+pub(crate) use workspace_member::{
+    resolve_git_workspace_member, resolve_git_workspace_member_in_lanes};
 
 #[cfg(test)]
 mod tests;
@@ -89,7 +90,7 @@ fn resolve_git_source_in_lane_with_selected_roots(
     result
 }
 
-pub fn resolve_git_source(
+pub(crate) fn resolve_git_source(
     request: &GitSourceRequest,
     resolver: &SourceResolver,
     limits: LocalSourceLimits,

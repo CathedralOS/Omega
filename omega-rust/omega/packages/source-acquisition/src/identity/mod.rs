@@ -41,10 +41,11 @@ mod locator;
 mod resolution;
 
 pub use error::IdentityError;
-pub use git::{
-    GenericGitLineage, GitHubRepositoryLineage, GitLabRepositoryLineage, GitTransport,
+pub use git::{ GitTransport,
     SourceLineage,
 };
+pub(crate) use git::{
+    GenericGitLineage, GitHubRepositoryLineage, GitLabRepositoryLineage};
 pub use local::{
     ExternalLocalLineage, ExternalSourceContext, SourceContentDigest, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,

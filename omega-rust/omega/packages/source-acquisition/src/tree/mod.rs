@@ -9,6 +9,7 @@ pub(crate) mod identity;
 mod resolved_tree;
 
 pub use resolved_tree::{
-    ResolvedLocalSource, ResolvedSourceTree, VerifiedPackageSourceEntry,
+    ResolvedLocalSource, VerifiedPackageSourceEntry,
     VerifiedPackageSourceEntryKind,
 };
+pub(crate) use resolved_tree::{ ResolvedSourceTree};
