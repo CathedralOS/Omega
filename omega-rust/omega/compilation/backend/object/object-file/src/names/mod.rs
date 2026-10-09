@@ -14,16 +14,6 @@ use crate::{
 use function_identity::MachineFunctionIdentity;
 use target::{NativeTarget, NormalizedForeignLocator};
 
-pub(crate) fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> ObjectSymbolHandle {
-    object
-        .layout
-        .symbols
-        .iter()
-        .find(|(_, symbol)| symbol.name == symbol_name)
-        .map(|(handle, _)| handle)
-        .unwrap_or_else(arena::Handle::invalid)
-}
-
 /// Resolve one exact normalized foreign locator to its object import symbol.
 /// Missing, duplicate, or malformed rows fail closed; diagnostic symbol names
 /// never participate in this join.
@@ -97,10 +87,6 @@ pub fn object_function_symbol(
         && symbol.section == SymbolSection::Section(SectionKind::Text)
         && symbol.size > 0)
         .then_some((binding.symbol, symbol))
-}
-
-pub(crate) fn object_entry_symbol_name(object: &ObjectPlan) -> &str {
-    object_symbol_name(object, object.layout.entry_symbol)
 }
 
 /// Stable object-local symbol for a non-entry lowered function.

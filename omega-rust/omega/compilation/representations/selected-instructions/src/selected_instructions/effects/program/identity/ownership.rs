@@ -111,7 +111,3 @@ pub fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     }
 }
 
-pub(crate) fn encode_effect_link(bytes: &mut Vec<u8>, effect: optimization_unit::EffectLink) {
-    bytes.extend_from_slice(&effect.input.to_le_bytes());
-    bytes.extend_from_slice(&effect.output.to_le_bytes());
-}

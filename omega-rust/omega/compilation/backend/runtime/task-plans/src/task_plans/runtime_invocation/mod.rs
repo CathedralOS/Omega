@@ -70,69 +70,6 @@ impl ValidatedTaskRuntimeInvocationReceipt {
     }
 }
 
-/// Bind a provider invocation receipt to one exact post-check activation fact.
-/// Static provider/requirement/operation drift rejects before the normalized
-/// lifecycle ledger can acquire operational or storage custody.
-pub(crate) fn validate_task_runtime_invocation_receipt(
-    activation: &TaskActivationPlanFact,
-    candidate: TaskRuntimeInvocationReceiptCandidate,
-) -> Result<ValidatedTaskRuntimeInvocationReceipt, TaskPlanDiagnostic> {
-    if activation.specialization_commitment.is_zero() {
-        return Err(TaskPlanDiagnostic(
-            "task runtime activation has an empty specialization commitment".into(),
-        ));
-    }
-    if candidate.runtime != activation.selected_runtime.runtime {
-        return Err(TaskPlanDiagnostic(
-            "task runtime invocation receipt names a different selected runtime".into(),
-        ));
-    }
-    if candidate.provider_plan_name != activation.selected_runtime.provider_plan_name {
-        return Err(TaskPlanDiagnostic(
-            "task runtime invocation receipt names a different selected provider plan".into(),
-        ));
-    }
-    if candidate.requirement_identity != activation.selected_runtime.requirement_identity {
-        return Err(TaskPlanDiagnostic(
-            "task runtime invocation receipt names a different start requirement".into(),
-        ));
-    }
-    if candidate.operation != activation.operation {
-        return Err(TaskPlanDiagnostic(
-            "task runtime invocation receipt names a different start operation".into(),
-        ));
-    }
-    if candidate.activation_plan != activation.plan.normalized_identity() {
-        return Err(TaskPlanDiagnostic(
-            "task runtime invocation receipt names a different activation plan".into(),
-        ));
-    }
-    let executor_selection = validate_executor_selection(
-        &activation.plan,
-        ExecutorSelectionCandidate {
-            runtime: candidate.runtime,
-            runtime_instance: candidate.runtime_instance,
-            preservation: candidate.preservation.clone(),
-        },
-    )?;
-    Ok(ValidatedTaskRuntimeInvocationReceipt {
-        identity: TaskRuntimeInvocationBindingId(runtime_invocation_report_fingerprint(
-            activation,
-            &candidate,
-            &executor_selection,
-        )),
-        candidate,
-        activation: TaskRuntimeActivationBinding {
-            specialization_report_fingerprint: activation.specialization_report_fingerprint,
-            specialization_commitment: activation.specialization_commitment,
-            operation: activation.operation,
-            selected_runtime: activation.selected_runtime.clone(),
-            activation_plan: activation.plan.normalized_identity(),
-        },
-        executor_selection,
-    })
-}
-
 pub(crate) const fn axis_label(axis: ExecutorPreservationAxis) -> &'static str {
     match axis {
         ExecutorPreservationAxis::Cpu => "CPU",

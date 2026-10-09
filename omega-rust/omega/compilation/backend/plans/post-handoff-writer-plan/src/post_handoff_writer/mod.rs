@@ -67,7 +67,6 @@ pub enum PostHandoffWriterSource {
 /// provider-owned invocation evidence; source code sees neither this context
 /// nor an address-valued writer operation.
 pub const POST_HANDOFF_WRITER_CONTEXT_ABI_V1: u64 = 0x5048_5752_4954_5231;
-pub(crate) const POST_HANDOFF_WRITER_DESTINATION_OFFSET: usize = 0;
 pub const POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET: usize = 8;
 pub const POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH: usize = 8;
 

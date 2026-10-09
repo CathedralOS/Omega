@@ -8,29 +8,6 @@ use crate::{
     TargetLoweringRequest, lower_to_target_operations,
 };
 
-/// Lower the bounded plan-laid input family: every declared direct
-/// program-entry input contributes one pointer parameter on the entry ABI, in
-/// roster order, on an otherwise parameterless, one-block Unit function.
-///
-/// This produces ABI custody only. It does not select backing, establish a
-/// lifetime, or emit a placed access event.
-pub(crate) fn lower_to_target_operations_with_placed_view_inputs(
-    source: &AbstractOperationPlanWithPlacedViewInputs,
-    target: NativeTarget,
-    selections: &[SelectedPlacedViewInputPlan<'_>],
-) -> Result<TargetOperationPlanWithPlacedViewInputs, LoweringError> {
-    let plan = lower_to_target_operations(&source.plan, TargetLoweringRequest::new(target))?;
-    let (entry_call_plan, placed_view_inputs) =
-        derive_placed_entry_abi(source, target, selections)?;
-    let lowered = TargetOperationPlanWithPlacedViewInputs {
-        plan,
-        entry_call_plan,
-        placed_view_inputs,
-    };
-    validate_placed_view_input_translation(source, selections, target, &lowered)?;
-    Ok(lowered)
-}
-
 /// Independently reconstruct the complete bounded placed-input target carrier
 /// and reject any missing, extra, reordered, or target-substituted data.
 pub(crate) fn validate_placed_view_input_translation(

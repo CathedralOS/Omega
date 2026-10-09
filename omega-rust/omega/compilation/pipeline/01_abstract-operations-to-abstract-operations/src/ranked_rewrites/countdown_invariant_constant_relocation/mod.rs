@@ -21,24 +21,6 @@ use crate::{
 mod apply;
 mod propose;
 
-pub(crate) fn propose_countdown_invariant_constant_relocations(
-    session: &VerifiedPsiOptimizationSession,
-    candidate_limit: u64,
-) -> Result<
-    Vec<CountdownInvariantConstantRelocationCandidate>,
-    CountdownInvariantConstantRelocationError,
-> {
-    propose::all(session, candidate_limit)
-}
-
-pub(crate) fn apply_countdown_invariant_constant_relocation(
-    session: VerifiedPsiOptimizationSession,
-    validated: ValidatedCountdownInvariantConstantRelocation,
-) -> Result<AppliedCountdownInvariantConstantRelocation, CountdownInvariantConstantRelocationError>
-{
-    apply::validated(session, validated)
-}
-
 fn rule_identity() -> OptimizationRuleIdentity {
     OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.countdown-invariant-constant-relocation.v1",
