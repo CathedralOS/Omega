@@ -94,7 +94,8 @@ pub(super) fn admit<'source>(
         return Err(RedundantCompareError::ConstraintMismatch);
     }
     for (position, operand) in compare_instruction.operands.iter().enumerate() {
-        let register = function.virtual_register(operand.virtual_register)
+        let register = function
+            .virtual_register(operand.virtual_register)
             .ok_or(RedundantCompareError::ConstraintMismatch)?;
         if row.operands[position].operand != operand.operand
             || row.operands[position].access != RegisterOperandAccess::Use
@@ -106,15 +107,7 @@ pub(super) fn admit<'source>(
     // Removing the compare orphans anything that names it: call contracts
     // and memory-access rows bind instructions by identity, and neither may
     // claim the compare.
-    if function
-        .calls
-        .iter()
-        .any(|call| call.instruction == compare)
-        || function
-            .memory_accesses
-            .iter()
-            .any(|access| access.instruction == compare)
-    {
+    if function.call(compare).is_some() || function.memory_access(compare).is_some() {
         return Err(RedundantCompareError::UnsupportedInstruction);
     }
     // The flag walk crosses block boundaries: build the block-indexed

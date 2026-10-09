@@ -248,10 +248,7 @@ pub(in crate::rewrites) fn has_memory_rows(
     function: &SelectedFunction,
     instruction: SelectedInstructionId,
 ) -> bool {
-    function
-        .memory_accesses
-        .iter()
-        .any(|access| access.instruction == instruction)
+    function.memory_access(instruction).is_some()
 }
 
 /// A call contract row makes the instruction an effect barrier even when
@@ -260,10 +257,7 @@ pub(in crate::rewrites) fn has_call_contract(
     function: &SelectedFunction,
     instruction: SelectedInstructionId,
 ) -> bool {
-    function
-        .calls
-        .iter()
-        .any(|call| call.instruction == instruction)
+    function.call(instruction).is_some()
 }
 
 /// A boundary settlement at `position` sits before that body ordinal: any

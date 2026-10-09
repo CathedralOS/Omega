@@ -37,9 +37,27 @@ impl SelectedFunction {
 
     /// The virtual register keyed `register`, when the function declares it.
     pub fn virtual_register(&self, register: VirtualRegisterId) -> Option<&VirtualRegister> {
-        self.virtual_registers
+        self.virtual_registers.iter().find(|row| row.id == register)
+    }
+
+    /// The call contract covering `instruction`, when the function carries one.
+    pub fn call(
+        &self,
+        instruction: super::SelectedInstructionId,
+    ) -> Option<&super::SelectedCallContract> {
+        self.calls
             .iter()
-            .find(|row| row.id == register)
+            .find(|call| call.instruction == instruction)
+    }
+
+    /// The memory-access row covering `instruction`, when carried.
+    pub fn memory_access(
+        &self,
+        instruction: super::SelectedInstructionId,
+    ) -> Option<&super::SelectedMemoryAccess> {
+        self.memory_accesses
+            .iter()
+            .find(|access| access.instruction == instruction)
     }
 
     /// Every block's instructions, in block order.
@@ -111,10 +129,7 @@ impl SelectedBlock {
     }
 
     /// The position of the instruction keyed `instruction`.
-    pub fn instruction_index(
-        &self,
-        instruction: super::SelectedInstructionId,
-    ) -> Option<usize> {
+    pub fn instruction_index(&self, instruction: super::SelectedInstructionId) -> Option<usize> {
         self.instructions
             .iter()
             .position(|row| row.id == instruction)

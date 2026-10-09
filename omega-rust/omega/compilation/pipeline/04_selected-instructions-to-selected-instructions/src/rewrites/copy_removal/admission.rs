@@ -232,7 +232,8 @@ pub(super) fn admit<'source>(
         .position(|register| register.id == output)
         .ok_or(CopyRemovalError::UnsupportedRegister)?;
     let output_register = &function.virtual_registers[register_index];
-    let input_register = function.virtual_register(input)
+    let input_register = function
+        .virtual_register(input)
         .ok_or(CopyRemovalError::UnsupportedRegister)?;
     // The roster must agree this copy defines the destination: an origin
     // naming another surface keeps a definition the removal cannot honor,
@@ -271,12 +272,7 @@ pub(super) fn admit<'source>(
     // Removing the copy orphans anything that names it outside the admitted
     // roster row: call contracts and memory-access rows binding the
     // instruction, and the destination's spill storage slot.
-    if function.calls.iter().any(|call| call.instruction == copy)
-        || function
-            .memory_accesses
-            .iter()
-            .any(|access| access.instruction == copy)
-    {
+    if function.call(copy).is_some() || function.memory_access(copy).is_some() {
         return Err(CopyRemovalError::UnsupportedInstruction);
     }
     if function
@@ -637,7 +633,8 @@ pub(super) fn shifted_boundary_settlements(
     block: SelectedBlockId,
     removed: usize,
 ) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, CopyRemovalError> {
-    let body = function.block(block)
+    let body = function
+        .block(block)
         .ok_or(CopyRemovalError::SourceMismatch)?
         .instructions
         .len();
