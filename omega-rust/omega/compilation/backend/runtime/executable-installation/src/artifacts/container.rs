@@ -147,9 +147,6 @@ impl ValidatedArtifactContainer {
         &self.artifact
     }
 
-    pub(crate) fn relocation_set(&self) -> RelocationSetId {
-        self.artifact.relocation_set()
-    }
 
     /// Canonical destination-order relocation records. Their symbolic targets
     /// remain sealed identities; this projection grants no resolver.

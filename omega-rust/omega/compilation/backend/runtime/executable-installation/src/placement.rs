@@ -169,17 +169,8 @@ impl CodePlacementEvidence {
 }
 
 impl CodePlacement {
-    pub const fn identity(&self) -> CodePlacementId {
-        self.placement
-    }
 
-    pub const fn base(&self) -> u64 {
-        self.extent.base()
-    }
 
-    pub const fn length(&self) -> u64 {
-        self.extent.length()
-    }
 }
 
 /// Provider result after declared sections/relocations were written and all

@@ -1,4 +1,3 @@
-use crate::artifacts::AdmittedArtifact;
 use crate::authority_digests::{InstalledCodeId, MappingQuarantineId};
 use crate::installation::InstalledCodeEvidence;
 use crate::installation::{InstallationDiagnostic, InstalledCode, InstalledCodeContext};
@@ -69,7 +68,6 @@ impl MappingQuarantineReceipt {
 #[derive(Debug)]
 pub(crate) struct QuarantinedInstallation {
     receipt: MappingQuarantineReceipt,
-    previous_artifact: AdmittedArtifact,
     attributed_capacity_loss: u64,
 }
 
@@ -90,9 +88,6 @@ impl QuarantinedInstallation {
         self.attributed_capacity_loss
     }
 
-    pub const fn previous_artifact(&self) -> &AdmittedArtifact {
-        &self.previous_artifact
-    }
 
     /// A call naming the retired realization faults at the trapping mapping.
     /// The returned evidence deliberately has no completion/discharge token.
@@ -120,9 +115,6 @@ pub(crate) struct StaleEntryFault {
 }
 
 impl StaleEntryFault {
-    pub const fn installed_code(&self) -> InstalledCodeId {
-        self.receipt.installed.installed
-    }
 
     pub const fn quarantine(&self) -> MappingQuarantineId {
         self.receipt.quarantine
@@ -167,7 +159,6 @@ pub(crate) fn quarantine_installed(
     let capacity_loss = validated.frozen.placement.extent.length();
     Ok(QuarantinedInstallation {
         receipt,
-        previous_artifact: validated.frozen.artifact,
         attributed_capacity_loss: capacity_loss,
     })
 }
