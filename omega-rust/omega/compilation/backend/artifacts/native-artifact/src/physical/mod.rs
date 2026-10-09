@@ -234,7 +234,7 @@ impl ValidatedOptimizedNativePhysicalEvidenceScope {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BoundaryTraitSettlement {
+pub struct BoundaryTraitSettlement {
     occurrence: OptimizedBoundaryOccurrence,
     requirement_identity: String,
     selected_plan_digest: NativeSelectedProviderPlanDigest,
@@ -471,7 +471,7 @@ impl NormalizedForeignCallbackRelocations {
 /// identities are repeated here so the field record cannot be rebound to a
 /// different call or contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct NormalizedForeignCallImportField {
+pub struct NormalizedForeignCallImportField {
     locator_identity: [u8; 32],
     boundary_plan_identity: [u8; 32],
     caller: MachineId,

@@ -59,7 +59,7 @@ pub struct OptimizedProgramStorageSemanticWrapperObjectSymbol {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperCallResolutionState {
+pub enum OptimizedProgramStorageSemanticWrapperCallResolutionState {
     ResolvedInCompositeTextSectionV1,
 }
 
