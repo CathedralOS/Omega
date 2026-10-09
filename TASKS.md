@@ -2233,8 +2233,8 @@ crash and native exit behavior.
     at 0 in both engines on macOS arm64 after ordinary package review: both
     selections and both descriptor retirement orders restore mutation only
     after the complete cohort ends. The live-copy write and only-one-arm
-    transfer controls remain rejected. The encoded `IntegerAt` call ABI remains
-    in scope. Keep distinct shared input backings and parent sets through
+    transfer controls remain rejected. Keep distinct shared input backings and
+    parent sets through
     returned record/field selection, helper substitution, named-state forwarding
     and copied descriptors; reject a helper-local source in any result arm and
     mutation of an unselected same-lifetime input while the result remains live.
@@ -2245,7 +2245,12 @@ crash and native exit behavior.
     Remaining: **PSI-TARGET-FAMILIES**, integrated by
     **PIPELINE-ARCHITECTURE-ENFORCEMENT**, blocks ordinary std package admission
     with its missing portable family contract; this prevents the public helper
-    and descriptor sample commands before their own compilation. The slice-return
+    and descriptor sample commands before their own compilation. Runtime-indexed
+    shared reads of constrained scalar fields still fail native legalization with
+    `SourceCustodyMismatch` in `runtime_indices.rs`; the
+    [unchanged pending witness](tests/omega/pending/layouts/runtime_indexed_restricted_field_read/README.md)
+    retains its zero exit promises and requires access-aware runtime projection.
+    The slice-return
     controls below still reject their captured range
     endpoint against an unknown length on untouched main `9657a66795`;
     **MACOS-NATIVE-LOST-SUCCESSES** owns that shared hoisted-bound dependency.
