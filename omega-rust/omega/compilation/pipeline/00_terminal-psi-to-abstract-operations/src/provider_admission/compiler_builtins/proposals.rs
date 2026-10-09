@@ -282,6 +282,19 @@ fn compiler_builtin_execution(
             // Format-bearing identities must not borrow an unrelated boundary's
             // result format. Complete signature admission below remains required.
             match function {
+                symbols::BuiltinFunction::FloatClassifyF32 => {
+                    return Some(nearest_arithmetic(
+                        Arithmetic::Classify,
+                        semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    ));
+                }
+                symbols::BuiltinFunction::FloatClassifyF64 => {
+                    return Some(nearest_arithmetic(
+                        Arithmetic::Classify,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ));
+                }
+
                 symbols::BuiltinFunction::FloatAddTowardZeroF32 => {
                     return Some(nearest_directed_binary(
                         target_operations::IeeeFloatBinaryOperation::Add,
@@ -485,8 +498,6 @@ fn compiler_builtin_execution(
                 symbols::BuiltinFunction::FloatIsFinite => Arithmetic::IsFinite,
                 symbols::BuiltinFunction::FloatIsNormal => Arithmetic::IsNormal,
                 symbols::BuiltinFunction::FloatIsSubnormal => Arithmetic::IsSubnormal,
-                symbols::BuiltinFunction::FloatClassifyF32
-                | symbols::BuiltinFunction::FloatClassifyF64 => Arithmetic::Classify,
                 _ => return None,
             };
             (operation, boundary_format?)
