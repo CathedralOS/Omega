@@ -97,7 +97,11 @@ fn validate_fixed_template_bytes(
         _ => return Err(Diagnostic::error("unsupported fixed-template target")),
     };
     let expected_got_size = crate::dynamic_executable::checked::checked_product(
-        crate::dynamic_executable::checked::checked_sum(GOT_PLT_HEADER_WORDS, slot_count, "validated GOT words")?,
+        crate::dynamic_executable::checked::checked_sum(
+            GOT_PLT_HEADER_WORDS,
+            slot_count,
+            "validated GOT words",
+        )?,
         ELF64_GOT_WORD_SIZE,
         "validated GOT size",
     )?;
@@ -142,10 +146,18 @@ fn replay_x86_plt(
     for (index, slot) in linkage.slots.iter().enumerate() {
         let start = crate::dynamic_executable::checked::checked_sum(
             X86_PLT_HEADER_SIZE,
-            crate::dynamic_executable::checked::checked_product(index, X86_PLT_ENTRY_SIZE, "decoded x86-64 PLT entry")?,
+            crate::dynamic_executable::checked::checked_product(
+                index,
+                X86_PLT_ENTRY_SIZE,
+                "decoded x86-64 PLT entry",
+            )?,
             "decoded x86-64 PLT entry",
         )?;
-        let end = crate::dynamic_executable::checked::checked_sum(start, X86_PLT_ENTRY_SIZE, "decoded x86-64 PLT entry end")?;
+        let end = crate::dynamic_executable::checked::checked_sum(
+            start,
+            X86_PLT_ENTRY_SIZE,
+            "decoded x86-64 PLT entry end",
+        )?;
         let entry = bytes
             .get(start..end)
             .ok_or_else(|| Diagnostic::error("truncated x86-64 PLT entry"))?;
@@ -170,7 +182,11 @@ fn replay_aarch64_plt(
     for index in 0..linkage.slots.len() {
         let start = crate::dynamic_executable::checked::checked_sum(
             AARCH64_PLT_HEADER_SIZE,
-            crate::dynamic_executable::checked::checked_product(index, AARCH64_PLT_ENTRY_SIZE, "decoded AArch64 PLT entry")?,
+            crate::dynamic_executable::checked::checked_product(
+                index,
+                AARCH64_PLT_ENTRY_SIZE,
+                "decoded AArch64 PLT entry",
+            )?,
             "decoded AArch64 PLT entry",
         )?;
         let end = crate::dynamic_executable::checked::checked_sum(
@@ -186,57 +202,54 @@ fn replay_aarch64_plt(
     Ok(())
 }
 
-fn replay_rela(
-    linkage: &ElfProcedureLinkageRelocationContents,
-    bytes: &[u8],
-) -> Result<(), Diagnostic> {
-    for (index, relocation) in linkage.jump_slot_relocations.iter().enumerate() {
-        let start = crate::dynamic_executable::checked::checked_product(index, ELF64_RELA_SIZE, "decoded procedure RELA row")?;
-        let expected_info = (u64::from(relocation.dynamic_symbol_index) << 32)
-            | u64::from(relocation.relocation_type);
-        require(
-            read_u64(bytes, start, "procedure RELA r_offset")? == 0
-                && read_u64(
-                    bytes,
-                    crate::dynamic_executable::checked::checked_sum(start, 8, "procedure RELA r_info offset")?,
-                    "procedure RELA r_info",
-                )? == expected_info
-                && read_u64(
-                    bytes,
-                    crate::dynamic_executable::checked::checked_sum(start, 16, "procedure RELA addend offset")?,
-                    "procedure RELA addend",
-                )? == relocation.addend as u64,
-            "ELF procedure RELA fixed row or address placeholder drifted",
-        )?;
-    }
-    Ok(())
+macro_rules! replay_rela_rows {
+    ($name:ident, $rows:ident, $domain:literal) => {
+        fn $name(
+            linkage: &ElfProcedureLinkageRelocationContents,
+            bytes: &[u8],
+        ) -> Result<(), Diagnostic> {
+            for (index, relocation) in linkage.$rows.iter().enumerate() {
+                let start = crate::dynamic_executable::checked::checked_product(
+                    index,
+                    ELF64_RELA_SIZE,
+                    concat!("decoded ", $domain, " RELA row"),
+                )?;
+                let expected_info = (u64::from(relocation.dynamic_symbol_index) << 32)
+                    | u64::from(relocation.relocation_type);
+                require(
+                    read_u64(bytes, start, concat!($domain, " RELA r_offset"))? == 0
+                        && read_u64(
+                            bytes,
+                            crate::dynamic_executable::checked::checked_sum(
+                                start,
+                                8,
+                                concat!($domain, " RELA r_info offset"),
+                            )?,
+                            concat!($domain, " RELA r_info"),
+                        )? == expected_info
+                        && read_u64(
+                            bytes,
+                            crate::dynamic_executable::checked::checked_sum(
+                                start,
+                                16,
+                                concat!($domain, " RELA addend offset"),
+                            )?,
+                            concat!($domain, " RELA addend"),
+                        )? == relocation.addend as u64,
+                    concat!(
+                        "ELF ",
+                        $domain,
+                        " RELA fixed row or address placeholder drifted"
+                    ),
+                )?;
+            }
+            Ok(())
+        }
+    };
 }
 
-fn replay_general_rela(
-    linkage: &ElfProcedureLinkageRelocationContents,
-    bytes: &[u8],
-) -> Result<(), Diagnostic> {
-    for (index, relocation) in linkage.general_relocations.iter().enumerate() {
-        let start = crate::dynamic_executable::checked::checked_product(index, ELF64_RELA_SIZE, "decoded general RELA row")?;
-        let expected_info = (u64::from(relocation.dynamic_symbol_index) << 32)
-            | u64::from(relocation.relocation_type);
-        require(
-            read_u64(bytes, start, "general RELA r_offset")? == 0
-                && read_u64(
-                    bytes,
-                    crate::dynamic_executable::checked::checked_sum(start, 8, "general RELA r_info offset")?,
-                    "general RELA r_info",
-                )? == expected_info
-                && read_u64(
-                    bytes,
-                    crate::dynamic_executable::checked::checked_sum(start, 16, "general RELA addend offset")?,
-                    "general RELA addend",
-                )? == relocation.addend as u64,
-            "ELF general RELA fixed row or address placeholder drifted",
-        )?;
-    }
-    Ok(())
-}
+replay_rela_rows!(replay_rela, jump_slot_relocations, "procedure");
+replay_rela_rows!(replay_general_rela, general_relocations, "general");
 
 fn validate_fixup_placeholders(
     linkage: &ValidatedElfProcedureLinkageRelocationPlan,
@@ -341,5 +354,3 @@ pub(crate) fn read_field(bytes: &[u8], offset: usize, width: u8) -> Result<u64, 
         )),
     }
 }
-
-
