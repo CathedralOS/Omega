@@ -786,6 +786,7 @@ enum AtomRewrite {
 
 #[cfg(test)]
 mod tests {
+    use super::super::test_utilities::denote_via_assumption_premise;
     use super::super::verify_bounded_certificate;
     use super::{Denotation, ScalarTerm, Term};
     use crate::proof::assumption_proof;
@@ -972,21 +973,12 @@ mod tests {
                 .expect("outer not"),
             ScalarTerm::Boolean(true),
         );
-        let proof = ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::PredicateDenotation {
-                premise: Box::new(assumption_proof(premise.clone(), 0)),
-            },
-        };
-        let denoted = verify_bounded_certificate(
+        let denoted = denote_via_assumption_premise(
             &context,
             &goal,
-            std::slice::from_ref(&premise),
-            &[],
-            &proof,
-            &mut Budget::default(),
-        )
-        .expect("the Boolean identity verifies through case analysis");
+            &premise,
+            "the Boolean identity verifies through case analysis",
+        );
         // Only `b : Two` is assumed — a rule-instance axiom would add
         // the whole conversion implication to the signature.
         assert_eq!(denoted.certificate.signature.len(), 1);
@@ -1015,21 +1007,12 @@ mod tests {
             ScalarTerm::boolean_equal(b, c).expect("boolean equal"),
             ScalarTerm::Boolean(true),
         );
-        let proof = ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::PredicateDenotation {
-                premise: Box::new(assumption_proof(premise.clone(), 0)),
-            },
-        };
-        let denoted = verify_bounded_certificate(
+        let denoted = denote_via_assumption_premise(
             &context,
             &goal,
-            std::slice::from_ref(&premise),
-            &[],
-            &proof,
-            &mut Budget::default(),
-        )
-        .expect("the two-atom Boolean identity verifies through case analysis");
+            &premise,
+            "the two-atom Boolean identity verifies through case analysis",
+        );
         assert_eq!(denoted.certificate.signature.len(), 2);
         let Term::Apply { function, .. } = denoted.arena.get(denoted.certificate.term) else {
             panic!("the transport applies its case-analysis function to the premise");
@@ -1055,21 +1038,12 @@ mod tests {
             b.clone(),
         );
         let goal = Proposition::Equal(a, ScalarTerm::boolean_not(b).expect("not b"));
-        let proof = ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::PredicateDenotation {
-                premise: Box::new(assumption_proof(premise.clone(), 0)),
-            },
-        };
-        let denoted = verify_bounded_certificate(
+        let denoted = denote_via_assumption_premise(
             &context,
             &goal,
-            std::slice::from_ref(&premise),
-            &[],
-            &proof,
-            &mut Budget::default(),
-        )
-        .expect("crossed negations verify through nested case analysis");
+            &premise,
+            "crossed negations verify through nested case analysis",
+        );
         assert_eq!(denoted.certificate.signature.len(), 2);
         let Term::Apply { function, .. } = denoted.arena.get(denoted.certificate.term) else {
             panic!("the transport applies its case-analysis function to the premise");
@@ -1099,21 +1073,12 @@ mod tests {
             premise: Box::new(Proposition::Equal(b, ScalarTerm::Boolean(true))),
             conclusion: Box::new(atom),
         };
-        let proof = ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::PredicateDenotation {
-                premise: Box::new(assumption_proof(premise.clone(), 0)),
-            },
-        };
-        let denoted = verify_bounded_certificate(
+        let denoted = denote_via_assumption_premise(
             &context,
             &goal,
-            std::slice::from_ref(&premise),
-            &[],
-            &proof,
-            &mut Budget::default(),
-        )
-        .expect("the nested Boolean identity verifies through case analysis");
+            &premise,
+            "the nested Boolean identity verifies through case analysis",
+        );
         // `b : Two` and the proposition atom — no rule-instance axiom.
         assert_eq!(denoted.certificate.signature.len(), 2);
         assert!(matches!(

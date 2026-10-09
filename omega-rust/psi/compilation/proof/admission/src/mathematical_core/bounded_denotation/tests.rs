@@ -14,6 +14,7 @@ use super::{
     ProofError, ProofNode, ProofRule, Proposition, PropositionContext, ScalarTerm, Term,
     denote_bounded_certificate, verify_bounded_certificate,
 };
+use super::test_utilities::denote_via_assumption_premise;
 use crate::mathematical_core::{
     Budget, DEFAULT_CONVERSION_STEPS, certificate_assumption_closure,
     verify_mathematical_certificate,
@@ -419,21 +420,12 @@ fn conversion_and_value_transport_use_existing_evidence_and_identity_elimination
     // evidence with no axiom at all.
     let premise = Proposition::Equal(y.clone(), x.clone());
     let goal = Proposition::Equal(x, y);
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::PredicateDenotation {
-            premise: Box::new(assumption_proof(premise.clone(), 0)),
-        },
-    };
-    let denoted = verify_bounded_certificate(
+    let denoted = denote_via_assumption_premise(
         &context,
         &goal,
-        std::slice::from_ref(&premise),
-        &[],
-        &proof,
-        &mut budget(),
-    )
-    .expect("predicate denotation verifies definitionally");
+        &premise,
+        "predicate denotation verifies definitionally",
+    );
     assert_eq!(
         denoted.arena.get(denoted.certificate.term),
         Term::Variable(0),

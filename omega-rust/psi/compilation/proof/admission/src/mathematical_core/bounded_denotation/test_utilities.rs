@@ -7,6 +7,32 @@ use semantic_vocabulary::{
 };
 use std::collections::BTreeSet;
 
+/// The `PredicateDenotation` proof of a single assumption premise,
+/// verified against the goal with no semantic axioms and a default
+/// budget — the preamble every denotation test used to restate.
+pub(crate) fn denote_via_assumption_premise(
+    context: &PropositionContext,
+    goal: &Proposition,
+    premise: &Proposition,
+    message: &str,
+) -> BoundedDenotation {
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::PredicateDenotation {
+            premise: Box::new(assumption_proof(premise.clone(), 0)),
+        },
+    };
+    verify_bounded_certificate(
+        context,
+        goal,
+        std::slice::from_ref(premise),
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .expect(message)
+}
+
 pub(crate) fn mathematical(term: &ScalarTerm) -> IntegerMathTerm {
     match term {
         ScalarTerm::Value {
