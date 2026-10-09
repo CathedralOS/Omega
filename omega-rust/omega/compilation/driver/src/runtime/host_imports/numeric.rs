@@ -139,7 +139,10 @@ impl TerminalEffectHandler for NumericImport {
                 IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
                 IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
             };
-            let (ordinal, sign) = match FloatSemantics::classify(format, &decode(*value)) {
+            let (ordinal, sign) = match FloatSemantics::classify(
+                format,
+                &terminal_interpreter::float_result_policy::meaning(*value),
+            ) {
                 numerics::float_semantics::FloatClass::NaN => (0, None),
                 numerics::float_semantics::FloatClass::Infinity { negative } => (1, Some(negative)),
                 numerics::float_semantics::FloatClass::Normal { negative } => (2, Some(negative)),
@@ -210,7 +213,7 @@ fn evaluate(
     // alone reads the other format; decode each actual landed operand once.
     let meanings = operands
         .iter()
-        .map(|value| decode(*value))
+        .map(|value| terminal_interpreter::float_result_policy::meaning(*value))
         .collect::<Vec<_>>();
     let first = &meanings[0];
     let meaning = match realization.operation {
@@ -348,13 +351,6 @@ fn directed(
         (Operation::Divide, Direction::TowardZero) => FloatSemantics::divide_toward_zero,
         (Operation::Divide, Direction::TowardPositive) => FloatSemantics::divide_toward_positive,
         (Operation::Divide, Direction::TowardNegative) => FloatSemantics::divide_toward_negative,
-    }
-}
-
-fn decode(value: IeeeFloatValue) -> FloatMeaning {
-    match value {
-        IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
-        IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
     }
 }
 
