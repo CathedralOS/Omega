@@ -20,7 +20,6 @@ use crate::{
 /// Private lifetime witness for the exact authority that justified a placed
 /// access. Owned Stable access retains the whole established carrier rather
 /// than reducing provider content custody to a bare Extent reference.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PlacementAuthorityRef<'view, 'extent> {
     Borrowed(&'view PlacedView<'extent>),
