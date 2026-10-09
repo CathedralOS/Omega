@@ -98,14 +98,6 @@ pub(crate) struct UefiSystemTableOccurrenceValidationError<'occurrence> {
 }
 
 impl<'occurrence> UefiSystemTableOccurrenceValidationError<'occurrence> {
-    pub const fn layout(&self) -> &ValidatedUefiSystemTableNativeLayout {
-        &self.layout
-    }
-
-    pub const fn supplied_bytes(&self) -> &'occurrence [u8] {
-        self.supplied_bytes
-    }
-
     pub const fn diagnostic(&self) -> &Diagnostic {
         &self.diagnostic
     }

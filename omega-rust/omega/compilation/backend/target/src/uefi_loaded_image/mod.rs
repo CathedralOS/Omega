@@ -140,9 +140,6 @@ pub(crate) struct UefiLoadedImageNativeFieldLayout {
 }
 
 impl UefiLoadedImageNativeFieldLayout {
-    pub const fn field(self) -> UefiLoadedImageNativeField {
-        self.field
-    }
     pub const fn ordinal(self) -> u8 {
         self.ordinal
     }
@@ -151,9 +148,6 @@ impl UefiLoadedImageNativeFieldLayout {
     }
     pub const fn byte_size(self) -> u32 {
         self.byte_size
-    }
-    pub const fn alignment(self) -> u32 {
-        self.alignment
     }
     pub const fn kind(self) -> UefiLoadedImageNativeFieldKind {
         self.kind
@@ -170,12 +164,6 @@ pub(crate) struct ValidatedUefiLoadedImageNativeLayout {
 }
 
 impl ValidatedUefiLoadedImageNativeLayout {
-    pub const fn profile(&self) -> TargetProfile {
-        self.profile
-    }
-    pub const fn entry_slot(&self) -> ProgramEntrySlotDeclaration {
-        self.entry_slot
-    }
     pub fn field_count(&self) -> usize {
         self.fields.len()
     }

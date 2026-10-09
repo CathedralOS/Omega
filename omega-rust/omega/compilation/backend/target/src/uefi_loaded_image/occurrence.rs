@@ -18,16 +18,12 @@ pub(crate) const UEFI_LOADED_IMAGE_PROTOCOL_REVISION: u32 = 0x1000;
 #[derive(Debug)]
 #[must_use = "validated UEFI Loaded Image geometry retains exact target layout evidence"]
 pub(crate) struct ValidatedUefiLoadedImageGeometry {
-    layout: ValidatedUefiLoadedImageNativeLayout,
     revision: u32,
     image_base: NonZeroU64,
     image_size: NonZeroU64,
 }
 
 impl ValidatedUefiLoadedImageGeometry {
-    pub const fn layout(&self) -> &ValidatedUefiLoadedImageNativeLayout {
-        &self.layout
-    }
     pub const fn revision(&self) -> u32 {
         self.revision
     }
@@ -44,63 +40,37 @@ impl ValidatedUefiLoadedImageGeometry {
 
 #[derive(Debug)]
 #[must_use = "UEFI Loaded Image decoding rejection retains layout and borrowed bytes"]
-pub(crate) struct UefiLoadedImageOccurrenceValidationError<'occurrence> {
-    layout: ValidatedUefiLoadedImageNativeLayout,
-    supplied_bytes: &'occurrence [u8],
+pub(crate) struct UefiLoadedImageOccurrenceValidationError {
     diagnostic: Diagnostic,
 }
 
-impl<'occurrence> UefiLoadedImageOccurrenceValidationError<'occurrence> {
-    pub const fn layout(&self) -> &ValidatedUefiLoadedImageNativeLayout {
-        &self.layout
-    }
-    pub const fn supplied_bytes(&self) -> &'occurrence [u8] {
-        self.supplied_bytes
-    }
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-    pub fn into_parts(
-        self,
-    ) -> (
-        ValidatedUefiLoadedImageNativeLayout,
-        &'occurrence [u8],
-        Diagnostic,
-    ) {
-        (self.layout, self.supplied_bytes, self.diagnostic)
-    }
+impl UefiLoadedImageOccurrenceValidationError {
 }
 
-impl std::fmt::Display for UefiLoadedImageOccurrenceValidationError<'_> {
+impl std::fmt::Display for UefiLoadedImageOccurrenceValidationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.diagnostic.fmt(formatter)
     }
 }
 
-impl std::error::Error for UefiLoadedImageOccurrenceValidationError<'_> {}
+impl std::error::Error for UefiLoadedImageOccurrenceValidationError {}
 
 pub(crate) fn validate_uefi_loaded_image_occurrence<'occurrence>(
     layout: ValidatedUefiLoadedImageNativeLayout,
     supplied_bytes: &'occurrence [u8],
 ) -> Result<
     ValidatedUefiLoadedImageGeometry,
-    Box<UefiLoadedImageOccurrenceValidationError<'occurrence>>,
+    Box<UefiLoadedImageOccurrenceValidationError>,
 > {
     let expected = exact_uefi_x64_loaded_image_native_layout();
     if !layout.matches_exact_plan(&expected) {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error(
+        return reject(Diagnostic::error(
                 "UEFI Loaded Image occurrence cannot join a drifted target-owned layout",
             ),
         );
     }
     if supplied_bytes.len() < layout.byte_size() as usize {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error(format!(
+        return reject(Diagnostic::error(format!(
                 "UEFI Loaded Image occurrence is {} bytes; expected at least {}",
                 supplied_bytes.len(),
                 expected.byte_size()
@@ -109,44 +79,30 @@ pub(crate) fn validate_uefi_loaded_image_occurrence<'occurrence>(
     }
     let fields = match geometry_fields(&layout) {
         Ok(fields) => fields,
-        Err(diagnostic) => return reject(layout, supplied_bytes, diagnostic),
+        Err(diagnostic) => return reject(diagnostic),
     };
     let revision = read_u32(supplied_bytes, fields[0]);
     if revision != UEFI_LOADED_IMAGE_PROTOCOL_REVISION {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error(format!(
+        return reject(Diagnostic::error(format!(
                 "UEFI Loaded Image revision is {revision:#010x}; expected {UEFI_LOADED_IMAGE_PROTOCOL_REVISION:#010x}"
             )),
         );
     }
     let Some(image_base) = NonZeroU64::new(read_u64(supplied_bytes, fields[1])) else {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error("UEFI Loaded Image occurrence has a null ImageBase"),
+        return reject(Diagnostic::error("UEFI Loaded Image occurrence has a null ImageBase"),
         );
     };
     let Some(image_size) = NonZeroU64::new(read_u64(supplied_bytes, fields[2])) else {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error("UEFI Loaded Image occurrence has an empty ImageSize"),
+        return reject(Diagnostic::error("UEFI Loaded Image occurrence has an empty ImageSize"),
         );
     };
     if image_base.get().checked_add(image_size.get()).is_none() {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error(
+        return reject(Diagnostic::error(
                 "UEFI Loaded Image occurrence geometry wraps the u64 address carrier",
             ),
         );
     }
-    Ok(ValidatedUefiLoadedImageGeometry {
-        layout,
-        revision,
+    Ok(ValidatedUefiLoadedImageGeometry { revision,
         image_base,
         image_size,
     })
@@ -192,16 +148,12 @@ fn required(
 }
 
 fn reject<'occurrence>(
-    layout: ValidatedUefiLoadedImageNativeLayout,
-    supplied_bytes: &'occurrence [u8],
     diagnostic: Diagnostic,
 ) -> Result<
     ValidatedUefiLoadedImageGeometry,
-    Box<UefiLoadedImageOccurrenceValidationError<'occurrence>>,
+    Box<UefiLoadedImageOccurrenceValidationError>,
 > {
     Err(Box::new(UefiLoadedImageOccurrenceValidationError {
-        layout,
-        supplied_bytes,
         diagnostic,
     }))
 }

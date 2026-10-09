@@ -18,126 +18,80 @@ const CRC32_POLYNOMIAL_REFLECTED: u32 = 0xedb8_8320;
 pub(crate) struct ValidatedUefiBootServicesHeaderIntegrity<'occurrence> {
     layout: ValidatedUefiBootServicesNativeLayout,
     table_bytes: &'occurrence [u8],
-    revision: u32,
-    stored_crc32: u32,
 }
 
 impl<'occurrence> ValidatedUefiBootServicesHeaderIntegrity<'occurrence> {
-    pub const fn layout(&self) -> &ValidatedUefiBootServicesNativeLayout {
-        &self.layout
-    }
-    pub fn header_bytes(&self) -> &'occurrence [u8] {
-        &self.table_bytes[..self.layout.table_header_size() as usize]
-    }
     pub fn known_prefix_bytes(&self) -> &'occurrence [u8] {
         &self.table_bytes[..self.layout.known_prefix_byte_size() as usize]
     }
     pub const fn table_bytes(&self) -> &'occurrence [u8] {
         self.table_bytes
     }
-    pub const fn revision(&self) -> u32 {
-        self.revision
-    }
     pub const fn header_size(&self) -> u32 {
         self.table_bytes.len() as u32
-    }
-    pub const fn stored_crc32(&self) -> u32 {
-        self.stored_crc32
     }
 }
 
 #[derive(Debug)]
 #[must_use = "UEFI Boot Services occurrence rejection retains layout and borrowed input"]
-pub(crate) struct UefiBootServicesOccurrenceValidationError<'occurrence> {
-    layout: ValidatedUefiBootServicesNativeLayout,
-    supplied_bytes: &'occurrence [u8],
+pub(crate) struct UefiBootServicesOccurrenceValidationError {
     diagnostic: Diagnostic,
 }
 
-impl<'occurrence> UefiBootServicesOccurrenceValidationError<'occurrence> {
-    pub const fn layout(&self) -> &ValidatedUefiBootServicesNativeLayout {
-        &self.layout
-    }
-    pub const fn supplied_bytes(&self) -> &'occurrence [u8] {
-        self.supplied_bytes
-    }
+impl UefiBootServicesOccurrenceValidationError {
     pub const fn diagnostic(&self) -> &Diagnostic {
         &self.diagnostic
     }
-    pub fn into_parts(
-        self,
-    ) -> (
-        ValidatedUefiBootServicesNativeLayout,
-        &'occurrence [u8],
-        Diagnostic,
-    ) {
-        (self.layout, self.supplied_bytes, self.diagnostic)
-    }
 }
-impl std::fmt::Display for UefiBootServicesOccurrenceValidationError<'_> {
+impl std::fmt::Display for UefiBootServicesOccurrenceValidationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.diagnostic.fmt(formatter)
     }
 }
-impl std::error::Error for UefiBootServicesOccurrenceValidationError<'_> {}
+impl std::error::Error for UefiBootServicesOccurrenceValidationError {}
 
 pub(crate) fn validate_uefi_boot_services_occurrence<'occurrence>(
     layout: ValidatedUefiBootServicesNativeLayout,
     supplied_bytes: &'occurrence [u8],
 ) -> Result<
     ValidatedUefiBootServicesHeaderIntegrity<'occurrence>,
-    Box<UefiBootServicesOccurrenceValidationError<'occurrence>>,
+    Box<UefiBootServicesOccurrenceValidationError>,
 > {
     let fields = match header_fields(&layout) {
         Ok(fields) => fields,
-        Err(diagnostic) => return reject(layout, supplied_bytes, diagnostic),
+        Err(diagnostic) => return reject(diagnostic),
     };
     let prefix = layout.known_prefix_byte_size() as usize;
     if supplied_bytes.len() < layout.table_header_size() as usize {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error(
+        return reject(Diagnostic::error(
                 "UEFI Boot Services occurrence is too short to inspect EFI_TABLE_HEADER",
             ),
         );
     }
     let signature = read_u64(supplied_bytes, fields[0]);
     if signature != UEFI_BOOT_SERVICES_SIGNATURE {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error(format!(
+        return reject(Diagnostic::error(format!(
                 "UEFI Boot Services signature is {signature:#018x}; expected {UEFI_BOOT_SERVICES_SIGNATURE:#018x}"
             )),
         );
     }
-    let revision = read_u32(supplied_bytes, fields[1]);
+    let _revision = read_u32(supplied_bytes, fields[1]);
     let header_size = read_u32(supplied_bytes, fields[2]) as usize;
     if header_size < prefix {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error(format!(
+        return reject(Diagnostic::error(format!(
                 "UEFI Boot Services HeaderSize is {header_size} bytes; it does not cover the {prefix}-byte target prefix"
             )),
         );
     }
     if header_size > supplied_bytes.len() {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error(format!(
+        return reject(Diagnostic::error(format!(
                 "UEFI Boot Services HeaderSize is {header_size} bytes but only {} occurrence bytes were supplied",
                 supplied_bytes.len()
             )),
         );
     }
     if read_u32(supplied_bytes, fields[4]) != 0 {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error("UEFI Boot Services header Reserved field is nonzero"),
+        return reject(Diagnostic::error("UEFI Boot Services header Reserved field is nonzero"),
         );
     }
     let stored_crc32 = read_u32(supplied_bytes, fields[3]);
@@ -146,10 +100,7 @@ pub(crate) fn validate_uefi_boot_services_occurrence<'occurrence>(
         fields[3].byte_offset() as usize,
     );
     if stored_crc32 != computed_crc32 {
-        return reject(
-            layout,
-            supplied_bytes,
-            Diagnostic::error(format!(
+        return reject(Diagnostic::error(format!(
                 "UEFI Boot Services CRC32 is {stored_crc32:#010x}; computed {computed_crc32:#010x}"
             )),
         );
@@ -157,8 +108,6 @@ pub(crate) fn validate_uefi_boot_services_occurrence<'occurrence>(
     Ok(ValidatedUefiBootServicesHeaderIntegrity {
         layout,
         table_bytes: &supplied_bytes[..header_size],
-        revision,
-        stored_crc32,
     })
 }
 
@@ -206,16 +155,12 @@ fn required(
 }
 
 fn reject<'occurrence>(
-    layout: ValidatedUefiBootServicesNativeLayout,
-    supplied_bytes: &'occurrence [u8],
     diagnostic: Diagnostic,
 ) -> Result<
     ValidatedUefiBootServicesHeaderIntegrity<'occurrence>,
-    Box<UefiBootServicesOccurrenceValidationError<'occurrence>>,
+    Box<UefiBootServicesOccurrenceValidationError>,
 > {
     Err(Box::new(UefiBootServicesOccurrenceValidationError {
-        layout,
-        supplied_bytes,
         diagnostic,
     }))
 }
