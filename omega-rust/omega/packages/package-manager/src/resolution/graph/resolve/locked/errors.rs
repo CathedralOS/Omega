@@ -7,7 +7,7 @@ use crate::resolution::source::ResolvePackageSourceError;
 use std::fmt;
 
 #[derive(Debug)]
-pub enum ResolveLockedPackageClosureError {
+pub(crate) enum ResolveLockedPackageClosureError {
     RootRequestMismatch,
     SourceMismatch {
         package: PackageKey,

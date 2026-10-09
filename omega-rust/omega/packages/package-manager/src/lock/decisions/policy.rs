@@ -18,7 +18,7 @@ impl HistoricalPackagePolicyDecisions {
     /// packages, root roles, and replacements refer to comparison subjects, not
     /// candidate-only package indices. A rejection is preserved, not published.
     /// No source/IR replay or proof-of-review stage is needed here.
-    pub fn capture_policy(
+    pub(crate) fn capture_policy(
         source: &CanonicalSourceClosureSubject,
         changes: &PackagePolicyChangeSet,
         resolution: &PackagePolicyResolution,

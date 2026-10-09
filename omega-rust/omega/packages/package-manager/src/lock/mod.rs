@@ -12,8 +12,8 @@
 
 mod acceptance;
 mod compilation;
-pub use acceptance::{PackageAcceptanceRow, PackagePolicyAcceptance, PackagePolicyOccurrence};
-pub use compilation::AcceptedPackageCompilation;
+pub(crate) use acceptance::{PackageAcceptanceRow, PackagePolicyAcceptance, PackagePolicyOccurrence};
+pub(crate) use compilation::AcceptedPackageCompilation;
 mod decisions;
 mod error;
 mod limits;
@@ -25,22 +25,24 @@ use self::PackageLockError as Error;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 pub use decisions::{
+};
+pub(crate) use decisions::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
-    HistoricalPackagePolicyRecoveryUsage,
-};
-pub use error::PackageLockError;
-pub use limits::PackageLockRecoveryLimits;
+    HistoricalPackagePolicyRecoveryUsage};
+pub(crate) use error::PackageLockError;
+pub(crate) use limits::PackageLockRecoveryLimits;
 pub use occurrences::{
-    PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
-    PackagePurposeCoverage,
 };
+pub(crate) use occurrences::{
+    PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
+    PackagePurposeCoverage};
 use package_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
 
 /// Source pins and independently retained consent for every checked occurrence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageLockTarget {
+pub(crate) struct PackageLockTarget {
     source: CanonicalSourceClosureSubject,
     occurrences: Vec<PackagePolicyOccurrence>,
     decisions: HistoricalPackagePolicyDecisions,
@@ -49,7 +51,7 @@ pub struct PackageLockTarget {
 impl PackageLockTarget {
     /// Accept policies with an explicitly empty semantic binding roster.
     /// The caller supplies the compiler identity; no current identity is guessed.
-    pub fn from_policies(
+    pub(crate) fn from_policies(
         source: CanonicalSourceClosureSubject,
         policies: &[(PackageCheckedContext, &PackagePolicyBaseline)],
         compiler_identity: [u8; 32],
@@ -66,7 +68,7 @@ impl PackageLockTarget {
     }
 
     /// Retain the exact binding inputs of each independently accepted review.
-    pub fn from_accepted_policies(
+    pub(crate) fn from_accepted_policies(
         source: CanonicalSourceClosureSubject,
         policies: &[(
             PackageCheckedContext,
@@ -107,7 +109,7 @@ impl PackageLockTarget {
     /// Compose exact occurrence records, including historical review baselines.
     /// This does not check current source or compiler identity; publication
     /// additionally requires compilation inputs on every occurrence.
-    pub fn from_occurrences(
+    pub(crate) fn from_occurrences(
         source: CanonicalSourceClosureSubject,
         occurrences: Vec<PackagePolicyOccurrence>,
         decisions: HistoricalPackagePolicyDecisions,
@@ -194,12 +196,12 @@ impl PackageLockTarget {
 /// immutable source graph is identical across sections; target-sensitive policy
 /// and decisions remain separate. No section authorizes another target.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageLock {
+pub(crate) struct PackageLock {
     targets: Vec<PackageLockTarget>,
 }
 
 impl PackageLock {
-    pub fn from_targets(targets: Vec<PackageLockTarget>) -> Result<Self, Error> {
+    pub(crate) fn from_targets(targets: Vec<PackageLockTarget>) -> Result<Self, Error> {
         let value = Self { targets };
         value.validate(PackageLockRecoveryLimits::default())?;
         Ok(value)

@@ -13,7 +13,7 @@ use package_source::SourceLineage;
 /// model and temporary storage; that storage is not charged as context bytes.
 /// These limits do not measure allocator overhead or process memory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PackagePolicyChangeLimits {
+pub(crate) struct PackagePolicyChangeLimits {
     pub maximum_packages: usize,
     pub maximum_rows: usize,
     pub maximum_projection_owned_bytes: usize,

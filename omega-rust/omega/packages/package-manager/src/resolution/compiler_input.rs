@@ -13,7 +13,7 @@ use std::collections::BTreeSet;
 /// Package identities come from `PackageKey`; snapshot paths remain routing
 /// custody only. `PackageCompilationInputs::new` canonicalizes and rechecks the
 /// complete graph rather than trusting the package-side structural verdict.
-pub fn package_compilation_inputs(
+pub(crate) fn package_compilation_inputs(
     closure: &ResolvedPackageSourceClosure,
 ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
     package_compilation_inputs_for(closure, closure.graph().root())
@@ -25,7 +25,7 @@ pub fn package_compilation_inputs(
 /// Re-rooting is required when every dependency is compiled for its own review:
 /// passing unrelated sibling packages would correctly fail the compiler's
 /// unreachable-package check.
-pub fn package_compilation_inputs_for(
+pub(crate) fn package_compilation_inputs_for(
     closure: &ResolvedPackageSourceClosure,
     root: &crate::declarations::PackageKey,
 ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {

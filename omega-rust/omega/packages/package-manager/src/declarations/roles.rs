@@ -48,7 +48,7 @@ pub struct WorkspaceDeclaration {
 ///
 /// This preserves the package-manager identity-bearing API while the syntax
 /// authority lives in `build-declarations`.
-pub fn extract_package_declaration(
+pub(crate) fn extract_package_declaration(
     package_root: impl AsRef<Path>,
 ) -> Result<PackageDeclaration, BuildDeclarationError> {
     match extract_build_declaration(package_root) {

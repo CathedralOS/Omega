@@ -5,7 +5,8 @@ mod render;
 
 pub(crate) use decision::triage_review_update_records;
 pub use decision::{
-    CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
-    triage_initial_install, triage_review_update, triage_update_without_admission_baseline,
 };
-pub use render::TriageRenderError;
+pub(crate) use decision::{
+    CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
+    triage_initial_install, triage_review_update, triage_update_without_admission_baseline};
+pub(crate) use render::TriageRenderError;

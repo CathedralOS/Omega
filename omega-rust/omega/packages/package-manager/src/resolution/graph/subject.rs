@@ -14,7 +14,7 @@ mod text;
 mod usage;
 mod validation;
 
-pub use usage::CanonicalSourceClosureSubjectRecoveryUsage;
+pub(crate) use usage::CanonicalSourceClosureSubjectRecoveryUsage;
 
 use std::fmt;
 
@@ -36,7 +36,7 @@ pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SU
 /// and splits each package's authored requests by purpose. v6 subjects have
 /// only product-purpose requests and edges; they are not accepted as v7
 /// records and must be re-projected through the versioned lock migration.
-pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 7;
+pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 7;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
@@ -47,7 +47,7 @@ pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
 /// roots, cache paths, transport execution observations, compiler evidence,
 /// certificates, decisions, and artifacts are intentionally absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanonicalSourceClosureSubject {
+pub(crate) struct CanonicalSourceClosureSubject {
     pub(super) target_profile: TargetProfile,
     pub(super) root: CanonicalRootSourceSelection,
     pub(super) packages: Vec<ResolvedSourceIdentity>,
@@ -61,7 +61,7 @@ pub struct CanonicalSourceClosureSubject {
 impl CanonicalSourceClosureSubject {
     /// Compare every target-independent source field without allocation.
     /// Target-scoped encoded bytes and fingerprints are deliberately excluded.
-    pub fn same_source_graph(&self, other: &Self) -> bool {
+    pub(crate) fn same_source_graph(&self, other: &Self) -> bool {
         self.root == other.root
             && self.packages == other.packages
             && self.package_navigations == other.package_navigations
@@ -85,14 +85,14 @@ impl CanonicalSourceClosureSubject {
         &self.packages
     }
 
-    pub fn package_navigation(&self, package: &PackageKey) -> Option<&PackageSourceNavigation> {
+    pub(crate) fn package_navigation(&self, package: &PackageKey) -> Option<&PackageSourceNavigation> {
         self.packages
             .binary_search_by(|source| source.key().cmp(package))
             .ok()
             .map(|index| &self.package_navigations[index])
     }
 
-    pub fn package_dependency_projection(
+    pub(crate) fn package_dependency_projection(
         &self,
         package: &PackageKey,
     ) -> Option<&DependencyProjections> {
@@ -102,7 +102,7 @@ impl CanonicalSourceClosureSubject {
             .map(|index| &self.package_dependency_projections[index])
     }
 
-    pub fn dependency_requests(&self) -> &[CanonicalDependencySourceSelection] {
+    pub(crate) fn dependency_requests(&self) -> &[CanonicalDependencySourceSelection] {
         &self.dependency_requests
     }
 
@@ -117,7 +117,7 @@ impl CanonicalSourceClosureSubject {
 
 /// Exact caller request for the root source, before normalized selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CanonicalRootSourceRequest {
+pub(crate) enum CanonicalRootSourceRequest {
     Git {
         requested_locator: String,
         requested_revision: String,
@@ -139,7 +139,7 @@ pub enum CanonicalRootSourceRequest {
 
 /// One exact root request joined directly to the immutable source it selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanonicalRootSourceSelection {
+pub(crate) struct CanonicalRootSourceSelection {
     pub(super) request: CanonicalRootSourceRequest,
     pub(super) role: BuildDeclarationKind,
     pub(super) selected: ResolvedSourceIdentity,
@@ -161,7 +161,7 @@ impl CanonicalRootSourceSelection {
 
 /// Exact authored source request for one dependency occurrence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CanonicalDependencySourceRequest {
+pub(crate) enum CanonicalDependencySourceRequest {
     Path {
         explicit_alias: Option<AliasName>,
         location: String,
@@ -212,7 +212,7 @@ impl From<&DependencySourceRequest> for CanonicalDependencySourceRequest {
 /// One requester-owned dependency request joined to its graph edge and exact
 /// immutable selection. Distinct diamond occurrences remain distinct rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanonicalDependencySourceSelection {
+pub(crate) struct CanonicalDependencySourceSelection {
     pub(super) requester: PackageKey,
     pub(super) purpose: DependencyPurpose,
     pub(super) dependency_index: usize,
@@ -252,7 +252,7 @@ impl CanonicalDependencySourceSelection {
 
 /// A closed error from projection or strict canonical recovery.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanonicalSourceClosureSubjectError {
+pub(crate) struct CanonicalSourceClosureSubjectError {
     message: &'static str,
 }
 
@@ -279,7 +279,7 @@ impl std::error::Error for CanonicalSourceClosureSubjectError {}
 /// This identifies the question only. It is not source authenticity, package
 /// admission, a compiler result, or a package instance.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CanonicalSourceClosureSubjectFingerprint(pub(super) [u8; 32]);
+pub(crate) struct CanonicalSourceClosureSubjectFingerprint(pub(super) [u8; 32]);
 
 impl CanonicalSourceClosureSubjectFingerprint {
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -299,7 +299,7 @@ const ABSOLUTE_REQUEST_BYTE_LIMIT: usize = 1024 * 1024;
 
 /// Resource ceilings for one canonical resolved-source question.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CanonicalSourceClosureSubjectLimits {
+pub(crate) struct CanonicalSourceClosureSubjectLimits {
     pub maximum_record_bytes: usize,
     pub maximum_packages: usize,
     pub maximum_dependency_requests: usize,

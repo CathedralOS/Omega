@@ -7,7 +7,7 @@ use build_declarations::WorkspaceMemberPath;
 /// Raw authenticated declarations retained separately from the selected
 /// member's compilation root.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GitWorkspaceSelectionDeclarations {
+pub(crate) struct GitWorkspaceSelectionDeclarations {
     root: Vec<u8>,
     members: Vec<(WorkspaceMemberPath, Vec<u8>)>,
 }
@@ -27,7 +27,7 @@ impl GitWorkspaceSelectionDeclarations {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GitWorkspaceSelectionEvidence {
+pub(crate) struct GitWorkspaceSelectionEvidence {
     plan: GitWorkspaceSelectionPlan,
     declarations: GitWorkspaceSelectionDeclarations,
 }

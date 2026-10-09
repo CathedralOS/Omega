@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 /// Resolve a workspace closure beneath the manager-owned private source root.
-pub fn resolve_workspace_package_closure(
+pub(crate) fn resolve_workspace_package_closure(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -41,7 +41,7 @@ pub fn resolve_workspace_package_closure(
 
 /// Resolve a selected workspace project root. The root may be a package or an
 /// application; dependencies remain package-only.
-pub fn resolve_workspace_project_closure(
+pub(crate) fn resolve_workspace_project_closure(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -62,7 +62,7 @@ pub fn resolve_workspace_project_closure(
 }
 
 /// Resolve a context-enabled workspace closure beneath private resolver storage.
-pub fn resolve_workspace_package_closure_in_context(
+pub(crate) fn resolve_workspace_package_closure_in_context(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -86,7 +86,7 @@ pub fn resolve_workspace_package_closure_in_context(
 /// Context-enabled project-root variant for a workspace member that may be an
 /// application while external path dependencies remain explicitly scoped.
 #[allow(clippy::too_many_arguments)]
-pub fn resolve_workspace_project_closure_in_context(
+pub(crate) fn resolve_workspace_project_closure_in_context(
     workspace_root_source: &SourceLineage,
     root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,

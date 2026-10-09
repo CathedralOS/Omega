@@ -2,7 +2,7 @@
 
 mod error;
 use PublishReviewedPackageChangeError as Error;
-pub use error::PublishReviewedPackageChangeError;
+pub(crate) use error::PublishReviewedPackageChangeError;
 
 use super::PackageFileTransaction;
 use crate::declarations::BuildFileReplacement;

@@ -14,7 +14,7 @@ use std::path::Path;
 /// tree must first produce one authoritative package, application, or workspace
 /// declaration; absence is not a second implicit project kind. Build-purpose
 /// requests are projected but not returned by this product-scope helper.
-pub fn extract_dependency_projection(
+pub(crate) fn extract_dependency_projection(
     package_root: impl AsRef<Path>,
 ) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
     Ok(extract_build_dependency_projection(package_root)?
@@ -25,7 +25,7 @@ pub fn extract_dependency_projection(
 }
 
 /// Project the project role and direct dependencies together from one parse.
-pub fn extract_build_dependency_projection(
+pub(crate) fn extract_build_dependency_projection(
     package_root: impl AsRef<Path>,
 ) -> Result<BuildDependencyProjection, DependencyProjectionError> {
     let source = build_declarations::read_build_file_source(
