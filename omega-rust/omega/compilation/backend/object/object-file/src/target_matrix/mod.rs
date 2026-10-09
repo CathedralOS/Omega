@@ -49,20 +49,15 @@ pub fn object_target_policy(target: NativeTarget) -> Option<ObjectTargetPolicy> 
             bss_section_name: "__DATA,__bss",
             text_section_alignment: 4,
         }),
-        (Architecture::X86_64, ObjectFormat::Elf) => Some(ObjectTargetPolicy {
-            entry_symbol_name: "main",
-            text_section_name: ".text",
-            data_section_name: ".data",
-            bss_section_name: ".bss",
-            text_section_alignment: 1,
-        }),
-        (Architecture::X86_64, ObjectFormat::Coff) => Some(ObjectTargetPolicy {
-            entry_symbol_name: "main",
-            text_section_name: ".text",
-            data_section_name: ".data",
-            bss_section_name: ".bss",
-            text_section_alignment: 1,
-        }),
+        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::Coff) => {
+            Some(ObjectTargetPolicy {
+                entry_symbol_name: "main",
+                text_section_name: ".text",
+                data_section_name: ".data",
+                bss_section_name: ".bss",
+                text_section_alignment: 1,
+            })
+        }
         (Architecture::X86_64, ObjectFormat::MachO) => Some(ObjectTargetPolicy {
             entry_symbol_name: "_main",
             text_section_name: "__TEXT,__text",

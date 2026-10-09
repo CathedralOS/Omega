@@ -103,7 +103,7 @@ pub(super) fn decode_manifest_content(
         decode_unavailable(cursor)?,
         decode_unavailable(cursor)?,
     ];
-    let manifest = FunctionRelativeOptimizationRealizationManifest {
+    Ok(FunctionRelativeOptimizationRealizationManifest {
         identity,
         stage,
         selections,
@@ -136,8 +136,7 @@ pub(super) fn decode_manifest_content(
         executable_image: unavailable[4],
         installation: unavailable[5],
         publication: unavailable[6],
-    };
-    Ok(manifest)
+    })
 }
 
 fn decode_unavailable(

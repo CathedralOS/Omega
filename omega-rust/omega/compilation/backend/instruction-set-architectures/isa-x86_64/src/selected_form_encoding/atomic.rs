@@ -423,8 +423,7 @@ mod tests {
             .collect();
         for form in AtomicForm::ALL {
             let operand_views: Vec<RegisterViewId> = match form.operation {
-                AtomicOperation::Load => vec![views[0], views[3]],
-                AtomicOperation::Store => vec![views[0], views[3]],
+                AtomicOperation::Load | AtomicOperation::Store => vec![views[0], views[3]],
                 AtomicOperation::CompareExchange => {
                     vec![views[0], views[1], views[3], views[4]]
                 }

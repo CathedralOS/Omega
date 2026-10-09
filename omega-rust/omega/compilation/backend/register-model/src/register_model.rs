@@ -162,8 +162,7 @@ pub fn validate_physical_register_model(
         .iter()
         .map(|class| (class.id, class))
         .collect::<BTreeMap<_, _>>();
-    if let Some(unit) = model.units.iter().find(|unit| unit.bits == 0) {
-        let _ = unit;
+    if model.units.iter().any(|unit| unit.bits == 0) {
         return Err(RegisterModelValidationError::ZeroWidthUnit);
     }
     let mut covered = BTreeSet::new();

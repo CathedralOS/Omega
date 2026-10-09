@@ -151,9 +151,8 @@ impl RangeCheck {
             // MOVSXD (3), CMP (3), JE (2), UD2 (2).
             Self::SignExtension { bits: 32 } => 10,
             // MOVSX (4), CMP (3), JE (2), UD2 (2).
-            Self::SignExtension { .. } => 11,
             // MOV (3), SHR imm8 (4), JE (2), UD2 (2).
-            Self::HighBits { .. } => 11,
+            Self::SignExtension { .. } | Self::HighBits { .. } => 11,
         }
     }
 }

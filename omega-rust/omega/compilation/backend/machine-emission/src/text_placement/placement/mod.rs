@@ -33,11 +33,10 @@ pub fn place_fragment_text_section(
     input: TextPlacementInput<'_>,
 ) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
     source::validate(input)?;
-    let section = match input {
-        TextPlacementInput::RelocationFree(fragments) => production::relocation_free(fragments)?,
-        TextPlacementInput::InternalCalls(fragments) => production::fixed_frame(fragments)?,
-    };
-    Ok(section)
+    match input {
+        TextPlacementInput::RelocationFree(fragments) => production::relocation_free(fragments),
+        TextPlacementInput::InternalCalls(fragments) => production::fixed_frame(fragments),
+    }
 }
 pub fn validate_fragment_text_section(
     input: TextPlacementInput<'_>,

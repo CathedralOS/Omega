@@ -46,9 +46,8 @@ impl ScalarStorageCodec {
         match self {
             Self::Integer { byte_size, .. } => byte_size,
             Self::Boolean => 1,
-            Self::Address => 8,
+            Self::Address | Self::IeeeFloat(IeeeFloatFormat::Binary64) => 8,
             Self::IeeeFloat(IeeeFloatFormat::Binary32) => 4,
-            Self::IeeeFloat(IeeeFloatFormat::Binary64) => 8,
         }
     }
 

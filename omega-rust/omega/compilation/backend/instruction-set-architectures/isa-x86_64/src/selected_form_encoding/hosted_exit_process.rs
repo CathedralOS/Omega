@@ -18,7 +18,7 @@ use selected_instructions::{
 use target::NativeTarget;
 
 pub(crate) fn effects(
-    target: NativeTarget,
+    _target: NativeTarget,
 ) -> Result<MachineEncodedEffects, X86_64SelectedFormEncodingError> {
     let physical = crate::x86_64_physical_register_model();
     let view = |name: &str| {
@@ -27,7 +27,6 @@ pub(crate) fn effects(
             .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)
     };
     let mut clobbers = Vec::new();
-    let _ = target;
     for name in ["rax", "rdi", "rcx", "r11", "rflags"] {
         clobbers.extend(view(name)?.units.iter().copied());
     }

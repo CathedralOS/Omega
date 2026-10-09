@@ -233,13 +233,9 @@ fn family_and_operand_count(
             )
         }
         SelectedInstructionKind::ReturnUnit => (MachineAlternativeFamily::ReturnUnit, 0, 0..=0),
-        SelectedInstructionKind::ConditionalBranchNonZero => {
-            return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
-        }
-        SelectedInstructionKind::ConditionalBranchU64LessThan => {
-            return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
-        }
-        SelectedInstructionKind::ConditionalBranchI64LessThan => {
+        SelectedInstructionKind::ConditionalBranchNonZero
+        | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::ConditionalBranchI64LessThan => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
         SelectedInstructionKind::Float32ToBits
