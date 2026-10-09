@@ -35,7 +35,7 @@ pub static UEFI_LOADED_IMAGE_PROTOCOL_GUID: UefiProtocolGuid = UefiProtocolGuid 
 
 /// Byte-encoded UEFI protocol GUID carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct UefiProtocolGuid {
+pub struct UefiProtocolGuid {
     pub data1: u32,
     pub data2: u16,
     pub data3: u16,
@@ -146,20 +146,11 @@ pub(crate) struct UefiBootServicesNativeFieldLayout {
 }
 
 impl UefiBootServicesNativeFieldLayout {
-    pub const fn field(self) -> UefiBootServicesNativeField {
-        self.field
-    }
-    pub const fn ordinal(self) -> u8 {
-        self.ordinal
-    }
     pub const fn byte_offset(self) -> u32 {
         self.byte_offset
     }
     pub const fn byte_size(self) -> u32 {
         self.byte_size
-    }
-    pub const fn alignment(self) -> u32 {
-        self.alignment
     }
     pub const fn kind(self) -> UefiBootServicesNativeFieldKind {
         self.kind
@@ -185,9 +176,6 @@ pub(crate) struct ValidatedUefiBootServicesNativeLayout {
 impl ValidatedUefiBootServicesNativeLayout {
     pub const fn profile(&self) -> TargetProfile {
         self.profile
-    }
-    pub const fn entry_slot(&self) -> ProgramEntrySlotDeclaration {
-        self.entry_slot
     }
     pub fn field_count(&self) -> usize {
         self.fields.len()
@@ -232,9 +220,6 @@ pub(crate) struct UefiBootServicesNativeLayoutError {
 impl UefiBootServicesNativeLayoutError {
     pub const fn profile(&self) -> TargetProfile {
         self.profile
-    }
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
     }
     pub fn into_parts(self) -> (TargetProfile, Diagnostic) {
         (self.profile, self.diagnostic)

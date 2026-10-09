@@ -154,24 +154,12 @@ pub(crate) struct UefiSystemTableNativeFieldLayout {
 }
 
 impl UefiSystemTableNativeFieldLayout {
-    pub const fn field(self) -> UefiSystemTableNativeField {
-        self.field
-    }
-
-    pub const fn ordinal(self) -> u8 {
-        self.ordinal
-    }
-
     pub const fn byte_offset(self) -> u32 {
         self.byte_offset
     }
 
     pub const fn byte_size(self) -> u32 {
         self.byte_size
-    }
-
-    pub const fn alignment(self) -> u32 {
-        self.alignment
     }
 
     pub const fn kind(self) -> UefiSystemTableNativeFieldKind {
@@ -198,10 +186,6 @@ pub(crate) struct ValidatedUefiSystemTableNativeLayout {
 impl ValidatedUefiSystemTableNativeLayout {
     pub const fn profile(&self) -> TargetProfile {
         self.profile
-    }
-
-    pub const fn entry_slot(&self) -> ProgramEntrySlotDeclaration {
-        self.entry_slot
     }
 
     pub fn field_count(&self) -> usize {
@@ -265,10 +249,6 @@ pub(crate) struct UefiSystemTableNativeLayoutError {
 impl UefiSystemTableNativeLayoutError {
     pub const fn profile(&self) -> TargetProfile {
         self.profile
-    }
-
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
     }
 
     pub fn into_parts(self) -> (TargetProfile, Diagnostic) {

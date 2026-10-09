@@ -17,11 +17,11 @@ const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 mod sealed {
-    pub(crate) trait EntryStackSubject {}
+    pub trait EntryStackSubject {}
 }
 
 /// Closed subject vocabulary accepted by `guaranteed_entry_stack`.
-pub(crate) trait TargetEntryStackSubject: sealed::EntryStackSubject {
+pub trait TargetEntryStackSubject: sealed::EntryStackSubject {
     const SUBJECT_IDENTITY: &'static str;
     const REQUIRED_PROFILE: TargetProfile;
     const GUARANTEED_AVAILABLE_BYTES: u64;

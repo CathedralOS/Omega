@@ -166,7 +166,7 @@ impl X86DeploymentFeatures {
 /// multiply-then-add. The receipt retains raw bits so it is independent of the
 /// compiler host's floating-point environment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct X86ScalarFmaDifferentialReceipt {
+pub struct X86ScalarFmaDifferentialReceipt {
     slot: X86ScalarFmaSlot,
     operand_bits: [u64; 3],
     fused_result_bits: u64,
@@ -206,18 +206,6 @@ impl X86ScalarFmaDifferentialReceipt {
 
     pub const fn slot(self) -> X86ScalarFmaSlot {
         self.slot
-    }
-
-    pub const fn operand_bits(self) -> [u64; 3] {
-        self.operand_bits
-    }
-
-    pub const fn fused_result_bits(self) -> u64 {
-        self.fused_result_bits
-    }
-
-    pub const fn multiply_then_add_result_bits(self) -> u64 {
-        self.multiply_then_add_result_bits
     }
 
     pub const fn identity(self) -> [u8; 32] {
