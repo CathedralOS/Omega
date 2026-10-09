@@ -20,9 +20,6 @@ mod validation;
 pub use abi_preservation::{ FrameAbiPreservationConvention,
     selected_abi_preservation, selected_preservation_storage_catalog,
 };
-pub(crate) use abi_preservation::{
-    AbiPreservationSelectionError, SelectedAbiPreservation};
-
 #[cfg(test)]
 mod tests;
 

@@ -49,15 +49,12 @@ pub use terminal_authority_permission_policy::{
     TerminalAuthorityPermissionPolicyRow,
     terminal_authority_permission_policy_with_rows,
 };
-pub(crate) use terminal_authority_permission_policy::{ TerminalAuthorityPermissionPolicyBuildError};
 pub use terminal_authority_policy::{ TerminalAuthorityPolicy,
     current_terminal_authority_policy,
     filesystem_host_permission_rows, terminal_authority_policy_with_rows, time_host_permission_rows,
 };
 pub(crate) use terminal_authority_policy::{ normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations};
-pub(crate) use terminal_authority_policy::{ UnsettledFilesystemRequirement, UnsettledTimeHostRequirement};
-
 mod model;
 use crate::AdmittedProviderInstallation;
 use crate::VerifiedNativeArtifactInput as NativeRealizationInput;

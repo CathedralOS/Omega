@@ -20,15 +20,9 @@ pub use task_plans::activation_plan_facts::{
     SelectedTaskRuntimeProviderFact, TaskActivationPlanFact, TaskActivationPlanSet,
     TaskSpecializationCommitment, TaskStartOperation,
 };
-pub use task_plans::composition_model::{
-};
-pub(crate) use task_plans::composition_model::{
-    CompositionActivation, CompositionActivationCreation, CompositionCrossActivationEdges,
-    CompositionPriorities, CompositionResourceIdentities, CompositionWaitWakeEdge,
-    SealedCompositionModel, compose_composition_model, replay_composition_model};
+pub use task_plans::composition_model;
 pub use task_plans::diagnostic::TaskPlanDiagnostic;
-pub use task_plans::executor_selection::{
-};
+pub use task_plans::executor_selection;
 pub(crate) use task_plans::executor_selection::{
     ExecutorPreservationAxis, ExecutorPreservationEvidence, ExecutorSelectionCandidate,
     ValidatedExecutorSelection, validate_executor_selection};
@@ -40,11 +34,8 @@ pub use task_plans::identities::{
     TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId,
     TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId, ValueLayoutId,
 };
-pub use task_plans::runtime_invocation::{
-};
-pub(crate) use task_plans::runtime_invocation::{
-    TaskRuntimeActivationBinding, TaskRuntimeInvocationReceiptCandidate,
-    ValidatedTaskRuntimeInvocationReceipt, validate_task_runtime_invocation_receipt};
+pub use task_plans::runtime_invocation;
+pub(crate) use task_plans::runtime_invocation::{  TaskRuntimeInvocationReceiptCandidate};
 pub use task_plans::stack_composition::{
     AdmittedSameStackContribution, CallTargetBinding,
     SameStackContributionAdmissionCandidate, SameStackContributionCommitment,
@@ -52,12 +43,10 @@ pub use task_plans::stack_composition::{
     UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary, admit_same_stack_contribution, compose_task_stack_demand, project_wcsu_stack_plan, task_stack_frame_validation_identity,
     validate_task_stack_frame_summary,
 };
-pub(crate) use task_plans::stack_composition::{ ComposedTaskStackDemand,
-    WcsuStackPlanProjection,
-    cover_unresolved_call_sites};
+pub(crate) use task_plans::stack_composition;
 pub use task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing,
     LiveCarryDemand, LiveCarryStorage, TaskArgumentLayout,
     ValidatedActivationPlan, validate_wcsu_activation_plan,
 };
-pub(crate) use task_plans::{ StackPlan, TaskArgumentExtent};
+pub(crate) use task_plans::{ StackPlan};

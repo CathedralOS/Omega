@@ -19,8 +19,6 @@ mod specialization_commitments;
 mod stack_graphs;
 mod start_selections;
 
-pub(crate) use call_target_bindings::{CallTargetAssignment, derive_call_target_bindings};
-
 use crate::task_plans::carry_crossings::{canonical_suspension_crossing, carry_obligations};
 use crate::task_plans::runtime_requirements::{
     exact_task_machine_blocking, exact_task_machine_suspension, selected_task_runtime_provider,

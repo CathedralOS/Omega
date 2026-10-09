@@ -38,7 +38,6 @@ pub use optimized_semantic_entry::{
 };
 pub(crate) use optimized_semantic_entry::{
     OptimizedProgramStoragePhysicalEntryDisposition};
-pub(crate) use optimized_semantic_entry::{ OptimizedProgramStorageSemanticRoot};
 pub use optimized_semantic_wrapper::{
     OptimizedProgramStorageSemanticReceiverLayout,
     OptimizedProgramStorageSemanticWrapperEncodingError,

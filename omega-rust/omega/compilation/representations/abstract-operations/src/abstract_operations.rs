@@ -103,4 +103,3 @@ mod structural_copy;
 pub use structural_copy::StructuralCopyPath;
 
 mod storage_mutations;
-pub(crate) use storage_mutations::StorageMutation;

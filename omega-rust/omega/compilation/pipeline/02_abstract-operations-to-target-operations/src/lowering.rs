@@ -9,7 +9,7 @@ mod function;
 mod function_signature;
 pub(crate) mod model;
 pub(crate) mod optimized;
-pub(crate) mod placed_view_inputs;
+pub mod placed_view_inputs;
 mod provider_evidence;
 mod scalar;
 mod scalar_abi;

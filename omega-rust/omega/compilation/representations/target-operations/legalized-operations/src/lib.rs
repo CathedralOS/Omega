@@ -20,7 +20,4 @@ pub use legalized_operations::{
     encode_integer, encode_locator, encode_machine_function_identity, encode_native_callback_argument, encode_placement, encode_provider_execution, encode_register,
     encode_scalar_type, encode_shape, identity, legality, legalized_operation_plan_identity,
 };
-pub(crate) use legalized_operations::{ LegalizedCallSourceError,
-    LegalizedScalarCallShapeError, encode_callback_materialization,
-    encode_eightbyte_class, encode_indirect_pointer,
-    encode_native_place};
+pub(crate) use legalized_operations::{ LegalizedCallSourceError};

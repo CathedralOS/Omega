@@ -94,12 +94,7 @@ pub use machine_code::{
     target_frame_protocol_encoding_identity, unit_call_arguments,
     whole_function_exit_contract_identity, x86_fma,
 };
-pub(crate) use machine_code::{ Aarch64ReturnLinkEvidence, BooleanStructuralFieldRead,
-    FunctionFragmentJumpEvidence,
-    FunctionSpillFrameRequirements, InternalStructuralResultHomeRecord, MachineCodePlanWithPrivateFunctions,
-    NonAuthoritativeSpillFrameRequirementIdentity, NonAuthoritativeSpillFrameRequirementPlan,
-    NonAuthoritativeSpillFrameRequirementPolicy, X86ScalarFmaOperandRecord,
-    exit_policy_tag, function_fragment_emission_identity, x86_scalar_fma_fragment_identity};
+pub(crate) use machine_code::{ Aarch64ReturnLinkEvidence};
 pub use machine_code::{
     FunctionFragmentImplementationTableAddressFixup, ImplementationTableReference,
     PlacedImplementationTableAddress, SelectedFormImplementationTableAddressFixup,

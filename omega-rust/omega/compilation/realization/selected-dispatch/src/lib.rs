@@ -16,7 +16,6 @@ mod provider_checking;
 mod selected_dispatch;
 mod service_custody;
 
-pub(crate) use boundary_dispatch::settle_selected_boundary_adapter_dispatch;
 pub use constant_evaluation::SelectedConstantEvaluation;
 
 pub use compiler_intrinsic::derive_selected_compiler_intrinsic_execution_identity_for_row;
@@ -24,11 +23,6 @@ pub use execution_settlement::{
     SelectedExecution, SelectedExecutionRequest, settle_selected_execution,
 };
 pub use provider_checking::{ ProviderCheckingInputs, ProviderCheckingRequest,
-};
-pub(crate) use provider_checking::{
-    CheckedProviderProgram};
-
-pub use intrinsic_review::{
 };
 pub(crate) use intrinsic_review::{
     ResolvedAcceptedSemanticBinding, resolve_accepted_service_binding,
@@ -43,9 +37,7 @@ pub use selected_dispatch::{ CheckedOperatorAuthoredUseKind, SelectedCompilerInt
     derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations, settle_selected_comparison_execution,
 };
-pub(crate) use selected_dispatch::{
-    CheckedNongenericOperatorApplicationRealization,
-    CheckedSpecializedOperatorApplicationRealization,
+pub(crate) use selected_dispatch::{ 
     derive_selected_compiler_intrinsic_execution_identity,
     derive_selected_primitive_float_binary_execution,
     settle_selected_execution_dispatch};

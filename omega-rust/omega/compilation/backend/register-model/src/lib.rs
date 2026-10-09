@@ -35,8 +35,6 @@ pub use register_model::preservation_storage::{
     PreservationStorageCatalogValidationError, PreservationStorageGroup,
     PreservationStorageGroupId, ValidatedPreservationStorageCatalog, validate_preservation_storage_catalog,
 };
-pub(crate) use register_model::preservation_storage::{
-    preservation_storage_catalog_identity};
 pub use register_model::register_vocabulary::{
     RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView,
     RegisterViewId, RegisterWriteSemantics, sha256_length, sha256_register_units,

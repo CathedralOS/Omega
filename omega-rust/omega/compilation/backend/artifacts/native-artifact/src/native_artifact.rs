@@ -32,7 +32,6 @@ use crate::physical::{
     ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence};
 pub(super) use boundary_applications::boundary_application_coverage_identity;
 use boundary_applications::validate_boundary_application_coverage;
-use installation_evidence::ObjectEvidence;
 pub use dynamic_elf::{
     DynamicElfNativeArtifact};
 pub use emission::RequestedNativeArtifact;

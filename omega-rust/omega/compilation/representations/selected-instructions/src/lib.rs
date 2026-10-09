@@ -51,8 +51,6 @@ pub use selected_instructions::{
     terminator_instruction_mut, terminator_return_edge, terminator_successors,
     terminator_successors_mut, trapping_family_tag, validate_machine_effect_catalog, values,
 };
-pub(crate) use selected_instructions::{ live_range_identity,
-    liveness_identity};
 pub use selected_instructions::{
     AtomicForm, AtomicOperation, AtomicWidth, FloatResultPolicyForm, FloatResultPolicyKind,
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,

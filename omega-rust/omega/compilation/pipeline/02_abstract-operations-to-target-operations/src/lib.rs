@@ -33,18 +33,11 @@ pub use lowering::optimized::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
     lower_optimized_to_target_operations,
 };
-pub use lowering::placed_view_inputs::{
-};
-pub(crate) use lowering::placed_view_inputs::{
-    lower_to_target_operations_with_placed_view_inputs, validate_placed_view_input_translation};
+pub use lowering::placed_view_inputs;
 pub(crate) use lowering::{TargetLoweringRequest, lower_to_target_operations};
-pub use validation::{
-};
-pub(crate) use validation::{
-    AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
-    AbstractToTargetTranslationValidationReceipt, validate_abstract_to_target_translation};
+pub(crate) use validation::{  AbstractToTargetTranslationValidationError};
 
 // Receiving stages reconstruct ABI classes from their own declaration inputs,
 // using the same boundary classification rather than a second type roster.
 pub use validation::structural_shapes::{ classified_boundary_shape};
-pub(crate) use validation::structural_shapes::{InvalidStructuralShape};
+pub(crate) use validation::structural_shapes;

@@ -13,12 +13,12 @@
 //! coordinate and `report_fingerprints` the compact report values.
 
 pub(crate) mod activation_plan_facts;
-pub(crate) mod composition_model;
+pub mod composition_model;
 pub(crate) mod diagnostic;
-pub(crate) mod executor_selection;
+pub mod executor_selection;
 pub(crate) mod identities;
 pub(crate) mod report_fingerprints;
-pub(crate) mod runtime_invocation;
+pub mod runtime_invocation;
 pub(crate) mod stack_composition;
 
 use crate::task_plans::report_fingerprints::activation_plan_report_fingerprint;

@@ -16,8 +16,7 @@ pub use optimization_core::contracts::{
     OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationRuleContract,
     OptimizationSafetyClass, OptimizationWorkBudget,
 };
-pub(crate) use optimization_core::contracts::{ CoreContractDecodeError,
-    InvalidOptimizationRuleContract, InvalidOptimizationWorkBudget};
+pub(crate) use optimization_core::contracts::{ CoreContractDecodeError};
 pub use optimization_core::decisions::{
     BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,
     BaselineDecisionOutcome, BaselineDecisionRecordError,
@@ -26,7 +25,6 @@ pub use optimization_core::decisions::{
     ValidatedCandidateSummary, external_psi_decision_schema_v2_identity,
     psi_target_neutral_decision_target_v2_identity,
 };
-pub(crate) use optimization_core::decisions::{ BaselineDecisionRecord};
 pub use optimization_core::identities::{
     AcceptedObligationFactIdentity, CanonicalIdentityEncoder,
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
@@ -51,14 +49,13 @@ pub use optimization_core::identities::{
     TargetCostModelIdentity, TerminalRelocationFreeTextSectionIdentity,
     TransformationLedgerIdentity, ValueRangeFactIdentity,
 };
-pub(crate) use optimization_core::identities::{ DuplicateOptimizationRuleIdentity, IdentityBundleDecodeError,
-    IdentityDecodeError};
+pub(crate) use optimization_core::identities;
 pub use optimization_core::manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
     OptimizationPassManifestRecord, OptimizationWorkUsage,
 };
 pub(crate) use optimization_core::manifest::{
-    OptimizationFactReferenceDecodeError, OptimizationManifestDecodeError};
+    OptimizationFactReferenceDecodeError};
 #[cfg(any(test, feature = "test-support"))]
 pub use optimization_core::mutation_matrix::{
     MutationOutcome, OneFieldSubstitutionMatrix, custody_field_inventory,
@@ -78,4 +75,4 @@ pub use optimization_core::{
     PsiOptimizationSelectionProjection,
 };
 pub(crate) use optimization_core::{
-    DuplicateOptimization, PreTerminalOptimizationSelection, SelectionDecodeError};
+    DuplicateOptimization};

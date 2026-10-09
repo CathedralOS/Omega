@@ -13,7 +13,5 @@ pub use physical_instructions::{
     PostAllocationMachinePlan, QualifiedPhysicalRead, TargetCostModelIdentity, codec, control_flow, costs, evidence, identity, instructions, operands,
     post_allocation_machine_identity, target_cost_model,
 };
-pub(crate) use physical_instructions::{
-    NonAuthoritativeLatencyCost, NonAuthoritativeMachineCost, NonAuthoritativeMachineSizeCost,
-    PostAllocationMachineDecodeError, TargetCostModel,
-    TargetCostModelVersion};
+pub(crate) use physical_instructions::{ 
+    PostAllocationMachineDecodeError};

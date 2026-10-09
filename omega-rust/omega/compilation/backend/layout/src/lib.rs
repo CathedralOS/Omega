@@ -36,14 +36,5 @@ pub use layout_plan::{
 pub(crate) use layout_plan::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout, RepeatedFieldLayout, StoredIntegerLayout,
     TypeLayoutDescriptor, VariantLayout};
-pub(crate) use sizing::primitive_layout;
-pub use sum_materialization::{
-};
-pub(crate) use sum_materialization::{
-    project_conventional_record_with_nested_sum_record_materialization_layout,
-    project_conventional_record_with_nested_sum_records_materialization_layout,
-    project_conventional_record_with_recursive_nested_sums_materialization_layout,
-    project_conventional_record_with_sum_array_materialization_layout,
-    project_conventional_record_with_sum_arrays_materialization_layout,
-    project_conventional_record_with_sum_materialization_layout,
-    project_conventional_sum_materialization_layout};
+
+pub(crate) use sum_materialization::project_conventional_record_with_recursive_nested_sums_materialization_layout;

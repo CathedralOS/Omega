@@ -94,8 +94,6 @@ use imports::{
 };
 use sections::plan_pe_sections;
 
-pub(crate) use imports::validate_pe_x86_64_import_binding_pairing;
-
 pub fn emit_pe_x86_64_executable(
     mut image: FinalImage,
     subsystem: u16,

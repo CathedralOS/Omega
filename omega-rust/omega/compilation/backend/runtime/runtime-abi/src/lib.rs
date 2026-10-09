@@ -15,14 +15,8 @@ mod scalar_reference;
 pub use borrowed_storage::{
     NativeBorrowedStorageDiscriminator, NativeBorrowedStorageField, NativeBorrowedStorageLayout, NativeStorageCaseTag, NativeStorageRepetition,
 };
-pub(crate) use borrowed_storage::{
-    NativeBorrowedStorageOpaqueRegion};
-
 pub use scalar_reference::{ ScalarStorageCodec};
-pub(crate) use scalar_reference::{ScalarReferenceDescriptorAbi};
-
 pub use runtime_abi::{
     build_runtime_abi_plan,
 };
-pub(crate) use runtime_abi::{
-    DynamicTraitDescriptorAbi, FatDescriptorAbi, FatDescriptorKind, RuntimeAbiPlan, SubsliceLayout};
+pub(crate) use runtime_abi::{  RuntimeAbiPlan};

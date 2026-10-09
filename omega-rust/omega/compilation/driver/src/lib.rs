@@ -35,7 +35,6 @@ pub use crate::checked::{
     typed_frontier_reuse_count,
 };
 pub use crate::native::{ realize_retained_native_artifact};
-pub(crate) use crate::native::{RealizedNativeProduct};
 pub use build_evaluation::BuildSnapshotRequest;
 pub use compilation_products::RetainedNativeRealizationRequest;
 pub use compilation_products::{

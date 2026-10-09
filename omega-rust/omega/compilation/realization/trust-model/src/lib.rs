@@ -21,7 +21,6 @@ mod trust_admission;
 
 pub(crate) use accepted_machine_grants::{NonProviderTrustGrant, resolve_non_provider_trust_grant};
 pub use accepted_templates::{AcceptedTemplateClassifications};
-pub(crate) use accepted_templates::{ AcceptedTemplateIdentity};
 pub use admission_settlement::reconstruct_trust_obligations;
 pub use behavior_exclusions::{harvest_behavior_exclusions, verify_entry_behavior_exclusions};
 pub use component_assumptions::{
@@ -34,4 +33,3 @@ pub use provider_grants::{
 };
 pub use root_grants::{harvest_root_grants, reject_package_non_provider_grants};
 pub use trust_admission::{TrustAdmission};
-pub(crate) use trust_admission::{ TrustAdmissionDigest};
