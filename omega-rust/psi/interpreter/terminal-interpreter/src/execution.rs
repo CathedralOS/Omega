@@ -249,6 +249,38 @@ impl CompletedReturn {
     }
 }
 
+/// Dispatch rows of the interpreter loop: `advance` rows run the operation's
+/// `execute_*` method and continue the block; `flow` rows take the method's
+/// own flow decision. Literal arms (operations whose dispatch passes fields)
+/// ride in the `literal` block ahead of the generated rows.
+macro_rules! dispatch_operations {
+    (
+        $receiver:ident, $operation:ident, $kind:expr;
+        literal { $( $pat:pat => $body:block )* }
+        dispatch { $( $($variant:ident)|+ => $tail:ident $method:ident ),* $(,)? }
+    ) => {
+        match $kind {
+            $( $pat => $body )*
+            $(
+                $( OperationKind::$variant { .. } )|+ => {
+                    dispatch_operations!(@body $receiver, $operation, $tail, $method)
+                }
+            )*
+        }
+    };
+    ( @body $receiver:ident, $operation:ident, advance, $method:ident ) => {
+        {
+            $receiver.$method($operation)?;
+            OperationFlow::Advance
+        }
+    };
+    ( @body $receiver:ident, $operation:ident, flow, $method:ident ) => {
+        {
+            $receiver.$method($operation)?
+        }
+    };
+}
+
 impl<'artifact> TerminalExecution<'artifact> {
     /// Start one instance on an already-admitted program: bind this
     /// invocation's inputs and custody, commit no operation. The program is
@@ -565,258 +597,125 @@ impl<'artifact> TerminalExecution<'artifact> {
                     &selected
                 };
                 self.validate_case_projections(operation)?;
-                let flow = match operation.kind {
-                    OperationKind::EstablishReference {
-                        ref source,
-                        storage,
-                    } => {
-                        self.establish_reference(operation, source, storage)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::ReleaseReference { source, ref path } => {
-                        self.release_reference(operation, source, path)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::EstablishZeroedStructural { .. } => {
-                        self.execute_establish_zeroed_structural(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::EstablishStructuralLocal { .. } => {
-                        self.execute_establish_structural_local(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::EstablishScalarArray { ref elements } => {
-                        self.execute_scalar_array_establishment(operation, elements)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::EstablishPrimitiveLocal { value } => {
-                        self.execute_primitive_establishment(operation, value)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::PrimitiveScalarRead { source, ref path } => {
-                        self.execute_primitive_read(operation, source, path)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::EstablishScalarCase { .. } => {
-                        self.execute_establish_scalar_case(operation)?
-                    }
-                    OperationKind::EstablishByteSequenceConcatenation { .. } => {
-                        self.execute_byte_sequence_concatenation(operation)?
-                    }
-                    OperationKind::EstablishByteSequenceLiteral { .. } => {
-                        self.execute_establish_byte_sequence_literal(operation)?
-                    }
-                    OperationKind::EstablishTrivialAffineLocal { .. } => {
-                        self.execute_establish_trivial_affine_local(operation)?
-                    }
-                    OperationKind::EstablishStructuralArray { .. } => {
-                        self.execute_establish_structural_array(operation)?
-                    }
-                    OperationKind::EstablishRecord { .. } => {
-                        self.execute_establish_record(operation)?
-                    }
-                    OperationKind::EstablishStructuralCase { .. } => {
-                        self.execute_establish_structural_case(operation)?
-                    }
-                    OperationKind::CallUnit { .. } => self.execute_call_unit(operation)?,
-                    OperationKind::CallStructuralScalar { .. } => {
-                        self.execute_call_structural_scalar(operation)?
-                    }
-                    OperationKind::CallStructural { .. } => {
-                        self.execute_call_structural(operation)?
-                    }
-                    OperationKind::CallStructuralWithScalarArguments { .. } => {
-                        self.execute_call_structural_with_scalar_arguments(operation)?
-                    }
-                    OperationKind::BoundaryCall { .. } => {
-                        self.execute_boundary_call(operation, handler)?
-                    }
-                    OperationKind::PortWrite { .. } => {
-                        self.execute_port_write(operation, handler)?
-                    }
-                    OperationKind::Call { .. } => self.execute_call(operation, &program)?,
-                    OperationKind::SelectImplementation { table } => {
-                        self.execute_select_implementation(operation, table, &program)?
-                    }
-                    OperationKind::CallDynamic { .. } => {
-                        self.execute_call_dynamic(operation, &program)?
-                    }
-                    OperationKind::WriteOnlyPrimitiveStore {
-                        destination,
-                        value,
-                        ref path,
-                    } => {
-                        self.execute_primitive_store(operation, destination, value, path)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::StructuralScalarFieldStore { .. } => {
-                        self.execute_structural_scalar_field_store(operation)?
-                    }
-                    OperationKind::MoveStructuralField { .. } => {
-                        self.execute_move_structural_field(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::StoreStructuralField { .. } => {
-                        self.execute_store_structural_field(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::ByteSequenceStore { .. } => {
-                        self.execute_byte_sequence_store(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::StructuralByteSequenceFieldStore { .. } => {
-                        self.execute_structural_byte_sequence_field_store(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::StructuralByteViewFieldStore { .. } => {
-                        self.execute_structural_byte_view_field_store(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::StructuralByteSequenceFieldLength { .. } => {
-                        self.execute_structural_byte_sequence_field_length(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
-                        self.execute_structural_byte_sequence_field_byte_store(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::StructuralByteSequenceFieldRead { .. } => {
-                        self.execute_structural_byte_sequence_field_read(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::IntegerConstant { .. } => {
-                        self.execute_integer_constant(operation)?
-                    }
-                    OperationKind::IeeeFloatConstant { .. } => {
-                        self.execute_ieee_float_constant(operation)?
-                    }
-                    OperationKind::IeeeFloatCompare { .. } => {
-                        self.execute_ieee_float_compare(operation)?
-                    }
-                    OperationKind::ScalarRepresentationView { .. } => {
-                        self.execute_scalar_representation_view(operation)?
-                    }
-                    OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => {
-                        self.execute_nearest_ieee_float_fused_multiply_add(operation)?
-                    }
-                    OperationKind::BooleanConstant { .. } => {
-                        self.execute_boolean_constant(operation)?
-                    }
-                    OperationKind::StructuralCaseMembership { .. } => {
-                        self.execute_structural_case_membership(operation)?
-                    }
-                    OperationKind::StructuralLeafCopy { .. }
-                    | OperationKind::StructuralCaseLeafCopy { .. } => {
-                        self.execute_structural_leaf_copy(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::BooleanStructuralField { .. } => {
-                        self.execute_boolean_structural_field(operation)?
-                    }
-                    OperationKind::ScalarStructuralField { .. } => {
-                        self.execute_scalar_structural_field(operation)?
-                    }
-                    OperationKind::EstablishElementView { .. }
-                    | OperationKind::EstablishMutableElementView { .. } => {
-                        self.execute_establish_element_view(operation)?
-                    }
-                    OperationKind::ElementViewLength { .. } => {
-                        self.execute_element_view_length(operation)?
-                    }
-                    OperationKind::ElementViewRead { .. } => {
-                        self.execute_element_view_read(operation)?
-                    }
-                    OperationKind::ElementViewWrite { .. } => {
-                        self.execute_element_view_write(operation)?
-                    }
-                    OperationKind::ElementViewSubslice { .. } => {
-                        self.execute_element_view_subslice(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::ByteSequenceSubslice { .. } => {
-                        self.execute_byte_sequence_subslice(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::ByteSequenceWrite { .. } => {
-                        self.execute_byte_sequence_write(operation)?;
-                        OperationFlow::Advance
-                    }
-                    OperationKind::ByteSequencePredicate { .. } => {
-                        self.execute_byte_sequence_predicate(operation)?
-                    }
-                    OperationKind::ByteSequenceEqual { .. } => {
-                        self.execute_byte_sequence_equal(operation)?
-                    }
-                    OperationKind::ByteSequenceRead { .. } => {
-                        self.execute_byte_sequence_read(operation)?
-                    }
-                    OperationKind::ByteSequenceLength { .. } => {
-                        self.execute_byte_sequence_length(operation)?
-                    }
-                    OperationKind::BooleanNot { .. } => self.execute_boolean_not(operation)?,
-                    OperationKind::BooleanEqual { .. } => self.execute_boolean_equal(operation)?,
-                    OperationKind::IntegerEqual { .. } => self.execute_integer_equal(operation)?,
-                    OperationKind::IntegerLessThan { .. }
-                    | OperationKind::IntegerLessOrEqual { .. } => {
-                        self.execute_integer_less_than(operation)?
-                    }
-                    OperationKind::IntegerBitwiseNot { .. } => {
-                        self.execute_integer_bitwise_not(operation)?
-                    }
-                    OperationKind::IntegerWiden { .. } => self.execute_integer_widen(operation)?,
-                    OperationKind::IntegerExactCast { .. } => {
-                        self.execute_integer_exact_cast(operation)?
-                    }
-                    OperationKind::IntegerBitwiseAnd { .. }
-                    | OperationKind::IntegerBitwiseOr { .. }
-                    | OperationKind::IntegerBitwiseXor { .. } => {
-                        self.execute_integer_bitwise_and(operation)?
-                    }
-                    OperationKind::WrappingIntegerShiftLeft { .. }
-                    | OperationKind::WrappingIntegerShiftRight { .. }
-                    | OperationKind::ExactIntegerShiftLeft { .. }
-                    | OperationKind::ExactIntegerShiftRight { .. } => {
-                        self.execute_wrapping_integer_shift_left(operation)?
-                    }
-                    OperationKind::ExactIntegerAdd { .. }
-                    | OperationKind::WrappingIntegerAdd { .. }
-                    | OperationKind::ExactIntegerSubtract { .. }
-                    | OperationKind::WrappingIntegerSubtract { .. }
-                    | OperationKind::ExactIntegerMultiply { .. }
-                    | OperationKind::ExactIntegerDivide { .. }
-                    | OperationKind::ExactIntegerRemainder { .. }
-                    | OperationKind::WrappingIntegerDivide { .. }
-                    | OperationKind::WrappingIntegerRemainder { .. }
-                    | OperationKind::SaturatingIntegerDivide { .. }
-                    | OperationKind::SaturatingIntegerRemainder { .. }
-                    | OperationKind::WrappingIntegerMultiply { .. } => {
-                        self.execute_exact_integer_add(operation)?
-                    }
-                    OperationKind::SaturatingIntegerAdd { .. } => {
-                        self.execute_saturating_integer_add(operation)?
-                    }
-                    OperationKind::SaturatingIntegerSubtract { .. } => {
-                        self.execute_saturating_integer_subtract(operation)?
-                    }
-                    OperationKind::SaturatingIntegerMultiply { .. } => {
-                        self.execute_saturating_integer_multiply(operation)?
-                    }
-                    OperationKind::TrappingInteger { .. } => {
-                        self.execute_trapping_integer(operation)?
-                    }
-                    OperationKind::FloatResultPolicy { .. } => {
-                        self.execute_float_result_policy(operation)?
-                    }
-                    OperationKind::AtomicAccess {
-                        place,
-                        ref path,
-                        field,
-                        event,
-                    } => {
-                        self.execute_atomic_access(operation, place, path, field, event)?;
-                        OperationFlow::Advance
-                    }
-                };
+                let flow = dispatch_operations!(self, operation, operation.kind;
+                                    literal {
+                                    OperationKind::EstablishReference {
+                                        ref source,
+                                        storage,
+                                    } => {
+                                        self.establish_reference(operation, source, storage)?;
+                                        OperationFlow::Advance
+                                    }
+                                    OperationKind::ReleaseReference { source, ref path } => {
+                                        self.release_reference(operation, source, path)?;
+                                        OperationFlow::Advance
+                                    }
+                                    OperationKind::EstablishScalarArray { ref elements } => {
+                                        self.execute_scalar_array_establishment(operation, elements)?;
+                                        OperationFlow::Advance
+                                    }
+                                    OperationKind::EstablishPrimitiveLocal { value } => {
+                                        self.execute_primitive_establishment(operation, value)?;
+                                        OperationFlow::Advance
+                                    }
+                                    OperationKind::PrimitiveScalarRead { source, ref path } => {
+                                        self.execute_primitive_read(operation, source, path)?;
+                                        OperationFlow::Advance
+                                    }
+                                    OperationKind::BoundaryCall { .. } => {
+                                        self.execute_boundary_call(operation, handler)?
+                                    }
+                                    OperationKind::PortWrite { .. } => {
+                                        self.execute_port_write(operation, handler)?
+                                    }
+                                    OperationKind::Call { .. } => {
+                                        self.execute_call(operation, &program)?
+                                    }
+                                    OperationKind::SelectImplementation { table } => {
+                                        self.execute_select_implementation(operation, table, &program)?
+                                    }
+                                    OperationKind::CallDynamic { .. } => {
+                                        self.execute_call_dynamic(operation, &program)?
+                                    }
+                                    OperationKind::WriteOnlyPrimitiveStore {
+                                        destination,
+                                        value,
+                                        ref path,
+                                    } => {
+                                        self.execute_primitive_store(operation, destination, value, path)?;
+                                        OperationFlow::Advance
+                                    }
+                                    OperationKind::AtomicAccess {
+                                        place,
+                                        ref path,
+                                        field,
+                                        event,
+                                    } => {
+                                        self.execute_atomic_access(operation, place, path, field, event)?;
+                                        OperationFlow::Advance
+                                    }
+                                        }
+                dispatch {
+                                    EstablishZeroedStructural => advance execute_establish_zeroed_structural,
+                                    EstablishStructuralLocal => advance execute_establish_structural_local,
+                                    EstablishScalarCase => flow execute_establish_scalar_case,
+                                    EstablishByteSequenceConcatenation => flow execute_byte_sequence_concatenation,
+                                    EstablishByteSequenceLiteral => flow execute_establish_byte_sequence_literal,
+                                    EstablishTrivialAffineLocal => flow execute_establish_trivial_affine_local,
+                                    EstablishStructuralArray => flow execute_establish_structural_array,
+                                    EstablishRecord => flow execute_establish_record,
+                                    EstablishStructuralCase => flow execute_establish_structural_case,
+                                    CallStructuralScalar => flow execute_call_structural_scalar,
+                                    CallStructural => flow execute_call_structural,
+                                    CallStructuralWithScalarArguments => flow execute_call_structural_with_scalar_arguments,
+                                    CallUnit => flow execute_call_unit,
+                                    StructuralScalarFieldStore => flow execute_structural_scalar_field_store,
+                                    MoveStructuralField => advance execute_move_structural_field,
+                                    StoreStructuralField => advance execute_store_structural_field,
+                                    ByteSequenceStore => advance execute_byte_sequence_store,
+                                    StructuralByteSequenceFieldStore => advance execute_structural_byte_sequence_field_store,
+                                    StructuralByteViewFieldStore => advance execute_structural_byte_view_field_store,
+                                    StructuralByteSequenceFieldLength => advance execute_structural_byte_sequence_field_length,
+                                    StructuralByteSequenceFieldByteStore => advance execute_structural_byte_sequence_field_byte_store,
+                                    StructuralByteSequenceFieldRead => advance execute_structural_byte_sequence_field_read,
+                                    IntegerConstant => flow execute_integer_constant,
+                                    IeeeFloatConstant => flow execute_ieee_float_constant,
+                                    IeeeFloatCompare => flow execute_ieee_float_compare,
+                                    ScalarRepresentationView => flow execute_scalar_representation_view,
+                                    NearestIeeeFloatFusedMultiplyAdd => flow execute_nearest_ieee_float_fused_multiply_add,
+                                    BooleanConstant => flow execute_boolean_constant,
+                                    StructuralCaseMembership => flow execute_structural_case_membership,
+                                    StructuralLeafCopy | StructuralCaseLeafCopy => advance execute_structural_leaf_copy,
+                                    BooleanStructuralField => flow execute_boolean_structural_field,
+                                    ScalarStructuralField => flow execute_scalar_structural_field,
+                                    BooleanNot => flow execute_boolean_not,
+                                    BooleanEqual => flow execute_boolean_equal,
+                                    EstablishElementView | EstablishMutableElementView => flow execute_establish_element_view,
+                                    ElementViewLength => flow execute_element_view_length,
+                                    ElementViewRead => flow execute_element_view_read,
+                                    ElementViewWrite => flow execute_element_view_write,
+                                    ElementViewSubslice => advance execute_element_view_subslice,
+                                    ByteSequenceSubslice => advance execute_byte_sequence_subslice,
+                                    ByteSequenceWrite => advance execute_byte_sequence_write,
+                                    ByteSequencePredicate => flow execute_byte_sequence_predicate,
+                                    ByteSequenceEqual => flow execute_byte_sequence_equal,
+                                    ByteSequenceRead => flow execute_byte_sequence_read,
+                                    ByteSequenceLength => flow execute_byte_sequence_length,
+                                    IntegerLessThan | IntegerLessOrEqual => flow execute_integer_less_than,
+                                    IntegerEqual => flow execute_integer_equal,
+                                    IntegerBitwiseNot => flow execute_integer_bitwise_not,
+                                    IntegerExactCast => flow execute_integer_exact_cast,
+                                    IntegerWiden => flow execute_integer_widen,
+                                    IntegerBitwiseAnd | IntegerBitwiseOr | IntegerBitwiseXor => flow execute_integer_bitwise_and,
+                                    WrappingIntegerShiftLeft | WrappingIntegerShiftRight | ExactIntegerShiftLeft | ExactIntegerShiftRight => flow execute_wrapping_integer_shift_left,
+                                    ExactIntegerAdd | WrappingIntegerAdd | ExactIntegerSubtract | WrappingIntegerSubtract | ExactIntegerMultiply | ExactIntegerDivide | ExactIntegerRemainder | WrappingIntegerDivide | WrappingIntegerRemainder | SaturatingIntegerDivide | SaturatingIntegerRemainder | WrappingIntegerMultiply => flow execute_exact_integer_add,
+                                    SaturatingIntegerAdd => flow execute_saturating_integer_add,
+                                    SaturatingIntegerSubtract => flow execute_saturating_integer_subtract,
+                                    SaturatingIntegerMultiply => flow execute_saturating_integer_multiply,
+                                    TrappingInteger => flow execute_trapping_integer,
+                                    FloatResultPolicy => flow execute_float_result_policy
+                                    }
+                                );
                 match flow {
                     OperationFlow::Advance => {}
                     OperationFlow::Redispatch => continue,
