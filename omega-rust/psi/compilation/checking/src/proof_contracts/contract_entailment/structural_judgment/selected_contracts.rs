@@ -82,9 +82,11 @@ impl StructuralJudge<'_> {
                     return None;
                 }
                 let plans = crate::operand_call_plans(program, None);
-                if !crate::machine_calls::denotational_calls::has_checked_value_call_candidate(
+                if crate::machine_calls::denotational_calls::checked_value_call_candidate(
                     program, machine, state, &plans.0, &plans.1,
-                ) {
+                )
+                .is_err()
+                {
                     return None;
                 }
                 state.return_type

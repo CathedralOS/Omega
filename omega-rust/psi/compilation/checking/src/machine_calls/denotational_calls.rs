@@ -21,14 +21,14 @@ pub use specification::{SpecificationCallRequest, admit_specification_calls};
 /// termination summary exists. Specification formation retains the exact call
 /// request and completes that obligation with the same checking invocation's
 /// termination facts; conditional runtime result capture has a different owner.
-pub(crate) fn has_checked_value_call_candidate(
+pub(crate) fn checked_value_call_candidate(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
-) -> bool {
-    has_pure_effect_closure(
+) -> Result<(), &'static str> {
+    if !has_pure_effect_closure(
         program,
         machine.symbol,
         state.symbol,
@@ -38,8 +38,16 @@ pub(crate) fn has_checked_value_call_candidate(
             .any(|parameter| parameter.is_mutable),
         operational,
         service_reaches,
-    ) && has_observation_free_checked_closure(program, machine.symbol, operational)
-        && has_no_crash_routes(program, machine.symbol, operational)
+    ) {
+        return Err("the selected closure has effects, reaches, or unresolved call targets");
+    }
+    if !has_observation_free_checked_closure(program, machine.symbol, operational) {
+        return Err("the selected closure contains runtime observations or mutable storage");
+    }
+    if !has_no_crash_routes(program, machine.symbol, operational) {
+        return Err("the selected closure publishes a crash route");
+    }
+    Ok(())
 }
 
 /// Whether every call inside this expression denotes one value per spelling,

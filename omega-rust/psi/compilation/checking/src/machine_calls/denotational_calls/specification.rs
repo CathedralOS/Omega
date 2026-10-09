@@ -78,9 +78,28 @@ pub(crate) fn validate_specification_calls(
                 }
                 continue;
             }
-            // A selected requirement is an abstract mathematical interface,
-            // not the exporting operator of an ordinary boundary invocation.
-            Some(SelectedCallContract::Signature(_)) | None => continue,
+            Some(SelectedCallContract::Signature(signature)) => {
+                // An abstract invocation consumes its selected public promise,
+                // never a realized private implementation's stronger summary.
+                if !matches!(
+                    &signature.termination_guarantee,
+                    language_semantics::TerminationGuarantee::Terminates { premises }
+                        if premises.is_empty()
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "specification call `{}` is not denotational: the selected machine is not unconditionally terminating",
+                        signature.name,
+                    )));
+                }
+                if !signature_has_closed_value_effects(program, signature) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "specification call `{}` has no observation-free, reach-free, crash-free value denotation",
+                        signature.name,
+                    )));
+                }
+                continue;
+            }
+            None => continue,
         };
         // A catalog-owned token machine can also expose a concrete signature
         // view. The exact sealed declaration, rather than its boundary body,
@@ -90,7 +109,7 @@ pub(crate) fn validate_specification_calls(
         ) {
             continue;
         }
-        if !super::has_checked_value_call_candidate(
+        if let Err(reason) = super::checked_value_call_candidate(
             program,
             machine,
             state,
@@ -98,7 +117,7 @@ pub(crate) fn validate_specification_calls(
             service_reaches,
         ) {
             diagnostics.push(Diagnostic::error(format!(
-                "specification call `{}` has no observation-free, reach-free, crash-free value denotation",
+                "specification call `{}` has no observation-free, reach-free, crash-free value denotation: {reason}",
                 machine.name,
             )));
             continue;
@@ -116,6 +135,34 @@ pub(crate) fn validate_specification_calls(
         )
     });
     requests
+}
+
+/// Abstract functions have no checked body closure to inspect. Their exact
+/// interface must forbid runtime observations and control effects and expose
+/// only immutable value inputs; ordinary call formation still proves Requires.
+fn signature_has_closed_value_effects(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+) -> bool {
+    !signature.suspends
+        && !signature.blocks
+        && !signature.service_reach_is_installation_bound
+        && program
+            .service_reach_rows
+            .services(signature.service_reach_row)
+            .is_empty()
+        && program.state_signature_invokes(signature).is_empty()
+        && program
+            .state_signature_parameters(signature)
+            .iter()
+            .all(|parameter| {
+                !parameter.is_mutable
+                    && crate::reference_shell(program, parameter.type_reference).is_none()
+            })
+        && program
+            .state_signature_contracts(signature)
+            .iter()
+            .all(|contract| !contract.is_crashes())
 }
 
 /// Complete already formed invocation obligations using the existing checked
