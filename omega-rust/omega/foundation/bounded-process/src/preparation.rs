@@ -102,11 +102,6 @@ impl BoundedProcessPrepared {
         })
     }
 
-    pub(crate) fn env_clear(&mut self) -> &mut Self {
-        self.command.env_clear();
-        self
-    }
-
     pub fn env(&mut self, key: impl AsRef<OsStr>, value: impl AsRef<OsStr>) -> &mut Self {
         self.command.env(key, value);
         self

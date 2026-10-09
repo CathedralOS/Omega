@@ -1525,62 +1525,6 @@ fn usize_to_u64(value: usize, role: &str) -> Result<u64, Diagnostic> {
     u64::try_from(value).map_err(|_| Diagnostic::error(format!("{role} exceeds report width")))
 }
 
-/// Project the complete authored-order set of direct nonzero literal
-/// fixed-array-of-conventional-sum fields while retaining each complete sum
-/// layout only once per outer field occurrence.
-pub(crate) fn project_conventional_record_with_sum_arrays_materialization_layout(
-    program: &TypedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<(LayoutPlanReport, Vec<ConventionalSumArrayFieldLayoutReport>), Diagnostic> {
-    let mut reachability = SumReachability::new(program);
-    let level = project_record_level_children(
-        program,
-        plan,
-        data_symbol,
-        "nested-sum array record",
-        &mut reachability,
-        LiteralArrayHopRule::OuterOnly,
-    )?;
-    // As in the direct-field rung above, partition the level's classified
-    // children back into the kind channels this rung's fences inspect.
-    let mut child_sum_layouts = Vec::new();
-    let mut sum_arrays = Vec::new();
-    let mut record_arrays = Vec::new();
-    let mut record_paths = Vec::new();
-    for child in level.children {
-        match child {
-            RecordLevelChild::Sum(row) => child_sum_layouts.push(row),
-            RecordLevelChild::SumArray(row) => sum_arrays.push(row),
-            RecordLevelChild::RecordArray(candidate) => record_arrays.push(candidate),
-            RecordLevelChild::Record(candidate) => record_paths.push(candidate),
-        }
-    }
-    if let Some(candidate) = record_paths.first() {
-        return Err(Diagnostic::error(format!(
-            "nested-sum array outer field `{}` reaches a sum through a nested record, outside the direct sum-array rung",
-            candidate.declared.name
-        )));
-    }
-    if !child_sum_layouts.is_empty() {
-        return Err(Diagnostic::error(
-            "nested-sum array materialization does not combine direct sum fields with the array occurrence",
-        ));
-    }
-    if let Some(candidate) = record_arrays.first() {
-        return Err(Diagnostic::error(format!(
-            "nested-sum array materialization does not lift the direct record array `{}`; the recursive record/sum owner carries it",
-            candidate.declared.name
-        )));
-    }
-    if sum_arrays.is_empty() {
-        return Err(Diagnostic::error(
-            "nested-sum array layout projection requires a nonempty direct nonzero literal fixed-array-of-sums field set",
-        ));
-    }
-    Ok((level.outer_layout, sum_arrays))
-}
-
 fn unique_data_definition<'a>(
     program: &'a TypedTrees,
     data_symbol: SymbolHandle,

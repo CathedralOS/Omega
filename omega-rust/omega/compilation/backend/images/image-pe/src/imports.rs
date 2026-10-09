@@ -377,45 +377,6 @@ pub(crate) fn validate_import_thunk_footprints(
     Ok(())
 }
 
-/// Decode the canonical `jmp [rip+disp32]` thunk and return the absolute
-/// address its memory operand loads through — the IAT slot a PE loader fills.
-fn thunk_bound_slot_address(
-    final_text_bytes: &[u8],
-    region: &PlacedExecutableRegion,
-) -> Result<u64, Diagnostic> {
-    let end = region.section_offset.checked_add(6).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "PE import thunk `{}` range overflows",
-            region.symbol
-        ))
-    })?;
-    let bytes = final_text_bytes
-        .get(region.section_offset..end)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "PE import thunk `{}` is out of final .text bounds",
-                region.symbol
-            ))
-        })?;
-    if bytes[..2] != [0xff, 0x25] {
-        return Err(Diagnostic::error(format!(
-            "PE import thunk `{}` does not match jmp [rip+disp32]",
-            region.symbol
-        )));
-    }
-    let displacement = i32::from_le_bytes(bytes[2..6].try_into().expect("four-byte disp32"));
-    region
-        .address
-        .checked_add(6)
-        .and_then(|next| next.checked_add_signed(i64::from(displacement)))
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "PE import thunk `{}` bound slot address overflows",
-                region.symbol
-            ))
-        })
-}
-
 #[cfg(test)]
 mod tests {
     use super::{

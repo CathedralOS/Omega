@@ -974,19 +974,6 @@ pub struct ComponentDescriptionFacts<'a> {
     pub realization_identity: Option<[u8; 32]>,
 }
 
-/// Publish one canonical description from independently supplied facts.
-///
-/// The produced carrier embeds the sealed canonical artifact and emits the
-/// module-derived inventory plus the retained selected-provider facts. This
-/// is publication evidence only: it cannot satisfy its own installation
-/// obligations or grant callable authority to any reader.
-pub(crate) fn describe_component_facts(
-    facts: ComponentDescriptionFacts<'_>,
-) -> Result<ComponentDescription, DescribeError> {
-    let module = facts.artifact.semantic_module();
-    describe_decoded_component_facts(facts, module)
-}
-
 /// Both in-memory description and serialized publication use the same inventory
 /// derivation. Only callers in this owner may supply the already-decoded module.
 pub(crate) fn describe_decoded_component_facts(

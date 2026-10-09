@@ -83,30 +83,6 @@ pub(crate) fn executor_selection_report_fingerprint(
     fingerprint.finish()
 }
 
-pub(crate) fn runtime_invocation_report_fingerprint(
-    activation: &TaskActivationPlanFact,
-    candidate: &TaskRuntimeInvocationReceiptCandidate,
-    executor_selection: &ValidatedExecutorSelection,
-) -> u64 {
-    let mut fingerprint = Fingerprint::new();
-    fingerprint.word(candidate.receipt.normalized_identity());
-    fingerprint.word(candidate.invocation.normalized_identity());
-    fingerprint.word(candidate.runtime.normalized_identity());
-    fingerprint.word(candidate.runtime_instance.normalized_identity());
-    fingerprint.byte(match candidate.operation {
-        TaskStartOperation::Start => 1,
-        TaskStartOperation::TryStart => 2,
-    });
-    fingerprint.string(&candidate.provider_plan_name);
-    fingerprint.string(&candidate.requirement_identity);
-    fingerprint.word(candidate.activation_plan.normalized_identity());
-    fingerprint.word(executor_selection.identity().normalized_identity());
-    for byte in activation.specialization_commitment.as_bytes() {
-        fingerprint.byte(byte);
-    }
-    fingerprint.finish()
-}
-
 /// Commit to every retained row and explicit-absence marker of a sealed
 /// whole-composition model. Row order is canonical (sorted by activation
 /// plan identity) before this runs, so the value depends on what was

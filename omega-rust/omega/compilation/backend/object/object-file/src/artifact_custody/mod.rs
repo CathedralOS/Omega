@@ -61,35 +61,6 @@ pub fn stage_validated_optimized_object_artifact_shared(
     })
 }
 
-pub(crate) fn validate_optimized_object_artifact(
-    staged: &StagedValidatedOptimizedObjectArtifact,
-) -> Result<OptimizedObjectArtifactCustodyReceipt, OptimizedObjectArtifactError> {
-    validate_optimized_relocation_free_object_container(&staged.source)
-        .map_err(OptimizedObjectArtifactError::Source)?;
-    validate_terminal_join(&staged.terminal, &staged.source)?;
-    let expected_artifact = replay_artifact(&staged.terminal, &staged.source)?;
-    if OptimizedObjectArtifactRecord::decode(&staged.artifact.encode())
-        .map_err(|_| OptimizedObjectArtifactError::ArtifactMismatch)?
-        != staged.artifact
-        || staged.artifact != expected_artifact
-    {
-        return Err(OptimizedObjectArtifactError::ArtifactMismatch);
-    }
-    let expected_manifest = construct_manifest(&expected_artifact);
-    if OptimizedObjectArtifactManifest::decode(&staged.manifest.record.encode())
-        .map_err(|_| OptimizedObjectArtifactError::ManifestMismatch)?
-        != staged.manifest.record
-        || staged.manifest != expected_manifest
-    {
-        return Err(OptimizedObjectArtifactError::ManifestMismatch);
-    }
-    let expected_receipt = receipt(&expected_artifact, &expected_manifest);
-    if staged.custody != expected_receipt {
-        return Err(OptimizedObjectArtifactError::ReceiptMismatch);
-    }
-    Ok(expected_receipt)
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedObjectArtifactStage {
     ValidatedOptimizedObjectArtifactV1,

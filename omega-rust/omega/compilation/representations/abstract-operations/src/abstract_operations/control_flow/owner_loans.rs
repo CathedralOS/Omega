@@ -42,15 +42,6 @@ pub fn loaned_field_shape(field: &StructuralFieldType) -> Option<StructuralTypeS
     }
 }
 
-/// Whether this parameter is a shared loan of a bounded byte owner.
-/// `lookup` resolves one structural identity in the caller's own catalog.
-pub(crate) fn is_shared_bounded_owner_loan<'a>(
-    parameter: &StructuralParameterDeclaration,
-    lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
-) -> bool {
-    parameter.access == StructuralAccess::SharedBorrow && is_bounded_owner_loan(parameter, lookup)
-}
-
 /// A shared or mutable loan addresses the complete bounded owner's storage.
 /// This classifies transport only; callers requiring a frozen referent must
 /// use [`is_shared_bounded_owner_loan`] or check access explicitly.

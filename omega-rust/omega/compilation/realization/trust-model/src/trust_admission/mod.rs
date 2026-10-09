@@ -137,20 +137,6 @@ impl TrustAdmission {
         )
     }
 
-    /// Reconstruct one owner-persisted admission. The digest is already the
-    /// authority value; compact display data is intentionally absent.
-    pub(crate) fn from_persisted(
-        commitment: String,
-        digest: TrustAdmissionDigest,
-    ) -> Result<Self, &'static str> {
-        Self::validate_commitment(&commitment)?;
-        Ok(Self {
-            commitment,
-            digest,
-            report_identity: None,
-        })
-    }
-
     pub fn commitment(&self) -> &str {
         &self.commitment
     }

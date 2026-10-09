@@ -47,19 +47,6 @@ pub fn open_file_extended_acl_has_allow_entry(file: &File) -> io::Result<bool> {
     platform::open_file_extended_acl_has_allow_entry(file)
 }
 
-/// Report whether a filesystem object is reachable through exactly one
-/// directory entry.
-///
-/// An object with a second hard link shares its storage with a name the caller
-/// does not own, so rewriting its attributes reaches custody outside the
-/// caller's tree. Unix reads the count from the entry's own metadata; Windows
-/// reads it from the opened object, which the standard library exposes only
-/// behind an unstable interface. Symbolic links are the caller's separate
-/// question: this reports on the object the path names.
-pub(crate) fn has_single_hard_link(path: &Path) -> io::Result<bool> {
-    link_custody::has_single_hard_link(path)
-}
-
 /// Report the filesystem object a path currently names, as an opaque
 /// volume-and-object pair.
 ///
@@ -241,10 +228,6 @@ mod link_custody {
     use std::io;
     use std::os::unix::fs::MetadataExt;
     use std::path::Path;
-
-    pub(super) fn has_single_hard_link(path: &Path) -> io::Result<bool> {
-        Ok(path.symlink_metadata()?.nlink() == 1)
-    }
 
     pub(super) fn filesystem_object_identity(path: &Path) -> io::Result<(u64, u64)> {
         let metadata = path.metadata()?;
