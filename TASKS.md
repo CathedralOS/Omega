@@ -692,12 +692,17 @@ defines the complete product bar.
     `pass/drops/runtime_case_selected_cleanup_continuations_exit` (0) for
     captured scalar returns, computed temporaries, parent retention and
     projected return/state-transfer custody across selected cleanup blocks.
-    Independent foreign-unit admission still expects a complete cleanup
-    partition on one edge; qualify retained parents and selected multi-edge
-    partitions without treating a retaining hook as completed disposal.
-    Keep `borrowed_sum_population` and
-    `borrowed_nested_sum_replacement` as direct-assignment execution controls;
-    do not rewrite them to explicitly detach and drop the old value.
+    Complete inline consuming-call replacement: in
+    `runtime_borrowed_sum_retag_exit`, replacing `repair`'s detached local with
+    `choice = transform(choice, increment)` accepts source but
+    `omega run --both main.omg` refuses `repair`'s executable body at
+    `sequence cleanup actions` on macOS ARM64 at `6ee6dbeacec`.
+    `control/structural_operands.rs` and `control/statement_sequence/` must
+    join operand extraction to `OpenWindows` before selecting replacement
+    death, preserving operand order and the captured destination. Do not
+    invent another displaced value after the call consumes that storage.
+    Keep `runtime_borrowed_sum_empty_restore_exit` as the direct empty/full
+    assignment control; do not explicitly detach and drop its old value.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the

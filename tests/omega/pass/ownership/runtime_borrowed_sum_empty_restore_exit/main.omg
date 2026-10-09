@@ -1,29 +1,16 @@
 use omega::language::core::drop;
 
 data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+machine Token::drop(token: &mut Token) { token.value = 0; }
 data Choice { case Empty; case Value(token: Token); }
 data Holder { marker: u64; choice: Choice; sibling: Token; }
 
 machine populate(choice: &mut Choice) -> u64 {
-    let detached: Choice = choice;
-    discard(detached);
     choice = Choice::Value { token: Token { value: 42 } };
     5
 }
 
-machine discard(choice: Choice) {
-    transition choice {
-        Choice::Empty {} -> done()
-        Choice::Value { token } -> remove(token)
-    }
-    state done() {}
-    state remove(token: Token) { drop(token); }
-}
-
 machine erase(choice: &mut Choice) {
-    let detached: Choice = choice;
-    discard(detached);
     choice = Choice::Empty {};
 }
 
