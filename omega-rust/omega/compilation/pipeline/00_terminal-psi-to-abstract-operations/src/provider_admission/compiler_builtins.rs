@@ -219,7 +219,6 @@ fn float_arithmetic_realization(
             || !boundary.structural_parameters.is_empty()
             || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
         {
             return Err("does not match its structural classification result".to_owned());
         }

@@ -53,7 +53,6 @@ impl NumericImport {
             if target_operations::conventional_float_class_layout(declaration).is_none()
                 || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                 || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
                 || signature.scalar_parameters
                     != [semantic_vocabulary::ScalarType::IeeeFloat(
                         realization.format,

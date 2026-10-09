@@ -102,7 +102,7 @@ pub(in crate::legalization) fn validate(
             || unit.boundary_machine(*boundary) != Some(declaration)
             || declaration.scalar_parameters != [operand]
             || !declaration.structural_parameters.is_empty()
-            || !matches!(&declaration.result, terminal_psi::BoundaryMachineResult::Structural(declared) if declared.structural_type == result.structural_type && declared.multiplicity == result.multiplicity && declared.qualifications == result.qualifications && declared.projected_qualifications == result.projected_qualifications)
+            || !matches!(&declaration.result, terminal_psi::BoundaryMachineResult::Structural(declared) if declared.structural_type == result.structural_type && declared.multiplicity == result.multiplicity && declared.qualifications == result.qualifications)
             || !result.is_unrestricted_plain()
             || !result.qualification_establishments.is_empty()
             || result_home.operation_result() != Some((*psi_operation, result))

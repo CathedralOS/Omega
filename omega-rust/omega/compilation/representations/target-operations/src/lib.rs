@@ -33,6 +33,6 @@ pub use target_operations::{
     TargetStructuralRuntimeIndex, TargetUnitOperation, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource, TargetViewExtent, TargetX86ScalarFmaSettlement,
-    TerminalPsiProvenance, boundary, calls, control_flow, operations, provenance,
-    selector_carrier_type, storage, values,
+    TerminalPsiProvenance, boundary, calls, control_flow, conventional_float_class_layout,
+    operations, provenance, selector_carrier_type, storage, values,
 };

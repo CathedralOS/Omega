@@ -90,7 +90,7 @@ pub(super) fn lower(
             || !realization.supports_target(target)
             || declaration.scalar_parameters != [operand]
             || !declaration.structural_parameters.is_empty()
-            || !matches!(&declaration.result, terminal_psi::BoundaryMachineResult::Structural(declared) if declared.structural_type == result.structural_type && declared.multiplicity == result.multiplicity && declared.qualifications == result.qualifications && declared.projected_qualifications == result.projected_qualifications)
+            || !matches!(&declaration.result, terminal_psi::BoundaryMachineResult::Structural(declared) if declared.structural_type == result.structural_type && declared.multiplicity == result.multiplicity && declared.qualifications == result.qualifications)
             || arguments.len() != 1
             || !structural_arguments.is_empty()
             || !completion_claim_sources.is_empty()
