@@ -44,14 +44,12 @@ pub use calls::{
     SelectedFormNormalizedForeignCallFixupState, StructuralCallScalarReturnEvidence,
     StructuralReturnRecord, arguments, callbacks, foreign, internal, results, unit_call_arguments,
 };
-pub(crate) use calls::{ InternalStructuralResultHomeRecord};
 pub use control_flow::{
     BooleanStructuralConditionEvidence,
     ScalarConditionalBranchEvidence, ScalarConditionalCondition, ScalarControlBlockEvidence,
     ScalarControlFlowEvidence, ScalarControlTerminatorEvidence,
     ScalarDirectConditionalBranchEvidence, ScalarDivisionBranchEvidence, ScalarJoinBranchEvidence,
 };
-pub(crate) use control_flow::{ BooleanStructuralFieldRead};
 pub use encoding::{
     DeferredControlEncodingReason, ResolvedPhysicalAddress, SelectedFormDecodedFootprint,
     SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan, SelectedFormEncodedRowStore,

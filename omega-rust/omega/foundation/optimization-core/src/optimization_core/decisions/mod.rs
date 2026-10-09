@@ -8,7 +8,6 @@ pub use baseline::{
     BaselineDecisionOutcome, BaselineDecisionRecordError,
     ValidatedCandidateSummary,
 };
-pub(crate) use baseline::{ BaselineDecisionRecord};
 pub use external_schema::{
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
     ExternalDecisionLog, ExternalDecisionPoint, ExternalDecisionSchemaError,

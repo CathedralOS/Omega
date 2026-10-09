@@ -96,13 +96,10 @@ pub use live_ranges::{
     VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange, VirtualOccurrence,
     live_range_function_digest, live_range_identity_from_digests,
 };
-pub(crate) use live_ranges::{ live_range_identity};
 pub use liveness::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessIdentity,
     LivenessPlan, LivenessPosition, OperandPosition, SuccessorLiveness, liveness_function_digest, liveness_identity_from_digests,
 };
-pub(crate) use liveness::{
-    liveness_identity};
 pub use plan_identity::selected_instruction_plan_identity;
 pub use provenance::SelectedInstructionProvenance;
 pub use structural_case::{

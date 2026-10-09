@@ -112,8 +112,6 @@ pub use artifacts::{
 };
 pub use bundle::{ OptimizationIdentityBundle, OptimizationIdentityBundleIdentity,
 };
-pub(crate) use bundle::{
-    IdentityBundleDecodeError};
 pub use decisions::{
     OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
@@ -127,7 +125,8 @@ pub use rules_and_facts::{
     OptimizationRuleSetIdentity, OwnershipFrontierFactIdentity, ProofQuestionIdentity,
     ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
-pub(crate) use rules_and_facts::{ DuplicateOptimizationRuleIdentity};
+pub(crate) use bundle::IdentityBundleDecodeError;
+pub(crate) use rules_and_facts::DuplicateOptimizationRuleIdentity;
 pub use stages::{
     FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,

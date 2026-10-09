@@ -63,7 +63,6 @@ pub use instruction::{
     decode_alternative_without_scalar_call, decode_local_storage_slot, decode_provenance,
     saturating_kind,
 };
-pub(crate) use ownership::decode_effect_link;
 pub use ownership::decode_ownership;
 use values::{
     decode_accepted_fact, decode_constraint_key, decode_ids, decode_machine, decode_obligation,

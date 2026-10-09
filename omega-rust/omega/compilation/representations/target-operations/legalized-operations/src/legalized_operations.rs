@@ -67,7 +67,6 @@ pub use identity::{
     legalized_operation_plan_identity,
 };
 pub(crate) use identity::{ encode_callback_materialization, encode_eightbyte_class, encode_indirect_pointer, encode_native_place};
-pub(crate) use validation::LegalizedScalarCallShapeError;
 
 #[cfg(test)]
 mod tests;
