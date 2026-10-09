@@ -12,14 +12,8 @@ fn a_strict_bound_moves_one_literal_endpoint_inward() {
         let value = ScalarTerm::value(identity, scalar_type);
         let context = PropositionContext::from_value_types([(identity, scalar_type)]).unwrap();
         let literal = |number| {
-            ScalarTerm::integer(
-                integer_type,
-                match sign {
-                    IntegerSign::Signed => IntegerValue::Signed(number),
-                    IntegerSign::Unsigned => IntegerValue::Unsigned(number as u128),
-                },
-            )
-            .unwrap()
+            ScalarTerm::integer(integer_type, IntegerValue::for_sign(sign, number).unwrap())
+                .unwrap()
         };
         for lower in [false, true] {
             let premise = if lower {

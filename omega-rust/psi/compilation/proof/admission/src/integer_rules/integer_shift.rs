@@ -349,10 +349,7 @@ mod tests {
     }
 
     fn integer(integer_type: IntegerType, value: i128) -> ScalarTerm {
-        let value = match integer_type.sign() {
-            IntegerSign::Signed => IntegerValue::Signed(value),
-            IntegerSign::Unsigned => IntegerValue::Unsigned(value.try_into().expect("unsigned")),
-        };
+        let value = IntegerValue::for_sign(integer_type.sign(), value).expect("unsigned");
         ScalarTerm::integer(integer_type, value).expect("integer term")
     }
 

@@ -318,10 +318,7 @@ fn maps_mixed_exact_shift_endpoints_and_rejects_witness_tamper() {
     let target = value(4, value_type);
     let landed_count = value(5, i8_type);
     let integer = |integer_type: IntegerType, value: i128| {
-        let value = match integer_type.sign() {
-            IntegerSign::Signed => IntegerValue::Signed(value),
-            IntegerSign::Unsigned => IntegerValue::Unsigned(value.try_into().unwrap()),
-        };
+        let value = IntegerValue::for_sign(integer_type.sign(), value).unwrap();
         ScalarTerm::integer(integer_type, value).unwrap()
     };
     let axioms = vec![

@@ -806,6 +806,17 @@ pub enum IntegerValue {
     Unsigned(u128),
 }
 
+impl IntegerValue {
+    /// The value carried in `sign`'s representation. Unsigned carriers reject
+    /// negative inputs through the checked conversion.
+    pub fn for_sign(sign: IntegerSign, value: i128) -> Result<Self, std::num::TryFromIntError> {
+        match sign {
+            IntegerSign::Signed => Ok(Self::Signed(value)),
+            IntegerSign::Unsigned => value.try_into().map(Self::Unsigned),
+        }
+    }
+}
+
 /// One canonical mathematical integer literal. Unlike [`IntegerValue`], this
 /// proof-only form carries no fixed-width signedness and therefore has exactly
 /// one representation for every integer in its supported literal range.

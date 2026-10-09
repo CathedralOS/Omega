@@ -312,13 +312,8 @@ fn map_integer_affine_bound_with_remainder_policy(
     if !required_evidence.is_empty() {
         return Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing);
     }
-    let mapped_value = match form.integer_type().sign() {
-        IntegerSign::Signed => IntegerValue::Signed(mapped),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(
-            u128::try_from(mapped)
-                .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?,
-        ),
-    };
+    let mapped_value = IntegerValue::for_sign(form.integer_type().sign(), mapped)
+        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
     let mapped = ScalarTerm::integer(form.integer_type(), mapped_value)
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
 

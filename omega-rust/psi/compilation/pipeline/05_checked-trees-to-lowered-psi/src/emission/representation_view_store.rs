@@ -711,12 +711,8 @@ fn view_leaf_image(
                 let Some(carrier) = leaf.as_integer() else {
                     unreachable!("integer leaf checked above");
                 };
-                let value = match carrier.sign() {
-                    semantic_vocabulary::IntegerSign::Signed => IntegerValue::Signed(value.into()),
-                    semantic_vocabulary::IntegerSign::Unsigned => {
-                        IntegerValue::Unsigned(value.into())
-                    }
-                };
+                let value = IntegerValue::for_sign(carrier.sign(), i128::from(value))
+                    .expect("a Boolean leaf fits every integer carrier");
                 Ok(LoweredDirectExpression::IntegerLiteral {
                     value,
                     scalar_type: leaf,

@@ -166,13 +166,8 @@ fn scalar_integer_from_i128(
     integer_type: IntegerType,
     value: i128,
 ) -> Result<ScalarTerm, IntegerAffineBoundConversionError> {
-    let value = match integer_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(value),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(
-            u128::try_from(value)
-                .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?,
-        ),
-    };
+    let value = IntegerValue::for_sign(integer_type.sign(), value)
+        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
     ScalarTerm::integer(integer_type, value)
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)
 }

@@ -14,10 +14,7 @@ fn value(carrier: IntegerType, raw: u64) -> ScalarTerm {
 fn literal(carrier: IntegerType, raw: u64) -> ScalarTerm {
     ScalarTerm::integer(
         carrier,
-        match carrier.sign() {
-            IntegerSign::Signed => IntegerValue::Signed(i128::from(raw)),
-            IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(raw)),
-        },
+        IntegerValue::for_sign(carrier.sign(), i128::from(raw)).unwrap(),
     )
     .unwrap()
 }

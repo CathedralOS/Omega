@@ -322,13 +322,8 @@ pub fn integer_cast_truth_bounds(
         .last()
         .expect("a checked cast chain retains its target carrier");
     let literal = |value| {
-        let value = match target_type.sign() {
-            IntegerSign::Signed => IntegerValue::Signed(value),
-            IntegerSign::Unsigned => IntegerValue::Unsigned(
-                u128::try_from(value)
-                    .map_err(|_| IntegerCastBoundConversionError::ConclusionNotTypedLiteral)?,
-            ),
-        };
+        let value = IntegerValue::for_sign(target_type.sign(), value)
+            .map_err(|_| IntegerCastBoundConversionError::ConclusionNotTypedLiteral)?;
         ScalarTerm::integer(target_type, value)
             .map_err(|_| IntegerCastBoundConversionError::ConclusionNotTypedLiteral)
     };
