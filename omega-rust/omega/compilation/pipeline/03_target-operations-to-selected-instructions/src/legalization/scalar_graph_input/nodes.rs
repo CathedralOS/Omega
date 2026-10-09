@@ -55,8 +55,7 @@ pub(in crate::legalization) fn admit(
         }
         return Ok((*psi_operation, result.map(|result| result.value)));
     }
-    if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
-    | AbstractOperation::ElementViewSubslice { psi_operation, .. }
+    if let abstract_operations::element_view_or_byte_subslice_pattern!(psi_operation, ..)
     | AbstractOperation::EstablishElementView { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, .. }
     | AbstractOperation::EstablishRecord { psi_operation, .. }

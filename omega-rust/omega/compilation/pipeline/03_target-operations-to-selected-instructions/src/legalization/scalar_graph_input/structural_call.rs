@@ -600,16 +600,8 @@ fn established_view(
     }
     caller.block_nodes().find_map(|node| {
         let (producer, result) = match &node.operation {
-            AbstractOperation::ByteSequenceSubslice {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::ElementViewSubslice {
-                psi_operation,
-                result,
-                ..
-            } => (*psi_operation, result),
+            abstract_operations::element_view_or_byte_subslice_pattern!(psi_operation,
+                result, ..) => (*psi_operation, result),
             AbstractOperation::EstablishElementView {
                 psi_operation,
                 result,

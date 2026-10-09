@@ -337,20 +337,10 @@ fn adapt(
                         origins.retain(|(location, _)| location != &destination);
                     }
                 }
-                O::ElementViewSubslice {
-                    result,
+                abstract_operations::element_view_or_byte_subslice_pattern!(result,
                     source,
                     start,
-                    end,
-                    ..
-                }
-                | O::ByteSequenceSubslice {
-                    result,
-                    source,
-                    start,
-                    end,
-                    ..
-                } => {
+                    end, ..) => {
                     let source = DescriptorLocation::whole(*source);
                     let destination = DescriptorLocation::whole(result.place);
                     step.derivations.push((source.clone(), destination.clone()));

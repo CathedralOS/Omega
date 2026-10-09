@@ -108,20 +108,10 @@ impl DescriptorLoans {
                         }
                         Some((result.place, source.place, projection, source.access))
                     },
-                    O::ElementViewSubslice {
-                        result,
+                    abstract_operations::element_view_or_byte_subslice_pattern!(result,
                         source,
                         start,
-                        end,
-                        ..
-                    }
-                    | O::ByteSequenceSubslice {
-                        result,
-                        source,
-                        start,
-                        end,
-                        ..
-                    } => Some((
+                        end, ..) => Some((
                         result.place,
                         *source,
                         Projection::window(*start, *end, position),
@@ -663,12 +653,7 @@ fn operation_observations(
                 ),
             );
         }
-        O::ElementViewSubslice {
-            source, start, end, ..
-        }
-        | O::ByteSequenceSubslice {
-            source, start, end, ..
-        } => {
+        abstract_operations::element_view_or_byte_subslice_pattern!(source, start, end, ..) => {
             retain(*source, Projection::window(*start, *end, position));
         }
         O::StructuralByteSequenceFieldLength {

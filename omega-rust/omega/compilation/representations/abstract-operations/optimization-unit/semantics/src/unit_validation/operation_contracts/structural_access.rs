@@ -898,7 +898,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 O::EstablishPrimitiveLocal { result, .. } => {
                     (result, terminal_psi::StructuralAccess::MutableBorrow)
                 }
-                O::ByteSequenceSubslice { result, .. } | O::ElementViewSubslice { result, .. } => {
+                abstract_operations::element_view_or_byte_subslice_pattern!(result, ..) => {
                     (result, view_access(caller, operation)?)
                 }
                 // The view's source access IS the loan's access: a mutable
@@ -1005,7 +1005,7 @@ fn view_access(
             return None;
         }
         match operation {
-            O::ByteSequenceSubslice { source, .. } | O::ElementViewSubslice { source, .. } => {
+            abstract_operations::element_view_or_byte_subslice_pattern!(source, ..) => {
                 if !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty()
                     || !result.qualification_establishments.is_empty()

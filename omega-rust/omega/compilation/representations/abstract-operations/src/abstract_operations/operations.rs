@@ -1197,3 +1197,11 @@ macro_rules! byte_sequence_write_pair_pattern {
             | $crate::AbstractOperation::StructuralByteSequenceFieldByteStore { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! element_view_or_byte_subslice_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::ElementViewSubslice { $($fields)* }
+            | $crate::AbstractOperation::ByteSequenceSubslice { $($fields)* }
+    };
+}

@@ -354,8 +354,7 @@ pub(super) fn lower(
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
             }
-            | AbstractOperation::ByteSequenceSubslice { result, .. }
-            | AbstractOperation::ElementViewSubslice { result, .. }
+            | abstract_operations::element_view_or_byte_subslice_pattern!(result, ..)
             | AbstractOperation::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..

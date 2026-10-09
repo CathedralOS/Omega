@@ -271,8 +271,7 @@ impl<'u> FunctionContext<'u> {
         for block in &function.blocks {
             for node in &block.nodes {
                 match &node.operation {
-                    O::ByteSequenceSubslice { result, source, .. }
-                    | O::ElementViewSubslice { result, source, .. } => {
+                    abstract_operations::element_view_or_byte_subslice_pattern!(result, source, ..) => {
                         aliases.insert(
                             result.place,
                             AliasTarget::View {
@@ -842,8 +841,7 @@ fn scan_operation(
         // Alias establishments contribute through the `FunctionContext`
         // alias map, and pure scalar or internal establishment operations
         // touch no caller-visible place at all.
-        O::ByteSequenceSubslice { .. }
-        | O::ElementViewSubslice { .. }
+        abstract_operations::element_view_or_byte_subslice_pattern!(..)
         | O::EstablishElementView { .. }
         | O::EstablishReference { .. }
         | O::EstablishScalarArray { .. }

@@ -330,20 +330,10 @@ impl BorrowedRegions {
                         }
                         Some((result.place, source.place, projection))
                     }
-                    O::ElementViewSubslice {
-                        result,
+                    abstract_operations::element_view_or_byte_subslice_pattern!(result,
                         source,
                         start,
-                        end,
-                        ..
-                    }
-                    | O::ByteSequenceSubslice {
-                        result,
-                        source,
-                        start,
-                        end,
-                        ..
-                    } => Some((
+                        end, ..) => Some((
                         result.place,
                         *source,
                         Projection::window(*start, *end, position),

@@ -90,8 +90,7 @@ fn call_argument_changes(
                 region = backing;
                 place = source.place;
             }
-            O::ElementViewSubslice { source, result, .. }
-            | O::ByteSequenceSubslice { source, result, .. }
+            abstract_operations::element_view_or_byte_subslice_pattern!(source, result, ..)
                 if result.place == place && result.structural_type == contract.structural_type =>
             {
                 region.clear();
