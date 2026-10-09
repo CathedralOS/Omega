@@ -1,14 +1,82 @@
 //! Descriptor payload homes do not allocate their backing. Reconstruct the
 //! completed calls reached by a payload access, then retain an opaque read of
-//! those calls' authenticated origin rosters. Callee-local scalar coordinates
-//! cannot bound this reach in the caller; consumers conservatively preserve it.
+//! those calls' authenticated origin rosters. Constructor fields, copies and
+//! incoming bindings transport descriptor coordinates, not backing ownership.
+//! Replacement sources are a conservative union, never a live-value replay.
+//! Callee-local coordinates cannot bound this reach in the caller; unresolved
+//! borrowed backing remains unsupported rather than becoming a local allocation.
 use crate::SelectedInstructionError;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind as I, LegalizedScalarTerminator as T,
 };
-use selected_instructions::{SelectedMemoryAccess, SelectedMemoryAccessRole as R};
+use selected_instructions::{
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole as R,
+};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 use std::collections::BTreeSet;
+
+/// Construction scratch for the coordinate walk. Recurrent bindings are
+/// dependencies, not evidence that a descriptor has real backing. Every
+/// discovered coordinate must reach an authenticated leaf after the walk.
+#[derive(Default)]
+struct OriginInventory {
+    coordinates: Vec<terminal_psi::StructuralArgument>,
+    dependencies: Vec<(usize, usize)>,
+    active: Vec<usize>,
+    origins: Vec<usize>,
+}
+
+impl OriginInventory {
+    fn enter(&mut self, coordinate: &terminal_psi::StructuralArgument) -> bool {
+        let previous = self.coordinates.iter().position(|previous| {
+            terminal_semantics::same_descriptor_coordinate(previous, coordinate)
+        });
+        let index = previous.unwrap_or(self.coordinates.len());
+        if let Some(parent) = self.active.last() {
+            self.dependencies.push((*parent, index));
+        }
+        if previous.is_some() {
+            return false;
+        }
+        self.coordinates.push(coordinate.clone());
+        self.active.push(index);
+        true
+    }
+
+    fn origin(&mut self) {
+        if let Some(index) = self.active.last() {
+            self.origins.push(*index);
+        }
+    }
+
+    fn leave(&mut self) {
+        self.active.pop();
+    }
+
+    fn validate(&self) -> Result<(), SelectedInstructionError> {
+        let mut reached = vec![false; self.coordinates.len()];
+        for index in &self.origins {
+            reached[*index] = true;
+        }
+        loop {
+            let mut changed = false;
+            for (parent, child) in &self.dependencies {
+                if reached[*child] && !reached[*parent] {
+                    reached[*parent] = true;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        if reached.iter().all(|reached| *reached) {
+            Ok(())
+        } else {
+            Err(SelectedInstructionError::custody())
+        }
+    }
+}
 
 pub(super) fn replay_memory_origins(
     source: &LegalizedScalarFunction,
@@ -27,7 +95,11 @@ pub(super) fn replay_memory_origins(
             continue;
         }
         let mut producers = BTreeSet::new();
-        collect_calls(source, access.place, &mut BTreeSet::new(), &mut producers)?;
+        let mut visited = OriginInventory::default();
+        for coordinate in access_coordinates(source, access)? {
+            collect_calls(source, &coordinate, &mut visited, &mut producers)?;
+        }
+        visited.validate()?;
         if producers.is_empty() {
             replayed.push(access.clone());
         } else {
@@ -48,28 +120,171 @@ pub(super) fn replay_memory_origins(
     Ok(())
 }
 
+/// Native footprints sometimes name a backing root rather than the descriptor
+/// home. Start from the operation's selected operand where it is retained;
+/// other footprint families conservatively retain the named root's reach.
+fn access_coordinates(
+    function: &LegalizedScalarFunction,
+    access: &SelectedMemoryAccess,
+) -> Result<Vec<terminal_psi::StructuralArgument>, SelectedInstructionError> {
+    use terminal_psi::{StructuralAccess, StructuralArgument};
+    let whole = |place| StructuralArgument::whole(place, StructuralAccess::SharedBorrow);
+    let SelectedMemoryAccessOrigin::Operation(operation) = access.origin else {
+        return Ok(vec![whole(access.place)]);
+    };
+    let row = function
+        .instructions()
+        .find(|row| row.operation == operation)
+        .ok_or(SelectedInstructionError::custody())?;
+    let coordinates = match &row.kind {
+        I::ByteSequenceRead { source, .. } => vec![whole(*source)],
+        I::ElementViewRead { source, path, .. } | I::PrimitiveScalarRead { source, path, .. } => {
+            vec![StructuralArgument {
+                place: *source,
+                path: path.clone(),
+                access: StructuralAccess::SharedBorrow,
+            }]
+        }
+        I::StructuralByteSequenceFieldRead { source, field, .. } => {
+            vec![field_coordinate(function, source, Some(*field))?]
+        }
+        I::ByteSequenceLength { source, .. } | I::ElementViewLength { source, .. } => {
+            vec![source.clone()]
+        }
+        I::ByteSequencePredicate { operand, .. } => vec![byte_coordinate(function, operand)?],
+        I::ByteSequenceEqual { left, right }
+        | I::EstablishByteSequenceConcatenation { left, right, .. } => {
+            vec![
+                byte_coordinate(function, left)?,
+                byte_coordinate(function, right)?,
+            ]
+        }
+        _ => vec![whole(access.place)],
+    };
+    Ok(coordinates)
+}
+
+fn byte_coordinate(
+    function: &LegalizedScalarFunction,
+    operand: &terminal_psi::control_flow::ByteSequenceOperand,
+) -> Result<terminal_psi::StructuralArgument, SelectedInstructionError> {
+    match operand {
+        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+            Ok(terminal_psi::StructuralArgument::whole(
+                *source,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            ))
+        }
+        terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => {
+            field_coordinate(function, source, Some(*field))
+        }
+    }
+}
+
+/// Field IDs are declaration-local. Join the containing path first, including
+/// a selected payload namespace, before recovering its retained field identity.
+fn field_coordinate(
+    function: &LegalizedScalarFunction,
+    source: &terminal_psi::StructuralArgument,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> Result<terminal_psi::StructuralArgument, SelectedInstructionError> {
+    let Some(field) = field else {
+        return Ok(source.clone());
+    };
+    let signature = function
+        .structural
+        .as_ref()
+        .ok_or(SelectedInstructionError::custody())?;
+    let root = super::reference_input::root_type(function, source.place)
+        .ok_or(SelectedInstructionError::custody())?;
+    let (prefix, case) = match source.path.split_last() {
+        Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
+        _ => (source.path.as_slice(), None),
+    };
+    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+        root,
+        prefix,
+        &signature.structural_types,
+    )
+    .ok_or(SelectedInstructionError::custody())?;
+    let shape = &signature
+        .structural_type(geometry.selected)
+        .ok_or(SelectedInstructionError::custody())?
+        .shape;
+    let fields = match case {
+        Some(case) => shape
+            .sum_cases()
+            .and_then(|cases| cases.iter().find(|row| row.id == case))
+            .map(|case| case.fields.as_slice()),
+        None => shape.direct_fields(),
+    }
+    .ok_or(SelectedInstructionError::custody())?;
+    let selected =
+        terminal_psi::live_field_by_id(fields, field).ok_or(SelectedInstructionError::custody())?;
+    let mut coordinate = source.clone();
+    coordinate
+        .path
+        .push(terminal_psi::StructuralPathSegment::Field(
+            selected.identity.clone(),
+        ));
+    Ok(coordinate)
+}
+
+/// Retain coordinates through value transport. This inventory is conservative
+/// about possible origins and supplies no access, allocation or count bound.
 fn collect_calls(
-    source: &LegalizedScalarFunction,
-    place: PlaceId,
-    visited: &mut BTreeSet<PlaceId>,
+    function: &LegalizedScalarFunction,
+    coordinate: &terminal_psi::StructuralArgument,
+    visited: &mut OriginInventory,
     calls: &mut BTreeSet<(OperationId, PlaceId)>,
 ) -> Result<(), SelectedInstructionError> {
-    if !visited.insert(place) {
+    if !visited.enter(coordinate) {
         return Ok(());
     }
-    if let Some((producer, _)) = super::established_view_input::descriptor_result(source, place) {
+    let place = coordinate.place;
+    let signature = function
+        .structural
+        .as_ref()
+        .ok_or(SelectedInstructionError::custody())?;
+    let declaration = signature
+        .structural_place(place)
+        .ok_or(SelectedInstructionError::custody())?;
+    // Replacements are independently ordered by the live storage owner. Origin
+    // accounting retains all overlapping possibilities, including the original
+    // constructor value; it never reinterprets a future write as a live fact.
+    let stored = stored_sources(function, coordinate, visited, calls)?;
+    if let Some((producer, _)) = super::established_view_input::descriptor_result(function, place) {
         calls.insert((producer, place));
+        visited.origin();
+        // A selected descendant can itself contain a descriptor. Its backing
+        // comes from the already authenticated actual-origin roster, not from
+        // the bytes occupied by the returned outer descriptor.
+        if !coordinate.path.is_empty() {
+            let row = function
+                .instructions()
+                .find(|row| row.operation == producer)
+                .ok_or(SelectedInstructionError::custody())?;
+            let I::Call(call) = &row.kind else {
+                return Err(SelectedInstructionError::custody());
+            };
+            for origin in &call.descriptor_origins {
+                if let legalized_operations::LegalizedDescriptorOrigin::Argument {
+                    source, ..
+                } = origin
+                {
+                    collect_calls(function, source, visited, calls)?;
+                }
+            }
+        }
+        visited.leave();
         return Ok(());
     }
-    let Some(signature) = &source.structural else {
-        return Ok(());
-    };
-    let Some(declaration) = signature.structural_place(place) else {
-        return Ok(());
-    };
     match declaration.kind {
-        StructuralPlaceKind::OperationResult { producer, .. } => {
-            let row = source
+        StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } => {
+            let row = function
                 .instructions()
                 .find(|row| row.operation == producer)
                 .ok_or(SelectedInstructionError::custody())?;
@@ -84,11 +299,7 @@ fn collect_calls(
                     indices,
                     ..
                 } => {
-                    // Origin accounting is opaque, not a backing bound or
-                    // permission. First retain the exact selected descriptor
-                    // coordinate and its own selector certificates; then account
-                    // conservatively for the parent home's completed calls.
-                    let root = super::reference_input::root_type(source, parent.place)
+                    let root = super::reference_input::root_type(function, parent.place)
                         .ok_or(SelectedInstructionError::custody())?;
                     let geometry = crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
                         root, &parent.path, &signature.structural_types,
@@ -96,37 +307,160 @@ fn collect_calls(
                     if !geometry.readable || !crate::structural_inputs::structural_reference_input::runtime_indices_match(indices, &geometry.elements) {
                         return Err(SelectedInstructionError::custody());
                     }
-                    collect_calls(source, parent.place, visited, calls)?;
+                    // A result index is relative to the captured cut, not to
+                    // its parent's backing. Retain the exact descriptor prefix
+                    // and union its backing reach instead of reusing that index
+                    // as an original collection selector.
+                    collect_calls(function, parent, visited, calls)?;
                 }
-                I::StructuralLeafCopy { source: parent, .. } => {
-                    collect_calls(source, *parent, visited, calls)?;
+                I::StructuralLeafCopy {
+                    source: parent,
+                    path,
+                    ..
+                } => {
+                    let prefix = match path {
+                        abstract_operations::StructuralCopyPath::Ordinary(path) => path.clone(),
+                        abstract_operations::StructuralCopyPath::Case(path) => {
+                            let root = super::reference_input::root_type(function, *parent)
+                                .ok_or(SelectedInstructionError::custody())?;
+                            let selected = terminal_semantics::descriptor_lifetimes::canonical_descriptor_location(
+                                &signature.structural_types, *parent, root, path,
+                            ).ok_or(SelectedInstructionError::custody())?;
+                            terminal_semantics::descriptor_lifetimes::descriptor_path(
+                                &signature.structural_types,
+                                root,
+                                &selected.path,
+                            )
+                            .ok_or(SelectedInstructionError::custody())?
+                        }
+                    };
+                    let parent = terminal_psi::StructuralArgument {
+                        place: *parent,
+                        path: prefix,
+                        access: coordinate.access,
+                    };
+                    collect_calls(
+                        function,
+                        &rebased(&parent, &coordinate.path),
+                        visited,
+                        calls,
+                    )?;
                 }
                 I::EstablishElementView { source: parent, .. } => {
-                    collect_calls(source, parent.place, visited, calls)?
+                    // A view's selectors are in its backing coordinate. The
+                    // source collection is retained conservatively when a cut
+                    // cannot map an element back to one exact original index.
+                    collect_calls(function, parent, visited, calls)?;
                 }
-                // Any other producer owns its storage. A call with descriptor
-                // type must have passed the exact result/origin query above.
-                I::Call(call)
-                    if call.structural_result.as_ref().is_some_and(|result| {
-                        result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                            && terminal_semantics::descriptor_results::is_shared_descriptor(
-                                signature.structural_types.iter(),
-                                result.structural_type,
-                            )
-                    }) =>
-                {
-                    return Err(SelectedInstructionError::custody());
+                I::EstablishReference { source: parent, .. } => {
+                    let suffix = match coordinate.path.split_first() {
+                        Some((terminal_psi::StructuralPathSegment::Referent, suffix)) => suffix,
+                        None => &[],
+                        _ => return Err(SelectedInstructionError::custody()),
+                    };
+                    collect_calls(function, &rebased(parent, suffix), visited, calls)?;
                 }
-                _ => {}
+                I::EstablishRecord { fields, .. } => {
+                    constructed_fields(
+                        function,
+                        structural_type,
+                        None,
+                        fields,
+                        coordinate,
+                        visited,
+                        calls,
+                    )?;
+                }
+                I::EstablishCase {
+                    result_case,
+                    fields,
+                    ..
+                } => {
+                    constructed_fields(
+                        function,
+                        structural_type,
+                        Some(*result_case),
+                        fields,
+                        coordinate,
+                        visited,
+                        calls,
+                    )?;
+                }
+                I::EstablishStructuralArray { elements, .. } => {
+                    if elements.is_empty() {
+                        visited.origin();
+                    }
+                    match coordinate.path.split_first() {
+                        None => {
+                            for element in elements {
+                                collect_calls(function, element, visited, calls)?;
+                            }
+                        }
+                        Some((terminal_psi::StructuralPathSegment::FixedIndex(index), suffix)) => {
+                            let element = elements
+                                .get(
+                                    usize::try_from(*index)
+                                        .map_err(|_| SelectedInstructionError::custody())?,
+                                )
+                                .ok_or(SelectedInstructionError::custody())?;
+                            collect_calls(function, &rebased(element, suffix), visited, calls)?;
+                        }
+                        Some((
+                            terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
+                            suffix,
+                        )) => {
+                            for element in elements {
+                                collect_calls(function, &rebased(element, suffix), visited, calls)?;
+                            }
+                        }
+                        _ => return Err(SelectedInstructionError::custody()),
+                    }
+                }
+                I::EstablishZeroedStructural { .. } => visited.origin(),
+                I::EstablishStructuralLocal { .. } => {
+                    // Its live members come from the retained stores collected
+                    // above, rather than from the uninitialized home allocation.
+                    if !stored
+                        && contains_borrowed_storage(
+                            &signature.structural_types,
+                            structural_type,
+                            &mut BTreeSet::new(),
+                        )
+                    {
+                        return Err(SelectedInstructionError::custody());
+                    }
+                    if !contains_borrowed_storage(
+                        &signature.structural_types,
+                        structural_type,
+                        &mut BTreeSet::new(),
+                    ) {
+                        visited.origin();
+                    }
+                }
+                _ => {
+                    if contains_borrowed_storage(
+                        &signature.structural_types,
+                        structural_type,
+                        &mut BTreeSet::new(),
+                    ) {
+                        // A callable aggregate's descriptor words are not a
+                        // backing allocation. Missing selected result origins
+                        // remain a recoverable custody refusal.
+                        return Err(SelectedInstructionError::custody());
+                    }
+                    visited.origin();
+                }
             }
         }
         StructuralPlaceKind::BlockParameter { block, .. } => {
-            for owner in &source.blocks {
+            let mut arrivals = 0;
+            for owner in &function.blocks {
                 let mut follow = |successor: &legalized_operations::LegalizedScalarSuccessor| -> Result<(), SelectedInstructionError> {
                     if successor.target == block {
                         let binding = successor.structural_binding(place)
                             .ok_or(SelectedInstructionError::custody())?;
-                        collect_calls(source, binding.argument.place, visited, calls)?;
+                        arrivals += 1;
+                        collect_calls(function, &rebased(&binding.argument, &coordinate.path), visited, calls)?;
                     }
                     Ok(())
                 };
@@ -140,11 +474,209 @@ fn collect_calls(
                         follow(when_true)?;
                         follow(when_false)?;
                     }
+                    T::StructuralCase { cases, .. }
+                        if cases.iter().any(|case| case.target == block) =>
+                    {
+                        // Case edges carry scalar payloads, not structural
+                        // bindings. They cannot authenticate this home.
+                        return Err(SelectedInstructionError::custody());
+                    }
                     _ => {}
                 }
             }
+            if arrivals == 0 {
+                return Err(SelectedInstructionError::custody());
+            }
         }
-        _ => {}
+        StructuralPlaceKind::Parameter { .. }
+        | StructuralPlaceKind::ByteSequenceLiteral { .. }
+        | StructuralPlaceKind::TrivialAffineLocal { .. } => visited.origin(),
+        _ => return Err(SelectedInstructionError::custody()),
+    }
+    visited.leave();
+    Ok(())
+}
+
+fn rebased(
+    parent: &terminal_psi::StructuralArgument,
+    suffix: &[terminal_psi::StructuralPathSegment],
+) -> terminal_psi::StructuralArgument {
+    let mut result = parent.clone();
+    result.path.extend_from_slice(suffix);
+    result
+}
+
+fn constructed_fields(
+    function: &LegalizedScalarFunction,
+    identity: semantic_vocabulary::StructuralTypeId,
+    case: Option<semantic_vocabulary::StructuralCaseId>,
+    fields: &[terminal_psi::RecordFieldInitializer],
+    coordinate: &terminal_psi::StructuralArgument,
+    visited: &mut OriginInventory,
+    calls: &mut BTreeSet<(OperationId, PlaceId)>,
+) -> Result<(), SelectedInstructionError> {
+    if coordinate.path.is_empty() {
+        if fields.is_empty() {
+            visited.origin();
+        }
+        for field in fields {
+            if let Some(child) = field.value.as_structural() {
+                collect_calls(function, child, visited, calls)?;
+            } else {
+                visited.origin();
+            }
+        }
+        return Ok(());
+    }
+    let (selected_case, path) = match coordinate.path.split_first() {
+        Some((terminal_psi::StructuralPathSegment::Case(selected), suffix)) => {
+            (Some(*selected), suffix)
+        }
+        _ => (None, coordinate.path.as_slice()),
+    };
+    if selected_case.is_some() && selected_case != case {
+        // This constructor cannot supply the selected case. Case liveness is
+        // checked at the read; origin inventory supplies no case proof.
+        visited.origin();
+        return Ok(());
+    }
+    let (terminal_psi::StructuralPathSegment::Field(name), suffix) = path
+        .split_first()
+        .ok_or(SelectedInstructionError::custody())?
+    else {
+        return Err(SelectedInstructionError::custody());
+    };
+    let shape = &function
+        .structural
+        .as_ref()
+        .ok_or(SelectedInstructionError::custody())?
+        .structural_type(identity)
+        .ok_or(SelectedInstructionError::custody())?
+        .shape;
+    let declared = match selected_case {
+        Some(case) => shape
+            .sum_cases()
+            .and_then(|cases| cases.iter().find(|row| row.id == case))
+            .map(|case| case.fields.as_slice()),
+        None => shape.direct_fields(),
+    }
+    .ok_or(SelectedInstructionError::custody())?;
+    let field = terminal_psi::live_field_by_identity(declared, name)
+        .ok_or(SelectedInstructionError::custody())?;
+    let mut initializers = fields
+        .iter()
+        .filter(|initializer| initializer.field == field.id);
+    let initializer = initializers
+        .next()
+        .ok_or(SelectedInstructionError::custody())?;
+    if initializers.next().is_some() {
+        return Err(SelectedInstructionError::custody());
+    }
+    if let Some(child) = initializer.value.as_structural() {
+        collect_calls(function, &rebased(child, suffix), visited, calls)?;
+    } else {
+        visited.origin();
     }
     Ok(())
+}
+
+fn contains_borrowed_storage(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    identity: semantic_vocabulary::StructuralTypeId,
+    visited: &mut BTreeSet<semantic_vocabulary::StructuralTypeId>,
+) -> bool {
+    if !visited.insert(identity) {
+        return false;
+    }
+    let Some(declaration) = types.iter().find(|declaration| declaration.id == identity) else {
+        return true;
+    };
+    match &declaration.shape {
+        terminal_psi::StructuralTypeShape::ElementView { .. }
+        | terminal_psi::StructuralTypeShape::Reference { .. } => true,
+        terminal_psi::StructuralTypeShape::ByteSequence(carrier) => !matches!(
+            carrier,
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+        ),
+        terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {
+            contains_borrowed_storage(types, *element, visited)
+        }
+        shape => shape
+            .direct_fields()
+            .into_iter()
+            .flatten()
+            .chain(
+                shape
+                    .sum_cases()
+                    .into_iter()
+                    .flatten()
+                    .flat_map(|case| &case.fields),
+            )
+            .any(|field| {
+                field
+                    .field_type
+                    .as_structural()
+                    .is_some_and(|identity| contains_borrowed_storage(types, identity, visited))
+                    || field
+                        .field_type
+                        .byte_sequence_carrier()
+                        .is_some_and(|carrier| {
+                            !matches!(
+                                carrier,
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        })
+            }),
+    }
+}
+
+fn stored_sources(
+    function: &LegalizedScalarFunction,
+    coordinate: &terminal_psi::StructuralArgument,
+    visited: &mut OriginInventory,
+    calls: &mut BTreeSet<(OperationId, PlaceId)>,
+) -> Result<bool, SelectedInstructionError> {
+    let mut found = false;
+    for row in function.instructions() {
+        let (destination, field, value) = match &row.kind {
+            I::StoreStructuralField {
+                destination,
+                path,
+                field,
+                value,
+                ..
+            } => (
+                terminal_psi::StructuralArgument {
+                    place: destination.place(),
+                    path: path.clone(),
+                    access: coordinate.access,
+                },
+                *field,
+                *value,
+            ),
+            I::StructuralByteViewFieldStore {
+                destination,
+                field,
+                source,
+                ..
+            } => (destination.clone(), *field, *source),
+            _ => continue,
+        };
+        if destination.place != coordinate.place {
+            continue;
+        }
+        let target = field_coordinate(function, &destination, field)?.path;
+        if !terminal_semantics::structural_paths_may_overlap(&target, &coordinate.path) {
+            continue;
+        }
+        found = true;
+        let suffix = if target.len() <= coordinate.path.len() {
+            &coordinate.path[target.len()..]
+        } else {
+            &[]
+        };
+        let parent = terminal_psi::StructuralArgument::whole(value, coordinate.access);
+        collect_calls(function, &rebased(&parent, suffix), visited, calls)?;
+    }
+    Ok(found)
 }
