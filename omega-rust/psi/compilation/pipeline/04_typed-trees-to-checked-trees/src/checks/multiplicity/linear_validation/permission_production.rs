@@ -2,7 +2,7 @@
 
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
 use crate::checks::multiplicity::linear_validation::claim_provenance::{
-    written_linear_targets, written_owner_targets,
+    completed_statement_values, written_linear_targets, written_owner_targets,
 };
 use crate::checks::multiplicity::{projected_affine, temporary_results};
 use crate::flow::FlowOwnershipEventSource;
@@ -41,11 +41,17 @@ pub(crate) fn apply_statement_permission_production(
 
     let event_start = permission_events.len();
     let statement_source = PermissionEventSource::Statement { statement_index };
-    let mut written_targets =
-        written_linear_targets(program, state_symbol, statement_index, statement, places)
-            .into_iter()
-            .map(|target| (target, statement_source))
-            .collect::<Vec<_>>();
+    let mut written_targets = written_linear_targets(
+        program,
+        state_symbol,
+        statement_index,
+        statement,
+        evaluation,
+        places,
+    )
+    .into_iter()
+    .map(|target| (target, statement_source))
+    .collect::<Vec<_>>();
     if let Some((machine, state)) = program
         .machine_by_symbol(machine_symbol)
         .zip(program.state_by_symbol(state_symbol))
@@ -365,18 +371,21 @@ pub(crate) fn apply_statement_permission_production(
     }
     // Returning a completed expression transfers its established frontier;
     // it is not an implicit cleanup of a freshly created linear value.
-    if let Some(expression) = statement.as_expression()
-        && program.state_by_symbol(state_symbol).is_some_and(|state| {
-            statement_index + 1
-                == program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .len()
-        })
+    if let Some((expression, _)) = completed_statement_values(program, statement)
+        .into_iter()
+        .find(|(_, source)| *source == evaluation)
+        && (matches!(statement, StatementNode::Transition(_))
+            || program.state_by_symbol(state_symbol).is_some_and(|state| {
+                statement_index + 1
+                    == program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .len()
+            }))
     {
         for place in places
             .iter_mut()
-            .filter(|place| place.root == facts::PlaceRoot::Expression(*expression) && place.live)
+            .filter(|place| place.root == facts::PlaceRoot::Expression(expression) && place.live)
         {
             permission_events.push(FlowPermissionEventFact {
                 evaluation,

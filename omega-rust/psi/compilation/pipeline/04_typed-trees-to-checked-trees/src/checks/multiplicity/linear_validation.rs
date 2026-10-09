@@ -21,6 +21,7 @@ pub(crate) use applied_events::{
 pub(crate) use claim_frontier::{
     initial_linear_places, linear_claim_frontier, reserve_owner_places,
 };
+pub(crate) use claim_provenance::completed_statement_values;
 pub(crate) use permission_production::{
     apply_statement_permission_production, established_provenance, event_statement_index,
     permission_source, select_static_case_alternative,

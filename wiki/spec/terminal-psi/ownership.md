@@ -12,14 +12,20 @@ present, otherwise the unnumbered field's spelling. Fixed-array segments use
 canonical zero-based literal indexes within a nonempty literal-length shape.
 Resolve every segment against the type reached by the previous segment.
 
-The admitted projected-claim vocabulary traverses relevant structural fields
-and fixed indexes. Cases, dynamic indexes, scalar/erased leaves, unknown segments,
-duplicate paths, ancestor/descendant overlap, and noncanonical order reject.
+The admitted projected-claim vocabulary traverses relevant structural fields,
+fixed indexes, and exact declared case payloads. A Case segment guards its
+payload namespace; it adds neither physical storage nor an independent claim.
+Typed catalogues may include mutually exclusive payloads, but live custody
+contains only the paths selected by actual case membership. Missing membership
+is an error, not evidence that a payload is inactive. Dynamic indexes,
+scalar/erased leaves, unknown segments, duplicate paths, ancestor/descendant
+overlap within the same active payload, and noncanonical order reject.
 A projected claim is linear even in an affine aggregate. Several disjoint
 linear sibling claims may coexist in one affine root.
 
-Direct calls agree on the complete ordered claim-path set for each structural
-argument. Content bindings name the same root/path. A structural result binds
+Direct calls agree on the complete active claim-path set for each structural
+argument, joined by exact typed relative path rather than catalogue position.
+Content bindings name the same root/path. A structural result binds
 its claims by path: each caller result binding continues the claim the callee's
 returning edge holds at the same path beneath the returned value, so every
 return is a bijection between the claims it hands back and the caller's result

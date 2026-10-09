@@ -9,11 +9,44 @@ use language_semantics::{Multiplicity, PermissionClaimIdentity, PermissionProven
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
+/// Value expressions complete an owner whether spelled as a statement result
+/// or a selected transition target. Keep the target's evaluation identity so
+/// sibling arms cannot establish or transfer each other's custody.
+pub(crate) fn completed_statement_values(
+    program: &dyn ::validation::CheckingInput,
+    statement: &StatementNode,
+) -> Vec<(
+    typed_trees::expression::ExpressionHandle,
+    checked_trees::FlowPermissionEvaluation,
+)> {
+    match statement {
+        StatementNode::Expression(expression) => vec![(
+            *expression,
+            checked_trees::FlowPermissionEvaluation::Statement,
+        )],
+        StatementNode::Transition(transition) => [transition.target, transition.continuation]
+            .into_iter()
+            .filter(|target| target.is_valid())
+            .filter_map(
+                |target| match program.statement_table.transition_target(target) {
+                    typed_trees::statement::TransitionTargetNode::Value(expression) => Some((
+                        *expression,
+                        checked_trees::FlowPermissionEvaluation::TransitionTarget(target),
+                    )),
+                    _ => None,
+                },
+            )
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 pub(crate) fn written_linear_targets(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
+    evaluation: checked_trees::FlowPermissionEvaluation,
     places: &[LinearPlace],
 ) -> Vec<WrittenLinearTarget> {
     let (target, value) = match statement {
@@ -62,21 +95,26 @@ pub(crate) fn written_linear_targets(
             };
             (place, assignment.value)
         }
-        StatementNode::Expression(expression) => {
+        _ => {
+            let Some((expression, _)) = completed_statement_values(program, statement)
+                .into_iter()
+                .find(|(_, source)| *source == evaluation)
+            else {
+                return Vec::new();
+            };
             let Some(place) = validation::canonical_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
-                *expression,
+                expression,
             ) else {
                 return Vec::new();
             };
-            if place.root != facts::PlaceRoot::Expression(*expression) {
+            if place.root != facts::PlaceRoot::Expression(expression) {
                 return Vec::new();
             }
-            (place, *expression)
+            (place, expression)
         }
-        _ => return Vec::new(),
     };
     written_owner_targets(
         program,

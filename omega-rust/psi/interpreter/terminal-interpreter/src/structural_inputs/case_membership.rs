@@ -61,14 +61,26 @@ impl TerminalExecution<'_> {
         source: PlaceId,
         catalogue: &[terminal_psi::StructuralResultClaimBinding],
     ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, TerminalInterpretError> {
+        if catalogue.is_empty() {
+            return Ok(Vec::new());
+        }
+        let root = crate::custody::verified_structural_place(&self.structural_values, source)?;
+        self.active_claims_in_value(root, catalogue)
+    }
+
+    /// Staged values use the same stored-tag join before their place is published.
+    pub(crate) fn active_claims_in_value(
+        &self,
+        root: &TerminalStructuralValue,
+        catalogue: &[terminal_psi::StructuralResultClaimBinding],
+    ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, TerminalInterpretError> {
         catalogue
             .iter()
             .filter_map(|binding| {
-                match case_projection_is_active(
+                match case_projection_in_value_is_active(
                     &self.program.structural_types(),
-                    &self.structural_values,
+                    root,
                     &self.structural_cases,
-                    source,
                     &binding.path,
                 ) {
                     Ok(true) => Some(Ok(binding.clone())),
@@ -394,6 +406,22 @@ pub(crate) fn case_projection_is_active(
     source: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Result<bool, TerminalInterpretError> {
+    if !path
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+    {
+        return Ok(true);
+    }
+    let root = crate::custody::verified_structural_place(values, source)?;
+    case_projection_in_value_is_active(types, root, cases, path)
+}
+
+fn case_projection_in_value_is_active(
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    root: &TerminalStructuralValue,
+    cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+    path: &[StructuralPathSegment],
+) -> Result<bool, TerminalInterpretError> {
     let mut selected = path
         .iter()
         .enumerate()
@@ -408,7 +436,6 @@ pub(crate) fn case_projection_is_active(
     if selected.peek().is_none() {
         return Ok(true);
     }
-    let root = crate::custody::verified_structural_place(values, source)?;
     // Field events carry their final leaf separately. Their last Case selects
     // its payload namespace rather than a structural child; still validate
     // that exact discriminator below, without inventing a payload record.

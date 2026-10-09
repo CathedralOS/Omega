@@ -4,6 +4,8 @@
 //! remain on the suspended caller. Extraction establishes the checked result's
 //! machine-local claims, and repair returns their custody to that exact loan.
 //! Stage both frontiers before relocating cells so a failed join commits neither.
+//! A repair that changes case membership also needs caller-side guarded custody
+//! rebinding. Local extraction cannot manufacture that caller's claim identities.
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::StructuralRuntimePlace;
@@ -69,6 +71,11 @@ impl TerminalExecution<'_> {
             projected_qualifications: Vec::new(),
             path: hole.path.clone(),
         };
+        // A sum's result catalogue includes alternative payloads. Establish
+        // custody and exclude affine debt only for the actual extracted value.
+        let mut active_result = result.clone();
+        active_result.claims = self.active_claims_in_value(&selected, &result.claims)?;
+        let result = &active_result;
         let case_membership = |current: &StructuralAffineDiscard| {
             crate::structural_inputs::case_membership::stored_case_at_projection(
                 &self.program.structural_types(),

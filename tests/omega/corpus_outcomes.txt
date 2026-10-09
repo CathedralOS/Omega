@@ -3450,11 +3450,13 @@ pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 1691ms ch
 pass/ownership/runtime_borrowed_projected_linear_return_exit checked 1603ms check-target:macos_arm64 @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms check-target:macos_arm64 @2d8ed253669f
 pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit checked 1614ms check-target:macos_arm64 @32d2d2bb3d26
+pass/ownership/runtime_borrowed_sum_identity_restore_exit checked 1654ms check-target:macos_arm64 @a2adbadfe3b3+wt
 pass/ownership/runtime_borrowed_window_crash_exit checked 1781ms check-target:macos_arm64 @7d761e0fef5f
 pass/ownership/runtime_captured_construction_selector_exit checked 1771ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_replacement_selector_exit checked 1771ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit checked 1775ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 1674ms check-target:macos_arm64 @ecd601af92fb
+pass/ownership/runtime_known_case_scalar_call_exit checked 1651ms check-target:macos_arm64 @a2adbadfe3b3+wt
 pass/ownership/runtime_linear_case_payload_forward_exit checked 1710ms check-target:macos_arm64 @332ced10410b+wt
 pass/ownership/runtime_nested_projected_claim_return_exit checked 1603ms check-target:macos_arm64 @cd27c16e2c35
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 1325ms check-target:macos_arm64 @84da89581e65

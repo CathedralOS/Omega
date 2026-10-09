@@ -407,11 +407,13 @@ pass/ownership/runtime_borrowed_projected_claim_transform_exit built 1632ms exit
 pass/ownership/runtime_borrowed_projected_linear_return_exit built 1641ms exit:0 interpreter-exit:0 interpreter:agrees @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit built 1632ms exit:42 interpreter-exit:42 interpreter:agrees @461e97c328e8
 pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit built 1647ms exit:42 interpreter-exit:42 interpreter:agrees @32d2d2bb3d26
+pass/ownership/runtime_borrowed_sum_identity_restore_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @a2adbadfe3b3+wt
 pass/ownership/runtime_borrowed_window_crash_exit built 1874ms exit:signal signal:5 interpreter:trapped @7d761e0fef5f
 pass/ownership/runtime_captured_construction_selector_exit built 1791ms exit:0 interpreter-exit:0 interpreter:agrees @441e8f33f8c7+wt
 pass/ownership/runtime_captured_replacement_selector_exit built 1791ms exit:0 interpreter-exit:0 interpreter:agrees @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit built 1791ms exit:0 interpreter-exit:0 interpreter:agrees @441e8f33f8c7+wt
 pass/ownership/runtime_carried_loan_field_replacement_exit built 1718ms exit:42 interpreter-exit:42 interpreter:agrees @037ba5906d07
+pass/ownership/runtime_known_case_scalar_call_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @a2adbadfe3b3+wt
 pass/ownership/runtime_linear_case_payload_forward_exit built 1724ms exit:0 interpreter-exit:0 interpreter:agrees @332ced10410b+wt
 pass/ownership/runtime_nested_projected_claim_return_exit built 1641ms exit:0 interpreter-exit:0 interpreter:agrees @cd27c16e2c35
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit built 1361ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65

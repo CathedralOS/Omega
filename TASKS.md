@@ -664,6 +664,16 @@ defines the complete product bar.
     matching-host Linux x86-64 execution; inactive cases owe no fabricated
     claims. Suspension/resume/cancellation qualification depends on the
     selected runtime's **TR3-TR8** execution and retained-frontier joins.
+    Keep `runtime_known_case_scalar_call_exit` and
+    `runtime_borrowed_sum_identity_restore_exit` (0) for typed-path call
+    admission and stored-tag extraction; qualify these on remaining hosts.
+    Retagged loan completion remains red:
+    `omega run --both samples/cli/basics/borrowed_sum_repair/main.omg` returns
+    native 0 on macOS ARM64 but Terminal fails `ClaimTransferMismatch`.
+    Caller permission production and Terminal call completion must replace
+    the stale guarded payload roster after exclusive repair, preserving the
+    exact storage owner and disjoint siblings; do not reinterpret its old
+    `Failure` claim as `Success` or waive path agreement.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the

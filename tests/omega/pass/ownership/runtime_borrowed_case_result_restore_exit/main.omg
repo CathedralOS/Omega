@@ -11,15 +11,12 @@ data Attempt {
 machine try_transform(token: Token, succeed: bool) -> Attempt {
     transition succeed {
         true -> success(token)
-        false -> failure(token)
+        false -> Attempt::Failure { token: token }
     }
     state success(token: Token) -> Attempt {
         let value: u64 = token.value;
         drop(token);
         Attempt::Success { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } }
-    }
-    state failure(token: Token) -> Attempt {
-        Attempt::Failure { token: token }
     }
 }
 

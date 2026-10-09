@@ -155,27 +155,28 @@ pub(crate) fn prepare_permission_events(
                     &mut places,
                 );
             }
-            let Some(expression) = statement.as_expression() else {
-                continue;
-            };
-            let Some(place) = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                *expression,
-            ) else {
-                continue;
-            };
-            if place.root != facts::PlaceRoot::Expression(*expression) {
-                continue;
-            }
-            if let Some(reference) = validation::canonical_place_type_reference(
-                program,
-                state.symbol,
-                statement_index,
-                &place,
-            ) {
-                reserve_owner_places(program, place.root, reference, &mut places);
+            for (expression, _) in
+                super::linear_validation::completed_statement_values(program, statement)
+            {
+                let Some(place) = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    expression,
+                ) else {
+                    continue;
+                };
+                if place.root != facts::PlaceRoot::Expression(expression) {
+                    continue;
+                }
+                if let Some(reference) = validation::canonical_place_type_reference(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    &place,
+                ) {
+                    reserve_owner_places(program, place.root, reference, &mut places);
+                }
             }
         }
         for owner in &temporary_owners {

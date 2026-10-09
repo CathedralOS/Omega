@@ -1233,10 +1233,12 @@ pass/ownership/runtime_borrowed_captured_selector_exit built 1857ms exit:0 @fc0d
 pass/ownership/runtime_borrowed_case_result_restore_exit built 1663ms exit:0 @332ced10410b+wt
 pass/ownership/runtime_borrowed_projected_linear_return_exit built 1631ms exit:0 @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit built 625ms exit:42 @ed1fb1257faf+wt
+pass/ownership/runtime_borrowed_sum_identity_restore_exit built 1656ms exit:0 @a2adbadfe3b3+wt
 pass/ownership/runtime_borrowed_window_crash_exit built 1852ms exit:signal signal:5 @7d761e0fef5f
 pass/ownership/runtime_captured_construction_selector_exit built 1790ms exit:0 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_replacement_selector_exit built 1790ms exit:0 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit built 1790ms exit:0 @441e8f33f8c7+wt
+pass/ownership/runtime_known_case_scalar_call_exit built 1656ms exit:0 @a2adbadfe3b3+wt
 pass/ownership/runtime_linear_case_payload_forward_exit built 1664ms exit:0 @332ced10410b+wt
 pass/ownership/runtime_nested_projected_claim_return_exit built 1631ms exit:0 @cd27c16e2c35
 pass/ownership/runtime_repeated_linear_result_forwarding_exit built 1508ms exit:0 @6605065c28a7

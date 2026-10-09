@@ -263,16 +263,7 @@ pub(super) fn available_target(
                 argument.type_identity != parameter.type_identity
                     || argument.access != parameter.access
             })
-        || claim_transfers.len() != claims.len()
-        || claim_transfers.iter().zip(claims).any(|(transfer, claim)| {
-            // Claims and transfers share the dense structural namespace.
-            // Authored signature positions also count scalar formals.
-            let parameter_index = usize::try_from(claim.parameter_index).unwrap_or(usize::MAX);
-            let expected_argument = (parameter_index < structural.len())
-                .then_some(parameter_index)
-                .and_then(|index| u32::try_from(index).ok());
-            Some(transfer.argument_index) != expected_argument || claim.carry != CarryPolicy::STRICT
-        })
+        || !claim_transfers_match_entry_catalogue(claim_transfers, claims, structural.len())
     {
         return None;
     }
@@ -455,4 +446,45 @@ pub(super) fn available_target(
         && contract.report_fingerprint == *target_contract_report_fingerprint
         && Some(contract.commitment) == target_contract_commitment)
         .then_some(availability)
+}
+
+/// Entry claims describe every possible payload; a known sum transfers only
+/// its active payload. Match typed relative paths, not catalogue cardinality or
+/// claim ordering. Unguarded entries always require a transfer. Source flow's
+/// exact transfer roster is reconstructed above; consuming custody binds every
+/// active callee claim against the argument's actual tag. Missing an inactive
+/// entry is not permission to invent or omit a live claim.
+fn claim_transfers_match_entry_catalogue(
+    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+    claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+    structural_parameter_count: usize,
+) -> bool {
+    let matches = |transfer: &checked_trees::CheckedUnitClaimTransferPlan,
+                   claim: &checked_trees::CheckedUnitEntryClaimPlan| {
+        transfer.argument_index == claim.parameter_index && transfer.path == claim.path
+    };
+    claims.iter().all(|claim| {
+        usize::try_from(claim.parameter_index)
+            .is_ok_and(|parameter_index| parameter_index < structural_parameter_count)
+            && claim.carry == CarryPolicy::STRICT
+            && (claim.path.iter().any(|segment| {
+                matches!(
+                    segment,
+                    checked_trees::CheckedUnitStructuralPathSegment::Case(_)
+                )
+            }) || transfers.iter().any(|transfer| matches(transfer, claim)))
+    }) && transfers
+        .iter()
+        .enumerate()
+        .all(|(transfer_position, transfer)| {
+            claims
+                .iter()
+                .filter(|claim| matches(transfer, claim))
+                .count()
+                == 1
+                && !transfers[..transfer_position].iter().any(|previous| {
+                    previous.argument_index == transfer.argument_index
+                        && previous.path == transfer.path
+                })
+        })
 }
