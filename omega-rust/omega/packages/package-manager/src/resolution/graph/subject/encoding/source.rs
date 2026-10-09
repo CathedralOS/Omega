@@ -2,14 +2,10 @@
 
 use super::super::CanonicalSourceClosureSubjectError;
 use super::super::validation::{validate_package_key, validate_source_lineage};
-use super::framing::{Decoder, Encoder, encode_hex};
-use crate::declarations::{PackageKey, PackageName};
+use super::framing::Encoder;
+use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedSourceIdentity;
-use package_source::{
-    ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
-    ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
-    WorkspaceLineageIdentity, WorkspaceMemberLineage,
-};
+use package_source::{GitTransport, ImmutableSourceResolution, SourceLineage};
 
 pub(super) fn encode_source_identity(
     encoder: &mut Encoder,
@@ -20,20 +16,6 @@ pub(super) fn encode_source_identity(
     encode_resolution(encoder, source.resolution())
 }
 
-pub(in super::super) fn decode_source_identity(
-    decoder: &mut Decoder<'_>,
-    maximum_identity_bytes: usize,
-) -> Result<ResolvedSourceIdentity, CanonicalSourceClosureSubjectError> {
-    ResolvedSourceIdentity::new(
-        decode_package_key(decoder, maximum_identity_bytes)?,
-        decode_resolution(decoder)?,
-    )
-    .map_err(|_| {
-        CanonicalSourceClosureSubjectError::new(
-            "decoded source resolution disagrees with package lineage",
-        )
-    })
-}
 
 pub(super) fn encode_package_key(
     encoder: &mut Encoder,
@@ -45,15 +27,6 @@ pub(super) fn encode_package_key(
     encode_source_lineage(encoder, key.source_lineage(), maximum_identity_bytes)
 }
 
-pub(super) fn decode_package_key(
-    decoder: &mut Decoder<'_>,
-    maximum_identity_bytes: usize,
-) -> Result<PackageKey, CanonicalSourceClosureSubjectError> {
-    let name = PackageName::parse(decoder.string(maximum_identity_bytes)?)
-        .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid package name"))?;
-    let lineage = decode_source_lineage(decoder, maximum_identity_bytes)?;
-    Ok(PackageKey::new(name, lineage))
-}
 
 pub(super) fn encode_source_lineage(
     encoder: &mut Encoder,
@@ -123,113 +96,7 @@ pub(super) fn encode_source_lineage(
     Ok(())
 }
 
-pub(super) fn decode_source_lineage(
-    decoder: &mut Decoder<'_>,
-    maximum_identity_bytes: usize,
-) -> Result<SourceLineage, CanonicalSourceClosureSubjectError> {
-    match decoder.byte()? {
-        0 => SourceLineage::git(&format!(
-            "https://github.com/{}/{}.git",
-            decoder.string(maximum_identity_bytes)?,
-            decoder.string(maximum_identity_bytes)?
-        )),
-        1 => SourceLineage::git(&format!(
-            "https://gitlab.com/{}.git",
-            decoder.string(maximum_identity_bytes)?
-        )),
-        2 => {
-            let transport = match decoder.byte()? {
-                0 => GitTransport::Https,
-                1 => GitTransport::SshUrl,
-                2 => GitTransport::ScpLike,
-                _ => {
-                    return Err(CanonicalSourceClosureSubjectError::new(
-                        "invalid Git transport tag",
-                    ));
-                }
-            };
-            let user = match decoder.byte()? {
-                0 => None,
-                1 => Some(decoder.string(maximum_identity_bytes)?),
-                _ => {
-                    return Err(CanonicalSourceClosureSubjectError::new(
-                        "invalid Git user option tag",
-                    ));
-                }
-            };
-            let host = decoder.string(maximum_identity_bytes)?;
-            let port = match decoder.byte()? {
-                0 => None,
-                1 => Some(decoder.u16()?),
-                _ => {
-                    return Err(CanonicalSourceClosureSubjectError::new(
-                        "invalid Git port option tag",
-                    ));
-                }
-            };
-            let path = decoder.string(maximum_identity_bytes)?;
-            SourceLineage::git(&generic_git_locator(
-                transport,
-                user.as_deref(),
-                &host,
-                port,
-                &path,
-            ))
-        }
-        3 => {
-            let workspace = WorkspaceLineageIdentity::parse_hex(&encode_hex(&decoder.array_32()?))
-                .map_err(|_| {
-                    CanonicalSourceClosureSubjectError::new("invalid workspace lineage identity")
-                })?;
-            let member = SourceRelativePath::parse(&decoder.string(maximum_identity_bytes)?)
-                .map_err(|_| {
-                    CanonicalSourceClosureSubjectError::new("invalid workspace member path")
-                })?;
-            return Ok(SourceLineage::Workspace(WorkspaceMemberLineage::new(
-                workspace, member,
-            )));
-        }
-        4 => {
-            let context = ExternalSourceContext::parse_hex(&encode_hex(&decoder.array_32()?))
-                .map_err(|_| {
-                    CanonicalSourceClosureSubjectError::new("invalid external source context")
-                })?;
-            let path = decoder.string(maximum_identity_bytes)?;
-            return ExternalLocalLineage::from_canonical_path(path, context)
-                .map(SourceLineage::ExternalLocal)
-                .map_err(|_| {
-                    CanonicalSourceClosureSubjectError::new("invalid external-local lineage path")
-                });
-        }
-        _ => {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "invalid source-lineage tag",
-            ));
-        }
-    }
-    .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid source lineage"))
-}
 
-fn generic_git_locator(
-    transport: GitTransport,
-    user: Option<&str>,
-    host: &str,
-    port: Option<u16>,
-    path: &str,
-) -> String {
-    let user = user.map(|user| format!("{user}@")).unwrap_or_default();
-    match transport {
-        GitTransport::Https => format!(
-            "https://{user}{host}{}/{path}",
-            port.map(|port| format!(":{port}")).unwrap_or_default()
-        ),
-        GitTransport::SshUrl => format!(
-            "ssh://{user}{host}{}/{path}",
-            port.map(|port| format!(":{port}")).unwrap_or_default()
-        ),
-        GitTransport::ScpLike => format!("{user}{host}:{path}"),
-    }
-}
 
 fn encode_resolution(
     encoder: &mut Encoder,
@@ -260,37 +127,6 @@ fn encode_resolution(
     Ok(())
 }
 
-fn decode_resolution(
-    decoder: &mut Decoder<'_>,
-) -> Result<ImmutableSourceResolution, CanonicalSourceClosureSubjectError> {
-    let content = |decoder: &mut Decoder<'_>| {
-        SourceContentDigest::parse_hex(&encode_hex(&decoder.array_32()?))
-            .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid source content digest"))
-    };
-    match decoder.byte()? {
-        0 => {
-            let commit = GitCommitId::parse_hex(&decoder.string(64)?)
-                .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid Git commit ID"))?;
-            let tree = GitTreeId::parse_hex(&decoder.string(64)?)
-                .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid Git tree ID"))?;
-            let encoded_content = content(decoder)?;
-            let resolution = ImmutableSourceResolution::git(commit, tree).map_err(|_| {
-                CanonicalSourceClosureSubjectError::new("invalid Git source resolution")
-            })?;
-            if resolution.content() != &encoded_content {
-                return Err(CanonicalSourceClosureSubjectError::new(
-                    "Git source content digest does not match its root tree",
-                ));
-            }
-            Ok(resolution)
-        }
-        1 => Ok(ImmutableSourceResolution::workspace(content(decoder)?)),
-        2 => Ok(ImmutableSourceResolution::external_local(content(decoder)?)),
-        _ => Err(CanonicalSourceClosureSubjectError::new(
-            "invalid immutable-resolution tag",
-        )),
-    }
-}
 
 fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
     match algorithm {

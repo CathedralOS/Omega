@@ -1,4 +1,3 @@
-use crate::declarations::dependencies::edit::BUILD_FILE_NAME;
 use crate::declarations::dependencies::edit::layout::discover_build_layout;
 use crate::declarations::dependencies::edit::rendering::{
     canonical_dependency_statement, source_digest,
@@ -10,8 +9,7 @@ use crate::declarations::dependencies::edit::{
 use crate::declarations::dependencies::read::{
     DependencyPurpose, DependencySourceRequest, extract_scoped_from_source,
 };
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Plan an addition using command-owned source without reading or writing the
 /// build path. Any edit or manual patch is bound to these exact source bytes.

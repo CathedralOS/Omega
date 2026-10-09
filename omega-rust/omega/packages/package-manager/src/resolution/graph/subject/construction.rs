@@ -4,18 +4,13 @@ use super::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
-    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, SOURCE_CLOSURE_SUBJECT_MAGIC,
 };
 use crate::declarations::dependencies::read::DependencyProjections;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
 use crate::resolution::source::PackageSourceNavigation;
 use target::TargetProfile;
 
-use super::encoding::{
-    Decoder, decode_dependency_projection, decode_dependency_selection, decode_package_navigation,
-    decode_root_selection, decode_source_identity, decode_target_profile,
-    encode_subject_with_budget, fingerprint,
-};
+use super::encoding::{encode_subject_with_budget, fingerprint};
 use super::usage::Budget;
 use super::validation::{canonical_root_request, validate_subject_with_budget};
 
@@ -110,63 +105,6 @@ impl CanonicalSourceClosureSubject {
         )
     }
 
-    pub fn recover(
-        bytes: &[u8],
-        limits: CanonicalSourceClosureSubjectLimits,
-    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
-        let limits = limits.compiler_bounded();
-        if bytes.len() > limits.maximum_record_bytes {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "source-closure subject exceeds its record-byte limit",
-            ));
-        }
-        let mut decoder = Decoder::new(bytes);
-        decoder.expect_fixed(SOURCE_CLOSURE_SUBJECT_MAGIC)?;
-        if decoder.u16()? != SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "unsupported source-closure subject version",
-            ));
-        }
-        let target_profile = decode_target_profile(&mut decoder, limits)?;
-        let root = decode_root_selection(&mut decoder, limits)?;
-        let package_count = decoder.count(limits.maximum_packages)?;
-        let mut packages = Vec::with_capacity(package_count);
-        let mut package_navigations = Vec::with_capacity(package_count);
-        let mut package_dependency_projections = Vec::with_capacity(package_count);
-        for _ in 0..package_count {
-            packages.push(decode_source_identity(
-                &mut decoder,
-                limits.maximum_identity_bytes,
-            )?);
-            package_navigations.push(decode_package_navigation(
-                &mut decoder,
-                limits.maximum_request_bytes,
-            )?);
-            package_dependency_projections
-                .push(decode_dependency_projection(&mut decoder, limits)?);
-        }
-        let request_count = decoder.count(limits.maximum_dependency_requests)?;
-        let mut dependency_requests = Vec::with_capacity(request_count);
-        for _ in 0..request_count {
-            dependency_requests.push(decode_dependency_selection(&mut decoder, limits)?);
-        }
-        decoder.finish()?;
-        let recovered = Self::finish_with_projections(
-            target_profile,
-            root,
-            packages,
-            package_navigations,
-            package_dependency_projections,
-            dependency_requests,
-            limits,
-        )?;
-        if recovered.canonical_bytes != bytes {
-            return Err(CanonicalSourceClosureSubjectError::new(
-                "source-closure subject is not canonically encoded",
-            ));
-        }
-        Ok(recovered)
-    }
 
     /// Require a recovered subject to equal a fresh projection from the exact
     /// current resolver custody. Decode or fingerprint equality alone is never

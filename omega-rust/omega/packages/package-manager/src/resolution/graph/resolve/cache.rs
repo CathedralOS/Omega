@@ -7,7 +7,6 @@ use crate::resolution::source::{
     resolve_selected_git_project_source_at_revision_in_lanes,
     resolve_selected_git_project_source_from_pin_in_lanes,
     resolve_workspace_member_package_source_in_lane,
-    resolve_workspace_member_project_source_in_lane,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::storage::RetainedStorageLane;

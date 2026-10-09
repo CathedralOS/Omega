@@ -6,7 +6,7 @@ use package_source::{
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
-use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolver};
+use package_source::{LocalSourceLimits, ResolvedLocalSnapshot};
 use std::path::{Path, PathBuf};
 
 pub(crate) fn resolve_workspace_member_package_source_in_lane(
