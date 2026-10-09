@@ -691,6 +691,8 @@ fail/calls/boundary_projected_subslice_past_end rejected 276ms expected @6197860
 	cannot prove subslice range start bound `main.start..9` is within slice length 8
 fail/calls/computed_zero_requires_argument_rejected rejected 333ms expected @2d8ed253669f
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false
+fail/calls/constructed_argument_wrong_nominal_type rejected 192ms expected @6ce9d54b1f06+wt
+	argument `value` for state `entry` expects `Required<i32>`, got `struct literal`
 fail/calls/constructed_case_invalid_common_zero rejected 418ms expected @b2906d953be
 	data `Reply` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/calls/constructor_child_distinct_epochs_not_equal rejected 284ms expected @8093eb34a6ed+wt

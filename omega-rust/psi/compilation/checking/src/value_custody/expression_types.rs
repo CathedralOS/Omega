@@ -514,13 +514,15 @@ fn argument_matches_type_reference_using(
                     );
             }
 
-            // Constructed nominal values keep their selected declaration even
-            // when substitution copied a constant from another source module.
-            // Equal spelling or layout cannot authorize a different destination.
+            // A closed destination may name a synthesized instance while its
+            // constructor retains the authored owner. Join through that exact
+            // retained application, never spelling or layout coincidence.
             if symbol.is_valid() && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data {
                 match argument_node {
                     ExpressionNode::StructLiteral(literal) => {
-                        return literal.type_symbol.is_valid() && literal.type_symbol == *symbol;
+                        return program
+                            .closed_data_constructor_definition(type_reference, literal.type_symbol)
+                            .is_some();
                     }
                     ExpressionNode::Name(path)
                         if program.symbols.get(path.symbol).kind
