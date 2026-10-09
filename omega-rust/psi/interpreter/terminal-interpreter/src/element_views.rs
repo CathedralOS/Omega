@@ -235,14 +235,8 @@ impl ElementView {
     ) -> Option<Self> {
         if start > end
             || end > self.len()
-            || !matches!(
-                access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            )
-            || !matches!(
-                self.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            )
+            || !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
+            || !matches!(self.access, terminal_psi::reading_borrow_pair_pattern!())
             || (access == StructuralAccess::MutableBorrow && self.access != access)
         {
             return None;
@@ -1052,7 +1046,7 @@ impl TerminalExecution<'_> {
                 || parameter.structural_type != source_value.structural_type
                 || !matches!(
                     parameter.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    terminal_psi::reading_borrow_pair_pattern!()
                 )
                 || (access == StructuralAccess::MutableBorrow && parameter.access != access)
             {

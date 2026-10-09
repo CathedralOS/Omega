@@ -125,9 +125,12 @@ pub(super) fn adapt(
                     step.derivations
                         .push((source_location.clone(), destination.clone()));
                     let preserves_coordinates = match &operation.kind {
-                        terminal_psi::element_view_establish_pair_pattern!(source,
+                        terminal_psi::element_view_establish_pair_pattern!(
+                            source,
                             element,
-                            region, ..) => crate::runtime_structural_path_tip(
+                            region,
+                            ..
+                        ) => crate::runtime_structural_path_tip(
                             module.structural_types.iter(),
                             *graph.place_types.get(&source.place)?,
                             &source.path,
@@ -368,8 +371,7 @@ pub(super) fn adapt(
                     structural_arguments,
                     ..
                 }
-                | terminal_psi::call_structural_pair_pattern!(callee,
-                    structural_arguments, ..) => {
+                | terminal_psi::call_structural_pair_pattern!(callee, structural_arguments, ..) => {
                     let mut matching = module
                         .machines
                         .iter()
@@ -554,7 +556,7 @@ pub(super) fn adapt(
             for parameter in &machine.structural_parameters {
                 if matches!(
                     parameter.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    terminal_psi::exclusive_borrow_pair_pattern!()
                 ) {
                     step.inputs.extend(replay::descriptor_slots(
                         &module.structural_types,

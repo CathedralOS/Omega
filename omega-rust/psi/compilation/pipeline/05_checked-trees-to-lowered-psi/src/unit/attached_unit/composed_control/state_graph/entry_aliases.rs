@@ -58,7 +58,7 @@ pub(super) fn alias_entry_parameter_loans(
         .filter(|(_, parameter)| {
             matches!(
                 parameter.access,
-                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
+                checked_trees::checked_borrowed_access_pair_pattern!()
             )
         });
     for (root, root_parameter) in roots {
@@ -75,7 +75,7 @@ pub(super) fn alias_entry_parameter_loans(
                 })?;
                 if matches!(
                     parameter.access,
-                    CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
+                    checked_trees::checked_borrowed_access_pair_pattern!()
                 ) && parameter.access == root_parameter.access
                     && parameter.type_identity == root_parameter.type_identity
                     && parameter.multiplicity == root_parameter.multiplicity

@@ -98,7 +98,7 @@ fn unsigned_place_floor(
     }
     matches!(
         program.primitive_type_reference(raw)?,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        typed_trees::unsigned_integer_primitive_pattern!()
     )
     .then_some(0)
 }

@@ -192,7 +192,11 @@ fn adapt(
             });
         }
         for node in &block.nodes {
-            if let abstract_operations::byte_literal_establish_pair_pattern!(place,structural_type, ..) = &node.operation
+            if let abstract_operations::byte_literal_establish_pair_pattern!(
+                place,
+                structural_type,
+                ..
+            ) = &node.operation
             {
                 if declaration(place.id)? != place
                     || graph
@@ -328,10 +332,13 @@ fn adapt(
                         origins.retain(|(location, _)| location != &destination);
                     }
                 }
-                abstract_operations::element_view_or_byte_subslice_pattern!(result,
+                abstract_operations::element_view_or_byte_subslice_pattern!(
+                    result,
                     source,
                     start,
-                    end, ..) => {
+                    end,
+                    ..
+                ) => {
                     let source = DescriptorLocation::whole(*source);
                     let destination = DescriptorLocation::whole(result.place);
                     step.derivations.push((source.clone(), destination.clone()));
@@ -376,9 +383,7 @@ fn adapt(
                         origins.retain(|(location, _)| location != &destination);
                     }
                 }
-                abstract_operations::byte_len_or_field_read_pattern!(source,
-                    path,
-                    field, ..) => {
+                abstract_operations::byte_len_or_field_read_pattern!(source, path, field, ..) => {
                     if let Some(source) = location(*source, path, Some(*field)) {
                         step.inputs = vec![source];
                     } else {
@@ -697,7 +702,7 @@ fn adapt(
                 for parameter in &function.structural_parameters {
                     if matches!(
                         parameter.access,
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                        terminal_psi::exclusive_borrow_pair_pattern!()
                     ) {
                         step.inputs.extend(kernel::descriptor_slots(
                             types,

@@ -315,7 +315,9 @@ fn instantiate_proof_expression_parameter(
     let application = program.proof_facts.get(contract.fact).as_proposition()?;
     let (binder_labels, argument_handles) =
         crate::labels::proposition_label_sources(application, program);
-    let argument_labels = argument_handles.iter().map(|argument| {
+    let argument_labels = argument_handles
+        .iter()
+        .map(|argument| {
             super::labels::instantiate_call_contract_expression_label(
                 program,
                 symbols::SymbolHandle::invalid(),

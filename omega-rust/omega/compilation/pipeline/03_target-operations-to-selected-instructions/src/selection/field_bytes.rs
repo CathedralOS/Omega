@@ -101,8 +101,5 @@ fn access_covers(
     use terminal_psi::StructuralAccess;
     available == requested
         || requested == StructuralAccess::SharedBorrow
-            && matches!(
-                available,
-                StructuralAccess::Owned | StructuralAccess::MutableBorrow
-            )
+            && matches!(available, terminal_psi::mutating_access_pair_pattern!())
 }

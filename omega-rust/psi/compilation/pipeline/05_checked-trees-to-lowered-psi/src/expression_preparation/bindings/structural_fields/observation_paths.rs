@@ -5,7 +5,7 @@
 //! receiving check. Stores retain their own explicit, exclusive projection walk.
 
 use super::{
-    CheckedUnitStructuralPathSegment, LoweringError, StructuralAccess, StructuralFieldType,
+    CheckedUnitStructuralPathSegment, LoweringError, StructuralFieldType,
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, unsupported,
 };
 
@@ -22,10 +22,8 @@ pub(super) fn readable_carrier(
         let StructuralTypeShape::Reference { referent, access } = &declaration.shape else {
             return Ok((declaration, references.len()));
         };
-        if !matches!(
-            access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ) || references.contains(&selected)
+        if !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
+            || references.contains(&selected)
         {
             return unsupported("field observation crosses an unreadable or cyclic reference");
         }

@@ -297,10 +297,7 @@ impl TerminalExecution<'_> {
         value: &TerminalStructuralValue,
         access: StructuralAccess,
     ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
-        if !matches!(
-            access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ) {
+        if !matches!(access, terminal_psi::reading_borrow_pair_pattern!()) {
             return Err(malformed());
         }
         if let ByteSequenceBinding::Immutable(view) = binding {

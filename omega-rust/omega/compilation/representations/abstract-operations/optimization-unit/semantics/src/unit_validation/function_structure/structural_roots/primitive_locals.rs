@@ -94,9 +94,7 @@ pub(super) fn validate(
                     .any(|parameter| {
                         parameter.place == *source
                             && (matches!(
-                                parameter.access,
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            ) || (parameter.access == StructuralAccess::Owned
+                                parameter.access,terminal_psi::reading_borrow_pair_pattern!()) || (parameter.access == StructuralAccess::Owned
                                 && !path.is_empty()))
                             && parameter.admits_scalar_read_at(path.is_empty())
                             && claim_free(*source)
@@ -139,7 +137,7 @@ fn projected_local(
             && result.structural_type == structural_type
             && matches!(
                 result.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
             )
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()

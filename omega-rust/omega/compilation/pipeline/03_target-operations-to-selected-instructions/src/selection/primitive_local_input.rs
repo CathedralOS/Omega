@@ -67,7 +67,7 @@ pub(super) fn readable(
         return !path.is_empty()
             && matches!(
                 result.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
             )
             && source.structural.as_ref().is_some_and(|signature| {
                 crate::structural_inputs::structural_reference_input::primitive_read_geometry(
@@ -83,9 +83,7 @@ pub(super) fn readable(
         signature.entry_claims.is_empty()
             && read_parameter(source, place).is_some_and(|parameter| {
                 (matches!(
-                    parameter.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
+                    parameter.access,terminal_psi::reading_borrow_pair_pattern!()) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
                     && parameter.multiplicity != StructuralMultiplicity::Linear
                     && (!path.is_empty()
                         || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
@@ -341,8 +339,7 @@ pub(super) fn read_geometry(
                 // operations. Replaying geometry cannot create permissions.
                 let (_, result) =
                     super::aggregate_result_input::operation_result(source, argument.place)?;
-                let expected_access = match signature.structural_type(result.structural_type)?
-                    .shape
+                let expected_access = match signature.structural_type(result.structural_type)?.shape
                 {
                     // A read does not attenuate the retained carrier declaration:
                     // mutable references remain mutable, even when observing.
@@ -355,27 +352,24 @@ pub(super) fn read_geometry(
                 }
                 result.structural_type
             };
-            let (structural_type, path) = if let Some((
-                terminal_psi::StructuralPathSegment::Referent,
-                suffix,
-            )) = argument.path.split_first()
-            {
-                let StructuralTypeShape::Reference {
-                    referent,
-                    access:
-                        access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
-                } = signature.structural_type(structural_type)?
-                    .shape
-                else {
-                    return None;
+            let (structural_type, path) =
+                if let Some((terminal_psi::StructuralPathSegment::Referent, suffix)) =
+                    argument.path.split_first()
+                {
+                    let StructuralTypeShape::Reference {
+                        referent,
+                        access: access @ (terminal_psi::reading_borrow_pair_pattern!()),
+                    } = signature.structural_type(structural_type)?.shape
+                    else {
+                        return None;
+                    };
+                    if argument.access != access {
+                        return None;
+                    }
+                    (referent, suffix)
+                } else {
+                    (structural_type, argument.path.as_slice())
                 };
-                if argument.access != access {
-                    return None;
-                }
-                (referent, suffix)
-            } else {
-                (structural_type, argument.path.as_slice())
-            };
             // A case-qualified read loads from its payload overlay; the
             // offset comes from that declared case's layout, never the row.
             let (offset, _) = match &row.kind {

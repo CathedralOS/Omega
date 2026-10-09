@@ -91,12 +91,10 @@ pub(super) fn establishment(
     else {
         return None;
     };
-    if !matches!(
-        source.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) || !(access == source.access
-        || access == StructuralAccess::SharedBorrow
-            && source.access == StructuralAccess::MutableBorrow)
+    if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
+        || !(access == source.access
+            || access == StructuralAccess::SharedBorrow
+                && source.access == StructuralAccess::MutableBorrow)
     {
         return None;
     }
@@ -266,7 +264,7 @@ pub(super) fn mutable_projection<'path>(
         &function.structural.as_ref()?.structural_types,
         structural_type,
     )?
-        .shape
+    .shape
     else {
         return None;
     };

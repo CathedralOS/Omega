@@ -639,7 +639,7 @@ fn unsigned_bitwise_bounds(
     let primitive = left.primitive?;
     if !matches!(
         primitive,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        typed_trees::unsigned_integer_primitive_pattern!()
     ) {
         return None;
     }

@@ -532,7 +532,7 @@ impl TerminalExecution<'_> {
                         projected_value = Some(view);
                     }
                 }
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                terminal_psi::reading_borrow_pair_pattern!()
                     if matches!(self.program.structural_types().get(&parameter.structural_type),
                         Some(declaration) if matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
                             || declaration.shape.is_borrowed_byte_view()) =>

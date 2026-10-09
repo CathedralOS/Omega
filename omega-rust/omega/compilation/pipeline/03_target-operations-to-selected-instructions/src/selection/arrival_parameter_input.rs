@@ -17,7 +17,7 @@ pub(super) fn store_destination(
     };
     if !matches!(
         expected.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        terminal_psi::exclusive_borrow_pair_pattern!()
     ) || expected.multiplicity == StructuralMultiplicity::Linear
         || !expected.qualifications.is_empty()
         || !expected.projected_qualifications.is_empty()
@@ -29,7 +29,8 @@ pub(super) fn store_destination(
         return false;
     }
     parameter(source, expected.place) == Some(expected)
-        && match signature.structural_place(expected.place)
+        && match signature
+            .structural_place(expected.place)
             .map(|row| row.kind)
         {
             Some(StructuralPlaceKind::BlockParameter { .. }) => {
@@ -76,7 +77,8 @@ pub(super) fn parameter(
         StructuralPlaceKind::BlockParameter { block, position } => {
             block != source.entry_block
                 && position == parameter.position
-                && source.block(block)
+                && source
+                    .block(block)
                     .and_then(|row| row.structural_parameters.get(position as usize))
                     == Some(parameter)
         }

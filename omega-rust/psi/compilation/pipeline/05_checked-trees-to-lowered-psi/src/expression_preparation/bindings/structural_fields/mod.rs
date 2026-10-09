@@ -239,9 +239,7 @@ impl StructuralScalarFieldBinding {
         for (position, parameter) in parameters {
             if !matches!(
                 parameter.access,
-                StructuralAccess::Owned
-                    | StructuralAccess::SharedBorrow
-                    | StructuralAccess::MutableBorrow
+                StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
             ) {
                 continue;
             }

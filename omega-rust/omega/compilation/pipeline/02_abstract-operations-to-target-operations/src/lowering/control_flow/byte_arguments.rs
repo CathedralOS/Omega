@@ -66,8 +66,7 @@ pub(super) fn shared_owner_view(
                 source,
             )
         } else if let Some(arrival) = function.arrival_parameter(argument.place) {
-            let source = if let Some(parameter) = prepared.parameter(argument.place)
-            {
+            let source = if let Some(parameter) = prepared.parameter(argument.place) {
                 parameter.placement.clone().into()
             } else if live.address_joins.contains(&argument.place) {
                 let block = function
@@ -140,7 +139,7 @@ pub(super) fn shared_owner_view(
     )?;
     if !matches!(
         access,
-        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
     ) || multiplicity != StructuralMultiplicity::Unrestricted
         || !projected.is_empty()
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted

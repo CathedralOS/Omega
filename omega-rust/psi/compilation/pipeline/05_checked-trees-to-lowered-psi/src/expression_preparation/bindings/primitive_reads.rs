@@ -45,10 +45,7 @@ pub(crate) fn primitive_storage_read(
     ))?;
     let (observed, path) = match root.shape {
         StructuralTypeShape::Reference { referent, access } => {
-            if !matches!(
-                access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            ) {
+            if !matches!(access, terminal_psi::reading_borrow_pair_pattern!()) {
                 return unsupported("primitive storage read crosses an unreadable reference");
             }
             (

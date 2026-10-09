@@ -309,7 +309,7 @@ fn argument_contract(
     if !projected
         && ((matches!(
             access,
-            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+            checked_trees::checked_borrowed_access_pair_pattern!()
         ) && crate::execution::terminal_unit::types::slice_view_carrier(
             program,
             parameter.type_reference,
@@ -390,7 +390,7 @@ fn argument_contract(
     if !projected
         && ((matches!(
             access,
-            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+            checked_trees::checked_borrowed_access_pair_pattern!()
         ) && crate::execution::terminal_unit::types::slice_view_carrier(
             program,
             parameter.type_reference,

@@ -209,6 +209,6 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
 pub(crate) fn unsigned(primitive: PrimitiveType) -> bool {
     matches!(
         primitive,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        typed_trees::unsigned_integer_primitive_pattern!()
     )
 }

@@ -189,7 +189,7 @@ fn source_slot_matches(
             let borrowed = |parameter: &StructuralParameterDeclaration| {
                 matches!(
                     parameter.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    terminal_psi::reading_borrow_pair_pattern!()
                 )
             };
             if *place != source {

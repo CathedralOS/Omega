@@ -684,9 +684,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         CheckedStructuralAccess::SharedBorrow => matches!(
                             root_access,
                             CheckedStructuralAccess::Owned
-                                | CheckedStructuralAccess::SharedBorrow
-                                | CheckedStructuralAccess::MutableBorrow
-                        ),
+                                | checked_trees::checked_borrowed_access_pair_pattern!()),
                         CheckedStructuralAccess::MutableBorrow => matches!(
                             root_access,
                             CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow

@@ -878,7 +878,7 @@ pub(super) fn block_parameter_shape(
     let signature = source.structural.as_ref()?;
     if matches!(
         parameter.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        terminal_psi::reading_borrow_pair_pattern!()
     ) {
         let declaration = signature.structural_type(parameter.structural_type)?;
         if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted

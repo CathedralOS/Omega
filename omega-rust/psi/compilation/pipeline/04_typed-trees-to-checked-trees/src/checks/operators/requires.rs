@@ -568,7 +568,9 @@ fn requires_fact_proven(
             );
             let (binder_labels, argument_handles) =
                 crate::labels::proposition_label_sources(application, program);
-            let argument_labels = argument_handles.iter().map(|argument| {
+            let argument_labels = argument_handles
+                .iter()
+                .map(|argument| {
                     instantiate_operator_contract_expression_label_with_labels(
                         program,
                         parameters,

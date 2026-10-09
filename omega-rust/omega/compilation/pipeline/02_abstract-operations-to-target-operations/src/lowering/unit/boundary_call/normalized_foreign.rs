@@ -204,9 +204,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     && root.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                     && matches!(
                         root.access,
-                        StructuralAccess::Owned
-                            | StructuralAccess::SharedBorrow
-                            | StructuralAccess::MutableBorrow
+                        StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
                     )
                     && root.projected_qualifications.is_empty()
                     && let Some(capacity) = terminal_semantics::shared_boundary_buffer_capacity(

@@ -62,7 +62,7 @@ fn readable_sequence_parameter(
         ))?;
     if !matches!(
         parameter.access,
-        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
     ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
     {
         return unsupported(

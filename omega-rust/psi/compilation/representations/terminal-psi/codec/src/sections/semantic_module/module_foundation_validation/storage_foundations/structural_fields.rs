@@ -20,9 +20,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     module: &TerminalModule,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let (terminal_psi::structural_leaf_copy_pair_pattern!()) =
-        &operation.kind
-    else {
+    let (terminal_psi::structural_leaf_copy_pair_pattern!()) = &operation.kind else {
         unreachable!("dispatched validate_structural_leaf_copy")
     };
     if operation.result.structural().is_none_or(|result| {
@@ -408,7 +406,7 @@ fn mutable_borrowed_parameter_type(
                 && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
                 && matches!(
                     parameter.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
@@ -534,7 +532,9 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 local.structural_type,
                 match &producer.kind {
                     OperationKind::EstablishReference { source, .. }
-                    | terminal_psi::element_view_establish_pair_pattern!(source, ..) => source.access,
+                    | terminal_psi::element_view_establish_pair_pattern!(source, ..) => {
+                        source.access
+                    }
                     _ => terminal_psi::StructuralAccess::Owned,
                 },
             ),

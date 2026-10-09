@@ -520,11 +520,9 @@ impl<'a> Replay<'a> {
             }
             Origin::Backing(DescriptorCallOrigin::Argument { source, projection }) => {
                 let (position, access, structural_type) = self.parameter(machine, *source)?;
-                if !matches!(
-                    access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ) && !(access == StructuralAccess::Owned
-                    && external_backing(self.types, structural_type, &projection.path))
+                if !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
+                    && !(access == StructuralAccess::Owned
+                        && external_backing(self.types, structural_type, &projection.path))
                 {
                     return None;
                 }
@@ -598,16 +596,15 @@ impl<'a> Replay<'a> {
             else {
                 continue;
             };
-            if !matches!(
-                access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ) && !matches!(
-                find_structural_type(self.types, structural_type)?.shape,
-                StructuralTypeShape::Reference {
-                    access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
-                    ..
-                }
-            ) {
+            if !matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
+                && !matches!(
+                    find_structural_type(self.types, structural_type)?.shape,
+                    StructuralTypeShape::Reference {
+                        access: terminal_psi::exclusive_borrow_pair_pattern!(),
+                        ..
+                    }
+                )
+            {
                 continue;
             }
             for slot in descriptor_slots(self.types, row.place, structural_type)?

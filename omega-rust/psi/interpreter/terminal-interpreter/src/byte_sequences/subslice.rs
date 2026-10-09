@@ -69,9 +69,7 @@ impl TerminalExecution<'_> {
             // could break a predicate the source still declares.
             || (mutable && !source_value.qualifications.is_empty())
             || !matches!(
-                result.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            )
+                result.multiplicity,terminal_psi::nonlinear_multiplicity_pair_pattern!())
             || (mutable && !source_mutable)
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
@@ -135,9 +133,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
         if window.start > window.end
             || !matches!(
-                access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            )
+                access,terminal_psi::reading_borrow_pair_pattern!())
             || source.structural_type != destination.structural_type
             // As for an established window: a shared narrowing reads its
             // qualified source without claiming its predicates.

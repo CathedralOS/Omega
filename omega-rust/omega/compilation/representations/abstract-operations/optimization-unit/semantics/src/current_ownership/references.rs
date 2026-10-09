@@ -139,7 +139,9 @@ pub(super) fn entry_references(
 /// One operation's structural-argument slice.
 fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
     match operation {
-        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments.as_slice(),
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => {
+            structural_arguments.as_slice()
+        }
         // A window repair consumes its value like one owned whole call
         // argument; any reference leaves it carries settle with the store.
         O::StoreStructuralField { value, .. } => std::slice::from_ref(value),
@@ -411,12 +413,7 @@ fn check_observation_access(
     let available = carriers.next().is_some_and(|carrier| {
         !live.iter().any(|child| origin_place(&child.root) == place || matches!(&child.parent, ReferenceParent::Reference(parent) if parent == &carrier.identity))
     }) && carriers.next().is_none();
-    if !available
-        || !matches!(
-            access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-    {
+    if !available || !matches!(access, terminal_psi::reading_borrow_pair_pattern!()) {
         return Err(invalid(
             function,
             block,
@@ -1084,9 +1081,7 @@ pub(super) fn apply_operation(
         O::PrimitiveLocalStore { destination, .. } => {
             check_root_access(function, block, node, live, *destination)?
         }
-        abstract_operations::byte_len_or_field_read_pattern!(source,
-            path,
-            field, ..) => {
+        abstract_operations::byte_len_or_field_read_pattern!(source, path, field, ..) => {
             let region = super::storage_regions::projected(
                 function,
                 structural_types,

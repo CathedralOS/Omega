@@ -36,9 +36,7 @@ impl TerminalExecution<'_> {
             .filter(|parameter| {
                 let readable = matches!(
                     parameter.access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
+                    StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
                 );
                 let writable = matches!(
                     parameter.access,
@@ -51,7 +49,7 @@ impl TerminalExecution<'_> {
                     && (!event.modifies_resident() || writable)
                     && matches!(
                         parameter.multiplicity,
-                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
                     )
                     && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()

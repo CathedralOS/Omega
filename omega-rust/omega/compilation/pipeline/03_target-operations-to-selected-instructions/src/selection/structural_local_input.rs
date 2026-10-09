@@ -20,9 +20,7 @@ pub(super) fn storage<'a>(
     let declarations = &source.structural.as_ref()?.structural_types;
     if row.result.is_some()
         || !matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        )
+            result.multiplicity,terminal_psi::nonlinear_multiplicity_pair_pattern!())
         || !result.claims.is_empty()
         // Only a descriptor home declares qualifications: byte predicates of
         // its contents, which leave its storage shape unchanged.

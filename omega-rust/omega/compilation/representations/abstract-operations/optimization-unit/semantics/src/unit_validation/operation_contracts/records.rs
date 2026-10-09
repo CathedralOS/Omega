@@ -47,7 +47,7 @@ pub(crate) fn plain_record_call(
     };
     matches!(
         signature.multiplicity,
-        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) && signature.qualifications.is_empty()
         && signature.projected_qualifications.is_empty()
         && result.qualifications.is_empty()
@@ -67,7 +67,7 @@ pub(crate) fn plain_record_call(
         && callee.structural_parameters.iter().all(|parameter| {
             matches!(
                 parameter.multiplicity,
-                StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
             ) && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
         })
@@ -94,7 +94,7 @@ pub(crate) fn zeroed_establishment_matches(
         place.id == result.place
             && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
                 if producer == *psi_operation && structural_type == result.structural_type)
-    }) && matches!(result.multiplicity, StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted)
+    }) && matches!(result.multiplicity,terminal_psi::nonlinear_multiplicity_pair_pattern!())
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
@@ -131,9 +131,7 @@ pub(crate) fn record_establishment_matches(
         StructuralMultiplicity::Linear => {
             matches!(result.claims.as_slice(), [claim] if claim.path.is_empty())
         }
-        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted => {
-            result.claims.is_empty()
-        }
+        terminal_psi::nonlinear_multiplicity_pair_pattern!() => result.claims.is_empty(),
     };
     if !exact_result_place
         || !complete_root_custody
@@ -251,7 +249,7 @@ pub(crate) fn field_initializers_match(
                     && !source_has_claims(function, argument.place)
                     && matches!(
                         source.multiplicity,
-                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
                     )
                     && (result.multiplicity != StructuralMultiplicity::Unrestricted
                         || source.multiplicity == StructuralMultiplicity::Unrestricted)
@@ -576,7 +574,7 @@ pub(super) fn structural_initializer_matches(
         && argument.place != result.place
         && matches!(
             source.multiplicity,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         && (result.multiplicity != StructuralMultiplicity::Unrestricted
             || source.multiplicity == StructuralMultiplicity::Unrestricted)

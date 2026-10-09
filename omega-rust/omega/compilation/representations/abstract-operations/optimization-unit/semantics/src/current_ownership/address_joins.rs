@@ -206,7 +206,7 @@ impl AddressJoinPins {
                     .filter(|parameter| {
                         matches!(
                             parameter.access,
-                            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                            terminal_psi::exclusive_borrow_pair_pattern!()
                         ) && address_joins.contains(&parameter.place)
                     })
                     .map(|parameter| parameter.place)
@@ -442,7 +442,7 @@ impl AddressJoinPins {
         for (binding, parameter) in edge.structural_bindings.iter().zip(destination) {
             if !matches!(
                 parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                terminal_psi::exclusive_borrow_pair_pattern!()
             ) {
                 continue;
             }
@@ -544,7 +544,7 @@ impl AddressJoinPins {
                 StructuralAccess::Owned => {
                     parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                 }
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => true,
+                terminal_psi::exclusive_borrow_pair_pattern!() => true,
             })
             .map(|(binding, _)| (binding.argument.place, binding.argument.path.as_slice()))
             .chain(edge.cleanup_actions.iter().map(|action| match action {

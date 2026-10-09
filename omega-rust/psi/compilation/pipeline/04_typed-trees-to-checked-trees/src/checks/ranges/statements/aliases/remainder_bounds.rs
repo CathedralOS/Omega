@@ -58,7 +58,7 @@ fn unsigned_remainder_upper_bound(
     let primitive = program.primitive_type_reference(result_type)?;
     if !matches!(
         primitive,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        typed_trees::unsigned_integer_primitive_pattern!()
     ) {
         // Signed remainder follows the dividend's sign, not Euclidean modulo.
         return None;

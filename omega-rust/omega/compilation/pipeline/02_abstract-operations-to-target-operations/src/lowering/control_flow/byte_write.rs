@@ -34,7 +34,7 @@ pub(super) fn replace(
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 if !matches!(
                     parameter.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    terminal_psi::exclusive_borrow_pair_pattern!()
                 ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     || !parameter.projected_qualifications.is_empty()
                     || !structural_types
@@ -461,10 +461,7 @@ pub(super) fn lower(
         *destination,
         &mut Vec::new(),
     )?;
-    if !matches!(
-        access,
-        StructuralAccess::MutableBorrow | StructuralAccess::Owned
-    ) {
+    if !matches!(access, terminal_psi::mutating_access_pair_pattern!()) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let index_value = *live

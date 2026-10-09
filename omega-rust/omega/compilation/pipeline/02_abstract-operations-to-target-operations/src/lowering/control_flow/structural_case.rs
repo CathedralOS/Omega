@@ -102,7 +102,7 @@ fn case_source(
     if let Some(parameter) = super::transfers::address_parameter(function, live, source) {
         let borrowed = matches!(
             parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         );
         if !borrowed
             || parameter.multiplicity == StructuralMultiplicity::Linear
@@ -127,7 +127,7 @@ fn case_source(
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let borrowed = matches!(
         declaration.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        terminal_psi::reading_borrow_pair_pattern!()
     );
     if (!borrowed && declaration.access != StructuralAccess::Owned)
         || declaration.multiplicity == StructuralMultiplicity::Linear

@@ -340,8 +340,9 @@ impl TerminalExecution<'_> {
                 terminal_psi::OperationResult::Structural(result) => {
                     result.projected_qualifications.is_empty()
                         && match result.multiplicity {
-                            StructuralMultiplicity::Unrestricted
-                            | StructuralMultiplicity::Affine => result.claims.is_empty(),
+                            terminal_psi::nonlinear_multiplicity_pair_pattern!() => {
+                                result.claims.is_empty()
+                            }
                             StructuralMultiplicity::Linear => true,
                         }
                 }

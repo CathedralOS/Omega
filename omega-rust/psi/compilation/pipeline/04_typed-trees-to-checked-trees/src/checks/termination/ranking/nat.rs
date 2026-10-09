@@ -130,10 +130,7 @@ pub(super) fn state_rank(
                 || program.primitive_type_reference(upper.type_reference) != Some(primitive_type)
                 || !matches!(
                     primitive_type,
-                    PrimitiveType::U8
-                        | PrimitiveType::U16
-                        | PrimitiveType::U32
-                        | PrimitiveType::U64
+                    typed_trees::unsigned_integer_primitive_pattern!()
                 )
             {
                 return None;

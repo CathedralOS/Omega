@@ -4,7 +4,6 @@
 
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 /// A local names its current storage declaration, which may be an operation
 /// result or a parameter after an ownership-preserving continuation transfer.
@@ -47,7 +46,7 @@ pub(crate) fn local_store_root<'a>(
         ))?;
     if !matches!(
         argument.access,
-        StructuralAccess::Owned | StructuralAccess::MutableBorrow
+        terminal_psi::mutating_access_pair_pattern!()
     ) || !argument.path.is_empty()
     {
         return unsupported("store local is not a whole exclusive storage root");
@@ -142,7 +141,7 @@ pub(crate) fn descriptor_home(
         terminal_psi::OperationKind::EstablishStructuralLocal {}
     ) || !matches!(
         produced.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) || !produced.projected_qualifications.is_empty()
         || !produced.claims.is_empty()
     {

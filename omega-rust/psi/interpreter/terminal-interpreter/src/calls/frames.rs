@@ -34,7 +34,7 @@ fn is_direct_borrowed_rebinding(
         && parameter.access == argument.access
         && matches!(
             parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         )
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()

@@ -846,7 +846,7 @@ fn formal_origin(
     if source.path.is_empty()
         && matches!(
             parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         )
     {
         Some(Root::Place(source.place))

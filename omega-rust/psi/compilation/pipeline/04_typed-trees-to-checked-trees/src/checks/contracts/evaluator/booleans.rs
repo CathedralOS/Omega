@@ -250,7 +250,11 @@ impl ContractExpressionEvaluator<'_, '_> {
         use typed_trees::types::{PrimitiveType, TypeReferenceNode};
         let reference = match self.program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
-                if !self.program.expression_table.name_path_is_single_member(path) {
+                if !self
+                    .program
+                    .expression_table
+                    .name_path_is_single_member(path)
+                {
                     return None;
                 }
                 let parameters = match owner {

@@ -151,7 +151,7 @@ pub(crate) struct PlaceAccessSummaryAnalysis {
 pub(crate) fn declared_access(access: StructuralAccess) -> (bool, bool) {
     match access {
         StructuralAccess::SharedBorrow => (true, false),
-        StructuralAccess::MutableBorrow | StructuralAccess::Owned => (true, true),
+        terminal_psi::mutating_access_pair_pattern!() => (true, true),
         StructuralAccess::WriteOnlyBorrow => (false, true),
     }
 }
@@ -271,7 +271,11 @@ impl<'u> FunctionContext<'u> {
         for block in &function.blocks {
             for node in &block.nodes {
                 match &node.operation {
-                    abstract_operations::element_view_or_byte_subslice_pattern!(result, source, ..) => {
+                    abstract_operations::element_view_or_byte_subslice_pattern!(
+                        result,
+                        source,
+                        ..
+                    ) => {
                         aliases.insert(
                             result.place,
                             AliasTarget::View {
@@ -637,9 +641,7 @@ fn scan_operation(
         O::ElementViewWrite { destination, .. } => {
             pending.attribute(context, *destination, Vec::new(), AccessKind::Write);
         }
-        abstract_operations::byte_len_or_field_read_pattern!(source,
-            path,
-            field, ..) => {
+        abstract_operations::byte_len_or_field_read_pattern!(source, path, field, ..) => {
             let mut view = runtime_prefix(path);
             with_field(&mut view, *field);
             pending.attribute(context, *source, view, AccessKind::Read);
@@ -794,7 +796,8 @@ fn scan_operation(
         O::ReturnStructural { source, .. } => {
             pending.attribute(context, *source, Vec::new(), AccessKind::Read);
         }
-        abstract_operations::jump_or_conditional_pattern!() | abstract_operations::return_or_return_unit_pattern!() => {}
+        abstract_operations::jump_or_conditional_pattern!()
+        | abstract_operations::return_or_return_unit_pattern!() => {}
         O::CallStructural {
             callee,
             structural_arguments,

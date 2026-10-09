@@ -21,7 +21,7 @@ pub(super) fn view_argument(
     let signature = function.structural.as_ref()?;
     if !matches!(
         semantic.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        terminal_psi::reading_borrow_pair_pattern!()
     ) || target.place != semantic.place
         || target.access != semantic.access
         || target.path != semantic.path
@@ -68,9 +68,7 @@ fn source_declaration(
                 || parameter.semantic.multiplicity != StructuralMultiplicity::Unrestricted
                 || !matches!(
                     parameter.semantic.access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
+                    StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
                 )
             {
                 return None;
@@ -94,9 +92,7 @@ fn source_declaration(
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !matches!(
                     parameter.access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
+                    StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
                 )
                 || !signature.structural_places.iter().any(|declaration| {
                     declaration.id == *place

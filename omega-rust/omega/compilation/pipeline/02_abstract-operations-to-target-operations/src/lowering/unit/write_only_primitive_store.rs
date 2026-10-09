@@ -60,7 +60,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                     && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                 || !matches!(
                     parameter.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    terminal_psi::exclusive_borrow_pair_pattern!()
                 )
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()

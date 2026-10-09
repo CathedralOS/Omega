@@ -219,7 +219,7 @@ fn service_parameter_access_matches(
 ) -> bool {
     match access {
         CheckedStructuralAccess::Owned => multiplicity == Multiplicity::Affine,
-        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow => {
+        checked_trees::checked_borrowed_access_pair_pattern!() => {
             multiplicity == Multiplicity::Unrestricted
         }
         CheckedStructuralAccess::WriteOnlyBorrow => false,

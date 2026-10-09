@@ -277,7 +277,7 @@ impl TerminalExecution<'_> {
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !matches!(
                     parameter.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    terminal_psi::reading_borrow_pair_pattern!()
                 )
             {
                 return Err(malformed());
@@ -345,10 +345,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         if !self.program.structural_types().contains_key(referent)
-            || !matches!(
-                access,
-                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-            )
+            || !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
         {
             return Err(malformed());
         }

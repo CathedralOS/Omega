@@ -94,7 +94,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     };
     if !matches!(
         result.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) || !element_view_result_place(module, machine, operation, result, result.multiplicity)
     {
         return malformed("element-view subslice requires its exact borrowed result place");

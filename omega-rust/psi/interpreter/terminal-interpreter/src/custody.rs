@@ -487,10 +487,10 @@ pub(crate) fn bind_structural_arguments(
             }
             let exclusive = matches!(
                 previous_parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                terminal_psi::exclusive_borrow_pair_pattern!()
             ) || matches!(
                 parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                terminal_psi::exclusive_borrow_pair_pattern!()
             );
             let overlapping = terminal_semantics::structural_paths_may_overlap(
                 &previous_argument.path,
@@ -1015,10 +1015,7 @@ pub(crate) fn inline_structural_field<'a>(
     let declaration =
         terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, carrier)?;
     let fields = match (&declaration.shape, case) {
-        (
-            terminal_psi::record_or_mixed_shape_pattern!(fields),
-            None,
-        ) => fields,
+        (terminal_psi::record_or_mixed_shape_pattern!(fields), None) => fields,
         (
             StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
             Some(case),

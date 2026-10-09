@@ -33,10 +33,7 @@ use std::collections::BTreeSet;
 use terminal_psi::{StructuralAccess, TerminalModule};
 
 const fn exclusive(access: StructuralAccess) -> bool {
-    matches!(
-        access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    )
+    matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
 }
 
 fn referent_overlaps(

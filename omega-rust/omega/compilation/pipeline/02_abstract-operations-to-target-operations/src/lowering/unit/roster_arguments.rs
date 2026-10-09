@@ -377,16 +377,15 @@ pub(in crate::lowering) fn lower_structural_argument(
                 source.multiplicity == StructuralMultiplicity::Unrestricted
                     && source.projected_qualifications.is_empty()
                     && match argument.access {
-                        StructuralAccess::SharedBorrow => matches!(
-                            source.access,
-                            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-                        ),
+                        StructuralAccess::SharedBorrow => {
+                            matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
+                        }
                         StructuralAccess::MutableBorrow => {
                             source.access == StructuralAccess::MutableBorrow
                         }
                         StructuralAccess::WriteOnlyBorrow => matches!(
                             source.access,
-                            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                            terminal_psi::exclusive_borrow_pair_pattern!()
                         ),
                         _ => false,
                     }
@@ -536,7 +535,7 @@ pub(in crate::lowering) fn local_array_loan(
     if result.place != argument.place
         || !matches!(
             argument.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         )
         || result.multiplicity == StructuralMultiplicity::Linear
         || !result.qualifications.is_empty()

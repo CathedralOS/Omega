@@ -342,7 +342,7 @@ pub(super) fn accepts_view_loan(
         && result.structural_type == target.root_structural_type
         && matches!(
             result.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
@@ -400,7 +400,7 @@ pub(in crate::selection) fn descriptor_home(
             if established == result
     ) && matches!(
         result.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()

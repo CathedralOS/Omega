@@ -386,12 +386,7 @@ impl RankProjection {
                     program
                         .type_reference_table
                         .primitive_type(field.type_reference),
-                    Some(
-                        PrimitiveType::U8
-                            | PrimitiveType::U16
-                            | PrimitiveType::U32
-                            | PrimitiveType::U64
-                    )
+                    Some(typed_trees::unsigned_integer_primitive_pattern!())
                 )
             {
                 return None;
@@ -614,7 +609,7 @@ fn unsigned_carrier_type(
     let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;
     matches!(
         primitive,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        typed_trees::unsigned_integer_primitive_pattern!()
     )
     .then_some(primitive)
 }

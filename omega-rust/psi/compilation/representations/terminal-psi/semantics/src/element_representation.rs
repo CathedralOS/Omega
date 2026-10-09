@@ -214,10 +214,7 @@ pub fn element_representation_relation<'a>(
     target: StructuralTypeId,
     access: StructuralAccess,
 ) -> Option<ElementRepresentationRelation> {
-    if !matches!(
-        access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) {
+    if !matches!(access, terminal_psi::reading_borrow_pair_pattern!()) {
         return None;
     }
     let source_layout = element_representation_layout(types.clone(), source)?;

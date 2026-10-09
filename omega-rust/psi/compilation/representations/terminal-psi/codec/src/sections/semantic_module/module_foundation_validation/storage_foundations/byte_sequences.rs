@@ -109,7 +109,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
         ) || !matches!(
             parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         ) || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
@@ -286,7 +286,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     };
     if !matches!(
         result.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()

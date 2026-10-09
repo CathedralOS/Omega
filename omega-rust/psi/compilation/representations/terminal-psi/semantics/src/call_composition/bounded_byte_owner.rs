@@ -44,7 +44,7 @@ pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
         || expected.multiplicity != StructuralMultiplicity::Unrestricted
         || !matches!(
             actual.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         || !matches!(
             (actual.access, argument.access),

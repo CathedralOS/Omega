@@ -330,22 +330,20 @@ pub(super) fn lower_operation(
         }
         // Direct and selected calls share argument transport and result homes;
         // the call target alone determines how invocation finds executable code.
-        abstract_operations::call_or_call_structural_pattern!(..) => {
-            super::calls::lower_call(
-                operation,
-                function,
-                target,
-                functions,
-                dynamic_dispatch,
-                structural_types,
-                scalar_abis,
-                prepared,
-                parameters_by_place,
-                live,
-                operations,
-                provenance,
-            )
-        }
+        abstract_operations::call_or_call_structural_pattern!(..) => super::calls::lower_call(
+            operation,
+            function,
+            target,
+            functions,
+            dynamic_dispatch,
+            structural_types,
+            scalar_abis,
+            prepared,
+            parameters_by_place,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::StructuralCaseMembership { .. } => super::structural_case::observe(
             operation,
             function,
@@ -445,7 +443,7 @@ pub(super) fn lower_operation(
                 provenance,
             )
         }
-        abstract_operations::byte_sequence_store_pair_pattern!( .. ) => super::byte_write::replace(
+        abstract_operations::byte_sequence_store_pair_pattern!(..) => super::byte_write::replace(
             operation,
             function,
             structural_types,

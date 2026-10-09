@@ -59,12 +59,7 @@ impl CoordinateKind {
                 if natural_leaf {
                     matches!(
                         leaf,
-                        Some(
-                            PrimitiveType::U8
-                                | PrimitiveType::U16
-                                | PrimitiveType::U32
-                                | PrimitiveType::U64
-                        )
+                        Some(typed_trees::unsigned_integer_primitive_pattern!())
                     )
                 } else {
                     leaf == Some(PrimitiveType::U64)

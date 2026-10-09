@@ -236,7 +236,7 @@ pub(super) fn validate_establish_zeroed_structural(
     };
     if !matches!(
         result.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
@@ -276,7 +276,7 @@ pub(super) fn validate_establish_structural_local(
     });
     if !matches!(
         result.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) || (!result.qualifications.is_empty() && !byte_view_home)
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()

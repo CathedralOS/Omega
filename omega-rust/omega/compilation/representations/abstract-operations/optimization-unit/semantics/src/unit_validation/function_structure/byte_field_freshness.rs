@@ -169,7 +169,7 @@ pub fn byte_field_root(
     // remain the CFG ownership walk's independent judgments.
     (matches!(
         source.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ))
     .then_some((source.structural_type, source.access))
 }

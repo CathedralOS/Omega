@@ -363,7 +363,7 @@ fn place(
             })?;
     let authorized = matches!(
         parameter.access,
-        CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
+        checked_trees::checked_borrowed_access_pair_pattern!()
     );
     if !authorized
         || parameter.multiplicity == Multiplicity::Linear

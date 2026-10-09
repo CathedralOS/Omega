@@ -51,7 +51,7 @@ pub fn is_bounded_owner_loan<'a>(
 ) -> bool {
     matches!(
         parameter.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        terminal_psi::reading_borrow_pair_pattern!()
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type)
@@ -213,17 +213,15 @@ fn view_carrier_shape(
         }
     }
     match &declaration.shape {
-        terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-            fields.iter().all(|field| {
-                field.relevance.is_erased()
-                    && matches!(
-                        field.field_type,
-                        terminal_psi::StructuralFieldType::Erased { .. }
-                    )
-                    || (field.relevance == terminal_psi::BindingRelevance::Relevant
-                        && member_valid(&field.field_type, types, active))
-            })
-        }
+        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields.iter().all(|field| {
+            field.relevance.is_erased()
+                && matches!(
+                    field.field_type,
+                    terminal_psi::StructuralFieldType::Erased { .. }
+                )
+                || (field.relevance == terminal_psi::BindingRelevance::Relevant
+                    && member_valid(&field.field_type, types, active))
+        }),
         _ => false,
     }
 }

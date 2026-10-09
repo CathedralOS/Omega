@@ -31,7 +31,7 @@ pub(super) fn home<'a>(
     if row.result.is_some()
         || !matches!(
             result.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()

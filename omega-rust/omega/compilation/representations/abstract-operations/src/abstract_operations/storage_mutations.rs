@@ -6,7 +6,7 @@
 
 use crate::AbstractOperation;
 use semantic_vocabulary::{PlaceId, StructuralFieldId};
-use terminal_psi::{StructuralAccess, StructuralPathSegment};
+use terminal_psi::StructuralPathSegment;
 
 /// One mutation inventory serves whole-root join pins and projected child
 /// freezes. A field id stays attached until its declaring record is resolved;
@@ -28,7 +28,7 @@ impl AbstractOperation {
                 .filter(|argument| {
                     matches!(
                         argument.access,
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                        terminal_psi::exclusive_borrow_pair_pattern!()
                     )
                 })
                 .map(|argument| StorageMutation {

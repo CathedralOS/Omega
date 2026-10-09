@@ -280,10 +280,7 @@ fn lower_scalar_read(
     )
     .ok_or_else(invalid)?;
     if matches!(declaration.field_type, StructuralFieldType::Atomic(_))
-        && !matches!(
-            access,
-            StructuralAccess::Owned | StructuralAccess::MutableBorrow
-        )
+        && !matches!(access, terminal_psi::mutating_access_pair_pattern!())
     {
         return Err(invalid());
     }

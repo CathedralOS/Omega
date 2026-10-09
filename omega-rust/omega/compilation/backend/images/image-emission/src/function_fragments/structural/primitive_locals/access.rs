@@ -136,7 +136,7 @@ fn readable(
     if let Some(parameter) = function.block_structural_parameter(place) {
         return matches!(
             parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty()
@@ -162,7 +162,7 @@ fn readable(
         && contract.entry_claims.is_empty()
         && matches!(
             declaration.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         )
         && declaration.multiplicity == StructuralMultiplicity::Unrestricted
         && declaration.qualifications.is_empty()

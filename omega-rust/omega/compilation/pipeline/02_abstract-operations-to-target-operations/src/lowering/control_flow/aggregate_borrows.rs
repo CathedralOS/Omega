@@ -94,8 +94,7 @@ pub(super) fn argument(
         let source = home.argument_source();
         (home.structural_type(), source)
     } else {
-        let parameter = prepared.parameter(argument.place)
-            .ok_or_else(invalid)?;
+        let parameter = prepared.parameter(argument.place).ok_or_else(invalid)?;
         if parameter.access != StructuralAccess::Owned {
             return Err(invalid());
         }

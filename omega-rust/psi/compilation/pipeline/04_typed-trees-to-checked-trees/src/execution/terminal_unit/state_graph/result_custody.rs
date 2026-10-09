@@ -239,8 +239,7 @@ pub(super) fn account(
                     (view_source.access, source.access),
                     (
                         CheckedStructuralAccess::MutableBorrow,
-                        CheckedStructuralAccess::MutableBorrow
-                            | CheckedStructuralAccess::SharedBorrow,
+                        checked_trees::checked_borrowed_access_pair_pattern!(),
                     ) | (
                         CheckedStructuralAccess::SharedBorrow,
                         CheckedStructuralAccess::SharedBorrow,

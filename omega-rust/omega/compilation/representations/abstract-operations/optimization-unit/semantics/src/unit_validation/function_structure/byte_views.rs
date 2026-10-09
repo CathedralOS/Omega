@@ -33,7 +33,7 @@ pub(crate) fn byte_field_store_capacity(
         if destination == source
             || !matches!(
                 parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                terminal_psi::exclusive_borrow_pair_pattern!()
             )
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
@@ -185,7 +185,7 @@ fn writable_byte_field_carrier(
         let (root_type, access) =
             super::byte_field_freshness::byte_field_root(function, destination)?;
         let writable = match access {
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => true,
+            terminal_psi::exclusive_borrow_pair_pattern!() => true,
             // Owned payload is writable; owning a loan descriptor does not
             // itself grant authority over the memory its pointer denotes.
             StructuralAccess::Owned => matches!(
@@ -230,7 +230,7 @@ pub(super) fn validate_byte_view_source(
             ..
         } => (*destination, Some(*length)),
         AbstractOperation::ByteSequenceLength { source, .. } => (*source, None),
-        abstract_operations::byte_sequence_store_pair_pattern!( source, length, .. )
+        abstract_operations::byte_sequence_store_pair_pattern!(source, length, ..)
         | AbstractOperation::ByteSequenceRead { source, length, .. }
         | AbstractOperation::ByteSequenceSubslice { source, length, .. } => {
             (*source, Some(*length))
@@ -263,14 +263,12 @@ pub(super) fn validate_source(
 ) -> Result<(), OptimizationUnitValidationError> {
     let permitted_access = |access| match operation {
         AbstractOperation::ByteSequenceWrite { .. } => access == StructuralAccess::MutableBorrow,
-        abstract_operations::byte_sequence_store_pair_pattern!( .. ) => {
+        abstract_operations::byte_sequence_store_pair_pattern!(..) => {
             access == StructuralAccess::SharedBorrow
         }
         _ => matches!(
             access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::Owned
+            StructuralAccess::SharedBorrow | terminal_psi::mutating_access_pair_pattern!()
         ),
     };
     let arrival = function.arrival_parameter(source);
@@ -292,21 +290,21 @@ pub(super) fn validate_source(
                     AbstractOperation::ByteSequenceLength { .. } => {
                         matches!(
                             parameter.access,
-                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                            terminal_psi::reading_borrow_pair_pattern!()
                         ) || owned
                             && matches!(
                                 parameter.access,
                                 StructuralAccess::Owned | StructuralAccess::WriteOnlyBorrow
                             )
                     }
-                    abstract_operations::byte_sequence_store_pair_pattern!( .. ) => {
+                    abstract_operations::byte_sequence_store_pair_pattern!(..) => {
                         parameter.access == StructuralAccess::SharedBorrow
                             || owned && parameter.access == StructuralAccess::Owned
                     }
                     _ => {
                         matches!(
                             parameter.access,
-                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                            terminal_psi::reading_borrow_pair_pattern!()
                         ) || owned && parameter.access == StructuralAccess::Owned
                     }
                 };
@@ -447,7 +445,7 @@ pub(super) fn validate_source(
             .is_some_and(|contract| {
                 matches!(
                     contract.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::Owned
+                    terminal_psi::mutating_access_pair_pattern!()
                 )
             });
     if !valid || !exact_length || !valid_result || !writable {

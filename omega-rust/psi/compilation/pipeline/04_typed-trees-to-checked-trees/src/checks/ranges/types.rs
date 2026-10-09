@@ -25,7 +25,7 @@ pub(super) fn expression_is_unsigned_integer(
     matches!(
         expression_type_reference(program, machine, state, expression)
             .and_then(|type_reference| primitive_of_type_reference(program, type_reference)),
-        Some(PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64)
+        Some(typed_trees::unsigned_integer_primitive_pattern!())
     )
 }
 
@@ -71,9 +71,7 @@ pub(in crate::checks) fn expression_integer_carrier_minimum(
     let reference =
         validation::expression_result_type_reference(program, machine, state, expression)?;
     match program.primitive_type_reference(reference)? {
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64 => {
-            Some(BigInt::from_u64(0))
-        }
+        typed_trees::unsigned_integer_primitive_pattern!() => Some(BigInt::from_u64(0)),
         PrimitiveType::I8 => Some(BigInt::from_i64(i64::from(i8::MIN))),
         PrimitiveType::I16 => Some(BigInt::from_i64(i64::from(i16::MIN))),
         PrimitiveType::I32 => Some(BigInt::from_i64(i64::from(i32::MIN))),
@@ -483,7 +481,7 @@ fn symbolic_extent_floor(
         primitive_of_type_reference(program, reference).and_then(|primitive| {
             matches!(
                 primitive,
-                PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+                typed_trees::unsigned_integer_primitive_pattern!()
             )
             .then_some(0)
         })

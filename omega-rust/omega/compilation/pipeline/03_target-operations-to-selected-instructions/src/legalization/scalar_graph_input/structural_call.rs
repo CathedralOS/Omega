@@ -184,7 +184,7 @@ pub(in crate::legalization) fn argument_at(
     if super::primitive_locals::producer(caller, semantic.place).is_some()
         || matches!(
             semantic.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            terminal_psi::exclusive_borrow_pair_pattern!()
         )
         || semantic.access == StructuralAccess::SharedBorrow
             && super::primitive_locals::scalar(
@@ -301,7 +301,7 @@ fn view_argument(
         .ok_or(LegalizationError::custody())?;
     if !matches!(
         semantic.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        terminal_psi::reading_borrow_pair_pattern!()
     ) || !semantic.path.is_empty()
         || destination_parameter.access != semantic.access
         || destination_parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
@@ -589,7 +589,7 @@ fn established_view(
     }
     if !matches!(
         optimization_unit_semantics::structural_place_access(caller, place),
-        Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
+        Some(terminal_psi::reading_borrow_pair_pattern!())
     ) || !caller.block_nodes().any(|node| {
         matches!(&node.operation, abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..)
             if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == place))
@@ -598,8 +598,11 @@ fn established_view(
     }
     caller.block_nodes().find_map(|node| {
         let (producer, result) = match &node.operation {
-            abstract_operations::element_view_or_byte_subslice_pattern!(psi_operation,
-                result, ..) => (*psi_operation, result),
+            abstract_operations::element_view_or_byte_subslice_pattern!(
+                psi_operation,
+                result,
+                ..
+            ) => (*psi_operation, result),
             AbstractOperation::EstablishElementView {
                 psi_operation,
                 result,

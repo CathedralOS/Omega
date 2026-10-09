@@ -256,8 +256,8 @@ fn readable_collection_loan(
         && matches!(
             (actual.access, argument.access),
             (
-                StructuralAccess::Owned | StructuralAccess::MutableBorrow,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                terminal_psi::mutating_access_pair_pattern!(),
+                terminal_psi::reading_borrow_pair_pattern!()
             ) | (
                 StructuralAccess::SharedBorrow,
                 StructuralAccess::SharedBorrow
@@ -265,7 +265,7 @@ fn readable_collection_loan(
         )
         && matches!(
             actual.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
         && [actual, expected].iter().all(|parameter| {

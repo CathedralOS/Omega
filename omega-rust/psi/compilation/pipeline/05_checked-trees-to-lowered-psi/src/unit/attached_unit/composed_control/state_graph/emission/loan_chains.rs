@@ -165,8 +165,7 @@ impl LoanChains {
                     && block_owned(position)
                     && matches!(
                         parameter.access,
-                        CheckedStructuralAccess::MutableBorrow
-                            | CheckedStructuralAccess::SharedBorrow
+                        checked_trees::checked_borrowed_access_pair_pattern!()
                     )
                     && !aliased
                         .get(position)
@@ -228,8 +227,7 @@ impl LoanChains {
                             if !block_owned(source)
                                 && matches!(
                                     parameter.access,
-                                    CheckedStructuralAccess::MutableBorrow
-                                        | CheckedStructuralAccess::SharedBorrow
+                                    checked_trees::checked_borrowed_access_pair_pattern!()
                                 )
                             {
                                 entry_loans.entry(binding).or_default().push(destination);
@@ -880,7 +878,9 @@ impl ChainExit<'_> {
                 }
                 self.insert_actions(cleanup_actions)
             }
-            terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => self.insert_actions(cleanup_actions),
+            terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
+                self.insert_actions(cleanup_actions)
+            }
             Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => Ok(()),
         }
     }

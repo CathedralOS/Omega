@@ -45,7 +45,7 @@ fn validate_store(
     let home = function.unit_parameter_homes.get(parameter_index)?;
     if !matches!(
         store.destination.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        terminal_psi::exclusive_borrow_pair_pattern!()
     ) || parameter.place != store.destination.place
         || parameter.structural_type != store.destination.structural_type
         || parameter.multiplicity != store.destination.multiplicity
@@ -237,8 +237,6 @@ fn validate_store(
     }
     Some(())
 }
-
-
 
 pub(crate) fn integer_bits(scalar_type: IntegerType, value: IntegerValue) -> Option<u64> {
     let width = scalar_type.bits();

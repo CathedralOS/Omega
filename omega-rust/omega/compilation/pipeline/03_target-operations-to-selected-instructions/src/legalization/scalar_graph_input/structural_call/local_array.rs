@@ -32,7 +32,7 @@ pub(super) fn argument(
 ) -> Result<Option<TargetStructuralArgument>, LegalizationError> {
     if !matches!(
         semantic.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        terminal_psi::reading_borrow_pair_pattern!()
     ) {
         return Ok(None);
     }

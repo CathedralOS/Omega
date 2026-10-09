@@ -1101,6 +1101,17 @@ pub enum PrimitiveType {
     Selector,
 }
 
+/// U8 through U64 — the unsigned integer widths.
+#[macro_export]
+macro_rules! unsigned_integer_primitive_pattern {
+    () => {
+        $crate::types::PrimitiveType::U8
+            | $crate::types::PrimitiveType::U16
+            | $crate::types::PrimitiveType::U32
+            | $crate::types::PrimitiveType::U64
+    };
+}
+
 impl PrimitiveType {
     /// The primitive a fixed-width integer [`BuiltinTypeAtom`] names; the
     /// arbitrary-width `Int`/`UInt`, `Address`, and every non-integer atom

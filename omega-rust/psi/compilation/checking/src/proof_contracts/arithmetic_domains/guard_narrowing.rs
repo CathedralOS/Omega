@@ -877,7 +877,7 @@ fn joint_add_upper_guard(
     let bounded_unsigned_difference =
         matches!(
             left_primitive,
-            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+            typed_trees::unsigned_integer_primitive_pattern!()
         ) && declared_place_type_raw(program, machine, state, subtract.left).is_some_and(
             |bound_type| {
                 program.primitive_type_reference(bound_type) == Some(left_primitive)
@@ -943,7 +943,7 @@ fn joint_subtract_guard(
     let left_primitive = shared_exact_primitive(program, machine, state, left, right)?;
     if !matches!(
         left_primitive,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        typed_trees::unsigned_integer_primitive_pattern!()
     ) {
         return None;
     }
@@ -1021,7 +1021,7 @@ fn joint_multiply_guard(
         exact_bound_binary(program, machine, state, left, bound, BinaryOperator::Divide)?;
     if !matches!(
         left_primitive,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        typed_trees::unsigned_integer_primitive_pattern!()
     ) {
         return None;
     }

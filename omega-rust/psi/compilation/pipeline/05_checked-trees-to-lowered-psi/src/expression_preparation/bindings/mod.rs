@@ -232,11 +232,9 @@ impl ScalarBindings {
             return unsupported("computed argument requires readable borrowed access");
         }
         let supports_borrow = |source| {
-            matches!(
-                source,
-                StructuralAccess::Owned | StructuralAccess::MutableBorrow
-            ) || (source == StructuralAccess::SharedBorrow
-                && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
+            matches!(source, terminal_psi::mutating_access_pair_pattern!())
+                || (source == StructuralAccess::SharedBorrow
+                    && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
         };
         if let Some(captured) = self.captured_formal_home(argument)? {
             if !supports_borrow(captured.access) {
@@ -384,8 +382,7 @@ impl ScalarBindings {
             .find(|row| row.id == root);
         if !matches!(declaration.map(|row| &row.shape),
             Some(terminal_psi::StructuralTypeShape::Reference { referent, access })
-                if *referent == observed_root && matches!(access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow))
+                if *referent == observed_root && matches!(access,terminal_psi::reading_borrow_pair_pattern!()))
         {
             return unsupported("structural observation changes its established root type");
         }
@@ -883,10 +880,7 @@ impl ScalarBindings {
                 ))?;
                 if matching.next().is_some()
                     || source.structural_type != structural_type
-                    || !matches!(
-                        access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    )
+                    || !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
                     || !(source.access == access
                         || source.access == StructuralAccess::MutableBorrow
                             && access == StructuralAccess::SharedBorrow)
@@ -902,10 +896,7 @@ impl ScalarBindings {
             checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
                 let local = view_locals::resolve(&self.view_locals, symbol)?;
                 if local.structural_type != structural_type
-                    || !matches!(
-                        access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    )
+                    || !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
                     || !(local.access == access
                         || local.access == StructuralAccess::MutableBorrow
                             && access == StructuralAccess::SharedBorrow)
@@ -991,7 +982,7 @@ impl ScalarBindings {
                     StructuralAccess::SharedBorrow,
                     StructuralAccess::SharedBorrow
                 ) | (
-                    StructuralAccess::Owned | StructuralAccess::MutableBorrow,
+                    terminal_psi::mutating_access_pair_pattern!(),
                     StructuralAccess::SharedBorrow
                         | StructuralAccess::MutableBorrow
                         | StructuralAccess::WriteOnlyBorrow

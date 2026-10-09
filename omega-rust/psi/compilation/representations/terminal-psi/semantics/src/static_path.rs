@@ -184,16 +184,15 @@ pub fn structural_paths_may_overlap(
 /// exclusive child.
 pub fn interior_member_borrow(parent: &StructuralArgument, child: &StructuralArgument) -> bool {
     let admitted = match parent.access {
-        StructuralAccess::MutableBorrow | StructuralAccess::Owned => matches!(
+        terminal_psi::mutating_access_pair_pattern!() => matches!(
             child.access,
             StructuralAccess::SharedBorrow
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow
         ),
-        StructuralAccess::WriteOnlyBorrow => matches!(
-            child.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        ),
+        StructuralAccess::WriteOnlyBorrow => {
+            matches!(child.access, terminal_psi::exclusive_borrow_pair_pattern!())
+        }
         StructuralAccess::SharedBorrow => false,
     };
     admitted

@@ -72,9 +72,7 @@ pub(super) fn exit_return_expression(
     program: &dyn ::validation::CheckingInput,
     exit: &FlowExitFact,
 ) -> ExpressionHandle {
-    let Some(state) =
-        validation::find_state_for_exit(program, exit)
-    else {
+    let Some(state) = validation::find_state_for_exit(program, exit) else {
         return Default::default();
     };
     let statements = program.statement_table.statements(state.statement_nodes);

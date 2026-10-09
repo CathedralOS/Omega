@@ -127,7 +127,7 @@ impl BoundaryScalarLoans {
         if parameter.access != argument.access
             || !matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                terminal_psi::reading_borrow_pair_pattern!()
             )
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.qualifications.is_empty()

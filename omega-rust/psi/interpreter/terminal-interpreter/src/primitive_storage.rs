@@ -547,15 +547,9 @@ impl TerminalExecution<'_> {
                 || parameter.access != loan.access
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || if writing {
-                    !matches!(
-                        loan.access,
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                    )
+                    !matches!(loan.access, terminal_psi::exclusive_borrow_pair_pattern!())
                 } else {
-                    !matches!(
-                        loan.access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    )
+                    !matches!(loan.access, terminal_psi::reading_borrow_pair_pattern!())
                 }
             {
                 return Err(malformed());
@@ -575,14 +569,12 @@ impl TerminalExecution<'_> {
                             || if writing {
                                 matches!(
                                     parameter.access,
-                                    StructuralAccess::MutableBorrow
-                                        | StructuralAccess::WriteOnlyBorrow
+                                    terminal_psi::exclusive_borrow_pair_pattern!()
                                 )
                             } else {
                                 matches!(
                                     parameter.access,
-                                    StructuralAccess::SharedBorrow
-                                        | StructuralAccess::MutableBorrow
+                                    terminal_psi::reading_borrow_pair_pattern!()
                                 )
                             })
                             && parameter.admits_scalar_read_at(path.is_empty())

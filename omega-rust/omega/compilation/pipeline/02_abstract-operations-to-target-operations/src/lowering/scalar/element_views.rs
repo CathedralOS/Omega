@@ -97,7 +97,7 @@ impl<'a> ElementViewBackings<'a> {
         if entry.block == function.entry
             || !matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                terminal_psi::reading_borrow_pair_pattern!()
             )
             || (source.access == StructuralAccess::MutableBorrow
                 && parameter.access != StructuralAccess::MutableBorrow)
@@ -124,7 +124,7 @@ pub(in crate::lowering) fn is_element_view_parameter(
 ) -> bool {
     matches!(
         parameter.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        terminal_psi::reading_borrow_pair_pattern!()
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
@@ -578,7 +578,7 @@ pub(in crate::lowering) fn resolve_element_view(
     };
     if !matches!(
         result.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
@@ -709,23 +709,18 @@ fn established_source(
         }
         _ => (&source.path[..], None),
     };
-    if !matches!(
-        source.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) {
+    if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!()) {
         return Err(invalid());
     }
     let (root_structural_type, backing) =
         if let Some(semantic) = function.structural_parameter(source.place) {
             if !matches!(
                 semantic.access,
-                StructuralAccess::SharedBorrow
-                    | StructuralAccess::MutableBorrow
-                    | StructuralAccess::Owned
+                StructuralAccess::SharedBorrow | terminal_psi::mutating_access_pair_pattern!()
             ) || (source.access == StructuralAccess::MutableBorrow
                 && !matches!(
                     semantic.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::Owned
+                    terminal_psi::mutating_access_pair_pattern!()
                 ))
                 || semantic.multiplicity != StructuralMultiplicity::Unrestricted
                 || !semantic.qualifications.is_empty()
@@ -951,7 +946,7 @@ fn live_aggregate_backing(
         || home.access() != StructuralAccess::Owned
         || !matches!(
             home.multiplicity(),
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         || !home.qualifications().is_empty()
         || !home.projected_qualifications().is_empty()

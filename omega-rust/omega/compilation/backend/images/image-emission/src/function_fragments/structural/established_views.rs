@@ -41,7 +41,7 @@ pub(super) fn location(
                 && result.structural_type == argument.root_structural_type
                 && matches!(
                     result.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
@@ -54,7 +54,7 @@ pub(super) fn location(
                 && result.structural_type == argument.root_structural_type
                 && matches!(
                     result.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
@@ -67,7 +67,7 @@ pub(super) fn location(
                 && result.structural_type == argument.root_structural_type
                 && matches!(
                     result.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
@@ -127,9 +127,7 @@ pub(super) fn block_location(
                 StructuralAccess::SharedBorrow,
                 StructuralAccess::SharedBorrow
             ) | (
-                StructuralAccess::MutableBorrow,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            )
+                StructuralAccess::MutableBorrow,terminal_psi::reading_borrow_pair_pattern!())
         )
         || parameter.multiplicity != StructuralMultiplicity::Unrestricted
         // A shared loan's qualifications describe the bytes it freezes and
@@ -184,7 +182,7 @@ fn local_location(
         }
     } else if !matches!(
         argument.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        terminal_psi::reading_borrow_pair_pattern!()
     ) || argument.root_structural_type != argument.structural_type
         || argument.shape != ValueShape::borrowed_reference(16, 8)
         || argument.source_byte_offset != 0

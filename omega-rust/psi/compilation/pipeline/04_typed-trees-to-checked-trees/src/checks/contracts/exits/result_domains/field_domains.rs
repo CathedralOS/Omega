@@ -345,9 +345,7 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
     // Mutable roots use implicit signature preconditions rather than seeded
     // StateParameterDomain facts. Their declaration still creates a return
     // obligation, even when a write retired every copy of the entry evidence.
-    if let Some(state) =
-        validation::find_state_for_exit(program, exit)
-    {
+    if let Some(state) = validation::find_state_for_exit(program, exit) {
         for parameter in program
             .state_parameters(state)
             .iter()

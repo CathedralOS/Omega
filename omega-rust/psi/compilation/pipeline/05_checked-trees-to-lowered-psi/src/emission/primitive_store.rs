@@ -3,7 +3,7 @@
 //! destination path (`runtime_elements.rs`), as for every other store route.
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError,
-    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralFieldType,
+    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeId, StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
 };
@@ -28,7 +28,7 @@ pub(crate) fn parameter_destination(
 ) -> Result<Destination, LoweringError> {
     if !matches!(
         parameter.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        terminal_psi::exclusive_borrow_pair_pattern!()
     ) || parameter.multiplicity == StructuralMultiplicity::Linear
         || (path.is_empty() && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
         || !parameter.qualifications.is_empty()

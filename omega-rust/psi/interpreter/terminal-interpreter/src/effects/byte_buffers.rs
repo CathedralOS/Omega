@@ -87,7 +87,7 @@ impl BoundaryArguments {
             };
             if !matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                terminal_psi::reading_borrow_pair_pattern!()
             ) || parameter.access != view.access()
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
@@ -245,7 +245,7 @@ impl TerminalExecution<'_> {
             let argument = arguments.get(argument_index).ok_or_else(malformed)?;
             if !matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                terminal_psi::reading_borrow_pair_pattern!()
             ) {
                 return Err(malformed());
             }
@@ -431,7 +431,7 @@ impl TerminalExecution<'_> {
         if declaration.shape.is_bounded_owned_byte_sequence()
             && matches!(
                 parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                terminal_psi::exclusive_borrow_pair_pattern!()
             )
         {
             if argument.access != parameter.access

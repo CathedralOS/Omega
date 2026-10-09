@@ -56,9 +56,7 @@ pub(crate) fn validate_selected_cleanup_guarantees(
         }
         checked_targets.push(target);
         let machine = program.machine_by_symbol(target);
-        let contract = facts
-            .contract_plans
-            .for_machine(target);
+        let contract = facts.contract_plans.for_machine(target);
         let termination = facts.termination.for_machine(target);
         let (Some(machine), Some(contract), Some(termination)) = (machine, contract, termination)
         else {

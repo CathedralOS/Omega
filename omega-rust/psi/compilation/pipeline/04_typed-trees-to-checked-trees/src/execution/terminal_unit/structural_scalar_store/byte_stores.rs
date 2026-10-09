@@ -442,8 +442,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                         structural_access_for_type_reference(program, type_reference),
                         Some(
                             CheckedStructuralAccess::Owned
-                                | CheckedStructuralAccess::SharedBorrow
-                                | CheckedStructuralAccess::MutableBorrow
+                                | checked_trees::checked_borrowed_access_pair_pattern!()
                         )
                     )
                     || !source_domains.iter().all(|domain| {

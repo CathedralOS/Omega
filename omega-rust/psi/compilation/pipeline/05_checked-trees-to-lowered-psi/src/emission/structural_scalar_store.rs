@@ -6,8 +6,7 @@
 //! in for checking this value immediately before this store.
 
 use super::{
-    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PlaceId, ScalarType,
-    StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
+    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PlaceId, ScalarType, StructuralFieldId, StructuralFieldType,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeId, StructuralTypeShape, ValueId, allocate_dense, obligation_id,
     terminal_scalar_type, unsupported,
@@ -229,12 +228,12 @@ pub(crate) fn validate_root_access(
 ) -> Result<(), LoweringError> {
     let access_matches = matches!(
         parameter.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        terminal_psi::exclusive_borrow_pair_pattern!()
     );
     if !access_matches
         || !matches!(
             parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()

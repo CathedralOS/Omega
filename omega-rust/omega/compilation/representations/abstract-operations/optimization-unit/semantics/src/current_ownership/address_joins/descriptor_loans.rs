@@ -322,7 +322,10 @@ impl DescriptorLoans {
         let position = (block, node);
         // Normal return cleanup closes the activation after its scalar result
         // is observed. It is not a move while an escaped child can still run.
-        let moved = if matches!(operation, abstract_operations::return_or_return_unit_pattern!()) {
+        let moved = if matches!(
+            operation,
+            abstract_operations::return_or_return_unit_pattern!()
+        ) {
             &[][..]
         } else {
             moved
@@ -437,7 +440,7 @@ impl DescriptorLoans {
                     StructuralAccess::Owned => {
                         parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                     }
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => true,
+                    terminal_psi::exclusive_borrow_pair_pattern!() => true,
                 })
                 .map(|(binding, _)| {
                     (
@@ -574,9 +577,7 @@ fn operation_observations(
             )
         })
         .and_then(|declaration| match &declaration.shape {
-            terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-                live_field_by_id(fields, field)
-            }
+            terminal_psi::record_or_mixed_shape_pattern!(fields) => live_field_by_id(fields, field),
             _ => None,
         })
         .and_then(|field| field.field_type.byte_sequence_carrier())
@@ -816,10 +817,7 @@ fn descriptor_inputs(
         .is_some_and(|source| {
             source.operation_result().is_some()
                 && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                && matches!(
-                    source.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                )
+                && matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
                 && types
                     .get(&source.structural_type)
                     .is_some_and(|declaration| {

@@ -114,7 +114,7 @@ pub(super) fn build(
             // caller's.
             let inspected = match retained.access {
                 CheckedStructuralAccess::Owned => parameter.type_reference,
-                CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow => {
+                checked_trees::checked_borrowed_access_pair_pattern!() => {
                     let TypeReferenceNode::Reference { referee, .. } = program
                         .type_reference_table
                         .type_reference(parameter.type_reference)

@@ -29,7 +29,8 @@ pub(super) fn parameter<'a>(
     let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
         return None;
     };
-    let parameter = machine.block(&block)?
+    let parameter = machine
+        .block(&block)?
         .structural_parameters
         .get(position as usize)?;
     (parameter.place == place && parameter.position == position).then_some(parameter)
@@ -58,7 +59,8 @@ pub(super) fn owned_state_parameter(
     let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
         return None;
     };
-    let parameter = machine.block(&block)?
+    let parameter = machine
+        .block(&block)?
         .structural_parameters
         .get(position as usize)?;
     (parameter.place == place
@@ -66,7 +68,7 @@ pub(super) fn owned_state_parameter(
         && parameter.access == StructuralAccess::Owned
         && matches!(
             parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
@@ -115,7 +117,7 @@ fn owned_result(
         && result.structural_type == structural_type
         && matches!(
             result.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
@@ -231,7 +233,7 @@ pub(super) fn lower(
                             // a primitive referent or established local.
                             (matches!(
                                 parameter.access,
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                                terminal_psi::reading_borrow_pair_pattern!()
                             ) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
                                 && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
                                     || (!path.is_empty()

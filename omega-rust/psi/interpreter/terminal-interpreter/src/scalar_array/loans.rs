@@ -31,7 +31,7 @@ impl TerminalExecution<'_> {
     ) -> Result<Option<(TerminalStructuralValue, ElementView)>, TerminalInterpretError> {
         if !matches!(
             parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         ) {
             return Ok(None);
         }
@@ -73,7 +73,7 @@ impl TerminalExecution<'_> {
                 || !source.projected_qualifications.is_empty()
                 || !matches!(
                     source.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
                 || (source.access != StructuralAccess::Owned
                     && source.multiplicity != StructuralMultiplicity::Unrestricted)
@@ -91,7 +91,7 @@ impl TerminalExecution<'_> {
                 || source.structural_type != root_type
                 || !matches!(
                     source.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
                 || !source.claims.is_empty()
                 || !source.qualifications.is_empty()
@@ -103,9 +103,7 @@ impl TerminalExecution<'_> {
         };
         if !matches!(
             source_access,
-            StructuralAccess::Owned
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::SharedBorrow
+            StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
         ) || (parameter.access == StructuralAccess::MutableBorrow
             && source_access == StructuralAccess::SharedBorrow)
             || self

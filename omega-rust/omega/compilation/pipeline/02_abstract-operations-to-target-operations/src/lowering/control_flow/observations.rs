@@ -214,8 +214,7 @@ pub(super) fn lower(
             result,
             ..
         }
-        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
-            result, ..)
+        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation, result, ..)
         | AbstractOperation::IntegerBitwiseNot {
             psi_operation,
             result,
@@ -360,7 +359,7 @@ pub(super) fn lower(
                 removed_scalar_expression(&mut values, function.machine, result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
         }
-        abstract_operations::byte_read_predicate_equal_pattern!(psi_operation,result, ..) => {
+        abstract_operations::byte_read_predicate_equal_pattern!(psi_operation, result, ..) => {
             let expression = values
                 .remove(&result.value)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
@@ -433,10 +432,13 @@ pub(super) fn lower(
                 }),
             )
         }
-        abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
+        abstract_operations::integer_equal_less_pair_pattern!(
+            psi_operation,
             result,
             left,
-            right, ..)
+            right,
+            ..
+        )
         | AbstractOperation::IntegerLessOrEqual {
             psi_operation,
             result,

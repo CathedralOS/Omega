@@ -35,10 +35,7 @@ pub(crate) struct PlacedViewOccurrence {
 }
 
 const fn exclusive(access: StructuralAccess) -> bool {
-    matches!(
-        access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    )
+    matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
 }
 
 fn overlaps(left: &StructuralRuntimePlace, right: &StructuralRuntimePlace) -> bool {

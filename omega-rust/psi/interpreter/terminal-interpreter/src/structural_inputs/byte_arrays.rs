@@ -103,12 +103,10 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
             if !matches!(
                 parameter.access,
-                StructuralAccess::Owned
-                    | StructuralAccess::MutableBorrow
-                    | StructuralAccess::SharedBorrow
+                StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
             ) || !matches!(
                 parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
             ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || self
@@ -155,7 +153,7 @@ impl TerminalExecution<'_> {
                 )
                 && matches!(
                     parameter.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+                    terminal_psi::reading_borrow_pair_pattern!()
                 )
             {
                 let binding = if parameter.access == StructuralAccess::MutableBorrow {
@@ -242,10 +240,7 @@ impl TerminalExecution<'_> {
         collection: &terminal_semantics::CollectionBacking,
         identity_cursor: &mut Option<u64>,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
-        if !matches!(
-            source.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ) {
+        if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!()) {
             return Err(malformed());
         }
         if collection.storage == terminal_semantics::CollectionStorage::Borrowed {
@@ -429,7 +424,7 @@ impl TerminalExecution<'_> {
     {
         if !matches!(
             parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         ) || !self
             .program
             .structural_types()
@@ -536,7 +531,7 @@ impl TerminalExecution<'_> {
                     || result.structural_type != structural_type
                     || !matches!(
                         result.multiplicity,
-                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
                     )
                     || !result.claims.is_empty()
                     || !result.qualifications.is_empty()

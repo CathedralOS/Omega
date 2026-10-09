@@ -230,8 +230,7 @@ pub(crate) fn admit_resolved(
                 parameters.get(index as usize).is_some_and(|parameter| {
                     matches!(
                         parameter.access,
-                        CheckedStructuralAccess::SharedBorrow
-                            | CheckedStructuralAccess::MutableBorrow
+                        checked_trees::checked_borrowed_access_pair_pattern!()
                     )
                 })
             }
@@ -766,7 +765,7 @@ pub(in crate::execution) fn view_kind(
     };
     if !matches!(
         structural_access_for_type_reference(program, reference),
-        Some(CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow)
+        Some(checked_trees::checked_borrowed_access_pair_pattern!())
     ) {
         return None;
     }
@@ -808,7 +807,7 @@ fn borrowed_view_access(
     let access = structural_access_for_type_reference(program, target)?;
     if !matches!(
         access,
-        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        checked_trees::checked_borrowed_access_pair_pattern!()
     ) {
         return None;
     }

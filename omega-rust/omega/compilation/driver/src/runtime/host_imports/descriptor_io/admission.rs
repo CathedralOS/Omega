@@ -136,9 +136,7 @@ pub(super) fn admit(
     let access_supported = match operation {
         DescriptorOperation::Read => formal.access == StructuralAccess::MutableBorrow,
         DescriptorOperation::Write => matches!(
-            formal.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ),
+            formal.access,terminal_psi::reading_borrow_pair_pattern!()),
     };
     let (scalar_parameters, parameter_order, native_parameters) = match &buffer {
         DescriptorBuffer::Scalar(_) | DescriptorBuffer::Aggregate(_) => (

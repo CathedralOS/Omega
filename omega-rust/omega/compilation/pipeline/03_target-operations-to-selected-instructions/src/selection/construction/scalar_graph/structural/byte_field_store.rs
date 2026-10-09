@@ -99,7 +99,7 @@ pub(super) fn replace(
         if parameter.access != destination.access
             || !matches!(
                 destination.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                terminal_psi::exclusive_borrow_pair_pattern!()
             )
             || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || (field.is_some() && !parameter.qualifications.is_empty())
@@ -303,7 +303,7 @@ pub(super) fn replace_byte(
         || parameter.access != destination.access
         || !matches!(
             destination.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            terminal_psi::exclusive_borrow_pair_pattern!()
         )
         || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !parameter.qualifications.is_empty()

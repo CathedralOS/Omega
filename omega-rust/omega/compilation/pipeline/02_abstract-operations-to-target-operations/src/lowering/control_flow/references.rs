@@ -936,7 +936,7 @@ fn formal_origin(
     if source.path.is_empty()
         && matches!(
             parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         )
     {
         Some(ReferenceRoot::Place(source.place))
@@ -950,14 +950,14 @@ fn formal_origin(
     } else if source.access == StructuralAccess::SharedBorrow
         && matches!(
             parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         )
         || source.access == StructuralAccess::MutableBorrow
             && parameter.access == StructuralAccess::MutableBorrow
         || source.access == StructuralAccess::WriteOnlyBorrow
             && matches!(
                 parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                terminal_psi::exclusive_borrow_pair_pattern!()
             )
     {
         if parameter.multiplicity == StructuralMultiplicity::Linear

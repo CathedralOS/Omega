@@ -39,7 +39,7 @@ impl TerminalExecution<'_> {
         if self.structural_values.contains_key(&result.place)
             || !matches!(
                 result.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
             )
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
@@ -75,7 +75,7 @@ impl TerminalExecution<'_> {
             || !result.claims.is_empty()
             || !matches!(
                 result.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
             )
         {
             return Err(malformed());
@@ -393,7 +393,7 @@ impl TerminalExecution<'_> {
         let result = operation.result.structural().ok_or_else(malformed)?;
         if !matches!(
             result.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         ) || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
@@ -575,7 +575,7 @@ impl TerminalExecution<'_> {
         );
         if !matches!(
             result.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         ) || (!result.qualifications.is_empty() && !descriptor_home)
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
@@ -732,8 +732,7 @@ impl TerminalExecution<'_> {
         };
         let types = self.program.structural_types();
         let declaration = types.get(&declared_parent).ok_or_else(malformed)?;
-        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
-        else {
+        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape else {
             return Err(malformed());
         };
         let mut matching = fields.iter().filter(|candidate| candidate.id == field);

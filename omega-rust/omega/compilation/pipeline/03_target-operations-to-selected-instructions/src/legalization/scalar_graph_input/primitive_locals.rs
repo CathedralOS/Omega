@@ -57,7 +57,7 @@ fn valid_owned_result(
 ) -> bool {
     matches!(
         result.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
@@ -154,7 +154,7 @@ pub(super) fn validate(
                         read_parameter(function, *source).ok_or(LegalizationError::custody())?;
                     if !(matches!(
                         parameter.access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        terminal_psi::reading_borrow_pair_pattern!()
                     ) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
                         || parameter.multiplicity == StructuralMultiplicity::Linear
                         || (path.is_empty()

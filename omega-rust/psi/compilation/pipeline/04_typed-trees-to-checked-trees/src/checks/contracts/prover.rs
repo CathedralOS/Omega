@@ -374,8 +374,7 @@ pub(super) fn indexed_membership(
     program: &dyn ::validation::CheckingInput,
     payload: FactPayload,
 ) -> bool {
-    let (facts::domain_membership_symbol_pattern!(domain_symbol)) = payload
-    else {
+    let (facts::domain_membership_symbol_pattern!(domain_symbol)) = payload else {
         return false;
     };
     program.domain_definitions().iter().any(|domain| {

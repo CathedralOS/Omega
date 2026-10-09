@@ -55,12 +55,10 @@ pub(super) fn validate_borrowed_argument(
     {
         return None;
     }
-    let parameters = crate::structural_inputs::structural_unit_input::parameter_views(
-        signature,
-    );
+    let parameters = crate::structural_inputs::structural_unit_input::parameter_views(signature);
     let exclusive = matches!(
         semantic.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        terminal_psi::exclusive_borrow_pair_pattern!()
     );
     let local = crate::selection::primitive_local_input::local(source, semantic.place);
     let aggregate_home = crate::selection::aggregate_result_input::home(source, semantic.place);
@@ -77,7 +75,7 @@ pub(super) fn validate_borrowed_argument(
                 .filter(|parameter| {
                     matches!(
                         parameter.semantic.access,
-                        StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                        terminal_psi::mutating_access_pair_pattern!()
                     ) || parameter.semantic.access == semantic.access
                 })
                 .map(|parameter| parameter.semantic.structural_type)
@@ -127,7 +125,7 @@ pub(super) fn validate_borrowed_argument(
             semantic.path.is_empty()
                 && matches!(
                     semantic.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    terminal_psi::reading_borrow_pair_pattern!()
                 )
                 && target.root_structural_type == result.structural_type
                 && target.structural_type == result.structural_type
@@ -153,7 +151,7 @@ pub(super) fn validate_borrowed_argument(
         .filter(|(_, result)| {
             matches!(
                 semantic.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                terminal_psi::reading_borrow_pair_pattern!()
             ) && result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
         })
         .map(|(_, result)| terminal_psi::StructuralParameterDeclaration {

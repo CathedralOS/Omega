@@ -602,7 +602,7 @@ pub(in crate::execution) fn borrowed_view_argument(
     let target_access = structural_access_for_type_reference(program, target.type_reference)?;
     if !matches!(
         target_access,
-        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        checked_trees::checked_borrowed_access_pair_pattern!()
     ) {
         return None;
     }
@@ -664,7 +664,7 @@ pub(in crate::execution) fn borrowed_view_argument(
     if !is_view(source_type)
         || !matches!(
             source_access,
-            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+            checked_trees::checked_borrowed_access_pair_pattern!()
         )
         || (target_access == CheckedStructuralAccess::MutableBorrow
             && source_access != target_access)

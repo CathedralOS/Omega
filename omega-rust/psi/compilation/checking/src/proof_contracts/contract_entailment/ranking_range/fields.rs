@@ -979,12 +979,7 @@ pub(super) fn integer_leaf_coordinate<'program>(
         |program, field| {
             matches!(
                 exact_integer_parameter(program, field.type_reference),
-                Some(
-                    PrimitiveType::U8
-                        | PrimitiveType::U16
-                        | PrimitiveType::U32
-                        | PrimitiveType::U64
-                )
+                Some(typed_trees::unsigned_integer_primitive_pattern!())
             )
         },
         &mut paths,

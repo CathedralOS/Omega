@@ -99,10 +99,7 @@ impl StructuralParameterDeclaration {
         self.position == 0
             && self.structural_type == cleanup.structural_type
             && cleanup.cleanup_receiver == Some(self.place)
-            && matches!(
-                self.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            )
+            && matches!(self.access, crate::exclusive_borrow_pair_pattern!())
     }
 
     /// Whether the parameter carries an ordinary unqualified root: an
@@ -113,7 +110,7 @@ impl StructuralParameterDeclaration {
     pub fn is_unqualified_root(&self) -> bool {
         matches!(
             self.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            crate::nonlinear_multiplicity_pair_pattern!()
         ) && self.qualifications.is_empty()
             && self.projected_qualifications.is_empty()
     }

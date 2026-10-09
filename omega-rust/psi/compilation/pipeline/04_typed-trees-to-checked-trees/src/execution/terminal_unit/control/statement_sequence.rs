@@ -238,7 +238,7 @@ pub(in crate::execution::terminal_unit) fn build(
     let bounded_owner = |parameter: &CheckedUnitStructuralParameterPlan| {
         matches!(
             parameter.access,
-            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+            checked_trees::checked_borrowed_access_pair_pattern!()
         ) && parameter.projected_qualifications.is_empty()
             && parameter.qualifications.iter().all(|qualification| {
                 shapes.domains.iter().any(|domain| {

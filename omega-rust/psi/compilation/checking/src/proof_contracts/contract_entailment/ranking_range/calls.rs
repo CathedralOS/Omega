@@ -1550,7 +1550,7 @@ fn entry_scalar_parameter(
         let reference = fields::projected_type(program, state, subject)?;
         return matches!(
             exact_integer_parameter(program, reference),
-            Some(PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64)
+            Some(typed_trees::unsigned_integer_primitive_pattern!())
         )
         .then_some(());
     }
@@ -1562,7 +1562,7 @@ fn entry_scalar_parameter(
     if parameter.is_const
         || !matches!(
             exact_integer_parameter(program, parameter.type_reference),
-            Some(PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64)
+            Some(typed_trees::unsigned_integer_primitive_pattern!())
         )
     {
         return None;

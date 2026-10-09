@@ -72,7 +72,8 @@ pub(crate) fn proves_call(
     expression: ExpressionHandle,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((machine, state)) = program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
+    let Some((machine, state)) =
+        program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
     else {
         return false;
     };

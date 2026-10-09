@@ -239,7 +239,7 @@ pub(super) fn lower(
         (parameter.access != StructuralAccess::Owned
             && matches!(
                 parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
             ))
             || owned_arguments::is_owned_parameter(parameter, structural_types)
     }) {
@@ -398,15 +398,16 @@ pub(super) fn lower(
             AbstractOperation::ReturnStructural { .. }
             | AbstractOperation::ExternalCompletion { .. }
             | AbstractOperation::Crash { .. } => Vec::new(),
-            abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) if cleanup_actions.iter().all(|action| {
-                matches!(
-                    action,
-                    TerminalAffineCleanupAction::DiscardRoot(_)
-                        | TerminalAffineCleanupAction::RetireHome(_)
-                        | TerminalAffineCleanupAction::DiscardResidual(_)
-                        | TerminalAffineCleanupAction::InvokeNominal(_)
-                )
-            }) =>
+            abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..)
+                if cleanup_actions.iter().all(|action| {
+                    matches!(
+                        action,
+                        TerminalAffineCleanupAction::DiscardRoot(_)
+                            | TerminalAffineCleanupAction::RetireHome(_)
+                            | TerminalAffineCleanupAction::DiscardResidual(_)
+                            | TerminalAffineCleanupAction::InvokeNominal(_)
+                    )
+                }) =>
             {
                 Vec::new()
             }

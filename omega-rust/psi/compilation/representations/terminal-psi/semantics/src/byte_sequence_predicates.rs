@@ -392,7 +392,7 @@ pub fn byte_copied_field_predicates_at_transfer(
     let parameter = machine.structural_parameter(*backing)?;
     if !matches!(
         parameter.access,
-        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
     ) {
         return None;
     }
@@ -498,9 +498,7 @@ fn concatenation_operand_predicates(
             if source.access != StructuralAccess::SharedBorrow
                 || !matches!(
                     access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
+                    StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
                 )
             {
                 return None;
@@ -582,7 +580,7 @@ pub fn byte_sequence_source_predicates(
                 if !owned_buffer
                     && !matches!(
                         parameter.access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        terminal_psi::reading_borrow_pair_pattern!()
                     )
                 {
                     return None;

@@ -13,10 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
 
 fn exclusive_access(access: StructuralAccess) -> bool {
-    matches!(
-        access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    )
+    matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
 }
 
 /// Exact exclusive spellings live at each block entrance. Ownership pins and

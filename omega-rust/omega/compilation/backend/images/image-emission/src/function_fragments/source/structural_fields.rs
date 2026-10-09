@@ -1503,7 +1503,7 @@ fn read_access(
             // view itself was lent: legalization spells the argument
             // SharedBorrow for either multiplicity.
             let view_access = match result.multiplicity {
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine => {
+                terminal_psi::nonlinear_multiplicity_pair_pattern!() => {
                     StructuralAccess::SharedBorrow
                 }
                 _ => return None,

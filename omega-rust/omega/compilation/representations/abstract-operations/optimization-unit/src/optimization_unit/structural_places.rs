@@ -154,9 +154,12 @@ pub(crate) fn establishment_fields(
     function
         .block_nodes()
         .find_map(|node| match &node.operation {
-            abstract_operations::establish_record_or_case_pattern!(psi_operation,
+            abstract_operations::establish_record_or_case_pattern!(
+                psi_operation,
                 result,
-                fields, ..) if *psi_operation == producer && result.place == place => Some(fields.as_slice()),
+                fields,
+                ..
+            ) if *psi_operation == producer && result.place == place => Some(fields.as_slice()),
             _ => None,
         })
 }
@@ -230,9 +233,7 @@ pub(crate) fn descended_field_matching(
     matching: impl Fn(&StructuralFieldDeclaration) -> bool,
 ) -> Option<(StructuralFieldId, StructuralTypeId)> {
     let fields = match shape(unit, current)? {
-        terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-            fields
-        }
+        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
         _ => return None,
     };
     let field = fields.iter().find(|field| matching(field))?;
@@ -1404,7 +1405,7 @@ pub fn argument_rewrites_place(argument: &StructuralArgument, place: PlaceId) ->
         && (!argument.path.is_empty()
             || matches!(
                 argument.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                terminal_psi::exclusive_borrow_pair_pattern!()
             ))
 }
 /// The establishment basis: the chain of establishing producers along `path`

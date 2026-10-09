@@ -125,9 +125,7 @@ pub(super) fn check_flow_call_contracts(
         program
             .machines()
             .iter()
-            .find(|machine| {
-                program.machine_or_state_symbol(machine, symbol)
-            })
+            .find(|machine| program.machine_or_state_symbol(machine, symbol))
             .is_some_and(|machine| proof_only.is_proof_machine(program, machine))
     };
 

@@ -40,7 +40,7 @@ pub(super) fn emit(
         };
         if !matches!(
             semantic.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            terminal_psi::exclusive_borrow_pair_pattern!()
         ) || target.access != semantic.access
             || target.place != semantic.place
             || target.path != semantic.path

@@ -475,10 +475,7 @@ pub(in crate::legalization) fn structural_argument_at(
             let admitted_root = if semantic.path.is_empty() {
                 root_access == StructuralAccess::Owned
             } else {
-                matches!(
-                    root_access,
-                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
-                )
+                matches!(root_access, terminal_psi::mutating_access_pair_pattern!())
             };
             if !admitted_root {
                 return Err(LegalizationError::custody());

@@ -117,7 +117,7 @@ impl TerminalExecution<'_> {
             && result.claims.is_empty()
             && matches!(
                 result.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
             )
             && self
                 .program

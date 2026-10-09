@@ -362,81 +362,82 @@ pub(super) fn lower(
         } => {
             let (psi_operation, result, place, field) = (*psi_operation, *result, *source, *field);
             let mut through_reference = false;
-            let (structural_type, access) = if let Some((_, structural_type)) =
-                live.views.get(&place)
-            {
-                // A field read through a view place observes one element:
-                // the descriptor root is the carrier, the index step stays in
-                // the path, and either view family lends a shared read. An
-                // affine view is also a structural home, so views win first.
-                (*structural_type, StructuralAccess::SharedBorrow)
-            } else if let Some(custody) = live.references.get(&(place, Vec::new())).and_then(
-                |custody| match types
-                    .get(&custody.contract.structural_type())
-                    .map(|declaration| &declaration.shape)
+            let (structural_type, access) =
+                if let Some((_, structural_type)) = live.views.get(&place) {
+                    // A field read through a view place observes one element:
+                    // the descriptor root is the carrier, the index step stays in
+                    // the path, and either view family lends a shared read. An
+                    // affine view is also a structural home, so views win first.
+                    (*structural_type, StructuralAccess::SharedBorrow)
+                } else if let Some(custody) =
+                    live.references
+                        .get(&(place, Vec::new()))
+                        .and_then(|custody| {
+                            match types
+                                .get(&custody.contract.structural_type())
+                                .map(|declaration| &declaration.shape)
+                            {
+                                Some(StructuralTypeShape::Reference {
+                                    access: terminal_psi::reading_borrow_pair_pattern!(),
+                                    ..
+                                }) => Some(custody),
+                                _ => None,
+                            }
+                        })
                 {
-                    Some(StructuralTypeShape::Reference {
-                        access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
-                        ..
-                    }) => Some(custody),
-                    _ => None,
-                },
-            ) {
-                // The home stores the selected address. Origins constrain
-                // custody; choosing a static origin would lose a callee's
-                // runtime selection among several admissible referents.
-                let (referent, access) = match types
-                    .get(&custody.contract.structural_type())
-                    .map(|declaration| &declaration.shape)
-                {
-                    Some(StructuralTypeShape::Reference { referent, access }) => {
-                        (*referent, *access)
+                    // The home stores the selected address. Origins constrain
+                    // custody; choosing a static origin would lose a callee's
+                    // runtime selection among several admissible referents.
+                    let (referent, access) = match types
+                        .get(&custody.contract.structural_type())
+                        .map(|declaration| &declaration.shape)
+                    {
+                        Some(StructuralTypeShape::Reference { referent, access }) => {
+                            (*referent, *access)
+                        }
+                        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
+                    };
+                    let home = live
+                        .structural_homes
+                        .get(&place)
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                    if !custody.contract.matches_home(home)
+                        || custody.referent != referent
+                        || home.has_claims()
+                        || home.multiplicity() == StructuralMultiplicity::Linear
+                        || !home.qualifications().is_empty()
+                        || !home.projected_qualifications().is_empty()
+                        || super::references::is_suspended_root(live, place)
+                        || live
+                            .references
+                            .values()
+                            .any(|child| child.parents.contains(&custody.identity))
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
-                    _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
+                    through_reference = true;
+                    (referent, access)
+                } else if let Some(home) = live.structural_homes.get(&place) {
+                    (home.structural_type(), StructuralAccess::Owned)
+                } else {
+                    let source = function
+                        .structural_parameters
+                        .iter()
+                        .chain(
+                            function
+                                .block_structural_parameters()
+                                .filter(|parameter| live.address_joins.contains(&parameter.place)),
+                        )
+                        .find(|parameter| parameter.place == place)
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                    if !matches!(
+                        source.access,
+                        StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
+                    ) {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    (source.structural_type, source.access)
                 };
-                let home = live
-                    .structural_homes
-                    .get(&place)
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if !custody.contract.matches_home(home)
-                    || custody.referent != referent
-                    || home.has_claims()
-                    || home.multiplicity() == StructuralMultiplicity::Linear
-                    || !home.qualifications().is_empty()
-                    || !home.projected_qualifications().is_empty()
-                    || super::references::is_suspended_root(live, place)
-                    || live
-                        .references
-                        .values()
-                        .any(|child| child.parents.contains(&custody.identity))
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
-                through_reference = true;
-                (referent, access)
-            } else if let Some(home) = live.structural_homes.get(&place) {
-                (home.structural_type(), StructuralAccess::Owned)
-            } else {
-                let source = function
-                    .structural_parameters
-                    .iter()
-                    .chain(
-                        function
-                            .block_structural_parameters()
-                            .filter(|parameter| live.address_joins.contains(&parameter.place)),
-                    )
-                    .find(|parameter| parameter.place == place)
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if !matches!(
-                    source.access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
-                ) {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
-                (source.structural_type, source.access)
-            };
             let access = terminal_semantics::observed_field_backing_access(
                 types.values().copied(),
                 structural_type,
@@ -452,10 +453,7 @@ pub(super) fn lower(
             )
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if matches!(declaration.field_type, StructuralFieldType::Atomic(_))
-                && !matches!(
-                    access,
-                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
-                )
+                && !matches!(access, terminal_psi::mutating_access_pair_pattern!())
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -551,10 +549,7 @@ pub(super) fn lower(
             // A mixed shape's common field needs no `Case` step: it sits on the
             // carrier beside the tag whatever case is active.
             let fields = match (&declaration.shape, case) {
-                (
-                    terminal_psi::record_or_mixed_shape_pattern!(fields),
-                    None,
-                ) => fields,
+                (terminal_psi::record_or_mixed_shape_pattern!(fields), None) => fields,
                 (
                     StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
                     Some(case),
@@ -681,7 +676,7 @@ pub(super) fn lower(
                             && parameter.projected_qualifications.is_empty()
                             && (matches!(
                                 parameter.access,
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                                terminal_psi::reading_borrow_pair_pattern!()
                             ) || (parameter.access == StructuralAccess::Owned
                                 && !path.is_empty()))
                     })

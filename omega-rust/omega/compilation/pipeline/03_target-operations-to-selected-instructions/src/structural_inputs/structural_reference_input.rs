@@ -492,7 +492,7 @@ pub(crate) fn parameter_shape<'declaration>(
             StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine,
+            terminal_psi::nonlinear_multiplicity_pair_pattern!(),
         ) if parameter.multiplicity == StructuralMultiplicity::Unrestricted
             || declarations.iter().any(|declaration| {
                 declaration.id == parameter.structural_type
@@ -834,15 +834,13 @@ pub(crate) fn collection_view_region_geometry(
             (source.access, argument.access),
             (
                 StructuralAccess::MutableBorrow,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+                terminal_psi::reading_borrow_pair_pattern!(),
             ) | (
                 StructuralAccess::SharedBorrow,
                 StructuralAccess::SharedBorrow
             ) | (
                 StructuralAccess::Owned,
-                StructuralAccess::SharedBorrow
-                    | StructuralAccess::MutableBorrow
-                    | StructuralAccess::Owned,
+                StructuralAccess::SharedBorrow | terminal_psi::mutating_access_pair_pattern!(),
             )
         )
         || !(source.multiplicity == StructuralMultiplicity::Unrestricted
@@ -850,7 +848,7 @@ pub(crate) fn collection_view_region_geometry(
                 && source.access == StructuralAccess::Owned
                 && matches!(
                     argument.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    terminal_psi::reading_borrow_pair_pattern!()
                 )))
         || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
@@ -1067,10 +1065,7 @@ pub(crate) fn stored_view_field_argument(
     };
     if source.place != argument.place
         || argument.access != StructuralAccess::SharedBorrow
-        || !matches!(
-            source.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-        )
+        || !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
         || !declarations.iter().any(|declaration| {
             declaration.id == view_type && declaration.shape.is_shared_readable_byte_view()
         })
@@ -1455,9 +1450,7 @@ fn scalar_field_declaration<'declarations>(
     let (root, path) = referent_projection(root, path, declarations)?;
     let (record, _, _) = runtime_projection(root, path, declarations)?;
     let fields = match &find_structural_type(declarations, record)?.shape {
-        terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-            fields
-        }
+        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
         _ => return None,
     };
     live_field_by_id(fields, field)

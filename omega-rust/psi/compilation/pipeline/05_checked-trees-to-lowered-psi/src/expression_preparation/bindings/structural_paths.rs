@@ -240,9 +240,7 @@ pub(crate) fn prepare_argument_path(
                 let fields = match selected_case.take() {
                     Some(case) => &case.fields,
                     None => match shape {
-                        Some(
-                            terminal_psi::record_or_mixed_shape_pattern!(fields),
-                        ) => fields,
+                        Some(terminal_psi::record_or_mixed_shape_pattern!(fields)) => fields,
                         _ => {
                             return Err(LoweringError::Unsupported(
                                 "argument field requires its source record or selected case",

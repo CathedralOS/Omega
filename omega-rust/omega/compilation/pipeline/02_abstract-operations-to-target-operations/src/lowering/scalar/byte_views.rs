@@ -74,7 +74,7 @@ pub(in crate::lowering) fn is_byte_parameter(
 ) -> bool {
     matches!(
         parameter.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        terminal_psi::reading_borrow_pair_pattern!()
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.projected_qualifications.is_empty()
         && structural_types
@@ -551,7 +551,7 @@ pub(in crate::lowering) fn resolve_byte_view(
         else { return Err(invalid()); };
     if !matches!(
         result.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
@@ -602,9 +602,7 @@ pub(in crate::lowering) fn resolve_byte_view(
         StructuralMultiplicity::Unrestricted
             if matches!(
                 source_access,
-                StructuralAccess::SharedBorrow
-                    | StructuralAccess::MutableBorrow
-                    | StructuralAccess::Owned
+                StructuralAccess::SharedBorrow | terminal_psi::mutating_access_pair_pattern!()
             ) =>
         {
             StructuralAccess::SharedBorrow

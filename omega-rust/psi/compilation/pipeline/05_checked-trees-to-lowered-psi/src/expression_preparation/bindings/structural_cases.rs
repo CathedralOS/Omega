@@ -78,7 +78,7 @@ pub(crate) fn resolve_at(
         if !matches!(
             reference.shape,
             StructuralTypeShape::Reference {
-                access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+                access: terminal_psi::reading_borrow_pair_pattern!(),
                 ..
             }
         ) {

@@ -375,7 +375,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
         .find(|parameter| parameter.place == *backing)?;
     if !matches!(
         parameter.access,
-        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
     ) {
         return None;
     }
@@ -547,7 +547,7 @@ where
             let parameter = function.arrival_parameter(source)?;
             if !matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                terminal_psi::reading_borrow_pair_pattern!()
             ) && !abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
                 parameter,
                 |identity| {

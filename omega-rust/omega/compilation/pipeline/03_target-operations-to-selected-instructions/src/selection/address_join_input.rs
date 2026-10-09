@@ -122,8 +122,8 @@ pub(crate) fn projection(
                 &argument.path[segment_start..position],
                 &signature.structural_types,
             )?;
-        let terminal_psi::StructuralTypeShape::Reference { referent, .. } = signature.structural_type(reference)?
-            .shape
+        let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
+            signature.structural_type(reference)?.shape
         else {
             return None;
         };
@@ -273,10 +273,7 @@ pub(super) fn root_type(
     place: PlaceId,
     access: StructuralAccess,
 ) -> Option<StructuralTypeId> {
-    if matches!(
-        access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) {
+    if matches!(access, terminal_psi::exclusive_borrow_pair_pattern!()) {
         if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {
             return (matches!(
                 result.multiplicity,
@@ -367,12 +364,9 @@ pub(crate) fn loan_declaration(
         .map(|parameter| &parameter.semantic)
         .find(|parameter| parameter.place == place)
         .or_else(|| {
-            (matches!(
-                access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ))
-            .then(|| join(source, place))
-            .flatten()
-            .map(|(_, declared)| declared)
+            (matches!(access, terminal_psi::exclusive_borrow_pair_pattern!()))
+                .then(|| join(source, place))
+                .flatten()
+                .map(|(_, declared)| declared)
         })
 }

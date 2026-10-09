@@ -311,20 +311,14 @@ fn external_backing(
         if matches!(
             declaration.shape,
             StructuralTypeShape::Reference {
-                access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+                access: terminal_psi::reading_borrow_pair_pattern!(),
                 ..
             } | StructuralTypeShape::ElementView { .. }
                 | StructuralTypeShape::ByteSequence(
                     ByteSequenceCarrier::BorrowedView {
-                        access: None
-                            | Some(
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            )
+                        access: None | Some(terminal_psi::reading_borrow_pair_pattern!())
                     } | ByteSequenceCarrier::BoundedView {
-                        access: None
-                            | Some(
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            ),
+                        access: None | Some(terminal_psi::reading_borrow_pair_pattern!()),
                         ..
                     }
                 )
@@ -334,8 +328,7 @@ fn external_backing(
         let Some(StructuralPathSegment::Field(identity)) = path.get(length) else {
             return false;
         };
-        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
-        else {
+        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape else {
             return false;
         };
         terminal_psi::live_field_by_identity(fields, identity)
@@ -344,15 +337,9 @@ fn external_backing(
                 matches!(
                     carrier,
                     ByteSequenceCarrier::BorrowedView {
-                        access: None
-                            | Some(
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            )
+                        access: None | Some(terminal_psi::reading_borrow_pair_pattern!())
                     } | ByteSequenceCarrier::BoundedView {
-                        access: None
-                            | Some(
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            ),
+                        access: None | Some(terminal_psi::reading_borrow_pair_pattern!()),
                         ..
                     }
                 )

@@ -18,7 +18,7 @@ use crate::unit::{
     ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported,
 };
 use checked_trees::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
-use terminal_psi::{AtomicAccessEvent, AtomicReadModifyWrite, StructuralAccess};
+use terminal_psi::{AtomicAccessEvent, AtomicReadModifyWrite};
 
 impl OperationFrame<'_, '_> {
     pub(super) fn atomic_access(
@@ -43,7 +43,7 @@ impl OperationFrame<'_, '_> {
         // record, grants mutation. Ordinary fields retain their own rules.
         let authorized = matches!(
             parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+            terminal_psi::reading_borrow_pair_pattern!()
         );
         if !authorized || !parameter.qualifications.is_empty() {
             return unsupported("atomic event parameter lost its access authority");

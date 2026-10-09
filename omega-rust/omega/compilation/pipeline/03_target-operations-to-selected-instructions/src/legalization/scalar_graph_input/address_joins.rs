@@ -349,16 +349,15 @@ fn root_type(
             && loan_access_permitted(joined.access, access))
         .then_some(joined.structural_type);
     }
-    if matches!(
-        access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) && !function.structural_places.iter().any(|declaration| {
-        declaration.id == place
-            && matches!(
-                declaration.kind,
-                StructuralPlaceKind::OperationResult { .. }
-            )
-    }) {
+    if matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
+        && !function.structural_places.iter().any(|declaration| {
+            declaration.id == place
+                && matches!(
+                    declaration.kind,
+                    StructuralPlaceKind::OperationResult { .. }
+                )
+        })
+    {
         return None;
     }
     let (operation, result) = if let Some((operation, result, _)) =

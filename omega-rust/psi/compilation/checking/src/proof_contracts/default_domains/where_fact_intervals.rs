@@ -432,7 +432,7 @@ fn field_is_unsigned(
         .is_some_and(|primitive| {
             matches!(
                 primitive,
-                PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+                typed_trees::unsigned_integer_primitive_pattern!()
             )
         })
 }

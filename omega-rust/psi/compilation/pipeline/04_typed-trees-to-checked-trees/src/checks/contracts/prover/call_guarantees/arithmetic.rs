@@ -264,7 +264,7 @@ pub(in crate::checks) fn atom(
         identity: format!("\0call-guarantee:{primitive:?}:{place:?}"),
         unsigned: matches!(
             primitive,
-            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+            typed_trees::unsigned_integer_primitive_pattern!()
         ),
     }
 }

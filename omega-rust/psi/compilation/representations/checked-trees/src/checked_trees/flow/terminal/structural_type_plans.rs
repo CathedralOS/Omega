@@ -328,6 +328,14 @@ pub enum CheckedStructuralAccess {
     WriteOnlyBorrow,
 }
 
+/// Shared or mutable borrow — accesses that read through a borrow.
+#[macro_export]
+macro_rules! checked_borrowed_access_pair_pattern {
+    () => {
+        $crate::checked_trees::CheckedStructuralAccess::SharedBorrow
+            | $crate::checked_trees::CheckedStructuralAccess::MutableBorrow
+    };
+}
 impl CheckedStructuralAccess {
     /// The loan kind a borrowed access grants; `None` for owned carriers, which
     /// move rather than loan.

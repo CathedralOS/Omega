@@ -163,7 +163,7 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
         && parameter.access == StructuralAccess::MutableBorrow
         && matches!(
             parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         && has_empty_structural_custody(machine, place)
     {
@@ -227,16 +227,14 @@ fn declared_window_field_type(
         let StructuralTypeShape::Reference {
             referent,
             access: StructuralAccess::MutableBorrow,
-        } = terminal_psi::find_structural_type(structural_types, root.structural_type())?
-            .shape
+        } = terminal_psi::find_structural_type(structural_types, root.structural_type())?.shape
         else {
             return None;
         };
         if root.multiplicity() != StructuralMultiplicity::Affine
             || matches!(root, StructuralWindowRoot::OwnedResult { result, .. } if !result.qualification_establishments.is_empty())
             || !matches!(
-                terminal_psi::find_structural_type(structural_types, referent)?
-                    .shape,
+                terminal_psi::find_structural_type(structural_types, referent)?.shape,
                 StructuralTypeShape::Record { .. }
             )
         {

@@ -528,17 +528,15 @@ fn scan_construction_field_domains(
                         program,
                         state_flow.machine_symbol,
                         state_flow.state_symbol,
-                    )
-                        && let Some(field_type) = construction_field_type_by_symbol(
-                            program,
-                            literal.type_symbol,
-                            case_name.as_ref().map(|name| name.as_str()),
-                            field.name.as_str(),
+                    ) && let Some(field_type) = construction_field_type_by_symbol(
+                        program,
+                        literal.type_symbol,
+                        case_name.as_ref().map(|name| name.as_str()),
+                        field.name.as_str(),
+                    ) && let Some(capacity) =
+                        validation::field_domains::type_reference_fixed_array_capacity(
+                            program, field_type,
                         )
-                        && let Some(capacity) =
-                            validation::field_domains::type_reference_fixed_array_capacity(
-                                program, field_type,
-                            )
                     {
                         let known_lengths =
                             known_byte_lengths_before(program, machine, state, statement_index);

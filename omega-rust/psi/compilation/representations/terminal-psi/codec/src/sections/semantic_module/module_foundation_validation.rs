@@ -788,7 +788,7 @@ fn is_claim_free_structural_call(
 ) -> bool {
     matches!(
         result.multiplicity,
-        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
     ) && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()

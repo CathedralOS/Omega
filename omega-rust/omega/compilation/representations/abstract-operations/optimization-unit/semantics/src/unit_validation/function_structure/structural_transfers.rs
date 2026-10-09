@@ -189,9 +189,7 @@ pub(super) fn validate(
                         &binding.argument.path,
                     ) && source.is_some_and(|(root_type, access, multiplicity)| {
                         (if matches!(
-                            parameter.access,
-                            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                        ) {
+                            parameter.access,terminal_psi::exclusive_borrow_pair_pattern!()) {
                             super::super::operation_contracts::structural_access_can_supply(
                                 access,
                                 parameter.access,
@@ -256,8 +254,7 @@ pub(super) fn validate(
                                 match parameter.access {
                                     StructuralAccess::Owned => source_type == parameter.structural_type
                                         && access == StructuralAccess::Owned
-                                        && multiplicity == parameter.multiplicity,
-                                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
+                                        && multiplicity == parameter.multiplicity,StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
                                         let presentation = terminal_semantics::borrowed_referent_presentation(
                                             types.values().copied(), source_type, parameter.structural_type);
                                         let lends_backing = matches!(presentation,

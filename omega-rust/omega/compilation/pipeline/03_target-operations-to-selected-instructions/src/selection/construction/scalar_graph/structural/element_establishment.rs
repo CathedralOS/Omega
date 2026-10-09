@@ -42,9 +42,7 @@ pub(super) fn establish(
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !matches!(
-            source.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
+            source.access,terminal_psi::reading_borrow_pair_pattern!())
         || builder
             .transport
             .pointers
@@ -126,7 +124,7 @@ pub(super) fn establish(
         .filter(|parameter| {
             matches!(
                 parameter.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                terminal_psi::reading_borrow_pair_pattern!()
             ) && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
