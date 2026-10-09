@@ -276,6 +276,15 @@ impl ReferenceAccess {
     pub const fn is_readable(self) -> bool {
         !matches!(self, Self::WriteOnly)
     }
+
+    /// Prefix spelling used when rendering a borrow of this access kind.
+    pub const fn borrow_prefix(self) -> &'static str {
+        match self {
+            Self::Mutable => "&mut ",
+            Self::WriteOnly => "&write ",
+            Self::Shared => "&",
+        }
+    }
 }
 
 /// One closed compiler-owned classification attached explicitly to a domain.
