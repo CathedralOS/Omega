@@ -1,115 +1,17 @@
-//! Canonical installation record wire format: the manifest metadata sealed
-//! over one emitted executable image. This root owns the format marker.
-//! `record_types.rs` holds the record carriers, `record_construction.rs`
-//! builds a record from an image, `record_validation.rs` validates a decoded
-//! record against the image, `record_shape` validates a decoded record's
-//! canonical shape, and `installation_errors.rs` names the errors. `codec/`
-//! owns the bytes: the envelope and one codec per record family.
-//! `installed_unit_scalar_transport` plus the structural children replay
-//! installed call custody. The record grants no executable authority.
+//! Canonical installation record: the manifest metadata sealed over one
+//! emitted executable image. `record_types.rs` holds the record carriers and
+//! `installation_errors.rs` names the errors. The record grants no executable
+//! authority.
 
-mod borrowed_structural;
-mod codec;
 pub(crate) mod graph_structural;
-mod incoming_structural;
 mod installation_errors;
-mod installed_unit_scalar_transport;
-mod record_construction;
 pub(crate) mod record_shape;
 mod record_types;
-mod record_validation;
-#[cfg(test)]
-mod resource_tests;
-mod semantic_code_attribution;
 
-pub(crate) use codec::envelope::{decode_installation_record, encode_installation_record};
 pub use installation_errors::InstallationError;
-
-pub(crate) use record_construction::{
-    InstallationStackError, derive_installation_stack_demand};
 
 pub(crate) use record_types::{
     ImageFingerprint, InitializedDataFingerprint, InstallationFingerprint, InstallationRecord,
     InstalledCompilerPrivateFunction, InstalledComponentProgress, InstalledForeignCallStack,
     InstalledFunction, InstalledImageSections, InstalledInternalUnitCall,
     InstalledInternalUnitScalarCall, InstalledStructuralReturn, SelectedProviderPlanReportIdentity};
-pub(crate) use record_validation::{validate_installation_record};
-
-use crate::object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
-use crate::object_artifact::replay::boundary::completion_receipts::{
-    CompletionCustodyError, validate_completion_custody};
-use crate::object_artifact::replay::boundary::result_placement::boundary_result_is_exact;
-use crate::object_artifact::replay::boundary::runtime_scalar_custody::hosted_write_byte_custody_is_exact;
-use crate::{
-    ObjectBoundarySettlement, ObjectCodeAttribution, ObjectPortEffect, can_emit_executable_image};
-use calling_conventions::{
-    CallSignature, CallingPolicy, ValueClass, ValueLocation, ValuePlacement, ValueShape,
-    evaluate_call_plan};
-use machine_code::SemanticCodeSite;
-use semantic_vocabulary::{MachineId, StructuralTypeId};
-use target::{Architecture, ObjectFormat};
-use target_operations::{BoundaryRealization, CallSiteOwner};
-use terminal_psi::{StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape};
-
-use installed_unit_scalar_transport::{
-    installed_function_scalar_transport_is_canonical, validate_installed_unit_scalar_calls,
-    validate_installed_unit_structural_scalar_field_stores,
-    validate_installed_unit_write_only_primitive_stores};
-
-use codec::structural::case::{decode_structural_cases, encode_structural_cases};
-use codec::structural::record::{decode_structural_fields, encode_structural_fields};
-
-use codec::structural::scalar::{
-    decode_identity, decode_multiplicity, encode_identity, multiplicity_tag};
-use codec::structural::types::{decode_structural_types, encode_structural_types};
-use codec::wire::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
-
-/// The current vocabulary includes owned incoming stack pointers and AArch64's
-/// dedicated indirect-result register. Earlier envelopes cannot carry those roles.
-/// Marker 110 scopes callback function identities to Terminal programs.
-/// Marker 107 retains the exact owned subtree path for nominal cleanup.
-/// Marker 106 encodes explicit structural parameters without a receiver flag.
-/// Marker 100 retains byte-field predicate sets and exact carrier access.
-/// Marker 101 retains 32-bit aggregate sizes and placement offsets.
-/// Marker 103 retains ordered origin alternatives per returned reference leaf.
-/// Marker 104 distinguishes atomic cells from ordinary scalar fields.
-/// Marker 102 distinguishes nonconstructible Fused service bindings from records.
-/// Marker 99 retains the by-value opaque boundary application's strong
-/// selected-application custody so install replay compares it with the bound
-/// artifact's coverage. Marker 98 carries reference-bearing structural
-/// metadata: referent path segments, reference structural type shapes, and
-/// result source rosters. Marker 97 seals complete placed-region inventory
-/// identities for the bound image; marker 96 records carry no complete-custody
-/// digests.
-/// Marker 109 retains typed paths and Case guards in internal call transfers.
-pub(crate) const INSTALLATION_FORMAT_MARKER: u16 = 110;
-
-fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
-    if placement.shape.class != ValueClass::Integer
-        || !((placement.shape.byte_size == 8 && placement.shape.alignment == 8)
-            || (9..=16).contains(&placement.shape.byte_size))
-        || !(1..=2).contains(&placement.locations.len())
-    {
-        return false;
-    }
-    let mut expected_offset = 0_u32;
-    for location in &placement.locations {
-        let ValueLocation::Register {
-            value_byte_offset,
-            byte_size,
-            ..
-        } = *location
-        else {
-            return false;
-        };
-        let expected_size = (placement.shape.byte_size - expected_offset).min(8);
-        if value_byte_offset != expected_offset || byte_size != expected_size {
-            return false;
-        }
-        let Some(next) = expected_offset.checked_add(byte_size) else {
-            return false;
-        };
-        expected_offset = next;
-    }
-    expected_offset == placement.shape.byte_size
-}

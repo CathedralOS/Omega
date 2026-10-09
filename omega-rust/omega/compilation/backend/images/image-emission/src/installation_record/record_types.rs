@@ -1,7 +1,6 @@
 //! The installation record and its carriers: fingerprints, installed image
 //! sections, installed functions, foreign call stacks and internal unit calls.
 
-use crate::installation_record::codec::fingerprint::write_hex;
 use crate::{ObjectBoundarySettlement, ObjectCodeAttribution, ObjectPortEffect};
 use image::{CompilerTextValidationEvidence, FinalImageLayout};
 use machine_code::StructuralReturnRecord;
@@ -362,4 +361,13 @@ pub(crate) struct InstalledInternalUnitScalarCall {
     pub machine: MachineId,
     pub text_offset: usize,
     pub custody: machine_code::InternalUnitScalarCallRecord,
+}
+fn write_hex(
+    formatter: &mut std::fmt::Formatter<'_>,
+    bytes: &[u8; 32],
+) -> std::fmt::Result {
+    for byte in bytes {
+        write!(formatter, "{byte:02x}")?;
+    }
+    Ok(())
 }

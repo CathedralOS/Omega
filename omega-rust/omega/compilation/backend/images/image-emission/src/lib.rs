@@ -70,5 +70,5 @@ pub use image_output::{
 
 pub use installation_record::{ InstallationError};
 pub(crate) use installation_record::{ InstallationRecord,
-    InstalledCompilerPrivateFunction, validate_installation_record};
+    InstalledCompilerPrivateFunction};
 pub use machine_code::BoundaryExecutionRecord;
