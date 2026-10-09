@@ -46,9 +46,9 @@ impl source::SourceSnapshotStorage for BuildSourceSnapshotStorage {
     }
 }
 
-use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
 #[cfg(unix)]
 use crate::canonical_fs::require_canonical_mode;
+use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
 use file_read::{hash_canonical_source_file, read_canonical_source_file};
 use filesystem_authority::{

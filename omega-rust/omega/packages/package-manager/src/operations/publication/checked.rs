@@ -33,7 +33,9 @@ pub fn publish_reviewed_package_change(
         || stage.replacement_path().as_str() != "build.omg"
         || stage.expected_sha256() != replacement.expected_sha256()
         || stage.replacement_sha256()
-            != &<[u8; 32]>::from(crate::digest_encoder::content_identity(&replacement.replacement_source().as_bytes()))
+            != &<[u8; 32]>::from(crate::digest_encoder::content_identity(
+                &replacement.replacement_source().as_bytes(),
+            ))
     {
         return Err(Error::Association("edit, stage, and project root differ"));
     }

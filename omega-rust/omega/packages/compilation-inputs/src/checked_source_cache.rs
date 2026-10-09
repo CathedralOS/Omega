@@ -45,9 +45,9 @@
 //! the store, fingerprint, and capture protocol; that choice of lane and
 //! the caller opt-in live with the resolving consumers.
 
-use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
 #[cfg(unix)]
 use crate::canonical_fs::require_canonical_mode;
+use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
 use crate::codec_bytes::{push_bytes, push_u64};
 use crate::cursor::{Cursor, TakeError, Truncated};
 use filesystem_authority::{

@@ -3,7 +3,6 @@
 pub use effects::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
 use effects::{
     TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
-    provider_plan::ServiceSchemaDigest};
 
 pub(crate) const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
 
@@ -48,8 +47,7 @@ pub(crate) struct MissingTerminalAuthorityPermission {
     requirement_identity: String,
 }
 
-impl MissingTerminalAuthorityPermission {
-}
+impl MissingTerminalAuthorityPermission {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAuthorityPermissionPolicyBuildError {
@@ -102,7 +100,9 @@ pub fn terminal_authority_permission_policy_with_rows(
 fn permission_policy_identity(
     rows: &[TerminalAuthorityPermissionPolicyRow],
 ) -> TerminalAuthorityPermissionPolicyIdentity {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.terminal-authority.permission-policy.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.terminal-authority.permission-policy.v1\0",
+    );
     digest.raw(&TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION.to_be_bytes());
     digest.raw(&(rows.len() as u64).to_be_bytes());
     for row in rows {

@@ -318,8 +318,7 @@ pub(crate) fn local_snapshot_custody_identity(
 ) -> String {
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
     hasher.bytes(LOCAL_SNAPSHOT_CUSTODY_POLICY);
-    hasher.bytes(raw_os_bytes(canonical_live_root.as_os_str()).as_slice(),
-    );
+    hasher.bytes(raw_os_bytes(canonical_live_root.as_os_str()).as_slice());
     hasher.bytes(content_identity.as_bytes());
     format_sha256(&hasher.finish())
 }

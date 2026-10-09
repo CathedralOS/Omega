@@ -499,9 +499,8 @@ pub(crate) fn commitment_for_retained_entries(
     entries: &[RetainedStagedOutputEntry],
 ) -> Option<BuildStagedOutputTreeCommitment> {
     let entry_count = u64::try_from(entries.len()).expect("staged-output entry ceiling fits u64");
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        STAGED_OUTPUT_TREE_COMMITMENT_DOMAIN,
-    );
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(STAGED_OUTPUT_TREE_COMMITMENT_DOMAIN);
     let mut distinct_content = BTreeSet::new();
     let mut file_bytes = 0u64;
     digest.u32(STAGED_OUTPUT_TREE_SCHEMA_VERSION);

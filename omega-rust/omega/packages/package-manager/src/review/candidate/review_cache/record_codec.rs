@@ -125,7 +125,10 @@ fn encode_binding(binding: &AcceptedSemanticBinding, out: &mut Vec<u8>) {
         out,
         |digest, out| out.extend_from_slice(digest.as_bytes()),
     );
-    crate::codec_bytes::push_encoded(out, (binding.terminal_authority_permissions().len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        out,
+        (binding.terminal_authority_permissions().len() as u64).to_le_bytes(),
+    );
     for permission in binding.terminal_authority_permissions() {
         encode_permission(permission, out);
     }
@@ -226,7 +229,10 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
     );
     encode_string(&method.requirement_identity, out);
     crate::codec_bytes::push_encoded(out, (method.parameter_count as u64).to_le_bytes());
-    crate::codec_bytes::push_encoded(out, (method.parameter_type_identities.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        out,
+        (method.parameter_type_identities.len() as u64).to_le_bytes(),
+    );
     for identity in &method.parameter_type_identities {
         encode_string(identity, out);
     }
@@ -260,14 +266,20 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
     for reach in &method.service_reach {
         encode_string(reach, out);
     }
-    crate::codec_bytes::push_encoded(out, (method.synchronous_invocations.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        out,
+        (method.synchronous_invocations.len() as u64).to_le_bytes(),
+    );
     for invocation in &method.synchronous_invocations {
         encode_string(invocation, out);
     }
     out.push(u8::from(method.may_suspend));
     out.push(u8::from(method.may_block));
     out.push(u8::from(method.terminates_guarantee));
-    crate::codec_bytes::push_encoded(out, (method.termination_premises.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        out,
+        (method.termination_premises.len() as u64).to_le_bytes(),
+    );
     for premise in &method.termination_premises {
         encode_string(&premise.profile, out);
         match premise.subject {
@@ -277,11 +289,17 @@ fn encode_service_method(method: &ServiceMethod, out: &mut Vec<u8>) {
                 crate::codec_bytes::push_encoded(out, (index as u64).to_le_bytes());
             }
         }
-        crate::codec_bytes::push_encoded(out, (premise.subject_projections.len() as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(
+            out,
+            (premise.subject_projections.len() as u64).to_le_bytes(),
+        );
         for projection in &premise.subject_projections {
             encode_string(projection, out);
         }
-        crate::codec_bytes::push_encoded(out, (premise.establishment_routes.len() as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(
+            out,
+            (premise.establishment_routes.len() as u64).to_le_bytes(),
+        );
         for route in &premise.establishment_routes {
             out.push(match route.kind {
                 ServiceProgressEstablishmentRouteKind::CheckedRequirement => 0,
@@ -647,7 +665,10 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
             push_framed(out, &framed);
         },
     );
-    crate::codec_bytes::push_encoded(out, (review.restricted_build_requests.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        out,
+        (review.restricted_build_requests.len() as u64).to_le_bytes(),
+    );
     for request in &review.restricted_build_requests {
         let mut framed = Vec::new();
         build_record_codec::encode_restricted_build_request(request, &mut framed);
@@ -657,14 +678,20 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
     for binding in &review.semantic_bindings {
         encode_binding(binding, out);
     }
-    crate::codec_bytes::push_encoded(out, (review.semantic_binding_candidates.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        out,
+        (review.semantic_binding_candidates.len() as u64).to_le_bytes(),
+    );
     for candidate in &review.semantic_binding_candidates {
         encode_candidate(candidate, out);
     }
     encode_generated_source_bundle(&review.generated_source_bundle, out);
     push_framed(out, &review.policy_bytes);
     out.push(u8::from(review.facts.tolerated_unsettled_service_fields));
-    crate::codec_bytes::push_encoded(out, (review.facts.consumed_units.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        out,
+        (review.facts.consumed_units.len() as u64).to_le_bytes(),
+    );
     for unit in &review.facts.consumed_units {
         encode_consumed_unit(unit, out);
     }

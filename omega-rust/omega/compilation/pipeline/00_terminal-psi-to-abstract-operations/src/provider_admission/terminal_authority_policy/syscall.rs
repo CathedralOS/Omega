@@ -92,7 +92,8 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
         );
     }
 
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN);
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN);
     if !declaration.has_valid_parameter_order() {
         return Err("direct syscall parameter order does not cover its checked lanes".to_owned());
     }
@@ -151,12 +152,22 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
     Ok(SyscallTerminalMechanismIdentity::new(target, number, checked_argument_contract).into())
 }
 
-fn push_count(digest: &mut crate::digest_encoder::DomainDigestEncoder, count: usize) -> Result<(), String> {
-    digest.raw(&u32::try_from(count) .map_err(|_| "checked syscall argument-contract count exceeds u32".to_owned())? .to_be_bytes(),);
+fn push_count(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    count: usize,
+) -> Result<(), String> {
+    digest.raw(
+        &u32::try_from(count)
+            .map_err(|_| "checked syscall argument-contract count exceeds u32".to_owned())?
+            .to_be_bytes(),
+    );
     Ok(())
 }
 
-fn push_bytes(digest: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) -> Result<(), String> {
+fn push_bytes(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    bytes: &[u8],
+) -> Result<(), String> {
     push_count(digest, bytes.len())?;
     digest.raw(&bytes);
     Ok(())

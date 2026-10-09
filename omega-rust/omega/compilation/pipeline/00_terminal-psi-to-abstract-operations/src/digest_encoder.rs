@@ -22,28 +22,8 @@ impl DomainDigestEncoder {
         self.0.update([value]);
     }
 
-    pub(crate) fn bool(&mut self, value: bool) {
-        self.byte(u8::from(value));
-    }
-
     pub(crate) fn len(&mut self, value: usize) {
         self.0.update((value as u64).to_le_bytes());
-    }
-
-    pub(crate) fn u16(&mut self, value: u16) {
-        self.0.update(value.to_le_bytes());
-    }
-
-    pub(crate) fn u32(&mut self, value: u32) {
-        self.0.update(value.to_le_bytes());
-    }
-
-    pub(crate) fn u64(&mut self, value: u64) {
-        self.0.update(value.to_le_bytes());
-    }
-
-    pub(crate) fn i64(&mut self, value: i64) {
-        self.0.update(value.to_le_bytes());
     }
 
     /// Feeds bytes with no length frame — for callers whose protocol feeds
@@ -55,26 +35,5 @@ impl DomainDigestEncoder {
     pub(crate) fn bytes(&mut self, bytes: &[u8]) {
         self.len(bytes.len());
         self.0.update(bytes);
-    }
-
-    pub(crate) fn string(&mut self, value: &str) {
-        self.bytes(value.as_bytes());
-    }
-
-    pub(crate) fn strings(&mut self, values: &[String]) {
-        self.len(values.len());
-        for value in values {
-            self.string(value);
-        }
-    }
-
-    pub(crate) fn optional_string(&mut self, value: Option<&str>) {
-        match value {
-            Some(value) => {
-                self.byte(1);
-                self.string(value);
-            }
-            None => self.byte(0),
-        }
     }
 }
