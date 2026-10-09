@@ -13,6 +13,28 @@ use crate::record::PackagePolicyTypeParameter;
 use crate::record::PackagePolicyTypeParameterKind;
 use crate::record::PackageReviewTypeIdentity;
 
+// The `parameters`+`return_type` field pair every callable-shape encoding
+// restates — the carrier differs per record, the encoding does not.
+macro_rules! encode_callable_shape {
+    ($encoder:expr, $parameters:expr, $return_type:expr) => {
+        ($encoder).field("parameters", |encoder| {
+            encoder.sequence($parameters, |encoder, parameter| {
+                formal(
+                    encoder,
+                    &parameter.name,
+                    &parameter.type_identity,
+                    parameter.is_const,
+                    parameter.is_mutable,
+                )
+            })
+        })?;
+        ($encoder).field("return_type", |encoder| {
+            encoder.option($return_type, encode_type_identity)
+        })?;
+    };
+}
+pub(crate) use encode_callable_shape;
+
 pub(in crate::encoding::encode) fn type_parameter(
     encoder: &mut Encoder,
     parameter: &PackagePolicyTypeParameter,
@@ -79,20 +101,7 @@ pub(in crate::encoding) fn machine_contract(
             encoder.field("type_parameters", |encoder| {
                 encoder.sequence(&signature.type_parameters, type_parameter)
             })?;
-            encoder.field("parameters", |encoder| {
-                encoder.sequence(&signature.parameters, |encoder, parameter| {
-                    formal(
-                        encoder,
-                        &parameter.name,
-                        &parameter.type_identity,
-                        parameter.is_const,
-                        parameter.is_mutable,
-                    )
-                })
-            })?;
-            encoder.field("return_type", |encoder| {
-                encoder.option(signature.return_type.as_ref(), encode_type_identity)
-            })?;
+            encode_callable_shape!(encoder, &signature.parameters, signature.return_type.as_ref());
             encoder.field("contracts", |encoder| {
                 encoder.sequence(&signature.contracts, encode_callable_contract)
             })?;

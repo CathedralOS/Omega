@@ -15,6 +15,7 @@ use super::super::{
         identity::encode_nominal,
     },
 };
+use super::signatures::encode_callable_shape;
 use super::signatures::formal;
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::public_api::Encoder;
@@ -69,20 +70,7 @@ pub(in crate::encoding::encode) fn trait_shape(
             encoder.field("type_parameters", |encoder| {
                 encoder.sequence(&requirement.type_parameters, type_parameter)
             })?;
-            encoder.field("parameters", |encoder| {
-                encoder.sequence(&requirement.parameters, |encoder, parameter| {
-                    formal(
-                        encoder,
-                        &parameter.name,
-                        &parameter.type_identity,
-                        parameter.is_const,
-                        parameter.is_mutable,
-                    )
-                })
-            })?;
-            encoder.field("return_type", |encoder| {
-                encoder.option(requirement.return_type.as_ref(), encode_type_identity)
-            })?;
+            encode_callable_shape!(encoder, &requirement.parameters, requirement.return_type.as_ref());
             encoder.field("contracts", |encoder| {
                 encoder.sequence(&requirement.contracts, encode_callable_contract)
             })?;
@@ -221,20 +209,7 @@ pub(in crate::encoding::encode) fn operator_shape(
     encoder.field("type_parameters", |encoder| {
         encoder.sequence(&shape.type_parameters, type_parameter)
     })?;
-    encoder.field("parameters", |encoder| {
-        encoder.sequence(&shape.parameters, |encoder, parameter| {
-            formal(
-                encoder,
-                &parameter.name,
-                &parameter.type_identity,
-                parameter.is_const,
-                parameter.is_mutable,
-            )
-        })
-    })?;
-    encoder.field("return_type", |encoder| {
-        encoder.option(shape.return_type.as_ref(), encode_type_identity)
-    })?;
+    encode_callable_shape!(encoder, &shape.parameters, shape.return_type.as_ref());
     encoder.field("contracts", |encoder| {
         encoder.sequence(&shape.contracts, encode_callable_contract)
     })?;
