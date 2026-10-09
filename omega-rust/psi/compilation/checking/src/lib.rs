@@ -81,6 +81,7 @@ pub use value_custody::dispatch_extraction::DispatchExtraction;
 pub use value_custody::field_domains;
 pub use value_custody::owned_value_source::{
     affine_owned_value_source, linear_owned_value_source, plain_owned_value_source,
+    whole_owned_value_source,
 };
 pub use value_custody::permission_provenance::expression_permission_provenance;
 pub use value_custody::placed_atomic_observing_results;

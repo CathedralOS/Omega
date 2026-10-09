@@ -101,6 +101,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                     owner_path: initializer.owner_path.clone(),
                     place: source.place,
                     source_owner_symbol: source.source_owner_symbol,
+                    supplying_loan: Default::default(),
                     lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                     kind: if is_mutable {
                         checked_trees::BorrowAccessKind::Mutable
@@ -170,6 +171,7 @@ pub(super) fn aggregate_expression_borrow_loans(
                     owner_path: owner_path_prefix.to_vec(),
                     place: source.place,
                     source_owner_symbol: source.source_owner_symbol,
+                    supplying_loan: Default::default(),
                     lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                     kind: if is_mutably_borrow_carrying_data(program, type_reference) {
                         checked_trees::BorrowAccessKind::Mutable
@@ -325,6 +327,7 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
                         owner_path,
                         place: source.place,
                         source_owner_symbol: source.source_owner_symbol,
+                        supplying_loan: Default::default(),
                         lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                         kind: field.kind.clone(),
                         call_result: false,
@@ -371,6 +374,7 @@ pub(super) fn transferred_aggregate_loans(
                 owner_path: prefixed_owner_path,
                 place: loan.place.clone(),
                 source_owner_symbol: loan.owner_symbol,
+                supplying_loan: loan.handle,
                 lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                 kind: loan.kind.clone(),
                 call_result: false,

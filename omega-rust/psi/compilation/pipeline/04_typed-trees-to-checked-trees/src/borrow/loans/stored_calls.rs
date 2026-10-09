@@ -39,6 +39,7 @@ pub(super) fn loans(
                         segments: source.segments,
                     },
                     source_owner_symbol: source.root,
+                    supplying_loan: Default::default(),
                     lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                     kind: checked_trees::BorrowAccessKind::Read,
                     call_result: true,

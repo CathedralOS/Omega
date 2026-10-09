@@ -68,6 +68,11 @@ fn content_classes(
             crate::value_custody::storage_contents::ContentsRequirement::BorrowFree,
         ),
         owned_or_shared_view_fields: crate::has_owned_or_shared_view_fields(program, reference),
+        owned_or_shared_view_contents: crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView,
+        ),
         closed_primitive_array: crate::is_closed_primitive_array_type(program, reference),
         bounded_byte_capacity: crate::bounded_byte_buffer_capacity(program, reference),
     }

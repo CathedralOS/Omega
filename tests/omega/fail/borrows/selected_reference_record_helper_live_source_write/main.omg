@@ -45,3 +45,20 @@ machine invalid_projected(first: &mut Cell, second: &mut Cell) -> i32 {
     first.value = 51;
     held.target.value
 }
+
+machine select_owned<'storage>(first: Held<'storage>, second: Held<'storage>, selected: bool) -> Held<'storage> {
+    match selected { true -> first, false -> second }
+}
+
+machine invalid_owned(first: &mut Cell, second: &mut Cell) -> i32 {
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let first_input: Held = Held { target: &first_parent, stamp: 12 };
+    let second_input: Held = Held { target: &second_parent, stamp: 13 };
+    let envelope: Envelope = Envelope {
+        held: select_owned(first_input, second_input, true), seal: 17
+    };
+    // The declared common lifetime keeps even the unselected input's loan.
+    second.value = 83;
+    envelope.held.target.value
+}

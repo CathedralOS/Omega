@@ -13,6 +13,12 @@ use typed_trees::data::DataMember;
 /// independently of its eventual local, field or store consumer.
 pub enum StoredCarrierSource {
     Place(CheckedUnitStructuralArgumentPlan),
+    /// A fresh loan formed in this receiving descriptor slot. Its source
+    /// holder is an immediate disposal dependency, not a transported ancestor.
+    Borrow {
+        value: CheckedStructuralValueHandle,
+        source: CheckedUnitStructuralArgumentPlan,
+    },
     Call {
         value: CheckedStructuralValueHandle,
         path: Vec<CheckedUnitStructuralPathSegment>,
@@ -55,6 +61,17 @@ fn select(
     }
     active.push(value);
     match &values.nodes.get(value).kind {
+        CheckedStructuralValueKind::Reference { source }
+        | CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+        | CheckedStructuralValueKind::MutableSliceView { source, .. } => {
+            if !selection.is_empty() {
+                return None;
+            }
+            output.push(StoredCarrierSource::Borrow {
+                value,
+                source: source.clone(),
+            });
+        }
         CheckedStructuralValueKind::Place(source)
         | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
             let mut source = source.clone();

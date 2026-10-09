@@ -64,7 +64,7 @@ pub fn linear_owned_value_source(
 /// A whole local or parameter name whose declared type is exactly `reference`.
 /// Contents and multiplicity remain the caller's question: a shared borrow,
 /// a linear claim, and a plain affine value all resolve to the same place.
-pub(crate) fn whole_owned_value_source(
+pub fn whole_owned_value_source(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,

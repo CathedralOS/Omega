@@ -595,10 +595,7 @@ fn prepare_owners(
         if local.statement_index >= statement
             || !argument.path.is_empty()
             || argument.access != StructuralAccess::Owned
-            || !crate::content_classes::plain_owned_with_numeric_constraints(
-                checked,
-                local.declared_type,
-            )
+            || !crate::content_classes::owned_or_shared_view_contents(checked, local.declared_type)
         {
             return unsupported("selection survivor requires whole plain-affine custody");
         }
@@ -663,7 +660,7 @@ fn prepare_owners(
                 ))?;
             if !declaration.is_unqualified_owned_affine()
                 || checked.type_multiplicity(parameter.type_reference) != Multiplicity::Affine
-                || !crate::content_classes::plain_owned_with_numeric_constraints(
+                || !crate::content_classes::owned_or_shared_view_contents(
                     checked,
                     parameter.type_reference,
                 )

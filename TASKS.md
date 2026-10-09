@@ -2212,8 +2212,7 @@ crash and native exit behavior.
     lifetime relation; an unrelated-lifetime input is not a fallback candidate.
     Retirement separately retains possible transfers and
     proves which source paths transfer on every arm.
-    Remaining: owned-carrier calls need receiver-to-supplier correspondence;
-    stores without a receiving-holder association need their checked
+    Remaining: stores without a receiving-holder association need their checked
     correspondence before parent retirement can be proved.
     Borrowed call results nested in constructors and projections retain their
     receiving leaf groups; do not restore the whole-initializer call recognizer.

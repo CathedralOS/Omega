@@ -252,6 +252,7 @@ pub(super) fn reference_local_borrow_loans(
             owner_path: Vec::new(),
             place: source.place.clone(),
             source_owner_symbol: source.source_owner_symbol,
+            supplying_loan: Default::default(),
             lineage: retained_reference_lineage(
                 source,
                 &rebased,
@@ -318,6 +319,7 @@ pub(super) fn selected_arm_borrow_loans(
                     owner_path: Vec::new(),
                     place: source.place.clone(),
                     source_owner_symbol: source.source_owner_symbol,
+                    supplying_loan: Default::default(),
                     lineage: retained_reference_lineage(source, &rebased, false, false),
                     kind: kind.clone(),
                     call_result: false,

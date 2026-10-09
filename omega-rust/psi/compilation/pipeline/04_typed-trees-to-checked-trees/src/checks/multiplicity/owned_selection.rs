@@ -3,6 +3,9 @@
 //! the actual death edge. A path constructing a fresh result discards, at the
 //! join edge, the one source whose residual slot the result displaces; every
 //! other complement stays in the receipt until the actual death edge.
+//! A shared-reference member owns descriptor storage, not its referent. Its
+//! carrier therefore needs the same selected-source receipt as other owned
+//! storage; loan checking independently retains its complete backing frontier.
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -15,6 +18,37 @@ use operands::*;
 mod availability;
 mod leaves;
 mod operands;
+
+/// Storage that can travel on a selected owned edge. Finite linear storage
+/// keeps its claim frontier; shared-view carriers keep their descriptor loans.
+/// Neither content judgment supplies availability, loan closure or cleanup.
+fn owned_contents(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    requirement: validation::ContentsRequirement,
+) -> bool {
+    validation::has_contents(program, reference, requirement)
+        || validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::OwnedOrSharedView,
+        )
+}
+
+fn owned_source(
+    program: &dyn ::validation::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    validation::whole_owned_value_source(program, expression, reference).filter(|_| {
+        program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted
+            && owned_contents(
+                program,
+                reference,
+                validation::ContentsRequirement::LinearOwned,
+            )
+    })
+}
 
 /// Two canonical paths overlap when one reaches inside the other or both
 /// name the same place; a dynamic index cannot be statically excluded from a

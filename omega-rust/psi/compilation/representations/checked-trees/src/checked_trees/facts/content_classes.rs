@@ -46,6 +46,9 @@ pub struct ContentClassRow {
     /// A record whose fields are each either plain owned contents or a
     /// shared `&[T]`/`&'a V` view descriptor.
     pub owned_or_shared_view_fields: bool,
+    /// Finite recursively owned storage with shared-view descriptor leaves.
+    /// Moving storage does not move its referents or end its carried loans.
+    pub owned_or_shared_view_contents: bool,
     /// A concrete primitive array type with no qualifications or ownership
     /// authority.
     pub closed_primitive_array: bool,

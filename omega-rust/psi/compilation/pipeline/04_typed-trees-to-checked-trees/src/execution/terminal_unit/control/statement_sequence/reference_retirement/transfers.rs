@@ -10,7 +10,17 @@ type Path = Vec<CheckedUnitStructuralPathSegment>;
 
 pub(super) struct Transfer {
     pub(super) source: Path,
-    pub(super) destination: Option<(CheckedUnitStructuralResultBindingPlan, Vec<OwnerSegment>)>,
+    pub(super) destination: Destination,
+}
+
+pub(super) enum Destination {
+    Holder(CheckedUnitStructuralResultBindingPlan, Vec<OwnerSegment>),
+    /// The call consumes this source. Its returned descriptor occurrences
+    /// retain exact supplying-loan identities independently of result nesting.
+    Call {
+        statement_index: u32,
+    },
+    Unknown,
 }
 
 #[derive(Default)]
@@ -22,7 +32,7 @@ pub(super) struct Transfers {
 impl Transfers {
     fn without_receiver(mut self) -> Self {
         for transfer in &mut self.possible {
-            transfer.destination = None;
+            transfer.destination = Destination::Unknown;
         }
         self
     }
@@ -38,6 +48,7 @@ struct Query<'a> {
     facts: &'a CheckFacts,
     results: &'a Results,
     binding: u32,
+    operations: &'a [CheckedUnitEffectOperationPlan],
 }
 
 pub(super) fn transfers(
@@ -52,34 +63,39 @@ pub(super) fn transfers(
         facts,
         results,
         binding,
+        operations,
     };
     let mut output = Transfers::default();
-    for operation in operations
-        .iter()
-        .flat_map(|operation| operation.with_value_calls())
-    {
-        // Calls and stores transfer custody, but without a retained receiving
-        // local they do not prove when that custody ends.
-        for argument in operation.call_structural_arguments() {
-            if query.belongs(argument) {
-                output.append(query.leaf(argument.path.clone(), None));
-            }
-        }
-        if let Some(value) = operation.installed_value()
-            && query.belongs(value)
-        {
-            output.append(query.leaf(value.path.clone(), None))
-        }
-        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
-            operation
-        {
-            output.append(query.value(*value, &[], result, &[], &mut Vec::new())?);
-        }
+    for operation in operations {
+        output.append(query.operation(operation, &mut Vec::new())?);
     }
     Some(output)
 }
 
 impl Query<'_> {
+    fn operation(
+        &self,
+        operation: &CheckedUnitEffectOperationPlan,
+        active: &mut Vec<CheckedStructuralValueHandle>,
+    ) -> Option<Transfers> {
+        let mut output = Transfers::default();
+        // Calls and stores transfer custody, but without a retained receiving
+        // local they do not prove when that custody ends.
+        if let Some(call) = operation.call() {
+            output.append(self.call(call));
+        }
+        if let Some(value) = operation.installed_value()
+            && self.belongs(value)
+        {
+            output.append(self.leaf(value.path.clone(), Destination::Unknown))
+        }
+        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
+            operation
+        {
+            output.append(self.value(*value, &[], result, &[], active)?);
+        }
+        Some(output)
+    }
     fn belongs(&self, argument: &CheckedUnitStructuralArgumentPlan) -> bool {
         argument.access == CheckedStructuralAccess::Owned
             && match argument.source {
@@ -96,11 +112,7 @@ impl Query<'_> {
             }
     }
 
-    fn leaf(
-        &self,
-        source: Path,
-        destination: Option<(CheckedUnitStructuralResultBindingPlan, Vec<OwnerSegment>)>,
-    ) -> Transfers {
+    fn leaf(&self, source: Path, destination: Destination) -> Transfers {
         Transfers {
             definite: vec![source.clone()],
             possible: vec![Transfer {
@@ -108,6 +120,23 @@ impl Query<'_> {
                 destination,
             }],
         }
+    }
+
+    fn call(&self, call: &checked_trees::CheckedUnitCallPlan) -> Transfers {
+        let mut output = Transfers::default();
+        for argument in &call.structural_arguments {
+            if self.belongs(argument) {
+                let destination = if call.structural_result().is_some() {
+                    Destination::Call {
+                        statement_index: call.coordinate.statement_index,
+                    }
+                } else {
+                    Destination::Unknown
+                };
+                output.append(self.leaf(argument.path.clone(), destination));
+            }
+        }
+        output
     }
 
     fn value(
@@ -148,7 +177,40 @@ impl Query<'_> {
             CheckedStructuralValueKind::Place(argument) if self.belongs(argument) => {
                 let mut path = argument.path.clone();
                 path.extend_from_slice(selection);
-                return Some(self.leaf(path, Some((result.clone(), destination.to_vec()))));
+                return Some(self.leaf(
+                    path,
+                    Destination::Holder(result.clone(), destination.to_vec()),
+                ));
+            }
+            CheckedStructuralValueKind::Call { source_call } => {
+                let mut matching = self
+                    .operations
+                    .iter()
+                    .flat_map(|operation| operation.with_value_calls())
+                    .filter_map(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                            calls, ..
+                        } => Some(calls.as_slice()),
+                        _ => None,
+                    })
+                    .flatten()
+                    .filter(|call| {
+                        matches!(values.nodes.get(call.value).kind,
+                            CheckedStructuralValueKind::Call { source_call: captured }
+                                if captured == *source_call)
+                    });
+                let call = matching.next()?;
+                if matching.next().is_some() {
+                    return None;
+                }
+                // The graph's dispatch intersects definite moves across its
+                // arms. Flattening operand calls here instead would assert a
+                // conditional owned argument moved on every path.
+                for operand in call.operands().iter() {
+                    output.append(self.operation(operand, active)?);
+                }
+                output.append(self.call(call.operation().call()?));
+                return Some(output);
             }
             CheckedStructuralValueKind::Projection { source, path, .. } => {
                 let mut selected = path.clone();

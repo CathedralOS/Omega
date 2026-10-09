@@ -171,6 +171,10 @@ pub struct BorrowLoanFact {
     /// the whole owner; dynamic indexes conservatively overlap every element.
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
     pub source_owner_symbol: SymbolHandle,
+    /// Historical descriptor occurrence transported into this leaf. This is
+    /// not a reborrow parent: the receiver retains the supplier's parents,
+    /// including after the supplying holder has been consumed.
+    pub supplying_loan: Handle<BorrowLoanFact>,
     /// Checked formation lineage for this loan occurrence.
     ///
     /// Only an explicit reference-local reborrow with one exact prior source

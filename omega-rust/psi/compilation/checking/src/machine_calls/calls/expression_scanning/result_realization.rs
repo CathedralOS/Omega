@@ -39,9 +39,9 @@ pub fn result_initializer_call_is_supported(
         || boundary_return::is_supported(program, machine, value)
 }
 
-/// Scalar initializers retain their entire ordinary call in the computation
-/// graph. Result operations and reference-result custody keep their own admission;
-/// other destinations retain the fence until they have ordered evaluation.
+/// Local calls retain ordered operands in either their computation or structural
+/// result operation. Admission follows the resolved receiving type, not an
+/// incidental combination of reference leaves, projections and nested helpers.
 pub(crate) fn report_nested_call_in_local_initializer(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -49,9 +49,8 @@ pub(crate) fn report_nested_call_in_local_initializer(
     value: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if scalar_initializer_has_operand_evaluation(program, machine, value)
+    if local_initializer_has_operand_evaluation(program, machine, value)
         || result_initializer_call_is_supported(program, machine, value)
-        || reference_result_nested_operand_call_is_supported(program, machine, value)
     {
         // This exempts a destination, not its semantics. Ordinary call checks
         // still validate every argument; unsupported computation nodes or call
@@ -59,245 +58,6 @@ pub(crate) fn report_nested_call_in_local_initializer(
         return;
     }
     report_nested_call_in_bound_value_call(program, machine, state_name, value, diagnostics);
-}
-
-/// A bound bare `&mut` result local may take its projected record operand
-/// from a nested call's anonymous result: `let held: &mut i32 =
-/// select(forward_outer(outer).inner)` — the nested-operand form of the
-/// named-carrier lane. This predicate only mirrors the checked route's
-/// authored shape: the outer callee is a checked-body bare reference result
-/// selecting one declared leaf of an owned record parameter, the projected
-/// operand's carrier is one nested checked-body call returning that record's
-/// owner type, and the nested result's whole returned leaf roster lives
-/// under the projected edge with each leaf's actual a bare earlier local.
-/// Captured-loan custody, activity, and last-use are still re-proven exactly
-/// in `reference_result_custody` and the checked call builder, which fail
-/// closed on anything this shape check lets through.
-fn reference_result_nested_operand_call_is_supported(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    value: ExpressionHandle,
-) -> bool {
-    // The bound local: the same statement walk
-    // `unit_result_initializer_call_is_supported` performs.
-    let mut bindings = program.machine_states(machine).iter().filter_map(|state| {
-        program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-            .find_map(|(index, statement)| match statement {
-                StatementNode::LocalData(local) if local.initial_value == value => {
-                    Some((state, index, local))
-                }
-                _ => None,
-            })
-    });
-    let Some((state, statement_index, local)) = bindings.next() else {
-        return false;
-    };
-    if bindings.next().is_some()
-        || local.is_mutable
-        || crate::machine_calls::reference_result_custody::parts(program, local.type_reference)
-            .is_none()
-    {
-        return false;
-    }
-    let Some(call) = program.expression_table.call_node(value) else {
-        return false;
-    };
-    if !call.target_symbol.is_valid()
-        || call.receiver.is_valid()
-        || !call.carries_only_positional_arguments()
-        || !call.selects_only_nominal_route()
-    {
-        return false;
-    }
-    // State spans are disjoint append-only ranges: a state symbol's holder
-    // is unique, so a second owner cannot exist.
-    let Some(owner) = program
-        .machine_holding_state(call.target_symbol)
-        .filter(|owner| owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody)
-    else {
-        return false;
-    };
-    let Some(destination) = program
-        .machine_states(owner)
-        .iter()
-        .find(|candidate| candidate.symbol == call.target_symbol)
-    else {
-        return false;
-    };
-    if crate::machine_calls::reference_result_custody::parts(program, destination.return_type)
-        .is_none()
-    {
-        return false;
-    }
-    // The callee result must select one declared leaf of an owned record
-    // parameter (`select(value: View) -> &mut i32 { value.body }`).
-    let Some((position, leaf_source)) =
-        crate::machine_calls::reference_result_custody::source_leaf(program, destination)
-    else {
-        return false;
-    };
-    let [
-        leaf_path @ ..,
-        checked_trees::CheckedUnitStructuralPathSegment::Referent,
-    ] = leaf_source.path.as_slice()
-    else {
-        return false;
-    };
-    if leaf_path.is_empty() {
-        return false;
-    }
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    let Some(&argument) = arguments.get(position) else {
-        return false;
-    };
-    // Only the projected operand position may carry the nested call; a nested
-    // operand at any other argument keeps the bound value-call fence.
-    if arguments.iter().enumerate().any(|(index, argument)| {
-        index != position && first_non_builtin_call(program, *argument).is_some()
-    }) {
-        return false;
-    }
-    // The projected operand: a declared-field chain over one nested call.
-    let mut members = Vec::new();
-    let mut root = argument;
-    while let Some(member) = program.expression_table.member_node(root) {
-        if member.case_variant.is_some() {
-            return false;
-        }
-        members.push(member);
-        root = member.receiver;
-    }
-    if members.is_empty() {
-        return false;
-    }
-    let Some(nested) = program.expression_table.call_node(root) else {
-        return false;
-    };
-    if !nested.target_symbol.is_valid()
-        || nested.receiver.is_valid()
-        || !nested.carries_only_positional_arguments()
-        || !nested.selects_only_nominal_route()
-    {
-        return false;
-    }
-    let Some(nested_owner) = program
-        .machine_holding_state(nested.target_symbol)
-        .filter(|owner| owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody)
-    else {
-        return false;
-    };
-    let Some(nested_destination) = program
-        .machine_states(nested_owner)
-        .iter()
-        .find(|candidate| candidate.symbol == nested.target_symbol)
-    else {
-        return false;
-    };
-    if !crate::machine_calls::reference_result_custody::is_reference_record(
-        program,
-        nested_destination.return_type,
-    ) {
-        return false;
-    }
-    // The projected edge must resolve to exactly the callee parameter's
-    // declared type; the checked side re-proves it against the result loan.
-    let Some(parameter) = program.state_parameters(destination).get(position) else {
-        return false;
-    };
-    let Some((edge, projected)) =
-        crate::machine_calls::reference_result_custody::declared_field_path(
-            program,
-            nested_destination.return_type,
-            members.iter().rev().copied(),
-        )
-    else {
-        return false;
-    };
-    if program.normalized_type_identity(projected)
-        != program.normalized_type_identity(parameter.type_reference)
-    {
-        return false;
-    }
-    // The nested result's whole returned leaf roster must live under the
-    // projected edge, each leaf replaying a parameter-referent ingress whose
-    // actual is a bare earlier local of the exact declared type.
-    let Some(sources) = crate::machine_calls::reference_result_custody::returned_record_sources(
-        program,
-        nested_destination,
-    ) else {
-        return false;
-    };
-    !sources.is_empty()
-        && sources.iter().all(|source| {
-            if !source.path.starts_with(&edge) {
-                return false;
-            }
-            let [
-                ..,
-                checked_trees::CheckedUnitStructuralPathSegment::Referent,
-            ] = source.source.path.as_slice()
-            else {
-                return false;
-            };
-            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index,
-            } = source.source.source
-            else {
-                return false;
-            };
-            let Some((actual_position, nested_parameter)) = program
-                .state_parameters(nested_destination)
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| {
-                    crate::machine_calls::reference_result_custody::is_mutable_structural_parameter(
-                        program, parameter,
-                    )
-                })
-                .nth(parameter_index as usize)
-            else {
-                return false;
-            };
-            if !crate::machine_calls::reference_result_custody::is_reference_record(
-                program,
-                nested_parameter.type_reference,
-            ) {
-                return false;
-            }
-            let Some(&actual) = program
-                .expression_table
-                .expression_handles(nested.arguments)
-                .get(actual_position)
-            else {
-                return false;
-            };
-            let Some(name) = program.expression_table.name_path_node(actual) else {
-                return false;
-            };
-            if name.head_symbol != name.symbol
-                || program
-                    .expression_table
-                    .name_path_members(name.members)
-                    .len()
-                    != 1
-            {
-                return false;
-            }
-            program
-                .state_local_declaration(state, name.symbol)
-                .is_some_and(|(ordinal, local)| {
-                    ordinal < statement_index
-                        && !local.is_mutable
-                        && crate::machine_calls::reference_result_custody::is_reference_record(
-                            program,
-                            local.type_reference,
-                        )
-                        && program.normalized_type_identity(local.type_reference)
-                            == program.normalized_type_identity(nested_parameter.type_reference)
-                })
-        })
 }
 
 /// Result destinations handled by the ordinary checked statement sequence.
@@ -781,14 +541,13 @@ fn ordinary_scalar_call_result_primitive(
         .flatten()
 }
 
-/// Every resolved scalar local evaluates its operands before binding the result.
-/// Checked-body calls use a computation graph; boundary calls use a result
-/// operation with the same ordered argument computations. Requiring a particular
-/// supply or receiver spelling here duplicates those owners and refuses valid
-/// mixtures of scalar and structural operands. This only retires the legacy
+/// Every resolved local call evaluates operands before binding its result.
+/// Scalar computations and structural result operations share ordered operand
+/// preparation. Reference custody remains attached to those operations; a
+/// source-shape recognizer cannot establish it. This only retires the legacy
 /// nested-result fence: type, effect and custody checks still run, and missing
 /// operand plans fail product construction rather than supplying a value.
-fn scalar_initializer_has_operand_evaluation(
+fn local_initializer_has_operand_evaluation(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
@@ -803,16 +562,21 @@ fn scalar_initializer_has_operand_evaluation(
         return false;
     }
     program.machine_states(machine).iter().any(|state| {
-        let Some(result_primitive) = crate::expression_result_type_reference(
-            program, machine, state, value,
-        ).and_then(|reference| program.primitive_type_reference(reference)) else {
+        let Some(result_type) =
+            crate::expression_result_type_reference(program, machine, state, value)
+        else {
             return false;
         };
-        program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
-            matches!(statement, StatementNode::LocalData(local)
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                matches!(statement, StatementNode::LocalData(local)
                 if local.initial_value == value
-                    && program.primitive_type_reference(local.type_reference) == Some(result_primitive))
-        })
+                    && program.normalized_type_identity(local.type_reference)
+                        == program.normalized_type_identity(result_type))
+            })
     })
 }
 

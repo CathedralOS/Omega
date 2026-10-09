@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 7.72, "load1_start": 7.72, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 5.8, "load1_start": 5.8, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -436,10 +436,11 @@ fail/borrows/selected_reference_live_nested_parent_write rejected 393ms expected
 	statement 4 mutates `second_parent` while local borrow `nested` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/selected_reference_live_reborrow_parent_write rejected 391ms expected @c910d797b35a
 	statement 3 mutates `second_view` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/selected_reference_record_helper_live_source_write rejected 416ms expected @99be048d392f+wt
+fail/borrows/selected_reference_record_helper_live_source_write rejected 316ms expected @da6b98c95922
 	statement 5 mutates `second.value` while local borrow `copied` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 	statement 3 mutates `second.value` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `first.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	statement 5 mutates `second.value` while local borrow `envelope` is still active (borrowed at statement 4; its last use is at statement 6 and it is released at state exit)
 fail/borrows/selected_reference_record_helper_local_escape rejected 359ms expected @fcce6043b0fd+wt
 	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a borrow of an input parameter or `self` instead
 fail/borrows/selected_reference_record_helper_wrong_lifetime rejected 348ms expected @fcce6043b0fd+wt

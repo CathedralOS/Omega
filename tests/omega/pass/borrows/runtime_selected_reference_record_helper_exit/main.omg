@@ -101,6 +101,47 @@ machine pair<'first, 'second>(first: &'first Cell, second: &'second Cell) -> Pai
     }
 }
 
+machine select_owned<'storage>(first: Held<'storage>, second: Held<'storage>, selected: bool) -> Held<'storage> {
+    match selected { true -> first, false -> second }
+}
+
+machine verify_owned(first: &mut Cell, second: &mut Cell, selected: bool) -> bool {
+    first.value = 41;
+    second.value = 73;
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let first_input: Held = Held { target: &first_parent, stamp: 12 };
+    let second_input: Held = Held { target: &second_parent, stamp: 13 };
+    let envelope: Envelope = Envelope {
+        held: select_owned(relay_owned(first_input), relay_owned(second_input), selected), seal: 17
+    };
+    let observed: i32 = envelope.held.target.value;
+    first.value = 51;
+    second.value = 83;
+    observed == (match selected { true -> 41, false -> 73 }) &&
+        envelope.held.stamp == (match selected { true -> 12, false -> 13 }) &&
+        envelope.seal == 17 && first.value == 51 && second.value == 83
+}
+
+machine relay_owned<'storage>(input: Held<'storage>) -> Held<'storage> { input }
+
+machine verify_owned_operands(first: &mut Cell, second: &mut Cell, selected: bool) -> bool {
+    first.value = 41;
+    second.value = 73;
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let first_input: Held = Held { target: &first_parent, stamp: 12 };
+    let second_input: Held = Held { target: &second_parent, stamp: 13 };
+    let received: Held = select_owned(relay_owned(first_input), relay_owned(second_input), selected);
+    let envelope: Envelope = Envelope { held: received, seal: 17 };
+    let observed: i32 = envelope.held.target.value;
+    first.value = 51;
+    second.value = 83;
+    observed == (match selected { true -> 41, false -> 73 }) &&
+        envelope.held.stamp == (match selected { true -> 12, false -> 13 }) &&
+        envelope.seal == 17 && first.value == 51 && second.value == 83
+}
+
 machine verify_projected(first: &mut Cell, second: &mut Cell) -> bool {
     first.value = 41;
     second.value = 73;
@@ -136,7 +177,11 @@ machine Main::main(main: &mut Main) reaches Console {
     let eighth: bool = verify_nested(&mut main.first, &mut main.second, false);
     let ninth: bool = verify_projected(&mut main.first, &mut main.second);
     let tenth: bool = verify_projected_right(&mut main.first, &mut main.second);
-    transition first && second && third && fourth && fifth && sixth && seventh && eighth && ninth && tenth {
+    let eleventh: bool = verify_owned(&mut main.first, &mut main.second, true);
+    let twelfth: bool = verify_owned(&mut main.first, &mut main.second, false);
+    let thirteenth: bool = verify_owned_operands(&mut main.first, &mut main.second, true);
+    let fourteenth: bool = verify_owned_operands(&mut main.first, &mut main.second, false);
+    transition first && second && third && fourth && fifth && sixth && seventh && eighth && ninth && tenth && eleventh && twelfth && thirteenth && fourteenth {
         true -> good(main)
         false -> bad(main)
     }

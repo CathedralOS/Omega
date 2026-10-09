@@ -14,7 +14,7 @@ use checked_trees::{BorrowLoanFact, CheckedStructuralValueKind, CheckedUnitStruc
 type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 
 mod transfers;
-use transfers::transfers;
+use transfers::{Destination, transfers};
 pub(super) mod transport;
 
 pub(super) fn transferred_paths(
@@ -189,6 +189,22 @@ impl Retirement<'_> {
                 // another local holder. Keep operand parents until this
                 // receiving occurrence has actually retired.
                 return sources.into_iter().any(|source| {
+                    if let validation::reference_result_custody::StoredCarrierSource::Borrow {
+                        value,
+                        source,
+                    } = &source
+                    {
+                        return loan.formation_expression
+                            == self
+                                .facts
+                                .values
+                                .structural_values
+                                .nodes
+                                .get(*value)
+                                .expression
+                            && source.access.borrow_access_kind().is_some()
+                            && self.source_captures_holder(source, parent);
+                    }
                     let validation::reference_result_custody::StoredCarrierSource::Call {
                         value,
                         ..
@@ -445,8 +461,34 @@ impl Retirement<'_> {
                 continue;
             }
             found = true;
-            let Some((destination, mut path)) = transfer.destination else {
-                return false;
+            let (destination, mut path) = match transfer.destination {
+                Destination::Unknown => return false,
+                Destination::Call { statement_index } => {
+                    if statement_index >= self.statement_index {
+                        return false;
+                    }
+                    let mut found_receiver = false;
+                    let retired = self
+                        .transported_loans
+                        .iter()
+                        .filter(|(_, supplier)| *supplier == handle)
+                        .filter(|(receiver, _)| {
+                            self.facts.borrow.loans.get(*receiver).statement_index
+                                == statement_index as usize
+                        })
+                        .all(|(receiver, _)| {
+                            found_receiver = true;
+                            self.holder_retired_following(*receiver, active)
+                        });
+                    // An unassociated call/store cannot establish when a
+                    // carrier ended. Only the producer's complete receiving
+                    // occurrences close this consumed holder.
+                    if !retired || !found_receiver {
+                        return false;
+                    }
+                    continue;
+                }
+                Destination::Holder(destination, path) => (destination, path),
             };
             // Formation at this boundary establishes live custody; it is not
             // the absent-future-child case handled by holder_retired_inner.

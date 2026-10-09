@@ -85,6 +85,7 @@ pub(super) fn append_state_borrow_facts(
                     owner_symbol: pending.owner_symbol,
                     owner_path,
                     source_owner_symbol: pending.source_owner_symbol,
+                    supplying_loan: pending.supplying_loan,
                     lineage: pending.lineage.clone(),
                     root_symbol: pending.place.root_symbol,
                     segments: loan_segments,
@@ -177,6 +178,7 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
             .any(|previous| {
                 previous.formation_expression == loan.formation_expression
                     && previous.source_owner_symbol == loan.source_owner_symbol
+                    && previous.supplying_loan == loan.supplying_loan
                     && previous.place == loan.place
                     && previous.kind == loan.kind
                     && previous.lineage == loan.lineage

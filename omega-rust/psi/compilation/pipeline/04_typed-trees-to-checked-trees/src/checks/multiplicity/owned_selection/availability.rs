@@ -1,7 +1,7 @@
 //! availability slice of owned_selection.
 
 use super::{leaves::*, operands::*};
-use super::{place_paths_overlap, source_needs_loan_closure, unsupported};
+use super::{owned_contents, place_paths_overlap, source_needs_loan_closure, unsupported};
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use arena::Handle;
 use checked_trees::CheckFacts;
@@ -106,17 +106,17 @@ pub(in crate::checks::multiplicity) fn record_statement(
     // An affine destination may carry linear claims: the join then settles the
     // consumed source claims at the exact destination frontier paths rather
     // than inventing a root claim. The carrier still owes the same finite
-    // owned walls as a plain record — no loans, slices, nominal cleanup, or
-    // recursive storage.
+    // owned walls as a plain record. Shared-view members move their descriptor
+    // storage, while loan checking retains their backing and lifetime relation.
     let destination_ok = if linear_result {
-        validation::has_contents(
+        owned_contents(
             program,
             type_reference,
             validation::ContentsRequirement::LinearOwned,
         )
     } else {
         program.type_multiplicity(type_reference) == Multiplicity::Affine
-            && validation::has_contents(
+            && owned_contents(
                 program,
                 type_reference,
                 validation::ContentsRequirement::LinearOwned,
@@ -348,7 +348,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
             root_place.is_some_and(|place| place.multiplicity == Multiplicity::Affine)
         } else {
             true
-        } && validation::has_contents(
+        } && owned_contents(
             program,
             source_reference,
             validation::ContentsRequirement::LinearOwned,

@@ -41,9 +41,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     }
     let mut output = Vec::new();
     for operation in operations {
-        let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
-            operation
-        else {
+        let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
         };
         let mut registered = results.iter().filter(|(binding, _)| binding == result);
@@ -59,6 +57,26 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 && loan.owner_symbol == *owner
                 && loan.statement_index == result.statement_index as usize
         }) {
+            // Borrow attribution already knows the exact supplying occurrence
+            // when a stored carrier moves through a call or constructor. Keep
+            // this identity rather than reconstructing call operands from
+            // source syntax, or borrowing the consumed descriptor itself.
+            if loan.supplying_loan.is_valid() {
+                if !facts.borrow.loans.is_valid(loan.supplying_loan)
+                    || !facts.borrow.state_owns_loan(borrowing, loan.supplying_loan)
+                    || facts.borrow.loans.get(loan.supplying_loan).statement_index
+                        >= loan.statement_index
+                {
+                    return None;
+                }
+                if !output.contains(&(receiver, loan.supplying_loan)) {
+                    output.push((receiver, loan.supplying_loan));
+                }
+            }
+            let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation
+            else {
+                continue;
+            };
             let path = paths::carrier_path(
                 program,
                 local.type_reference,
@@ -71,8 +89,9 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 let validation::reference_result_custody::StoredCarrierSource::Place(source) =
                     source
                 else {
-                    // Calls form their own result; they do not inherit a
-                    // copied descriptor's historical parent correspondence.
+                    // Borrowed calls form their own descriptor. Owned carrier
+                    // operands retain the producer's supplying occurrence
+                    // above; neither route invents historical correspondence.
                     continue;
                 };
                 let (source_owner, source_formation) = match source.source {

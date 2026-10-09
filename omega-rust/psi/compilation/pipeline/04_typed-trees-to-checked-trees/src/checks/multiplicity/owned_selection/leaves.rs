@@ -1,7 +1,7 @@
 //! leaves slice of owned_selection.
 
 use super::operands::*;
-use super::unsupported;
+use super::{owned_contents, owned_source, unsupported};
 use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::type_multiplicity;
 use arena::Handle;
@@ -24,15 +24,7 @@ pub(super) fn has_owned_leaf(
             .any(|(_, arm)| has_owned_leaf(program, machine, state, statement_index, arm.value)),
         ExpressionNode::Name(_) => {
             validation::expression_result_type_reference(program, machine, state, expression)
-                .is_some_and(|reference| {
-                    program.type_multiplicity(reference) != Multiplicity::Unrestricted
-                        && (validation::affine_owned_value_source(program, expression, reference)
-                            .is_some()
-                            || validation::linear_owned_value_source(
-                                program, expression, reference,
-                            )
-                            .is_some())
-                })
+                .is_some_and(|reference| owned_source(program, expression, reference).is_some())
         }
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             projected_leaf_source(program, machine, state, statement_index, expression).is_some()
@@ -117,19 +109,15 @@ pub(super) fn projected_leaf_source(
         return None;
     }
     let contents_ok = |type_reference| {
-        if linear_leaf {
-            validation::has_contents(
-                program,
-                type_reference,
-                validation::ContentsRequirement::LinearOwned,
-            )
-        } else {
-            validation::has_contents(
-                program,
-                type_reference,
-                validation::ContentsRequirement::PlainOwned,
-            )
-        }
+        owned_contents(
+            program,
+            type_reference,
+            if linear_leaf {
+                validation::ContentsRequirement::LinearOwned
+            } else {
+                validation::ContentsRequirement::PlainOwned
+            },
+        )
     };
     let place_type_ok = |segments: &[facts::PlaceSegment], expected: Multiplicity| {
         validation::canonical_place_type_reference(
@@ -193,10 +181,7 @@ pub(super) fn collect_leaves(
 ) -> Result<(), Diagnostic> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) if source_arm.is_valid() => {
-            match validation::affine_owned_value_source(program, expression, type_reference)
-                .or_else(|| {
-                    validation::linear_owned_value_source(program, expression, type_reference)
-                }) {
+            match owned_source(program, expression, type_reference) {
                 Some(symbol) => {
                     leaves.push((
                         expression,
@@ -473,19 +458,15 @@ pub(super) fn fresh_leaf_shape(
         } else {
             return Err(unsupported());
         };
-    let contents_ok = if program.type_multiplicity(type_reference) == Multiplicity::Linear {
-        validation::has_contents(
-            program,
-            reference,
-            validation::ContentsRequirement::LinearOwned,
-        )
-    } else {
-        validation::has_contents(
-            program,
-            reference,
-            validation::ContentsRequirement::PlainOwned,
-        )
-    };
+    let contents_ok = owned_contents(
+        program,
+        reference,
+        if program.type_multiplicity(type_reference) == Multiplicity::Linear {
+            validation::ContentsRequirement::LinearOwned
+        } else {
+            validation::ContentsRequirement::PlainOwned
+        },
+    );
     if !contents_ok
         || program.normalized_type_identity(reference)
             != program.normalized_type_identity(type_reference)

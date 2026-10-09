@@ -27,3 +27,15 @@ The projected-call routes keep either subtree of a returned pair with distinct
 input lifetimes. Its unused sibling retires with the temporary result: that
 sibling's backing is writable before the kept target's read. The kept backing
 becomes writable after its target's final read, while its scalar stamp stays live.
+
+The owned-input route relays two existing descriptor carriers through nested
+helper operands into selection inside an enclosing field initializer.
+Its match transfers the selected carrier and disposes of the residual input.
+The enclosing result retains the original parents, not loans of the consumed
+input holders. Both backings become writable after the result's target read;
+the selected stamp and enclosing scalar remain readable afterward.
+
+The receiving-local variation uses the same nested helper operands, binds the
+returned carrier, then moves it
+into the enclosing record. Those transfers keep the same parents through both
+receiving holders; argument preparation cannot disappear from lifetime analysis.
