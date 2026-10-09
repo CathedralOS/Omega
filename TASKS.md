@@ -2595,9 +2595,6 @@ crash and native exit behavior.
   - Read-selector capture (ebf381240e2) names `__hoist_14` instead of the
     authored index: `fail/collections/non_integer_index_rejected` loses its
     fragment.
-  - Argument domain weakening preempts the callee's requires check:
-    `fail/core/translation_unmap_before_activation` and
-    `fail/memory/bump_allocator_place_into_occupied` lose their fragments.
   - Lowering declines: `pass/domains/runtime_result_domain_machine_overload_exit`
     ("outer calls: statement window") and `fail/ports/asm_port_in_unsettled`
     ("outer calls: argument calls" instead of its pinned "call operation:

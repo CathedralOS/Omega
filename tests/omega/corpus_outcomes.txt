@@ -997,11 +997,8 @@ fail/core/scoped_integer_call_primitive_operator_requires_formation rejected 340
 fail/core/scoped_integer_call_wrapping_actual_requires_formation rejected 340ms expected @cba4ef8c9ab1
 	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
-fail/core/translation_unmap_before_activation rejected 594ms expected @2d8ed253669f
-	cannot prove requires contract for call unmap from unmap_early: pending in Mapping::Installed
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	callable `TranslationAuthority::unmap` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
+fail/core/translation_unmap_before_activation rejected 318ms expected @61726859ba27+wt
+	implicit domain weakening in argument `active` for state `unmap` drops `Pending`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/data/bare_payload_case_equality_suggests_in rejected 36ms expected @2d8ed253669f
 	`Command::Move` carries a payload, so the bare case name is not a value -- use `in` to test the case (`value in Command::Move`), or compare against a constructed value
 fail/data/boundary_data_construction_rejected rejected 245ms expected @2d8ed253669f
@@ -1595,8 +1592,9 @@ fail/memory/bump_allocator_cast_minted_vacant rejected 423ms expected @2d8ed2536
 	declared instance `Vacant` has no establishment: `as` mints an instance of domain family `Vacant` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a linear carrier that route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-0)
 fail/memory/bump_allocator_live_allocation_dropped rejected 651ms expected @2d8ed253669f
 	linear value `issued.allocation` reaches scope exit without being consumed or transferred
-fail/memory/bump_allocator_place_into_occupied rejected 731ms expected @2d8ed253669f
-	cannot prove requires contract for call place from exercise: placed.storage in Extent::Vacant
+fail/memory/bump_allocator_place_into_occupied rejected 296ms expected @61726859ba27+wt
+	implicit domain weakening in argument `storage` for state `place` drops `Resident<SlotPlacement, Slot>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	implicit domain strengthening in argument `storage` for state `place` assumes `Vacant`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
 fail/memory/bump_allocator_release_with_live_resident rejected 300ms expected @2d8ed253669f
 	implicit domain weakening in argument `returned` for state `release::entry` drops `Resident<SlotPlacement, Slot>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	implicit domain strengthening in argument `returned` for state `release::entry` assumes `Vacant`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
