@@ -1,4 +1,4 @@
-// glibc ldiv returns a 8-byte pair in SysV integer result registers.
+// glibc div returns an 8-byte pair packed in one SysV integer result register.
 use omega::language::core::external_binding;
 
 pub data DivisionResult { quotient: i32; remainder: i32; }

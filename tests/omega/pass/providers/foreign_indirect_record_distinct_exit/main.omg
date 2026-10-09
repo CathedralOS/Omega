@@ -79,7 +79,12 @@ machine Main::main(main: &mut Main) {
         && first.freed_bytes == 0 && first.allocated_bytes == 0
         && first.available_bytes == 0 && first.releasable_bytes == 0
         && second.arena > 0 && second.allocated_bytes > 0
-        && second.ordinary_blocks == 1 {
+        && second.ordinary_blocks == 1
+        && second.small_blocks == 0 && second.mapped_blocks == 0
+        && second.mapped_bytes == 0 && second.unused_bytes == 0
+        && second.freed_bytes == 0
+        && second.available_bytes > 0 && second.available_bytes < second.arena
+        && second.releasable_bytes == second.available_bytes {
         true -> passed(main)
         _ -> failed(main)
     }
