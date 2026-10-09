@@ -70,20 +70,6 @@ impl AuthoredBehaviorExclusion {
 /// The canonical crash-cause and physical-class union authored rows select. Service
 /// rows need a module to resolve their identity and are not part of this
 /// set; product admission uses [`authored_behavior_exclusion_set_in`].
-pub(crate) fn authored_behavior_exclusion_set(
-    exclusions: &[AuthoredBehaviorExclusion],
-) -> BehaviorExclusions {
-    BehaviorExclusions::from_selections(exclusions.iter().filter_map(|row| match &row.kind {
-        AuthoredBehaviorExclusionKind::CrashCause { cause, .. } => {
-            Some(BehaviorExclusion::CrashCause(*cause))
-        }
-        AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { class, .. } => {
-            Some(BehaviorExclusion::PhysicalAuthorityClass(*class))
-        }
-        AuthoredBehaviorExclusionKind::Service { .. } => None,
-    }))
-}
-
 /// The canonical union a set of authored rows selects in `module`, service
 /// rows resolved against that module's service catalog. Duplicates and
 /// authored order collapse under the same deduplication the terminal-side
