@@ -13,31 +13,34 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, OperationId, ScalarType, ValueId};
 
-pub(crate) fn reconstruct_proof_certified_scalar_identity_accounting(
-    function: &PsiOptimizationFunction,
-    patch: ProofCertifiedScalarIdentityRewrite,
-) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
-    reconstruct_scalar_identity_accounting(
-        function,
-        patch.location,
-        patch.source_operation,
-        patch.result,
-        ScalarType::Integer(patch.scalar_type),
-    )
+/// The shared field-projection each scalar-identity patch runs into the
+/// dead-node accounting spine.
+macro_rules! scalar_identity_reconstruction {
+    ($name:ident, $patch:ty) => {
+        pub(crate) fn $name(
+            function: &PsiOptimizationFunction,
+            patch: $patch,
+        ) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
+            reconstruct_scalar_identity_accounting(
+                function,
+                patch.location,
+                patch.source_operation,
+                patch.result,
+                ScalarType::Integer(patch.scalar_type),
+            )
+        }
+    };
 }
 
-pub(crate) fn reconstruct_total_scalar_identity_accounting(
-    function: &PsiOptimizationFunction,
-    patch: TotalScalarIdentityRewrite,
-) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
-    reconstruct_scalar_identity_accounting(
-        function,
-        patch.location,
-        patch.source_operation,
-        patch.result,
-        ScalarType::Integer(patch.scalar_type),
-    )
-}
+scalar_identity_reconstruction!(
+    reconstruct_proof_certified_scalar_identity_accounting,
+    ProofCertifiedScalarIdentityRewrite
+);
+
+scalar_identity_reconstruction!(
+    reconstruct_total_scalar_identity_accounting,
+    TotalScalarIdentityRewrite
+);
 
 fn reconstruct_scalar_identity_accounting(
     function: &PsiOptimizationFunction,
