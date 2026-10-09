@@ -363,3 +363,12 @@ pub fn terminator_successors_mut(
 ) -> Vec<&mut SelectedSuccessor> {
     terminator_successors_match!(terminator)
 }
+
+#[macro_export]
+macro_rules! terminator_exit_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::SelectedTerminator::Crash { $($fields)* }
+            | $crate::SelectedTerminator::HostedExitProcess { $($fields)* }
+            | $crate::SelectedTerminator::Return { $($fields)* }
+    };
+}

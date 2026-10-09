@@ -116,7 +116,7 @@ pub(crate) fn has_edge_use(function: &SelectedFunction, register: VirtualRegiste
                 when_not_less,
                 ..
             } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. } | SelectedTerminator::Crash { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+            selected_instructions::terminator_exit_triple_pattern!(..) => {
                 Vec::new()
             }
         };

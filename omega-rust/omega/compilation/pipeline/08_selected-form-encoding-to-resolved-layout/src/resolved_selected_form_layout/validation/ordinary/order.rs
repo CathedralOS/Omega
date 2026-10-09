@@ -71,9 +71,7 @@ fn fallthrough(block: &SelectedBlock) -> Option<SelectedBlockId> {
             Some(when_not_less.block)
         }
         SelectedTerminator::Jump { .. }
-        | SelectedTerminator::Return { .. }
-        | SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. } => None,
+        | selected_instructions::terminator_exit_triple_pattern!(..) => None,
     }
 }
 

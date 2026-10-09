@@ -491,9 +491,7 @@ fn terminator_successors_mut(terminator: &mut SelectedTerminator) -> Vec<&mut Se
             when_not_less,
             ..
         } => vec![when_less, when_not_less],
-        SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. }
-        | SelectedTerminator::Return { .. } => Vec::new(),
+        selected_instructions::terminator_exit_triple_pattern!(..) => Vec::new(),
     }
 }
 

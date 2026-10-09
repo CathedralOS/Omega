@@ -23,9 +23,7 @@ pub(super) fn successors(
             ..
         } => [Some(when_less), Some(when_not_less)],
         SelectedTerminator::Jump { successor, .. } => [Some(successor), None],
-        SelectedTerminator::Return { .. }
-        | SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. } => [None, None],
+        selected_instructions::terminator_exit_triple_pattern!(..) => [None, None],
     };
     successors.into_iter().flatten()
 }

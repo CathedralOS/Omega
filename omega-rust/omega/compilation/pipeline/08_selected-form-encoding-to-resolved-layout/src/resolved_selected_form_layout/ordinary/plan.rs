@@ -122,9 +122,7 @@ pub(crate) fn conditional_branch(block: &SelectedBlock) -> Option<(&SelectedInst
             ..
         } => Some((instruction, when_less)),
         SelectedTerminator::Jump { .. }
-        | SelectedTerminator::Return { .. }
-        | SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. } => None,
+        | selected_instructions::terminator_exit_triple_pattern!(..) => None,
     }
 }
 

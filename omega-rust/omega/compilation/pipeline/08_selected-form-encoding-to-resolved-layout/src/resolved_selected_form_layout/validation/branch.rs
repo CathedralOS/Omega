@@ -132,9 +132,7 @@ pub(super) fn validate(
             when_less,
             when_not_less,
         ),
-        SelectedTerminator::Crash { .. }
-        | SelectedTerminator::Return { .. }
-        | SelectedTerminator::HostedExitProcess { .. } => {
+        selected_instructions::terminator_exit_triple_pattern!(..) => {
             return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
         }
     };
