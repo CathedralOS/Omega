@@ -27,19 +27,22 @@ mod structural_inputs;
 // The stage entry and its custody join.
 pub use optimized::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
-    StagedOptimizedSelectionCustodyReceipt, selection_constraints,
+    StagedOptimizedSelectionCustodyReceipt,
     stage_optimized_instruction_selection,
 };
+pub(crate) use optimized::{ selection_constraints};
 
 // The two joins the entry sequences.
 pub use legalization::{
+};
+pub(crate) use legalization::{
     LegalizationError, LegalizationSource, LegalizationValidationReceipt,
-    ValidatedLegalizedOperations, legalize_target_operations,
+    ValidatedLegalizedOperations, legalize_target_operations};
+pub use selection::{ ValidatedSelectedInstructions, selected_instruction_plan_identity,
 };
-pub use selection::{
-    SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
-    select_instructions, selected_instruction_plan_identity,
-};
+pub(crate) use selection::{
+    SelectedInstructionError, SelectedInstructionValidationReceipt,
+    select_instructions};
 
 // The unit tests allocate heavily across nextest's parallel processes;
 // mimalloc avoids the system allocator's zone locks and free lists.

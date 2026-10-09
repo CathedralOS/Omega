@@ -5,7 +5,7 @@ use target::NativeTarget;
 use selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86BranchRelaxationWorkAxis {
+pub(crate) enum X86BranchRelaxationWorkAxis {
     RuleEvaluations,
     Candidates,
     ValidationSteps,

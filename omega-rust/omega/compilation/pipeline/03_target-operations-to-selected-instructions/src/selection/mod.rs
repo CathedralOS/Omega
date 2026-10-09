@@ -36,9 +36,10 @@ mod structural_local_input;
 pub(crate) mod value_transport;
 mod zeroed_structural_input;
 
-pub use model::{
-    SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
+pub use model::{ ValidatedSelectedInstructions,
 };
+pub(crate) use model::{
+    SelectedInstructionError, SelectedInstructionValidationReceipt};
 pub use selected_instructions::selected_instruction_plan_identity;
 
 use selected_instructions::SelectedSelectionConstraints;
@@ -46,7 +47,7 @@ use selected_instructions::SelectedSelectionConstraints;
 use crate::legalization::ValidatedLegalizedOperations;
 use construction::build_plan;
 
-pub fn select_instructions(
+pub(crate) fn select_instructions(
     legalized: &ValidatedLegalizedOperations,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,

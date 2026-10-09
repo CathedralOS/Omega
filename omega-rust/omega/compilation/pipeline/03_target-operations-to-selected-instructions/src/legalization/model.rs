@@ -12,7 +12,7 @@ pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity
 /// This carrier grants no instruction-selection, liveness, allocation,
 /// emission, or publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedLegalizedOperations {
+pub(crate) struct ValidatedLegalizedOperations {
     pub(super) plan: LegalizedOperationPlan,
     pub(super) receipt: LegalizationValidationReceipt,
 }
@@ -28,7 +28,7 @@ impl ValidatedLegalizedOperations {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LegalizationValidationReceipt {
+pub(crate) struct LegalizationValidationReceipt {
     pub(super) identity: LegalizedOperationPlanIdentity,
     pub(super) validator: OptimizationValidatorIdentity,
     pub(super) optimization_unit: optimization_core::OptimizationUnitIdentity,
@@ -64,7 +64,7 @@ impl LegalizationValidationReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LegalizationError {
+pub(crate) enum LegalizationError {
     /// The raw target, abstract, and optimization-unit custody disagree, or a
     /// node's own payload violates its representation. This names a producer
     /// or consumer defect, never a missing lowering. `machine` and `operation`

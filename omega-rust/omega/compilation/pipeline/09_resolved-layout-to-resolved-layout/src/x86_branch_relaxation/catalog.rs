@@ -6,20 +6,20 @@ use optimization_core::{
 };
 use target::Architecture;
 
-pub type FunctionRelativeLayoutRuleCatalogEntry = OptimizationCatalogDescriptor<Architecture>;
+pub(crate) type FunctionRelativeLayoutRuleCatalogEntry = OptimizationCatalogDescriptor<Architecture>;
 
 /// The single function-relative-layout enable/order/applicability catalog.
-pub const FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG: [FunctionRelativeLayoutRuleCatalogEntry; 1] =
+pub(crate) const FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG: [FunctionRelativeLayoutRuleCatalogEntry; 1] =
     [FunctionRelativeLayoutRuleCatalogEntry::new(
         Optimization::X86RelaxConditionalBranchesToRel8V1,
         Architecture::X86_64,
     )];
 
-pub const ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES: [Optimization; 1] =
+pub(crate) const ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES: [Optimization; 1] =
     [FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG[0].optimization()];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeLayoutCatalogError {
+pub(crate) enum FunctionRelativeLayoutCatalogError {
     WrongPhase(OptimizationPhaseMismatch),
     UnsupportedSelection(Optimization),
     UnsupportedComposition,
@@ -30,7 +30,7 @@ pub enum FunctionRelativeLayoutCatalogError {
     },
 }
 
-pub fn x86_rel8_selected(
+pub(crate) fn x86_rel8_selected(
     selections: &OptimizationPhaseSelections,
     architecture: Architecture,
 ) -> Result<bool, FunctionRelativeLayoutCatalogError> {
