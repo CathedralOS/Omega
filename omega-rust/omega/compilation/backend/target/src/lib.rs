@@ -34,6 +34,10 @@ pub use uefi_boot_services::{UEFI_LOADED_IMAGE_PROTOCOL_GUID};
 pub(crate) use uefi_boot_services::{UefiBootServicesNativeField,UefiBootServicesNativeFieldKind,UefiBootServicesNativeFieldLayout,ValidatedUefiBootServicesNativeLayout};
 pub(crate) use uefi_loaded_image::{UefiLoadedImageNativeField,UefiLoadedImageNativeFieldKind,UefiLoadedImageNativeFieldLayout,ValidatedUefiLoadedImageNativeLayout,exact_uefi_x64_loaded_image_native_layout};
 pub(crate) use uefi_system_table::{UefiSystemTableNativeField,UefiSystemTableNativeFieldKind,UefiSystemTableNativeFieldLayout,ValidatedUefiSystemTableNativeLayout};
+#[cfg(test)]
+pub(crate) use uefi_boot_services::exact_uefi_x64_boot_services_native_layout;
+#[cfg(test)]
+pub(crate) use uefi_system_table::exact_uefi_x64_system_table_native_layout;
 pub use x86_features::{AdmittedX86ScalarFmaProvider,X86_SCALAR_FMA_REQUIRED_FEATURES,X86DeploymentFeatures,X86FeatureRequirement,X86ScalarFmaSlot};
 
 pub(crate) fn require(

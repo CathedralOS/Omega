@@ -14,6 +14,8 @@ mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
 mod register_model;
+#[cfg(test)]
+pub(crate) use register_model::X86_64_REQUIRED_REGISTER_CONSTRAINTS;
 pub use register_model::X86_64_COPY_BYTES;
 pub use register_model::X86_64_DIVIDE_I64;
 pub use register_model::X86_64_DIVIDE_U64;

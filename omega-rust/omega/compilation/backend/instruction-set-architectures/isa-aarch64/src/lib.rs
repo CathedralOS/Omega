@@ -73,6 +73,8 @@ pub use register_model::{
     validate_aarch64_register_constraint_catalog, validated_aarch64_physical_register_model};
 pub(crate) use register_model::{ aarch64_physical_register_model_ref,
     aarch64_register_constraint_catalog_for, canonical_aarch64_physical_register_model_identity};
+#[cfg(test)]
+pub(crate) use register_model::AARCH64_REQUIRED_REGISTER_CONSTRAINTS;
 pub use register_model::{
     AARCH64_ADDRESS_OFFSET, AARCH64_BYTE_LITERAL_IMAGE_ADDRESS,
     AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32, AARCH64_FRAME_ADDRESS, AARCH64_HOSTED_WRITE_BYTE_I32,

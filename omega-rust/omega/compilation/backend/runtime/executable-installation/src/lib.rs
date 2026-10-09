@@ -43,8 +43,17 @@ pub use authority_digests::{
     NonAuthoritativeInformationalFingerprint64, NonAuthoritativeWriterContextFingerprint64,
     PlacementPlanId, RelocationSetId, ReplacementFactDigest, RetirementFactDigest,
 };
+#[cfg(test)]
+pub(crate) use executable_installation::{ admit_executable, install_validated,
+    materialize_and_freeze, retire_installed};
 pub use installation::{ InstallationError, InstalledCode, InstalledCodeContext,
 };
+#[cfg(test)]
+pub(crate) use installation::{
+    InstallationRegistryAuthority};
 pub use post_handoff_writer::{
     ResolvedPostHandoffEntryWriterContext, ValidatedPreparedPostHandoffWriterDestination,
 };
+#[cfg(test)]
+pub(crate) use retirement::quarantine::{
+    QuarantinedInstallation};

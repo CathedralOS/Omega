@@ -68,6 +68,10 @@ pub use hosted_write_byte::{
 pub use jump::{encode_aarch64_selected_jump_form, validate_aarch64_selected_jump_form};
 pub use memory::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
 
+#[cfg(test)]
+pub(crate) use movn_materialization::{
+    aarch64_shortest_movn_materialization_recipe, encode_aarch64_shortest_movn_materialization,
+    validate_aarch64_shortest_movn_materialization};
 pub use normalized_foreign_call::{ Aarch64CallbackAddressMaterialization,
     Aarch64CallbackMaterializationDestination, Aarch64NormalizedForeignCallFixup,
     Aarch64NormalizedForeignCallFixupKind, Aarch64NormalizedForeignCallFixupState,
