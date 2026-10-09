@@ -98,13 +98,7 @@ pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -
 /// [`invariant_place_observation_admission`].
 pub(crate) fn admissible_invariant_place_read(node: &OptimizationNode) -> Option<PlaceId> {
     let (psi_operation, source) = match &node.operation {
-        abstract_operations::scalar_read_or_membership_pattern!(psi_operation,
-            source, ..)
-        | O::ByteSequenceLength {
-            psi_operation,
-            source,
-            ..
-        }
+        abstract_operations::scalar_read_or_membership_pattern!(psi_operation, source, ..)
         | O::StructuralByteSequenceFieldLength {
             psi_operation,
             source,
@@ -115,6 +109,16 @@ pub(crate) fn admissible_invariant_place_read(node: &OptimizationNode) -> Option
             source,
             ..
         } => (*psi_operation, *source),
+        O::ByteSequenceLength {
+            psi_operation,
+            source,
+            ..
+        }
+        | O::ElementViewLength {
+            psi_operation,
+            source,
+            ..
+        } => (*psi_operation, source.place),
         _ => return None,
     };
     (operation_shape_spine(node, psi_operation)
@@ -190,11 +194,12 @@ pub(crate) fn admissible_invariant_field_byte_read(
     .then_some((*source, *index, *length))
 }
 
-/// A `ByteSequenceSubslice` is the structural-producing member of the byte
-/// observation family: still a verifier-approved read of an established
-/// storage root's extent, but it additionally evaluates two scalar endpoints,
-/// pairs them with the `length` a `ByteSequenceLength` on the same source
-/// defined, and establishes a fresh view root under its bounds obligation.
+/// A byte or element subslice reads an established descriptor's extent,
+/// evaluates two scalar endpoints, and establishes a fresh view under its
+/// bounds obligation. Its count must observe the same complete descriptor
+/// coordinate in the same byte or element units. Runtime-selected paths keep
+/// scalar selector uses and therefore remain outside this optional relocation
+/// boundary until those exact uses can be transported with their evidence.
 /// The node must keep its own operation identity as the first provenance row,
 /// define no scalar value — its result is the structural view the operation
 /// spells — use exactly its `start`, `end`, and `length` operands in operand
@@ -207,17 +212,26 @@ pub(crate) fn admissible_invariant_field_byte_read(
 pub(crate) fn admissible_invariant_subslice(
     node: &OptimizationNode,
 ) -> Option<(PlaceId, ValueId, ValueId, ValueId)> {
-    let O::ByteSequenceSubslice {
-        psi_operation,
-        result,
-        source,
-        start,
-        end,
-        length,
-        ..
-    } = &node.operation
-    else {
-        return None;
+    let (psi_operation, result, source, start, end, length) = match &node.operation {
+        O::ByteSequenceSubslice {
+            psi_operation,
+            result,
+            source,
+            start,
+            end,
+            length,
+            ..
+        }
+        | O::ElementViewSubslice {
+            psi_operation,
+            result,
+            source,
+            start,
+            end,
+            length,
+            ..
+        } => (psi_operation, result, source, start, end, length),
+        _ => return None,
     };
     (operation_shape_spine(node, *psi_operation)
         && node.definitions.is_empty()
@@ -228,7 +242,7 @@ pub(crate) fn admissible_invariant_subslice(
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
-    .then_some((*source, *start, *end, *length))
+    .then_some((source.place, *start, *end, *length))
 }
 
 /// An `EstablishByteSequenceLiteral` is the first structural establishment

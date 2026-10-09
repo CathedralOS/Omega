@@ -449,7 +449,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
         escapes || (operation.psi_operation() != Some(consumer)
             && (may_change_owned_source(operation, source)
                 || matches!(operation, Operation::EstablishReference { source: argument, .. } | Operation::EstablishElementView { source: argument, .. } if argument.place == source)
-                || matches!(operation, Operation::ByteSequenceSubslice { source: viewed, .. } if *viewed == source)))
+                || matches!(operation, Operation::ByteSequenceSubslice { source: viewed, .. } if viewed.place == source)))
     }) { return None; }
     Some(field.field_type.byte_predicates())
 }
@@ -605,9 +605,21 @@ where
                 {
                     return None;
                 }
-                return Some(
-                    source_predicates(catalogs, function, *backing, remaining, memo)?.subslice(),
-                );
+                let captured = if backing.path.is_empty() {
+                    source_predicates(catalogs, function, backing.place, remaining, memo)?
+                } else {
+                    let (root, access) =
+                        super::byte_field_freshness::byte_field_root(function, backing.place)?;
+                    if access == StructuralAccess::WriteOnlyBorrow {
+                        return None;
+                    }
+                    terminal_semantics::shared_byte_field_copy_predicates(
+                        catalogs.types.clone(),
+                        root,
+                        &backing.path,
+                    )?
+                };
+                return Some(captured.subslice());
             }
             let (_, result) = node.operation.structural_result()?;
             if result.place != source

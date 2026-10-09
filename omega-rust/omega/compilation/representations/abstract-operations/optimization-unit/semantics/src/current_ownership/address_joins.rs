@@ -656,6 +656,7 @@ fn shared_join_live_blocks(
             let cannot_retain_alias = match &node.operation {
                 abstract_operations::scalar_read_membership_triple_pattern!(..)
                 | O::ByteSequenceLength { .. }
+                | O::ElementViewLength { .. }
                 | O::ByteSequenceRead { .. }
                 | abstract_operations::byte_len_or_field_read_pattern!(..) => true,
                 abstract_operations::jump_or_conditional_pattern!() => {

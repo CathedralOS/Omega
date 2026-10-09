@@ -177,28 +177,29 @@ pub(crate) fn validate_operation_places(
             require(destination.place(), known)?;
             require(value.place, known)?;
         }
-        abstract_operations::boundary_or_structural_call_pair_pattern!(structural_arguments, ..) => {
+        abstract_operations::boundary_or_structural_call_pair_pattern!(
+            structural_arguments,
+            ..
+        ) => {
             for argument in structural_arguments {
                 require(argument.place, known)?;
             }
         }
-        abstract_operations::byte_sequence_store_pair_pattern!(
-            destination,
-            source,
-            ..
-        ) => {
+        abstract_operations::byte_sequence_store_pair_pattern!(destination, source, ..) => {
             require(*destination, known)?;
             require(*source, known)?;
         }
         abstract_operations::scalar_read_or_membership_pattern!(source, ..)
-        | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
-        | O::ByteSequenceLength { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. } => {
             require(*source, known)?;
         }
+        O::ByteSequenceLength { source, .. }
+        | O::ElementViewLength { source, .. }
+        | O::ByteSequenceSubslice { source, .. }
+        | O::ElementViewSubslice { source, .. } => require(source.place, known)?,
         O::ReturnStructural { source, .. } => require(*source, known)?,
         _ => {}
     }

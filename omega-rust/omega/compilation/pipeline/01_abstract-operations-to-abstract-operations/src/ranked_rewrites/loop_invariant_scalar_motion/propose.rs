@@ -945,6 +945,7 @@ pub(super) fn component_plan(
                         // multi-definition node cannot pass an admission
                         // gate, so reaching one here means the plan drifted.
                         AbstractOperation::ByteSequenceSubslice { result, .. }
+                        | AbstractOperation::ElementViewSubslice { result, .. }
                             if crate::validation::invariant_operations::admissible_invariant_subslice(node).is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())

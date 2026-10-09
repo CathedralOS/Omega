@@ -266,6 +266,9 @@ fn adapt(
                 }
             }
             match operation {
+                O::ByteSequenceLength { source, .. } | O::ElementViewLength { source, .. } => {
+                    step.inputs = vec![location(source.place, &source.path, None)?];
+                }
                 O::EstablishByteSequenceLiteral { place, .. } => {
                     let destination = DescriptorLocation::whole(place.id);
                     step.definitions.push(destination.clone());
@@ -339,7 +342,8 @@ fn adapt(
                     end,
                     ..
                 ) => {
-                    let source = DescriptorLocation::whole(*source);
+                    let source = location(source.place, &source.path, None)?;
+                    step.inputs = vec![source.clone()];
                     let destination = DescriptorLocation::whole(result.place);
                     step.derivations.push((source.clone(), destination.clone()));
                     graph.projections.insert(

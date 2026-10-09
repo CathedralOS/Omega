@@ -66,13 +66,17 @@ impl Projection {
     }
 
     pub fn window(start: ValueId, end: ValueId, position: Position) -> Self {
-        Self {
-            path: Vec::new(),
-            exact: false,
-            indirect: false,
-            window: Some((start, end)),
-            captured_at: Some(position),
-        }
+        Self::new(&[]).with_window(start, end, position)
+    }
+
+    /// Narrow the selected backing region without discarding its containing
+    /// path or unresolved reference crossings. Endpoints belong to this
+    /// activation's scalar namespace; they never become live path selectors.
+    pub fn with_window(mut self, start: ValueId, end: ValueId, position: Position) -> Self {
+        self.exact = false;
+        self.window = Some((start, end));
+        self.captured_at = Some(position);
+        self
     }
 
     /// A callee summary has no caller scalar namespace. Preserve its static

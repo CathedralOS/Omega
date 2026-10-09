@@ -194,9 +194,17 @@ pub(crate) fn scalar_case_result_contained(
                 // collapses into the preheader.
                 O::StructuralCase { source, .. }
                 | abstract_operations::scalar_read_membership_triple_pattern!(source, ..)
-                | abstract_operations::byte_read_subslice_triple_pattern!(source, ..)
+                | O::ByteSequenceRead { source, .. }
                 | O::StructuralByteSequenceFieldLength { source, .. }
                     if *source == picked =>
+                {
+                    member && !consumed
+                }
+                O::ByteSequenceLength { source, .. }
+                | O::ElementViewLength { source, .. }
+                | O::ByteSequenceSubslice { source, .. }
+                | O::ElementViewSubslice { source, .. }
+                    if source.place == picked =>
                 {
                     member && !consumed
                 }
@@ -289,7 +297,8 @@ pub(crate) fn scalar_case_result_contained(
             // shape requires all-nominal actions once any appear — so the
             // custody rewrite could not express its disposal and the
             // relocation refuses.
-            if let abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) = &node.operation
+            if let abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) =
+                &node.operation
                 && cleanup_actions.iter().any(|action| {
                     matches!(
                         action,
@@ -584,6 +593,9 @@ pub(crate) fn substitute_invariant_scalar_operands(
         // while its structural result place and obligation stay byte-exact.
         O::ByteSequenceSubslice {
             start, end, length, ..
+        }
+        | O::ElementViewSubslice {
+            start, end, length, ..
         } => {
             substitute(start, substitution);
             substitute(end, substitution);
@@ -663,9 +675,13 @@ pub(crate) fn substitute_invariant_place_root(
 ) -> bool {
     let source = match operation {
         abstract_operations::scalar_read_or_membership_pattern!(source, ..)
-        | abstract_operations::byte_read_subslice_triple_pattern!(source, ..)
+        | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. } => source,
+        O::ByteSequenceLength { source, .. }
+        | O::ElementViewLength { source, .. }
+        | O::ByteSequenceSubslice { source, .. }
+        | O::ElementViewSubslice { source, .. } => &mut source.place,
         _ => return false,
     };
     if *source != parameter {

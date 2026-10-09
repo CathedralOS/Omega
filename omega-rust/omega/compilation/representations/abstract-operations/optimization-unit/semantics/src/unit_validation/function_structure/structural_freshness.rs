@@ -93,8 +93,11 @@ fn call_argument_changes(
             abstract_operations::element_view_or_byte_subslice_pattern!(source, result, ..)
                 if result.place == place && result.structural_type == contract.structural_type =>
             {
-                region.clear();
-                place = *source;
+                // Descendant indices are relative to the narrowed view. The
+                // selected descriptor's containing path still distinguishes
+                // its siblings, but cannot donate an absolute child offset.
+                region = source.path.clone();
+                place = source.place;
             }
             _ => {
                 return types.get(&structural_type).is_none_or(|declaration| {
@@ -147,14 +150,16 @@ pub(super) fn structural_metadata_may_change(
             destination.place() == root
                 && terminal_semantics::structural_paths_may_overlap(path, written)
         }
-        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments.iter().any(|argument| {
-            matches!(
-                argument.access,
-                StructuralAccess::MutableBorrow
-                    | StructuralAccess::WriteOnlyBorrow
-                    | StructuralAccess::Owned
-            ) && call_argument_changes(function, types, root, path, argument)
-        }),
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => {
+            structural_arguments.iter().any(|argument| {
+                matches!(
+                    argument.access,
+                    StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
+                        | StructuralAccess::Owned
+                ) && call_argument_changes(function, types, root, path, argument)
+            })
+        }
         // These operations cannot alter this bounded field's live length.
         // Scalar stores target a separately validated primitive leaf, and byte
         // stores preserve length even when they replace the measured field's contents.

@@ -113,8 +113,8 @@ impl DescriptorLoans {
                         start,
                         end, ..) => Some((
                         result.place,
-                        *source,
-                        Projection::window(*start, *end, position),
+                        source.place,
+                        Projection::new(&source.path).with_window(*start, *end, position),
                         crate::unit_validation::operation_contracts::structural_operation_result_contract(
                             function, &node.operation,
                         ).map_or(StructuralAccess::MutableBorrow, |source| source.access),
@@ -654,7 +654,10 @@ fn operation_observations(
             );
         }
         abstract_operations::element_view_or_byte_subslice_pattern!(source, start, end, ..) => {
-            retain(*source, Projection::window(*start, *end, position));
+            retain(
+                source.place,
+                projected(source.place, &source.path, None).with_window(*start, *end, position),
+            );
         }
         O::StructuralByteSequenceFieldLength {
             source,

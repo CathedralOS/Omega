@@ -1,7 +1,10 @@
 //! Whether a component's place observations are loop-invariant: the
 //! whole-component custody gate, the storage root an observation names,
 //! preheader visibility of that root, the member place-parameter fixed point,
-//! and the place, byte-read and subslice admissions built on them.
+//! and the place, byte-read and subslice admissions built on them. Descriptor
+//! observations preserve selected paths and access through root relocation;
+//! count coupling compares full coordinates and keeps byte and element units
+//! separate. Operation-owned selector obligations remain independent evidence.
 
 use super::invariant_operations::{
     admissible_invariant_byte_read, admissible_invariant_field_byte_read,
@@ -187,7 +190,11 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::IeeeFloatCompare { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | abstract_operations::scalar_read_or_membership_pattern!(..)
-        | abstract_operations::byte_read_subslice_triple_pattern!(..)
+        | O::ByteSequenceRead { .. }
+        | O::ByteSequenceSubslice { .. }
+        | O::ElementViewSubslice { .. }
+        | O::ByteSequenceLength { .. }
+        | O::ElementViewLength { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldRead { .. }
         | abstract_operations::jump_or_conditional_pattern!()
@@ -429,21 +436,23 @@ fn borrowed_roots_exclusive(
 pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<PlaceId>) -> bool {
     match operation {
         abstract_operations::scalar_read_or_membership_pattern!(source, ..)
-        | abstract_operations::byte_read_subslice_triple_pattern!(source, ..)
+        | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }
         | O::StructuralCase { source, .. } => {
             references.insert(*source);
         }
+        O::ByteSequenceLength { source, .. }
+        | O::ElementViewLength { source, .. }
+        | O::ByteSequenceSubslice { source, .. }
+        | O::ElementViewSubslice { source, .. } => {
+            references.insert(source.place);
+        }
         O::PrimitiveLocalStore { destination, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination, ..) => {
             references.insert(*destination);
         }
-        abstract_operations::byte_sequence_store_pair_pattern!(
-            destination,
-            source,
-            ..
-        ) => {
+        abstract_operations::byte_sequence_store_pair_pattern!(destination, source, ..) => {
             references.insert(*destination);
             references.insert(*source);
         }
@@ -578,6 +587,7 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
     match operation {
         O::EstablishPrimitiveLocal { result, .. }
         | O::ByteSequenceSubslice { result, .. }
+        | O::ElementViewSubslice { result, .. }
         | O::EstablishScalarArray { result, .. }
         | O::EstablishStructuralArray { result, .. }
         | abstract_operations::establish_case_or_record_result_pattern!(result)
@@ -937,8 +947,61 @@ pub(crate) fn invariant_subslice_admission(
     let root = invariant_observation_root(function, component, source, relocating_roots)?;
     let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
     let rebound_length = substitution.get(&length).copied().unwrap_or(length);
-    byte_length_operand_measures_root(function, component, root, rebound_length, relocating_roots)
-        .then_some((root, substitution))
+    descriptor_length_operand_matches(
+        function,
+        component,
+        node,
+        root,
+        rebound_length,
+        relocating_roots,
+    )
+    .then_some((root, substitution))
+}
+
+/// A subrange retains the exact descriptor selected by its count, including
+/// access and captured selector identities. Root relocation alone cannot
+/// identify a sibling descriptor or a byte extent as an element count.
+fn descriptor_length_operand_matches(
+    function: &PsiOptimizationFunction,
+    component: &OptimizerCycleComponent,
+    node: &OptimizationNode,
+    root: PlaceId,
+    length: ValueId,
+    relocating_roots: &BTreeSet<PlaceId>,
+) -> bool {
+    let (source, element_count) = match &node.operation {
+        O::ByteSequenceSubslice { source, .. } => (source, false),
+        O::ElementViewSubslice { source, .. } => (source, true),
+        _ => return false,
+    };
+    let sites = value_definition_sites(function);
+    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&length) else {
+        return false;
+    };
+    let Some(producing) = function.block(*block).and_then(|block| {
+        usize::try_from(*node)
+            .ok()
+            .and_then(|node| block.nodes.get(node))
+    }) else {
+        return false;
+    };
+    let measured = match &producing.operation {
+        O::ByteSequenceLength { source, .. } if !element_count => source,
+        O::ElementViewLength { source, .. } if element_count => source,
+        _ => return false,
+    };
+    let mut rebound = source.clone();
+    rebound.place = root;
+    let mut measured = measured.clone();
+    if component.members.contains(block) {
+        let Some(place) =
+            invariant_observation_root(function, component, measured.place, relocating_roots)
+        else {
+            return false;
+        };
+        measured.place = place;
+    }
+    terminal_semantics::same_descriptor_coordinate(&rebound, &measured)
 }
 
 /// Whether `rebound_length` — the substituted `length` operand an admitted
@@ -972,12 +1035,13 @@ fn byte_length_operand_measures_root(
         O::ByteSequenceLength {
             source: measured, ..
         } if members.contains(block) => {
-            invariant_observation_root(function, component, *measured, relocating_roots)
-                == Some(root)
+            measured.path.is_empty()
+                && invariant_observation_root(function, component, measured.place, relocating_roots)
+                    == Some(root)
         }
         O::ByteSequenceLength {
             source: measured, ..
-        } => *measured == root,
+        } => measured.path.is_empty() && measured.place == root,
         _ => false,
     }
 }
@@ -1211,7 +1275,9 @@ fn structural_argument_roots(
     access: terminal_psi::StructuralAccess,
 ) -> BTreeSet<PlaceId> {
     let structural_arguments = match operation {
-        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments,
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => {
+            structural_arguments
+        }
         _ => return BTreeSet::new(),
     };
     structural_arguments

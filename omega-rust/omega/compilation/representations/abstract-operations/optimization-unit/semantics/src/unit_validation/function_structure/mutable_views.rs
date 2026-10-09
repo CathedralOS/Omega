@@ -385,8 +385,8 @@ pub(super) fn validate(
                 // Rebound descriptors receive fresh observations at their current
                 // block. Calls cannot preserve an old extent merely by preserving
                 // the descriptor's address; a following measurement must rejoin it.
-                let observed = block.nodes[..position].iter().rposition(|prior| matches!(prior.operation,
-                    O::ByteSequenceLength { source, result, .. } if source == destination && result.value == length));
+                let observed = block.nodes[..position].iter().rposition(|prior| matches!(&prior.operation,
+                    O::ByteSequenceLength { source, result, .. } if source.place == destination && source.path.is_empty() && result.value == length));
                 if observed.is_none_or(|observed| {
                     block.nodes[observed + 1..position].iter().any(|prior| {
                         !super::structural_roots::operation_place_inputs(&prior.operation)
