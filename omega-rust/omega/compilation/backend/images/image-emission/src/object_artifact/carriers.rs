@@ -61,7 +61,7 @@ pub struct ObjectByteLiteralPool {
 
 /// One literal address in the program text and the octets it names.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ObjectByteLiteralAddress {
+pub struct ObjectByteLiteralAddress {
     pub machine: MachineId,
     pub literal: machine_code::ByteLiteralReference,
     /// Text-section coordinates of the instruction's unresolved field(s).
