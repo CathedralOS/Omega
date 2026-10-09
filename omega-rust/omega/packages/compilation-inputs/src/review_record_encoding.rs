@@ -12,13 +12,6 @@ use crate::{AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;
 use effects::TerminalAuthorityClass;
 use filesystem_authority::observation_codec::ObservationCursor;
-use sha2::{Digest, Sha256};
-
-/// Hash `bytes` behind their little-endian `u64` length.
-pub fn hash_framed(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
-}
 
 /// Write `0` for an absent value, or `1` followed by the encoded value.
 pub fn encode_optional<T>(value: Option<&T>, out: &mut Vec<u8>, encode: impl Fn(&T, &mut Vec<u8>)) {

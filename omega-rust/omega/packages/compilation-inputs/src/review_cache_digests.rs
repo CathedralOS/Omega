@@ -11,7 +11,7 @@
 
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::review_record_encoding::{
-    authority_class_tag, declaration_kind_tag, hash_framed, purpose_tag, semantic_binding_role_tag,
+    authority_class_tag, declaration_kind_tag, purpose_tag, semantic_binding_role_tag,
 };
 use crate::{
     AcceptedSemanticBinding, BuildDependencyOccurrence, BuildSnapshotCapture, BuildSnapshotRequest,
