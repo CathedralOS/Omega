@@ -98,11 +98,7 @@ pub(crate) fn normalize_static_module_calls(
             .symbols
             .find_top_level_by_name_and_kinds_from_source(
                 &name,
-                &[
-                    SymbolKind::Machine,
-                    SymbolKind::Proposition,
-                    SymbolKind::Operator,
-                ],
+                targets::SOURCE_CALL_KINDS,
                 reference,
             );
         let selected = selected
@@ -199,7 +195,7 @@ pub(crate) fn normalize_static_module_calls(
             let selected = symbols
                 .find_top_level_by_name_and_kinds_from_source(
                     &name,
-                    &[SymbolKind::Machine, SymbolKind::Operator],
+                    targets::SOURCE_CALL_KINDS,
                     reference,
                 )
                 .map(|symbol| {

@@ -6,14 +6,11 @@ use symbol_resolved_trees::types::TypeReference;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_struct_literal_symbols;
-use super::lookup::{child_symbol_by_kinds, top_level_symbol_for_source};
+use super::lookup::child_symbol_by_kinds;
 use super::scoped_paths::{
     resolve_state_scoped_table_path, resolve_state_scoped_table_path_member_symbols,
 };
-use super::targets::{
-    assign_static_argument_symbols, resolve_free_machine_entry_state_symbol,
-    unshadowed_builtin_function_symbol,
-};
+use super::targets::{assign_static_argument_symbols, resolve_free_call_target_symbol};
 
 pub(super) fn assign_proposition_expression_symbols(
     program: &mut symbol_resolved_trees::SymbolResolvedTrees,
@@ -42,7 +39,6 @@ pub(super) fn assign_proposition_expression_symbols(
             child_type_references,
             symbols,
             proposition.symbol,
-            &[SymbolKind::Proposition],
             &local_type_parameters,
             body,
         );
@@ -54,7 +50,6 @@ fn assign_expression_span_symbols(
     child_type_references: &mut Arena<TypeReference>,
     symbols: &SymbolTable,
     owner_symbol: SymbolHandle,
-    call_kinds: &[SymbolKind],
     local_type_parameters: &[TypeParameter],
     span: HandleSpan<ExpressionHandle>,
 ) {
@@ -65,7 +60,6 @@ fn assign_expression_span_symbols(
             child_type_references,
             symbols,
             owner_symbol,
-            call_kinds,
             local_type_parameters,
             child,
         );
@@ -74,9 +68,9 @@ fn assign_expression_span_symbols(
 
 /// Resolve the authored names inside one proof-surface expression.
 /// `owner_symbol` is the declaration whose binder/parameter children are in
-/// scope; `call_kinds` lists the top-level declaration kinds a bare call
-/// target may name, tried in order before machine entry states and, last,
-/// compiler builtins that no authored declaration shadows.
+/// scope; callable declarations use the shared source target resolver.
+/// Exact lexical binders precede authored declarations, which precede the
+/// outermost compiler builtins. Ambiguous declarations stay unresolved.
 /// Shared by proposition formulas and mathematical `let`/`boundary let`
 /// terms (PROOF-CONTRACT-MIGRATION).
 pub(super) fn assign_expression_symbols(
@@ -84,7 +78,6 @@ pub(super) fn assign_expression_symbols(
     child_type_references: &mut Arena<TypeReference>,
     symbols: &SymbolTable,
     owner_symbol: SymbolHandle,
-    call_kinds: &[SymbolKind],
     local_type_parameters: &[TypeParameter],
     expression: ExpressionHandle,
 ) {
@@ -95,7 +88,6 @@ pub(super) fn assign_expression_symbols(
                 child_type_references,
                 symbols,
                 owner_symbol,
-                call_kinds,
                 local_type_parameters,
                 $expression,
             )
@@ -117,7 +109,6 @@ pub(super) fn assign_expression_symbols(
             child_type_references,
             symbols,
             owner_symbol,
-            call_kinds,
             local_type_parameters,
             values,
         ),
@@ -160,7 +151,6 @@ pub(super) fn assign_expression_symbols(
                 child_type_references,
                 symbols,
                 owner_symbol,
-                call_kinds,
                 local_type_parameters,
                 call.arguments,
             );
@@ -172,25 +162,24 @@ pub(super) fn assign_expression_symbols(
                 // could find.
                 SymbolHandle::invalid()
             } else {
-                // Authored declarations shadow a same-spelled compiler
-                // builtin, which is the outermost scope.
-                call_kinds
-                    .iter()
-                    .map(|kind| top_level_symbol_for_source(symbols, *kind, &call.target))
-                    .find(|symbol| symbol.is_valid())
-                    .or_else(|| {
-                        let machine =
-                            resolve_free_machine_entry_state_symbol(symbols, &call.target);
-                        machine.is_valid().then_some(machine)
-                    })
-                    .unwrap_or_else(|| {
-                        let authored_kinds = call_kinds
-                            .iter()
-                            .copied()
-                            .chain([SymbolKind::Machine])
-                            .collect::<Vec<_>>();
-                        unshadowed_builtin_function_symbol(symbols, &call.target, &authored_kinds)
-                    })
+                // Mathematical function parameters retain their lexical
+                // binder identity. Their Pi formation, rather than spelling,
+                // decides whether application is valid.
+                let parameter = child_symbol_by_kinds(
+                    symbols,
+                    owner_symbol,
+                    &[
+                        SymbolKind::Parameter,
+                        SymbolKind::PropositionParameter,
+                        SymbolKind::MachineParameter,
+                    ],
+                    call.target.as_str(),
+                );
+                if parameter.is_valid() {
+                    parameter
+                } else {
+                    resolve_free_call_target_symbol(symbols, &call.target)
+                }
             };
             if let ExpressionNode::Call(call) = expressions.expression_mut(expression) {
                 call.target_symbol = target_symbol;

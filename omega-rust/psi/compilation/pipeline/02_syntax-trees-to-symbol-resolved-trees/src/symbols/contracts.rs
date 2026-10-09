@@ -428,7 +428,9 @@ fn assign_contract_call_symbols(
                     let proof_static = target_symbol.is_valid()
                         && matches!(
                             symbols.get(target_symbol).kind,
-                            SymbolKind::Proposition | SymbolKind::PropositionParameter
+                            SymbolKind::Proposition
+                                | SymbolKind::PropositionParameter
+                                | SymbolKind::MathematicalDefinition
                         );
                     assign_static_argument_symbols(symbols, machine.symbol, argument, proof_static);
                 }

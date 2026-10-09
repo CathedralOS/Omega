@@ -3,6 +3,9 @@
 //! choosing it before an authored machine erased that machine's implementation
 //! and contracts during intrinsic normalization. Keep ambiguity distinct from
 //! absence so competing authored declarations cannot fall back to an intrinsic.
+//! The same callable family roster serves executable expressions, contracts,
+//! mathematical bodies and qualified namespaces. Selecting a mathematical
+//! declaration retains its identity; the calculus owns application formation.
 
 use language_semantics::declaration_selection::BuildOperation;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
@@ -11,6 +14,16 @@ use crate::symbols::lookup::{
     call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
     top_level_symbol_by_kinds, top_level_symbol_for_source,
 };
+/// Callable declaration identity is independent of executable or proof use.
+/// Formation later decides whether the selected declaration can satisfy the
+/// demanded role; resolution must retain mathematical targets there as well.
+pub(in crate::symbols) const SOURCE_CALL_KINDS: &[SymbolKind] = &[
+    SymbolKind::Machine,
+    SymbolKind::Operator,
+    SymbolKind::Proposition,
+    SymbolKind::MathematicalDefinition,
+];
+
 use crate::symbols::scope::MachineScope;
 use crate::symbols::type_references::call_target_for_type_reference;
 
@@ -85,17 +98,17 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
             // machine, operator, or other member is the exact selected owner.
             // Only machines rewrite to their entry state; an operator call
             // keeps its declaration identity for named-operator validation.
-            let callable = child_symbol_by_kinds(
-                symbols,
-                receiver_symbol,
-                &[SymbolKind::Machine, SymbolKind::Operator],
-                target.as_str(),
-            );
+            let callable =
+                child_symbol_by_kinds(symbols, receiver_symbol, SOURCE_CALL_KINDS, target.as_str());
             match symbols.get(callable).kind {
                 SymbolKind::Machine => {
                     return child_symbol_by_kinds(symbols, callable, &[SymbolKind::State], "entry");
                 }
-                SymbolKind::Operator => return callable,
+                SymbolKind::Operator
+                | SymbolKind::Proposition
+                | SymbolKind::MathematicalDefinition => {
+                    return callable;
+                }
                 _ => return SymbolHandle::invalid(),
             }
         }
@@ -264,13 +277,18 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return proposition_parameter;
     }
 
+    resolve_free_call_target_symbol(symbols, target)
+}
+
+/// A visible authored callable shadows the outermost builtin. Ambiguity and
+/// a machine with no entry retain absence rather than selecting another kind.
+pub(in crate::symbols) fn resolve_free_call_target_symbol(
+    symbols: &SymbolTable,
+    target: &symbol_resolved_trees::name::DiagnosticName,
+) -> SymbolHandle {
     match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
         target.as_str(),
-        &[
-            SymbolKind::Machine,
-            SymbolKind::Operator,
-            SymbolKind::Proposition,
-        ],
+        SOURCE_CALL_KINDS,
         target.source_span(),
         |_| true,
     ) {
@@ -286,29 +304,6 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
             top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str())
         }
     }
-}
-
-/// The compiler builtin function spelled `target`, or invalid when an authored
-/// top-level declaration of one of `authored_kinds` with that spelling is
-/// visible from the occurrence. Builtins are the outermost receiverless scope,
-/// so every authored candidate shadows them. A candidate the caller's own
-/// lookup left unresolved (ambiguous, or a machine without an entry state)
-/// keeps the call unresolved rather than falling back to the builtin.
-pub(in crate::symbols) fn unshadowed_builtin_function_symbol(
-    symbols: &SymbolTable,
-    target: &symbol_resolved_trees::name::DiagnosticName,
-    authored_kinds: &[SymbolKind],
-) -> SymbolHandle {
-    let authored = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
-        target.as_str(),
-        authored_kinds,
-        target.source_span(),
-        |_| true,
-    );
-    if !matches!(authored, SymbolLookup::NotFound) {
-        return SymbolHandle::invalid();
-    }
-    top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str())
 }
 
 /// The entry-state symbol of the free top-level machine named `target`, or

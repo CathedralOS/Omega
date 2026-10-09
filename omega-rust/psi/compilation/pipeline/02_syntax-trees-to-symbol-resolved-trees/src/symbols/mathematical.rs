@@ -5,22 +5,16 @@
 //! scope. `Ordinary` mathematical type arms resolve through the shared type
 //! pass with the binders as local type parameters — so `u: core::Level` binds
 //! inside `A: core::Type<u>` — while `Application` argument expressions and
-//! `Definition` bodies share the proposition walk with a call-target set that
-//! includes other mathematical declarations. Arrow binders are retained as
+//! `Definition` bodies share the proposition walk and the common callable
+//! declaration resolver. Arrow binders are retained as
 //! authored names only; the typed-tree telescope owns their scoping.
 
 use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::mathematical::{MathematicalBody, MathematicalType};
-use symbols::{SymbolKind, SymbolTable};
+use symbols::SymbolTable;
 
 use super::propositions::assign_expression_symbols;
 use super::type_references::assign_type_reference_symbol_with_locals;
-
-/// Top-level kinds a bare call target inside a mathematical term may name:
-/// another mathematical declaration first (the migrating surface), then the
-/// proposition family it is replacing during the transition.
-const MATHEMATICAL_CALL_KINDS: &[SymbolKind] =
-    &[SymbolKind::MathematicalDefinition, SymbolKind::Proposition];
 
 pub(super) fn assign_mathematical_expression_symbols(
     program: &mut symbol_resolved_trees::SymbolResolvedTrees,
@@ -90,7 +84,6 @@ pub(super) fn assign_mathematical_expression_symbols(
                             child_type_references,
                             symbols,
                             definition.symbol,
-                            MATHEMATICAL_CALL_KINDS,
                             &local_type_parameters,
                             argument,
                         );
@@ -108,7 +101,6 @@ pub(super) fn assign_mathematical_expression_symbols(
             child_type_references,
             symbols,
             definition.symbol,
-            MATHEMATICAL_CALL_KINDS,
             &local_type_parameters,
             term,
         );
