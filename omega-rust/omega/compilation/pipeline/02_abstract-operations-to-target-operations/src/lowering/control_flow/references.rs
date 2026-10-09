@@ -17,7 +17,7 @@ use target_operations::{
 };
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeShape, live_field_by_id, structural_children,
+    StructuralTypeShape, live_field_by_id,
 };
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
@@ -368,44 +368,7 @@ pub(super) fn reference_call_argument(
 
 /// Inspect owned containment only. A reference's referent is not its payload.
 pub(super) fn contains_reference(types: &StructuralTypeLookup<'_>, root: StructuralTypeId) -> bool {
-    let mut pending = vec![root];
-    let mut visited = BTreeSet::new();
-    while let Some(current) = pending.pop() {
-        if !visited.insert(current) {
-            continue;
-        }
-        let Some(declaration) = types.get(&current) else {
-            continue;
-        };
-        let mut push_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-            pending.extend(structural_children(fields));
-        };
-        match &declaration.shape {
-            StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::Record { fields, .. } => push_fields(fields),
-            StructuralTypeShape::Sum { cases } => {
-                for case in cases {
-                    push_fields(&case.fields);
-                }
-            }
-            StructuralTypeShape::Mixed { fields, cases } => {
-                push_fields(fields);
-                for case in cases {
-                    push_fields(&case.fields);
-                }
-            }
-            StructuralTypeShape::FixedArray { element, length } => {
-                if *length != 0 {
-                    pending.push(*element);
-                }
-            }
-            StructuralTypeShape::ElementView { element } => pending.push(*element),
-            StructuralTypeShape::FusedServiceBinding
-            | StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::ByteSequence(_) => {}
-        }
-    }
-    false
+    terminal_psi::structural_type_contains_reference_by(|id| types.get(&id).copied(), root)
 }
 
 /// Exact declaration-order reference leaves of the supported owned shape.

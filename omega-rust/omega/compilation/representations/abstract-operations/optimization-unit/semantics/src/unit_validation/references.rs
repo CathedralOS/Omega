@@ -56,47 +56,7 @@ pub(crate) fn contains_reference(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
-    let mut pending = vec![root];
-    let mut visited = BTreeSet::new();
-    while let Some(current) = pending.pop() {
-        if !visited.insert(current) {
-            continue;
-        }
-        let Some(declaration) = types.get(&current) else {
-            continue;
-        };
-        let mut push_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-            pending.extend(fields.iter().filter_map(|field| match field.field_type {
-                terminal_psi::StructuralFieldType::Structural(child) => Some(child),
-                _ => None,
-            }));
-        };
-        match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference { .. } => return true,
-            terminal_psi::StructuralTypeShape::Record { fields, .. } => push_fields(fields),
-            terminal_psi::StructuralTypeShape::Sum { cases } => {
-                for case in cases {
-                    push_fields(&case.fields);
-                }
-            }
-            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                push_fields(fields);
-                for case in cases {
-                    push_fields(&case.fields);
-                }
-            }
-            terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
-                if *length != 0 {
-                    pending.push(*element);
-                }
-            }
-            terminal_psi::StructuralTypeShape::ElementView { element } => pending.push(*element),
-            terminal_psi::StructuralTypeShape::FusedServiceBinding
-            | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-            | terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
-        }
-    }
-    false
+    terminal_psi::structural_type_contains_reference_by(|id| types.get(&id).copied(), root)
 }
 
 /// Exact declaration-order reference leaves of the supported owned shape.

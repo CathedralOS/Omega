@@ -516,13 +516,22 @@ pub fn structural_type_contains_reference(
     types: &[StructuralTypeDeclaration],
     root: StructuralTypeId,
 ) -> bool {
+    structural_type_contains_reference_by(|id| find_structural_type(types, id), root)
+}
+
+/// The same walk over a caller-chosen declaration lookup, for consumers that
+/// hold declarations keyed by id rather than in declaration-order slices.
+pub fn structural_type_contains_reference_by<'types>(
+    lookup: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+) -> bool {
     let mut pending = vec![root];
     let mut visited = std::collections::BTreeSet::new();
     while let Some(current) = pending.pop() {
         if !visited.insert(current) {
             continue;
         }
-        let Some(declaration) = find_structural_type(types, current) else {
+        let Some(declaration) = lookup(current) else {
             continue;
         };
         let mut push_fields = |fields: &[StructuralFieldDeclaration]| {

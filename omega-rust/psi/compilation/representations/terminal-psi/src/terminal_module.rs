@@ -105,7 +105,8 @@ pub use types::{
     find_structural_case, find_structural_type, live_field, live_field_by_id,
     live_field_by_identity, live_field_entry, structural_case_by_identity,
     structural_case_position, structural_children, structural_type_by_identity,
-    structural_type_contains_reference, unique_structural_declaration,
+    structural_type_contains_reference, structural_type_contains_reference_by,
+    unique_structural_declaration,
 };
 pub use values::{
     ErasedProofFormal, OperationProjection, StructuralArgument, StructuralParameterDeclaration,
