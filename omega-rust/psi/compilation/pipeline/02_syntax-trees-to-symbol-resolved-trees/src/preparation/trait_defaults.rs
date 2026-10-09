@@ -284,7 +284,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             );
             let machine = machine_from_signature(
                 syntax,
-                Identifier::generated(signature.name.as_str()),
+                implementation_member_name(&conformance.declaration, signature.name.as_str()),
                 &signature,
                 exact_unargumented_requirement_owner(&traits, requirement.declaring_trait),
                 Identifier::generated(declaring_path.as_str()),
@@ -475,20 +475,25 @@ fn synthesized_equality_member(
         .insert(StatementNode::Expression(equality));
     let statement = syntax.items.append_statement_handle(statement);
     signature.default_body = HandleSpan::from_parts(statement, 1);
-    // The implementation's own name occurrence gives the row its package
-    // provenance: a generated name would belong to no package that may
-    // select it.
-    let name = declaration.alias.as_ref().map_or_else(
-        || Identifier::generated(EQUALS),
-        |alias| Identifier::new(EQUALS, alias.source_span()),
-    );
     Some(ConformanceMember::Synthesized(machine_from_signature(
         syntax,
-        name,
+        implementation_member_name(declaration, EQUALS),
         &signature,
         None,
         Identifier::default(),
     )))
+}
+
+/// A member the compiler adds to a named implementation is named at the
+/// implementation's own name occurrence. That occurrence gives the row its
+/// package provenance and exact declaration owner: a generated name would
+/// belong to no package that may select it, and Terminal production could not
+/// identify the machine it emits for the row.
+fn implementation_member_name(declaration: &ConformanceItem, member: &str) -> Identifier {
+    declaration.alias.as_ref().map_or_else(
+        || Identifier::generated(member),
+        |alias| Identifier::new(member, alias.source_span()),
+    )
 }
 
 fn substitute_type_reference(

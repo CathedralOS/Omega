@@ -4023,10 +4023,10 @@ pass/traits/runtime_dyn_two_impl_dispatch_exit checked 921ms check-target:macos_
 pass/traits/runtime_exact_requirement_edge_exit checked 2044ms check-target:macos_arm64 @e3131e3bcd65+wt
 pass/traits/runtime_explicit_implementation_requirement_call_exit checked 1137ms check-target:macos_arm64
 pass/traits/runtime_generic_exact_application_exit checked 1674ms check-target:macos_arm64 @b5a9b4a9eef4+wt
-pass/traits/runtime_inherited_trait_default_exit checked 3274ms check-target:macos_arm64 @c4e45d3dda38+wt
+pass/traits/runtime_inherited_trait_default_exit checked 3274ms check-target:macos_arm64 @7e0a5e1d48d2+wt
 pass/traits/runtime_named_implementation_selection_exit checked 1127ms check-target:macos_arm64 @65c3b89f46f4+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms check-target:macos_arm64 @2d8ed253669f
-pass/traits/runtime_trait_default_requirement_scope_exit checked 3622ms check-target:macos_arm64 @c4e45d3dda38+wt
+pass/traits/runtime_trait_default_requirement_scope_exit checked 3622ms check-target:macos_arm64 @7e0a5e1d48d2+wt
 pass/traits/trait_generic_bound_static_dispatch checked 3015ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/transparent_refinement_declaration checked 823ms check-target:macos_arm64 @2d8ed253669f
 pass/types/runtime_addr_algebra_exit checked 1286ms check-target:macos_arm64 @ca8c127c90c5

@@ -2573,9 +2573,6 @@ crash and native exit behavior.
   `python3 tools/corpus_gate.py` and `--native`, then route by cause, not by
   the revision that recorded a row. Losses observed at 21cec730b99:
 
-  - Trait default rows: `pass/traits/runtime_inherited_trait_default_exit` and
-    `runtime_trait_default_requirement_scope_exit` stop in Terminal production
-    with "checked machine has no exact declaration owner".
   - Hoisted operands: recast offsets and subslice bounds report `__hoist_14`
     instead of the authored operand. `pass/dependent/{boundary_equality_recast_witness,call_requires_saved_local_arithmetic_bound}_compile`
     and `pass/recast/runtime_interior_slice_congruent_offset_exit` reject;
