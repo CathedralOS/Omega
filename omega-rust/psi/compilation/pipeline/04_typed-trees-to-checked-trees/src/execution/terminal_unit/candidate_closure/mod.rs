@@ -2,7 +2,7 @@
 //! rebuilding bodies or rechecking unaffected callers after each removal.
 use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, SymbolHandle,
+    CheckedUnitEffectOperationPlan, SymbolHandle, symbol_key,
 };
 use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
 use crate::execution::terminal_unit::scalar_targets;
@@ -202,10 +202,6 @@ fn admit_call_target(
         // which lowering resolves when it assembles the tables.
         (CheckedUnitCallRoute::Dynamic { .. }, _) => {}
     }
-}
-
-fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
-    (symbol.arena_index(), symbol.generation())
 }
 
 /// Prune both catalogs to the bodies whose every call dependency is available,

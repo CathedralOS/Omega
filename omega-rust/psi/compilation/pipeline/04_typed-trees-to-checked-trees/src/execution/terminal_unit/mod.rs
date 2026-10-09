@@ -240,7 +240,10 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             .map(|plan| composed_machines.push(plan)),
         };
         if planned.is_none() {
-            construction_gaps.insert(gap_key(machine.symbol), trace.gap(program, machine.symbol));
+            construction_gaps.insert(
+                symbol_key(machine.symbol),
+                trace.gap(program, machine.symbol),
+            );
         }
     }
 
@@ -338,7 +341,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         }
         Some(Err((state, construct))) => {
             cleanup_gaps
-                .entry(gap_key(plan.machine))
+                .entry(symbol_key(plan.machine))
                 .or_insert_with(|| {
                     plan_gap(
                         program,
@@ -370,7 +373,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         }
         _ => {
             cleanup_gaps
-                .entry(gap_key(plan.machine))
+                .entry(symbol_key(plan.machine))
                 .or_insert_with(|| {
                     plan_gap(
                         program,
@@ -398,7 +401,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &mut composed_machines,
     );
     gaps.extend(closure_gaps);
-    gaps.sort_by_key(|gap| gap_key(gap.machine));
+    gaps.sort_by_key(|gap| symbol_key(gap.machine));
     // Closure admission is final: do not delete a callee because it also has
     // a specialized return plan. Ordinary and composed callers consume the
     // same exact executable entry, including a body containing only Complete.
@@ -802,7 +805,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     }
 }
 
-fn gap_key(symbol: SymbolHandle) -> (u32, u32) {
+pub(super) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
@@ -812,8 +815,12 @@ fn planned_machines(
 ) -> BTreeSet<(u32, u32)> {
     candidates
         .iter()
-        .map(|plan| gap_key(plan.machine))
-        .chain(composed_machines.iter().map(|plan| gap_key(plan.machine)))
+        .map(|plan| symbol_key(plan.machine))
+        .chain(
+            composed_machines
+                .iter()
+                .map(|plan| symbol_key(plan.machine)),
+        )
         .collect()
 }
 
