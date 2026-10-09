@@ -38,3 +38,14 @@ pub enum FlowConstraintKind {
 pub struct FlowConstraintRef {
     pub kind: FlowConstraintKind,
 }
+
+#[macro_export]
+macro_rules! borrow_set_quint_pattern {
+    ($($fields:tt)*) => {
+        $crate::FlowConstraintKind::BorrowAccess { $($fields)* }
+            | $crate::FlowConstraintKind::BorrowCall { $($fields)* }
+            | $crate::FlowConstraintKind::BorrowLoan { $($fields)* }
+            | $crate::FlowConstraintKind::BorrowState { $($fields)* }
+            | $crate::FlowConstraintKind::BorrowWritableRoot { $($fields)* }
+    };
+}

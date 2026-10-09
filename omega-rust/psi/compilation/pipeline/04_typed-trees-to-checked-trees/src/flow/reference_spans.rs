@@ -169,11 +169,7 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
                 .iter()
                 .any(|active| active.context == context),
             FlowConstraintKind::Unknown
-            | FlowConstraintKind::BorrowState { .. }
-            | FlowConstraintKind::BorrowCall { .. }
-            | FlowConstraintKind::BorrowWritableRoot { .. }
-            | FlowConstraintKind::BorrowAccess { .. }
-            | FlowConstraintKind::BorrowLoan { .. } => true,
+            | checked_trees::borrow_set_quint_pattern!(..) => true,
         },
     )
 }

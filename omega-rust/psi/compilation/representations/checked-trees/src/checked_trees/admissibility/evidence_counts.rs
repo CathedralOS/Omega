@@ -33,11 +33,7 @@ pub(super) fn borrow_constraint_count(
         .filter(|constraint| {
             matches!(
                 constraint.kind,
-                FlowConstraintKind::BorrowState { .. }
-                    | FlowConstraintKind::BorrowCall { .. }
-                    | FlowConstraintKind::BorrowWritableRoot { .. }
-                    | FlowConstraintKind::BorrowAccess { .. }
-                    | FlowConstraintKind::BorrowLoan { .. }
+                crate::borrow_set_quint_pattern!(..)
             )
         })
         .count()
