@@ -17,6 +17,7 @@
 // literal, decomposes field-by-field, and the citations (or Nat's earned
 // ring license) settle each Nat component.
 
+use omega::language::core::algebra;
 use omega::language::core::nat;
 
 pub data IntPair {

@@ -11,6 +11,7 @@
 //
 use omega::language::core::content;
 use omega::language::core::device;
+use omega::language::core::nat;
 
 pub data Extent [linear] {
     base: addr;

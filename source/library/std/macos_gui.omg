@@ -7,6 +7,7 @@
 // Class/style inputs do not select Cocoa classes or grant foreign authority.
 
 use omega::language::core::numeric_conversion;
+use omega::language::core::float_format;
 use omega::language::core::float_operations;
 use targets::macos_arm64::macos_gui_impl;
 

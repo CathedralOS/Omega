@@ -5937,16 +5937,13 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   AtMost<8>`) do not parse yet. Of the 51 std and core files outside target
   and test directories, 35 parse whole; with the transitive closure of their
   imports (std as package `omega_language_std`, core as the toolchain
-  package), 17 resolve. The others stop first at 7 imports that do not parse,
-  2 at `where machine` contracts, 3 (`core/device.omg` with `arena` and
-  `extent`) at a `Nat` that `core/extent.omg` names without importing `nat`, 2
-  (`core/int.omg` and `rat`) at a `CommutativeSemiring` that `core/int.omg`
-  names without importing `algebra` (imports are not transitive; with that
-  import both resolve), `core/float_meaning.omg` at a `Nat` it does not
-  import, `std/process_exit.omg` at a provider type its target implementations
-  declare, `core/numeric_conversion.omg` at the compiler builtin function
-  `clamp` (and the device group, given its import, at `embed`), which
-  resolution does not install, and `core/option.omg` at
+  package), 20 resolve. The others stop first at 7 imports that do not parse,
+  2 at `where machine` contracts, `std/process_exit.omg` at a provider type
+  its target implementations name without importing `process_exit` (imports
+  are not transitive), `core/numeric_conversion.omg` and the 3 device-group
+  files (`core/device.omg` with `arena` and `extent`) at the compiler builtin
+  functions `clamp` and `embed`, which resolution does not install, and
+  `core/option.omg` at
   `zero_value<Optional<T>>()`, a proof-only observation the Rust parser
   recognizes contextually and no spec page defines (the product parser reads
   it as a call to an unknown machine). The 65 std and core files that parse
