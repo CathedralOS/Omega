@@ -235,12 +235,13 @@ fail/borrow/multi_source_view_source_write rejected 1184ms expected @c5d32a00863
 	statement 1 mutates `second` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrow/nested_aggregate_result_invalidated rejected 1118ms expected @c5d32a00863
 	statement 1 mutates `right` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/borrow/nested_borrow_carrying_local_escape rejected 919ms expected @2d8ed253669f
+fail/borrow/nested_borrow_carrying_local_escape rejected 357ms expected @eed71058e867
 	machine `bad` returns a view borrowing the local `envelope`, which does not outlive the call; return a borrow of an input parameter or `self` instead
+	machine `bad$specialized$973bc3ea132f5582$0` returns a view borrowing the local `envelope`, which does not outlive the call; return a borrow of an input parameter or `self` instead
 fail/borrow/opaque_write_only_boundary rejected 213ms expected @693920652f41
 	machine `write` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
-fail/borrow/persistent_borrow_storage_requires_outlives rejected 746ms expected @2d8ed253669f
-	assignment stores a borrow-carrying value in persistent field `stored` of machine `Main::store`; persistent loans must be propagated through graph-state transitions before this write can be admitted
+fail/borrow/persistent_borrow_storage_requires_outlives rejected 362ms expected @eed71058e867
+	assignment stores a borrow-carrying value in persistent field `stored` of machine `Cell::set$specialized$dcbb8209abdb6016$0`; persistent loans must be propagated through graph-state transitions before this write can be admitted
 fail/borrow/undeclared_lifetime_tag rejected 260ms expected @2d8ed253669f
 	data `Bad` field `body` uses undeclared lifetime `'ghost'; declare it in the owner's generic parameter list
 fail/borrow/vec_view_invalidated_by_push rejected 159ms expected @dab35460b4c5+wt
@@ -335,8 +336,8 @@ fail/borrows/direct_reference_array_range_narrowing rejected 191ms expected @15c
 	machine `Main::read` state `read` local `observed` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
 fail/borrows/duplicate_retained_subject_arguments rejected 117ms expected @cb6b089b27de+wt
 	state `take` receives `main` as mutable more than once
-fail/borrows/evidence_bound_record_result_keeps_loan rejected 2564ms expected @b7c2d2975497
-	statement 2 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/evidence_bound_record_result_keeps_loan rejected 356ms expected @eed71058e867
+	statement 3 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/fixed_element_reference_return_out_of_bounds rejected 429ms expected @3fa817733300+wt
 	cannot prove index `2` is within length 2
 fail/borrows/float_comparison_read_during_live_exclusive_loan rejected 1519ms expected @89af21767c32+wt
@@ -2374,8 +2375,8 @@ fail/traits/dyn_selector_receiver_call rejected 254ms expected @7f068b5c82b8
 	a `dyn Shape` selector is a dispatch operand, not a receiver; call `Shape::code(selector, ...)`
 fail/traits/dyn_selector_reentry_unranked rejected 267ms expected @8ca28fbfc657
 	machine call cycle: `Loop::walk`, `rewalk` -- a member lacks a supported exact ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/traits/dyn_selector_requirement_precondition_unproven rejected 673ms expected @e83cb166de5f+wt
-	cannot prove requires contract for call dyn Shrink<Scale>::shrink from probe: 200 >= 3 && 200 <= 100 (needs fact `value >= 3 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/traits/dyn_selector_requirement_precondition_unproven rejected 362ms expected @eed71058e867
+	cannot prove requires contract for call dyn Shrink<1 argument>::shrink from probe: 200 >= 3 && 200 <= 100 (needs fact `value >= 3 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/traits/dyn_selector_self_reentry_unranked rejected 348ms expected @e83cb166de5f+wt
 	machine call cycle: `Loop::walk` can re-enter itself through a selector call; termination across runtime implementation selection is not yet ranked
 fail/traits/dyn_selector_wrong_application rejected 317ms expected @7f068b5c82b8
@@ -2388,6 +2389,8 @@ fail/traits/equatable_operator_ambiguous_implementations rejected 24ms expected 
 	cannot compare `Coin` values with `==`: 2 Equatable implementations satisfy `Equatable<Coin>` (`CoinEquality`, `CoinValueEquality`) and the operator selects at most one -- call the intended implementation's `equals` explicitly
 fail/traits/equatable_recursive_type rejected 20ms expected @e3131e3bcd65+wt
 	conformance `NodeEquality satisfies Equatable<Node>`: type `Node` is recursive through field `next` of `Node`: synthesized structural equality would not terminate, so recursive Equatable implementations are not supported yet
+fail/traits/evidence_binder_distinct_lifetime_arguments rejected 164ms expected @eed71058e867
+	generic machine `observe` cannot bind `Operations` to conformance `IdentityMap`: expected a complete `Identity` implementation with the instantiated trait arguments
 fail/traits/evidence_binder_given_data_type rejected 48ms expected @65c3b89f46f4+wt
 	machine `apply` static argument 2 requires its declared binder kind, not a type argument
 fail/traits/evidence_binder_subject_retired rejected 3ms expected @65c3b89f46f4+wt
@@ -3569,6 +3572,7 @@ pass/generics/runtime_forwarded_value_contract_exit checked 507ms check-target:m
 pass/generics/runtime_generic_multiple_specializations_exit checked 1262ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_grouped_decimal_const_argument_exit checked 3797ms check-target:macos_arm64 @1e24b2973189
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 3452ms check-target:macos_arm64 @1e24b2973189
+pass/generics/runtime_inherited_composite_requirement_exit checked 2333ms check-target:macos_arm64 @eed71058e867
 pass/generics/runtime_mixed_generic_erased_sum_exit checked 515ms check-target:macos_arm64 @ca8c127c90c5
 pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_selected_operator_body_exit checked 11304ms check-target:macos_arm64 @b7c2d2975497

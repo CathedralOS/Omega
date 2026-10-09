@@ -419,6 +419,7 @@ pass/float/trapping_raw_finite_semantic_result_proof built 8851ms exit:0 interpr
 pass/generics/closed_generic_local_field_observation_exit built 3226ms exit:0 interpreter-exit:0 interpreter:agrees @c9b4ecc7551a
 pass/generics/runtime_const_container_methods_exit built 1598ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/generics/runtime_copied_indexed_case_subject_exit built 1602ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
+pass/generics/runtime_inherited_composite_requirement_exit built 2899ms exit:0 interpreter-exit:0 interpreter:agrees @eed71058e867
 pass/host/console_exit_process_exit built 1352ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @2424b17e715c
 pass/host/process_exit_after_zero_payload_construction built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @5d657ba9bd55+wt
 pass/host/process_exit_explicit_standalone_domain_exit built 7324ms exit:70 interpreter-exit:70 interpreter:agrees @5833e7d00af3
