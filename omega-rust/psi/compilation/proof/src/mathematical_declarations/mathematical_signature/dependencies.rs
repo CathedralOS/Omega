@@ -98,7 +98,7 @@ pub(super) fn rebind_domain(
             .iter()
             .position(|retained| *retained == position)
             .map(|index| arena.insert(Term::Variable((retained.len() - 1 - index) as u32)))
-            .unwrap_or_default();
+            .unwrap_or_else(|| arena.insert(Term::Dummy));
         let Term::Lambda { body: inner, .. } = arena.get(body) else {
             unreachable!("constructed telescope")
         };
