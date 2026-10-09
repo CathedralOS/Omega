@@ -149,7 +149,7 @@ impl Denotation {
                 return Ok(None);
             };
             *cursor += 1;
-            let Proposition::Equal(current, expression) = definition_proposition else {
+            let Some((current, expression)) = definition_proposition.as_equal() else {
                 return Ok(None);
             };
             let (operation, next, sibling) = match expression {

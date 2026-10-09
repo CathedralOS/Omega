@@ -112,7 +112,7 @@ impl Denotation {
     fn cast_edge_definition(
         proposition: &Proposition,
     ) -> Option<(&ScalarTerm, &ScalarTerm, IntegerOperation)> {
-        let Proposition::Equal(next, definition) = proposition else {
+        let Some((next, definition)) = proposition.as_equal() else {
             return None;
         };
         let operation = match definition {

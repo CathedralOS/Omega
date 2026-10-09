@@ -540,7 +540,8 @@ fn exact_case_membership_meaning(
         let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
             return false;
         };
-        let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
+        let target = selection.target();
+        let Some(selected) = target.as_resolved() else {
             return false;
         };
         match selection.kind() {

@@ -232,15 +232,14 @@ pub fn symbolic_operator_type_application_for_operands(
             let type_reference = type_bindings.iter().find_map(|(symbol, argument)| {
                 (*symbol == operator_parameter.symbol).then_some(*argument)
             })?;
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(type_reference)
-            else {
-                return None;
-            };
+            let symbol = program
+                .type_reference_table
+                .type_reference(type_reference)
+                .as_named_symbol()?;
             let (machine_binder_ordinal, machine_parameter) = machine_parameters
                 .iter()
                 .enumerate()
-                .find(|(_, parameter)| parameter.symbol == *symbol)?;
+                .find(|(_, parameter)| parameter.symbol == symbol)?;
             if !matches!(machine_parameter.kind, crate::data::TypeParameterKind::Type) {
                 return None;
             }

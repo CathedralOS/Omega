@@ -362,7 +362,7 @@ impl TerminalExecution<'_> {
             ),
             _ => return Err(malformed()),
         };
-        let OperationResult::Structural(result) = &operation.result else {
+        let Some(result) = operation.result.as_structural() else {
             return Err(malformed());
         };
         if destination != result.place

@@ -302,7 +302,7 @@ fn affine_equality_for<'a>(
     subject: &ScalarTerm,
 ) -> Option<(&'a ScalarTerm, TermHandle, &'a Proposition)> {
     definitions.iter().find_map(|(proposition, proof)| {
-        let Proposition::Equal(first, second) = proposition else {
+        let Some((first, second)) = proposition.as_equal() else {
             return None;
         };
         if first == subject {

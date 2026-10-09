@@ -42,8 +42,7 @@ impl TypeReferenceTable {
         {
             self.rescan_named_row(symbol);
         }
-        if let TypeReferenceNode::Named { symbol, .. } = self.type_references.get(handle) {
-            let symbol = *symbol;
+        if let Some(symbol) = self.type_references.get(handle).as_named_symbol() {
             self.note_named_row(symbol, handle);
         }
     }

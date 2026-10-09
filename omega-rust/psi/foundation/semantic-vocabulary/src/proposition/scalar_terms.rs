@@ -1017,7 +1017,7 @@ fn integer_comparison_operands_match(
     left: &ScalarTerm,
     right: &ScalarTerm,
 ) -> bool {
-    let ScalarType::Integer(right_type) = right.scalar_type() else {
+    let Some(right_type) = right.scalar_type().as_integer() else {
         return false;
     };
     left.scalar_type() == ScalarType::Integer(left_type)

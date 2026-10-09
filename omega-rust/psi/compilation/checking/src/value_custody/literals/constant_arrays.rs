@@ -7,7 +7,6 @@
 //! owe their existing independent checks. No runtime constant value is retained.
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -389,7 +388,8 @@ pub fn declared_constant_array_type(
         if selection.source_span() != program.expression_table.source_span(value) {
             continue;
         }
-        let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
+        let target = selection.target();
+        let Some(selected) = target.as_resolved() else {
             continue;
         };
         let Some(declaration) = program.const_declaration_by_symbol(selected.selected_symbol())
@@ -492,7 +492,8 @@ pub(super) fn validate_declared_array_destination(
         let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
             continue;
         };
-        let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
+        let target = selection.target();
+        let Some(selected) = target.as_resolved() else {
             continue;
         };
         let Some(declaration) = program.const_declaration_by_symbol(selected.selected_symbol())

@@ -65,7 +65,7 @@ pub(crate) fn checked_boolean_scalar_term(
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             let left = checked_scalar_term(left, values, erased)?;
             let right = checked_scalar_term(right, values, erased)?;
-            let ScalarType::Integer(integer_type) = left.scalar_type() else {
+            let Some(integer_type) = left.scalar_type().as_integer() else {
                 return unsupported("crash comparison operand is not an integer");
             };
             match kind {
@@ -174,13 +174,13 @@ pub(crate) fn lowered_direct_scalar_term(
             source,
             scalar_type,
         } => {
-            let ScalarType::Integer(extent_type) = scalar_type else {
+            let Some(extent_type) = scalar_type.as_integer() else {
                 return unsupported("view extent observation has a non-integer carrier");
             };
             ScalarTerm::ViewExtent {
                 root: *source,
                 path: Vec::new(),
-                scalar_type: *extent_type,
+                scalar_type: extent_type,
             }
         }
         LoweredDirectExpression::ByteSequenceFieldLength { .. }
@@ -206,10 +206,10 @@ pub(crate) fn lowered_direct_scalar_term(
             ScalarTerm::value(value.id, *scalar_type)
         }
         LoweredDirectExpression::IntegerLiteral { value, scalar_type } => {
-            let ScalarType::Integer(integer_type) = scalar_type else {
+            let Some(integer_type) = scalar_type.as_integer() else {
                 return unsupported("crash predicate integer literal has a non-integer type");
             };
-            ScalarTerm::integer(*integer_type, *value)
+            ScalarTerm::integer(integer_type, *value)
                 .map_err(LoweringError::InvalidCrashPredicate)?
         }
         LoweredDirectExpression::SaturatingShiftLeft {
@@ -233,150 +233,150 @@ pub(crate) fn lowered_direct_scalar_term(
             right,
             ..
         } => {
-            let ScalarType::Integer(integer_type) = scalar_type else {
+            let Some(integer_type) = scalar_type.as_integer() else {
                 return unsupported("crash predicate arithmetic has a non-integer type");
             };
             let left = Box::new(lowered_direct_scalar_term(left, values, erased)?);
             let right = Box::new(lowered_direct_scalar_term(right, values, erased)?);
             match kind {
                 LoweredIntegerBinaryKind::BitwiseAnd => ScalarTerm::IntegerBitwiseAnd {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::BitwiseOr => ScalarTerm::IntegerBitwiseOr {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::BitwiseXor => ScalarTerm::IntegerBitwiseXor {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::WrappingShiftLeft => {
-                    let ScalarType::Integer(count_type) = right.scalar_type() else {
+                    let Some(count_type) = right.scalar_type().as_integer() else {
                         return unsupported("crash shift count is not an integer");
                     };
                     ScalarTerm::WrappingIntegerShiftLeft {
-                        value_type: *integer_type,
+                        value_type: integer_type,
                         count_type,
                         value: left,
                         count: right,
                     }
                 }
                 LoweredIntegerBinaryKind::WrappingShiftRight => {
-                    let ScalarType::Integer(count_type) = right.scalar_type() else {
+                    let Some(count_type) = right.scalar_type().as_integer() else {
                         return unsupported("crash shift count is not an integer");
                     };
                     ScalarTerm::WrappingIntegerShiftRight {
-                        value_type: *integer_type,
+                        value_type: integer_type,
                         count_type,
                         value: left,
                         count: right,
                     }
                 }
                 LoweredIntegerBinaryKind::ExactShiftLeft => {
-                    let ScalarType::Integer(count_type) = right.scalar_type() else {
+                    let Some(count_type) = right.scalar_type().as_integer() else {
                         return unsupported("crash shift count is not an integer");
                     };
                     ScalarTerm::ExactIntegerShiftLeft {
-                        value_type: *integer_type,
+                        value_type: integer_type,
                         count_type,
                         value: left,
                         count: right,
                     }
                 }
                 LoweredIntegerBinaryKind::ExactShiftRight => {
-                    let ScalarType::Integer(count_type) = right.scalar_type() else {
+                    let Some(count_type) = right.scalar_type().as_integer() else {
                         return unsupported("crash shift count is not an integer");
                     };
                     ScalarTerm::ExactIntegerShiftRight {
-                        value_type: *integer_type,
+                        value_type: integer_type,
                         count_type,
                         value: left,
                         count: right,
                     }
                 }
                 LoweredIntegerBinaryKind::ExactAdd => ScalarTerm::ExactIntegerAdd {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::ExactSubtract => ScalarTerm::ExactIntegerSubtract {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::ExactMultiply => ScalarTerm::ExactIntegerMultiply {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::ExactDivide => ScalarTerm::ExactIntegerDivide {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::ExactRemainder => ScalarTerm::ExactIntegerRemainder {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::WrappingDivide => ScalarTerm::WrappingIntegerDivide {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::WrappingRemainder => {
                     ScalarTerm::WrappingIntegerRemainder {
-                        scalar_type: *integer_type,
+                        scalar_type: integer_type,
                         left,
                         right,
                     }
                 }
                 LoweredIntegerBinaryKind::SaturatingDivide => ScalarTerm::SaturatingIntegerDivide {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::SaturatingRemainder => {
                     ScalarTerm::SaturatingIntegerRemainder {
-                        scalar_type: *integer_type,
+                        scalar_type: integer_type,
                         left,
                         right,
                     }
                 }
                 LoweredIntegerBinaryKind::WrappingAdd => ScalarTerm::WrappingIntegerAdd {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::SaturatingAdd => ScalarTerm::SaturatingIntegerAdd {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::WrappingSubtract => ScalarTerm::WrappingIntegerSubtract {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::SaturatingSubtract => {
                     ScalarTerm::SaturatingIntegerSubtract {
-                        scalar_type: *integer_type,
+                        scalar_type: integer_type,
                         left,
                         right,
                     }
                 }
                 LoweredIntegerBinaryKind::WrappingMultiply => ScalarTerm::WrappingIntegerMultiply {
-                    scalar_type: *integer_type,
+                    scalar_type: integer_type,
                     left,
                     right,
                 },
                 LoweredIntegerBinaryKind::SaturatingMultiply => {
                     ScalarTerm::SaturatingIntegerMultiply {
-                        scalar_type: *integer_type,
+                        scalar_type: integer_type,
                         left,
                         right,
                     }
@@ -398,11 +398,11 @@ pub(crate) fn lowered_direct_scalar_term(
             scalar_type,
             operand,
         } => {
-            let ScalarType::Integer(integer_type) = scalar_type else {
+            let Some(integer_type) = scalar_type.as_integer() else {
                 return unsupported("crash predicate bitwise-not has a non-integer type");
             };
             ScalarTerm::IntegerBitwiseNot {
-                scalar_type: *integer_type,
+                scalar_type: integer_type,
                 operand: Box::new(lowered_direct_scalar_term(operand, values, erased)?),
             }
         }
@@ -410,16 +410,16 @@ pub(crate) fn lowered_direct_scalar_term(
             scalar_type,
             operand,
         } => {
-            let ScalarType::Integer(target_type) = scalar_type else {
+            let Some(target_type) = scalar_type.as_integer() else {
                 return unsupported("crash predicate widen has a non-integer target");
             };
             let operand = lowered_direct_scalar_term(operand, values, erased)?;
-            let ScalarType::Integer(source_type) = operand.scalar_type() else {
+            let Some(source_type) = operand.scalar_type().as_integer() else {
                 return unsupported("crash predicate widen has a non-integer operand");
             };
             ScalarTerm::IntegerWiden {
                 source_type,
-                target_type: *target_type,
+                target_type: target_type,
                 operand: Box::new(operand),
             }
         }
@@ -434,16 +434,16 @@ pub(crate) fn lowered_direct_scalar_term(
             operand,
             ..
         } => {
-            let ScalarType::Integer(target_type) = scalar_type else {
+            let Some(target_type) = scalar_type.as_integer() else {
                 return unsupported("crash predicate cast has a non-integer target");
             };
             let operand = lowered_direct_scalar_term(operand, values, erased)?;
-            let ScalarType::Integer(source_type) = operand.scalar_type() else {
+            let Some(source_type) = operand.scalar_type().as_integer() else {
                 return unsupported("crash predicate cast has a non-integer operand");
             };
             ScalarTerm::IntegerExactCast {
                 source_type,
-                target_type: *target_type,
+                target_type: target_type,
                 operand: Box::new(operand),
             }
         }
@@ -508,7 +508,7 @@ fn checked_boolean_scalar_term_from_lowered(
         LoweredBooleanReturnExpression::IntegerComparison { kind, left, right } => {
             let left = lowered_direct_scalar_term(left, values, erased)?;
             let right = lowered_direct_scalar_term(right, values, erased)?;
-            let ScalarType::Integer(integer_type) = left.scalar_type() else {
+            let Some(integer_type) = left.scalar_type().as_integer() else {
                 return unsupported("crash comparison operand is not an integer");
             };
             match kind {

@@ -20,7 +20,7 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let OperationResult::Scalar(result) = &operation.result else {
+        let Some(result) = operation.result.as_scalar() else {
             return Err(malformed());
         };
         let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
@@ -118,7 +118,7 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let OperationResult::Scalar(result) = &operation.result else {
+        let Some(result) = operation.result.as_scalar() else {
             return Err(malformed());
         };
         let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;

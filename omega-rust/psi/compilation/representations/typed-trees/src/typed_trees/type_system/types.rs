@@ -569,8 +569,8 @@ impl TypeReferenceTable {
             .get_or_init(|| {
                 let mut rows = symbols::SymbolKeyMap::default();
                 for (handle, node) in self.type_references.iter() {
-                    if let TypeReferenceNode::Named { symbol, .. } = node {
-                        rows.entry(*symbol).or_insert(handle);
+                    if let Some(symbol) = node.as_named_symbol() {
+                        rows.entry(symbol).or_insert(handle);
                     }
                 }
                 rows
@@ -605,10 +605,10 @@ impl TypeReferenceTable {
             if !self.contains_type_reference(*base_type) {
                 return None;
             }
-            let TypeReferenceNode::Named { symbol, .. } = self.type_reference(*base_type) else {
+            let Some(symbol) = self.type_reference(*base_type).as_named_symbol() else {
                 return None;
             };
-            (*symbol == carrier
+            (symbol == carrier
                 && matches!(self.constraint_span(*constraints)?,
                     [TypeConstraintNode::ArithmeticDomain(retained)] if *retained == domain))
             .then_some(handle)
@@ -902,6 +902,16 @@ impl TypeReferenceNode {
             }
             TypeReferenceNode::Unit => SymbolHandle::invalid(),
         }
+    }
+
+    /// The declared symbol, if this reference is a plain named leaf —
+    /// primitive spellings included; `type_symbol` is the primitive-aware
+    /// judgment. `None` for any other node shape.
+    pub fn as_named_symbol(&self) -> Option<SymbolHandle> {
+        let TypeReferenceNode::Named { symbol, .. } = self else {
+            return None;
+        };
+        Some(*symbol)
     }
 }
 

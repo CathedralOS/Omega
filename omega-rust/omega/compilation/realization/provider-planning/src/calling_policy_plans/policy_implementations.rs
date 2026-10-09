@@ -137,10 +137,12 @@ fn policy_static_argument(
     mut type_reference: TypeReferenceHandle,
     bindings: &[BoundaryTypeBinding],
 ) -> Result<typed_trees::expression::StaticMachineArgument, String> {
-    if let TypeReferenceNode::Named { symbol, .. } =
-        typed.type_reference_table.type_reference(type_reference)
+    if let Some(symbol) = typed
+        .type_reference_table
+        .type_reference(type_reference)
+        .as_named_symbol()
         && let Some(binding) = bindings.iter().find(|binding| {
-            binding.parameter_symbol.is_valid() && binding.parameter_symbol == *symbol
+            binding.parameter_symbol.is_valid() && binding.parameter_symbol == symbol
         })
     {
         type_reference = binding.actual;

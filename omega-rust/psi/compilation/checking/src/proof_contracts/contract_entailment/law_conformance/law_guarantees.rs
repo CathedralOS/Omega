@@ -4,7 +4,7 @@ use crate::proof_contracts::contract_entailment::law_conformance::check_law_conf
 use crate::proof_contracts::contract_entailment::law_conformance::operator_contracts::is_equality_conjunction;
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::collect_equality_conjuncts;
 use crate::proof_contracts::contract_entailment::{
-    ExpressionHandle, ProofFact, SignatureContractKind, SymbolHandle,
+    ExpressionHandle, SignatureContractKind, SymbolHandle,
 };
 
 /// LAW-CONFORMANCE (rearrange rung B, settle 2026-07-18): a trait requirement
@@ -76,7 +76,7 @@ pub fn matched_machine_law_guarantees(
             .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let ProofFact::Expression(expression) = fact else {
+                let Some(expression) = fact.as_expression() else {
                     continue;
                 };
                 if !is_equality_conjunction(program, *expression) {

@@ -4,9 +4,7 @@
 //! select control-flow destinations, not another invocation of the hook.
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
-};
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
 use language_semantics::{
     MachineSupplyMode, ReferenceAccess, TerminationGuarantee, TerminationInterface,
 };
@@ -221,7 +219,8 @@ pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
     }
     let internal_transitions = internal_cleanup_transitions(program, &cleanups);
     for selection in program.authored_declaration_selections() {
-        let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+        let selection_target = selection.target();
+        let Some(target) = selection_target.as_resolved() else {
             continue;
         };
         let Some(cleanup) =

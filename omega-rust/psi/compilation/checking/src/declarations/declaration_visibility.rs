@@ -1,7 +1,6 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
-    AuthoredDeclarationSelectionTarget,
 };
 use symbols::SymbolKind;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -43,7 +42,8 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
         {
             continue;
         }
-        let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+        let selection_target = selection.target();
+        let Some(target) = selection_target.as_resolved() else {
             continue;
         };
         let symbol = target.selected_symbol();

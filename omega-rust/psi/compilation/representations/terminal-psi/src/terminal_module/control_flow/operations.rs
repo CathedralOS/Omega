@@ -82,6 +82,14 @@ impl OperationResult {
         };
         Some(structural)
     }
+
+    /// The scalar result declaration, if this operation produces a scalar.
+    pub fn as_scalar(&self) -> Option<ValueDeclaration> {
+        let OperationResult::Scalar(scalar) = self else {
+            return None;
+        };
+        Some(*scalar)
+    }
 }
 
 /// Exact structural value and caller-local claim frontier established only by

@@ -387,14 +387,16 @@ fn validate_binding_shape(
         )]);
     }
     for (argument, expected) in arguments.iter().zip(widths) {
-        let TypeReferenceNode::Named { symbol, .. } =
-            typed.type_reference_table.type_reference(*argument)
+        let Some(symbol) = typed
+            .type_reference_table
+            .type_reference(*argument)
+            .as_named_symbol()
         else {
             return Err(vec![Diagnostic::error(
                 "compiler-owned Binding widths must pass through exact const binders",
             )]);
         };
-        if *symbol != expected {
+        if symbol != expected {
             return Err(vec![Diagnostic::error(
                 "compiler-owned Binding width binder identity drifted",
             )]);

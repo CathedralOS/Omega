@@ -30,7 +30,7 @@ impl<'input> ValueEqualities<'input> {
     ) -> Self {
         let mut definitions = Vec::new();
         for axiom in axioms {
-            let Proposition::Equal(left, right) = axiom else {
+            let Some((left, right)) = axiom.as_equal() else {
                 continue;
             };
             if !is_definition_subject(left) {

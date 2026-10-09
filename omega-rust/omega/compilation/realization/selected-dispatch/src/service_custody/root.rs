@@ -457,13 +457,12 @@ fn nested_source_record(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
+    let symbol = checked
+        .type_reference_table
+        .type_reference(reference)
+        .as_named_symbol()?;
     checked.data_definitions().iter().find(|definition| {
-        definition.symbol == *symbol
+        definition.symbol == symbol
             && checked.data_type_parameters(definition).is_empty()
             && !validation::data_requires_establishment(&checked.typed, definition)
     })

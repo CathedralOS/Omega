@@ -49,7 +49,7 @@ pub fn decide_primitive(
             });
             if exact {
                 true
-            } else if let Proposition::Equal(left, right) = proposition {
+            } else if let Some((left, right)) = proposition.as_equal() {
                 // Quotient-ring equality preserves the selected wrapping policy.
                 // It supplies neither a mathematical lift nor an order decision.
                 crate::integer_rules::wrapping_equality::equal(left, right)

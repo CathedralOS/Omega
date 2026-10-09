@@ -281,7 +281,8 @@ fn validate(
         if selection.kind() != Kind::Call {
             continue;
         }
-        let Target::Resolved(selected) = selection.target() else {
+        let selection_target = selection.target();
+        let Some(selected) = selection_target.as_resolved() else {
             return Err("constant call receipt has no exact selected target".into());
         };
         let target = (selection.source_span(), selected.selected_symbol());
@@ -650,7 +651,8 @@ impl<'program> Collector<'program> {
                 .get(occurrence)
                 .ok_or("constant call closure lost an authored selection")?;
             if selection.kind() == Kind::Call {
-                let Target::Resolved(selected) = selection.target() else {
+                let selection_target = selection.target();
+                let Some(selected) = selection_target.as_resolved() else {
                     return Err("constant closure retained an unresolved call selection".into());
                 };
                 let target = (selection.source_span(), selected.selected_symbol());

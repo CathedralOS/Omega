@@ -1282,7 +1282,7 @@ impl TerminalExecution<'_> {
                 )
             }
             PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
-                let ScalarType::Integer(integer) = scalar_type else {
+                let Some(integer) = scalar_type.as_integer() else {
                     return Err(malformed());
                 };
                 bytes
