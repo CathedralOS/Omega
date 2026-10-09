@@ -1005,7 +1005,7 @@ fn validate_receiver_fields(
     erased: &mut ErasedRowUse,
     invalid: &dyn Fn() -> Diagnostic,
 ) -> Result<(), Diagnostic> {
-    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+    use terminal_psi::StructuralFieldType;
     for field in fields {
         let service_carrier = terminal_semantics::fused_service_field_carrier(declarations, field);
         if field.relevance.is_erased()

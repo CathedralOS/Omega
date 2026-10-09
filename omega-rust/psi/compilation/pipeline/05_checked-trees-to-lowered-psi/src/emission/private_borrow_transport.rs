@@ -28,7 +28,7 @@ use crate::terminal_identities::{allocate_dense, place_id};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{
     Block, StructuralAccess, StructuralArgument, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, Terminator,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, Terminator,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

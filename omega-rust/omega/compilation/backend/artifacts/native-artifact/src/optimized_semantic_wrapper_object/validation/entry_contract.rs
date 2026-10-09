@@ -8,7 +8,7 @@ use program_entry_plan::{
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
 use terminal_psi::{
     BindingRelevance, ByteSequenceCarrier, StructuralAccess, StructuralFieldType,
-    StructuralMultiplicity, StructuralTypeShape, TerminalMachineResult,
+    StructuralMultiplicity, TerminalMachineResult,
 };
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
