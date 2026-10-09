@@ -3,9 +3,7 @@
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
-use crate::proof_contracts::contract_entailment::structural_terms::{
-    structural_term, structural_term_in_scope, structural_term_pair,
-};
+use crate::proof_contracts::contract_entailment::structural_terms::structural_term_in_scope;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
@@ -50,6 +48,7 @@ pub(crate) fn reject_refuted_value_call_requires(
             instantiated_fact_judgment(
                 program,
                 &judge,
+                callee_state.symbol,
                 program.state_parameters(callee_state),
                 expression,
                 &map,
@@ -90,6 +89,7 @@ pub fn instantiated_value_call_requires_proven(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     caller_state: &typed_trees::state::State,
+    callee_owner: symbols::SymbolHandle,
     callee_parameters: &[typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -111,6 +111,7 @@ pub fn instantiated_value_call_requires_proven(
         instantiated_fact_judgment(
             program,
             &judge,
+            callee_owner,
             callee_parameters,
             expression,
             &map,
@@ -239,6 +240,7 @@ fn authored_requires_spellings(
 pub(super) fn instantiated_fact_judgment(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
+    callee_owner: symbols::SymbolHandle,
     callee_parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
@@ -252,10 +254,19 @@ pub(super) fn instantiated_fact_judgment(
     };
     match binary.operator {
         BinaryOperator::And => {
+            if !crate::has_builtin_parameter_bound_expression_meaning(
+                program,
+                callee_owner,
+                callee_parameters,
+                fact,
+            ) {
+                return StructuralJudgment::Unknown;
+            }
             match (
                 instantiated_fact_judgment(
                     program,
                     judge,
+                    callee_owner,
                     callee_parameters,
                     binary.left,
                     map,
@@ -264,6 +275,7 @@ pub(super) fn instantiated_fact_judgment(
                 instantiated_fact_judgment(
                     program,
                     judge,
+                    callee_owner,
                     callee_parameters,
                     binary.right,
                     map,
@@ -280,9 +292,23 @@ pub(super) fn instantiated_fact_judgment(
             }
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            let Some((left, right)) =
-                instantiated_operands(program, judge, binary, map, caller_scope)
-            else {
+            if !super::structural_terms::has_identity_equality_meaning(
+                program,
+                callee_owner,
+                callee_parameters,
+                fact,
+            ) {
+                return StructuralJudgment::Unknown;
+            }
+            let Some((left, right)) = instantiated_operands(
+                program,
+                judge,
+                callee_owner,
+                callee_parameters,
+                binary,
+                map,
+                caller_scope,
+            ) else {
                 return StructuralJudgment::Unknown;
             };
             let equality = judge.judge_equation(left, right, 0);
@@ -303,9 +329,15 @@ pub(super) fn instantiated_fact_judgment(
             // Ordering decides only over closed values: an operand that stays
             // symbolic leaves the fact for the positive prover's bound, guard,
             // and hypothesis channels.
-            let Some((left, right)) =
-                instantiated_operands(program, judge, binary, map, caller_scope)
-            else {
+            let Some((left, right)) = instantiated_operands(
+                program,
+                judge,
+                callee_owner,
+                callee_parameters,
+                binary,
+                map,
+                caller_scope,
+            ) else {
                 return StructuralJudgment::Unknown;
             };
             let verdict = match (&left, &right) {
@@ -353,12 +385,18 @@ pub(super) fn instantiated_fact_judgment(
 fn instantiated_operands(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
+    callee_owner: symbols::SymbolHandle,
+    callee_parameters: &[typed_trees::signature::StateParameter],
     binary: &typed_trees::expression::TableBinaryExpression,
     map: &[(String, StructuralTerm)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> Option<(StructuralTerm, StructuralTerm)> {
-    let left = structural_term(program, binary.left)?;
-    let right = structural_term(program, binary.right)?;
+    let (left, right) = super::structural_terms::structural_term_pair_for_parameters(
+        program,
+        callee_owner,
+        callee_parameters,
+        binary,
+    )?;
     Some((
         declared_len_extent_term(
             program,
@@ -471,6 +509,8 @@ fn declared_len_extent_term(
 /// parameter map.
 pub(crate) fn collect_instantiated_conjuncts(
     program: &dyn crate::CheckingInput,
+    scope: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
     equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
@@ -483,11 +523,30 @@ pub(crate) fn collect_instantiated_conjuncts(
     };
     match binary.operator {
         BinaryOperator::And => {
-            collect_instantiated_conjuncts(program, binary.left, map, equations);
-            collect_instantiated_conjuncts(program, binary.right, map, equations);
+            if !crate::has_builtin_parameter_bound_expression_meaning(
+                program, scope, parameters, fact,
+            ) {
+                return;
+            }
+            collect_instantiated_conjuncts(program, scope, parameters, binary.left, map, equations);
+            collect_instantiated_conjuncts(
+                program,
+                scope,
+                parameters,
+                binary.right,
+                map,
+                equations,
+            );
         }
         BinaryOperator::Equal => {
-            let Some((left, right)) = structural_term_pair(program, binary) else {
+            if !super::structural_terms::has_identity_equality_meaning(
+                program, scope, parameters, fact,
+            ) {
+                return;
+            }
+            let Some((left, right)) = super::structural_terms::structural_term_pair_for_parameters(
+                program, scope, parameters, binary,
+            ) else {
                 return;
             };
             equations.push((

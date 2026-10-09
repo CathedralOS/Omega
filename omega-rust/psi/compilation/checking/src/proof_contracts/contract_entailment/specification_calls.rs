@@ -169,6 +169,7 @@ fn validate_expression(
                             instantiated_fact_judgment(
                                 program,
                                 &judge,
+                                owner_symbol(&contract_owner),
                                 parameters,
                                 *required,
                                 substitution,

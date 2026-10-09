@@ -122,6 +122,7 @@ fn explicit_subject_call_requirement_proven(
         program,
         machine,
         state,
+        call_flow.target_symbol,
         callee_parameters,
         &arguments,
         expression,

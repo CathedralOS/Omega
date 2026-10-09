@@ -490,11 +490,16 @@ pub(crate) fn citation_call_in_statement<'program>(
 fn for_each_substituted_contract_fact(
     program: &dyn crate::CheckingInput,
     facts: &dyn Fn(typed_trees::signature::SignatureContractKind) -> Vec<ExpressionHandle>,
+    callee: &Machine,
     kind: typed_trees::signature::SignatureContractKind,
     map: &[(String, StructuralTerm)],
     strict: bool,
     mut arm: impl FnMut(StructuralTerm, StructuralTerm) -> bool,
 ) -> bool {
+    let Some(entry) = program.machine_states(callee).first() else {
+        return false;
+    };
+    let parameters = program.state_parameters(entry);
     for fact in facts(kind) {
         let resolved = (|| {
             if super::structural_terms::is_case_observation(program, fact) {
@@ -503,10 +508,22 @@ fn for_each_substituted_contract_fact(
             let Some(binary) = program.expression_table.binary_node(fact) else {
                 return None;
             };
-            if binary.operator != BinaryOperator::Equal {
+            if binary.operator != BinaryOperator::Equal
+                || !super::structural_terms::has_identity_equality_meaning(
+                    program,
+                    callee.symbol,
+                    parameters,
+                    fact,
+                )
+            {
                 return None;
             }
-            let Some((left, right)) = structural_term_pair(program, binary) else {
+            let Some((left, right)) = super::structural_terms::structural_term_pair_for_parameters(
+                program,
+                callee.symbol,
+                parameters,
+                binary,
+            ) else {
                 return None;
             };
             Some((
@@ -558,6 +575,7 @@ pub(crate) fn intake_citation_for_edge(
     let all_proven = for_each_substituted_contract_fact(
         program,
         &facts,
+        callee,
         typed_trees::signature::SignatureContractKind::Requires,
         &map,
         true,
@@ -585,6 +603,7 @@ pub(crate) fn intake_citation_for_edge(
     for_each_substituted_contract_fact(
         program,
         &facts,
+        callee,
         typed_trees::signature::SignatureContractKind::Ensures,
         &map,
         false,
@@ -623,6 +642,10 @@ pub(crate) fn intake_statement_citation_for_edge(
     ) else {
         return;
     };
+    let Some(entry) = program.machine_states(callee).first() else {
+        return;
+    };
+    let parameters = program.state_parameters(entry);
     let collect = |kind: typed_trees::signature::SignatureContractKind| {
         contract_expressions(program, callee, kind)
     };
@@ -633,10 +656,22 @@ pub(crate) fn intake_statement_citation_for_edge(
         let Some(binary) = program.expression_table.binary_node(fact) else {
             return;
         };
-        if binary.operator != BinaryOperator::Equal {
+        if binary.operator != BinaryOperator::Equal
+            || !super::structural_terms::has_identity_equality_meaning(
+                program,
+                callee.symbol,
+                parameters,
+                fact,
+            )
+        {
             return;
         }
-        let Some((left, right)) = structural_term_pair(program, binary) else {
+        let Some((left, right)) = super::structural_terms::structural_term_pair_for_parameters(
+            program,
+            callee.symbol,
+            parameters,
+            binary,
+        ) else {
             return;
         };
         let left = StructuralJudge::substitute_term(&left, &map);
@@ -655,10 +690,22 @@ pub(crate) fn intake_statement_citation_for_edge(
         let Some(binary) = program.expression_table.binary_node(fact) else {
             continue;
         };
-        if binary.operator != BinaryOperator::Equal {
+        if binary.operator != BinaryOperator::Equal
+            || !super::structural_terms::has_identity_equality_meaning(
+                program,
+                callee.symbol,
+                parameters,
+                fact,
+            )
+        {
             continue;
         }
-        let Some((left, right)) = structural_term_pair(program, binary) else {
+        let Some((left, right)) = super::structural_terms::structural_term_pair_for_parameters(
+            program,
+            callee.symbol,
+            parameters,
+            binary,
+        ) else {
             continue;
         };
         judge.intake_equation(
@@ -774,7 +821,14 @@ pub(crate) fn instantiate_citation(
     }
     if let Some(judge) = judge {
         for fact in &requires_facts {
-            if !instantiated_fact_established(program, judge, parameters, *fact, &map) {
+            if !instantiated_fact_established(
+                program,
+                judge,
+                callee.symbol,
+                parameters,
+                *fact,
+                &map,
+            ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` cites `{}`, but the callee's requires fact \
                      `{}` is not established at this citation site under the \
@@ -823,7 +877,14 @@ pub(crate) fn instantiate_citation(
         },
     ));
     for fact in &ensures_facts {
-        collect_instantiated_conjuncts(program, *fact, &map, &mut established.equations);
+        collect_instantiated_conjuncts(
+            program,
+            callee.symbol,
+            parameters,
+            *fact,
+            &map,
+            &mut established.equations,
+        );
     }
     // A completed local result is identified by its binding, not by a
     // name-backed application term. No static selection is guessed here.
@@ -851,6 +912,7 @@ pub(crate) fn instantiate_citation(
 pub(crate) fn instantiated_fact_established(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
+    scope: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
@@ -867,11 +929,33 @@ pub(crate) fn instantiated_fact_established(
     };
     match binary.operator {
         BinaryOperator::And => {
-            instantiated_fact_established(program, judge, parameters, binary.left, map)
-                && instantiated_fact_established(program, judge, parameters, binary.right, map)
+            crate::has_builtin_parameter_bound_expression_meaning(program, scope, parameters, fact)
+                && instantiated_fact_established(
+                    program,
+                    judge,
+                    scope,
+                    parameters,
+                    binary.left,
+                    map,
+                )
+                && instantiated_fact_established(
+                    program,
+                    judge,
+                    scope,
+                    parameters,
+                    binary.right,
+                    map,
+                )
         }
         BinaryOperator::Equal => {
-            let Some((left, right)) = structural_term_pair(program, binary) else {
+            if !super::structural_terms::has_identity_equality_meaning(
+                program, scope, parameters, fact,
+            ) {
+                return false;
+            }
+            let Some((left, right)) = super::structural_terms::structural_term_pair_for_parameters(
+                program, scope, parameters, binary,
+            ) else {
                 return false;
             };
             let left = StructuralJudge::substitute_term(&left, map);

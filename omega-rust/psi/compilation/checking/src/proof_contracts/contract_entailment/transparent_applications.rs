@@ -128,6 +128,12 @@ pub fn transparent_proposition_application_entailed(
         };
         if binary.operator != BinaryOperator::Equal
             || super::structural_terms::is_case_observation(program, formula)
+            || !super::structural_terms::has_identity_equality_meaning(
+                program,
+                declaration.symbol,
+                parameters,
+                formula,
+            )
         {
             return None;
         }

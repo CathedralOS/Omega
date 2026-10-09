@@ -65,6 +65,7 @@ pub(crate) fn intake_available_self_induction_hypotheses(
             instantiated_fact_established(
                 program,
                 judge,
+                machine.symbol,
                 program.state_parameters(entry),
                 *fact,
                 &map,
@@ -76,7 +77,14 @@ pub(crate) fn intake_available_self_induction_hypotheses(
         map.push((RESULT_BINDER.to_owned(), application.clone()));
         for fact in &ensures {
             let mut equations = Vec::new();
-            collect_instantiated_conjuncts(program, *fact, &map, &mut equations);
+            collect_instantiated_conjuncts(
+                program,
+                machine.symbol,
+                program.state_parameters(entry),
+                *fact,
+                &map,
+                &mut equations,
+            );
             for (left, right) in equations {
                 judge.intake_equation(left, right, 0);
             }

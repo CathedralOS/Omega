@@ -119,7 +119,13 @@ fn prove(
     // or not the caller's intervals can name it, and a decided-true requires
     // needs no other premise.
     if validation::instantiated_value_call_requires_proven(
-        program, machine, state, parameters, &arguments, expression,
+        program,
+        machine,
+        state,
+        callee_state.symbol,
+        parameters,
+        &arguments,
+        expression,
     ) {
         return Some(true);
     }

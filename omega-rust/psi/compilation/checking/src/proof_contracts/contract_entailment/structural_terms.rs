@@ -222,6 +222,20 @@ pub(super) fn structural_term_pair(
     ))
 }
 
+/// Bind both sides in the declaration's own telescope before substituting
+/// actual values. Applications retain the selected result carrier and policy.
+pub(super) fn structural_term_pair_for_parameters(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    binary: &typed_trees::expression::TableBinaryExpression,
+) -> Option<(StructuralTerm, StructuralTerm)> {
+    Some((
+        structural_term_for_parameters(program, owner, parameters, binary.left)?,
+        structural_term_for_parameters(program, owner, parameters, binary.right)?,
+    ))
+}
+
 /// `structural_term` with an explicit declaring `(machine, state)` fallback for
 /// name-free binary operands (see `binary_term_in_scope`).
 pub(super) fn structural_term_in_scope(

@@ -447,13 +447,24 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
             let Some(binary) = program.expression_table.binary_node(*fact) else {
                 return None;
             };
-            if binary.operator != BinaryOperator::Equal {
+            let entry = program.machine_states(machine).first()?;
+            let parameters = program.state_parameters(entry);
+            if binary.operator != BinaryOperator::Equal
+                || !structural_terms::has_identity_equality_meaning(
+                    program,
+                    machine.symbol,
+                    parameters,
+                    *fact,
+                )
+            {
                 return None;
             }
-            Some((
-                structural_term(program, binary.left)?,
-                structural_term(program, binary.right)?,
-            ))
+            structural_terms::structural_term_pair_for_parameters(
+                program,
+                machine.symbol,
+                parameters,
+                binary,
+            )
         })
         .collect();
     let case_arms: Option<Vec<StructuralCaseArm>> = if sole_arm_result.is_some() {
@@ -609,6 +620,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
                                 instantiated_fact_established(
                                     program,
                                     &bound,
+                                    machine.symbol,
                                     program.state_parameters(entry),
                                     *fact,
                                     &map,
