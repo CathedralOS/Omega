@@ -9,7 +9,6 @@ use crate::{EntryStack, PlanDiagnostic, Preemption};
 
 pub(crate) use entry_exit_stub::{
     X86_64ErrorCodeDisposition, derive_x86_64_entry_exit_stub};
-pub(crate) use entry_exit_stub::{ X86_64DeriverStub, X86_64DeriverStubContext};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct ArrivalContextId(u64);
 
@@ -213,10 +212,6 @@ impl ValidatedX86_64InstalledHardwareEntryFacts {
         &self.facts
     }
 
-    /// Compact report/cache coordinate over the retained exact facts.
-    pub const fn report_fingerprint(&self) -> u64 {
-        self.non_authoritative_report_fingerprint
-    }
 }
 
 /// Validate and canonicalize the exact installation facts consumed by the

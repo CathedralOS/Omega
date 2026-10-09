@@ -3,7 +3,7 @@
 
 use crate::task_plans::stack_composition::WcsuStackPlanProjection;
 use crate::{
-    ActivationPlanCandidate, LiveCarryStorage,   ValidatedActivationPlan};
+    ActivationPlanCandidate, LiveCarryStorage};
 use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
 pub(crate) fn activation_plan_report_fingerprint(
@@ -81,13 +81,6 @@ impl Fingerprint {
         for byte in value.to_le_bytes() {
             self.byte(byte);
         }
-    }
-
-    fn string(&mut self, value: &str) {
-        for byte in value.as_bytes() {
-            self.byte(*byte);
-        }
-        self.byte(0);
     }
 
     fn finish(self) -> u64 {

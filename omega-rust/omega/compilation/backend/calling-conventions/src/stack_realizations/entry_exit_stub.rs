@@ -109,10 +109,6 @@ impl ValidatedX86_64DeriverStub {
         &self.stub
     }
 
-    /// Compact report/cache coordinate over the retained exact contract.
-    pub const fn report_fingerprint(&self) -> u64 {
-        self.non_authoritative_report_fingerprint
-    }
 }
 
 /// Derive the compiler-owned entry/exit stub contract for one installed
