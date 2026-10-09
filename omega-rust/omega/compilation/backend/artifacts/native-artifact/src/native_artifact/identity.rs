@@ -4,6 +4,7 @@ use super::{
     NativeArtifactIdentity, NativePhysicalEvidenceScope, NativeProviderExecution,
     NativeSelectedProviderPlan,
 };
+use crate::physical::{canonical_usize, hash_bytes};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 use sha2::{Digest, Sha256};
 
@@ -191,11 +192,6 @@ pub(super) fn derive_native_artifact_identity(
     NativeArtifactIdentity(digest.finalize().into())
 }
 
-fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update(canonical_usize(bytes.len()));
-    digest.update(bytes);
-}
-
 pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeignCall]) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(b"omega.native-artifact.foreign-call-custody.v4\0");
@@ -326,10 +322,4 @@ fn hash_optional_digest_and_report(digest: &mut Sha256, value: Option<([u8; 32],
             digest.update(report_fingerprint.to_le_bytes());
         }
     }
-}
-
-fn canonical_usize(value: usize) -> [u8; 8] {
-    u64::try_from(value)
-        .expect("native artifact identity field fits u64")
-        .to_le_bytes()
 }

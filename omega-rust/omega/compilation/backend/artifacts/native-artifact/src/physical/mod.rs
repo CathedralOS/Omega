@@ -41,22 +41,27 @@ mod projection;
 
 use crate::NativeSelectedProviderPlanDigest;
 use boundary_applications::OperatorApplicationCoverageRef;
+pub(crate) use derivation::hashing::{canonical_usize, hash_bytes};
 pub(crate) use derivation::{NativePhysicalEvidenceDerivation, derive_physical_evidence};
 pub(crate) use fragment_publication::derive_scope as derive_fragment_publication_scope;
 use optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizationUnitIdentity,
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
-    OptimizedOperatorOccurrenceIdentity};
+    OptimizedOperatorOccurrenceIdentity,
+};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
 use target::NativeTarget;
-use target_operations::{ BoundaryRealization, BoundaryScalarArgument, CallSiteOwner,
-    NormalizedForeignCallBinding, ProviderExecutionBinding};
+use target_operations::{
+    BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, NormalizedForeignCallBinding,
+    ProviderExecutionBinding,
+};
 use terminal_psi::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeByteSpan {
     offset: usize,
-    byte_count: usize}
+    byte_count: usize,
+}
 
 impl NativeByteSpan {
     pub const fn from_replayed_parts(offset: usize, byte_count: usize) -> Self {
@@ -74,7 +79,8 @@ impl NativeByteSpan {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NativeCompilerBuiltinCatalogIdentity {
-    HostedV1}
+    HostedV1,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizedBoundaryOccurrence {
@@ -83,7 +89,8 @@ pub struct OptimizedBoundaryOccurrence {
     invocation_site: semantic_vocabulary::BoundaryInvocationSite,
     boundary: BoundaryMachineId,
     operation_ordinal: usize,
-    identity: OptimizedBoundaryOccurrenceIdentity}
+    identity: OptimizedBoundaryOccurrenceIdentity,
+}
 
 impl OptimizedBoundaryOccurrence {
     pub const fn terminal(&self) -> TerminalPsiIdentity {
@@ -131,7 +138,8 @@ pub struct OptimizedOperatorOccurrence {
     machine: MachineId,
     operation: OperationId,
     operation_ordinal: usize,
-    identity: OptimizedOperatorOccurrenceIdentity}
+    identity: OptimizedOperatorOccurrenceIdentity,
+}
 
 impl OptimizedOperatorOccurrence {
     pub const fn machine(&self) -> MachineId {
@@ -158,7 +166,8 @@ pub struct NativeOptimizationProjection {
     terminal: TerminalPsiIdentity,
     operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
-    identity: NativeOptimizationProjectionIdentity}
+    identity: NativeOptimizationProjectionIdentity,
+}
 
 impl NativeOptimizationProjection {
     pub const fn terminal(&self) -> TerminalPsiIdentity {
@@ -192,11 +201,10 @@ pub struct ValidatedOptimizedNativePhysicalEvidenceScope {
     boundary_application_coverage: [u8; 32],
     projection: NativeOptimizationProjection,
     publication: Option<self::fragment_publication::FragmentPublicationBinding>,
-    identity: [u8; 32]}
+    identity: [u8; 32],
+}
 
 impl ValidatedOptimizedNativePhysicalEvidenceScope {
-
-
     pub const fn projection(&self) -> &NativeOptimizationProjection {
         &self.projection
     }
@@ -231,7 +239,8 @@ pub struct BoundaryTraitSettlement {
     selected_plan_digest: NativeSelectedProviderPlanDigest,
     target: NativeTarget,
     role: BoundaryTraitSettlementRole,
-    identity: [u8; 32]}
+    identity: [u8; 32],
+}
 
 /// Scalar-argument custody one hosted builtin settlement retained. The two
 /// shapes cover the argument rosters the settlement record can fill: a
@@ -242,7 +251,8 @@ pub(crate) enum CompilerBuiltinScalarArgument {
     /// and ABI destination the settlement declared.
     Immediate(BoundaryScalarArgument),
     /// One runtime scalar argument retained by its emitted source record.
-    RuntimeScalar(machine_code::ForeignCallScalarArgumentRecord)}
+    RuntimeScalar(machine_code::ForeignCallScalarArgumentRecord),
+}
 
 /// Result custody one hosted builtin settlement retained.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -250,7 +260,8 @@ pub(crate) enum CompilerBuiltinResult {
     /// The builtin settles with a unit result and retains no result record.
     Unit,
     /// The builtin writes one exact structural result into its caller home.
-    Structural(machine_code::BoundaryStructuralResultRecord)}
+    Structural(machine_code::BoundaryStructuralResultRecord),
+}
 
 /// Complete role-specific D41 custody. Installed provider authority and the
 /// consuming lowerer's builtin catalog remain disjoint and cannot substitute
@@ -266,10 +277,12 @@ pub(crate) enum BoundaryTraitSettlementRole {
         execution: target_operations::CompilerBuiltinExecution,
         realization: BoundaryRealization,
         scalar_argument: Option<CompilerBuiltinScalarArgument>,
-        result: CompilerBuiltinResult},
+        result: CompilerBuiltinResult,
+    },
     AdmittedProvider {
         execution: ProviderExecutionBinding,
-        realization: NormalizedForeignCallBinding},
+        realization: NormalizedForeignCallBinding,
+    },
     /// Exact installed provider settlement realized in place by a supported
     /// target mechanism: a privileged metadata-only port effect, a direct
     /// port read, a Linux write-line byte custody, or a claim completion.
@@ -282,7 +295,8 @@ pub(crate) enum BoundaryTraitSettlementRole {
         settlement: machine_code::BoundarySettlementRecord,
         /// Exact privileged port effect joined to a `MetadataOnlyPort`
         /// settlement; `None` for every other admitted realization.
-        port_effect: Option<machine_code::PortEffectRecord>},
+        port_effect: Option<machine_code::PortEffectRecord>,
+    },
     /// One installed provider boundary call realized as an ordinary resolved
     /// internal call into its selected checked-machine candidate. The
     /// retained object call-stack row names the owner operation and the
@@ -294,7 +308,9 @@ pub(crate) enum BoundaryTraitSettlementRole {
         boundary: BoundaryMachineId,
         provider_identity: String,
         candidate_identity: String,
-        call: InstalledProviderInternalCallCustody}}
+        call: InstalledProviderInternalCallCustody,
+    },
+}
 
 /// Retained call custody for an installed-provider boundary call realized as
 /// an ordinary internal call. The variants mirror the caller's retained
@@ -311,46 +327,43 @@ pub(crate) enum InstalledProviderInternalCallCustody {
         call_field_offset: usize,
         active_frame_bytes: u32,
         transient_bytes: u32,
-        caller_live_bytes: u32},
+        caller_live_bytes: u32,
+    },
     /// Call-site custody of the `ObjectScalarCallStack` family.
     Scalar {
         owner: CallSiteOwner,
         target: MachineId,
         /// Absolute object `.text` offset of the call's mutable field.
         call_field_offset: usize,
-        caller_live_bytes: u32}}
-
+        caller_live_bytes: u32,
+    },
+}
 
 impl BoundaryTraitSettlement {
-
-
-
-
-
-
     pub const fn identity(&self) -> &[u8; 32] {
         &self.identity
     }
-
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhysicalChildParent {
     OperatorApplicationCoverage(OperatorApplicationCoverageRef),
-    BoundaryTraitSettlement(BoundaryTraitSettlement)}
+    BoundaryTraitSettlement(BoundaryTraitSettlement),
+}
 
 impl PhysicalChildParent {
     pub const fn identity(&self) -> [u8; 32] {
         match self {
             Self::OperatorApplicationCoverage(reference) => *reference.coverage().as_bytes(),
-            Self::BoundaryTraitSettlement(settlement) => *settlement.identity()}
+            Self::BoundaryTraitSettlement(settlement) => *settlement.identity(),
+        }
     }
 
     pub const fn role_tag(&self) -> u8 {
         match self {
             Self::OperatorApplicationCoverage(_) => 1,
-            Self::BoundaryTraitSettlement(_) => 2}
+            Self::BoundaryTraitSettlement(_) => 2,
+        }
     }
 }
 
@@ -362,7 +375,8 @@ pub enum PhysicalRelocationDisposition {
     /// Fragment-publication custody: the call's import field lives in the
     /// retained relocation-free object plan, which owns the unresolved field
     /// row and declared import symbol in place of object relocation records.
-    UnresolvedNormalizedForeignCallImportField(NormalizedForeignCallImportField)}
+    UnresolvedNormalizedForeignCallImportField(NormalizedForeignCallImportField),
+}
 
 /// Exact unresolved import relocation retained by one normalized-foreign D41
 /// child. The parent owns the complete locator and boundary contract; their
@@ -379,7 +393,8 @@ pub struct NormalizedForeignCallRelocation {
     addend: i64,
     kind: object_file::RelocationKind,
     callbacks: Vec<NormalizedForeignCallbackRelocations>,
-    final_image_symbol_identity: [u8; 32]}
+    final_image_symbol_identity: [u8; 32],
+}
 
 /// Exact private-function relocation custody for the one direct callback
 /// shape admitted by normalized foreign calls. The closed variants mirror the
@@ -389,11 +404,14 @@ pub struct NormalizedForeignCallRelocation {
 pub enum NormalizedForeignCallbackRelocations {
     X86_64Relative32 {
         callback_function: function_identity::MachineFunctionIdentity,
-        relocation: NormalizedForeignCallbackRelocation},
+        relocation: NormalizedForeignCallbackRelocation,
+    },
     Aarch64PageAddress {
         callback_function: function_identity::MachineFunctionIdentity,
         page: NormalizedForeignCallbackRelocation,
-        page_offset: NormalizedForeignCallbackRelocation}}
+        page_offset: NormalizedForeignCallbackRelocation,
+    },
+}
 
 /// One exact object relocation targeting a compiler-private callback
 /// function. Construction remains derivation-owned.
@@ -404,7 +422,8 @@ pub struct NormalizedForeignCallbackRelocation {
     offset: usize,
     byte_width: usize,
     addend: i64,
-    kind: object_file::RelocationKind}
+    kind: object_file::RelocationKind,
+}
 
 impl NormalizedForeignCallbackRelocation {
     pub const fn object_symbol(&self) -> object_file::ObjectSymbolHandle {
@@ -432,8 +451,7 @@ impl NormalizedForeignCallbackRelocation {
     }
 }
 
-impl NormalizedForeignCallbackRelocations {
-}
+impl NormalizedForeignCallbackRelocations {}
 
 /// Exact unresolved import-field custody retained by one normalized-foreign
 /// D41 child realized through fragment publication. The relocation-free
@@ -454,7 +472,8 @@ pub struct NormalizedForeignCallImportField {
     byte_width: usize,
     addend: i64,
     kind: object_file::RelocationKind,
-    final_image_symbol_identity: [u8; 32]}
+    final_image_symbol_identity: [u8; 32],
+}
 
 impl NormalizedForeignCallImportField {
     pub const fn locator_identity(&self) -> &[u8; 32] {
@@ -551,19 +570,22 @@ impl NormalizedForeignCallRelocation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NativePhysicalOccurrence {
     Operator(OptimizedOperatorOccurrenceIdentity),
-    Boundary(OptimizedBoundaryOccurrenceIdentity)}
+    Boundary(OptimizedBoundaryOccurrenceIdentity),
+}
 
 impl NativePhysicalOccurrence {
     pub const fn identity(self) -> [u8; 32] {
         match self {
             Self::Operator(identity) => identity.bytes(),
-            Self::Boundary(identity) => identity.bytes()}
+            Self::Boundary(identity) => identity.bytes(),
+        }
     }
 
     pub const fn role_tag(self) -> u8 {
         match self {
             Self::Operator(_) => 1,
-            Self::Boundary(_) => 2}
+            Self::Boundary(_) => 2,
+        }
     }
 }
 
@@ -582,7 +604,8 @@ pub struct NativePhysicalChild {
     object_bytes_digest: [u8; 32],
     final_image_bytes_digest: [u8; 32],
     relocation: PhysicalRelocationDisposition,
-    identity: [u8; 32]}
+    identity: [u8; 32],
+}
 
 impl NativePhysicalChild {
     pub const fn parent(&self) -> &PhysicalChildParent {
@@ -610,7 +633,6 @@ impl NativePhysicalChild {
         &self.final_image_spans
     }
 
-
     pub const fn identity(&self) -> &[u8; 32] {
         &self.identity
     }
@@ -627,7 +649,8 @@ impl NativePhysicalChild {
             object_bytes_digest: self.object_bytes_digest,
             final_image_bytes_digest: self.final_image_bytes_digest,
             relocation: self.relocation,
-            identity: self.identity}
+            identity: self.identity,
+        }
     }
 
     pub fn from_replayed_parts(parts: NativePhysicalChildParts) -> Self {
@@ -639,7 +662,8 @@ impl NativePhysicalChild {
 pub struct NativePhysicalEvidence {
     projection: NativeOptimizationProjection,
     children: Vec<NativePhysicalChild>,
-    identity: [u8; 32]}
+    identity: [u8; 32],
+}
 
 impl NativePhysicalEvidence {
     pub const fn projection(&self) -> &NativeOptimizationProjection {
@@ -658,14 +682,16 @@ impl NativePhysicalEvidence {
         NativePhysicalEvidenceParts {
             projection: self.projection,
             children: self.children,
-            identity: self.identity}
+            identity: self.identity,
+        }
     }
 
     pub fn from_replayed_parts(parts: NativePhysicalEvidenceParts) -> Self {
         Self {
             projection: parts.projection,
             children: parts.children,
-            identity: parts.identity}
+            identity: parts.identity,
+        }
     }
 }
 
@@ -676,7 +702,8 @@ pub(crate) struct BoundaryTraitSettlementParts {
     pub selected_plan_digest: NativeSelectedProviderPlanDigest,
     pub target: NativeTarget,
     pub role: BoundaryTraitSettlementRole,
-    pub identity: [u8; 32]}
+    pub identity: [u8; 32],
+}
 
 impl From<BoundaryTraitSettlementParts> for BoundaryTraitSettlement {
     fn from(parts: BoundaryTraitSettlementParts) -> Self {
@@ -686,7 +713,8 @@ impl From<BoundaryTraitSettlementParts> for BoundaryTraitSettlement {
             selected_plan_digest: parts.selected_plan_digest,
             target: parts.target,
             role: parts.role,
-            identity: parts.identity}
+            identity: parts.identity,
+        }
     }
 }
 
@@ -702,13 +730,15 @@ pub struct NativePhysicalChildParts {
     pub object_bytes_digest: [u8; 32],
     pub final_image_bytes_digest: [u8; 32],
     pub relocation: PhysicalRelocationDisposition,
-    pub identity: [u8; 32]}
+    pub identity: [u8; 32],
+}
 
 #[derive(Debug)]
 pub struct NativePhysicalEvidenceParts {
     pub projection: NativeOptimizationProjection,
     pub children: Vec<NativePhysicalChild>,
-    pub identity: [u8; 32]}
+    pub identity: [u8; 32],
+}
 
 /// The exact subject that stopped a scoped physical-evidence derivation
 /// before it could bind every surviving occurrence to a physical child.
@@ -724,24 +754,29 @@ pub enum NativePhysicalEvidenceGapSubject {
     /// operation, so no surviving boundary occurrence can claim it.
     ForeignCallSiteOwner {
         machine: MachineId,
-        owner: CallSiteOwner},
+        owner: CallSiteOwner,
+    },
     /// A surviving boundary occurrence's installed settlement carries an
     /// execution and realization pair no supported child arm admits.
     UnsupportedSettlementRealization {
-        occurrence: OptimizedBoundaryOccurrence},
+        occurrence: OptimizedBoundaryOccurrence,
+    },
     /// A surviving boundary occurrence's normalized foreign call declined the
     /// normalized-foreign child derivation.
     UnsupportedNormalizedForeignCall {
-        occurrence: OptimizedBoundaryOccurrence},
+        occurrence: OptimizedBoundaryOccurrence,
+    },
     /// A surviving boundary occurrence retained no supported realization:
     /// no installed settlement, no normalized foreign call, and no internal
     /// call custody a supported arm can bind.
     UnrealizedBoundaryOccurrence {
-        occurrence: OptimizedBoundaryOccurrence},
+        occurrence: OptimizedBoundaryOccurrence,
+    },
     /// A surviving operator occurrence's realization declined every physical
     /// span arm.
     UnsupportedOperatorSpan {
-        occurrence: OptimizedOperatorOccurrence},
+        occurrence: OptimizedOperatorOccurrence,
+    },
     /// A retained privileged port effect was consumed by no exact
     /// `MetadataOnlyPort` settlement join.
     UnownedPortEffect {
@@ -752,7 +787,9 @@ pub enum NativePhysicalEvidenceGapSubject {
         value: u8,
         operation_ordinal: usize,
         code_offset: usize,
-        byte_count: usize}}
+        byte_count: usize,
+    },
+}
 
 /// Canonical name of the subject that stopped one scoped physical-evidence
 /// derivation. The identity binds the complete subject, so an artifact's
@@ -760,7 +797,8 @@ pub enum NativePhysicalEvidenceGapSubject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativePhysicalEvidenceGap {
     subject: NativePhysicalEvidenceGapSubject,
-    identity: [u8; 32]}
+    identity: [u8; 32],
+}
 
 impl NativePhysicalEvidenceGap {
     pub const fn subject(&self) -> NativePhysicalEvidenceGapSubject {
@@ -804,19 +842,33 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
                     ),
                     CallSiteOwner::CleanupAction {
                         edge,
-                        action_ordinal} => write!(
+                        action_ordinal,
+                    } => write!(
                         formatter,
                         "normalized foreign call on machine {machine} is owned by cleanup action {action_ordinal} on edge {edge}"
-                    )}
+                    ),
+                }
             }
             NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization { occurrence } => {
-                write!(formatter, "{} has no supported settlement realization", occurrence.label())
+                write!(
+                    formatter,
+                    "{} has no supported settlement realization",
+                    occurrence.label()
+                )
             }
             NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall { occurrence } => {
-                write!(formatter, "{} declined the normalized-foreign child derivation", occurrence.label())
+                write!(
+                    formatter,
+                    "{} declined the normalized-foreign child derivation",
+                    occurrence.label()
+                )
             }
             NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence { occurrence } => {
-                write!(formatter, "{} retained no supported boundary realization", occurrence.label())
+                write!(
+                    formatter,
+                    "{} retained no supported boundary realization",
+                    occurrence.label()
+                )
             }
             NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan { occurrence } => {
                 write!(
@@ -838,7 +890,8 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
             } => write!(
                 formatter,
                 "privileged port effect on machine {machine} operation {psi_operation} service {service} port {port} value {value} ordinal {operation_ordinal} was consumed by no MetadataOnlyPort settlement"
-            )}
+            ),
+        }
     }
 }
 
@@ -855,7 +908,8 @@ impl From<NativePhysicalChildParts> for NativePhysicalChild {
             object_bytes_digest: parts.object_bytes_digest,
             final_image_bytes_digest: parts.final_image_bytes_digest,
             relocation: parts.relocation,
-            identity: parts.identity}
+            identity: parts.identity,
+        }
     }
 }
 
@@ -886,7 +940,8 @@ pub(crate) fn normalized_foreign_call_relocation(
         addend,
         kind,
         callbacks,
-        final_image_symbol_identity}
+        final_image_symbol_identity,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -916,7 +971,8 @@ pub(crate) fn normalized_foreign_call_import_field(
         byte_width,
         addend,
         kind,
-        final_image_symbol_identity}
+        final_image_symbol_identity,
+    }
 }
 
 fn normalized_foreign_callback_relocation(
@@ -933,7 +989,8 @@ fn normalized_foreign_callback_relocation(
         offset,
         byte_width,
         addend,
-        kind}
+        kind,
+    }
 }
 
 fn optimized_boundary_occurrence(
@@ -950,7 +1007,8 @@ fn optimized_boundary_occurrence(
         invocation_site: invocation_site.into(),
         boundary,
         operation_ordinal,
-        identity}
+        identity,
+    }
 }
 
 fn optimized_operator_occurrence(
@@ -965,7 +1023,8 @@ fn optimized_operator_occurrence(
         machine,
         operation,
         operation_ordinal,
-        identity}
+        identity,
+    }
 }
 
 fn native_optimization_projection(
@@ -978,7 +1037,8 @@ fn native_optimization_projection(
         terminal,
         operator_occurrences,
         boundary_occurrences,
-        identity}
+        identity,
+    }
 }
 
 fn validated_optimized_native_physical_evidence_scope(
@@ -994,7 +1054,8 @@ fn validated_optimized_native_physical_evidence_scope(
         boundary_application_coverage,
         projection,
         publication: None,
-        identity}
+        identity,
+    }
 }
 
 fn validated_fragment_native_physical_evidence_scope(
@@ -1015,7 +1076,8 @@ fn native_physical_evidence(
     NativePhysicalEvidence {
         projection,
         children,
-        identity}
+        identity,
+    }
 }
 
 /// Construction stays derivation-owned: the identity must be the derivation's

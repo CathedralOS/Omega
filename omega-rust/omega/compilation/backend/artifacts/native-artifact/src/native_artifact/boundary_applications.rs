@@ -1,3 +1,4 @@
+use crate::physical::{canonical_usize, hash_bytes};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use sha2::{Digest, Sha256};
 
@@ -61,15 +62,4 @@ pub(crate) fn boundary_application_coverage_identity(
         digest.update(application.selected_application_commitment);
     }
     Some(digest.finalize().into())
-}
-
-fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update(canonical_usize(bytes.len()));
-    digest.update(bytes);
-}
-
-fn canonical_usize(value: usize) -> [u8; 8] {
-    u64::try_from(value)
-        .expect("native boundary-application custody length fits u64")
-        .to_le_bytes()
 }
