@@ -16,7 +16,8 @@ pub data CheckDiagnosticCode [copy] {
     // A body holds more integer subjects, or a machine more states, than
     // the checker's tables.
     case CheckCapacityExceeded;
-    // A fact outside the forms checking reasons with: a case's own `where`.
+    // A fact outside the forms checking reasons with: a case's own `where`,
+    // or a proposition application that must hold.
     case UnsupportedFact;
     // An expression form checking does not reason about yet.
     case UnsupportedCheck;

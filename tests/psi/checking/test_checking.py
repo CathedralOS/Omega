@@ -716,6 +716,46 @@ def main() -> None:
         "UnsupportedFact",
         b"Size::Some { v: 1 }",
     )
+    # A proposition application states what no zone fact expresses:
+    # assumed, it establishes nothing; owed by a call, a return or a
+    # construction, checking cannot decide it and rejects it as unsupported
+    # rather than proving or refuting it.
+    small = b"proposition Small(x: u64) = x < 4;\n"
+    accepted(
+        program,
+        "proposition-requirement-is-assumed-harmlessly",
+        small + b"machine f(x: u64)\nrequires Small(x)\n{}",
+    )
+    rejected(
+        program,
+        "proposition-requirement-establishes-nothing",
+        small + b"machine read(a: &[u8; 4], x: u64) -> u8\nrequires Small(x)\n{ a[x] }",
+        "IndexOutOfBounds",
+        b"a[x]",
+    )
+    rejected(
+        program,
+        "owed-proposition-requirement-is-unsupported",
+        small + b"machine take(x: u64)\nrequires Small(x)\n{}\nmachine call() { take(0); }",
+        "UnsupportedFact",
+        b"Small(x)",
+    )
+    rejected(
+        program,
+        "proposition-guarantee-is-unsupported",
+        small + b"machine make() -> u64\nensures Small(result)\n{ 1 }",
+        "UnsupportedFact",
+        b"Small(result)",
+    )
+    rejected(
+        program,
+        "proposition-data-fact-is-unsupported",
+        b"proposition Ordered(lo: u64, hi: u64) = lo <= hi;\n"
+        b"data Range\nwhere\n    Ordered(lo, hi),\n{ lo: u64; hi: u64; }\n"
+        b"machine make() -> Range { Range { lo: 1, hi: 2 } }",
+        "UnsupportedFact",
+        b"Ordered(lo, hi)",
+    )
     rejected(
         program,
         "construction-breaks-the-domain",

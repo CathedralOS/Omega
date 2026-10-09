@@ -310,13 +310,14 @@ crashes Trap
 // Whether `domain` may qualify `builtin`: an arithmetic policy qualifies a
 // fixed integer, `Finite` a float, and anything may stay unqualified
 // (wiki/spec/language/numeric_values.md#overflow-policies). A declared
-// domain's theory belongs to checking, which this slice does not reach, so
-// it qualifies nothing yet.
+// domain's or a case's implied domain's theory belongs to checking, which
+// this slice does not reach, so it qualifies nothing yet.
 machine Typer::domain_admitted(builtin: BuiltinType, domain: DomainBinding) -> bool {
     transition domain {
         DomainBinding::Unqualified -> yes()
         DomainBinding::Finite -> float(builtin)
         DomainBinding::Declared -> no()
+        DomainBinding::Case -> no()
         _ -> integer(builtin)
     }
 

@@ -39,6 +39,7 @@ NOT_A_TRAIT = 26
 NOT_A_REQUIREMENT = 27
 UNDECLARED_DEPENDENCY = 28
 FOREIGN_OPERATOR_HOME = 29
+PROOF_ONLY_APPLICATION = 30
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -100,6 +101,11 @@ def returned_value(machine: int) -> tuple[int, int, int]:
     """`result` in a machine's `ensures` fact."""
     return (13, machine, 0)
 
+
+def proposition(handle: int) -> tuple[int, int, int]:
+    """A proposition application's callee."""
+    return (14, handle, 0)
+
 # Type bindings: (tag, handle, domain tag, declared domain handle).
 BUILTIN = 1
 DATA = 2
@@ -117,6 +123,7 @@ SATURATING = 2
 TRAPPING = 3
 FINITE = 4
 DECLARED = 5
+CASE = 6
 
 BUILTIN_SPELLINGS = (
     "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "addr",
@@ -151,6 +158,11 @@ def conformance(handle: int) -> TypeRow:
 def in_domain(row: TypeRow, domain: int) -> TypeRow:
     """`row` qualified by declared domain `domain`."""
     return (row[0], row[1], DECLARED, domain)
+
+
+def in_case(row: TypeRow, data_case: int) -> TypeRow:
+    """`row` qualified by the implied domain of case `data_case`."""
+    return (row[0], row[1], CASE, data_case)
 
 
 REFERENCE_ROW = (REFERENCE, 0, UNQUALIFIED, 0)
@@ -1275,6 +1287,44 @@ def main() -> None:
     )
     rejected(program, "case-domain-qualifier-is-unknown", b"data X { field: u8 in Event::Completion; }",
              UNKNOWN_DOMAIN, b"Event::Completion")
+    # A path qualifier `T in Owner::Name` names what a membership's path
+    # names, and that domain must qualify `T`.
+    accepted(
+        program,
+        "path-qualifier-binds-a-declared-domain",
+        b"boundary data Event;\ndomain Event::Completion;\n"
+        b"data Attempt { case Done(event: Event in Event::Completion); case Pending; }",
+        (data(0), in_domain(data(0), 0)),
+    )
+    accepted(
+        program,
+        "path-qualifier-binds-a-case-domain",
+        b"data O { case None; case Some(value: u8); }\nmachine f(o: O in O::Some) {}",
+        (builtin("u8"), in_case(data(0), 1)),
+    )
+    rejected(
+        program,
+        "path-qualifier-of-another-carrier",
+        b"domain u64::Small;\nmachine f(x: u32 in u64::Small) {}",
+        UNKNOWN_DOMAIN,
+        b"u64::Small",
+        2,
+    )
+    rejected(
+        program,
+        "case-qualifier-of-other-data",
+        b"data O { case None; }\ndata P { case None; }\nmachine f(p: P in O::None) {}",
+        UNKNOWN_DOMAIN,
+        b"O::None",
+    )
+    rejected(
+        program,
+        "case-and-domain-compete-in-a-qualifier",
+        b"data K { case A; }\ndomain K::A;\nmachine f(k: K in K::A) {}",
+        AMBIGUOUS_NAME,
+        b"K::A",
+        2,
+    )
     rejected(program, "membership-in-a-declared-domain", b"machine f(o: u8) -> bool { o in Positive }",
              UNKNOWN_DOMAIN, b"Positive")
     rejected(program, "membership-in-a-machine", b"machine O::check() {}\nmachine f(o: u8) -> bool { o in O::check }",
@@ -1686,6 +1736,78 @@ def main() -> None:
     )
     rejected(program, "duplicate-proposition-parameter", b"proposition P(a: u8, a: u8);", DUPLICATE_PARAMETER, b"a", 2)
     rejected(program, "unknown-evidence-type", b"proposition P evidence Q;", UNKNOWN_DATA_TYPE, b"Q")
+
+    # A proposition applies as a whole fact: its callee binds the
+    # proposition, its arguments like any fact names. Machines and
+    # propositions are one callee tier. Inside a larger fact the application
+    # is unsupported, and where a value is computed it is no value at all.
+    accepted(
+        program,
+        "proposition-applications-in-facts",
+        b"proposition Close(a: u64, b: u64) = a == b;\n"
+        b"machine f(x: u64, y: u64)\nrequires Close(x, y)\nensures Close(x, x)\n{}",
+        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
+        (
+            NOT_A_NAME, NOT_A_NAME, NOT_A_NAME,
+            proposition(0), parameter(2), parameter(3), NOT_A_NAME,
+            proposition(0), parameter(2), parameter(2), NOT_A_NAME,
+        ),
+    )
+    accepted(
+        program,
+        "proposition-application-in-a-data-fact",
+        b"proposition Ordered(lo: u64, hi: u64) = lo <= hi;\n"
+        b"data Range\nwhere\n    Ordered(lo, hi),\n{ lo: u64; hi: u64; }",
+        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
+        (NOT_A_NAME, NOT_A_NAME, NOT_A_NAME, proposition(0), field_name(0), field_name(1), NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "applied-generic-proposition",
+        b"proposition Same<T>(a: T, b: T);\nmachine f(x: u8)\nrequires Same<u8>(x, x)\n{}",
+        (generic(0), generic(0), builtin("u8"), builtin("u8")),
+        (proposition(0), NOT_A_NAME, parameter(2), parameter(2), NOT_A_NAME),
+    )
+    rejected(
+        program,
+        "proposition-inside-a-larger-fact",
+        b"proposition P(a: u64);\nmachine f(x: u64)\nrequires P(x) && x > 0\n{}",
+        UNSUPPORTED_EXPRESSION,
+        b"P",
+        2,
+    )
+    rejected(
+        program,
+        "proposition-inside-a-larger-data-fact",
+        b"proposition P(a: u64);\ndata D\nwhere\n    !P(v),\n{ v: u64; }",
+        UNSUPPORTED_EXPRESSION,
+        b"P",
+        2,
+    )
+    rejected(
+        program,
+        "proposition-applied-in-a-body",
+        b"proposition P(a: u64);\nmachine f(x: u64) -> bool { P(x) }",
+        PROOF_ONLY_APPLICATION,
+        b"P",
+        2,
+    )
+    rejected(
+        program,
+        "proposition-applied-in-a-constant",
+        b"proposition P(a: u64);\nconst C: bool = P(1);",
+        PROOF_ONLY_APPLICATION,
+        b"P",
+        2,
+    )
+    rejected(
+        program,
+        "machine-and-proposition-share-a-callee",
+        b"proposition f(a: u64);\nmachine f(x: u64) {}\nmachine g(x: u64)\nrequires f(x)\n{}",
+        AMBIGUOUS_NAME,
+        b"f",
+        3,
+    )
 
     # Packages: a `use` path's first member selects a requester-local product
     # dependency alias's package, or the requester's own by its name, and the

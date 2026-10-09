@@ -36,13 +36,17 @@ pub data ReferenceAccess [copy] {
 // `Slice` (`[T]`) name their referee or element in `inner`, and `Array` names
 // its length row, a `Literal` or a `Named` static value, in `length`.
 // `Literal` is an integer static argument or length spelled by `name`.
-// `Named`, `Array` and `Slice` rows may carry an `in Domain` qualifier.
+// `Named`, `Array` and `Slice` rows may carry an `in Domain` qualifier: its
+// own name is `domain`, and a path qualifier (`in Type::Case`) keeps the
+// members before that name in `domain_owner`.
 // Fields a form does not carry are zero.
 pub data TypeReference [copy] {
     kind: TypeReferenceKind;
     name: IdentifierSpan;
     has_domain: bool;
     domain: IdentifierSpan;
+    has_domain_owner: bool;
+    domain_owner: IdentifierSpan;
     access: ReferenceAccess;
     inner: u64 in Trapping;
     length: u64 in Trapping;
@@ -1119,6 +1123,26 @@ crashes Trap
 
     state invalid() -> GenericParameter {
         crash Trap;
+    }
+}
+
+// A type reference's `in` qualifier as written: its owner path, if any,
+// through its name.
+pub machine TypeReference::qualifier_span(reference: TypeReference) -> SourceSpan {
+    transition reference.has_domain_owner {
+        true -> owned(reference)
+        _ -> bare(reference)
+    }
+
+    state owned(reference: TypeReference) -> SourceSpan {
+        SourceSpan {
+            source: reference.domain.source_span.source,
+            span: Span { start: reference.domain_owner.source_span.span.start, end: reference.domain.source_span.span.end }
+        }
+    }
+
+    state bare(reference: TypeReference) -> SourceSpan {
+        reference.domain.source_span
     }
 }
 

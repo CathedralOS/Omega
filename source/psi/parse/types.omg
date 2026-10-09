@@ -173,8 +173,9 @@ crashes Trap
     }
 
     // `Named`, `Array` and `Slice` rows may close with `in Domain`, where
-    // the domain may be a path such as a case's implied domain `Type::Case`;
-    // the qualifier spans the whole path.
+    // the domain may be a path such as a case's implied domain `Type::Case`:
+    // its last member is the qualifier's own name and the members before it
+    // its owner path.
     state domain(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
         let qualified: bool = Parser::at_word(parser, input, "in");
         transition qualified {
@@ -187,32 +188,35 @@ crashes Trap
         Parser::take_current(parser, input);
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedTypeQualifierDomain);
         transition parser.output.accepted {
-            true -> domain_path(parser, input, row, parser.name_start)
+            true -> domain_path(parser, input, row, parser.name_start, parser.name_start)
             _ -> done()
         }
     }
 
-    state domain_path(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping) {
+    // The path so far runs from `start`; its members before the latest end
+    // at `owner_end`, which is `start` while it has one member.
+    state domain_path(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
         let separated: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
         transition separated {
-            true -> domain_member(parser, input, row, start)
-            _ -> qualified(parser, input, row, start)
+            true -> domain_member(parser, input, row, start, parser.name_end)
+            _ -> qualified(parser, input, row, start, owner_end)
         }
     }
 
-    state domain_member(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping) {
+    state domain_member(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
         Parser::take_current(parser, input);
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPathMember);
         transition parser.output.accepted {
-            true -> domain_path(parser, input, row, start)
+            true -> domain_path(parser, input, row, start, owner_end)
             _ -> done()
         }
     }
 
-    state qualified(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping) {
-        let domain: IdentifierSpan = Parser::identifier_span(parser, start, parser.name_end);
+    state qualified(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping, owner_end: u64 in Trapping) {
+        let domain: IdentifierSpan = Parser::identifier_span(parser, parser.name_start, parser.name_end);
+        let owner: IdentifierSpan = Parser::identifier_span(parser, start, owner_end);
         let span: SourceSpan = Parser::source_span(parser, row.source_span.span.start, parser.name_end);
-        transition { _ -> append(parser, input, Parser::with_domain(row, domain, span)) }
+        transition { _ -> append(parser, input, Parser::with_domain(row, owner_end > start, owner, domain, span)) }
     }
 
     state append(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
@@ -457,6 +461,8 @@ machine Parser::type_row(
         name: Parser::identifier_span(parser, name_start, name_end),
         has_domain: false,
         domain: Parser::identifier_span(parser, 0, 0),
+        has_domain_owner: false,
+        domain_owner: Parser::identifier_span(parser, 0, 0),
         access: ReferenceAccess::Shared,
         inner: 0,
         length: 0,
@@ -478,6 +484,8 @@ machine Parser::with_children(
         name: row.name,
         has_domain: row.has_domain,
         domain: row.domain,
+        has_domain_owner: row.has_domain_owner,
+        domain_owner: row.domain_owner,
         access: row.access,
         inner: inner,
         length: length,
@@ -494,6 +502,8 @@ machine Parser::with_access(row: TypeReference, access: ReferenceAccess) -> Type
         name: row.name,
         has_domain: row.has_domain,
         domain: row.domain,
+        has_domain_owner: row.has_domain_owner,
+        domain_owner: row.domain_owner,
         access: access,
         inner: row.inner,
         length: row.length,
@@ -514,6 +524,8 @@ machine Parser::with_arguments(
         name: row.name,
         has_domain: row.has_domain,
         domain: row.domain,
+        has_domain_owner: row.has_domain_owner,
+        domain_owner: row.domain_owner,
         access: row.access,
         inner: row.inner,
         length: row.length,
@@ -524,12 +536,20 @@ machine Parser::with_arguments(
     }
 }
 
-machine Parser::with_domain(row: TypeReference, domain: IdentifierSpan, source_span: SourceSpan) -> TypeReference {
+machine Parser::with_domain(
+    row: TypeReference,
+    has_owner: bool,
+    owner: IdentifierSpan,
+    domain: IdentifierSpan,
+    source_span: SourceSpan
+) -> TypeReference {
     TypeReference {
         kind: row.kind,
         name: row.name,
         has_domain: true,
         domain: domain,
+        has_domain_owner: has_owner,
+        domain_owner: owner,
         access: row.access,
         inner: row.inner,
         length: row.length,

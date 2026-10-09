@@ -679,8 +679,8 @@ machine ParserHarness::write_parse_observation(
     }
 
     // Every row writes its kind tag (1 named, 3 reference, 4 array, 5 slice,
-    // 6 literal), its name and source spans, its domain flag and span (zero
-    // when unqualified), its access tag (zero unless a reference, then 1
+    // 6 literal), its name and source spans, its domain flag and the whole
+    // qualifier's span, owner path included (zero when unqualified), its access tag (zero unless a reference, then 1
     // shared or 2 mutable) and its inner, length, first-argument,
     // argument-count and first-row handles.
     state parse_type_reference(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
@@ -736,7 +736,8 @@ machine ParserHarness::write_parse_observation(
     requires index <= 32767
     {
         ParserHarness::write_byte(parser_harness, 1);
-        ParserHarness::write_source_span(parser_harness, type_reference.domain.source_span);
+        let qualifier: SourceSpan = TypeReference::qualifier_span(type_reference);
+        ParserHarness::write_source_span(parser_harness, qualifier);
         transition { _ -> parse_type_tail(parser_harness, output, type_reference, index, access) }
     }
 

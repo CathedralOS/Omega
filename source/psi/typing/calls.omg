@@ -21,7 +21,9 @@ use psi::typing::typer;
 // loan is explicit. A trait requirement or default runs only through a
 // selected conformance, a member of a generic conformance needs that
 // conformance's arguments, and a target-scoped family's body is chosen by
-// realization: each rejects as unsupported here.
+// realization: each rejects as unsupported here. A proposition application
+// selects nothing: it is a Boolean statement whose arguments meet the
+// proposition's parameters.
 // The explicit static arguments of a call `path<arguments>(...)`: a run of
 // `SyntaxTrees::type_arguments`. A plain call has none.
 pub data StaticArguments [copy] {
@@ -44,6 +46,7 @@ crashes Trap
         transition binding {
             ValueBinding::Machine { handle } -> supplied(typer, sources, syntax, resolution, index, expression, handle, statics)
             ValueBinding::State { handle } -> state_target(typer, syntax, index, expression, handle)
+            ValueBinding::Proposition { proposition } -> applied_proposition(typer, syntax, index, expression, proposition, statics)
             _ -> not_callable(typer, syntax, expression)
         }
     }
@@ -55,8 +58,20 @@ crashes Trap
         let statics: StaticArguments = StaticArguments { first: callee.first, count: callee.count };
         transition binding {
             ValueBinding::Machine { handle } -> supplied(typer, sources, syntax, resolution, index, expression, handle, statics)
+            ValueBinding::Proposition { proposition } -> applied_proposition(typer, syntax, index, expression, proposition, statics)
             _ -> not_callable(typer, syntax, expression)
         }
+    }
+
+    state applied_proposition(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        expression: Expression,
+        handle: u64 in Trapping,
+        statics: StaticArguments
+    ) {
+        Typer::type_proposition(typer, syntax, index, expression, handle, statics);
     }
 
     state supplied(
@@ -299,30 +314,15 @@ crashes Trap
 
     state generic(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, statics: StaticArguments, item: MachineItem) -> bool {
         Typer::begin_bindings(typer);
-        let explicit: bool = Typer::bind_static_arguments(typer, syntax, item, statics);
+        let explicit: bool = Typer::bind_static_arguments(typer, syntax, item.first_generic_parameter, item.generic_parameter_count, statics);
         transition explicit {
-            true -> infer(typer, syntax, expression, item, 0)
+            true -> inferred(typer, syntax, expression, item)
             _ -> no()
         }
     }
 
-    state infer(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: MachineItem, offset: u64 in Trapping) -> bool {
-        transition offset < expression.count {
-            true -> infer_argument(typer, syntax, expression, item, offset)
-            _ -> inferred(typer, syntax, expression, item)
-        }
-    }
-
-    state infer_argument(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: MachineItem, offset: u64 in Trapping) -> bool {
-        let argument: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
-        let parameter: Parameter = SyntaxTrees::parameter(syntax, item.first_parameter + offset);
-        let wanted: u64 in Trapping = Typing::reference_type(&typer.output, parameter.type_reference);
-        let given: u64 in Trapping = Typing::expression_type(&typer.output, argument);
-        Typer::unify(typer, item.first_generic_parameter, item.generic_parameter_count, wanted, given);
-        transition { _ -> infer(typer, syntax, expression, item, offset + 1) }
-    }
-
     state inferred(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: MachineItem) -> bool {
+        Typer::unify_arguments(typer, syntax, expression, item.first_parameter, item.first_generic_parameter, item.generic_parameter_count);
         let complete: bool = Typer::all_bound(typer, syntax, item.first_generic_parameter, item.generic_parameter_count);
         transition complete {
             true -> arguments(typer, syntax, expression, item, true, 0)
@@ -372,45 +372,46 @@ crashes Trap
         || owner.container == MachineContainer::Refinement || item.has_target
 }
 
-// Bind `item`'s generic parameters, lifetimes aside, to the call's static
-// arguments in order; a call without static arguments binds none. Whether
-// the static arguments fit the machine (none, or one per parameter).
-machine Typer::bind_static_arguments(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, statics: StaticArguments) -> bool
+// Bind a signature's generic parameters `first..first + count`, lifetimes
+// aside, to the call's static arguments in order; a call without static
+// arguments binds none. Whether the static arguments fit the signature
+// (none, or one per parameter).
+machine Typer::bind_static_arguments(typer: &mut Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments) -> bool
 crashes Trap
 {
     transition statics.count == 0 {
         true -> fitted()
-        _ -> next(typer, syntax, item, statics, 0, 0)
+        _ -> next(typer, syntax, first, count, statics, 0, 0)
     }
 
-    state next(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping) -> bool {
-        transition offset < item.generic_parameter_count {
-            true -> parameter(typer, syntax, item, statics, offset, position)
+    state next(typer: &mut Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping) -> bool {
+        transition offset < count {
+            true -> parameter(typer, syntax, first, count, statics, offset, position)
             _ -> counted(statics, position)
         }
     }
 
-    state parameter(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping) -> bool {
-        let handle: u64 in Trapping = item.first_generic_parameter + offset;
+    state parameter(typer: &mut Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping) -> bool {
+        let handle: u64 in Trapping = first + offset;
         let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
         transition generic.kind == GenericParameterKind::Lifetime {
-            true -> next(typer, syntax, item, statics, offset + 1, position)
-            _ -> supplied(typer, syntax, item, statics, offset, position, handle)
+            true -> next(typer, syntax, first, count, statics, offset + 1, position)
+            _ -> supplied(typer, syntax, first, count, statics, offset, position, handle)
         }
     }
 
-    state supplied(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping, handle: u64 in Trapping) -> bool {
+    state supplied(typer: &mut Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition position < statics.count {
-            true -> bound(typer, syntax, item, statics, offset, position, handle)
+            true -> bound(typer, syntax, first, count, statics, offset, position, handle)
             _ -> unfitted()
         }
     }
 
-    state bound(typer: &mut Typer, syntax: &SyntaxTrees, item: MachineItem, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping, handle: u64 in Trapping) -> bool {
+    state bound(typer: &mut Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, statics: StaticArguments, offset: u64 in Trapping, position: u64 in Trapping, handle: u64 in Trapping) -> bool {
         let row: u64 in Trapping = SyntaxTrees::type_argument(syntax, statics.first + position);
         let argument: u64 in Trapping = Typing::reference_type(&typer.output, row);
         Typer::bind(typer, handle, argument);
-        transition { _ -> next(typer, syntax, item, statics, offset + 1, position + 1) }
+        transition { _ -> next(typer, syntax, first, count, statics, offset + 1, position + 1) }
     }
 
     state counted(statics: StaticArguments, position: u64 in Trapping) -> bool {
@@ -423,6 +424,122 @@ crashes Trap
 
     state unfitted() -> bool {
         false
+    }
+}
+
+// Unify each parameter type of a generic signature with its argument's
+// type, binding the signature's generic parameters
+// `first_generic..first_generic + generic_count` that the parameter types
+// mention.
+machine Typer::unify_arguments(
+    typer: &mut Typer,
+    syntax: &SyntaxTrees,
+    expression: Expression,
+    first_parameter: u64 in Trapping,
+    first_generic: u64 in Trapping,
+    generic_count: u64 in Trapping
+)
+crashes Trap
+{
+    transition { _ -> next(typer, syntax, expression, first_parameter, first_generic, generic_count, 0) }
+
+    state next(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        expression: Expression,
+        first_parameter: u64 in Trapping,
+        first_generic: u64 in Trapping,
+        generic_count: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        transition offset < expression.count {
+            true -> argument(typer, syntax, expression, first_parameter, first_generic, generic_count, offset)
+            _ -> done()
+        }
+    }
+
+    state argument(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        expression: Expression,
+        first_parameter: u64 in Trapping,
+        first_generic: u64 in Trapping,
+        generic_count: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        let argument: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
+        let parameter: Parameter = SyntaxTrees::parameter(syntax, first_parameter + offset);
+        let wanted: u64 in Trapping = Typing::reference_type(&typer.output, parameter.type_reference);
+        let given: u64 in Trapping = Typing::expression_type(&typer.output, argument);
+        Typer::unify(typer, first_generic, generic_count, wanted, given);
+        transition { _ -> next(typer, syntax, expression, first_parameter, first_generic, generic_count, offset + 1) }
+    }
+
+    state done() {}
+}
+
+// A proposition application, which resolution admits only as a whole fact
+// (wiki/language_guide/chapter_10_compile_time_proofs.md): a statement, so
+// a Boolean, not a call; it selects and runs nothing. Its arguments meet
+// the proposition's parameters by ordinary admission, a generic
+// proposition's through the bindings its static arguments and argument
+// types give, as a generic machine call's do.
+machine Typer::type_proposition(
+    typer: &mut Typer,
+    syntax: &SyntaxTrees,
+    index: u64 in Trapping,
+    expression: Expression,
+    handle: u64 in Trapping,
+    statics: StaticArguments
+)
+crashes Trap
+{
+    let item: PropositionItem = SyntaxTrees::proposition_item(syntax, handle);
+    let boolean_type: u64 in Trapping = typer.output.boolean;
+    Typing::set_expression_type(&mut typer.output, index, boolean_type);
+    transition item.parameter_count == expression.count {
+        true -> shape(typer, syntax, expression, item, statics)
+        _ -> reject(typer, expression, TypeDiagnosticCode::PropositionArgumentCount)
+    }
+
+    state shape(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: PropositionItem, statics: StaticArguments) {
+        transition item.generic_parameter_count > 0 {
+            true -> generic(typer, syntax, expression, item, statics)
+            _ -> concrete(typer, syntax, expression, item, statics)
+        }
+    }
+
+    state concrete(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: PropositionItem, statics: StaticArguments) {
+        transition statics.count == 0 {
+            true -> arguments(typer, syntax, expression, item, false)
+            _ -> reject(typer, expression, TypeDiagnosticCode::GenericArgumentCount)
+        }
+    }
+
+    state generic(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: PropositionItem, statics: StaticArguments) {
+        Typer::begin_bindings(typer);
+        let explicit: bool = Typer::bind_static_arguments(typer, syntax, item.first_generic_parameter, item.generic_parameter_count, statics);
+        transition explicit {
+            true -> inferred(typer, syntax, expression, item)
+            _ -> reject(typer, expression, TypeDiagnosticCode::GenericArgumentCount)
+        }
+    }
+
+    state inferred(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: PropositionItem) {
+        Typer::unify_arguments(typer, syntax, expression, item.first_parameter, item.first_generic_parameter, item.generic_parameter_count);
+        let complete: bool = Typer::all_bound(typer, syntax, item.first_generic_parameter, item.generic_parameter_count);
+        transition complete {
+            true -> arguments(typer, syntax, expression, item, true)
+            _ -> reject(typer, expression, TypeDiagnosticCode::UninferredGenericArgument)
+        }
+    }
+
+    state arguments(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: PropositionItem, generic: bool) {
+        Typer::bind_arguments(typer, syntax, expression, item.first_parameter, generic, 0);
+    }
+
+    state reject(typer: &mut Typer, expression: Expression, code: TypeDiagnosticCode) {
+        Typing::reject(&mut typer.output, code, expression.source_span);
     }
 }
 

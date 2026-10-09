@@ -205,7 +205,7 @@ crashes Trap
 
 // Whether domain `index` is named `name`, visible from it, and carried by
 // the type rooted at `row`.
-machine Resolver::domain_admits(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, row: u64 in Trapping, name: SourceSpan) -> bool
+pub machine Resolver::domain_admits(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, row: u64 in Trapping, name: SourceSpan) -> bool
 crashes Trap
 {
     let item: DomainItem = SyntaxTrees::domain_item(syntax, index);

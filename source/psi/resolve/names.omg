@@ -15,10 +15,10 @@ use psi::syntax::syntax;
 // decides which declarations it may name: a value names a value binder
 // (`Count: u32`, `const N: u64`) or a constant, a call's callee a machine
 // binder, then a fellow member of the enclosing trait or conformance, then a
-// machine, a call-shaped transition target a state of its machine before
-// any callee, a construction's path a data declaration or `Type::Case`, a
-// case pattern's path a case, and a path in value position a case, an owned
-// constant (`Owner::NAME`) or an owned machine. A callee path names a
+// machine or a proposition, a call-shaped transition target a state of its
+// machine before any callee, a construction's path a data declaration or
+// `Type::Case`, a case pattern's path a case, and a path in value position a
+// case, an owned constant (`Owner::NAME`) or an owned machine. A callee path names a
 // machine through its owner, so `Trait::requirement` names a trait
 // requirement and `Conformance::member` a conformance's member, or the
 // machine its reference row or its trait supplies for that requirement. A
@@ -27,10 +27,11 @@ use psi::syntax::syntax;
 // name` binds as `name`, and a waived `field as _` binds nothing. A
 // membership binds the case its `Type::Case` domain names, or the domain
 // declaration its path names (`Carrier::Name`, or a name only one visible
-// domain declares). Field selection (`value.field`) needs the value's type
-// and is typing's question, not resolution's. Facts (`requires`, `ensures`,
-// `where`, domain predicates and proposition bodies) bind no names here;
-// they are checking's.
+// domain declares). A proposition applies only as a whole fact
+// (`requires P(x)`); applied where a value is computed it rejects. Field
+// selection (`value.field`) needs the value's type and is typing's
+// question, not resolution's. Facts bind in facts.omg; domain predicates
+// and proposition bodies bind no names yet.
 
 // What a name's position lets it name. Children precede their parent in the
 // expression table, so one pass over the table gives each child its role
@@ -59,6 +60,10 @@ pub data NameScope [copy] {
     // Whether `result` names the machine's returned value: its `ensures`
     // facts.
     names_result: bool;
+    // Whether the names are a fact's, rooted at `fact_root`: only there may
+    // a proposition apply.
+    in_fact: bool;
+    fact_root: u64 in Trapping;
 }
 
 pub machine Resolver::bind_body_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
@@ -143,7 +148,9 @@ crashes Trap
             visible_statement_end: 0,
             first_binder: 0,
             binder_count: 0,
-            names_result: false
+            names_result: false,
+            in_fact: false,
+            fact_root: 0
         }, item.value);
         transition { _ -> next(resolver, sources, syntax, index + 1) }
     }
@@ -260,7 +267,9 @@ crashes Trap
         visible_statement_end: first_statement,
         first_binder: 0,
         binder_count: 0,
-        names_result: false
+        names_result: false,
+        in_fact: false,
+        fact_root: 0
     }, first_statement + statement_count) }
 
     state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, end: u64 in Trapping) {
@@ -289,7 +298,9 @@ machine Resolver::through_statement(scope: NameScope) -> NameScope {
         visible_statement_end: scope.visible_statement_end + 1,
         first_binder: scope.first_binder,
         binder_count: scope.binder_count,
-        names_result: scope.names_result
+        names_result: scope.names_result,
+        in_fact: scope.in_fact,
+        fact_root: scope.fact_root
     }
 }
 
@@ -303,7 +314,9 @@ machine Resolver::with_binders(scope: NameScope, first_binder: u64 in Trapping, 
         visible_statement_end: scope.visible_statement_end,
         first_binder: first_binder,
         binder_count: binder_count,
-        names_result: scope.names_result
+        names_result: scope.names_result,
+        in_fact: scope.in_fact,
+        fact_root: scope.fact_root
     }
 }
 
@@ -518,7 +531,8 @@ crashes Trap
     state done() {}
 }
 
-// One name or path, by its role. An unresolved name rejects at its span.
+// One name or path, by its role. An unresolved name rejects at its span,
+// and so does a proposition applied where none may be.
 machine Resolver::bind_name(
     resolver: &mut Resolver,
     sources: &SourceSet,
@@ -534,7 +548,20 @@ crashes Trap
     transition binding {
         ValueBinding::Unresolved -> unresolved(resolver, expression)
         ValueBinding::Ambiguous -> ambiguous(resolver, expression)
+        ValueBinding::Proposition { proposition } -> applied(resolver, syntax, scope, index, expression, binding)
         _ -> bound(resolver, index, binding)
+    }
+
+    state applied(resolver: &mut Resolver, syntax: &SyntaxTrees, scope: NameScope, index: u64 in Trapping, expression: Expression, binding: ValueBinding) {
+        let code: ResolveDiagnosticCode = Resolver::proposition_site(syntax, scope.in_fact, scope.fact_root, index);
+        transition code == ResolveDiagnosticCode::None {
+            true -> bound(resolver, index, binding)
+            _ -> misplaced(resolver, code, expression)
+        }
+    }
+
+    state misplaced(resolver: &mut Resolver, code: ResolveDiagnosticCode, expression: Expression) {
+        NameResolution::reject(&mut resolver.output, code, expression.source_span);
     }
 
     state bound(resolver: &mut Resolver, index: u64 in Trapping, binding: ValueBinding) {
@@ -718,18 +745,14 @@ machine Resolver::binder_spelling(field: PatternField) -> IdentifierSpan {
     }
 }
 
-// A membership `value in Domain` tests its value against one domain. A case
-// implicitly declares its same-named domain
-// (wiki/spec/language/data_and_literals.md), so `Type::Case` binds that case
-// as the membership's value binding; a case and a declared domain of one
-// path compete and reject as ambiguous. Otherwise the path names a domain
-// declaration, bound in `NameResolution::path_bindings`: `Carrier::Name`
-// selects by the carrier the type `Carrier` names
-// (wiki/spec/language/modules.md#foreign-attached-declaration-paths), and a
-// bare name binds the one visible domain declaring it. Several bare
-// candidates need the tested value's type to choose by carrier, and a
-// membership in several domains at once is an expression form resolution
-// does not bind yet: both reject as unsupported.
+// A membership `value in Domain` tests its value against one domain. A
+// path `Owner::Name` names a case's implied domain, bound as the
+// membership's value binding, or a declared domain (`Resolver::domain_path`);
+// a declared domain binds in `NameResolution::path_bindings`. A bare name
+// binds the one visible domain declaring it. Several bare candidates need
+// the tested value's type to choose by carrier, and a membership in several
+// domains at once is an expression form resolution does not bind yet: both
+// reject as unsupported.
 machine Resolver::bind_membership(
     resolver: &mut Resolver,
     sources: &SourceSet,
@@ -757,43 +780,13 @@ crashes Trap
     state owned(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, index: u64 in Trapping, path_handle: u64 in Trapping, path: NamePath) {
         let owner: IdentifierSpan = SyntaxTrees::member(syntax, path.first_member);
         let member: IdentifierSpan = SyntaxTrees::member(syntax, path.first_member + 1);
-        let binding: ValueBinding = Resolver::case_or_machine(&resolver.output, sources, syntax, owner.source_span, member.source_span);
-        transition binding {
-            ValueBinding::DataCase { item, data_case } -> case_domain(resolver, sources, syntax, scope, index, path, item, data_case)
-            ValueBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, path.source_span)
-            _ -> owned_domain(resolver, sources, syntax, scope, path_handle, path)
-        }
-    }
-
-    state case_domain(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        scope: NameScope,
-        index: u64 in Trapping,
-        path: NamePath,
-        item: u64 in Trapping,
-        data_case: u64 in Trapping
-    ) {
-        let owner: IdentifierSpan = SyntaxTrees::member(syntax, path.first_member);
-        let member: IdentifierSpan = SyntaxTrees::member(syntax, path.first_member + 1);
         let types: TypeScope = Resolver::name_scope_types(&resolver.output, syntax, scope);
-        let declared: Lookup = Resolver::domain_by_head(resolver, sources, syntax, types, owner.source_span, member.source_span);
-        transition declared {
-            Lookup::Absent -> bound(resolver, index, ValueBinding::DataCase { item: item, data_case: data_case })
-            _ -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, path.source_span)
-        }
-    }
-
-    state owned_domain(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, path_handle: u64 in Trapping, path: NamePath) {
-        let owner: IdentifierSpan = SyntaxTrees::member(syntax, path.first_member);
-        let member: IdentifierSpan = SyntaxTrees::member(syntax, path.first_member + 1);
-        let types: TypeScope = Resolver::name_scope_types(&resolver.output, syntax, scope);
-        let declared: Lookup = Resolver::domain_by_head(resolver, sources, syntax, types, owner.source_span, member.source_span);
-        transition declared {
-            Lookup::Found { handle } -> path_bound(resolver, path_handle, handle)
-            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, path.source_span)
-            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, path.source_span)
+        let named: DomainPath = Resolver::domain_path(resolver, sources, syntax, types, owner.source_span, member.source_span);
+        transition named {
+            DomainPath::Case { item, data_case } -> bound(resolver, index, ValueBinding::DataCase { item: item, data_case: data_case })
+            DomainPath::Declared { item } -> path_bound(resolver, path_handle, item)
+            DomainPath::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, path.source_span)
+            DomainPath::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, path.source_span)
         }
     }
 
@@ -828,6 +821,50 @@ crashes Trap
 
     state invalid() {
         crash Trap;
+    }
+}
+
+// What a domain path `Owner::Name` names, wherever a domain stands: a case
+// of data `Owner`, whose implied domain it is
+// (wiki/spec/language/data_and_literals.md), or the declared domain `Name`
+// whose carrier binds like the type `Owner` names in `types`
+// (wiki/spec/language/modules.md#foreign-attached-declaration-paths). A
+// case and a declared domain of one path compete.
+pub data DomainPath [copy] {
+    case Absent;
+    case Ambiguous;
+    case Case(item: u64 in Trapping, data_case: u64 in Trapping);
+    case Declared(item: u64 in Trapping);
+}
+
+pub machine Resolver::domain_path(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, types: TypeScope, owner: SourceSpan, name: SourceSpan) -> DomainPath
+crashes Trap
+{
+    let named: ValueBinding = Resolver::case_or_machine(&resolver.output, sources, syntax, owner, name);
+    let declared: Lookup = Resolver::domain_by_head(resolver, sources, syntax, types, owner, name);
+    transition named {
+        ValueBinding::DataCase { item, data_case } -> case_domain(declared, item, data_case)
+        ValueBinding::Ambiguous -> found(DomainPath::Ambiguous)
+        _ -> declared_domain(declared)
+    }
+
+    state case_domain(declared: Lookup, item: u64 in Trapping, data_case: u64 in Trapping) -> DomainPath {
+        transition declared {
+            Lookup::Absent -> found(DomainPath::Case { item: item, data_case: data_case })
+            _ -> found(DomainPath::Ambiguous)
+        }
+    }
+
+    state declared_domain(declared: Lookup) -> DomainPath {
+        transition declared {
+            Lookup::Found { handle } -> found(DomainPath::Declared { item: handle })
+            Lookup::Ambiguous -> found(DomainPath::Ambiguous)
+            Lookup::Absent -> found(DomainPath::Absent)
+        }
+    }
+
+    state found(path: DomainPath) -> DomainPath {
+        path
     }
 }
 
@@ -972,11 +1009,72 @@ crashes Trap
     }
 
     state free_machine(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> ValueBinding {
-        Resolver::machine_name(resolution, sources, syntax, false, name, name)
+        Resolver::free_callee(resolution, sources, syntax, name)
     }
 
     state found(binding: ValueBinding) -> ValueBinding {
         binding
+    }
+}
+
+// A free callee: the machine or the proposition `name` names. Machines and
+// propositions are one callee tier, so a machine and a proposition of one
+// spelling are ambiguous.
+pub machine Resolver::free_callee(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> ValueBinding
+crashes Trap
+{
+    let named_machine: ValueBinding = Resolver::machine_name(resolution, sources, syntax, false, name, name);
+    let named_proposition: Lookup = Resolver::declared_named(sources, syntax, DeclarationKind::Proposition, false, name, name);
+    transition named_proposition {
+        Lookup::Absent -> found(named_machine)
+        Lookup::Ambiguous -> found(ValueBinding::Ambiguous)
+        Lookup::Found { handle } -> proposition_found(named_machine, handle)
+    }
+
+    state proposition_found(named_machine: ValueBinding, handle: u64 in Trapping) -> ValueBinding {
+        transition named_machine {
+            ValueBinding::Unresolved -> found(ValueBinding::Proposition { proposition: handle })
+            _ -> found(ValueBinding::Ambiguous)
+        }
+    }
+
+    state found(binding: ValueBinding) -> ValueBinding {
+        binding
+    }
+}
+
+// Where a proposition may apply: as a whole fact, `P(...)` or `P<...>(...)`
+// with `index` its callee's name. A proposition names a statement, so it
+// never applies where a value is computed (`ProofOnlyApplication`), and an
+// application inside a larger fact is a form resolution does not bind yet.
+// `None` admits the application.
+pub machine Resolver::proposition_site(syntax: &SyntaxTrees, in_fact: bool, root: u64 in Trapping, index: u64 in Trapping) -> ResolveDiagnosticCode
+crashes Trap
+{
+    transition in_fact {
+        true -> fact(syntax, root, index)
+        _ -> found(ResolveDiagnosticCode::ProofOnlyApplication)
+    }
+
+    state fact(syntax: &SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) -> ResolveDiagnosticCode {
+        let whole: Expression = SyntaxTrees::expression(syntax, root);
+        transition whole.kind == ExpressionKind::Call {
+            true -> called(syntax, whole.left, index)
+            _ -> found(ResolveDiagnosticCode::UnsupportedExpression)
+        }
+    }
+
+    state called(syntax: &SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> ResolveDiagnosticCode {
+        let written: Expression = SyntaxTrees::expression(syntax, callee);
+        let applied: bool = callee == index || (written.kind == ExpressionKind::Apply && written.left == index);
+        transition applied {
+            true -> found(ResolveDiagnosticCode::None)
+            _ -> found(ResolveDiagnosticCode::UnsupportedExpression)
+        }
+    }
+
+    state found(code: ResolveDiagnosticCode) -> ResolveDiagnosticCode {
+        code
     }
 }
 

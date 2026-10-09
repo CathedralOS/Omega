@@ -66,7 +66,8 @@ pub data TypeBinding [copy] {
 // like any other, named through its container. A generic parameter binding
 // names a value or machine binder of the enclosing machine (or of the trait
 // or conformance containing it) by its `SyntaxTrees::generic_parameters`
-// handle. A constant binding names a `SyntaxTrees::constants` handle.
+// handle. A constant binding names a `SyntaxTrees::constants` handle, and a
+// proposition binding a `SyntaxTrees::propositions` handle.
 pub data ValueBinding [copy] {
     case NotAName;
     case Unresolved;
@@ -86,6 +87,9 @@ pub data ValueBinding [copy] {
     // `result` in a machine's `ensures` fact: the value the machine returns
     // (wiki/spec/language/state_contracts.md#returns-and-proof-use).
     case ReturnedValue(machine: u64 in Trapping);
+    // The callee of a proposition application, which stands only as a
+    // whole fact (wiki/language_guide/chapter_10_compile_time_proofs.md).
+    case Proposition(proposition: u64 in Trapping);
 }
 
 // What a `::` name path denotes, indexed like `SyntaxTrees::name_paths`: a
@@ -111,7 +115,9 @@ pub data TypeScope [copy] {
 // What the `in Domain` qualifier of a type reference denotes. A bare
 // reference stays `Unqualified`. The arithmetic policies and `Finite` are
 // compiler-known; `Declared` is a `domain` declaration whose handle is the
-// row's `NameResolution::domain_items` entry.
+// row's `NameResolution::domain_items` entry, and `Case` a case's implied
+// domain (`Type::Case`), whose entry is the case's `SyntaxTrees::data_cases`
+// handle.
 pub data DomainBinding [copy] {
     case Unqualified;
     case Wrapping;
@@ -119,6 +125,7 @@ pub data DomainBinding [copy] {
     case Trapping;
     case Finite;
     case Declared;
+    case Case;
 }
 
 // Where a machine declaration stands and the owner its path spells. A root
@@ -172,7 +179,8 @@ pub data ResolveDiagnosticCode [copy] {
     case UnsupportedClause;
     case UnsupportedGenericParameter;
     // An expression form resolution does not bind yet: a membership in
-    // several domains at once.
+    // several domains at once, or a proposition application inside a
+    // larger fact.
     case UnsupportedExpression;
     // A trait, conformance, domain, constant or proposition repeats an
     // earlier declaration of its namespace in one module.
@@ -187,6 +195,11 @@ pub data ResolveDiagnosticCode [copy] {
     // A token-bound machine whose owner is not a data declaration of its own
     // package: only a closed family's semantic home publishes its tokens.
     case ForeignOperatorHome;
+    // A proposition applied where a value is computed: a body, a
+    // transition target, a constant's value, a clause's payload. A
+    // proposition names a statement, not an executable condition
+    // (wiki/spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand).
+    case ProofOnlyApplication;
 }
 
 pub data ResolveDiagnostic [copy] {
@@ -321,7 +334,8 @@ crashes Trap
     }
 }
 
-// The declared domain of type reference `row`, below the bound count.
+// The declared domain or case of type reference `row`, below the bound
+// count.
 pub machine NameResolution::domain_item(resolution: &NameResolution, row: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {

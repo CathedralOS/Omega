@@ -964,10 +964,10 @@ crashes Trap
     let whole: IdentifierSpan = IdentifierSpan { source_span: type_reference.source_span };
     transition type_reference.kind {
         TypeReferenceKind::Named -> named(resolver, sources, syntax, scope, row, is_root, role, type_reference)
-        TypeReferenceKind::Reference -> holder(resolver, sources, syntax, row, is_root, role, type_reference, whole, TypeBinding::Reference)
-        TypeReferenceKind::Array -> holder(resolver, sources, syntax, row, is_root, role, type_reference, whole, TypeBinding::Array)
-        TypeReferenceKind::Slice -> holder(resolver, sources, syntax, row, is_root, role, type_reference, whole, TypeBinding::Slice)
-        TypeReferenceKind::Literal -> placed(resolver, sources, syntax, row, is_root, role, type_reference, whole, TypeBinding::Literal, BoundKind::Type)
+        TypeReferenceKind::Reference -> holder(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Reference)
+        TypeReferenceKind::Array -> holder(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Array)
+        TypeReferenceKind::Slice -> holder(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Slice)
+        TypeReferenceKind::Literal -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, TypeBinding::Literal, BoundKind::Type)
     }
 
     state named(
@@ -986,9 +986,9 @@ crashes Trap
         transition binding {
             TypeBinding::Unresolved -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, type_reference.name)
             TypeBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, type_reference.name)
-            TypeBinding::Trait { item } -> placed(resolver, sources, syntax, row, is_root, role, type_reference, type_reference.name, binding, BoundKind::Trait)
-            TypeBinding::Conformance { item } -> placed(resolver, sources, syntax, row, is_root, role, type_reference, type_reference.name, binding, BoundKind::Conformance)
-            _ -> placed(resolver, sources, syntax, row, is_root, role, type_reference, type_reference.name, binding, BoundKind::Type)
+            TypeBinding::Trait { item } -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, type_reference.name, binding, BoundKind::Trait)
+            TypeBinding::Conformance { item } -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, type_reference.name, binding, BoundKind::Conformance)
+            _ -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, type_reference.name, binding, BoundKind::Type)
         }
     }
 
@@ -997,6 +997,7 @@ crashes Trap
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        scope: TypeScope,
         row: u64 in Trapping,
         is_root: bool,
         role: TypeRole,
@@ -1008,7 +1009,7 @@ crashes Trap
         let held_row: TypeReference = SyntaxTrees::type_reference(syntax, type_reference.inner);
         transition held {
             TypeBinding::Conformance { item } -> reject(resolver, ResolveDiagnosticCode::NotAType, held_row.name)
-            _ -> placed(resolver, sources, syntax, row, is_root, role, type_reference, whole, binding, BoundKind::Type)
+            _ -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, whole, binding, BoundKind::Type)
         }
     }
 
@@ -1016,6 +1017,7 @@ crashes Trap
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        scope: TypeScope,
         row: u64 in Trapping,
         is_root: bool,
         role: TypeRole,
@@ -1026,10 +1028,10 @@ crashes Trap
     ) {
         let trait_root: bool = is_root && role == TypeRole::Trait;
         transition kind {
-            BoundKind::Trait -> admitted(resolver, sources, syntax, row, type_reference, spelled, binding, trait_root, ResolveDiagnosticCode::NotAType)
-            BoundKind::Conformance -> admitted(resolver, sources, syntax, row, type_reference, spelled, binding,
+            BoundKind::Trait -> admitted(resolver, sources, syntax, scope, row, type_reference, spelled, binding, trait_root, ResolveDiagnosticCode::NotAType)
+            BoundKind::Conformance -> admitted(resolver, sources, syntax, scope, row, type_reference, spelled, binding,
                 !is_root || role == TypeRole::StaticArgument, ResolveDiagnosticCode::NotAType)
-            BoundKind::Type -> admitted(resolver, sources, syntax, row, type_reference, spelled, binding, !trait_root, ResolveDiagnosticCode::NotATrait)
+            BoundKind::Type -> admitted(resolver, sources, syntax, scope, row, type_reference, spelled, binding, !trait_root, ResolveDiagnosticCode::NotATrait)
         }
     }
 
@@ -1037,6 +1039,7 @@ crashes Trap
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        scope: TypeScope,
         row: u64 in Trapping,
         type_reference: TypeReference,
         spelled: IdentifierSpan,
@@ -1045,7 +1048,7 @@ crashes Trap
         code: ResolveDiagnosticCode
     ) {
         transition admits {
-            true -> bounded(resolver, sources, syntax, row, type_reference, binding)
+            true -> bounded(resolver, sources, syntax, scope, row, type_reference, binding)
             _ -> reject(resolver, code, spelled)
         }
     }
@@ -1054,12 +1057,13 @@ crashes Trap
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        scope: TypeScope,
         row: u64 in Trapping,
         type_reference: TypeReference,
         binding: TypeBinding
     ) {
         transition row < 32768 {
-            true -> store(resolver, sources, syntax, row, type_reference, binding)
+            true -> store(resolver, sources, syntax, scope, row, type_reference, binding)
             _ -> invalid()
         }
     }
@@ -1068,6 +1072,7 @@ crashes Trap
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        scope: TypeScope,
         row: u64 in Trapping,
         type_reference: TypeReference,
         binding: TypeBinding
@@ -1076,7 +1081,7 @@ crashes Trap
         resolver.output.domain_bindings[row] = DomainBinding::Unqualified;
         resolver.output.domain_items[row] = 0;
         transition type_reference.has_domain {
-            true -> qualified(resolver, sources, syntax, row, type_reference.domain)
+            true -> qualified(resolver, sources, syntax, scope, row, type_reference)
             _ -> done()
         }
     }
@@ -1085,10 +1090,11 @@ crashes Trap
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        scope: TypeScope,
         row: u64 in Trapping,
-        domain: IdentifierSpan
+        type_reference: TypeReference
     ) {
-        Resolver::bind_domain(resolver, sources, syntax, row, domain);
+        Resolver::bind_domain(resolver, sources, syntax, scope, row, type_reference);
     }
 
     state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
@@ -1245,32 +1251,98 @@ crashes Trap
     }
 }
 
-// The domain an `in` qualifier names: a compiler-known domain by spelling,
-// else the one declared domain of that name whose carrier admits the
-// qualified type (domains.omg). Generic parameters do not bind domains.
+// The domain an `in` qualifier names. A bare name is a compiler-known
+// domain by spelling, else the one declared domain of that name whose
+// carrier admits the qualified type (domains.omg). A path `Owner::Name`
+// names what a membership's path names (names.omg): a case of data `Owner`,
+// whose implied domain qualifies only that data, or the declared domain
+// over the type `Owner` names in `scope`, whose carrier must admit the
+// qualified type (wiki/spec/language/modules.md#foreign-attached-declaration-paths).
+// A longer path crosses a package, which this source set cannot bind.
+// Generic parameters do not bind domains.
 machine Resolver::bind_domain(
     resolver: &mut Resolver,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
+    scope: TypeScope,
     reference: u64 in Trapping,
-    domain: IdentifierSpan
+    type_reference: TypeReference
 )
 // The caller binds only references it has bounded by the syntax table.
 requires reference < 32768
 crashes Trap
 {
-    let known: DomainBinding = Resolver::known_domain(sources, domain.source_span);
-    transition known {
-        DomainBinding::Unqualified -> declared(resolver, sources, syntax, reference, domain)
-        _ -> bind(resolver, reference, known, 0)
+    let whole: SourceSpan = TypeReference::qualifier_span(type_reference);
+    transition type_reference.has_domain_owner {
+        true -> owned(resolver, sources, syntax, scope, reference, type_reference, whole)
+        _ -> bare(resolver, sources, syntax, reference, type_reference.domain)
+    }
+
+    state bare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
+        let known: DomainBinding = Resolver::known_domain(sources, domain.source_span);
+        transition known {
+            DomainBinding::Unqualified -> declared(resolver, sources, syntax, reference, domain)
+            _ -> bind(resolver, reference, known, 0)
+        }
     }
 
     state declared(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
         let lookup: Lookup = Resolver::declared_domain(resolver, sources, syntax, reference, domain.source_span);
         transition lookup {
             Lookup::Found { handle } -> bind(resolver, reference, DomainBinding::Declared, handle)
-            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, domain)
-            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, domain)
+            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, domain.source_span)
+            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, domain.source_span)
+        }
+    }
+
+    state owned(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        scope: TypeScope,
+        reference: u64 in Trapping,
+        type_reference: TypeReference,
+        whole: SourceSpan
+    ) {
+        let named: DomainPath = Resolver::domain_path(resolver, sources, syntax, scope,
+            type_reference.domain_owner.source_span, type_reference.domain.source_span
+        );
+        transition named {
+            DomainPath::Case { item, data_case } -> case_domain(resolver, reference, whole, item, data_case)
+            DomainPath::Declared { item } -> declared_carrier(resolver, sources, syntax, reference, type_reference, whole, item)
+            DomainPath::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, whole)
+            DomainPath::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, whole)
+        }
+    }
+
+    state case_domain(resolver: &mut Resolver, reference: u64 in Trapping, whole: SourceSpan, owner: u64 in Trapping, data_case: u64 in Trapping) {
+        let qualified: TypeBinding = NameResolution::type_binding_at(&resolver.output, reference);
+        transition qualified {
+            TypeBinding::Data { item } -> case_carrier(resolver, reference, whole, item == owner, data_case)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, whole)
+        }
+    }
+
+    state case_carrier(resolver: &mut Resolver, reference: u64 in Trapping, whole: SourceSpan, own: bool, data_case: u64 in Trapping) {
+        transition own {
+            true -> bind(resolver, reference, DomainBinding::Case, data_case)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, whole)
+        }
+    }
+
+    state declared_carrier(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        reference: u64 in Trapping,
+        type_reference: TypeReference,
+        whole: SourceSpan,
+        domain: u64 in Trapping
+    ) {
+        let admitted: bool = Resolver::domain_admits(resolver, sources, syntax, domain, reference, type_reference.domain.source_span);
+        transition admitted {
+            true -> bind(resolver, reference, DomainBinding::Declared, domain)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, whole)
         }
     }
 
@@ -1279,8 +1351,8 @@ crashes Trap
         resolver.output.domain_items[reference] = item as u64;
     }
 
-    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, domain: IdentifierSpan) {
-        NameResolution::reject(&mut resolver.output, code, domain.source_span);
+    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+        NameResolution::reject(&mut resolver.output, code, source_span);
     }
 }
 

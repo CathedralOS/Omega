@@ -678,6 +678,7 @@ machine TypingHarness::domain_tag(value: DomainBinding) -> u8 {
         DomainBinding::Trapping -> tag(3)
         DomainBinding::Finite -> tag(4)
         DomainBinding::Declared -> tag(5)
+        DomainBinding::Case -> tag(6)
     }
 
     state tag(number: u8) -> u8 {
@@ -747,6 +748,7 @@ machine TypingHarness::diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
         TypeDiagnosticCode::SatisfierMismatch -> tag(34)
         TypeDiagnosticCode::SilentDiscard -> tag(35)
         TypeDiagnosticCode::DiscardsNoCall -> tag(36)
+        TypeDiagnosticCode::PropositionArgumentCount -> tag(37)
     }
 
     state tag(number: u8) -> u8 {

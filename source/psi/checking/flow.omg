@@ -75,7 +75,9 @@ crashes Trap
 // `proving`, report whether the facts prove it. Its values sit above the
 // open tree's and are gone when it returns. A fact is a proof expression:
 // evaluating it executes nothing, so it adds no crash route and its calls
-// have no effects (fact_values.omg).
+// have no effects (fact_values.omg). A proposition application states
+// what no zone fact expresses: assuming it establishes nothing, and where
+// it must hold, checking cannot decide it and rejects it as unsupported.
 pub machine Checker::decide_fact(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
@@ -87,12 +89,48 @@ pub machine Checker::decide_fact(
 crashes Trap
 {
     let tree: Expression = SyntaxTrees::expression(syntax, root);
-    let low: u64 in Trapping = tree.first_row;
-    let size: u64 in Trapping = root - low + 1;
-    let base: u64 in Trapping = Checker::next_base(checker);
-    transition base + size <= 4096 && checker.frame_count < 8 {
-        true -> framed(checker, syntax, resolution, typing, root, low, size, base, proving)
-        _ -> undecided(proving)
+    let applied: bool = Checker::applies_proposition(syntax, resolution, tree);
+    transition applied {
+        true -> proposition(checker, tree, proving)
+        _ -> sized(checker, syntax, resolution, typing, root, tree, proving)
+    }
+
+    state proposition(checker: &mut Checker, tree: Expression, proving: bool) -> bool {
+        transition proving {
+            true -> unsupported(checker, tree)
+            _ -> assumed()
+        }
+    }
+
+    state unsupported(checker: &mut Checker, tree: Expression) -> bool {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedFact, tree.source_span);
+        transition { _ -> unproved() }
+    }
+
+    state assumed() -> bool {
+        true
+    }
+
+    state unproved() -> bool {
+        false
+    }
+
+    state sized(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        root: u64 in Trapping,
+        tree: Expression,
+        proving: bool
+    ) -> bool {
+        let low: u64 in Trapping = tree.first_row;
+        let size: u64 in Trapping = root - low + 1;
+        let base: u64 in Trapping = Checker::next_base(checker);
+        transition base + size <= 4096 && checker.frame_count < 8 {
+            true -> framed(checker, syntax, resolution, typing, root, low, size, base, proving)
+            _ -> undecided(proving)
+        }
     }
 
     state framed(
@@ -124,6 +162,37 @@ crashes Trap
     // Too deep to evaluate: nothing is assumed and nothing is proved.
     state undecided(proving: bool) -> bool {
         !proving
+    }
+}
+
+// Whether a fact is a proposition application, which resolution admits
+// only as a whole fact: `P(...)` or `P<...>(...)`.
+machine Checker::applies_proposition(syntax: &SyntaxTrees, resolution: &NameResolution, tree: Expression) -> bool
+crashes Trap
+{
+    transition tree.kind == ExpressionKind::Call {
+        true -> callee(syntax, resolution, tree.left)
+        _ -> answer(false)
+    }
+
+    state callee(syntax: &SyntaxTrees, resolution: &NameResolution, left: u64 in Trapping) -> bool {
+        let written: Expression = SyntaxTrees::expression(syntax, left);
+        transition written.kind == ExpressionKind::Apply {
+            true -> named(resolution, written.left)
+            _ -> named(resolution, left)
+        }
+    }
+
+    state named(resolution: &NameResolution, handle: u64 in Trapping) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+        transition binding {
+            ValueBinding::Proposition { proposition } -> answer(true)
+            _ -> answer(false)
+        }
+    }
+
+    state answer(applied: bool) -> bool {
+        applied
     }
 }
 

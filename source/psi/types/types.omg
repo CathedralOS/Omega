@@ -122,6 +122,8 @@ pub data TypeDiagnosticCode [copy] {
     case SilentDiscard;
     // `_ =` before something other than a call.
     case DiscardsNoCall;
+    // A proposition applied to more or fewer arguments than its parameters.
+    case PropositionArgumentCount;
 }
 
 pub data TypeDiagnostic [copy] {

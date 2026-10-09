@@ -12,9 +12,12 @@ use psi::syntax::syntax;
 // proof use). A data declaration's `where` fact names its
 // fields bare, then its value binders
 // (wiki/spec/language/data_and_literals.md#case-constraints); a path in it
-// names a case or an owned machine and a call's callee a machine. A case's
-// own `where` facts over its payload fields are not bound yet: checking
-// treats them as unsupported rather than reading them unbound.
+// names a case or an owned machine. A case's own `where` facts over its
+// payload fields are not bound yet: checking treats them as unsupported
+// rather than reading them unbound. A fact's callee is a machine or a
+// proposition, and a proposition applies only as a whole fact,
+// `requires P(x)`; inside a larger fact (`P(x) && x > 0`) it rejects as
+// unsupported (wiki/language_guide/chapter_10_compile_time_proofs.md).
 pub machine Resolver::bind_fact_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
@@ -84,7 +87,26 @@ machine Resolver::fact_scope(
         visible_statement_end: 0,
         first_binder: 0,
         binder_count: 0,
-        names_result: names_result
+        names_result: names_result,
+        in_fact: false,
+        fact_root: 0
+    }
+}
+
+// `scope` within the fact rooted at `root`, where a proposition may apply.
+machine Resolver::within_fact(scope: NameScope, root: u64 in Trapping) -> NameScope {
+    NameScope {
+        has_machine: scope.has_machine,
+        machine: scope.machine,
+        first_parameter: scope.first_parameter,
+        parameter_count: scope.parameter_count,
+        first_statement: scope.first_statement,
+        visible_statement_end: scope.visible_statement_end,
+        first_binder: scope.first_binder,
+        binder_count: scope.binder_count,
+        names_result: scope.names_result,
+        in_fact: true,
+        fact_root: root
     }
 }
 
@@ -118,7 +140,8 @@ crashes Trap
     }
 
     state fact(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind, root: u64 in Trapping) {
-        Resolver::bind_tree(resolver, sources, syntax, scope, root);
+        let within: NameScope = Resolver::within_fact(scope, root);
+        Resolver::bind_tree(resolver, sources, syntax, within, root);
         transition { _ -> next(resolver, sources, syntax, scope, index + 1, end, kind) }
     }
 
@@ -178,20 +201,23 @@ crashes Trap
         handle: u64 in Trapping
     ) {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
-        Resolver::bind_data_name(resolver, sources, syntax, item, handle, expression);
+        Resolver::bind_data_name(resolver, sources, syntax, item, root, handle, expression);
         transition { _ -> node(resolver, sources, syntax, item, index, end, root, handle + 1) }
     }
 
     state done() {}
 }
 
-// One name of a data fact: a value name binds a field of the declaration,
-// then its value binders; a callee a machine; a path as anywhere else.
+// One name of the data fact rooted at `root`: a value name binds a field of
+// the declaration, then its value binders; a callee a machine or a
+// proposition, which applies only as the whole fact; a path as anywhere
+// else.
 machine Resolver::bind_data_name(
     resolver: &mut Resolver,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
     item: DataItem,
+    root: u64 in Trapping,
     handle: u64 in Trapping,
     expression: Expression
 )
@@ -199,41 +225,49 @@ crashes Trap
 {
     let role: NameRole = Resolver::role(resolver, handle);
     transition expression.kind {
-        ExpressionKind::Name -> single(resolver, sources, syntax, item, handle, expression, role)
-        ExpressionKind::Path -> path(resolver, sources, syntax, handle, expression, role)
+        ExpressionKind::Name -> single(resolver, sources, syntax, item, root, handle, expression, role)
+        ExpressionKind::Path -> path(resolver, sources, syntax, root, handle, expression, role)
         _ -> done()
     }
 
-    state single(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, handle: u64 in Trapping, expression: Expression, role: NameRole) {
+    state single(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
         transition role {
-            NameRole::Value -> value(resolver, sources, syntax, item, handle, expression)
-            NameRole::Callee -> callee(resolver, sources, syntax, handle, expression)
-            _ -> bound(resolver, handle, expression, ValueBinding::Unresolved)
+            NameRole::Value -> value(resolver, sources, syntax, item, root, handle, expression)
+            NameRole::Callee -> callee(resolver, sources, syntax, root, handle, expression)
+            _ -> bound(resolver, syntax, root, handle, expression, ValueBinding::Unresolved)
         }
     }
 
-    state value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, handle: u64 in Trapping, expression: Expression) {
+    state value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
         let binding: ValueBinding = Resolver::data_value_name(sources, syntax, item, expression.name.source_span);
-        transition { _ -> bound(resolver, handle, expression, binding) }
+        transition { _ -> bound(resolver, syntax, root, handle, expression, binding) }
     }
 
-    state callee(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, expression: Expression) {
-        let empty: SourceSpan = expression.name.source_span;
-        let binding: ValueBinding = Resolver::machine_name(&resolver.output, sources, syntax, false, empty, expression.name.source_span);
-        transition { _ -> bound(resolver, handle, expression, binding) }
+    state callee(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
+        let binding: ValueBinding = Resolver::free_callee(&resolver.output, sources, syntax, expression.name.source_span);
+        transition { _ -> bound(resolver, syntax, root, handle, expression, binding) }
     }
 
-    state path(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, expression: Expression, role: NameRole) {
+    state path(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
         let scope: NameScope = Resolver::fact_scope(false, 0, 0, 0, false);
         let binding: ValueBinding = Resolver::name_binding(&resolver.output, sources, syntax, scope, expression, role);
-        transition { _ -> bound(resolver, handle, expression, binding) }
+        transition { _ -> bound(resolver, syntax, root, handle, expression, binding) }
     }
 
-    state bound(resolver: &mut Resolver, handle: u64 in Trapping, expression: Expression, binding: ValueBinding) {
+    state bound(resolver: &mut Resolver, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, binding: ValueBinding) {
         transition binding {
             ValueBinding::Unresolved -> unresolved(resolver, expression)
             ValueBinding::Ambiguous -> ambiguous(resolver, expression)
+            ValueBinding::Proposition { proposition } -> applied(resolver, syntax, root, handle, expression, binding)
             _ -> stored(resolver, handle, binding)
+        }
+    }
+
+    state applied(resolver: &mut Resolver, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, binding: ValueBinding) {
+        let code: ResolveDiagnosticCode = Resolver::proposition_site(syntax, true, root, handle);
+        transition code == ResolveDiagnosticCode::None {
+            true -> stored(resolver, handle, binding)
+            _ -> misplaced(resolver, code, expression)
         }
     }
 
@@ -256,6 +290,10 @@ crashes Trap
 
     state ambiguous(resolver: &mut Resolver, expression: Expression) {
         NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::AmbiguousName, expression.source_span);
+    }
+
+    state misplaced(resolver: &mut Resolver, code: ResolveDiagnosticCode, expression: Expression) {
+        NameResolution::reject(&mut resolver.output, code, expression.source_span);
     }
 
     state invalid() {

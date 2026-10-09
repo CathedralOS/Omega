@@ -5827,8 +5827,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  457 parser cases, `tests/psi/resolver/test-resolver.sh` all 247 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 73 typing cases; run
+  457 parser cases, `tests/psi/resolver/test-resolver.sh` all 260 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 82 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -5881,12 +5881,18 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   values, by the language's resolution order (locals, arm binders, the body's
   own parameters, value and machine binders, constants, then states,
   machines, data and cases by position; `Conformance::member` falls back to
-  the conformance's row or trait), binds a membership to its `Type::Case`
-  case or its declared domain, and binds renamed pattern binders. A
+  the conformance's row or trait), binds a membership, and an `in Owner::Name`
+  type qualifier, to its `Type::Case` case or its declared domain (a
+  qualifier's domain must qualify its type), and binds renamed pattern
+  binders. A
   machine's `requires` and `ensures` facts and a state's `requires` facts
   bind in their body's parameter scope, `result` naming the returned value
   unless a parameter spells it, and a data declaration's `where` facts bind
-  its fields bare; a case's own `where` facts bind no names yet. A
+  its fields bare; a case's own `where` facts bind no names yet. A fact's
+  callee names a machine or a proposition (both of one spelling are
+  ambiguous), and a proposition applies only as a whole fact: inside a larger
+  fact it rejects as unsupported, and in a body, transition target or constant
+  value as proof-only. A
   `satisfies` clause binds its trait, the trait's static arguments, the
   requirement it names and its `via` payload (in the machine's static scope,
   without parameters); a trait named through a module path rejects. A
@@ -5906,7 +5912,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   element through a policy-qualified collection under that policy, and
   checks constructions, case patterns, transition targets and terminal
   results, types constants as their declared types with each value
-  landed there, types every bound fact as a Boolean, requires a
+  landed there, types every bound fact as a Boolean (a proposition
+  application's arguments admitted at its parameters, a generic proposition's
+  bound like a generic call's), requires a
   `satisfies` machine's signature to be its requirement's under the clause's
   trait arguments, selects an arithmetic or order operator over data
   among the machines binding its token at an operand's data, and drops a
@@ -5915,10 +5923,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   arguments and by unifying parameter and argument types, and a generic
   construction infers its data's arguments from its fields; value-position
   matches, memberships, trait requirement calls, generic conformance members,
-  target-scoped family calls, declared domains and equality needing a
-  declared conformance reject as unsupported. The typing gate types the
-  whole psi package, its 58 units, as one source set (60,213 expressions,
-  274 interned types). Checking (`source/psi/checking/`) walks each body
+  target-scoped family calls, declared and case domain qualifiers and equality
+  needing a declared conformance reject as unsupported. The typing gate types the
+  whole psi package, its 58 units, as one source set (60,888 expressions, 275
+  interned types). Checking (`source/psi/checking/`) walks each body
   over one difference-bound zone of its integer places, joining each
   state's arrivals to a fixed point, and proves every index, Exact
   operation, divisor, shift count and `as` conversion (which keeps its value
@@ -5926,9 +5934,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `ensures` facts at each normal return (assumed of a call's result), and
   data `where` facts at each construction and after each field store; crash
   routes settle over the call graph, a `satisfies` machine publishing only
-  causes its requirement declares. A case's own `where` facts, contract
-  refinement beyond crash causes and termination promises reject as
-  unsupported. `tests/psi/checking/test-checking.sh` passes 59
+  causes its requirement declares. A case's own `where` facts, a proposition
+  application owed at a call, return or construction (assumed, one establishes
+  nothing), contract refinement beyond crash causes and termination promises
+  reject as unsupported. `tests/psi/checking/test-checking.sh` passes 64
   checking cases and checks the whole psi package in 7 seconds, stopping
   first at `ExactInteger::multiply`'s divisor, nonzero only by a failed
   `== 0` guard: the zone holds no disequality yet. The parser harness reads all 42 product source files whole and 65
@@ -5941,20 +5950,23 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   Quantity<Units::METER>`), an installation reach row `reaches <= Bound`, and
   requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
   in 0..=n`), range expressions and indexed membership domains (`in
-  AtMost<8>`) do not parse yet. Of the 50 std and core
-  files outside target and test directories, 33 parse whole; with the
-  transitive closure of their imports (std as package
-  `omega_language_std`, core as the toolchain package), 17 resolve. The
-  others stop first at 6 imports that do not parse, 3 at
-  `core/device.omg`'s predicate-free `pub domain
-  DeviceOrderingEvent::Completion;`, which resolution does not bind, 2 at
-  `where machine` contracts, 2 at `core/int.omg`'s proposition application
-  `int_pair_equivalent(a, a2)` in a fact, which resolution does not bind, `core/float_meaning.omg` at a `Nat` it does not
-  import, `std/process_exit.omg` at a provider type its target
-  implementations declare, and `core/option.omg` at `zero_value<Optional<T>>()`,
-  a proof-only observation the Rust parser recognizes contextually and no
-  spec page defines (the product parser reads it as a call to an unknown
-  machine). The 65 std and core files that parse whole, targets included,
+  AtMost<8>`) do not parse yet. Of the 51 std and core files outside target
+  and test directories, 35 parse whole; with the transitive closure of their
+  imports (std as package `omega_language_std`, core as the toolchain
+  package), 17 resolve. The others stop first at 7 imports that do not parse,
+  2 at `where machine` contracts, 3 (`core/device.omg` with `arena` and
+  `extent`) at a `Nat` that `core/extent.omg` names without importing `nat`, 2
+  (`core/int.omg` and `rat`) at a `CommutativeSemiring` that `core/int.omg`
+  names without importing `algebra` (imports are not transitive; with that
+  import both resolve), `core/float_meaning.omg` at a `Nat` it does not
+  import, `std/process_exit.omg` at a provider type its target implementations
+  declare, `core/numeric_conversion.omg` at the compiler builtin function
+  `clamp` (and the device group, given its import, at `embed`), which
+  resolution does not install, and `core/option.omg` at
+  `zero_value<Optional<T>>()`, a proof-only observation the Rust parser
+  recognizes contextually and no spec page defines (the product parser reads
+  it as a call to an unknown machine). The 65 std and core files that parse
+  whole, targets included,
   overflow the 1,024-row clause table together with 1,285 clauses, and
   `std/build.omg` names the build context's `Build`. The product entry's
   closure (its 3 units, std's `console` with its 5 target implementations,
@@ -5968,8 +5980,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   parameters and statements, 8,192 states and transition arms and 131,072
   expressions, over a 65,536-token unit; edges one unit cannot reach run in
   the resolver gate's source sets.
-  Next: `where machine` contracts, proposition applications in facts and
-  predicate-free domains, which the library's remaining files stop at; typing's declared
+  Next: the library's missing `algebra` and `nat` imports, `where machine`
+  contracts and builtin functions (`embed`, `clamp`), which the library's
+  remaining files stop at; typing's declared
   equality, which needs
   `Equatable` named conformances
   ([core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition));

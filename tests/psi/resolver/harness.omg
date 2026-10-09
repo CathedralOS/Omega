@@ -415,7 +415,7 @@ blocks;
 // per type reference in syntax-table order: the binding tag, the bound
 // handle (builtin ordinal, or data, generic-parameter, trait or conformance
 // handle; zero when unresolved or a form), the domain tag and the declared
-// domain's handle (zero for any other domain). Then one row per expression:
+// domain's or case's handle (zero for any other domain). Then one row per expression:
 // the value binding's tag and two handles; then one row per name path: the
 // path binding's tag (0 unresolved, 1 machine, 2 domain) and handle; then
 // one row per clause: 1 and the requirement machine's handle for a
@@ -483,6 +483,7 @@ crashes Trap
             ResolveDiagnosticCode::NotATrait -> diagnostic_tag(resolver_harness, output, 26)
             ResolveDiagnosticCode::NotARequirement -> diagnostic_tag(resolver_harness, output, 27)
             ResolveDiagnosticCode::ForeignOperatorHome -> diagnostic_tag(resolver_harness, output, 29)
+            ResolveDiagnosticCode::ProofOnlyApplication -> diagnostic_tag(resolver_harness, output, 30)
         }
     }
 
@@ -503,7 +504,7 @@ crashes Trap
     // Value bindings: a tag (0 not a name, 1 unresolved, 2 local, 3
     // parameter, 4 pattern binder, 5 state, 6 machine, 7 data, 8 case, 9
     // ambiguous, 10 generic binder, 11 constant, 12 data field, 13 returned
-    // value) and two handles.
+    // value, 14 proposition) and two handles.
     state value_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         ResolverHarness::write_u64(resolver_harness, output.value_binding_count as u64 in Trapping);
         transition { _ -> value(resolver_harness, output, 0) }
@@ -586,6 +587,7 @@ crashes Trap
             ValueBinding::Constant { constant } -> value_tag(resolver_harness, output, index, 11, constant, 0)
             ValueBinding::Field { field } -> value_tag(resolver_harness, output, index, 12, field, 0)
             ValueBinding::ReturnedValue { machine } -> value_tag(resolver_harness, output, index, 13, machine, 0)
+            ValueBinding::Proposition { proposition } -> value_tag(resolver_harness, output, index, 14, proposition, 0)
         }
     }
 
@@ -668,6 +670,7 @@ crashes Trap
             DomainBinding::Trapping -> domain_row(resolver_harness, output, index, 3)
             DomainBinding::Finite -> domain_row(resolver_harness, output, index, 4)
             DomainBinding::Declared -> domain_row(resolver_harness, output, index, 5)
+            DomainBinding::Case -> domain_row(resolver_harness, output, index, 6)
         }
     }
 

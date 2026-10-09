@@ -8,8 +8,9 @@ use psi::typing::typer;
 // Facts type like any expression, and each one is a Boolean: a machine's
 // `requires` and `ensures` facts and each state's `requires` facts over
 // their parameters (`result` is the machine's result), and a data
-// declaration's `where` facts over its fields. The facts resolution leaves
-// unbound (a case's own `where`) stay untyped.
+// declaration's `where` facts over its fields. A proposition application,
+// a whole fact, is a Boolean statement (calls.omg). The facts resolution
+// leaves unbound (a case's own `where`) stay untyped.
 pub machine Typer::type_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {

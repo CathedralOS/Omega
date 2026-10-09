@@ -31,7 +31,7 @@ DIAGNOSTICS = (
     "DuplicateConstructionField", "NotConstructible", "CaseOfOtherData", "UnknownPatternField",
     "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
     "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
-    "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall",
+    "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length")
 ADAPTATIONS = ("", "landed", "lent")
@@ -752,6 +752,20 @@ def main() -> None:
         "UnsupportedDomain",
         b"u64 in Small",
     )
+    rejected(
+        program,
+        "path-qualified-declared-domain",
+        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in u64::Small) {}",
+        "UnsupportedDomain",
+        b"u64 in u64::Small",
+    )
+    rejected(
+        program,
+        "case-domain-qualifier",
+        b"data O { case None; case Some(value: u8); }\nmachine f(o: O in O::Some) {}",
+        "UnsupportedDomain",
+        b"O in O::Some",
+    )
     # An arithmetic or order operator over data selects, by its operands,
     # the machine binding its token at an operand's data.
     vector = b"data V { x: u64; }\nmachine + V::add(a: V, b: V) -> V { a }\nmachine + V::shift(a: V, b: u64) -> V { a }\n"
@@ -782,6 +796,58 @@ def main() -> None:
         b"data V { x: u64; }\nmachine f(a: V, b: V) -> V { a * b }",
         "OperandMismatch",
         b"a * b",
+    )
+
+    # A proposition application is a Boolean statement whose arguments meet
+    # the proposition's parameters by ordinary admission; a generic
+    # proposition binds its parameters like a generic machine call.
+    accepted(
+        program,
+        "proposition-application-is-boolean",
+        b"proposition Close(a: u64, b: u8) = a > 0;\nmachine f(x: u64)\nrequires Close(x, 3)\n{}",
+        ((b"Close(x, 3)", "bool"), (b"x!2", "u64"), (b"3", "u8")),
+        adaptations=((b"3", "landed"),),
+    )
+    accepted(
+        program,
+        "generic-proposition-application",
+        b"proposition Same<T>(a: T, b: T);\nmachine f(x: u16, y: u16)\nrequires Same(x, y), Same<u16>(x, 7)\n{}",
+        ((b"Same(x, y)", "bool"), (b"Same<u16>(x, 7)", "bool"), (b"7", "u16")),
+    )
+    accepted(
+        program,
+        "data-fact-proposition-application",
+        b"proposition Ordered(lo: u64, hi: u64) = lo <= hi;\n"
+        b"data Range\nwhere\n    Ordered(lo, hi),\n{ lo: u64; hi: u64; }",
+        ((b"Ordered(lo, hi)", "bool"), (b"lo!3", "u64")),
+    )
+    rejected(
+        program,
+        "proposition-argument-count",
+        b"proposition P(a: u64);\nmachine f(x: u64)\nrequires P(x, x)\n{}",
+        "PropositionArgumentCount",
+        b"P(x, x)",
+    )
+    rejected(
+        program,
+        "proposition-argument-mismatch",
+        b"proposition P(a: u64);\nmachine f(flag: bool)\nrequires P(flag)\n{}",
+        "MismatchedTypes",
+        b"flag!2",
+    )
+    rejected(
+        program,
+        "uninferred-proposition-binder",
+        b"proposition P<T>(a: u8);\nmachine f(x: u8)\nrequires P(x)\n{}",
+        "UninferredGenericArgument",
+        b"P(x)",
+    )
+    rejected(
+        program,
+        "proposition-static-argument-count",
+        b"proposition P(a: u8);\nmachine f(x: u8)\nrequires P<u8>(x)\n{}",
+        "GenericArgumentCount",
+        b"P<u8>(x)",
     )
 
     # A fact whose root is the set's first expression types.

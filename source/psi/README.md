@@ -67,7 +67,8 @@ grammar in [`parse/types.omg`](parse/types.omg): references `&[mut] T`, arrays
 `[T; N]`, slices `[T]` and named types, possibly `::` paths, with static
 arguments `Name<T, 4>`, nested on an explicit frame stack, each form that
 admits one taking `in Domain`, a name or a path such as a case's implied
-domain `Type::Case`. A type's rows follow their children, so the
+domain `Type::Case`, kept as its own name and its owner path. A type's rows
+follow their children, so the
 type fills one contiguous run of the table ending at its root. Direct fields
 and case-payload fields retain separate bounded custody while mixed
 declarations preserve exact authored field/case order and shared named
@@ -188,7 +189,10 @@ reference, array, slice and integer rows bind by form, and named rows carry
 the names. An `in` qualifier binds a compiler-known domain (`Wrapping`,
 `Saturating`, `Trapping`, `Finite`) by spelling, else the one visible domain of
 that name whose carrier is the qualified type, a domain's own generic
-parameters standing for any type; two such domains reject as ambiguous. Last,
+parameters standing for any type; two such domains reject as ambiguous. A
+path qualifier `in Owner::Name` names what a membership's path names, a case
+of data `Owner` or the domain `Name` over the type `Owner` names, and that
+domain must qualify the qualified type. Last,
 it rejects duplicate parameter names within a signature, duplicate state names
 within a machine, and a machine that repeats an earlier one of its module's
 path (owner and name, a member's owner being its container), generic parameter
@@ -208,7 +212,8 @@ arm's pattern binders, the body's own parameters (a state never sees the
 entry's), then the machine's value binders (`Count: u32`, `const N: u64`), a
 member's own before its container's, then a constant. A callee names a machine
 binder (`machine F`), then a fellow member of the enclosing trait or
-conformance, then a machine; a callee path `Owner::name` names the machine of
+conformance, then a machine or a proposition (both of one spelling are
+ambiguous); a callee path `Owner::name` names the machine of
 that path, so `Trait::requirement` and `Conformance::member`, or, for a
 conformance declaring no such member, the machine its reference row or its
 trait supplies for that requirement. A call-shaped transition target names a
@@ -226,7 +231,10 @@ indexed by expression handle. A machine's `requires` and `ensures` facts and
 a state's `requires` facts bind in their body's parameter scope, `result` in
 an `ensures` fact naming the returned value unless a parameter spells it, and
 a data declaration's `where` facts bind its fields bare
-([`resolve/facts.omg`](resolve/facts.omg)). A case's own `where` facts,
+([`resolve/facts.omg`](resolve/facts.omg)). A proposition applies only as a
+whole fact (`requires P(x)`): inside a larger fact it rejects as unsupported,
+and in a body, a transition target or a constant's value, where a value is
+computed, it rejects as proof-only. A case's own `where` facts,
 domain predicates and proposition bodies bind no names here; which
 requirement a member or row fills, row completeness and a domain's
 establishment obligations are checking's.
@@ -287,11 +295,15 @@ like a `let` initializer. A trait application's row takes no type. A call
 selects among the callee's family by machine path; a trait requirement (which
 runs only through a selected conformance), a generic conformance's member, a
 target-scoped family's body (a realization's choice), a conformance named as
-a static argument and a declared domain qualifier reject as unsupported.
+a static argument and a declared or case domain qualifier reject as
+unsupported.
 Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
 `requires` and `ensures` fact and each state's `requires` fact over its
 parameters (`result` has the machine's result type) and each data
-declaration's `where` fact over its fields is a Boolean. A case's own
+declaration's `where` fact over its fields is a Boolean. A proposition
+application is a Boolean statement that selects nothing: its arguments meet
+the proposition's parameters by ordinary admission, a generic proposition's
+bound as a generic machine call's are. A case's own
 `where` facts are not bound or typed yet. A machine that `satisfies` a
 requirement must have the requirement's signature with the trait's type
 parameters replaced by the clause's arguments, and its `via` payload and a
@@ -357,7 +369,9 @@ derives (wiki/spec/language/effects.md). A construction of data carrying
 `where` facts proves them with each field name standing for the value it
 writes, zero for an omitted common field. An untyped fact is never proved,
 and a case's own `where` facts reject as unsupported rather than passing
-unchecked.
+unchecked. A proposition application states what no zone fact expresses:
+assumed, it establishes nothing, and where it must hold it rejects as an
+unsupported fact.
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
