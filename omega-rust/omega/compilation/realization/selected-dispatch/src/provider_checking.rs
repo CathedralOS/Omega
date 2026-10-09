@@ -85,11 +85,12 @@ impl ProviderCheckingInputs {
         &self.opaque_property_receipts
     }
 
-    /// Bind callback placements and provider grants after Psi has checked the
-    /// source. Errors retain the original selected-provider diagnostics.
+    /// Bind callback placements and provider grants against shared checked Psi.
+    /// The returned program shares the input; target selection cannot rewrite
+    /// source evidence. Errors retain the selected-provider diagnostics.
     pub fn bind(
         self,
-        program: CheckedProgram,
+        program: Arc<CheckedProgram>,
         settlement: ProviderCheckingRequest<'_>,
     ) -> Result<CheckedProviderProgram, Vec<Diagnostic>> {
         if let Some(native_target) = settlement.native_target {
@@ -106,7 +107,6 @@ impl ProviderCheckingInputs {
                 &program,
                 settlement.boundary_calling_plan_realizations,
             )?;
-        let program = Arc::new(program);
         let selected_provider_binding = provider_planning::bind_selected_provider_plan_facts(
             &program,
             settlement.provider_plans,
@@ -114,7 +114,7 @@ impl ProviderCheckingInputs {
             settlement.root_grants,
             settlement.authored_root_grants,
         )?;
-        let (program, selected_provider_plan_facts, selected_provider_grants) =
+        let (selected_provider_plan_facts, selected_provider_grants) =
             selected_provider_binding.into_parts();
 
         Ok(CheckedProviderProgram {

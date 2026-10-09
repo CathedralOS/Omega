@@ -592,7 +592,6 @@ fn exact_evidence_source(
 ) -> bool {
     evidence.source_symbol.is_valid()
         && evidence.requirement_symbol == SymbolHandle::invalid()
-        && evidence.receipt_identity == 0
         && matches!(
             program.symbols.get(evidence.source_symbol).kind,
             symbols::SymbolKind::Machine | symbols::SymbolKind::Operator

@@ -165,7 +165,7 @@ pub(crate) fn check_selected_execution(
             .map(|entry| entry.machine_symbol()),
         &selected_provider_provenance,
     )?;
-    let mut checked = prepared.bind(program, provider_request)?;
+    let mut checked = prepared.bind(std::sync::Arc::new(program), provider_request)?;
     // Product target bodies remain checked input to Terminal production.
     // Only Omega realization may discard another target's implementation.
     // Check all authored code before product pruning and sidecar derivation.

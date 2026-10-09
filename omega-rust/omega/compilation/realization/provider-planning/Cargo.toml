@@ -28,7 +28,6 @@ terminal-psi = { path = "../../../../psi/compilation/representations/terminal-ps
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 flow-effects = { path = "../../../../psi/foundation/flow-effects" }
-facts = { path = "../../../../psi/compilation/representations/checked-trees/facts" }
 language-core = { path = "../../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }

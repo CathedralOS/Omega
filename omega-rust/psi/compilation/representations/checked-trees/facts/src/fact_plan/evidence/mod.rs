@@ -110,15 +110,14 @@ pub enum FactOrigin {
 /// or declaration that supplied the evidence when one exists.
 /// `requirement_symbol` names the exact boundary state signature for admitted
 /// qualification evidence; it is invalid for non-admitted evidence.
-/// `receipt_identity == 0` means no admitted receipt was retained for this
-/// compilation; admitted provider selection fills the normalized receipt
-/// identity after the checked program retains its selected provider plans.
+/// These identities describe source establishment, independently of a target's
+/// provider selection. Execution authority belongs to the selected provider
+/// plans; binding those plans must not rewrite portable qualification evidence.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct QualificationEvidence {
     pub origin: language_semantics::QualificationEvidenceOrigin,
     pub source_symbol: SymbolHandle,
     pub requirement_symbol: SymbolHandle,
-    pub receipt_identity: u64,
 }
 
 impl QualificationEvidence {
@@ -130,7 +129,6 @@ impl QualificationEvidence {
             origin,
             source_symbol,
             requirement_symbol: SymbolHandle::invalid(),
-            receipt_identity: 0,
         }
     }
 
@@ -142,7 +140,6 @@ impl QualificationEvidence {
             origin: language_semantics::QualificationEvidenceOrigin::AdmittedReceipt,
             source_symbol,
             requirement_symbol,
-            receipt_identity: 0,
         }
     }
 }

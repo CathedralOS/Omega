@@ -1498,7 +1498,6 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
- "facts",
  "flow-effects",
  "language-core",
  "language-semantics",

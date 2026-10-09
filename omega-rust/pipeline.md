@@ -209,6 +209,11 @@ canonical naming. Build helpers select their separately admitted execution targe
 provider planning consumes typed identities, not a parallel source-name roster
 carried through compilation. A canonical body is not a portable family contract.
 
+Checked qualification evidence names its source declaration and exact boundary
+requirement, not a selected provider's receipt number. Provider grant binding
+borrows that evidence and returns selected plans and grants separately; it never
+rewrites or clones checked Psi to stamp target-specific authority into facts.
+
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
 owns the source-free Terminal-to-image sequence. Its entry is

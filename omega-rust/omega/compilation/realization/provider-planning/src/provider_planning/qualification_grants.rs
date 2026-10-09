@@ -1,10 +1,15 @@
-//! Bind admitted qualification receipts to exact granted provider requirements.
+//! Check that qualification requirements have unambiguous selected grants.
+//!
+//! Source facts retain the exact boundary owner and requirement. Realization
+//! checks their association with granted plans without stamping a target's
+//! report identity into the checked program. An absent grant remains absent;
+//! downstream execution admission owns whether that authority is required.
 
-pub(super) fn plan_admitted_receipt_updates(
+pub(super) fn validate(
     checked: &checked_trees::CheckedTrees,
     facts: &effects::SelectedProviderPlanFacts,
     provider_grants: &[effects::provider_grants::ResolvedSelectedProviderGrant],
-) -> Result<Vec<(facts::FactHandle, u64)>, Vec<diagnostics::Diagnostic>> {
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut granted_plans = Vec::new();
     for grant in provider_grants {
         let exact_selected_matches = facts
@@ -27,7 +32,6 @@ pub(super) fn plan_admitted_receipt_updates(
             granted_plans.push(grant);
         }
     }
-    let mut receipt_updates = Vec::new();
     let mut receipt_diagnostics = Vec::new();
     let traits = checked.typed.traits();
     if traits.len() != checked.typed.roots.traits.count() as usize {
@@ -48,9 +52,8 @@ pub(super) fn plan_admitted_receipt_updates(
     if !receipt_diagnostics.is_empty() {
         return Err(receipt_diagnostics);
     }
-    for (handle, fact) in checked.facts.semantic.facts.iter().filter(|(_, fact)| {
+    for (_, fact) in checked.facts.semantic.facts.iter().filter(|(_, fact)| {
         fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
-            && fact.evidence.receipt_identity == 0
     }) {
         let owners = checked
             .typed
@@ -128,11 +131,11 @@ pub(super) fn plan_admitted_receipt_updates(
             })
             .collect::<Vec<_>>();
         // A shared requirement identity — an inherited requirement carried
-        // by several granted plans — still binds exactly one receipt: the
+        // by several granted plans — still has one grant owner: the
         // plan whose schema is the requirement's own boundary trait owns the
         // declared evidence. When that owner slot is not granted the
         // unscoped matches keep their fail-closed behavior rather than
-        // attributing the receipt to an inheriting plan by roster order.
+        // attributing authority to an inheriting plan by roster order.
         let owner_matches = matches
             .iter()
             .copied()
@@ -153,10 +156,7 @@ pub(super) fn plan_admitted_receipt_updates(
             owner_matches
         };
         match matches.as_slice() {
-            [] => {}
-            [grant] => {
-                receipt_updates.push((handle, grant.selected_plan_report_identity));
-            }
+            [] | [_] => {}
             _ => receipt_diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "admitted qualification requirement `{requirement_identity}` matches {} granted selected provider plans",
                 matches.len()
@@ -166,5 +166,5 @@ pub(super) fn plan_admitted_receipt_updates(
     if !receipt_diagnostics.is_empty() {
         return Err(receipt_diagnostics);
     }
-    Ok(receipt_updates)
+    Ok(())
 }

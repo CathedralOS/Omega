@@ -105,7 +105,6 @@ pub(super) fn check_call_result_qualifications(
             if fact.evidence.origin != QualificationEvidenceOrigin::Propagated
                 || fact.evidence.source_symbol != call.target_symbol
                 || fact.evidence.requirement_symbol.is_valid()
-                || fact.evidence.receipt_identity != 0
             {
                 return None;
             }
@@ -325,7 +324,6 @@ fn call_parameter_qualification_join(
     if evidence.origin != QualificationEvidenceOrigin::Propagated
         || evidence.source_symbol != call_target
         || evidence.requirement_symbol.is_valid()
-        || evidence.receipt_identity != 0
     {
         return None;
     }
