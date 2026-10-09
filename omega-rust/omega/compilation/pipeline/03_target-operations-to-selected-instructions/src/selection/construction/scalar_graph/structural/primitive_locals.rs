@@ -100,10 +100,15 @@ pub(in crate::selection) fn read(
         crate::selection::primitive_local_input::read_geometry(source, row)
             .ok_or_else(|| invalid())?;
     let definition = row.result.ok_or_else(|| invalid())?;
-    let pointer = if pointer_slots.is_empty() {
+    let observes_descriptor_home = matches!(&row.kind,
+        LegalizedScalarInstructionKind::ElementViewLength { source, .. }
+        if source.path.is_empty());
+    let pointer = if pointer_slots.is_empty() && !observes_descriptor_home {
         super::runtime_address::projection_base(source, builder, row, place, byte_offset)?
             .ok_or_else(|| invalid())?
     } else {
+        // A whole descriptor's metadata is in its own home. Projection bases
+        // intentionally resolve views to their backing elements instead.
         super::place_pointer(builder, row, place, 0)?
     };
     let pointer = if matches!(&row.kind,
