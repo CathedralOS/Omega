@@ -4215,9 +4215,13 @@ pass/termination/ranked_callee_projected_receiver_compile checked 291ms check-ta
 pass/termination/remainder_actual_call_component checked 305ms @2d8ed253669f
 pass/termination/remainder_literal_call_component checked 297ms @2d8ed253669f
 pass/termination/runtime_call_result_short_circuit_rank_exit checked 1703ms check-target:macos_arm64 @98f54226c10c
+pass/termination/runtime_computed_projected_measure_arrivals_exit checked 3326ms check-target:macos_arm64 @83a90e1b3f89+wt
+pass/termination/runtime_distance_crossed_header_exit checked 3234ms check-target:macos_arm64 @83a90e1b3f89+wt
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 1581ms check-target:macos_arm64 @2d8ed253669f
 pass/termination/runtime_rank_range_state_call_exit checked 867ms check-target:macos_arm64 @82d2bd2d7669
+pass/termination/runtime_ranked_sequence_arrival_coordinates_exit checked 3212ms check-target:macos_arm64 @83a90e1b3f89+wt
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 738ms check-target:macos_arm64 @c9c108ecb4ac+wt
+pass/termination/runtime_record_measure_constructed_arrivals_exit checked 3574ms check-target:macos_arm64 @83a90e1b3f89+wt
 pass/termination/runtime_saved_rank_cycle_exit checked 1743ms check-target:macos_arm64 @68fba6a896c8+wt
 pass/termination/runtime_shrinking_slice_recursion_exit checked 1796ms check-target:macos_arm64 @921839635ad
 pass/termination/runtime_stored_exclusive_endpoint_exit checked 1203ms check-target:macos_arm64 @82ec69a91ceb+wt

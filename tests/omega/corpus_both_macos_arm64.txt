@@ -589,6 +589,10 @@ pass/targets/provider_family_private_contracts_exit built 10157ms exit:0 interpr
 pass/targets/target_body_call_contracts_exit built 11431ms exit:0 interpreter-exit:0 interpreter:agrees @5833e7d00af3
 pass/targets/target_family_entry_exit built 11761ms exit:0 interpreter-exit:0 interpreter:agrees @ac80e12ccdc5
 pass/termination/joint_rank_acyclic_finish_exit built 3333ms exit:0 interpreter-exit:0 interpreter:agrees @a45c3d0bf1f5
+pass/termination/runtime_computed_projected_measure_arrivals_exit built 3519ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
+pass/termination/runtime_distance_crossed_header_exit built 3431ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
+pass/termination/runtime_ranked_sequence_arrival_coordinates_exit built 3361ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
+pass/termination/runtime_record_measure_constructed_arrivals_exit built 3479ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
 pass/termination/runtime_saved_rank_cycle_exit built 1885ms exit:0 interpreter-exit:0 interpreter:agrees @68fba6a896c8+wt
 pass/text/declared_record_view_field_fill_exit built 2399ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
 pass/text/nested_mutable_receiver_byte_result_exit built 1409ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c

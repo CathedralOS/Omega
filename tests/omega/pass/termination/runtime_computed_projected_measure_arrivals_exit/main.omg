@@ -33,10 +33,25 @@ terminates by countdown.remaining -> Countdown::Doubled in 0..=limit;
 }
 
 
+data NarrowCountdown {}
+measure NarrowCountdown::Doubled(value: u8) -> u8
+{ value * 2 }
+
+machine walk_narrow(remaining: u8)
+requires remaining <= 100;
+terminates by remaining -> NarrowCountdown::Doubled in 0..=200;
+-> u8 {
+    transition remaining > 0 {
+        true -> walk_narrow(remaining - 1)
+        false -> remaining
+    }
+}
+
 machine main() crashes Trap {
     let flat: u64 = walk_flat(Countdown { remaining: 5 });
     let carried: u64 = walk(Countdown { remaining: 5 }, 10);
-    transition flat == 0 && carried == 0 {
+    let narrow: u8 = walk_narrow(100);
+    transition flat == 0 && carried == 0 && narrow == 0 {
         true -> done()
         false -> bad()
     }

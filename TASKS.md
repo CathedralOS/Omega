@@ -1291,27 +1291,30 @@ defines the complete product bar.
   Linux; Windows rejected), `pass/termination/runtime_named_state_remainder_endpoint_exit`
   and `pass/termination/rank_endpoint_borrows_recovery` (exit 0).
 
-  Current executable controls:
-  `pass/termination/runtime_saved_rank_cycle_exit` runs with saved scalar
-  values, named-state requirements, unrelated nominal operators and disjoint
-  writes; it supplies no saved-value proof. Free and attached mutual tail
-  owners share exact machine-head discovery and retain each state's authored
-  owner for claim reservation. Keep
-  `pass/ownership/linear_call_result_members_fused_owner_exit` and
-  `pass/calls/runtime_static_tail_{local_custody,reordered_local_custody}_exit`
-  for fresh and call-produced linear claims, acyclic exits and reordered
-  parameter positions. These controls exit 0 natively and in Terminal on
-  macOS ARM64; nondecreasing and stale-premise cycles still reject.
-  Rank range arrivals and executable projection share exact recurrence
-  relevance: a suffix unable to reach the ranked cycle may omit its rank
-  formal. Keep `pass/termination/joint_rank_acyclic_finish_exit` for a joint
-  preserving/strict cycle with a parameterless finish, and
+  Retain executable controls `pass/termination/runtime_saved_rank_cycle_exit`
+  for saved values, requirements and disjoint writes,
+  `pass/termination/joint_rank_acyclic_finish_exit` for a joint preserving/strict
+  cycle with a rankless finish, and
   `pass/termination/rank_range_record_snapshot_compile` for an ordinary
-  snapshot return after the cycle (source-only). A rankless finish calling
-  back into its owner and a snapshot fed back into recurrence still reject;
-  unrelated exit requirements and prefix write checks remain obligatory.
-  Unproved arrivals, overwritten requirement inputs and actual `u32` overrides
-  still reject; machine-entry requirements are not imported at internal arrivals.
+  snapshot return (source-only). Rankless exits returning to recurrence,
+  nondecreasing cycles, stale premises, overwritten requirement inputs and
+  unproved arrivals reject; entry requirements do not become internal-arrival
+  facts. Free and attached mutual owners retain authored claim identities;
+  keep `pass/ownership/linear_call_result_members_fused_owner_exit` and
+  `pass/calls/runtime_static_tail_{local_custody,reordered_local_custody}_exit`
+  for fresh/call-produced claims and reordered parameters.
+
+  Rank observations use the shared scalar-computation arena over exact captured
+  entry and completed arrival values. Keep
+  `pass/termination/runtime_record_measure_constructed_arrivals_exit` and
+  `pass/termination/runtime_computed_projected_measure_arrivals_exit` for
+  reconstructed records, renamed formals and narrow arithmetic formation,
+  `pass/termination/runtime_ranked_sequence_arrival_coordinates_exit` for byte
+  and element descriptors after an unrelated scalar, and
+  `pass/termination/runtime_distance_crossed_header_exit` for total distance
+  ranks when the cursor has already crossed its bound. These controls execute
+  natively and in Terminal on macOS ARM64; independent overflow and stale
+  subject controls remain obligatory.
 
   Remaining:
   - Replace unique-carrier discovery with explicit arrival correspondence,
