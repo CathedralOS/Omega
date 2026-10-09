@@ -6,6 +6,7 @@
 //! provider realization, deployment policy, output paths, and installation
 //! authority are deliberately absent.
 
+use crate::cursor::{Cursor, Truncated};
 use terminal_psi::TerminalModule;
 
 use crate::{
@@ -159,7 +160,7 @@ impl CanonicalTerminalArtifact {
     /// envelope. No producer-owned module or manifest crosses
     /// this boundary.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, CanonicalTerminalArtifactError> {
-        let mut cursor = ArtifactCursor::new(bytes);
+        let mut cursor = Cursor::new(bytes);
         if cursor.take(ARTIFACT_MAGIC.len())? != ARTIFACT_MAGIC {
             return Err(CanonicalTerminalArtifactEnvelopeError::InvalidMagic.into());
         }
@@ -169,11 +170,11 @@ impl CanonicalTerminalArtifact {
                 CanonicalTerminalArtifactEnvelopeError::UnsupportedFormatMarker(marker).into(),
             );
         }
-        let semantic_len = cursor.section_len("semantic")?;
-        let optimization_len = cursor.section_len("optimization")?;
+        let semantic_len = section_len(&mut cursor, "semantic")?;
+        let optimization_len = section_len(&mut cursor, "optimization")?;
         let debug_len = match cursor.byte()? {
             0 => None,
-            1 => Some(cursor.section_len("debug")?),
+            1 => Some(section_len(&mut cursor, "debug")?),
             tag => return Err(CanonicalTerminalArtifactEnvelopeError::InvalidDebugTag(tag).into()),
         };
         let semantic_bytes = cursor.take(semantic_len)?;
@@ -260,52 +261,6 @@ fn encode_section_len(bytes: &mut Vec<u8>, len: usize) {
     );
 }
 
-struct ArtifactCursor<'bytes> {
-    bytes: &'bytes [u8],
-    offset: usize,
-}
-
-impl<'bytes> ArtifactCursor<'bytes> {
-    const fn new(bytes: &'bytes [u8]) -> Self {
-        Self { bytes, offset: 0 }
-    }
-
-    fn take(&mut self, len: usize) -> Result<&'bytes [u8], CanonicalTerminalArtifactEnvelopeError> {
-        let end = self
-            .offset
-            .checked_add(len)
-            .ok_or(CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd)?;
-        let value = self
-            .bytes
-            .get(self.offset..end)
-            .ok_or(CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd)?;
-        self.offset = end;
-        Ok(value)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], CanonicalTerminalArtifactEnvelopeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd)
-    }
-
-    fn byte(&mut self) -> Result<u8, CanonicalTerminalArtifactEnvelopeError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn section_len(
-        &mut self,
-        section: &'static str,
-    ) -> Result<usize, CanonicalTerminalArtifactEnvelopeError> {
-        usize::try_from(u64::from_le_bytes(self.array()?))
-            .map_err(|_| CanonicalTerminalArtifactEnvelopeError::SectionTooLong(section))
-    }
-
-    fn remaining(&self) -> usize {
-        self.bytes.len() - self.offset
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalTerminalArtifactError {
     Semantic(CodecError),
@@ -313,6 +268,12 @@ pub enum CanonicalTerminalArtifactError {
     Debug(DebugMapError),
     Manifest(ArtifactManifestError),
     Envelope(CanonicalTerminalArtifactEnvelopeError),
+}
+
+impl From<Truncated> for CanonicalTerminalArtifactError {
+    fn from(_: Truncated) -> Self {
+        Self::Envelope(CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd)
+    }
 }
 
 impl From<CanonicalTerminalArtifactEnvelopeError> for CanonicalTerminalArtifactError {
@@ -339,3 +300,17 @@ impl std::fmt::Display for CanonicalTerminalArtifactError {
 }
 
 impl std::error::Error for CanonicalTerminalArtifactError {}
+
+impl From<Truncated> for CanonicalTerminalArtifactEnvelopeError {
+    fn from(_: Truncated) -> Self {
+        Self::UnexpectedEnd
+    }
+}
+
+fn section_len(
+    cursor: &mut Cursor,
+    section: &'static str,
+) -> Result<usize, CanonicalTerminalArtifactEnvelopeError> {
+    usize::try_from(u64::from_le_bytes(cursor.array()?))
+        .map_err(|_| CanonicalTerminalArtifactEnvelopeError::SectionTooLong(section))
+}

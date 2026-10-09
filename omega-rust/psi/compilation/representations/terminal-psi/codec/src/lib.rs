@@ -8,6 +8,7 @@
 
 mod canonical_artifact;
 mod codec_error;
+mod cursor;
 pub use sections::semantic_module::provider_candidate_wire::{
     decode_provider_candidate_record, encode_provider_candidate_record,
 };

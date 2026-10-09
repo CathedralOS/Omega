@@ -1,6 +1,7 @@
 //! Canonical record of the target-neutral optimization phase that produced a
 //! Terminal-Psi artifact.
 
+use crate::cursor::{Cursor, Truncated};
 use optimization::{
     PsiOptimizationSelectionDecodeError, PsiOptimizationSelectionIdentity,
     PsiOptimizationSelections,
@@ -131,7 +132,7 @@ pub fn encode_psi_optimization_execution_record(
 pub fn decode_psi_optimization_execution_record(
     bytes: &[u8],
 ) -> Result<PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordDecodeError> {
-    let mut cursor = RecordCursor::new(bytes);
+    let mut cursor = Cursor::new(bytes);
     if cursor.take(MAGIC.len())? != MAGIC {
         return Err(PsiOptimizationExecutionRecordDecodeError::InvalidMagic);
     }
@@ -182,7 +183,7 @@ fn append_terminal_identity(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) 
 }
 
 fn decode_terminal_identity(
-    cursor: &mut RecordCursor<'_>,
+    cursor: &mut Cursor<'_>,
 ) -> Result<TerminalPsiIdentity, PsiOptimizationExecutionRecordDecodeError> {
     let marker = u16::from_le_bytes(cursor.array()?);
     let vocabulary_marker = VocabularyMarker::new(marker)
@@ -191,45 +192,6 @@ fn decode_terminal_identity(
         vocabulary_marker,
         program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
     })
-}
-
-struct RecordCursor<'bytes> {
-    bytes: &'bytes [u8],
-    offset: usize,
-}
-
-impl<'bytes> RecordCursor<'bytes> {
-    const fn new(bytes: &'bytes [u8]) -> Self {
-        Self { bytes, offset: 0 }
-    }
-
-    fn take(
-        &mut self,
-        len: usize,
-    ) -> Result<&'bytes [u8], PsiOptimizationExecutionRecordDecodeError> {
-        let end = self
-            .offset
-            .checked_add(len)
-            .ok_or(PsiOptimizationExecutionRecordDecodeError::UnexpectedEnd)?;
-        let value = self
-            .bytes
-            .get(self.offset..end)
-            .ok_or(PsiOptimizationExecutionRecordDecodeError::UnexpectedEnd)?;
-        self.offset = end;
-        Ok(value)
-    }
-
-    fn array<const N: usize>(
-        &mut self,
-    ) -> Result<[u8; N], PsiOptimizationExecutionRecordDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| PsiOptimizationExecutionRecordDecodeError::UnexpectedEnd)
-    }
-
-    fn remaining(&self) -> usize {
-        self.bytes.len() - self.offset
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -286,3 +248,9 @@ impl std::fmt::Display for PsiOptimizationExecutionRecordDecodeError {
 impl std::error::Error for PsiOptimizationExecutionRecordError {}
 impl std::error::Error for PsiOptimizationExecutionRecordBuildError {}
 impl std::error::Error for PsiOptimizationExecutionRecordDecodeError {}
+
+impl From<Truncated> for PsiOptimizationExecutionRecordDecodeError {
+    fn from(_: Truncated) -> Self {
+        Self::UnexpectedEnd
+    }
+}

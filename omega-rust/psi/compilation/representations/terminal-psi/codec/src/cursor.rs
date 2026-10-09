@@ -1,0 +1,37 @@
+//! Shared bounded byte cursor for the crate's wire decoders: a slice view
+//! plus a position. Truncation is the only failure the cursor itself owns;
+//! each decoder maps it into its own error enum through `From<Truncated>`.
+
+/// The cursor exhausted before the requested read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Truncated;
+
+pub(crate) struct Cursor<'a> {
+    encoded: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> Cursor<'a> {
+    pub(crate) const fn new(encoded: &'a [u8]) -> Self {
+        Self { encoded, offset: 0 }
+    }
+
+    pub(crate) fn remaining(&self) -> usize {
+        self.encoded.len().saturating_sub(self.offset)
+    }
+
+    pub(crate) fn take(&mut self, count: usize) -> Result<&'a [u8], Truncated> {
+        let end = self.offset.checked_add(count).ok_or(Truncated)?;
+        let value = self.encoded.get(self.offset..end).ok_or(Truncated)?;
+        self.offset = end;
+        Ok(value)
+    }
+
+    pub(crate) fn array<const N: usize>(&mut self) -> Result<[u8; N], Truncated> {
+        self.take(N)?.try_into().map_err(|_| Truncated)
+    }
+
+    pub(crate) fn byte(&mut self) -> Result<u8, Truncated> {
+        Ok(self.array::<1>()?[0])
+    }
+}
