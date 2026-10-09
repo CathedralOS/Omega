@@ -409,7 +409,11 @@ pub enum OperationKind {
     ///
     /// `field: None` selects the complete `path`, including array elements;
     /// `Some(field)` selects that declared member of the record at `path`.
-    /// An index at the end of `path` never changes the field's meaning.
+    /// An index at the end of `path` never changes the field's meaning. Below
+    /// a mutable element-view root, `path` begins with the `RuntimeIndex` of
+    /// one element the view selects in its collection, owed against the
+    /// view's dominating `ElementViewLength`; the view owns no element and has
+    /// no static extent, so a `FixedIndex` never selects one.
     /// `field: None` with an empty `path` vacates the whole referent of an
     /// exclusive `MutableBorrow` loan (machine or block parameter): the window
     /// is the root itself, the result carries the referent's own type and its

@@ -34,13 +34,12 @@ use super::{
 };
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::indexed_write::IndexedWriteTarget;
-use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::unit::{
-    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId,
-    ServiceReachSummary, StructuralAccess, StructuralParameterDeclaration, StructuralTypeId,
-    ValueDeclaration, allocate_dense, lookup_service_id, terminal_scalar_type, unsupported,
+    CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, ServiceReachSummary,
+    StructuralAccess, StructuralParameterDeclaration, StructuralTypeId, ValueDeclaration,
+    allocate_dense, lookup_service_id, terminal_scalar_type, unsupported,
 };
 use checked_trees::{
     CheckedScalarStoreValue, CheckedStoreLeaf, CheckedStorePlan, CheckedStoreValue,
@@ -856,52 +855,21 @@ impl OperationFrame<'_, '_> {
     }
 
     /// A descriptor's live extent owns runtime bounds through either a scalar
-    /// field store or a stored-view replacement. References keep their own
-    /// authority; following the type here only finds the extent representation.
+    /// field store or a stored-view replacement.
     fn observe_store_element_extent(
         &mut self,
         destination: semantic_vocabulary::PlaceId,
-        mut structural_type: StructuralTypeId,
+        structural_type: StructuralTypeId,
         steps: &[crate::emission::runtime_elements::ProjectionStep],
     ) -> Result<(), LoweringError> {
-        use crate::emission::runtime_elements::ProjectionStep;
-        let declarations = self.structural_types.declarations();
-        if let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) = declarations
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
-            .map(|declaration| &declaration.shape)
-        {
-            structural_type = *referent;
-        }
-        let is_view = declarations.iter().any(|declaration| {
-            declaration.id == structural_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ElementView { .. }
-                )
-        });
-        if !is_view
-            || !steps
-                .iter()
-                .any(|step| !matches!(step, ProjectionStep::Static(_)))
-        {
-            return Ok(());
-        }
-        let length = crate::terminal_identities::value_id(allocate_dense(self.next_value)?);
-        let observation = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: observation,
-            result: scalar_result_declaration(
-                length,
-                terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
-            ),
-            kind: OperationKind::ElementViewLength {
-                source: destination,
-            },
-        });
-        Ok(())
+        crate::emission::runtime_elements::observe_element_extent(
+            destination,
+            structural_type,
+            steps,
+            self.structural_types.declarations(),
+            self.next_value,
+            self.operations,
+        )
     }
 
     /// A scalar field's value, completed in the field's declared carrier.
@@ -1118,10 +1086,7 @@ impl OperationFrame<'_, '_> {
             ),
             _ => return unsupported("case literal field store has a non-sum shape"),
         };
-        let case = terminal_psi::structural_case_by_identity(
-            &cases,
-            &literal.case_identity,
-        )
+        let case = terminal_psi::structural_case_by_identity(&cases, &literal.case_identity)
             .ok_or(LoweringError::Unsupported(
                 "case literal field store case declaration missing",
             ))?;

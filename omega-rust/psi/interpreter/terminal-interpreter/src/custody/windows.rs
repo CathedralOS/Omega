@@ -135,8 +135,9 @@ impl TerminalExecution<'_> {
     }
 
     /// Return the owned root-relative projection, or no owned projection when
-    /// the operation crosses an exclusive loan. Runtime address equality alone
-    /// cannot convert the borrowed referent into this frame's owned storage.
+    /// the operation crosses an exclusive loan, including a mutable element
+    /// view's loan of its collection. Runtime address equality alone cannot
+    /// convert the borrowed referent into this frame's owned storage.
     fn owned_window_projection(
         &self,
         root: PlaceId,
@@ -149,6 +150,7 @@ impl TerminalExecution<'_> {
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         if path.first() == Some(&StructuralPathSegment::Referent)
+            || self.element_view_values.contains_key(&root)
             || machine
                 .structural_parameter(root)
                 .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)

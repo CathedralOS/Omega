@@ -156,7 +156,7 @@ pub(super) fn capture_assignment_destination(
 /// Canonical storage identifies the hole even through forwarding; the emitted
 /// operand must still use the retained reference loan whose child suspends that
 /// storage's original parameter. Replacing the route by the debt root loses
-/// authority. An element view has no such route (see `window_place`).
+/// authority. A view local has no such carrier route (see `window_place`).
 pub(in crate::execution::terminal_unit) struct WindowPlace {
     parameter_index: u32,
     storage_path: Vec<CheckedUnitStructuralPathSegment>,
@@ -166,7 +166,9 @@ pub(in crate::execution::terminal_unit) struct WindowPlace {
 
 /// The exact field chain beneath an exclusive borrowed structural parameter.
 /// An empty path pins the whole referent, not its loan descriptor; a fixed or
-/// retained runtime element step selects the element the window pins.
+/// retained runtime element step selects the element the window pins. Below
+/// a `&mut [T]` parameter that element is one the view selects in storage it
+/// does not own; lowering bounds it by the view's runtime length.
 ///
 /// The place is first keyed on the resolved *storage* it names — the same
 /// rebase the checker performs: a route through a reference-typed local
@@ -251,10 +253,11 @@ pub(in crate::execution::terminal_unit) fn window_place(
     let parameter_index = u32::try_from(parameter_index).ok()?;
     // The operand keeps the retained loan when its carrier can spell the
     // route: a reference local crosses into its referent with `Referent`. A
-    // slice view has no such crossing; Terminal selects a view's elements only
-    // through view operations bounded by its runtime length. The storage
-    // rebase peels only whole-collection views, which preserve their
-    // collection's element coordinates, so such a window names that storage.
+    // view local has no carrier crossing. The storage rebase peels only
+    // whole-collection views, which preserve their collection's element
+    // coordinates, so such a window names that storage. A view parameter's
+    // element keeps the parameter's own loan, and Terminal selects it with a
+    // runtime element bounded by the view's live length.
     let retained_carrier = program
         .state_local_declaration(state, root_symbol)
         .is_some_and(|(ordinal, local)| {

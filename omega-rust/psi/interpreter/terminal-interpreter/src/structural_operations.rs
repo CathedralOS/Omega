@@ -889,7 +889,8 @@ impl TerminalExecution<'_> {
     /// loan's whole referent: the resolved root place itself. A field leaf
     /// resolves `path` to the containing record, then the hole sits one
     /// `Field` segment deeper under the field's declared identity. Without
-    /// a field, the path already names the hole, including an array element.
+    /// a field, the path already names the hole, including an array element
+    /// or the element a mutable view selects in its collection.
     fn structural_window_hole(
         &self,
         root: semantic_vocabulary::PlaceId,
@@ -897,6 +898,33 @@ impl TerminalExecution<'_> {
         field: Option<semantic_vocabulary::StructuralFieldId>,
     ) -> Result<(StructuralRuntimePlace, StructuralTypeId), TerminalInterpretError> {
         let storage = self.structural_values.get(&root).ok_or_else(malformed)?;
+        // A view never owns its elements. Its selected element (already
+        // bounded by the view's live length) is a hole in the original
+        // collection, reached through the view's own mutable loan.
+        if let Some(view) = self.element_view_values.get(&root) {
+            if !view.matches_descriptor_home(storage)
+                || !matches!(path.first(), Some(StructuralPathSegment::FixedIndex(_)))
+            {
+                return Err(malformed());
+            }
+            let (collection, selected) = view.structural_projection(path, true)?;
+            let projection = terminal_semantics::structural_window_projection(
+                self.program.structural_types().values(),
+                collection.structural_type,
+                &selected,
+                field,
+            )
+            .ok_or_else(malformed)?;
+            let hole = crate::custody::project_structural_value(
+                &self.program.structural_types(),
+                &collection,
+                &projection.path,
+            )?;
+            return Ok((
+                StructuralRuntimePlace::from(&hole),
+                projection.structural_type,
+            ));
+        }
         // Resolve a reference crossing against its live runtime referent first;
         // the shared window geometry receives storage, never carrier ownership.
         let prefix_length = usize::from(matches!(

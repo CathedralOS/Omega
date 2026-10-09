@@ -6,6 +6,11 @@
 //! a further field. Guessing from the last segment conflates those operations
 //! and is ambiguous when different records reuse a field ID.
 //!
+//! An element view's extent is its runtime length, not a type literal, so a
+//! view element is selected only by a leading `RuntimeIndex` on a view root,
+//! bounded by that root's length; a literal `FixedIndex` never crosses into a
+//! view, and a view nested below the root selects nothing.
+//!
 //! This is geometry, not permission: consumers still authenticate the root,
 //! runtime bounds, live loan, value custody and exact restoration debt.
 
@@ -81,7 +86,7 @@ pub fn structural_window_projection<'types>(
         matches.next().is_none().then_some(selected)
     };
     let mut selected = declaration(root)?;
-    for segment in path {
+    for (position, segment) in path.iter().enumerate() {
         let child = match (segment, &selected.shape) {
             (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
                 *referent
@@ -107,6 +112,12 @@ pub fn structural_window_projection<'types>(
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::FixedArray { element, .. },
             ) => *element,
+            // Only the root's dominating length bounds a view element. A view
+            // below another carrier is a descriptor, not inline element storage.
+            (
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::ElementView { element },
+            ) if position == 0 => *element,
             _ => return None,
         };
         selected = declaration(child)?;

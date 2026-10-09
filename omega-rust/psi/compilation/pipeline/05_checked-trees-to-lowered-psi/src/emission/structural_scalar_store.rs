@@ -369,68 +369,13 @@ pub(crate) fn lower_structural_field_steps<'a>(
                 )));
                 nested
             }
-            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                let element = match &field_owner.shape {
-                    StructuralTypeShape::FixedArray { element, length } => {
-                        if *index >= *length {
-                            return unsupported(
-                                "structural scalar store fixed index is out of bounds",
-                            );
-                        }
-                        *element
-                    }
-                    // A view's extent is its own stored runtime length, not a
-                    // literal in the type: the element's bound re-proves
-                    // against that extent when the store executes.
-                    StructuralTypeShape::ElementView { element } => {
-                        steps.push(ProjectionStep::RuntimeIndexLiteral { index: *index });
-                        let selected = *element;
-                        field_owner =
-                            terminal_psi::find_structural_type(structural_types, selected).ok_or(
-                                LoweringError::Unsupported("view element declaration is absent"),
-                            )?;
-                        continue;
-                    }
-                    _ => {
-                        return unsupported("structural scalar store carrier is not a fixed array");
-                    }
-                };
-                steps.push(ProjectionStep::Static(StructuralPathSegment::FixedIndex(
-                    *index,
-                )));
-                element
-            }
-            CheckedUnitStructuralPathSegment::RuntimeIndex(runtime) => {
-                let element = match &field_owner.shape {
-                    StructuralTypeShape::FixedArray { element, .. } => *element,
-                    // A view's extent is its own stored runtime length: the
-                    // runtime element's bound re-proves against that extent
-                    // when the store executes, exactly as a fixed index's
-                    // does.
-                    StructuralTypeShape::ElementView { element } => *element,
-                    _ => {
-                        return unsupported("structural scalar store carrier is not a fixed array");
-                    }
-                };
-                match runtime {
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth }
-                        if !steps.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) =>
-                    {
-                        steps.push(ProjectionStep::AssignmentIndex { depth: *depth });
-                    }
-                    // A borrow-mirrored index names the calling state's own
-                    // scalar parameter — `&mut cells[at]` injects the store
-                    // coordinate `at` — which the scalar source frame reads
-                    // directly rather than a bound selector row.
-                    checked_trees::CheckedRuntimeIndex::Parameter { position } => {
-                        steps.push(ProjectionStep::RuntimeIndexParameter {
-                            position: *position,
-                        });
-                    }
-                    _ => {
-                        return unsupported("structural scalar store carrier path is unsupported");
-                    }
+            CheckedUnitStructuralPathSegment::FixedIndex(_)
+            | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
+                let (step, element) = element_selection(field_owner, segment)?;
+                if matches!(step, ProjectionStep::AssignmentIndex { .. }) && steps.contains(&step) {
+                    return unsupported("structural scalar store carrier path is unsupported");
                 }
+                steps.push(step);
                 element
             }
             _ => return unsupported("structural scalar store carrier path is unsupported"),
@@ -457,9 +402,55 @@ pub(crate) fn lower_structural_field_steps<'a>(
     Ok((steps, field))
 }
 
+/// The element one index segment selects below `owner`, and the step that
+/// selects it. A fixed array's literal index is static geometry bounded by its
+/// declared extent. A view's extent is its own stored runtime length, not a
+/// literal in the type, so even a literal selector is a runtime element whose
+/// bound re-proves against that extent when the operation executes. Scalar
+/// stores and restoration windows share this one decision: Terminal has no
+/// static crossing into an element view.
+fn element_selection(
+    owner: &StructuralTypeDeclaration,
+    segment: &CheckedUnitStructuralPathSegment,
+) -> Result<(ProjectionStep, StructuralTypeId), LoweringError> {
+    let (element, view) = match &owner.shape {
+        StructuralTypeShape::FixedArray { element, length } => {
+            if matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(index) if index >= length)
+            {
+                return unsupported("structural element index is out of bounds");
+            }
+            (*element, false)
+        }
+        StructuralTypeShape::ElementView { element } => (*element, true),
+        _ => return unsupported("structural element carrier is not a fixed array or view"),
+    };
+    let step = match segment {
+        CheckedUnitStructuralPathSegment::FixedIndex(index) if view => {
+            ProjectionStep::RuntimeIndexLiteral { index: *index }
+        }
+        CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+            ProjectionStep::Static(StructuralPathSegment::FixedIndex(*index))
+        }
+        CheckedUnitStructuralPathSegment::RuntimeIndex(
+            checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+        ) => ProjectionStep::AssignmentIndex { depth: *depth },
+        // A borrow-mirrored index names the calling state's own scalar
+        // parameter — `&mut cells[at]` injects the store coordinate `at` —
+        // which the scalar source frame reads directly rather than a bound
+        // selector row.
+        CheckedUnitStructuralPathSegment::RuntimeIndex(
+            checked_trees::CheckedRuntimeIndex::Parameter { position },
+        ) => ProjectionStep::RuntimeIndexParameter {
+            position: *position,
+        },
+        _ => return unsupported("structural element selector is unsupported"),
+    };
+    Ok((step, element))
+}
+
 /// A window path's leaf: the last segment is a record member (`Field`) or an
-/// element selection of a fixed array (`Element`). An element's path is
-/// already complete; it does not borrow an enclosing record's field ID.
+/// element selection of a fixed array or view (`Subtree`). An element's path
+/// is already complete; it does not borrow an enclosing record's field ID.
 pub(crate) enum WindowLeaf<'a> {
     /// The route's last segment names a record member; the hole's declared
     /// type is that field's structural type.
@@ -469,10 +460,10 @@ pub(crate) enum WindowLeaf<'a> {
     Subtree { structural_type: StructuralTypeId },
 }
 
-/// Walk a window operation's spelled path — record fields and fixed-array
-/// elements in any order — to its leaf. The leaf's kind is decided by the
-/// last segment: a field leaf keeps the field-hole spelling Terminal already
-/// admits, and an element leaf selects the array's element type.
+/// Walk a window operation's spelled path — record fields and fixed-array or
+/// view elements in any order — to its leaf. The leaf's kind is decided by
+/// the last segment: a field leaf keeps the field-hole spelling Terminal
+/// already admits, and an element leaf selects the element type.
 pub(crate) fn lower_window_path<'a>(
     root_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
@@ -521,47 +512,29 @@ pub(crate) fn lower_window_path<'a>(
                     LoweringError::Unsupported("structural window nested carrier type is absent"),
                 )?;
             }
-            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = &field_owner.shape else {
-                    return unsupported("structural window carrier is not a fixed array");
-                };
-                if *index >= *length {
-                    return unsupported("structural window fixed index is out of bounds");
+            CheckedUnitStructuralPathSegment::FixedIndex(_)
+            | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
+                // Only the window root's own length bounds a view element; a
+                // view below another carrier is a descriptor, not storage.
+                if matches!(field_owner.shape, StructuralTypeShape::ElementView { .. })
+                    && rest.len() + 1 != path.len()
+                {
+                    return unsupported("structural window view is not the window root");
                 }
-                steps.push(ProjectionStep::Static(StructuralPathSegment::FixedIndex(
-                    *index,
-                )));
-                field_owner = terminal_psi::find_structural_type(structural_types, *element)
-                    .ok_or(LoweringError::Unsupported(
-                        "structural window element type is absent",
-                    ))?;
+                let (step, element) = element_selection(field_owner, segment)?;
+                if !(matches!(step, ProjectionStep::AssignmentIndex { .. })
+                    && steps.contains(&step))
+                {
+                    steps.push(step);
+                }
+                field_owner = terminal_psi::find_structural_type(structural_types, element).ok_or(
+                    LoweringError::Unsupported("structural window element type is absent"),
+                )?;
                 if rest.is_empty() {
                     return Ok((
                         steps,
                         WindowLeaf::Subtree {
-                            structural_type: *element,
-                        },
-                    ));
-                }
-            }
-            CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
-            ) => {
-                let StructuralTypeShape::FixedArray { element, .. } = &field_owner.shape else {
-                    return unsupported("structural window carrier is not a fixed array");
-                };
-                if !steps.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) {
-                    steps.push(ProjectionStep::AssignmentIndex { depth: *depth });
-                }
-                field_owner = terminal_psi::find_structural_type(structural_types, *element)
-                    .ok_or(LoweringError::Unsupported(
-                        "structural window element type is absent",
-                    ))?;
-                if rest.is_empty() {
-                    return Ok((
-                        steps,
-                        WindowLeaf::Subtree {
-                            structural_type: *element,
+                            structural_type: element,
                         },
                     ));
                 }

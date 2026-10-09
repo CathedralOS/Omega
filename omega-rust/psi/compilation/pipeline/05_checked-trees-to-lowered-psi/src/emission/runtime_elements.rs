@@ -263,6 +263,63 @@ pub(crate) fn complete_path(
     Ok(path)
 }
 
+/// Observe a destination view's live extent directly before the operation
+/// whose runtime elements it bounds. A view's elements have no declared
+/// length, so every runtime element selected from it owes `index < length`
+/// against this observation, whether the operation stores a scalar field,
+/// replaces a stored view, or opens or repairs a restoration window. Static
+/// paths and fixed-array roots observe nothing. A reference root keeps its
+/// own authority; following its referent here only finds the extent.
+pub(crate) fn observe_element_extent(
+    destination: semantic_vocabulary::PlaceId,
+    mut structural_type: semantic_vocabulary::StructuralTypeId,
+    steps: &[ProjectionStep],
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<(), LoweringError> {
+    if let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
+        terminal_psi::find_structural_type(declarations, structural_type)
+            .map(|declaration| &declaration.shape)
+    {
+        structural_type = *referent;
+    }
+    let is_view = terminal_psi::find_structural_type(declarations, structural_type).is_some_and(
+        |declaration| {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            )
+        },
+    );
+    if !is_view
+        || !steps
+            .iter()
+            .any(|step| !matches!(step, ProjectionStep::Static(_)))
+    {
+        return Ok(());
+    }
+    let length = crate::terminal_identities::value_id(crate::terminal_identities::allocate_dense(
+        next_value,
+    )?);
+    let observation = operations.allocate();
+    operations.push(terminal_psi::Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: observation,
+        result: crate::emission::operation_emission::buffer::scalar_result_declaration(
+            length,
+            crate::emission::scalar_types::terminal_scalar_type(
+                checked_trees::types::PrimitiveType::U64,
+            )?,
+        ),
+        kind: terminal_psi::OperationKind::ElementViewLength {
+            source: destination,
+        },
+    });
+    Ok(())
+}
+
 /// The retained source of one `AssignmentIndex` coordinate: its bound pure
 /// expression, or the computation root the scalar evaluator completes. The
 /// checked producer admitted the runtime element only when exactly one of

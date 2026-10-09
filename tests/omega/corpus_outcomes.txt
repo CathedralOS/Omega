@@ -1582,6 +1582,12 @@ fail/ownership/read_through_consumed_owner_rejected rejected 732ms expected @78c
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 fail/ownership/read_through_dropped_owner_rejected rejected 771ms expected @78cf629f34f9+wt
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
+fail/ownership/view_element_window_live_borrow rejected 433ms expected @37c6aa84a411+wt
+	statement 1 mutates `tokens[0]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/ownership/view_element_window_missing_repair rejected 365ms expected @37c6aa84a411+wt
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `refill`, state `entry` (statement 0): `tokens[0]` must hold a value again before this state's exits consume the borrow
+fail/ownership/view_element_window_unproven_index rejected 446ms expected @37c6aa84a411+wt
+	cannot prove index `2` is within unknown slice length of `tokens` in refill::entry
 fail/ownership/whole_borrowed_forwarded_live_descendant rejected 394ms expected @50701b2d3809+wt
 	statement 2 moves `inventory` while local borrow `observation` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `forwarded` while local borrow `observation` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
@@ -3471,6 +3477,7 @@ pass/ownership/runtime_nested_projected_claim_return_exit checked 1603ms check-t
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 1325ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_repeated_linear_result_forwarding_exit checked 1453ms check-target:macos_arm64 @6605065c28a7
 pass/ownership/runtime_retained_alias_referent_transform_exit checked 1771ms check-target:macos_arm64 @76bbeef8b4d2
+pass/ownership/runtime_view_parameter_element_window_exit checked 1946ms check-target:macos_arm64 @37c6aa84a411+wt
 pass/ownership/runtime_whole_borrowed_transform_exit checked 1786ms check-target:macos_arm64 @50701b2d3809+wt
 pass/ownership/runtime_whole_borrowed_window_crash_exit checked 1781ms check-target:macos_arm64 @7d761e0fef5f
 pass/ownership/state_graph_construction_operand_moves_exit checked 3174ms check-target:macos_arm64 @c70a706629c8+wt

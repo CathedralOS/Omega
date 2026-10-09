@@ -27,6 +27,13 @@
 //! the referent; custody never changes to ownership of the referent. The same
 //! declaration walk serves scalar stores and structural restoration windows.
 //!
+//! An exclusive `&mut [T]` parameter owns none of its elements and has no
+//! static extent. A window on one of its elements keeps the view's own loan as
+//! root and selects the element with a `RuntimeIndex` (a literal selector
+//! included), owed against an `ElementViewLength` observation emitted directly
+//! before each move and store, as element-view scalar stores do. The ledger
+//! still keys the hole by its checked route.
+//!
 //! A whole-root route under an exclusive `&mut` parameter loan is a root
 //! window: `MoveStructuralField`/`StoreStructuralField` with no field and an
 //! empty path, the whole-value assignment `referent = value` through the
@@ -104,11 +111,13 @@ struct CapturedAssignmentDestination {
 }
 
 /// The resolved exact place a move or repair names beneath a window root:
-/// the carrier's projection steps (a runtime element evaluates when the
-/// operation emits), the checked route as the hole's key, the leaf's field
-/// declaration id (`None` for a root window), and the hole's declared type.
+/// the root's declared type, the carrier's projection steps (a runtime element
+/// evaluates when the operation emits), the checked route as the hole's key,
+/// the leaf's field declaration id (`None` for a root window), and the hole's
+/// declared type.
 struct ResolvedWindowPlace {
     source: PlaceId,
+    root_type: StructuralTypeId,
     steps: Vec<ProjectionStep>,
     checked_path: Vec<CheckedUnitStructuralPathSegment>,
     field: Option<StructuralFieldId>,
@@ -298,6 +307,14 @@ impl BorrowedWindowLedger {
                 },
             ));
         }
+        runtime_elements::observe_element_extent(
+            source,
+            place.root_type,
+            &place.steps,
+            structural_types,
+            next_value,
+            operations,
+        )?;
         let moved_place = place_id(allocate_dense(next_place)?);
         operations.invalidate_field_lengths_under(source, &path);
         operations.push_leaf(
@@ -389,6 +406,14 @@ impl BorrowedWindowLedger {
                 "the repair value's type differs from the type moved out of the place",
             ));
         }
+        runtime_elements::observe_element_extent(
+            source,
+            place.root_type,
+            &place.steps,
+            structural_types,
+            next_value,
+            operations,
+        )?;
         operations.invalidate_field_lengths_under(source, &path);
         operations.push_leaf(
             OperationResult::Unit,
@@ -548,6 +573,7 @@ fn resolve_window_place(
         }
         return Ok(ResolvedWindowPlace {
             source,
+            root_type,
             steps: Vec::new(),
             checked_path: Vec::new(),
             field: None,
@@ -563,10 +589,11 @@ fn resolve_window_place(
                 .iter()
                 .any(|segment| !matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
             {
-                "index or referent routes do not resolve through the declared records and \
-             fixed arrays"
+                "index or referent routes do not resolve through the declared records, \
+                 fixed arrays and element views"
             } else {
-                "the route does not resolve through the declared records and fixed arrays"
+                "the route does not resolve through the declared records, fixed arrays and \
+                 element views"
             };
             unpinned(&spelling, reason)
         })?;
@@ -598,6 +625,7 @@ fn resolve_window_place(
     }
     Ok(ResolvedWindowPlace {
         source,
+        root_type,
         steps,
         checked_path,
         field,

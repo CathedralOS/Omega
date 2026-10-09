@@ -659,6 +659,14 @@ defines the complete product bar.
     `runtime_borrowed_sum_empty_restore_exit` (0) for returned caller-local
     claim rosters, empty/payload case changes, computed mutating calls and a
     previously moved disjoint sibling; qualify remaining hosts.
+    Keep `runtime_view_parameter_element_window_exit` (0) for copy and affine
+    whole-element and element-field windows on a `&mut [T]` parameter's own
+    loan, bounded by the view's live length, with
+    `fail/ownership/view_element_window_{unproven_index,live_borrow,missing_repair}`;
+    qualify remaining hosts. A local subslice view (`let tail: &mut [T] =
+    view[a..b]`) still roots no window: stage 04 keys windows on parameters
+    only, and scalar stores through that local already fail native
+    legalization with `SourceCustodyMismatch`.
     Direct implicit replacement remains red on macOS ARM64:
     `omega run --both samples/cli/basics/borrowed_sum_population/main.omg`
     declines `populate`'s statement cleanup actions. The stage-04 cleanup

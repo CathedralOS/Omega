@@ -1249,6 +1249,7 @@ pass/ownership/runtime_linear_case_payload_forward_exit built 1664ms exit:0 @332
 pass/ownership/runtime_nested_projected_claim_return_exit built 1631ms exit:0 @cd27c16e2c35
 pass/ownership/runtime_repeated_linear_result_forwarding_exit built 1508ms exit:0 @6605065c28a7
 pass/ownership/runtime_retained_alias_referent_transform_exit built 1877ms exit:42 @76bbeef8b4d2
+pass/ownership/runtime_view_parameter_element_window_exit built 2034ms exit:0 @37c6aa84a411+wt
 pass/ownership/runtime_whole_borrowed_window_crash_exit built 1867ms exit:signal signal:5 @7d761e0fef5f
 pass/ownership/state_graph_construction_operand_moves_exit built 2686ms exit:0 @c70a706629c8+wt
 pass/parameters/byte_store_root_after_scalar_formal_exit built 2002ms exit:70 @8fa15c53cbf3+wt

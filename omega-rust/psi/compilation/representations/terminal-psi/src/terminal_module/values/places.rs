@@ -50,12 +50,14 @@ pub enum StructuralPathSegment {
         start: u64,
         end: u64,
     },
-    /// A runtime-selected element of a fixed array (see the module
-    /// documentation). `index` is an integer scalar the carrying operation
-    /// may read — defined before it in the same machine. `obligation` is owned
-    /// by that operation; the verifier reconstructs `index < extent` (and
-    /// `0 <= index` for a signed carrier) against the array the preceding
-    /// segments resolve to, and a certificate must discharge it there.
+    /// A runtime-selected element of a fixed array, or of an element view
+    /// at the root (see the module documentation). `index` is an integer
+    /// scalar the carrying operation may read — defined before it in the same
+    /// machine. `obligation` is owned by that operation; the verifier
+    /// reconstructs `index < extent` (and `0 <= index` for a signed carrier)
+    /// against the array the preceding segments resolve to, or against a root
+    /// view's dominating `ElementViewLength`, and a certificate must discharge
+    /// it there.
     RuntimeIndex {
         index: ValueId,
         obligation: ObligationId,

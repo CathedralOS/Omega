@@ -193,6 +193,10 @@ segment with an obligation-free `FixedIndex`. Copying preserves the readable
 source and its loan; it creates only the unrestricted result. Fixed-array
 selectors remain statically bounded by their declarations. The current producer
 supports this copy through a root element view, not a nested view descriptor.
+Whole-element extraction and replacement through an exclusive root view select
+the element the same way and open its
+[restoration window](ownership.md#borrowed-storage-restoration) on the view's
+loan.
 
 Structural signatures derive from parameter declarations and resolved referent
 shapes through one exhaustive access classifier. All structural-call producers

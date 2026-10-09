@@ -127,6 +127,19 @@ overlaps the vacated referent until the repair, and the repair invalidates every
 fact observed beneath the root. A plain sum loan, like a record loan, may join a
 block parameter as its referent's address, so a later state can replace it.
 
+An element of an exclusive element view (`&mut [T]`, a machine or block
+parameter) is a place reached through that view's loan. The view owns none of
+its elements and has no static extent, so the window keeps the view as its root
+and selects the element with a `RuntimeIndex`, a literal selector included,
+owed against the view's dominating `ElementViewLength`. The hole lies in the
+viewed collection; the displaced value carries the element type's own
+multiplicity, so an affine element is disposed before an occupied store and a
+moved-out element is repaired without disposal. A whole-collection view of
+visible owned or borrowed storage instead names that storage's own path.
+`omega run --both tests/omega/pass/ownership/runtime_view_parameter_element_window_exit/main.omg`
+replaces copy and affine elements through view parameters, a forwarded state
+parameter and a subslice, and exits 0 in both engines on macOS ARM64.
+
 Replay checks reads, calls, joins, loan restoration, and exits against the exact
 frontier. Reject missing repair on a returning path, duplicate extraction,
 overlapping observation, wrong-place repair, whole-owner cleanup while incomplete,

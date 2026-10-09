@@ -134,11 +134,12 @@ pub(super) fn copy(
 }
 
 /// Reseat the field a borrowed-window move vacated: the inverse of `copy`.
-/// The move copied the field out through the root's referent pointer; the
-/// store reads the consumed value through its durable pointer or incoming
-/// ABI fragments and writes the same extent back at the field's offset. Legalization replay has
-/// already rejoined the offset and extent to the declared field and the
-/// value's exact producer.
+/// The move copied the field out through the root's referent pointer, or a
+/// view element out of the view's backing; the store reads the consumed value
+/// through its durable pointer or incoming ABI fragments and writes the same
+/// extent back at the same projection base. Legalization replay has already
+/// rejoined the offset and extent to the declared field and the value's exact
+/// producer.
 pub(super) fn reseat(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
@@ -197,16 +198,27 @@ pub(super) fn reseat(
             .map(|(_, pointer)| *pointer)
             .ok_or_else(|| invalid())
     };
-    let root = pointer_of(destination.place())?;
     let root = if matches!(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
     ) {
+        let root = pointer_of(destination.place())?;
         crate::selection::reference_input::store_destination(source, destination, path)
             .ok_or(invalid())?;
         super::reference::load(builder, row, destination.place(), root)?
+    } else if path.is_empty() {
+        pointer_of(destination.place())?
     } else {
-        root
+        // A view element is reseated in the view's backing, exactly where
+        // the move copied it from; the descriptor itself is never indexed.
+        super::runtime_address::projection_base(
+            source,
+            builder,
+            row,
+            destination.place(),
+            *byte_offset,
+        )?
+        .ok_or_else(invalid)?
     };
     // The spelled path may end in a runtime element (`nodes[i] = node`): the
     // destination pointer scales each selector by its stride, in path order,
