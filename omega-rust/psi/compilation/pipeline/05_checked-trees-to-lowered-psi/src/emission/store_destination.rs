@@ -37,9 +37,11 @@ pub(crate) fn local_store_root<'a>(
     parameters: impl Iterator<Item = &'a terminal_psi::StructuralParameterDeclaration>,
     operations: &crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<LocalStoreRoot<'a>, LoweringError> {
-    let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } = locals
-        .iter()
-        .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
+    let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } =
+        crate::expression_preparation::bindings::structural_local_by_root(
+            locals,
+            facts::PlaceRoot::Symbol(symbol),
+        )
         .ok_or(LoweringError::Unsupported(
             "store names an unknown structural local",
         ))?;
@@ -109,9 +111,11 @@ pub(crate) fn descriptor_home(
     locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     operations: &crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<(PlaceId, StructuralTypeId, bool), LoweringError> {
-    let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } = locals
-        .iter()
-        .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
+    let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } =
+        crate::expression_preparation::bindings::structural_local_by_root(
+            locals,
+            facts::PlaceRoot::Symbol(symbol),
+        )
         .ok_or(LoweringError::Unsupported(
             "descriptor store names an unknown structural local",
         ))?;
