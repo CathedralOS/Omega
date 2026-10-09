@@ -37,4 +37,5 @@ pub use syntax_projection::{ BuildEntrySyntaxProjection, extract_build_declarati
     package_authored_type_name, project_build_declaration_from_source, project_build_declaration_in_entry, project_build_entry_syntax, read_build_file_source,
 };
 
+
 pub(crate) use syntax_projection::project_build_declaration_syntax;

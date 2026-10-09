@@ -1,13 +1,9 @@
 //! Whole-plan identity, evidence-roster, and function-roster replay.
 
-use std::collections::BTreeMap;
-
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
-use target::NativeTarget;
 
 use super::{
-    AbstractToTargetTranslationValidationError,
-    AbstractToTargetTranslationValidationReceipt};
+    AbstractToTargetTranslationValidationError};
 
 /// Raw IEEE fused multiply-add has no target realization; reject it even when
 /// the target rows omit it.

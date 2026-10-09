@@ -66,7 +66,5 @@ pub use identity::{
     encode_placement, encode_provider_execution, encode_register, encode_scalar_type, encode_shape,
     legalized_operation_plan_identity,
 };
-pub(crate) use identity::{ encode_callback_materialization, encode_eightbyte_class, encode_indirect_pointer, encode_native_place};
-
 #[cfg(test)]
 mod tests;

@@ -1,13 +1,12 @@
 //! Independent semantic/proof-to-object reconstruction.
 
 use super::{
-    FunctionFragmentObjectContainerManifest, OptimizedObjectArtifactCustodyReceipt,
+      OptimizedObjectArtifactCustodyReceipt,
     OptimizedObjectArtifactError, OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifest,
     OptimizedObjectArtifactManifestIdentity, OptimizedObjectArtifactRecord,
     OptimizedObjectArtifactStage, OptimizedObjectArtifactStatistics,
-    OptimizedObjectArtifactUnavailableData, RelocationFreeObjectContainerIdentity,
-    StagedOptimizedRelocationFreeObjectContainer, ValidatedOptimizedObjectArtifactManifest,
-};
+    OptimizedObjectArtifactUnavailableData,  
+    StagedOptimizedRelocationFreeObjectContainer, ValidatedOptimizedObjectArtifactManifest};
 
 pub(super) fn construct_artifact(
     terminal: &terminal_codec::CanonicalTerminalArtifact,

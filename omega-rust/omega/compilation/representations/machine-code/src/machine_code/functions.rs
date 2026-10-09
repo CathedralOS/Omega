@@ -16,15 +16,14 @@ use semantic_vocabulary::PlaceId;
 use crate::{
     BoundarySettlementRecord, ForeignCallRelocation, InstalledProviderUnitScalarCallRecord,
     InternalCallRelocation, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
-    InternalUnitScalarCallRecord, MachineCodePlan, ParameterFunctionAbiRecord, PortEffectRecord,
+    InternalUnitScalarCallRecord,   ParameterFunctionAbiRecord, PortEffectRecord,
     ScalarControlAffineCleanupRecord, ScalarStackEvidence, ScalarStructuralScalarFieldStoreRecord,
     SemanticCodeAttribution, StructuralCallScalarReturnEvidence, StructuralReturnRecord,
     UnitAffineCleanupRecord, UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord,
     UnitIntegerConstantRecord, UnitParameterHomeRecord, UnitParameterRecord, UnitScalarHomeRecord,
     UnitStackEvidence, UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
     X86FloatingControlRecord, X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
-    unit_call_arguments,
-};
+    unit_call_arguments};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::TerminalPsiIdentity;

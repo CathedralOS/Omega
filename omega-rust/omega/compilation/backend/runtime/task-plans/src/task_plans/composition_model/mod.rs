@@ -18,11 +18,3 @@
 //! channel handoffs) have no source or plan vocabulary today, so the model
 //! publishes their absence explicitly; bounded exploration results supply
 //! neither.
-
-use crate::task_plans::identities::CompositionModelId;
-use crate::{
-    ActivationCarryObligations, ActivationPlanId, CallingPlanId, MachineContractId, MachineEntryId,
-    SelectedTaskRuntimeProviderFact, StackPlan, StackPlanProjectionId, SuspensionCrossingId,
-    TaskSpecializationCommitment, TaskStartOperation, ValueLayoutId,
-};
-use symbols::SymbolHandle;

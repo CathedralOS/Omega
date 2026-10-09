@@ -4,8 +4,7 @@
 use crate::task_plans::stack_composition::WcsuStackPlanProjection;
 use crate::{
     ActivationPlanCandidate, ExecutorPreservationAxis, ExecutorSelectionCandidate,
-    LiveCarryStorage, TaskStartOperation, ValidatedActivationPlan, ValidatedExecutorSelection,
-};
+    LiveCarryStorage,   ValidatedActivationPlan};
 use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
 pub(crate) fn activation_plan_report_fingerprint(

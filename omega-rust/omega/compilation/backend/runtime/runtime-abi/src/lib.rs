@@ -19,4 +19,3 @@ pub use scalar_reference::{ ScalarStorageCodec};
 pub use runtime_abi::{
     build_runtime_abi_plan,
 };
-pub(crate) use runtime_abi::{  RuntimeAbiPlan};

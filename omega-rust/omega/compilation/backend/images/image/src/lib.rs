@@ -145,7 +145,6 @@ pub use final_image::{
     place_data_regions, place_executable_regions, validate_placed_data_region_inventory,
     validate_placed_executable_region_inventory,
 };
-pub(crate) use final_image::PlacedExecutableGap;
 pub use footprint_certificate::{ FinalFootprintCertificateDigest, FinalFootprintCoverageDigest,
     FinalFootprintPlacementBindingDigest,
 };
@@ -165,6 +164,7 @@ pub use symbols::{
 };
 pub use x86_64_relocations::apply_x86_64_relocations;
 
+pub(crate) use final_image::PlacedExecutableGap;
 /// Round `value` up to a multiple of `alignment` (a zero alignment is one).
 pub fn align_to(value: usize, alignment: usize) -> usize {
     let alignment = alignment.max(1);

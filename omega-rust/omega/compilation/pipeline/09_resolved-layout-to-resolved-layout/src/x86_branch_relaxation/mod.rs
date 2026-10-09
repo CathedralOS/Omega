@@ -8,8 +8,7 @@ mod validation;
 
 pub(crate) use catalog::x86_rel8_selected;
 pub(crate) use catalog::{
-    FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
-    FunctionRelativeLayoutRuleCatalogEntry, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES};
+      FunctionRelativeLayoutCatalogError};
 pub use error::{OptimizedX86BranchRelaxationError};
 
 use optimization_core::OptimizationWorkBudget;
