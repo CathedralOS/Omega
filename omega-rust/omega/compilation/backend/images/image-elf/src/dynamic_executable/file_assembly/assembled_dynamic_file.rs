@@ -325,7 +325,8 @@ fn procedure_got_import_custody(
         .find(|section| section.kind() == ElfPlacedDynamicSectionKind::ProcedureGot)
         .ok_or_else(|| Diagnostic::error("dynamic ELF load layout has no procedure GOT section"))?;
     crate::dynamic_executable::checked::require(
-        checked_u64(extent.len(), "dynamic ELF procedure GOT extent")? == section.byte_size(),
+        super::super::checked_u64(extent.len(), "dynamic ELF procedure GOT extent")?
+            == section.byte_size(),
         "dynamic ELF procedure GOT extent drifted from its placed section",
     )?;
     let base = section.virtual_address().ok_or_else(|| {
@@ -493,7 +494,10 @@ fn derive_contents(
             ordinal: checked_u32(ordinal, "dynamic ELF fragment ordinal")?,
             kind: fragment.kind,
             file_offset: fragment.file_offset,
-            byte_count: checked_u64(fragment.bytes.len(), "dynamic ELF fragment size")?,
+            byte_count: super::super::checked_u64(
+                fragment.bytes.len(),
+                "dynamic ELF fragment size",
+            )?,
         });
     }
 
@@ -557,7 +561,8 @@ fn validate_contents(
         .enumerate()
     {
         let expected_ordinal = checked_u32(ordinal, "dynamic ELF fragment ordinal")?;
-        let expected_byte_count = checked_u64(fragment.bytes.len(), "dynamic ELF fragment size")?;
+        let expected_byte_count =
+            super::super::checked_u64(fragment.bytes.len(), "dynamic ELF fragment size")?;
         crate::dynamic_executable::checked::require(
             placement.ordinal == expected_ordinal
                 && placement.kind == fragment.kind
@@ -639,7 +644,8 @@ fn expected_fragments(
         }
         let bytes = section_bytes(resolved_linkage, index, &row.bytes);
         crate::dynamic_executable::checked::require(
-            checked_u64(bytes.len(), "dynamic ELF section payload size")? == placed.byte_size(),
+            super::super::checked_u64(bytes.len(), "dynamic ELF section payload size")?
+                == placed.byte_size(),
             "dynamic ELF assembled section size drifted from absolute placement",
         )?;
         fragments.push(Fragment {
@@ -700,7 +706,8 @@ fn validate_file_extents(
     file_byte_count: usize,
 ) -> Result<(), Diagnostic> {
     let load = load_layout(resolved_linkage);
-    let file_byte_count = checked_u64(file_byte_count, "assembled dynamic ELF file size")?;
+    let file_byte_count =
+        super::super::checked_u64(file_byte_count, "assembled dynamic ELF file size")?;
     for header in load.program_headers() {
         let end = crate::dynamic_executable::checked::checked_sum_u64(
             header.file_offset(),
@@ -722,10 +729,14 @@ fn validate_file_extents(
     )?;
     crate::dynamic_executable::checked::require(
         data_end <= file_byte_count
-            && checked_u64(load.retained_image().memory.text.len(), "source text size")?
-                == image.text_size()
-            && checked_u64(load.retained_image().memory.data.len(), "source data size")?
-                == image.data_size(),
+            && super::super::checked_u64(
+                load.retained_image().memory.text.len(),
+                "source text size",
+            )? == image.text_size()
+            && super::super::checked_u64(
+                load.retained_image().memory.data.len(),
+                "source data size",
+            )? == image.data_size(),
         "assembled dynamic ELF source-memory extent drifted",
     )
 }
@@ -736,7 +747,7 @@ fn expected_file_byte_count(
     let envelope = resolved_linkage.envelope();
     let end = crate::dynamic_executable::checked::checked_sum_u64(
         envelope.section_header_table_file_offset(),
-        checked_u64(
+        super::super::checked_u64(
             envelope.section_header_table_bytes().len(),
             "dynamic ELF section-header table size",
         )?,
@@ -821,10 +832,6 @@ fn hash_fragment_kind(hash: &mut Fnv1a, kind: ElfDynamicFileFragmentKind) {
 
 fn checked_u32(value: usize, context: &str) -> Result<u32, Diagnostic> {
     u32::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds u32")))
-}
-
-fn checked_u64(value: usize, context: &str) -> Result<u64, Diagnostic> {
-    u64::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Xword")))
 }
 
 #[cfg(test)]

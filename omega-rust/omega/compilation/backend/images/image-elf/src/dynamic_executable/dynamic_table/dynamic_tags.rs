@@ -251,7 +251,7 @@ fn derive_contents(
     }
     rows.push(ElfDynamicSemanticRow {
         tag: ElfDynamicTag::ProcedureRelocationSize,
-        value: ElfDynamicValue::ProcedureRelocationByteCount(checked_u64(
+        value: ElfDynamicValue::ProcedureRelocationByteCount(super::super::checked_u64(
             descriptors.templates().procedure_relocation_byte_count(),
             "procedure relocation byte count",
         )?),
@@ -288,7 +288,7 @@ fn derive_contents(
     )?;
     rows.push(ElfDynamicSemanticRow {
         tag: ElfDynamicTag::DynamicStringSize,
-        value: ElfDynamicValue::DynamicStringByteCount(checked_u64(
+        value: ElfDynamicValue::DynamicStringByteCount(super::super::checked_u64(
             dynamic_payloads(descriptors).dynamic_string_byte_count(),
             "dynamic string byte count",
         )?),
@@ -315,14 +315,14 @@ fn derive_contents(
     )?;
     rows.push(ElfDynamicSemanticRow {
         tag: ElfDynamicTag::GeneralRelocationSize,
-        value: ElfDynamicValue::GeneralRelocationByteCount(checked_u64(
+        value: ElfDynamicValue::GeneralRelocationByteCount(super::super::checked_u64(
             descriptors.templates().general_relocation_byte_count(),
             "general relocation byte count",
         )?),
     });
     rows.push(ElfDynamicSemanticRow {
         tag: ElfDynamicTag::GeneralRelocationEntrySize,
-        value: ElfDynamicValue::GeneralRelocationEntryByteCount(checked_u64(
+        value: ElfDynamicValue::GeneralRelocationEntryByteCount(super::super::checked_u64(
             ELF64_RELA_SIZE,
             "general relocation entry size",
         )?),
@@ -341,7 +341,7 @@ fn derive_contents(
     )?;
     rows.push(ElfDynamicSemanticRow {
         tag: ElfDynamicTag::GnuVersionRequirementCount,
-        value: ElfDynamicValue::VersionRequirementRecordCount(checked_u64(
+        value: ElfDynamicValue::VersionRequirementRecordCount(super::super::checked_u64(
             structural.verneed.len(),
             "GNU version-requirement record count",
         )?),
@@ -529,7 +529,7 @@ fn validate_fixed_rows(
     let fixed = [
         ElfDynamicSemanticRow {
             tag: ElfDynamicTag::ProcedureRelocationSize,
-            value: ElfDynamicValue::ProcedureRelocationByteCount(checked_u64(
+            value: ElfDynamicValue::ProcedureRelocationByteCount(super::super::checked_u64(
                 descriptors.templates().procedure_relocation_byte_count(),
                 "validated procedure relocation size",
             )?),
@@ -541,7 +541,7 @@ fn validate_fixed_rows(
         address_row(ElfDynamicTag::DynamicSymbol),
         ElfDynamicSemanticRow {
             tag: ElfDynamicTag::DynamicStringSize,
-            value: ElfDynamicValue::DynamicStringByteCount(checked_u64(
+            value: ElfDynamicValue::DynamicStringByteCount(super::super::checked_u64(
                 dynamic_payloads(descriptors).dynamic_string_byte_count(),
                 "validated dynamic string size",
             )?),
@@ -558,14 +558,14 @@ fn validate_fixed_rows(
         address_row(ElfDynamicTag::Rela),
         ElfDynamicSemanticRow {
             tag: ElfDynamicTag::GeneralRelocationSize,
-            value: ElfDynamicValue::GeneralRelocationByteCount(checked_u64(
+            value: ElfDynamicValue::GeneralRelocationByteCount(super::super::checked_u64(
                 descriptors.templates().general_relocation_byte_count(),
                 "validated general relocation size",
             )?),
         },
         ElfDynamicSemanticRow {
             tag: ElfDynamicTag::GeneralRelocationEntrySize,
-            value: ElfDynamicValue::GeneralRelocationEntryByteCount(checked_u64(
+            value: ElfDynamicValue::GeneralRelocationEntryByteCount(super::super::checked_u64(
                 ELF64_RELA_SIZE,
                 "validated general relocation entry size",
             )?),
@@ -574,7 +574,7 @@ fn validate_fixed_rows(
         address_row(ElfDynamicTag::GnuVersionRequirement),
         ElfDynamicSemanticRow {
             tag: ElfDynamicTag::GnuVersionRequirementCount,
-            value: ElfDynamicValue::VersionRequirementRecordCount(checked_u64(
+            value: ElfDynamicValue::VersionRequirementRecordCount(super::super::checked_u64(
                 structural.verneed.len(),
                 "validated version-requirement count",
             )?),
@@ -727,10 +727,6 @@ fn dynamic_string(bytes: &[u8], offset: u32) -> Result<&[u8], Diagnostic> {
         .position(|byte| *byte == 0)
         .ok_or_else(|| Diagnostic::error("DT_NEEDED object name is not NUL-terminated"))?;
     Ok(&tail[..terminator])
-}
-
-fn checked_u64(value: usize, context: &'static str) -> Result<u64, Diagnostic> {
-    u64::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Xword")))
 }
 
 fn non_authoritative_tag_compatibility_fingerprint(

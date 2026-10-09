@@ -282,3 +282,8 @@ pub(crate) const fn image_section_tag(section: image::FinalImageSection) -> u8 {
         image::FinalImageSection::None => 4,
     }
 }
+
+/// Rejects a usize that cannot ride the Elf64_Xword wire field.
+pub(super) fn checked_u64(value: usize, context: &str) -> Result<u64, Diagnostic> {
+    u64::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Xword")))
+}
