@@ -201,6 +201,12 @@ impl<'program> StructuralJudge<'program> {
                 );
             }
         }
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT normal-call expression={expression:?} public_owner={:?} result_type={result_type:?} equations={equations:?}",
+                owner_symbol(&owner),
+            );
+        }
         if equations.is_empty() {
             return;
         }

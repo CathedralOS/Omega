@@ -1493,7 +1493,15 @@ impl<'program> StructuralJudge<'program> {
                 let Some((left, right)) = structural_term_pair(program, binary) else {
                     return StructuralJudgment::Unknown;
                 };
-                let equality = self.judge_equation(self.resolve(left), self.resolve(right), 0);
+                let left = self.resolve(left);
+                let right = self.resolve(right);
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT equality caller={:?} left={left:?} right={right:?} rewrites={:?}",
+                        self.machine_symbol, self.rewrites,
+                    );
+                }
+                let equality = self.judge_equation(left, right, 0);
                 if binary.operator == BinaryOperator::Equal {
                     equality
                 } else {
