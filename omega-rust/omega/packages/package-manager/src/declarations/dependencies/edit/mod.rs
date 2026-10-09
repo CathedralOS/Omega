@@ -15,6 +15,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 const BUILD_FILE_NAME: &str = "build.omg";
+
 const BUILD_MACHINE_NAME: &str = "build";
 const BUILDER_PARAMETER_NAME: &str = "builder";
 
@@ -102,10 +103,6 @@ impl BuildDependencyManualPatch {
             current_statement,
             proposed_statement,
         }
-    }
-
-    pub fn build_path(&self) -> &Path {
-        &self.build_path
     }
 
     pub fn expected_sha256(&self) -> &[u8; 32] {

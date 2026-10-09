@@ -261,9 +261,6 @@ impl CanonicalSourceClosureSubjectError {
         Self { message }
     }
 
-    pub const fn message(&self) -> &'static str {
-        self.message
-    }
 }
 
 impl fmt::Display for CanonicalSourceClosureSubjectError {

@@ -60,9 +60,6 @@ pub(super) struct GitAcquisitionCache<'a> {
 }
 
 impl<'a> GitAcquisitionCache<'a> {
-    pub(super) fn new(resolver: &'a SourceResolver) -> Self {
-        Self::with_options(resolver, GitResolutionOptions::default())
-    }
 
     pub(super) fn with_options(
         resolver: &'a SourceResolver,
@@ -232,24 +229,6 @@ pub(super) fn resolve_workspace_member_from_cache(
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     match cache {
         SourceCacheLane::Retained(lane) => resolve_workspace_member_package_source_in_lane(
-            workspace_root_source,
-            member_path,
-            live_workspace_root,
-            lane,
-            limits,
-        ),
-    }
-}
-
-pub(super) fn resolve_workspace_member_project_from_cache(
-    workspace_root_source: &SourceLineage,
-    member_path: SourceRelativePath,
-    live_workspace_root: impl AsRef<Path>,
-    cache: SourceCacheLane<'_>,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    match cache {
-        SourceCacheLane::Retained(lane) => resolve_workspace_member_project_source_in_lane(
             workspace_root_source,
             member_path,
             live_workspace_root,

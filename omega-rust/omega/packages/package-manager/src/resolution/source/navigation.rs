@@ -13,10 +13,4 @@ pub(crate) enum PackageSourceNavigation {
 }
 
 impl PackageSourceNavigation {
-    pub const fn member_path(&self) -> Option<&SourceRelativePath> {
-        match self {
-            Self::Root => None,
-            Self::Member(path) => Some(path),
-        }
-    }
 }

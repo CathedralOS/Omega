@@ -49,29 +49,6 @@ pub(crate) struct CandidateCompilation<'request, 'closure> {
 }
 
 impl<'request, 'closure> CandidateCompilation<'request, 'closure> {
-    /// Observational compilation: no root snapshot and no granted consent.
-    pub fn new(target_closure: &'request ExactTargetPackageSourceClosure<'closure>) -> Self {
-        Self {
-            target_closure,
-            root_build_snapshot: None,
-            restricted_build_checkpoint: None,
-        }
-    }
-}
-
-/// Compile the exact dependency closure and return its compiler-issued reviews.
-/// Borrow the invoking operation's resource owner. Binding discovery is not acceptance.
-pub(crate) fn compile_resolved_package_reviews(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    session: &mut PackageBuildSession,
-    bindings: SemanticBindingReview<'_>,
-) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    compile_resolved_package_reviews_reusing(
-        CandidateCompilation::new(target_closure),
-        bindings,
-        session,
-        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
-    )
 }
 
 /// The same candidate review under an explicit [`CandidateCompilation`],

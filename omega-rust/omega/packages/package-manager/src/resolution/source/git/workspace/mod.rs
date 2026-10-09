@@ -103,10 +103,6 @@ impl BuildDeclarationEvidence {
         }
     }
 
-    pub fn repository_path(&self) -> &str {
-        &self.repository_path
-    }
-
     pub const fn byte_count(&self) -> usize {
         self.byte_count
     }
@@ -148,10 +144,6 @@ impl GitWorkspaceMemberPlan {
         &self.package_name
     }
 
-    pub const fn role(&self) -> BuildDeclarationKind {
-        self.role
-    }
-
     pub const fn declaration(&self) -> &BuildDeclarationEvidence {
         &self.declaration
     }
@@ -174,10 +166,6 @@ impl GitWorkspaceEvidence {
             workspace_declaration,
             members,
         }
-    }
-
-    pub const fn workspace_declaration(&self) -> &BuildDeclarationEvidence {
-        &self.workspace_declaration
     }
 
     pub fn members(&self) -> &[GitWorkspaceMemberPlan] {
@@ -231,10 +219,6 @@ impl GitWorkspaceSelectionPlan {
 
     pub const fn workspace_evidence(&self) -> &GitWorkspaceEvidence {
         &self.workspace
-    }
-
-    pub const fn workspace_declaration(&self) -> &BuildDeclarationEvidence {
-        self.workspace.workspace_declaration()
     }
 
     pub fn members(&self) -> &[GitWorkspaceMemberPlan] {

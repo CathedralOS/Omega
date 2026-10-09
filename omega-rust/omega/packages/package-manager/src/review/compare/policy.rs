@@ -158,9 +158,6 @@ impl PackagePolicyRowChange {
     pub fn kind(&self) -> PackagePolicyRowKind {
         self.row().kind()
     }
-    pub fn key_bytes(&self) -> &[u8] {
-        self.row().key_bytes()
-    }
     pub const fn change(&self) -> PackagePolicyChangeKind {
         self.change
     }
@@ -204,9 +201,6 @@ pub(crate) struct PackagePolicyDependencyPathStep {
     target: PackageKeyIdentity,
 }
 impl PackagePolicyDependencyPathStep {
-    pub const fn requester(&self) -> PackageKeyIdentity {
-        self.requester
-    }
     pub const fn purpose(&self) -> DependencyPurpose {
         self.purpose
     }
@@ -299,9 +293,6 @@ impl PackagePolicyPackageChange {
             .iter()
             .any(PackagePolicyRowChange::requires_decision)
     }
-    pub const fn fingerprint(&self) -> PackagePolicyChangeFingerprint {
-        self.fingerprint
-    }
 }
 
 /// Complete package-key union. Unchanged candidates remain visible for audit.
@@ -328,9 +319,6 @@ impl PackagePolicyChangeSet {
     }
     pub const fn fingerprint(&self) -> PackagePolicyChangeFingerprint {
         self.fingerprint
-    }
-    pub const fn root_changed(&self) -> bool {
-        self.root_changed
     }
     pub const fn source_subject_changed(&self) -> bool {
         self.source_subject_changed

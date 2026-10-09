@@ -63,10 +63,6 @@ impl ProjectedDependencies {
         &self.authored_dependencies
     }
 
-    pub(crate) fn into_authored_dependencies(self) -> Vec<DependencySourceRequest> {
-        self.authored_dependencies
-    }
-
     /// Validate requester-local aliases after every selected package name is
     /// known. Names follow [`Self::authored_dependencies`] order.
     pub(crate) fn validate_aliases(
@@ -116,10 +112,6 @@ impl DependencyProjections {
         }
     }
 
-    pub(crate) fn into_product(self) -> ProjectedDependencies {
-        self.product
-    }
-
     pub fn requests(&self, purpose: DependencyPurpose) -> &[DependencySourceRequest] {
         self.projections(purpose).authored_dependencies()
     }
@@ -165,13 +157,6 @@ impl DependencySourceRequest {
         }
     }
 
-    pub const fn package_selection(&self) -> Option<&PackageSelection> {
-        match self {
-            Self::Path { .. } => None,
-            Self::Git { selection, .. } => Some(selection),
-        }
-    }
-
     /// Resolve the requester-local import name after source custody has read
     /// the dependency's own package declaration.
     ///
@@ -199,10 +184,6 @@ impl BuildDependencyProjection {
             declaration,
             dependencies,
         }
-    }
-
-    pub const fn declaration(&self) -> &BuildDeclaration {
-        &self.declaration
     }
 
     pub fn product_dependencies(&self) -> &[DependencySourceRequest] {

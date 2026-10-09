@@ -63,12 +63,6 @@ impl UngrantedRestrictedBuildRequest {
         })
     }
 
-    /// Canonical identity of the package whose occurrence asked for the
-    /// ungranted authority.
-    pub const fn package(&self) -> PackageKeyIdentity {
-        self.package
-    }
-
     /// The complete checked context — purpose, selected target, and build
     /// execution profile — whose request lacks retained accepted meaning.
     /// Sibling occurrences of one package grant independently, so the

@@ -27,23 +27,6 @@ fn resolve_git_root_package_source_in_lane(
     bind_git_root_package_source(source, application_root_allowed)
 }
 
-fn resolve_selected_git_package_source_in_lanes(
-    resolver: &SourceResolver,
-    request: &GitPackageSourceRequest,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    resolve_selected_git_package_source_from_pin_in_lanes(
-        resolver,
-        request,
-        None,
-        git_lane,
-        member_lane,
-        limits,
-    )
-}
-
 pub(crate) fn resolve_selected_git_package_source_from_pin_in_lanes(
     resolver: &SourceResolver,
     request: &GitPackageSourceRequest,
@@ -118,51 +101,4 @@ fn resolve_selected_git_declared_source_from_pin_in_lanes(
             )
         }
     }
-}
-
-pub(crate) fn resolve_git_package_source(
-    request: &GitSourceRequest,
-    storage: &SourceResolver,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    resolve_selected_git_package_source(
-        &GitPackageSourceRequest::root(request.clone()),
-        storage,
-        limits,
-    )
-}
-
-pub(crate) fn resolve_selected_git_package_source(
-    request: &GitPackageSourceRequest,
-    storage: &SourceResolver,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    storage.verify_path_identity()?;
-    let result = resolve_selected_git_package_source_in_lanes(
-        storage,
-        request,
-        storage.git_sources(),
-        storage.workspace_members(),
-        limits,
-    );
-    storage.verify_path_identity()?;
-    result
-}
-
-pub(crate) fn resolve_selected_git_project_source(
-    request: &GitPackageSourceRequest,
-    storage: &SourceResolver,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    storage.verify_path_identity()?;
-    let result = resolve_selected_git_project_source_from_pin_in_lanes(
-        storage,
-        request,
-        None,
-        storage.git_sources(),
-        storage.workspace_members(),
-        limits,
-    );
-    storage.verify_path_identity()?;
-    result
 }

@@ -115,10 +115,6 @@ impl CompilerIssuedPackageReview {
         &self.policy
     }
 
-    pub fn policy_rows(&self) -> &[PackagePolicyRow] {
-        &self.policy_rows
-    }
-
     pub const fn policy_commitment(&self) -> [u8; 32] {
         self.policy_commitment
     }
@@ -154,14 +150,6 @@ pub(crate) enum PackageSourceVerificationPhase {
 impl CompilerIssuedPackageReviewSet {
     pub fn reviews(&self) -> &[CompilerIssuedPackageReview] {
         &self.reviews
-    }
-
-    /// Return the package's review only when it has one checked occurrence.
-    /// Callers handling both roles must select a purpose or visit every review.
-    pub fn review(&self, key: &PackageKey) -> Option<&CompilerIssuedPackageReview> {
-        let mut matching = self.reviews.iter().filter(|review| review.key() == key);
-        let review = matching.next()?;
-        matching.next().is_none().then_some(review)
     }
 
     pub(crate) fn reviews_for<'a>(

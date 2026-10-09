@@ -13,45 +13,6 @@ use crate::declarations::dependencies::read::{
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// `omega install` authors product rows only; build rows are written by hand
-/// or by a purpose-aware caller of [`plan_dependency_replacement`].
-pub(crate) fn plan_dependency_addition(
-    package_root: impl AsRef<Path>,
-    request: &DependencySourceRequest,
-) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    let (build_path, source) = read_build_source(package_root.as_ref())?;
-    plan_dependency_addition_from_source(build_path, source, request)
-}
-
-/// Replace the row declaring `accepted` in `purpose` scope with `candidate`.
-///
-/// The same alias and source may legitimately occur in both scopes; the
-/// purpose argument selects exactly which edge's row is rewritten, so a
-/// product update can never rewrite a build row that happens to match it.
-pub(crate) fn plan_dependency_replacement(
-    package_root: impl AsRef<Path>,
-    purpose: DependencyPurpose,
-    accepted: &DependencySourceRequest,
-    candidate: &DependencySourceRequest,
-) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    let (build_path, source) = read_build_source(package_root.as_ref())?;
-    plan_dependency_replacement_from_source(build_path, source, purpose, accepted, candidate)
-}
-
-fn read_build_source(package_root: &Path) -> Result<(PathBuf, String), BuildDependencyEditError> {
-    let build_path = package_root.join(BUILD_FILE_NAME);
-    let bytes = fs::read(&build_path).map_err(|error| BuildDependencyEditError::ReadBuildFile {
-        path: build_path.clone(),
-        message: error.to_string(),
-    })?;
-    let source = String::from_utf8(bytes).map_err(|_| {
-        BuildDependencyEditError::InvalidBuildFileEncoding {
-            path: build_path.clone(),
-        }
-    })?;
-    Ok((build_path, source))
-}
-
 /// Plan an addition using command-owned source without reading or writing the
 /// build path. Any edit or manual patch is bound to these exact source bytes.
 /// The authored row is a product dependency, matching `omega install`.

@@ -28,9 +28,6 @@ pub(crate) struct HistoricalPackagePolicyDecision {
 }
 
 impl HistoricalPackagePolicyDecision {
-    pub const fn subject(&self) -> HistoricalPackagePolicyDecisionSubject {
-        self.subject
-    }
 
     /// Version 1 document reference only, never an index for a modern change.
     pub const fn package_index(&self) -> Option<usize> {
@@ -78,12 +75,6 @@ impl HistoricalPackagePolicyDecisions {
 
     pub fn decisions(&self) -> &[HistoricalPackagePolicyDecision] {
         &self.decisions
-    }
-
-    /// Exact full-policy comparison retained by version 2. Version 1 history
-    /// did not store this comparison and is never upgraded by inventing one.
-    pub const fn comparison(&self) -> Option<[u8; 32]> {
-        self.comparison
     }
 
     /// Prior source association, absent for fresh review and version 1 history.

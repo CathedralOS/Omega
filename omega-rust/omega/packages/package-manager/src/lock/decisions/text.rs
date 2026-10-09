@@ -77,18 +77,6 @@ impl HistoricalPackagePolicyDecisions {
         Ok(text)
     }
 
-    /// Recover historical project policy using only the retained source graph.
-    /// No old checkout, compiler, conflict set, or proof of acceptance is needed.
-    /// The result cannot be supplied as a fresh root-policy resolution.
-    pub(crate) fn recover_text(
-        text: &str,
-        subject: &CanonicalSourceClosureSubject,
-        limits: HistoricalPackagePolicyLimits,
-    ) -> Result<Self, Error> {
-        Self::recover_text_with_usage(text, subject, limits, usize::MAX)
-            .map(|(decisions, _)| decisions)
-    }
-
     /// Recover one historical section under the remaining enclosing storage
     /// budget. Successful usage must be deducted before recovering another
     /// section; it grants no current candidate or publication authority.

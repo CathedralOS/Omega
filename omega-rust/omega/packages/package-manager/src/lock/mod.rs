@@ -42,23 +42,6 @@ pub(crate) struct PackageLockTarget {
 }
 
 impl PackageLockTarget {
-    /// Accept policies with an explicitly empty semantic binding roster.
-    /// The caller supplies the compiler identity; no current identity is guessed.
-    pub(crate) fn from_policies(
-        source: CanonicalSourceClosureSubject,
-        policies: &[(PackageCheckedContext, &PackagePolicyBaseline)],
-        compiler_identity: [u8; 32],
-        decisions: HistoricalPackagePolicyDecisions,
-    ) -> Result<Self, Error> {
-        let mut accepted = Vec::new();
-        accepted
-            .try_reserve_exact(policies.len())
-            .map_err(|_| Error::AllocationFailed)?;
-        for (context, policy) in policies {
-            accepted.push((*context, *policy, &[][..]));
-        }
-        Self::from_accepted_policies(source, &accepted, compiler_identity, decisions)
-    }
 
     /// Retain the exact binding inputs of each independently accepted review.
     pub(crate) fn from_accepted_policies(

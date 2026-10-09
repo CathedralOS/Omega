@@ -8,8 +8,8 @@ mod resolution;
 mod resolved_closure;
 
 pub(crate) use dependency_paths::DependencyRequestPaths;
-
 pub(crate) use super::root_request::PackageRootSourceRequest;
+
 pub(crate) use resolved_closure::{
     ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 
@@ -35,9 +35,6 @@ pub(crate) struct DependencyRequestPathStep {
 }
 
 impl DependencyRequestPathStep {
-    pub fn requester(&self) -> &PackageKey {
-        &self.requester
-    }
 
     /// Which authorized context this edge belongs to.
     pub const fn purpose(&self) -> DependencyPurpose {
@@ -88,9 +85,6 @@ pub(crate) struct PackageSourceClosureConflictCandidate {
 }
 
 impl PackageSourceClosureConflictCandidate {
-    pub fn custody(&self) -> &PackageSourceCustody {
-        &self.custody
-    }
 
     pub(crate) fn requesting_paths(&self) -> &[DependencyRequestPath] {
         &self.requesting_paths
@@ -105,9 +99,6 @@ pub(crate) struct PackageSourceClosureConflict {
 }
 
 impl PackageSourceClosureConflict {
-    pub fn key(&self) -> &PackageKey {
-        &self.key
-    }
 
     pub fn candidates(&self) -> &[PackageSourceClosureConflictCandidate] {
         &self.candidates
@@ -180,16 +171,6 @@ pub(crate) enum PackageSourceClosureResolutionError<E> {
 }
 
 impl<E> PackageSourceClosureResolutionError<E> {
-    pub fn conflicts(&self) -> Option<&[PackageSourceClosureConflict]> {
-        match self {
-            Self::ConflictingCustody { conflicts } => Some(conflicts),
-            Self::Adapter { .. }
-            | Self::LimitExceeded { .. }
-            | Self::InvalidClosure { .. }
-            | Self::InvalidDependencyRole { .. }
-            | Self::InvalidAliases { .. } => None,
-        }
-    }
 }
 
 impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {

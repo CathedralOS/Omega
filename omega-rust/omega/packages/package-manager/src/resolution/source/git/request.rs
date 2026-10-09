@@ -17,10 +17,6 @@ impl GitPackageSourceRequest {
         }
     }
 
-    pub fn root(acquisition: GitSourceRequest) -> Self {
-        Self::new(acquisition, PackageSelection::Root)
-    }
-
     pub const fn acquisition(&self) -> &GitSourceRequest {
         &self.acquisition
     }

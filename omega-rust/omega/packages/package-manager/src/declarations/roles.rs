@@ -44,25 +44,6 @@ pub struct WorkspaceDeclaration {
     pub members: Vec<WorkspaceMemberPath>,
 }
 
-/// Project the package-authored human name from the immutable package root.
-///
-/// This preserves the package-manager identity-bearing API while the syntax
-/// authority lives in `build-declarations`.
-pub(crate) fn extract_package_declaration(
-    package_root: impl AsRef<Path>,
-) -> Result<PackageDeclaration, BuildDeclarationError> {
-    match extract_build_declaration(package_root) {
-        Ok(BuildDeclaration::Package(declaration)) => Ok(declaration),
-        Ok(other) => Err(BuildDeclarationError::ExpectedPackageDeclaration {
-            found: other.kind(),
-        }),
-        Err(BuildDeclarationError::MissingBuildDeclaration) => {
-            Err(BuildDeclarationError::MissingPackageDeclaration)
-        }
-        Err(error) => Err(error),
-    }
-}
-
 /// Project the explicit package, application, or workspace kind from one
 /// immutable root `build.omg` without executing build code.
 pub fn extract_build_declaration(

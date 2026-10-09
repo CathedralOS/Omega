@@ -125,23 +125,6 @@ pub(crate) fn resolve_external_local_project_source_in_lane(
     )
 }
 
-pub(crate) fn resolve_external_local_package_source(
-    source_root: impl AsRef<Path>,
-    storage: &SourceResolver,
-    limits: LocalSourceLimits,
-    source_context: ExternalSourceContext,
-) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    storage.verify_path_identity()?;
-    let result = resolve_external_local_package_source_in_lane(
-        source_root,
-        storage.external_local_sources(),
-        limits,
-        source_context,
-    );
-    storage.verify_path_identity()?;
-    result
-}
-
 pub(crate) fn resolve_external_local_project_source(
     source_root: impl AsRef<Path>,
     storage: &SourceResolver,

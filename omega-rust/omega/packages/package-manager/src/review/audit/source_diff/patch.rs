@@ -203,9 +203,6 @@ pub(crate) struct PackageSourcePatch {
 }
 
 impl PackageSourcePatch {
-    pub const fn baseline_key(&self) -> Option<&PackageKey> {
-        self.baseline_key.as_ref()
-    }
 
     pub const fn candidate_key(&self) -> &PackageKey {
         &self.candidate_key

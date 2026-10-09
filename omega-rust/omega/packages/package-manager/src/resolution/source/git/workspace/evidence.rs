@@ -48,12 +48,6 @@ impl GitWorkspaceSelectionEvidence {
         &self.declarations
     }
 
-    pub fn for_declared_member(&self, member_path: &WorkspaceMemberPath) -> Option<Self> {
-        self.plan
-            .for_declared_member(member_path)
-            .map(|plan| Self::new(plan, self.declarations.clone()))
-    }
-
     pub fn revalidate(&self) -> Result<(), PackageSourceSelectionEvidenceError> {
         let root_build = self.declarations().root();
         let mut total_bytes = account_declaration_bytes(0, root_build)

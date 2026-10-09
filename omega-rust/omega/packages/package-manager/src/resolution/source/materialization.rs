@@ -27,10 +27,6 @@ impl PackageSourceMaterialization {
         &self.content
     }
 
-    pub const fn file_count(&self) -> usize {
-        self.file_count
-    }
-
     pub const fn byte_count(&self) -> u64 {
         self.byte_count
     }

@@ -3,16 +3,13 @@
 //! [`policy`] derives policy row changes, [`locked_policy`] compares a
 //! candidate with the accepted lock, and [`risk`] supports triage.
 
-mod locked_policy;
 mod policy;
-mod risk;
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 pub(crate) use policy::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
     PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath, PackagePolicyReplacementSite, compare_package_policy_changes};
-pub(crate) use risk::{ChangedRowRisk, changed_review_risk};
 
 /// Exact compatibility contract broken by changing the selected project root's
 /// authored role without changing its package identity.
@@ -58,7 +55,4 @@ impl ReviewOnlyRootRoleChange {
         self.broken_contract
     }
 
-    pub const fn is_blocking(&self) -> bool {
-        true
-    }
 }

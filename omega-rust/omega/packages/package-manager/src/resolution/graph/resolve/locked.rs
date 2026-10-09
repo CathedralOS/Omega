@@ -23,32 +23,6 @@ use package_source::{
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-/// Rebuild a recorded graph using newly issued source custody. This operation
-/// does not compile, compare policy, approve admissions, or modify the subject.
-/// The caller selects the exact lock target before invoking this source owner.
-/// Local roots must still exist: no cache-only local custody issuer is implied.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn resolve_locked_package_source_closure(
-    subject: &CanonicalSourceClosureSubject,
-    root_request: &PackageRootSourceRequest,
-    acquisition: GitExactRevisionAcquisition,
-    storage: &SourceResolver,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-    subject_limits: CanonicalSourceClosureSubjectLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveLockedPackageClosureError> {
-    resolve(
-        subject,
-        root_request,
-        acquisition,
-        storage,
-        source_limits,
-        closure_limits,
-        subject_limits,
-        RootPolicy::Strict,
-    )
-}
-
 /// Prepare accepted dependencies for an editable local APPLICATION or PACKAGE.
 /// The caller's live root must retain its canonical package key, role,
 /// navigation and complete dependency projection. Only its source resolution
