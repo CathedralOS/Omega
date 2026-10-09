@@ -5,7 +5,7 @@
 
 mod redundant_block_parameter;
 
-pub use redundant_block_parameter::RedundantBlockParameterRule;
+pub(crate) use redundant_block_parameter::RedundantBlockParameterRule;
 
 use crate::rules::catalog::BuiltInRuleRegistration;
 

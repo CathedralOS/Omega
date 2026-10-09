@@ -196,13 +196,8 @@ pub(crate) fn invariant_member_parameters(
             }
             let mut anchor = None;
             let mut loop_carried = false;
-            for edge in function
-                .block_edges()
-                .filter(|edge| edge.target == *block)
-            {
-                let Some(binding) = edge
-                    .binding(*parameter)
-                else {
+            for edge in function.block_edges().filter(|edge| edge.target == *block) {
+                let Some(binding) = edge.binding(*parameter) else {
                     loop_carried = true;
                     break;
                 };
@@ -378,8 +373,7 @@ fn member_parameter_run_result(
         .block_edges()
         .filter(|edge| edge.target == parameter_block)
     {
-        let binding = edge
-            .binding(parameter)?;
+        let binding = edge.binding(parameter)?;
         if binding.argument == parameter {
             continue;
         }

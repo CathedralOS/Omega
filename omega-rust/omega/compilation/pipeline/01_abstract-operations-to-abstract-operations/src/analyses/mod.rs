@@ -6,20 +6,21 @@ mod revision;
 mod semantic;
 
 pub(crate) use catalog::analysis_dependencies;
-pub use catalog::{AnalysisProduct, compute_analysis};
-pub use control_flow::CallGraphAnalysis;
+pub(crate) use catalog::{AnalysisProduct, compute_analysis};
+pub(crate) use control_flow::CallGraphAnalysis;
 pub(crate) use control_flow::block_dominates;
-pub use control_flow::{
+pub(crate) use control_flow::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
     CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
 };
 #[cfg(any(test, feature = "test-support"))]
-pub use control_flow::{
-    CountdownInvariantConstantAnalysisSnapshot,
+pub(crate) use control_flow::{
+    CountdownInvariantConstantAnalysisSnapshot, CountedLoopAnalysisSnapshot,
+};
+pub(crate) use control_flow::{
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, CountedLoopAnalysisSnapshot,
-    UnsignedCountdownInvariantConstantPlacements,
+    CountdownInvariantIntegerConstant, UnsignedCountdownInvariantConstantPlacements,
 };
 pub(crate) use control_flow::{
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
@@ -30,13 +31,13 @@ pub(crate) use control_flow::{
     validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
-pub use manager::{AnalysisManager, AnalysisManagerError};
+pub(crate) use manager::{AnalysisManager, AnalysisManagerError};
 #[cfg(any(test, feature = "test-support"))]
 pub use optimization_unit::{
     ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
 pub use revision::AnalysisRevision;
-pub use semantic::{
+pub(crate) use semantic::{
     EffectClass, EffectKnowledge, EffectSummaryAnalysis, OwnershipFrontierAnalysis,
     ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
 };

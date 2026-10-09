@@ -21,7 +21,8 @@ pub(crate) fn provenance_rows(
     let mut rows = Vec::new();
     for row in &plan.memberships {
         let index = usize::try_from(row.site.node).ok()?;
-        let node = input_function.block(row.site.block)
+        let node = input_function
+            .block(row.site.block)
             .and_then(|block| block.nodes.get(index))?;
         let site = PsiRealizationSite::Node(row.site);
         rows.push(ProvenanceRewrite {

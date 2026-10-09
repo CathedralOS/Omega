@@ -4,14 +4,4 @@
 mod countdown_invariant_constant_relocation;
 pub(crate) mod loop_invariant_scalar_motion;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use countdown_invariant_constant_relocation::{
-    CountdownInvariantConstantRelocationError, apply_countdown_invariant_constant_relocation,
-    propose_countdown_invariant_constant_relocations,
-};
-pub use loop_invariant_scalar_motion::LoopInvariantScalarMotionError;
-#[cfg(any(test, feature = "test-support"))]
-pub use loop_invariant_scalar_motion::{
-    apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
-    validate_loop_invariant_scalar_motion,
-};
+pub(crate) use loop_invariant_scalar_motion::LoopInvariantScalarMotionError;

@@ -19,7 +19,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct UnreachablePrivateMachinePruneRule;
+pub(crate) struct UnreachablePrivateMachinePruneRule;
 
 impl UnreachablePrivateMachinePruneRule {
     pub fn contract() -> OptimizationRuleContract {

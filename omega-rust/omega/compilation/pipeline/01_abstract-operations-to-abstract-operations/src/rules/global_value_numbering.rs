@@ -43,22 +43,22 @@ mod wrapping_multiply_zero_annihilation;
 mod wrapping_neutral_arithmetic_identity;
 mod wrapping_shift_zero_count_identity;
 
-pub use bitwise_absorbing_literal_identity::BitwiseAbsorbingLiteralIdentityRule;
-pub use bitwise_neutral_literal_identity::BitwiseNeutralLiteralIdentityRule;
-pub use dominator_proof_certified_compatible_policy_scalar_gvn::DominatorProofCertifiedCompatiblePolicyScalarGvnRule;
-pub use dominator_proof_certified_scalar_gvn::DominatorProofCertifiedScalarGvnRule;
-pub use dominator_total_scalar_gvn::DominatorTotalScalarGvnRule;
-pub use phi_translated_obligation_free_scalar_gvn::PhiTranslatedObligationFreeScalarGvnRule;
-pub use phi_translated_proof_certified_compatible_policy_scalar_gvn::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule;
-pub use phi_translated_proof_certified_scalar_gvn::PhiTranslatedProofCertifiedScalarGvnRule;
-pub use same_block_proof_certified_compatible_policy_scalar_cse::SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
-pub use same_block_proof_certified_scalar_cse::SameBlockProofCertifiedScalarCseRule;
-pub use same_block_total_scalar_cse::SameBlockTotalScalarCseRule;
-pub use saturating_multiply_zero_annihilation::SaturatingMultiplyZeroAnnihilationRule;
-pub use saturating_neutral_arithmetic_identity::SaturatingNeutralArithmeticIdentityRule;
-pub use wrapping_multiply_zero_annihilation::WrappingMultiplyZeroAnnihilationRule;
-pub use wrapping_neutral_arithmetic_identity::WrappingNeutralArithmeticIdentityRule;
-pub use wrapping_shift_zero_count_identity::WrappingShiftZeroCountIdentityRule;
+pub(crate) use bitwise_absorbing_literal_identity::BitwiseAbsorbingLiteralIdentityRule;
+pub(crate) use bitwise_neutral_literal_identity::BitwiseNeutralLiteralIdentityRule;
+pub(crate) use dominator_proof_certified_compatible_policy_scalar_gvn::DominatorProofCertifiedCompatiblePolicyScalarGvnRule;
+pub(crate) use dominator_proof_certified_scalar_gvn::DominatorProofCertifiedScalarGvnRule;
+pub(crate) use dominator_total_scalar_gvn::DominatorTotalScalarGvnRule;
+pub(crate) use phi_translated_obligation_free_scalar_gvn::PhiTranslatedObligationFreeScalarGvnRule;
+pub(crate) use phi_translated_proof_certified_compatible_policy_scalar_gvn::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule;
+pub(crate) use phi_translated_proof_certified_scalar_gvn::PhiTranslatedProofCertifiedScalarGvnRule;
+pub(crate) use same_block_proof_certified_compatible_policy_scalar_cse::SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
+pub(crate) use same_block_proof_certified_scalar_cse::SameBlockProofCertifiedScalarCseRule;
+pub(crate) use same_block_total_scalar_cse::SameBlockTotalScalarCseRule;
+pub(crate) use saturating_multiply_zero_annihilation::SaturatingMultiplyZeroAnnihilationRule;
+pub(crate) use saturating_neutral_arithmetic_identity::SaturatingNeutralArithmeticIdentityRule;
+pub(crate) use wrapping_multiply_zero_annihilation::WrappingMultiplyZeroAnnihilationRule;
+pub(crate) use wrapping_neutral_arithmetic_identity::WrappingNeutralArithmeticIdentityRule;
+pub(crate) use wrapping_shift_zero_count_identity::WrappingShiftZeroCountIdentityRule;
 
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
@@ -167,7 +167,6 @@ fn function_value_types(function: &PsiOptimizationFunction) -> BTreeMap<ValueId,
         .collect()
 }
 
-
 /// One located same-block leader/redundant pair, resolved through the
 /// accounting the rule's own candidate constructor consumes.
 pub(super) struct SameBlockScalarCseMatch {
@@ -218,15 +217,9 @@ where
                 } else {
                     None
                 };
-                let node_index =
-                    u32::try_from(index).expect("optimization node index fits u32");
-                if !exact_pure_scalar_effect(
-                    unit,
-                    effects,
-                    function.machine,
-                    block.id,
-                    node_index,
-                ) {
+                let node_index = u32::try_from(index).expect("optimization node index fits u32");
+                if !exact_pure_scalar_effect(unit, effects, function.machine, block.id, node_index)
+                {
                     continue;
                 }
                 let Some((leader, leader_operation, leader_result, leader_type)) =
@@ -287,7 +280,6 @@ where
     Ok(candidates)
 }
 
-
 /// One located dominating-leader/redundant pair, resolved through the
 /// accounting the rule's own candidate constructor consumes. `E` is the
 /// rule's per-expression payload — unit for the obligation-free rule,
@@ -324,141 +316,143 @@ where
 {
     use crate::rules::node_elision::node_elision_accounting;
 
-    let Some(crate::AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
-        else {
-            return Err(crate::RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
-        };
-        let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            let machine_dominators = dominators
-                .function(function.machine)
-                .map(|(_, rows)| rows.as_slice())
-                .unwrap_or_default();
-            let context = context(function);
-            let mut expressions = Vec::new();
-            for block in &function.blocks {
-                for (index, node) in block.nodes.iter().enumerate() {
-                    let node_index =
-                        u32::try_from(index).expect("optimization node index fits u32");
-                    let Some(((key, operation, result, scalar_type), extras)) =
-                        expression(&context, unit, function.machine, &node.operation)
-                    else {
-                        continue;
-                    };
-                    if !exact_pure_scalar_effect(
-                        unit,
-                        effects,
-                        function.machine,
-                        block.id,
-                        node_index,
-                    ) {
-                        continue;
-                    }
-                    expressions.push((
-                        key,
-                        optimization_unit::NodeLocation {
-                            machine: function.machine,
-                            block: block.id,
-                            node: node_index,
-                        },
-                        operation,
-                        result,
-                        scalar_type,
-                        extras,
-                    ));
-                }
-            }
-            for (key, redundant, redundant_operation, redundant_result, scalar_type, extras) in &expressions
-            {
-                if !use_definitions.uses.iter().any(|(machine, use_site)| {
-                    *machine == function.machine && use_site.value == *redundant_result
-                }) {
-                    continue;
-                }
-                let Some(redundant_block) = function.block(redundant.block)
+    let Some(crate::AnalysisProduct::Dominators(dominators)) =
+        analyses.get(AnalysisKind::Dominators)
+    else {
+        return Err(crate::RuleProposalError::MissingAnalysis(
+            AnalysisKind::Dominators,
+        ));
+    };
+    let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        let machine_dominators = dominators
+            .function(function.machine)
+            .map(|(_, rows)| rows.as_slice())
+            .unwrap_or_default();
+        let context = context(function);
+        let mut expressions = Vec::new();
+        for block in &function.blocks {
+            for (index, node) in block.nodes.iter().enumerate() {
+                let node_index = u32::try_from(index).expect("optimization node index fits u32");
+                let Some(((key, operation, result, scalar_type), extras)) =
+                    expression(&context, unit, function.machine, &node.operation)
                 else {
                     continue;
                 };
-                let redundant_index = usize::try_from(redundant.node).expect("u32 fits usize");
-                let Some(redundant_node) = redundant_block.nodes.get(redundant_index) else {
-                    continue;
-                };
-                let Some(receiver) = redundant_block.nodes.get(redundant_index + 1) else {
-                    continue;
-                };
-                if receiver
-                    .provenance
-                    .iter()
-                    .any(|source| redundant_node.provenance.contains(source))
+                if !exact_pure_scalar_effect(unit, effects, function.machine, block.id, node_index)
                 {
                     continue;
                 }
-                let leader = expressions
-                    .iter()
-                    .filter(|(candidate_key, location, _, _, candidate_type, _)| {
-                        candidate_key == key
-                            && *candidate_type == *scalar_type
-                            && location.block != redundant.block
-                            && crate::analyses::block_dominates(machine_dominators, location.block, redundant.block)
-                    })
-                    .min_by_key(|(_, location, _, _, _, _)| {
-                        let depth = machine_dominators
-                            .iter()
-                            .find(|(block, _)| *block == location.block)
-                            .map_or(usize::MAX, |(_, rows)| rows.len());
-                        (depth, *location)
-                    });
-                let Some((_, leader, leader_operation, leader_result, _, _)) = leader else {
-                    continue;
-                };
-                let replacement_definition = optimization_unit::ValueDefinition {
-                    value: *leader_result,
-                    scalar_type: *scalar_type,
-                    site: optimization_unit::ValueDefinitionSite::Node {
-                        block: leader.block,
-                        node: leader.node,
+                expressions.push((
+                    key,
+                    optimization_unit::NodeLocation {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
                     },
-                };
-                if !use_definitions
-                    .uses
-                    .iter()
-                    .filter(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == *redundant_result
-                    })
-                    .all(|(_, use_site)| match replacement_definition.site {
-                        optimization_unit::ValueDefinitionSite::Node { block, node }
-                            if block == use_site.block =>
-                        {
-                            node < use_site.node
-                        }
-                        optimization_unit::ValueDefinitionSite::Node { block, .. } => {
-                            crate::analyses::block_dominates(machine_dominators, block, use_site.block)
-                        }
-                        _ => false,
-                    })
-                {
-                    continue;
-                }
-                let Some((affected_blocks, provenance)) =
-                    node_elision_accounting(function, *redundant, *redundant_result)
-                else {
-                    continue;
-                };
-                candidates.push(emit(DominatingScalarGvnMatch {
-                    affected_blocks,
-                    provenance,
-                    extras: *extras,
-                    patch: optimization_unit::DominatingScalarCommonSubexpressionRewrite {
-                        leader: *leader,
-                        redundant: *redundant,
-                        leader_operation: *leader_operation,
-                        redundant_operation: *redundant_operation,
-                        leader_result: *leader_result,
-                        redundant_result: *redundant_result,
-                        scalar_type: *scalar_type,
-                    },
-                })?);
+                    operation,
+                    result,
+                    scalar_type,
+                    extras,
+                ));
             }
         }
-        Ok(candidates)    }
+        for (key, redundant, redundant_operation, redundant_result, scalar_type, extras) in
+            &expressions
+        {
+            if !use_definitions.uses.iter().any(|(machine, use_site)| {
+                *machine == function.machine && use_site.value == *redundant_result
+            }) {
+                continue;
+            }
+            let Some(redundant_block) = function.block(redundant.block) else {
+                continue;
+            };
+            let redundant_index = usize::try_from(redundant.node).expect("u32 fits usize");
+            let Some(redundant_node) = redundant_block.nodes.get(redundant_index) else {
+                continue;
+            };
+            let Some(receiver) = redundant_block.nodes.get(redundant_index + 1) else {
+                continue;
+            };
+            if receiver
+                .provenance
+                .iter()
+                .any(|source| redundant_node.provenance.contains(source))
+            {
+                continue;
+            }
+            let leader = expressions
+                .iter()
+                .filter(|(candidate_key, location, _, _, candidate_type, _)| {
+                    candidate_key == key
+                        && *candidate_type == *scalar_type
+                        && location.block != redundant.block
+                        && crate::analyses::block_dominates(
+                            machine_dominators,
+                            location.block,
+                            redundant.block,
+                        )
+                })
+                .min_by_key(|(_, location, _, _, _, _)| {
+                    let depth = machine_dominators
+                        .iter()
+                        .find(|(block, _)| *block == location.block)
+                        .map_or(usize::MAX, |(_, rows)| rows.len());
+                    (depth, *location)
+                });
+            let Some((_, leader, leader_operation, leader_result, _, _)) = leader else {
+                continue;
+            };
+            let replacement_definition = optimization_unit::ValueDefinition {
+                value: *leader_result,
+                scalar_type: *scalar_type,
+                site: optimization_unit::ValueDefinitionSite::Node {
+                    block: leader.block,
+                    node: leader.node,
+                },
+            };
+            if !use_definitions
+                .uses
+                .iter()
+                .filter(|(machine, use_site)| {
+                    *machine == function.machine && use_site.value == *redundant_result
+                })
+                .all(|(_, use_site)| match replacement_definition.site {
+                    optimization_unit::ValueDefinitionSite::Node { block, node }
+                        if block == use_site.block =>
+                    {
+                        node < use_site.node
+                    }
+                    optimization_unit::ValueDefinitionSite::Node { block, .. } => {
+                        crate::analyses::block_dominates(machine_dominators, block, use_site.block)
+                    }
+                    _ => false,
+                })
+            {
+                continue;
+            }
+            let Some((affected_blocks, provenance)) =
+                node_elision_accounting(function, *redundant, *redundant_result)
+            else {
+                continue;
+            };
+            candidates.push(emit(DominatingScalarGvnMatch {
+                affected_blocks,
+                provenance,
+                extras: *extras,
+                patch: optimization_unit::DominatingScalarCommonSubexpressionRewrite {
+                    leader: *leader,
+                    redundant: *redundant,
+                    leader_operation: *leader_operation,
+                    redundant_operation: *redundant_operation,
+                    leader_result: *leader_result,
+                    redundant_result: *redundant_result,
+                    scalar_type: *scalar_type,
+                },
+            })?);
+        }
+    }
+    Ok(candidates)
+}

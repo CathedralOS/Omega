@@ -67,7 +67,7 @@ pub use integer_binary_constants::{
     WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
     WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
 };
-pub use integer_cast_constants::ExactIntegerCastConstantsRule;
+pub(crate) use integer_cast_constants::ExactIntegerCastConstantsRule;
 pub use integer_unary_constants::{IntegerBitwiseNotConstantsRule, IntegerWidenConstantsRule};
 pub use range_against_constant::{
     IntegerEqualConstantRangeRule, IntegerEqualRangeConstantRule,

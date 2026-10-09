@@ -21,7 +21,7 @@ use crate::{
 /// comparison against a pure scalar-constant prefix (an integer argument).
 /// Machines holding an authenticated cyclic component stay frozen.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct StateArgumentSpecializationRule;
+pub(crate) struct StateArgumentSpecializationRule;
 
 impl StateArgumentSpecializationRule {
     pub fn contract() -> OptimizationRuleContract {

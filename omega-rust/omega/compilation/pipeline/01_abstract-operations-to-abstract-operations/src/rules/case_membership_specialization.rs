@@ -23,7 +23,7 @@ use crate::{
 /// identity differ. Machines holding an authenticated cyclic component stay
 /// frozen.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct CaseMembershipSpecializationRule;
+pub(crate) struct CaseMembershipSpecializationRule;
 
 impl CaseMembershipSpecializationRule {
     pub fn contract() -> OptimizationRuleContract {

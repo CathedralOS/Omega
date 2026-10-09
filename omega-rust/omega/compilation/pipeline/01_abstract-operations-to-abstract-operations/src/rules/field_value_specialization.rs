@@ -29,7 +29,7 @@ use crate::{
 /// into the following node. Machines holding an authenticated cyclic
 /// component stay frozen.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct FieldValueSpecializationRule;
+pub(crate) struct FieldValueSpecializationRule;
 
 impl FieldValueSpecializationRule {
     pub fn contract() -> OptimizationRuleContract {

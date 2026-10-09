@@ -18,7 +18,7 @@ use crate::rules::sparse_conditional_constant_propagation::{
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ExactIntegerCastConstantsRule;
+pub(crate) struct ExactIntegerCastConstantsRule;
 
 impl ExactIntegerCastConstantsRule {
     pub fn contract() -> OptimizationRuleContract {

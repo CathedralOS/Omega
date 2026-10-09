@@ -11,7 +11,7 @@ mod ranked_cycles;
 
 /// Validate a verified optimizer seed and retain its independently derived
 /// cyclic-component analysis authority.
-pub fn validate_verified_psi_cycle_components(
+pub(crate) fn validate_verified_psi_cycle_components(
     verified: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
     derive_cycle_components(verified.input(), verified.unit())
@@ -19,7 +19,7 @@ pub fn validate_verified_psi_cycle_components(
 
 /// Validate a committed revision and retain its current canonical component
 /// entries and exits under the immutable Terminal component identity.
-pub fn validate_transformed_psi_cycle_components(
+pub(crate) fn validate_transformed_psi_cycle_components(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
@@ -39,4 +39,6 @@ fn derive_cycle_components(
     ))
 }
 
-pub use ranked_cycles::{ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates};
+pub(crate) use ranked_cycles::{
+    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
+};

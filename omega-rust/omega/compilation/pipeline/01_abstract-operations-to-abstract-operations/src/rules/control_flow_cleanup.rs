@@ -19,13 +19,13 @@ mod path_qualified_empty_block_thread;
 mod shared_jump_fusion;
 mod unreachable_private_machine_prune;
 
-pub use adjacent_block_merge::AdjacentBlockMergeRule;
-pub use constant_conditional_fold::ConstantConditionalFoldRule;
-pub use linear_empty_block_thread::LinearEmptyBlockThreadRule;
-pub use non_adjacent_block_merge::NonAdjacentBlockMergeRule;
-pub use path_qualified_empty_block_thread::PathQualifiedEmptyBlockThreadRule;
-pub use shared_jump_fusion::SharedJumpFusionRule;
-pub use unreachable_private_machine_prune::UnreachablePrivateMachinePruneRule;
+pub(crate) use adjacent_block_merge::AdjacentBlockMergeRule;
+pub(crate) use constant_conditional_fold::ConstantConditionalFoldRule;
+pub(crate) use linear_empty_block_thread::LinearEmptyBlockThreadRule;
+pub(crate) use non_adjacent_block_merge::NonAdjacentBlockMergeRule;
+pub(crate) use path_qualified_empty_block_thread::PathQualifiedEmptyBlockThreadRule;
+pub(crate) use shared_jump_fusion::SharedJumpFusionRule;
+pub(crate) use unreachable_private_machine_prune::UnreachablePrivateMachinePruneRule;
 
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {

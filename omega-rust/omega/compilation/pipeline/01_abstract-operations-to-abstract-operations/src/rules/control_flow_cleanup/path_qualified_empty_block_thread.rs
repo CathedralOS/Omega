@@ -21,7 +21,7 @@ use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct PathQualifiedEmptyBlockThreadRule;
+pub(crate) struct PathQualifiedEmptyBlockThreadRule;
 
 impl PathQualifiedEmptyBlockThreadRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -191,7 +191,8 @@ pub(super) fn path_thread_accounting(
     empty: NodeLocation,
     incoming_edges: &[EdgeId],
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
-    let empty_node = function.block(empty.block)?
+    let empty_node = function
+        .block(empty.block)?
         .nodes
         .get(usize::try_from(empty.node).ok()?)?;
     let outgoing = empty_node.successors.first()?;

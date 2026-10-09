@@ -11,7 +11,7 @@ use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule;
+pub(crate) struct LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule;
 impl LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(

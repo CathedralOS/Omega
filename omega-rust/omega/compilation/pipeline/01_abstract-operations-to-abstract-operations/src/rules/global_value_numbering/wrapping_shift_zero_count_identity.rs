@@ -11,7 +11,7 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct WrappingShiftZeroCountIdentityRule;
+pub(crate) struct WrappingShiftZeroCountIdentityRule;
 
 impl WrappingShiftZeroCountIdentityRule {
     pub fn contract() -> OptimizationRuleContract {

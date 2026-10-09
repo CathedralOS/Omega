@@ -17,7 +17,7 @@ use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SharedJumpFusionRule;
+pub(crate) struct SharedJumpFusionRule;
 
 impl SharedJumpFusionRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -82,8 +82,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
             {
                 continue;
             }
-            let Some((_, function_post_dominators)) = post_dominators
-                .function(function.machine)
+            let Some((_, function_post_dominators)) = post_dominators.function(function.machine)
             else {
                 continue;
             };

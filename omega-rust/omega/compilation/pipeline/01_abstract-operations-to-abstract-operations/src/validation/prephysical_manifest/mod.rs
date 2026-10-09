@@ -22,7 +22,7 @@ use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
 use crate::validation::ValidatedOptimizedAbstractPlanProjection;
 
 #[allow(clippy::too_many_arguments)]
-pub fn project_pre_physical_optimization_manifest(
+pub(crate) fn project_pre_physical_optimization_manifest(
     input: &VerifiedPsiOptimizationInput,
     final_unit: &PsiOptimizationUnit,
     selections: &OptimizationSelections,
@@ -64,7 +64,7 @@ impl ValidatedPrePhysicalOptimizationManifest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PrePhysicalOptimizationManifestError {
+pub(crate) enum PrePhysicalOptimizationManifestError {
     InitialUnitProjection,
     StructuralStatisticsOverflow,
 }

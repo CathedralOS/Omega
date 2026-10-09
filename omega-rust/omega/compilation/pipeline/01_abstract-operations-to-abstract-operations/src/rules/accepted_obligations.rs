@@ -14,16 +14,15 @@ pub(super) fn accepted_obligation_fact(
     machine: MachineId,
     operation: OperationId,
 ) -> Result<AcceptedObligationFactIdentity, RuleProposalError> {
-    let obligation = unit.function(machine)
-        .and_then(|function| {
-            function.facts.iter().find_map(|fact| match fact {
-                OptimizationFact::OperationObligationReference {
-                    obligation,
-                    support,
-                } if *support == operation => Some(*obligation),
-                _ => None,
-            })
-        });
+    let obligation = unit.function(machine).and_then(|function| {
+        function.facts.iter().find_map(|fact| match fact {
+            OptimizationFact::OperationObligationReference {
+                obligation,
+                support,
+            } if *support == operation => Some(*obligation),
+            _ => None,
+        })
+    });
     let Some(obligation) = obligation else {
         return Err(RuleProposalError::MissingAcceptedObligation {
             machine,

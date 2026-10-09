@@ -19,7 +19,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AnalysisProduct {
+pub(crate) enum AnalysisProduct {
     ControlFlowGraph(ControlFlowAnalysis),
     Dominators(DominatorAnalysis),
     PostDominators(DominatorAnalysis),
@@ -97,7 +97,10 @@ pub(crate) fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
     }
 }
 
-pub fn compute_analysis(unit: &PsiOptimizationUnit, kind: AnalysisKind) -> Option<AnalysisProduct> {
+pub(crate) fn compute_analysis(
+    unit: &PsiOptimizationUnit,
+    kind: AnalysisKind,
+) -> Option<AnalysisProduct> {
     match kind {
         AnalysisKind::ControlFlowGraph => {
             Some(AnalysisProduct::ControlFlowGraph(control_flow(unit)))

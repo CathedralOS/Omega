@@ -21,7 +21,7 @@ use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LinearEmptyBlockThreadRule;
+pub(crate) struct LinearEmptyBlockThreadRule;
 
 impl LinearEmptyBlockThreadRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -206,10 +206,12 @@ pub(super) fn linear_thread_accounting(
     predecessor: NodeLocation,
     empty: NodeLocation,
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
-    let predecessor_node = function.block(predecessor.block)?
+    let predecessor_node = function
+        .block(predecessor.block)?
         .nodes
         .get(usize::try_from(predecessor.node).ok()?)?;
-    let empty_node = function.block(empty.block)?
+    let empty_node = function
+        .block(empty.block)?
         .nodes
         .get(usize::try_from(empty.node).ok()?)?;
     let predecessor_edge = predecessor_node.successors.first()?;

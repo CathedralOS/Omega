@@ -103,7 +103,7 @@ pub fn optimize_abstract_operations(
 }
 
 #[cfg(any(test, feature = "test-support"))]
-pub fn run_psi_registry(
+pub(crate) fn run_psi_registry(
     verified: VerifiedPsiOptimizationUnit,
     selections: &OptimizationSelections,
     registry: &OrderedRuleRegistry,
@@ -183,7 +183,7 @@ pub(crate) fn run_psi_pipeline_for_projection(
 /// pipeline. Candidate construction and validation are identical to the
 /// model-free run; the log supplies only the action after validation.
 #[cfg(any(test, feature = "test-support"))]
-pub fn replay_psi_pipeline(
+pub(crate) fn replay_psi_pipeline(
     verified: VerifiedPsiOptimizationUnit,
     selections: &OptimizationSelections,
     budget_per_pass: OptimizationWorkBudget,

@@ -37,14 +37,14 @@ pub(crate) fn validate_counted_loop_analysis(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ExactUnsignedTripCount {
+pub(crate) struct ExactUnsignedTripCount {
     /// The value entering the header before the first guard evaluation.
     pub initial_value: ValueId,
     pub scalar_type: IntegerType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnsignedCountdownLoopSummary {
+pub(crate) struct UnsignedCountdownLoopSummary {
     /// Complete ranking evidence is the semantic key, not a guessed header.
     pub certificate: OptimizerUnsignedCountdownRankingCertificate,
     /// The component's reducible region projected from validated Terminal-SCC
@@ -59,14 +59,14 @@ pub struct UnsignedCountdownLoopSummary {
 
 /// Replayable counted-loop facts without authority to transform or execute.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CountedLoopAnalysisSnapshot {
+pub(crate) struct CountedLoopAnalysisSnapshot {
     pub revision: OptimizationUnitIdentity,
     pub terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub loops: Vec<UnsignedCountdownLoopSummary>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedCountedLoopAnalysis {
+pub(crate) struct ValidatedCountedLoopAnalysis {
     snapshot: CountedLoopAnalysisSnapshot,
 }
 
@@ -85,7 +85,7 @@ impl ValidatedCountedLoopAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CountedLoopAnalysisError {
+pub(crate) enum CountedLoopAnalysisError {
     StaleUnitIdentity {
         stored: OptimizationUnitIdentity,
         recomputed: OptimizationUnitIdentity,

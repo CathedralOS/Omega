@@ -8,7 +8,7 @@ use optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_ide
 use super::{AnalysisProduct, analysis_dependencies, compute_analysis};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AnalysisManagerError {
+pub(crate) enum AnalysisManagerError {
     StaleUnitIdentity {
         stored: OptimizationUnitIdentity,
         recomputed: OptimizationUnitIdentity,
@@ -31,7 +31,7 @@ impl std::fmt::Display for AnalysisManagerError {
 impl std::error::Error for AnalysisManagerError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AnalysisRevisionCommit {
+pub(crate) struct AnalysisRevisionCommit {
     pub previous: OptimizationUnitIdentity,
     pub current: OptimizationUnitIdentity,
     pub invalidated: Vec<AnalysisKind>,
@@ -41,7 +41,7 @@ pub struct AnalysisRevisionCommit {
 /// One-run deterministic analysis cache. There is deliberately no global
 /// singleton; each opted-in compilation owns its manager and revision.
 #[derive(Debug, Clone)]
-pub struct AnalysisManager {
+pub(crate) struct AnalysisManager {
     revision: OptimizationUnitIdentity,
     cache: BTreeMap<AnalysisKind, AnalysisProduct>,
 }
@@ -49,7 +49,7 @@ pub struct AnalysisManager {
 impl AnalysisManager {
     /// Validate once and keep both the unit and cache borrowed until this
     /// revision's requests finish. The unit cannot change beneath cached reads.
-    pub fn bind_revision<'a>(
+    pub(crate) fn bind_revision<'a>(
         &'a mut self,
         unit: &'a PsiOptimizationUnit,
     ) -> Result<super::AnalysisRevision<'a>, AnalysisManagerError> {
@@ -80,7 +80,6 @@ impl AnalysisManager {
         self.revision
     }
 
-
     #[cfg(any(test, feature = "test-support"))]
     pub fn require(
         &mut self,
@@ -95,7 +94,7 @@ impl AnalysisManager {
     /// Resolve a request set in canonical `AnalysisKind::ALL` order. Caller
     /// insertion order cannot influence dependency or output order.
     #[cfg(any(test, feature = "test-support"))]
-    pub fn require_all(
+    pub(crate) fn require_all(
         &mut self,
         unit: &PsiOptimizationUnit,
         requested: AnalysisSet,
@@ -107,12 +106,11 @@ impl AnalysisManager {
         Ok(requested.iter().map(|kind| &self.cache[&kind]).collect())
     }
 
-
     /// Atomically move to a candidate revision. In pass-validation mode every
     /// supposedly retained cache row is cold-recomputed first; any difference
     /// proves the candidate lied about invalidation and leaves this manager
     /// completely unchanged.
-    pub fn commit_revision(
+    pub(crate) fn commit_revision(
         &mut self,
         unit: &PsiOptimizationUnit,
         declared: AnalysisInvalidationSet,

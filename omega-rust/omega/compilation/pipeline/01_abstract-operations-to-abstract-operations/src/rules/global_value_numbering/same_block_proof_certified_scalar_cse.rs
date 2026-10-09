@@ -1,16 +1,14 @@
 //! Proof-certified same-block common-subexpression elimination.
 
 use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
-    PsiOptimizationUnit, PsiRewriteCandidate,
-};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use super::expression_keys::proof_certified_scalar_expression;
 use crate::rules::global_value_numbering::same_block_contract;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SameBlockProofCertifiedScalarCseRule;
+pub(crate) struct SameBlockProofCertifiedScalarCseRule;
 
 impl SameBlockProofCertifiedScalarCseRule {
     pub fn contract() -> OptimizationRuleContract {

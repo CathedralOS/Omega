@@ -13,7 +13,7 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct BitwiseAbsorbingLiteralIdentityRule;
+pub(crate) struct BitwiseAbsorbingLiteralIdentityRule;
 
 impl BitwiseAbsorbingLiteralIdentityRule {
     pub fn contract() -> OptimizationRuleContract {

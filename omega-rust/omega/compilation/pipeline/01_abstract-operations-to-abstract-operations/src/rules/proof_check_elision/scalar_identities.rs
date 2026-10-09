@@ -96,7 +96,7 @@ fn proof_certified_scalar_identity_shapes(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LiveProofCertifiedIntegerIdentityEliminationRule;
+pub(crate) struct LiveProofCertifiedIntegerIdentityEliminationRule;
 
 impl LiveProofCertifiedIntegerIdentityEliminationRule {
     pub fn contract() -> OptimizationRuleContract {

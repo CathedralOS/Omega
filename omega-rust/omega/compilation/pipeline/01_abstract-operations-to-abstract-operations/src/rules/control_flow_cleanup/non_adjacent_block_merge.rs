@@ -23,7 +23,7 @@ use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct NonAdjacentBlockMergeRule;
+pub(crate) struct NonAdjacentBlockMergeRule;
 
 impl NonAdjacentBlockMergeRule {
     pub fn contract() -> OptimizationRuleContract {

@@ -15,7 +15,7 @@ use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct DominatorProofCertifiedCompatiblePolicyScalarGvnRule;
+pub(crate) struct DominatorProofCertifiedCompatiblePolicyScalarGvnRule;
 
 impl DominatorProofCertifiedCompatiblePolicyScalarGvnRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -110,8 +110,7 @@ impl PsiOptimizationRule for DominatorProofCertifiedCompatiblePolicyScalarGvnRul
                 }) {
                     continue;
                 }
-                let Some(redundant_block) = function.block(redundant.block)
-                else {
+                let Some(redundant_block) = function.block(redundant.block) else {
                     continue;
                 };
                 let redundant_index = usize::try_from(redundant.node).expect("u32 fits usize");

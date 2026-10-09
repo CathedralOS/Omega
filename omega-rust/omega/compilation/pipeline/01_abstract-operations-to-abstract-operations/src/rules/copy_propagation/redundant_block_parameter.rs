@@ -17,7 +17,7 @@ use crate::rules::COPY_PROPAGATION_PASS_NAME;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct RedundantBlockParameterRule;
+pub(crate) struct RedundantBlockParameterRule;
 
 impl RedundantBlockParameterRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -42,7 +42,11 @@ impl RedundantBlockParameterRule {
     }
 }
 
-psi_optimization_rule_delegate!(RedundantBlockParameterRule, propose = propose, contract = Self::contract());
+psi_optimization_rule_delegate!(
+    RedundantBlockParameterRule,
+    propose = propose,
+    contract = Self::contract()
+);
 
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
