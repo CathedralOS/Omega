@@ -14,133 +14,132 @@ const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section
 pub fn relocation_free_text_section_identity(
     section: &RelocationFreeTextSectionPlacement,
 ) -> TerminalRelocationFreeTextSectionIdentity {
-    let mut hasher = Sha256::new();
-    hasher.update(TEXT_SECTION_SCHEMA);
-    hasher.update(section.source_fragments.bytes());
-    hasher.update(section.psi.vocabulary_marker.get().to_le_bytes());
-    hasher.update(section.psi.program_fingerprint.as_bytes());
-    hasher.update(section.fuel_schedule.marker().to_le_bytes());
-    hasher.update(section.selected.bytes());
-    hasher.update(section.target.wire_identity_bytes());
-    hasher.update(section.semantic_entry.get().to_le_bytes());
-    hasher.update(section.semantic_entry_offset.to_le_bytes());
-    hasher.update([match section.policy {
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(TEXT_SECTION_SCHEMA);
+    hasher.raw(&section.source_fragments.bytes());
+    hasher.raw(&section.psi.vocabulary_marker.get().to_le_bytes());
+    hasher.raw(section.psi.program_fingerprint.as_bytes());
+    hasher.raw(&section.fuel_schedule.marker().to_le_bytes());
+    hasher.raw(&section.selected.bytes());
+    hasher.raw(&section.target.wire_identity_bytes());
+    hasher.raw(&section.semantic_entry.get().to_le_bytes());
+    hasher.raw(&section.semantic_entry_offset.to_le_bytes());
+    hasher.byte(match section.policy {
         TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1 => 1,
-    }]);
-    hasher.update(section.section_alignment.to_le_bytes());
-    hasher.update(section.byte_count.to_le_bytes());
+    });
+    hasher.raw(&section.section_alignment.to_le_bytes());
+    hasher.raw(&section.byte_count.to_le_bytes());
     encode_bytes(&mut hasher, &section.bytes);
-    hasher.update((section.functions.len() as u64).to_le_bytes());
+    hasher.u64(section.functions.len() as u64);
     for function in &section.functions {
-        hasher.update(function.source_function_index.to_le_bytes());
-        hasher.update(function.machine.get().to_le_bytes());
-        hasher.update(function.section_offset.to_le_bytes());
-        hasher.update(function.byte_count.to_le_bytes());
-        hasher.update((function.blocks.len() as u64).to_le_bytes());
+        hasher.raw(&function.source_function_index.to_le_bytes());
+        hasher.raw(&function.machine.get().to_le_bytes());
+        hasher.raw(&function.section_offset.to_le_bytes());
+        hasher.raw(&function.byte_count.to_le_bytes());
+        hasher.u64(function.blocks.len() as u64);
         for block in &function.blocks {
-            hasher.update(block.block.0.to_le_bytes());
-            hasher.update(block.function_offset.to_le_bytes());
-            hasher.update(block.section_offset.to_le_bytes());
-            hasher.update(block.byte_count.to_le_bytes());
-            hasher.update((block.instructions.len() as u64).to_le_bytes());
+            hasher.raw(&block.block.0.to_le_bytes());
+            hasher.raw(&block.function_offset.to_le_bytes());
+            hasher.raw(&block.section_offset.to_le_bytes());
+            hasher.raw(&block.byte_count.to_le_bytes());
+            hasher.u64(block.instructions.len() as u64);
             for instruction in &block.instructions {
-                hasher.update(instruction.instruction.0.to_le_bytes());
+                hasher.raw(&instruction.instruction.0.to_le_bytes());
                 selected_instructions::encode_machine_alternative_key_identity(
                     &mut hasher,
                     instruction.alternative,
                 );
-                hasher.update(instruction.function_offset.to_le_bytes());
-                hasher.update(instruction.section_offset.to_le_bytes());
-                hasher.update(instruction.byte_count.to_le_bytes());
+                hasher.raw(&instruction.function_offset.to_le_bytes());
+                hasher.raw(&instruction.section_offset.to_le_bytes());
+                hasher.raw(&instruction.byte_count.to_le_bytes());
             }
         }
     }
-    hasher.update((section.resolved_internal_machine_calls.len() as u64).to_le_bytes());
+    hasher.u64(section.resolved_internal_machine_calls.len() as u64);
     for resolution in &section.resolved_internal_machine_calls {
-        hasher.update([match resolution.kind {
+        hasher.byte(match resolution.kind {
             InternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1 => 1,
             InternalMachineCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 2,
-        }]);
-        hasher.update([match resolution.state {
+        });
+        hasher.byte(match resolution.state {
             InternalMachineCallResolutionState::ResolvedInSectionV1 => 1,
-        }]);
-        hasher.update(resolution.caller.get().to_le_bytes());
-        hasher.update(resolution.block.0.to_le_bytes());
-        hasher.update(resolution.instruction.0.to_le_bytes());
+        });
+        hasher.raw(&resolution.caller.get().to_le_bytes());
+        hasher.raw(&resolution.block.0.to_le_bytes());
+        hasher.raw(&resolution.instruction.0.to_le_bytes());
         encode_call_owner(&mut hasher, resolution.owner);
-        hasher.update(resolution.callee.get().to_le_bytes());
-        hasher.update(resolution.call_function_offset.to_le_bytes());
-        hasher.update(resolution.call_section_offset.to_le_bytes());
-        hasher.update(resolution.call_byte_count.to_le_bytes());
-        hasher.update(resolution.opcode_function_offset.to_le_bytes());
-        hasher.update(resolution.opcode_section_offset.to_le_bytes());
-        hasher.update(resolution.field_function_offset.to_le_bytes());
-        hasher.update(resolution.field_section_offset.to_le_bytes());
-        hasher.update(resolution.next_instruction_function_offset.to_le_bytes());
-        hasher.update(resolution.next_instruction_section_offset.to_le_bytes());
-        hasher.update(resolution.callee_section_offset.to_le_bytes());
-        hasher.update([resolution.field_byte_width]);
-        hasher.update(resolution.addend.to_le_bytes());
-        hasher.update(resolution.displacement.to_le_bytes());
+        hasher.raw(&resolution.callee.get().to_le_bytes());
+        hasher.raw(&resolution.call_function_offset.to_le_bytes());
+        hasher.raw(&resolution.call_section_offset.to_le_bytes());
+        hasher.raw(&resolution.call_byte_count.to_le_bytes());
+        hasher.raw(&resolution.opcode_function_offset.to_le_bytes());
+        hasher.raw(&resolution.opcode_section_offset.to_le_bytes());
+        hasher.raw(&resolution.field_function_offset.to_le_bytes());
+        hasher.raw(&resolution.field_section_offset.to_le_bytes());
+        hasher.raw(&resolution.next_instruction_function_offset.to_le_bytes());
+        hasher.raw(&resolution.next_instruction_section_offset.to_le_bytes());
+        hasher.raw(&resolution.callee_section_offset.to_le_bytes());
+        hasher.byte(resolution.field_byte_width);
+        hasher.raw(&resolution.addend.to_le_bytes());
+        hasher.raw(&resolution.displacement.to_le_bytes());
     }
-    hasher.update((section.unresolved_normalized_foreign_calls.len() as u64).to_le_bytes());
+    hasher.u64(section.unresolved_normalized_foreign_calls.len() as u64);
     for resolution in &section.unresolved_normalized_foreign_calls {
-        hasher.update([match resolution.kind {
+        hasher.byte(match resolution.kind {
             NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 1,
             NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => 2,
-        }]);
-        hasher.update([match resolution.state {
+        });
+        hasher.byte(match resolution.state {
             NormalizedForeignCallResolutionState::UnresolvedImportFieldV1 => 1,
-        }]);
-        hasher.update(resolution.caller.get().to_le_bytes());
-        hasher.update(resolution.block.0.to_le_bytes());
-        hasher.update(resolution.instruction.0.to_le_bytes());
+        });
+        hasher.raw(&resolution.caller.get().to_le_bytes());
+        hasher.raw(&resolution.block.0.to_le_bytes());
+        hasher.raw(&resolution.instruction.0.to_le_bytes());
         encode_invocation_site(&mut hasher, resolution.invocation_site);
-        hasher.update(resolution.boundary.get().to_le_bytes());
-        hasher.update(resolution.ordinal.to_le_bytes());
-        hasher.update(resolution.call_function_offset.to_le_bytes());
-        hasher.update(resolution.call_section_offset.to_le_bytes());
-        hasher.update(resolution.call_byte_count.to_le_bytes());
-        hasher.update(resolution.opcode_function_offset.to_le_bytes());
-        hasher.update(resolution.opcode_section_offset.to_le_bytes());
-        hasher.update(resolution.field_function_offset.to_le_bytes());
-        hasher.update(resolution.field_section_offset.to_le_bytes());
-        hasher.update(resolution.next_instruction_function_offset.to_le_bytes());
-        hasher.update(resolution.next_instruction_section_offset.to_le_bytes());
-        hasher.update([resolution.field_byte_width]);
-        hasher.update(resolution.addend.to_le_bytes());
+        hasher.raw(&resolution.boundary.get().to_le_bytes());
+        hasher.raw(&resolution.ordinal.to_le_bytes());
+        hasher.raw(&resolution.call_function_offset.to_le_bytes());
+        hasher.raw(&resolution.call_section_offset.to_le_bytes());
+        hasher.raw(&resolution.call_byte_count.to_le_bytes());
+        hasher.raw(&resolution.opcode_function_offset.to_le_bytes());
+        hasher.raw(&resolution.opcode_section_offset.to_le_bytes());
+        hasher.raw(&resolution.field_function_offset.to_le_bytes());
+        hasher.raw(&resolution.field_section_offset.to_le_bytes());
+        hasher.raw(&resolution.next_instruction_function_offset.to_le_bytes());
+        hasher.raw(&resolution.next_instruction_section_offset.to_le_bytes());
+        hasher.byte(resolution.field_byte_width);
+        hasher.raw(&resolution.addend.to_le_bytes());
     }
     // A section without byte-literal addresses keeps its earlier identity.
     if !section.unresolved_byte_literal_addresses.is_empty() {
-        hasher.update(b"byte-literal-addresses");
-        hasher.update((section.unresolved_byte_literal_addresses.len() as u64).to_le_bytes());
+        hasher.raw(b"byte-literal-addresses");
+        hasher.u64(section.unresolved_byte_literal_addresses.len() as u64);
         for placed in &section.unresolved_byte_literal_addresses {
             let mut identity = Vec::new();
             placed.encode_identity(&mut identity);
-            hasher.update(identity);
+            hasher.raw(&identity);
         }
     }
     if !section.unresolved_implementation_table_addresses.is_empty() {
-        hasher.update(b"implementation-table-addresses");
+        hasher.raw(b"implementation-table-addresses");
         hasher
             .update((section.unresolved_implementation_table_addresses.len() as u64).to_le_bytes());
         for placed in &section.unresolved_implementation_table_addresses {
             let mut identity = Vec::new();
             placed.encode_identity(&mut identity);
-            hasher.update(identity);
+            hasher.raw(&identity);
         }
     }
-    hasher.update([match section.relocation_requirements {
+    hasher.byte(match section.relocation_requirements {
         TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => 1,
         TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
         TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
-    }]);
+    });
     TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(&hasher.finalize())
 }
 
-fn encode_bytes(hasher: &mut Sha256, bytes: &[u8]) {
-    hasher.update((bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
+fn encode_bytes(hasher: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
+    hasher.u64(bytes.len() as u64);
+    hasher.raw(&bytes);
 }
 
 #[cfg(test)]

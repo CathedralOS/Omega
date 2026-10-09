@@ -50,20 +50,20 @@ pub(crate) fn encode_callback_destination_identity(
     use sha2::Digest;
     match destination {
         CallbackAddressDestination::Register(register) => {
-            hasher.update([0]);
-            hasher.update([register.codec_index()]);
+            hasher.byte(0);
+            hasher.byte(register.codec_index());
         }
         CallbackAddressDestination::OutgoingStack { byte_offset } => {
-            hasher.update([1]);
-            hasher.update(byte_offset.to_le_bytes());
+            hasher.byte(1);
+            hasher.raw(&byte_offset.to_le_bytes());
         }
         CallbackAddressDestination::RecordField {
             root_register,
             byte_offset,
         } => {
-            hasher.update([2]);
-            hasher.update([root_register.codec_index()]);
-            hasher.update(byte_offset.to_le_bytes());
+            hasher.byte(2);
+            hasher.byte(root_register.codec_index());
+            hasher.raw(&byte_offset.to_le_bytes());
         }
     }
 }

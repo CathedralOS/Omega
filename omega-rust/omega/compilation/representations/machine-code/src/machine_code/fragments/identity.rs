@@ -21,47 +21,46 @@ const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v18";
 pub(crate) fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
 ) -> FunctionFragmentEmissionIdentity {
-    let mut hasher = Sha256::new();
-    hasher.update(FRAGMENT_SCHEMA);
-    hasher.update(plan.psi.vocabulary_marker.get().to_le_bytes());
-    hasher.update(plan.psi.program_fingerprint.as_bytes());
-    hasher.update(plan.fuel_schedule.marker().to_le_bytes());
-    hasher.update(plan.selected.bytes());
-    hasher.update(plan.target.identity_bytes());
-    hasher.update(plan.entry.get().to_le_bytes());
-    hasher.update((plan.functions.len() as u64).to_le_bytes());
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(FRAGMENT_SCHEMA);
+    hasher.raw(&plan.psi.vocabulary_marker.get().to_le_bytes());
+    hasher.raw(plan.psi.program_fingerprint.as_bytes());
+    hasher.raw(&plan.fuel_schedule.marker().to_le_bytes());
+    hasher.raw(&plan.selected.bytes());
+    hasher.raw(&plan.target.identity_bytes());
+    hasher.raw(&plan.entry.get().to_le_bytes());
+    hasher.u64(plan.functions.len() as u64);
     for function in &plan.functions {
-        hasher.update(function.machine.get().to_le_bytes());
+        hasher.raw(&function.machine.get().to_le_bytes());
         match function.attachment {
-            None => hasher.update([0]),
+            None => hasher.byte(0),
             Some(attachment) => {
-                hasher.update([1]);
-                hasher.update(attachment.get().to_le_bytes());
+                hasher.byte(1);
+                hasher.raw(&attachment.get().to_le_bytes());
             }
         }
         match function.nominal_cleanup_subject {
-            None => hasher.update([0]),
+            None => hasher.byte(0),
             Some(attachment) => {
-                hasher.update([1]);
-                hasher.update(attachment.get().to_le_bytes());
+                hasher.byte(1);
+                hasher.raw(&attachment.get().to_le_bytes());
             }
         }
         encode_function_provenance(&mut hasher, &function.provenance);
-        hasher.update(function.byte_count.to_le_bytes());
+        hasher.raw(&function.byte_count.to_le_bytes());
         encode_bytes(&mut hasher, &function.bytes);
-        hasher.update((function.blocks.len() as u64).to_le_bytes());
+        hasher.u64(function.blocks.len() as u64);
         for block in &function.blocks {
-            hasher.update(block.block.0.to_le_bytes());
-            hasher.update(block.offset.to_le_bytes());
-            hasher.update(block.byte_count.to_le_bytes());
-            hasher.update((block.instructions.len() as u64).to_le_bytes());
+            hasher.raw(&block.block.0.to_le_bytes());
+            hasher.raw(&block.offset.to_le_bytes());
+            hasher.raw(&block.byte_count.to_le_bytes());
+            hasher.u64(block.instructions.len() as u64);
             for row in &block.instructions {
-                hasher.update(row.instruction.0.to_le_bytes());
+                hasher.raw(&row.instruction.0.to_le_bytes());
                 selected_instructions::encode_machine_alternative_key_identity(
                     &mut hasher,
                     row.alternative,
                 );
-                hasher.update(row.offset.to_le_bytes());
+                hasher.raw(&row.offset.to_le_bytes());
                 encode_bytes(&mut hasher, &row.bytes);
                 encode_branch(&mut hasher, row.branch.as_deref());
                 encode_optional_internal_machine_fixup(&mut hasher, row.internal_machine_fixup);
@@ -74,13 +73,13 @@ pub(crate) fn function_fragment_emission_identity(
                     let mut identity = b"byte-literal-address".to_vec();
                     fixup.literal.encode_identity(&mut identity);
                     fixup.fields.encode_identity(&mut identity);
-                    hasher.update(identity);
+                    hasher.raw(&identity);
                 }
                 if let Some(fixup) = row.implementation_table_address_fixup {
                     let mut identity = b"implementation-table-address".to_vec();
                     fixup.reference.encode_identity(&mut identity);
                     fixup.fields.encode_identity(&mut identity);
-                    hasher.update(identity);
+                    hasher.raw(&identity);
                 }
                 encode_instruction_provenance(&mut hasher, &row.provenance);
                 encode_control(&mut hasher, &row.control);
@@ -91,78 +90,78 @@ pub(crate) fn function_fragment_emission_identity(
 }
 
 fn encode_optional_internal_machine_fixup(
-    hasher: &mut Sha256,
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
     fixup: Option<FunctionFragmentInternalMachineFixup>,
 ) {
     match fixup {
-        None => hasher.update([0]),
+        None => hasher.byte(0),
         Some(fixup) => {
-            hasher.update([1]);
+            hasher.byte(1);
             encode_internal_machine_fixup(hasher, fixup);
         }
     }
 }
 
-fn encode_internal_machine_fixup(hasher: &mut Sha256, fixup: FunctionFragmentInternalMachineFixup) {
-    hasher.update([match fixup.kind {
+fn encode_internal_machine_fixup(hasher: &mut crate::digest_encoder::DomainDigestEncoder, fixup: FunctionFragmentInternalMachineFixup) {
+    hasher.byte(match fixup.kind {
         FunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 1,
         FunctionFragmentInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 2,
-    }]);
-    hasher.update([match fixup.state {
+    });
+    hasher.byte(match fixup.state {
         FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1 => 1,
-    }]);
-    hasher.update(fixup.callee.get().to_le_bytes());
-    hasher.update(fixup.opcode_function_offset.to_le_bytes());
-    hasher.update(fixup.patch_function_offset.to_le_bytes());
-    hasher.update(fixup.reference_function_offset.to_le_bytes());
-    hasher.update([fixup.patch_byte_width]);
-    hasher.update(fixup.addend.to_le_bytes());
+    });
+    hasher.raw(&fixup.callee.get().to_le_bytes());
+    hasher.raw(&fixup.opcode_function_offset.to_le_bytes());
+    hasher.raw(&fixup.patch_function_offset.to_le_bytes());
+    hasher.raw(&fixup.reference_function_offset.to_le_bytes());
+    hasher.byte(fixup.patch_byte_width);
+    hasher.raw(&fixup.addend.to_le_bytes());
 }
 
 fn encode_optional_normalized_foreign_call_fixup(
-    hasher: &mut Sha256,
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
     fixup: Option<&FunctionFragmentNormalizedForeignCallFixup>,
 ) {
     match fixup {
-        None => hasher.update([0]),
+        None => hasher.byte(0),
         Some(fixup) => {
-            hasher.update([1]);
-            hasher.update([match fixup.kind {
+            hasher.byte(1);
+            hasher.byte(match fixup.kind {
                 FunctionFragmentNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 1,
                 FunctionFragmentNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => 2,
-            }]);
-            hasher.update([match fixup.state {
+            });
+            hasher.byte(match fixup.state {
                 FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1 => 1,
-            }]);
-            hasher.update(fixup.boundary.get().to_le_bytes());
-            hasher.update(fixup.ordinal.to_le_bytes());
-            hasher.update(fixup.opcode_function_offset.to_le_bytes());
-            hasher.update(fixup.patch_function_offset.to_le_bytes());
-            hasher.update(fixup.reference_function_offset.to_le_bytes());
-            hasher.update([fixup.patch_byte_width]);
-            hasher.update(fixup.addend.to_le_bytes());
-            hasher.update((fixup.callbacks.len() as u64).to_le_bytes());
+            });
+            hasher.raw(&fixup.boundary.get().to_le_bytes());
+            hasher.raw(&fixup.ordinal.to_le_bytes());
+            hasher.raw(&fixup.opcode_function_offset.to_le_bytes());
+            hasher.raw(&fixup.patch_function_offset.to_le_bytes());
+            hasher.raw(&fixup.reference_function_offset.to_le_bytes());
+            hasher.byte(fixup.patch_byte_width);
+            hasher.raw(&fixup.addend.to_le_bytes());
+            hasher.u64(fixup.callbacks.len() as u64);
             for callback in &fixup.callbacks {
                 crate::machine_code::calls::callbacks::encode_callback_destination_identity(
                     hasher,
                     callback.destination,
                 );
-                hasher.update(callback.code_function_offset.to_le_bytes());
-                hasher.update(callback.code_byte_count.to_le_bytes());
+                hasher.raw(&callback.code_function_offset.to_le_bytes());
+                hasher.raw(&callback.code_byte_count.to_le_bytes());
                 match callback.encoding {
                     super::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
                         patch_function_offset,
                     } => {
-                        hasher.update([0]);
-                        hasher.update(patch_function_offset.to_le_bytes());
+                        hasher.byte(0);
+                        hasher.raw(&patch_function_offset.to_le_bytes());
                     }
                     super::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
                         page_patch_function_offset,
                         page_offset_patch_function_offset,
                     } => {
-                        hasher.update([1]);
-                        hasher.update(page_patch_function_offset.to_le_bytes());
-                        hasher.update(page_offset_patch_function_offset.to_le_bytes());
+                        hasher.byte(1);
+                        hasher.raw(&page_patch_function_offset.to_le_bytes());
+                        hasher.raw(&page_offset_patch_function_offset.to_le_bytes());
                     }
                 }
             }
@@ -170,17 +169,17 @@ fn encode_optional_normalized_foreign_call_fixup(
     }
 }
 
-fn encode_bytes(hasher: &mut Sha256, bytes: &[u8]) {
-    hasher.update((bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
+fn encode_bytes(hasher: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
+    hasher.u64(bytes.len() as u64);
+    hasher.raw(&bytes);
 }
 
-fn encode_function_provenance(hasher: &mut Sha256, provenance: &TerminalPsiProvenance) {
+fn encode_function_provenance(hasher: &mut crate::digest_encoder::DomainDigestEncoder, provenance: &TerminalPsiProvenance) {
     encode_semantic_ids(hasher, provenance.operations.iter().map(|id| id.get()));
     encode_semantic_ids(hasher, provenance.edges.iter().map(|id| id.get()));
 }
 
-fn encode_instruction_provenance(hasher: &mut Sha256, provenance: &SelectedInstructionProvenance) {
+fn encode_instruction_provenance(hasher: &mut crate::digest_encoder::DomainDigestEncoder, provenance: &SelectedInstructionProvenance) {
     encode_semantic_ids(hasher, provenance.operations.iter().map(|id| id.get()));
     encode_semantic_ids(hasher, provenance.values.iter().map(|id| id.get()));
     encode_semantic_ids(hasher, provenance.edges.iter().map(|id| id.get()));
@@ -188,55 +187,55 @@ fn encode_instruction_provenance(hasher: &mut Sha256, provenance: &SelectedInstr
     encode_fuel(hasher, &provenance.fuel);
 }
 
-fn encode_semantic_ids(hasher: &mut Sha256, ids: impl ExactSizeIterator<Item = u64>) {
-    hasher.update((ids.len() as u64).to_le_bytes());
+fn encode_semantic_ids(hasher: &mut crate::digest_encoder::DomainDigestEncoder, ids: impl ExactSizeIterator<Item = u64>) {
+    hasher.u64(ids.len() as u64);
     for id in ids {
-        hasher.update(id.to_le_bytes());
+        hasher.raw(&id.to_le_bytes());
     }
 }
 
-fn encode_fuel(hasher: &mut Sha256, fuel: &[FuelSettlement]) {
-    hasher.update((fuel.len() as u64).to_le_bytes());
+fn encode_fuel(hasher: &mut crate::digest_encoder::DomainDigestEncoder, fuel: &[FuelSettlement]) {
+    hasher.u64(fuel.len() as u64);
     for settlement in fuel {
         match settlement.site {
             PsiProvenance::Operation(operation) => {
-                hasher.update([0]);
-                hasher.update(operation.get().to_le_bytes());
+                hasher.byte(0);
+                hasher.raw(&operation.get().to_le_bytes());
             }
             PsiProvenance::Edge(edge) => {
-                hasher.update([1]);
-                hasher.update(edge.get().to_le_bytes());
+                hasher.byte(1);
+                hasher.raw(&edge.get().to_le_bytes());
             }
         }
-        hasher.update(settlement.units.to_le_bytes());
+        hasher.raw(&settlement.units.to_le_bytes());
     }
 }
 
-fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenance) {
+fn encode_control(hasher: &mut crate::digest_encoder::DomainDigestEncoder, control: &FunctionFragmentControlProvenance) {
     match control {
         FunctionFragmentControlProvenance::Crash { psi_edge, cause } => {
-            hasher.update([7]);
-            hasher.update(psi_edge.get().to_le_bytes());
-            hasher.update([match cause {
+            hasher.byte(7);
+            hasher.raw(&psi_edge.get().to_le_bytes());
+            hasher.byte(match cause {
                 terminal_psi::CrashCause::Trap => 1,
                 terminal_psi::CrashCause::Abort => 2,
-            }]);
+            });
         }
         FunctionFragmentControlProvenance::Jump { successor } => {
-            hasher.update([4]);
+            hasher.byte(4);
             encode_successor(hasher, successor);
         }
-        FunctionFragmentControlProvenance::None => hasher.update([0]),
+        FunctionFragmentControlProvenance::None => hasher.byte(0),
         FunctionFragmentControlProvenance::InternalCall { target, owner } => {
             match target {
                 selected_instructions::SelectedCallTarget::Machine(machine) => {
-                    hasher.update([3]);
-                    hasher.update(machine.get().to_le_bytes());
+                    hasher.byte(3);
+                    hasher.raw(&machine.get().to_le_bytes());
                 }
                 selected_instructions::SelectedCallTarget::Dynamic { interface, slot } => {
-                    hasher.update([9]);
-                    hasher.update(interface.to_le_bytes());
-                    hasher.update(slot.to_le_bytes());
+                    hasher.byte(9);
+                    hasher.raw(&interface.to_le_bytes());
+                    hasher.raw(&slot.to_le_bytes());
                 }
             }
             encode_call_owner(hasher, *owner);
@@ -246,85 +245,85 @@ fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenan
             boundary,
             ordinal,
         } => {
-            hasher.update([6]);
+            hasher.byte(6);
             encode_invocation_site(hasher, *invocation_site);
-            hasher.update(boundary.get().to_le_bytes());
-            hasher.update(ordinal.to_le_bytes());
+            hasher.raw(&boundary.get().to_le_bytes());
+            hasher.raw(&ordinal.to_le_bytes());
         }
         FunctionFragmentControlProvenance::ConditionalBranch {
             predicate,
             when_taken,
             when_fallthrough,
         } => {
-            hasher.update([1]);
+            hasher.byte(1);
             encode_branch_predicate(hasher, *predicate);
             encode_successor(hasher, when_taken);
             encode_successor(hasher, when_fallthrough);
         }
         FunctionFragmentControlProvenance::Return { psi_return_edge } => {
-            hasher.update([2]);
-            hasher.update(psi_return_edge.get().to_le_bytes());
+            hasher.byte(2);
+            hasher.raw(&psi_return_edge.get().to_le_bytes());
         }
         FunctionFragmentControlProvenance::HostedExitProcess { completion_edge } => {
-            hasher.update([5]);
-            hasher.update(completion_edge.get().to_le_bytes());
+            hasher.byte(5);
+            hasher.raw(&completion_edge.get().to_le_bytes());
         }
     }
 }
 
-fn encode_successor(hasher: &mut Sha256, successor: &FunctionFragmentSuccessorProvenance) {
-    hasher.update([match successor.role {
+fn encode_successor(hasher: &mut crate::digest_encoder::DomainDigestEncoder, successor: &FunctionFragmentSuccessorProvenance) {
+    hasher.byte(match successor.role {
         selected_instructions::SelectedSuccessorRole::Semantic => 0,
         selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation => 1,
         selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation => 2,
-    }]);
-    hasher.update(successor.psi_edge.get().to_le_bytes());
-    hasher.update(successor.block.0.to_le_bytes());
-    hasher.update(successor.source_target.get().to_le_bytes());
-    hasher.update((successor.bindings.len() as u64).to_le_bytes());
+    });
+    hasher.raw(&successor.psi_edge.get().to_le_bytes());
+    hasher.raw(&successor.block.0.to_le_bytes());
+    hasher.raw(&successor.source_target.get().to_le_bytes());
+    hasher.u64(successor.bindings.len() as u64);
     for binding in &successor.bindings {
-        hasher.update(binding.parameter.get().to_le_bytes());
-        hasher.update(binding.argument.get().to_le_bytes());
+        hasher.raw(&binding.parameter.get().to_le_bytes());
+        hasher.raw(&binding.argument.get().to_le_bytes());
         match binding.scalar_type {
-            ScalarType::Boolean => hasher.update([0]),
+            ScalarType::Boolean => hasher.byte(0),
             ScalarType::Integer(integer) => {
-                hasher.update([1]);
-                hasher.update([match integer.carrier() {
+                hasher.byte(1);
+                hasher.byte(match integer.carrier() {
                     IntegerCarrier::Fixed => 0,
                     IntegerCarrier::Address => 1,
-                }]);
-                hasher.update([match integer.sign() {
+                });
+                hasher.byte(match integer.sign() {
                     IntegerSign::Signed => 0,
                     IntegerSign::Unsigned => 1,
-                }]);
-                hasher.update(integer.bits().to_le_bytes());
+                });
+                hasher.raw(&integer.bits().to_le_bytes());
             }
             ScalarType::IeeeFloat(format) => {
-                hasher.update([2]);
-                hasher.update([match format {
+                hasher.byte(2);
+                hasher.byte(match format {
                     semantic_vocabulary::IeeeFloatFormat::Binary32 => 0,
                     semantic_vocabulary::IeeeFloatFormat::Binary64 => 1,
-                }]);
+                });
             }
         }
     }
     encode_fuel(hasher, &successor.fuel);
 }
 
-fn encode_branch(hasher: &mut Sha256, branch: Option<&super::FunctionFragmentBranchEvidence>) {
+fn encode_branch(hasher: &mut crate::digest_encoder::DomainDigestEncoder, branch: Option<&super::FunctionFragmentBranchEvidence>) {
     let Some(branch) = branch else {
-        hasher.update([0]);
+        hasher.byte(0);
         return;
     };
     let branch = match branch {
         super::FunctionFragmentBranchEvidence::Conditional(branch) => branch,
         super::FunctionFragmentBranchEvidence::Jump(jump) => {
-            hasher.update([2]);
-            hasher.update(jump.source_block.0.to_le_bytes());
-            hasher.update(jump.target_edge.get().to_le_bytes());
-            hasher.update(jump.target_block.0.to_le_bytes());
-            hasher.update(jump.target_offset.to_le_bytes());
-            hasher.update(jump.byte_displacement.to_le_bytes());
+            hasher.byte(2);
+            hasher.raw(&jump.source_block.0.to_le_bytes());
+            hasher.raw(&jump.target_edge.get().to_le_bytes());
+            hasher.raw(&jump.target_block.0.to_le_bytes());
+            hasher.raw(&jump.target_offset.to_le_bytes());
+            hasher.raw(&jump.byte_displacement.to_le_bytes());
             selected_instructions::encode_machine_encoded_effects_identity(
                 hasher,
                 &jump.decoded_effects,
@@ -332,26 +331,26 @@ fn encode_branch(hasher: &mut Sha256, branch: Option<&super::FunctionFragmentBra
             return;
         }
     };
-    hasher.update([1]);
+    hasher.byte(1);
     encode_branch_predicate(hasher, branch.predicate);
-    hasher.update(branch.source_block.0.to_le_bytes());
-    hasher.update(branch.when_taken_edge.get().to_le_bytes());
-    hasher.update(branch.when_taken_block.0.to_le_bytes());
-    hasher.update(branch.when_taken_offset.to_le_bytes());
-    hasher.update(branch.when_fallthrough_edge.get().to_le_bytes());
-    hasher.update(branch.when_fallthrough_block.0.to_le_bytes());
-    hasher.update(branch.when_fallthrough_offset.to_le_bytes());
-    hasher.update(branch.byte_displacement.to_le_bytes());
-    hasher.update((branch.decoded_register_reads.len() as u64).to_le_bytes());
+    hasher.raw(&branch.source_block.0.to_le_bytes());
+    hasher.raw(&branch.when_taken_edge.get().to_le_bytes());
+    hasher.raw(&branch.when_taken_block.0.to_le_bytes());
+    hasher.raw(&branch.when_taken_offset.to_le_bytes());
+    hasher.raw(&branch.when_fallthrough_edge.get().to_le_bytes());
+    hasher.raw(&branch.when_fallthrough_block.0.to_le_bytes());
+    hasher.raw(&branch.when_fallthrough_offset.to_le_bytes());
+    hasher.raw(&branch.byte_displacement.to_le_bytes());
+    hasher.u64(branch.decoded_register_reads.len() as u64);
     for read in &branch.decoded_register_reads {
-        hasher.update(read.0.to_le_bytes());
+        hasher.raw(&read.0.to_le_bytes());
     }
     selected_instructions::encode_machine_encoded_effects_identity(hasher, &branch.decoded_effects);
 }
 
 fn encode_branch_predicate(
-    hasher: &mut Sha256,
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
     predicate: FunctionFragmentConditionalBranchPredicate,
 ) {
-    hasher.update([predicate.rank()]);
+    hasher.byte(predicate.rank());
 }

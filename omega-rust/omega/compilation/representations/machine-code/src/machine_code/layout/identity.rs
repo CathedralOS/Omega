@@ -35,64 +35,63 @@ pub fn resolved_machine_layout_identity(
     policy: SelectedFunctionLayoutPolicy,
     functions: &[ResolvedSelectedFunctionLayout],
 ) -> ResolvedSelectedFormLayoutIdentity {
-    let mut hasher = Sha256::new();
-    hasher.update(LAYOUT_SCHEMA);
-    hasher.update(selected.bytes());
-    hasher.update(machine.bytes());
-    hasher.update(pre_layout.bytes());
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(LAYOUT_SCHEMA);
+    hasher.raw(&selected.bytes());
+    hasher.raw(&machine.bytes());
+    hasher.raw(&pre_layout.bytes());
     match post_allocation_machine_optimization {
-        None => hasher.update([0]),
+        None => hasher.byte(0),
         Some(custody) => {
-            hasher.update([1]);
-            hasher.update([custody.optimization() as u8]);
-            hasher.update(custody.artifact_identity());
-            hasher.update(custody.selections().bytes());
-            hasher.update(custody.post_allocation_machine_selections().bytes());
-            hasher.update(custody.source().bytes());
-            hasher.update((custody.action_count() as u64).to_le_bytes());
-            hasher.update(custody.baseline_bytes().to_le_bytes());
-            hasher.update(custody.selected_bytes().to_le_bytes());
+            hasher.byte(1);
+            hasher.byte(custody.optimization() as u8);
+            hasher.raw(&custody.artifact_identity());
+            hasher.raw(&custody.selections().bytes());
+            hasher.raw(&custody.post_allocation_machine_selections().bytes());
+            hasher.raw(&custody.source().bytes());
+            hasher.u64((custody.action_count() as u64);
+            hasher.raw(&custody.baseline_bytes().to_le_bytes());
+            hasher.raw(&custody.selected_bytes().to_le_bytes());
         }
     }
-    hasher.update(target.identity_bytes());
-    hasher.update([match policy {
+    hasher.raw(&target.identity_bytes());
+    hasher.byte(match policy {
         SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 0,
         SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 1,
         SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 => 3,
         SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1 => 4,
-    }]);
-    hasher.update((functions.len() as u64).to_le_bytes());
+    });
+    hasher.u64(functions.len() as u64);
     for function in functions {
-        hasher.update(function.machine.get().to_le_bytes());
-        hasher.update(function.byte_count.to_le_bytes());
-        hasher.update((function.blocks.len() as u64).to_le_bytes());
+        hasher.raw(&function.machine.get().to_le_bytes());
+        hasher.raw(&function.byte_count.to_le_bytes());
+        hasher.u64(function.blocks.len() as u64);
         for block in &function.blocks {
-            hasher.update(block.block.0.to_le_bytes());
-            hasher.update(block.offset.to_le_bytes());
-            hasher.update(block.byte_count.to_le_bytes());
-            hasher.update((block.instructions.len() as u64).to_le_bytes());
+            hasher.raw(&block.block.0.to_le_bytes());
+            hasher.raw(&block.offset.to_le_bytes());
+            hasher.raw(&block.byte_count.to_le_bytes());
+            hasher.u64(block.instructions.len() as u64);
             for instruction in &block.instructions {
-                hasher.update(instruction.instruction.0.to_le_bytes());
+                hasher.raw(&instruction.instruction.0.to_le_bytes());
                 selected_instructions::encode_machine_alternative_key_identity(
                     &mut hasher,
                     instruction.alternative,
                 );
-                hasher.update(instruction.offset.to_le_bytes());
-                hasher.update((instruction.bytes.len() as u64).to_le_bytes());
+                hasher.raw(&instruction.offset.to_le_bytes());
+                hasher.u64(instruction.bytes.len() as u64);
                 hasher.update(&instruction.bytes);
                 match instruction.branch.as_deref() {
-                    None => hasher.update([0]),
+                    None => hasher.byte(0),
                     Some(super::ResolvedBranchEvidence::Conditional(branch)) => {
-                        hasher.update([1]);
-                        hasher.update([branch.predicate.rank()]);
-                        hasher.update(branch.source_block.0.to_le_bytes());
-                        hasher.update(branch.when_taken_edge.get().to_le_bytes());
-                        hasher.update(branch.when_taken_block.0.to_le_bytes());
-                        hasher.update(branch.when_taken_offset.to_le_bytes());
-                        hasher.update(branch.when_fallthrough_edge.get().to_le_bytes());
-                        hasher.update(branch.when_fallthrough_block.0.to_le_bytes());
-                        hasher.update(branch.when_fallthrough_offset.to_le_bytes());
-                        hasher.update(branch.byte_displacement.to_le_bytes());
+                        hasher.byte(1);
+                        hasher.byte(branch.predicate.rank());
+                        hasher.raw(&branch.source_block.0.to_le_bytes());
+                        hasher.raw(&branch.when_taken_edge.get().to_le_bytes());
+                        hasher.raw(&branch.when_taken_block.0.to_le_bytes());
+                        hasher.raw(&branch.when_taken_offset.to_le_bytes());
+                        hasher.raw(&branch.when_fallthrough_edge.get().to_le_bytes());
+                        hasher.raw(&branch.when_fallthrough_block.0.to_le_bytes());
+                        hasher.raw(&branch.when_fallthrough_offset.to_le_bytes());
+                        hasher.raw(&branch.byte_displacement.to_le_bytes());
                         encode_views(&mut hasher, &branch.decoded_register_reads);
                         selected_instructions::encode_machine_encoded_effects_identity(
                             &mut hasher,
@@ -100,12 +99,12 @@ pub fn resolved_machine_layout_identity(
                         );
                     }
                     Some(super::ResolvedBranchEvidence::Jump(jump)) => {
-                        hasher.update([2]);
-                        hasher.update(jump.source_block.0.to_le_bytes());
-                        hasher.update(jump.target_edge.get().to_le_bytes());
-                        hasher.update(jump.target_block.0.to_le_bytes());
-                        hasher.update(jump.target_offset.to_le_bytes());
-                        hasher.update(jump.byte_displacement.to_le_bytes());
+                        hasher.byte(2);
+                        hasher.raw(&jump.source_block.0.to_le_bytes());
+                        hasher.raw(&jump.target_edge.get().to_le_bytes());
+                        hasher.raw(&jump.target_block.0.to_le_bytes());
+                        hasher.raw(&jump.target_offset.to_le_bytes());
+                        hasher.raw(&jump.byte_displacement.to_le_bytes());
                         selected_instructions::encode_machine_encoded_effects_identity(
                             &mut hasher,
                             &jump.decoded_effects,
@@ -118,44 +117,44 @@ pub fn resolved_machine_layout_identity(
                     let mut identity = b"byte-literal-address".to_vec();
                     fixup.literal.encode_identity(&mut identity);
                     fixup.fields.encode_identity(&mut identity);
-                    hasher.update(identity);
+                    hasher.raw(&identity);
                 }
                 if let Some(fixup) = instruction.implementation_table_address_fixup {
                     let mut identity = b"implementation-table-address".to_vec();
                     fixup.reference.encode_identity(&mut identity);
                     fixup.fields.encode_identity(&mut identity);
-                    hasher.update(identity);
+                    hasher.raw(&identity);
                 }
             }
         }
     }
-    ResolvedSelectedFormLayoutIdentity(hasher.finalize().into())
+    ResolvedSelectedFormLayoutIdentity(hasher.finish())
 }
 
-fn encode_internal_fixup(hasher: &mut Sha256, fixup: Option<SelectedFormInternalMachineFixup>) {
+fn encode_internal_fixup(hasher: &mut crate::digest_encoder::DomainDigestEncoder, fixup: Option<SelectedFormInternalMachineFixup>) {
     let Some(fixup) = fixup else {
-        hasher.update([0]);
+        hasher.byte(0);
         return;
     };
-    hasher.update([1]);
-    hasher.update([match fixup.kind {
+    hasher.byte(1);
+    hasher.byte(match fixup.kind {
         SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 0,
         SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 1,
-    }]);
-    hasher.update([match fixup.state {
+    });
+    hasher.byte(match fixup.state {
         SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1 => 0,
-    }]);
-    hasher.update(fixup.callee.get().to_le_bytes());
-    hasher.update(fixup.opcode_row_offset.to_le_bytes());
-    hasher.update(fixup.patch_row_offset.to_le_bytes());
-    hasher.update(fixup.reference_row_offset.to_le_bytes());
-    hasher.update([fixup.patch_byte_width]);
-    hasher.update(fixup.addend.to_le_bytes());
+    });
+    hasher.raw(&fixup.callee.get().to_le_bytes());
+    hasher.raw(&fixup.opcode_row_offset.to_le_bytes());
+    hasher.raw(&fixup.patch_row_offset.to_le_bytes());
+    hasher.raw(&fixup.reference_row_offset.to_le_bytes());
+    hasher.byte(fixup.patch_byte_width);
+    hasher.raw(&fixup.addend.to_le_bytes());
 }
 
-fn encode_views(hasher: &mut Sha256, values: &[register_model::RegisterViewId]) {
-    hasher.update((values.len() as u64).to_le_bytes());
+fn encode_views(hasher: &mut crate::digest_encoder::DomainDigestEncoder, values: &[register_model::RegisterViewId]) {
+    hasher.u64(values.len() as u64);
     for value in values {
-        hasher.update(value.0.to_le_bytes());
+        hasher.raw(&value.0.to_le_bytes());
     }
 }

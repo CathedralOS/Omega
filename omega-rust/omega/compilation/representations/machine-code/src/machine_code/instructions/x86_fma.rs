@@ -107,36 +107,28 @@ pub(crate) fn x86_scalar_fma_fragment_identity(
     let destination = xmm_index(fragment.destination)?;
     let addend = xmm_index(fragment.addend)?;
     let multiplicand = xmm_index(fragment.multiplicand)?;
-    let mut hasher = Sha256::new();
-    hasher.update(X86_SCALAR_FMA_FRAGMENT_SCHEMA);
-    hasher.update(fragment.requirement.identity());
-    hasher.update(
-        fragment
-            .requirement
-            .profile()
-            .identity()
-            .as_str()
-            .as_bytes(),
-    );
-    hasher.update([match fragment.target.architecture {
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(X86_SCALAR_FMA_FRAGMENT_SCHEMA);
+    hasher.raw(&fragment.requirement.identity());
+    hasher.raw(&fragment .requirement .profile() .identity() .as_str() .as_bytes(),);
+    hasher.byte(match fragment.target.architecture {
         Architecture::Aarch64 => 0,
         Architecture::X86_64 => 1,
-    }]);
-    hasher.update([match fragment.target.object_format {
+    });
+    hasher.byte(match fragment.target.object_format {
         target::ObjectFormat::Elf => 0,
         target::ObjectFormat::MachO => 1,
         target::ObjectFormat::Coff => 2,
-    }]);
-    hasher.update((fragment.target.pointer_size as u64).to_le_bytes());
-    hasher.update((fragment.target.pointer_alignment as u64).to_le_bytes());
-    hasher.update([match fragment.format {
+    });
+    hasher.u64((fragment.target.pointer_size as u64);
+    hasher.u64((fragment.target.pointer_alignment as u64);
+    hasher.byte(match fragment.format {
         X86ScalarFmaFormat::Binary32 => 1,
         X86ScalarFmaFormat::Binary64 => 2,
-    }]);
-    hasher.update([destination, addend, multiplicand]);
-    hasher.update((fragment.code_offset as u64).to_le_bytes());
-    hasher.update((fragment.byte_count as u64).to_le_bytes());
-    Some(hasher.finalize().into())
+    });
+    hasher.byte(destination, addend, multiplicand);
+    hasher.u64((fragment.code_offset as u64);
+    hasher.u64((fragment.byte_count as u64);
+    Some(hasher.finish())
 }
 
 fn xmm_index(register: MachineRegister) -> Option<u8> {
