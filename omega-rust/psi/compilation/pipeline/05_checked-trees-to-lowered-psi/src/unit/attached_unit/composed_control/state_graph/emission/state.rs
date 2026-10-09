@@ -1285,14 +1285,12 @@ impl StateGraphEmission<'_, '_> {
                             target: edge.target,
                             case: case.identity,
                             payload_fields: case.fields.clone(),
-                            // A successor arm's staged block evaluates its
-                            // operands first: they may transfer payload
-                            // subtrees out of the subject, and the exit's
-                            // checked cleanup there disposes the remainder.
-                            cleanup_actions: match &case.outcome {
-                                checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(_) => Vec::new(),
-                                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => case_subject_discards.iter().copied().map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot).collect(),
-                            },
+                            // Selection binds scalar payload snapshots, but
+                            // arm operands may still observe nested storage or
+                            // transfer its custody. Both returns and successors
+                            // evaluate those operands before their selected
+                            // completion applies the checked cleanup schedule.
+                            cleanup_actions: Vec::new(),
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;

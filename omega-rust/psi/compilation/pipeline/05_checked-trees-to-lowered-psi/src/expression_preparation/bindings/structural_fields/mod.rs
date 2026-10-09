@@ -22,7 +22,9 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use semantic_vocabulary::StructuralCaseId;
 use terminal_psi::live_field;
 
+mod case_observation;
 mod observation_paths;
+pub(crate) use case_observation::prepare as prepare_case_observation;
 
 #[derive(Clone)]
 pub(crate) struct StructuralScalarFieldBinding {
@@ -614,15 +616,16 @@ pub(crate) fn resolve_case_payload(
             // The observation owns preparation, not the successor argument
             // scanner. Its carrier copy is emitted only where this expression
             // executes, and Terminal replay checks the selected case there.
-            let source =
-                crate::emission::operation_emission::expressions::PrimitiveReadSource::CaseLeaf {
-                    source: payload.source,
-                    path: vec![
-                        semantic_vocabulary::CanonicalStructuralPathSegment::Case(payload.case),
-                        semantic_vocabulary::CanonicalStructuralPathSegment::Field(payload.member),
-                    ],
-                    structural_type: payload.member_type,
-                };
+            let source = prepare_case_observation(
+                payload.source,
+                binding.structural_type,
+                &[
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Case(payload.case),
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(payload.member),
+                ],
+                &binding.declarations,
+            )?
+            .source;
             match &mut payload.observation {
                 LoweredDirectExpression::PrimitiveRead { source: target, .. }
                 | LoweredDirectExpression::StructuralField { source: target, .. } => {
@@ -684,7 +687,6 @@ pub(crate) struct PlannedCasePayloadLeaf {
     pub(crate) source: PlaceId,
     pub(crate) case: StructuralCaseId,
     pub(crate) member: StructuralFieldId,
-    pub(crate) member_type: StructuralTypeId,
     pub(crate) observation: LoweredDirectExpression,
 }
 
@@ -750,7 +752,6 @@ pub(crate) fn plan_case_payload_leaf(
         source: binding.source,
         case: case.id,
         member: member.id,
-        member_type,
         observation,
     })
 }

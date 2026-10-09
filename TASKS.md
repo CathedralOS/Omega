@@ -995,15 +995,6 @@ defines the complete product bar.
   Shared failures, by owner (rerun the unchanged fixture after each repair):
   - Terminal interpreter declines on programs that pass natively
     (`omega run --both` status 201):
-    - `pass/calls/runtime_constructed_payload_arguments_exit` and
-      `pass/wire/wire_preserving_decode_relay_exit` read a dispatched sum's
-      payload after the case edge disposed the subject
-      (`VerifiedStructuralPlaceMissing`); `pass/structs/affine_result_constructor`
-      fails stage 05 with "projected transfer histories disagree at a control
-      join". A candidate repair (disposing the subject at the arm's exit after
-      its payload reads, 330bec73b42 in the session that found it) conflicts
-      with 9e2500f1ff9/3f3847cdd77, which keep disposal on the case edge with
-      payload snapshots; port it onto that design or extend the snapshots.
     - `run/contained_health_loop_command_branch` has no build.omg or
       ProgramEntry binding and declares its own `Console` boundary trait, so
       it needs a host adapter (**TERMINAL-RUNTIME-DRIVERS**).

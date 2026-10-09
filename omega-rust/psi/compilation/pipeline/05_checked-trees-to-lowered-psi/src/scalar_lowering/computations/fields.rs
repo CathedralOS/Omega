@@ -1375,35 +1375,62 @@ fn observe(
             scalar_type,
         );
     }
+    // Pure expressions and computations observe the same selected payload
+    // carrier. Keep direct scalar snapshots above this preparation; nested
+    // reads retain their exact relative path after the common carrier copy.
+    // Pointer crossings remain observation-time reads of their live referent,
+    // not a canonical owned-carrier copy.
+    let mut read_source = PrimitiveReadSource::Place(source);
+    let mut field_path = canonical_path.clone();
+    let mut read_path = primitive_path.clone();
+    if !crosses_reference && let Some(path) = &canonical_path {
+        let prepared =
+            crate::expression_preparation::bindings::structural_fields::prepare_case_observation(
+                source,
+                bindings
+                    .structural_place_type(source)
+                    .unwrap_or(binding.observation_root_type),
+                path,
+                bindings.structural_declarations(),
+            )?;
+        read_path = primitive_path
+            .get(prepared.captured_prefix_length..)
+            .ok_or(LoweringError::Unsupported(
+                "case observation lost its relative primitive path",
+            ))?
+            .to_vec();
+        read_source = prepared.source;
+        field_path = Some(prepared.path);
+    }
     let leaf_type = binding.leaf_scalar_type;
     let leaf = match leaf_type {
         _ if crosses_reference || canonical_path.is_none() => {
             LoweredDirectExpression::PrimitiveRead {
-                source: PrimitiveReadSource::Place(source),
-                path: primitive_path.clone(),
+                source: read_source,
+                path: read_path,
                 scalar_type: leaf_type,
             }
         }
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
-                source: source.into(),
-                path: canonical_path.clone().ok_or(LoweringError::Unsupported(
+                source: read_source,
+                path: field_path.ok_or(LoweringError::Unsupported(
                     "record field observation lost its canonical source path",
                 ))?,
                 field: binding.field,
             }),
         },
         ScalarType::Integer(_) => LoweredDirectExpression::StructuralField {
-            source: source.into(),
-            path: canonical_path.clone().ok_or(LoweringError::Unsupported(
+            source: read_source,
+            path: field_path.ok_or(LoweringError::Unsupported(
                 "record field observation lost its canonical source path",
             ))?,
             field: binding.field,
             scalar_type: leaf_type,
         },
         ScalarType::IeeeFloat(_) => LoweredDirectExpression::PrimitiveRead {
-            source: PrimitiveReadSource::Place(source),
-            path: primitive_path.clone(),
+            source: read_source,
+            path: read_path,
             scalar_type: leaf_type,
         },
     };

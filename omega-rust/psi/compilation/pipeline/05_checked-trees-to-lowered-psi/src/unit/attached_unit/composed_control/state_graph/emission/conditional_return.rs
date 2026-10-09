@@ -2,6 +2,10 @@
 //! execute before the selected exit's exact cleanup, while sibling exits keep
 //! their own ownership partition. A state-wide remainder cannot describe a
 //! local consumed by only one returning arm.
+//! Case selection likewise leaves its private observation home live until
+//! operand production finishes. Scalar edge snapshots still bind immediately;
+//! nested observations and calls keep their authored order instead of being
+//! hoisted across later case decisions or effects.
 
 use super::super::super::super::super::{StructuralParameterDeclaration, SuccessorEdge, block_id};
 use super::super::super::super::{
@@ -25,7 +29,7 @@ impl StateGraphEmission<'_, '_> {
         arm_namespace: Vec<ValueDeclaration>,
         established: &[crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload],
         payload_parameters: &[ValueDeclaration],
-        predecessor_discards: &[semantic_vocabulary::PlaceId],
+        dispatch_discards: &[semantic_vocabulary::PlaceId],
         return_arm: &checked_trees::CheckedConditionalReturnArm,
         evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
         next_value: &mut u64,
@@ -264,10 +268,12 @@ impl StateGraphEmission<'_, '_> {
                 _ => {}
             }
         }
-        // Return cleanup starts at the arriving frontier, not the dispatch's
-        // pre-edge frontier. A case edge already disposed its saved subject
-        // after extracting payloads. Retain the other roots in their original
-        // order; Terminal independently replays the edge and exact remainder.
+        // Case selection consumes source authority, not the storage its arm
+        // still observes. Named subjects already have their exact disposition
+        // in the selected exit schedule. Anonymous computed subjects have no
+        // source owner row: carry their checked dispatch discard to completion
+        // instead. Never replace an existing root or residual disposition;
+        // operand production may have transferred part of its custody.
         match &mut terminator {
             Terminator::Return {
                 cleanup_actions, ..
@@ -281,17 +287,23 @@ impl StateGraphEmission<'_, '_> {
             | Terminator::Jump {
                 cleanup_actions, ..
             } => {
-                cleanup_actions.retain(|action| {
-                    !matches!(
-                        action,
-                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
-                            if predecessor_discards.contains(place)
-                    )
-                });
+                let temporary_discards = dispatch_discards
+                    .iter()
+                    .copied()
+                    .filter(|place| {
+                        !cleanup_actions
+                            .iter()
+                            .any(|action| action.place() == *place)
+                    })
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect::<Vec<_>>();
+                // Computed subjects are established after the source-owned
+                // roots, so their disposal precedes that ordered remainder.
+                cleanup_actions.splice(0..0, temporary_discards);
             }
             // A crash or an external completion abandons the activation; it
-            // runs no return cleanup, so the predecessor's discards need no
-            // reconciliation here.
+            // runs no return cleanup, so the dispatch's temporary dispositions
+            // do not become normal-exit cleanup here.
             Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
             _ => return unsupported("return arm did not produce a completion terminator"),
         }
