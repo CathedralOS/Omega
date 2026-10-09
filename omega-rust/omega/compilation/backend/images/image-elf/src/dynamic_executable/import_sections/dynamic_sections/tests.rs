@@ -7,30 +7,8 @@ use super::{
     validate_contents, validate_gnu_hash_reachability, validate_hash_reachability,
 };
 use target::TargetProfile;
-use crate::test_support::SingleSiteImportFixture;
+use crate::test_support::{SINGLE_SITE_IMPORTS as IMPORTS, SingleSiteImportFixture};
 
-const IMPORTS: [SingleSiteImportFixture; 4] = [
-    SingleSiteImportFixture {
-        object: b"libalpha\xff.so.1",
-        symbol: b"alpha\xfe",
-        version: b"OMEGA_1\xfd",
-    },
-    SingleSiteImportFixture {
-        object: b"libalpha\xff.so.1",
-        symbol: b"beta",
-        version: b"OMEGA_1\xfd",
-    },
-    SingleSiteImportFixture {
-        object: b"libalpha\xff.so.1",
-        symbol: b"alpha\xfe",
-        version: b"OMEGA_2",
-    },
-    SingleSiteImportFixture {
-        object: b"libbeta.so.2",
-        symbol: b"gamma",
-        version: b"OMEGA_1\xfd",
-    },
-];
 
 fn interpreter_path(target: TargetProfile) -> &'static [u8] {
     crate::test_support::import_fixture_interpreter_path(target)

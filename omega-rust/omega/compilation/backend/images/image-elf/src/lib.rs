@@ -322,6 +322,31 @@ pub(crate) mod test_support {
         pub(crate) version: &'static [u8],
     }
 
+    /// Four imports across two objects with a shared `OMEGA_1`/`OMEGA_2`
+    /// version split — the multi-entry roster the import-section tests share.
+    pub(crate) const SINGLE_SITE_IMPORTS: [SingleSiteImportFixture; 4] = [
+        SingleSiteImportFixture {
+            object: b"libalpha\xff.so.1",
+            symbol: b"alpha\xfe",
+            version: b"OMEGA_1\xfd",
+        },
+        SingleSiteImportFixture {
+            object: b"libalpha\xff.so.1",
+            symbol: b"beta",
+            version: b"OMEGA_1\xfd",
+        },
+        SingleSiteImportFixture {
+            object: b"libalpha\xff.so.1",
+            symbol: b"alpha\xfe",
+            version: b"OMEGA_2",
+        },
+        SingleSiteImportFixture {
+            object: b"libbeta.so.2",
+            symbol: b"gamma",
+            version: b"OMEGA_1\xfd",
+        },
+    ];
+
     /// The dynamic-link preflight over `imports` where each fixture gets one
     /// relocation at `index * 8` — the shared image-build prelude for the
     /// import-section tests.
