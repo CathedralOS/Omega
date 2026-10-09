@@ -132,7 +132,7 @@ pub(super) fn encode_plan_content(
     bytes.extend_from_slice(&object.source_object.bytes());
     bytes.extend_from_slice(&object.source_object_container.bytes());
     bytes.extend_from_slice(&object.source_signature);
-    encode_psi(&mut bytes, object.psi);
+    terminal_codec::append_terminal_identity(&mut bytes, object.psi);
     encode_target(&mut bytes, object.target);
     encode_string(&mut bytes, &object.text_section_name)?;
     crate::codec_bytes::push_encoded(&mut bytes, object.text_section_alignment.to_le_bytes());
@@ -306,7 +306,7 @@ pub(super) fn encode_manifest_content(
     bytes.extend_from_slice(&manifest.source_object.bytes());
     bytes.extend_from_slice(&manifest.source_object_container.bytes());
     bytes.extend_from_slice(&manifest.source_signature);
-    encode_psi(bytes, manifest.psi);
+    terminal_codec::append_terminal_identity(bytes, manifest.psi);
     encode_target(bytes, manifest.target);
     crate::codec_bytes::push_encoded(bytes, manifest.wrapper_symbol.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, manifest.continuation_symbol.get().to_le_bytes());
@@ -401,11 +401,6 @@ pub(super) fn decode_manifest(
         return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::IdentityMismatch);
     }
     Ok(manifest)
-}
-
-fn encode_psi(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
-    crate::codec_bytes::push_encoded(bytes, identity.vocabulary_marker.get().to_le_bytes());
-    bytes.extend_from_slice(identity.program_fingerprint.as_bytes());
 }
 
 fn decode_psi(

@@ -1,6 +1,5 @@
 //! Canonical object-artifact and manifest wire encoding.
 
-use crate::cursor::Cursor;
 use super::{
     Architecture, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
@@ -12,10 +11,11 @@ use super::{
     RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity, SemanticFingerprint,
     TerminalPsiIdentity, VocabularyMarker,
 };
+use crate::cursor::Cursor;
 pub(super) fn encode_artifact_content(record: &OptimizedObjectArtifactRecord) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&record.psi_artifact);
-    encode_psi(&mut bytes, record.psi);
+    terminal_codec::append_terminal_identity(&mut bytes, record.psi);
     encode_optional_array(&mut bytes, record.debug_section);
     bytes.extend_from_slice(&record.selections.bytes());
     bytes.extend_from_slice(&record.target.wire_identity_bytes());
@@ -69,7 +69,7 @@ pub(super) fn encode_manifest_content(record: &OptimizedObjectArtifactManifest) 
     let mut bytes = vec![1];
     bytes.extend_from_slice(&record.artifact.bytes());
     bytes.extend_from_slice(&record.psi_artifact);
-    encode_psi(&mut bytes, record.psi);
+    terminal_codec::append_terminal_identity(&mut bytes, record.psi);
     bytes.extend_from_slice(&record.selections.bytes());
     bytes.extend_from_slice(&record.target.wire_identity_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.semantic_entry.get().to_le_bytes());
@@ -100,11 +100,6 @@ pub(super) fn decode_statistics(
         function_symbols: cursor.u64()?,
         relocation_records: cursor.u64()?,
     })
-}
-
-pub(super) fn encode_psi(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
-    crate::codec_bytes::push_encoded(bytes, identity.vocabulary_marker.get().to_le_bytes());
-    bytes.extend_from_slice(identity.program_fingerprint.as_bytes());
 }
 
 pub(super) fn decode_psi(
@@ -152,8 +147,7 @@ pub(super) fn decode_target(
 pub(super) fn decode_machine(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineId, OptimizedObjectArtifactRecordDecodeError> {
-    MachineId::new(cursor.u64()?)
-        .ok_or(OptimizedObjectArtifactRecordDecodeError::InvalidMachine)
+    MachineId::new(cursor.u64()?).ok_or(OptimizedObjectArtifactRecordDecodeError::InvalidMachine)
 }
 
 pub(super) fn encode_optional_array(bytes: &mut Vec<u8>, value: Option<[u8; 32]>) {
@@ -175,4 +169,3 @@ pub(super) fn decode_optional_array(
         tag => Err(OptimizedObjectArtifactRecordDecodeError::UnknownOptionalTag(tag)),
     }
 }
-
