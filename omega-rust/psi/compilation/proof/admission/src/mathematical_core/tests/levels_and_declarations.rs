@@ -181,3 +181,103 @@ fn stuck_constants_convert_at_semantically_equal_instantiations() {
 // Derived indexed families — the W-based profile's `IndexedAt`/`IW`/
 // `isup`/`iindW` encoding, re-decided as ordinary declarations rather
 // than a second primitive inductive checker.
+
+#[test]
+fn retained_carrier_aliases_survive_dependent_type_conversion() {
+    let mut arena = TermArena::new();
+    let mut budget = default_budget();
+    let universe = type_sort(&mut arena, 0);
+    let carrier = arena.insert(Term::Two);
+    let narrow = Declaration {
+        level_arity: 0,
+        ty: universe,
+        body: Some(carrier),
+    };
+    let wide = Declaration {
+        level_arity: 0,
+        ty: universe,
+        body: Some(carrier),
+    };
+    let family_type = pi(&mut arena, universe, universe);
+    let family = Declaration::assumption(0, family_type);
+    let signature = check_signature(&mut arena, &[narrow, wide, family], &mut budget).unwrap();
+    let context = Context::empty().with_signature(signature);
+    let narrow = constant(&mut arena, 0, vec![]);
+    let wide = constant(&mut arena, 1, vec![]);
+    let family = constant(&mut arena, 2, vec![]);
+    let left = arena.insert(Term::Apply {
+        function: family,
+        argument: narrow,
+    });
+    let right = arena.insert(Term::Apply {
+        function: family,
+        argument: wide,
+    });
+    let retained = |declaration| declaration < 2;
+
+    // Ordinary calculus conversion unfolds both aliases to the same carrier.
+    // A source view keeps their distinct heads even under a neutral family.
+    assert!(convertible(&mut arena, &context, left, right, universe, &mut budget).unwrap());
+    assert!(
+        !crate::mathematical_core::convertible_retaining(
+            &mut arena,
+            &context,
+            left,
+            right,
+            universe,
+            &mut budget,
+            &retained,
+        )
+        .unwrap()
+    );
+
+    let left_function = pi(&mut arena, narrow, carrier);
+    let right_function = pi(&mut arena, wide, carrier);
+    assert!(
+        convertible(
+            &mut arena,
+            &context,
+            left_function,
+            right_function,
+            universe,
+            &mut budget
+        )
+        .unwrap()
+    );
+    assert!(
+        !crate::mathematical_core::convertible_retaining(
+            &mut arena,
+            &context,
+            left_function,
+            right_function,
+            universe,
+            &mut budget,
+            &retained,
+        )
+        .unwrap()
+    );
+
+    // Retention still allows ordinary beta reduction at the same source type.
+    let bound = variable(&mut arena, 0);
+    let identity = lambda(&mut arena, universe, bound);
+    let application = arena.insert(Term::Apply {
+        function: identity,
+        argument: narrow,
+    });
+    let same_family = arena.insert(Term::Apply {
+        function: family,
+        argument: application,
+    });
+    assert!(
+        crate::mathematical_core::convertible_retaining(
+            &mut arena,
+            &context,
+            left,
+            same_family,
+            universe,
+            &mut budget,
+            &retained,
+        )
+        .unwrap()
+    );
+}
