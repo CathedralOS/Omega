@@ -89,19 +89,6 @@ pub(super) fn rewrite_scan_steps(
 /// observes; edge and entry bindings can only reach it when no body
 /// instruction defines the register, in which case there is no in-block
 /// `AddressOffset` producer to fold.
-pub(super) fn last_definition_before(
-    block_instructions: &[SelectedInstruction],
-    position: usize,
-    register: VirtualRegisterId,
-) -> Option<usize> {
-    block_instructions[..position]
-        .iter()
-        .rposition(|instruction| {
-            instruction.operands.iter().any(|operand| {
-                operand.access != RegisterOperandAccess::Use && operand.virtual_register == register
-            })
-        })
-}
 
 pub(super) fn admit<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
@@ -176,8 +163,12 @@ pub(super) fn admit<'source>(
     // traffic or operand constraints. A projection that rewrote its own
     // base (`base == pointer`) leaves operand zero reading the projected
     // value, not the base — refusing rather than folding a shifted sum.
-    let producer_index = last_definition_before(&block.instructions, consumer_index, pointer)
-        .ok_or(AddressFoldError::UnsupportedProducer)?;
+    let producer_index = super::super::operand_probes::last_definition_before(
+        &block.instructions,
+        consumer_index,
+        pointer,
+    )
+    .ok_or(AddressFoldError::UnsupportedProducer)?;
     let producer = &block.instructions[producer_index];
     let SelectedInstructionKind::AddressOffset {
         byte_offset: producer_offset,
