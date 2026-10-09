@@ -7,6 +7,14 @@
 //! region spelling from a layout-equivalent use. Source admission still checks
 //! the original declaration and every authored application; this derivation
 //! grants no bounds, loan, constructor or predicate authority.
+//!
+//! The completed typed program owns the finite application roster, including
+//! inferred projection types and selected machine instances. Substituting a
+//! field describes an edge; it does not demand another whole declaration view.
+//! Following newly generated type rows would enumerate `Nest<T>`'s recursive
+//! `Nest<[T; 2]>` field forever, even behind a reference. Consumers that inspect
+//! an unmaterialized field application retain its declaration telescope in
+//! their read-only scoped query; they never extend the frozen typed arenas.
 
 use arena::HandleSpan;
 use symbols::SymbolHandle;
@@ -21,25 +29,13 @@ use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let type_start = program.type_reference_table.type_reference_count();
-    let mut pending = program
+    let applications = program
         .type_reference_table
         .type_reference_rows()
         .map(|(reference, _)| reference)
         .collect::<Vec<_>>();
-    let mut next = 0;
-    while let Some(&reference) = pending.get(next) {
-        next += 1;
-        let before = program.type_reference_table.type_reference_count();
+    for reference in applications {
         elaborate_application(program, reference);
-        if program.type_reference_table.type_reference_count() > before {
-            pending.extend(
-                program
-                    .type_reference_table
-                    .type_reference_rows()
-                    .filter(|(reference, _)| reference.arena_index() as usize > before)
-                    .map(|(reference, _)| reference),
-            );
-        }
     }
     let produced = program
         .type_reference_table

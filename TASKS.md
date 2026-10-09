@@ -3012,9 +3012,12 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
-  corpus and focused native cohort. Bound prepared field views to demanded
-  finite applications; expanding recursive declarations must not trigger eager
-  transitive schema enumeration. Include prepared lifetime-bearing field
+  corpus and focused native cohort. A live `&Nest<u8>` parameter whose `next`
+  field is `&Nest<[T; 2]>` still overflows in stage 04's
+  `execution/terminal_unit/types/shape_collector.rs`: referent collection eagerly
+  expands applications under flattened self-rebinding substitutions. Retain
+  exact application scopes and finite reference edges rather than enumerating
+  their transitive catalogs. Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete
   returned-loan frontiers. Keep

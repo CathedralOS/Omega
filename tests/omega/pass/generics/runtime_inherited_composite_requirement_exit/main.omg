@@ -2,6 +2,14 @@ data Selected<'storage> { reference: &'storage i32; }
 data Envelope<Value> { value: Value; }
 data Pair<First, Second> { first: First; second: Second; }
 data RegionalValue<'storage> { value: i32; }
+data RecursiveEdge<'next, Value> {
+    value: Value;
+    next: &'next RecursiveEdge<'next, [Value; 2]>;
+}
+
+// Unused declarations still enter preparation. This field describes an edge,
+// not a demand to enumerate the referenced type's growing applications.
+data RecursiveRoot<'next> { edge: &'next RecursiveEdge<'next, i32>; }
 
 // Authored dependent bodies are neither concrete views nor invented loans.
 // Selected instances still check their complete return and store frontiers.
