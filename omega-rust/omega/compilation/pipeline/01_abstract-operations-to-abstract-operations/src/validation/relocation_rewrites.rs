@@ -677,8 +677,7 @@ pub(crate) fn substitute_invariant_place_root(
     representative: PlaceId,
 ) -> bool {
     let source = match operation {
-        O::PrimitiveScalarRead { source, .. }
-        | O::StructuralCaseMembership { source, .. }
+        abstract_operations::scalar_read_or_membership_pattern!(source, ..)
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceLength { source, .. }

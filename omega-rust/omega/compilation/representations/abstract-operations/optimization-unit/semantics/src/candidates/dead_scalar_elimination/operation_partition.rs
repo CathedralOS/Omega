@@ -29,8 +29,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         O::SelectImplementation { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
-        | O::PrimitiveScalarRead { .. }
-        | O::StructuralCaseMembership { .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(..)
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::AtomicEvent { .. }

@@ -1261,3 +1261,11 @@ macro_rules! boolean_not_or_equal_pair_pattern {
             | $crate::AbstractOperation::BooleanEqual { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! scalar_read_or_membership_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::PrimitiveScalarRead { $($fields)* }
+            | $crate::AbstractOperation::StructuralCaseMembership { $($fields)* }
+    };
+}

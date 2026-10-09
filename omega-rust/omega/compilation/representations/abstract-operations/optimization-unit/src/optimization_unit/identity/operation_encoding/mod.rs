@@ -21,8 +21,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::ElementViewSubslice { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
-        | O::PrimitiveScalarRead { .. }
-        | O::StructuralCaseMembership { .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(..)
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishScalarArray { .. }

@@ -125,8 +125,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(*destination);
             places.insert(*source);
         }
-        O::PrimitiveScalarRead { source, .. }
-        | O::StructuralCaseMembership { source, .. }
+        abstract_operations::scalar_read_or_membership_pattern!(source, ..)
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
         | O::StructuralCase { source, .. }

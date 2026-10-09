@@ -32,8 +32,7 @@ pub(crate) fn expected_provenance(
         O::SelectImplementation { psi_operation, .. }
         | O::EstablishPrimitiveLocal { psi_operation, .. }
         | O::PrimitiveLocalStore { psi_operation, .. }
-        | O::PrimitiveScalarRead { psi_operation, .. }
-        | O::StructuralCaseMembership { psi_operation, .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(psi_operation, ..)
         | O::WriteOnlyPrimitiveStore { psi_operation, .. }
         | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::AtomicEvent { psi_operation, .. }

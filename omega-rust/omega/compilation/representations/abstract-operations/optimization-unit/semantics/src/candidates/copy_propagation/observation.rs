@@ -232,8 +232,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
-        | O::PrimitiveScalarRead { .. }
-        | O::StructuralCaseMembership { .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(..)
         | O::ByteSequenceRead { .. }
         | O::ByteSequencePredicate { .. }
         | O::ByteSequenceEqual { .. }

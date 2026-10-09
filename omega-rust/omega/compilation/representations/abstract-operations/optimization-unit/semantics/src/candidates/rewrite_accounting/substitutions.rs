@@ -121,8 +121,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
-        | O::PrimitiveScalarRead { .. }
-        | O::StructuralCaseMembership { .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(..)
         | O::ByteSequenceRead { .. }
         | O::ByteSequencePredicate { .. }
         | O::ByteSequenceEqual { .. }

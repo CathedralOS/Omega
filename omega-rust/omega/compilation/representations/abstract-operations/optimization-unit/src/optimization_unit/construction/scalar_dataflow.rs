@@ -27,8 +27,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
             ..
         }
         | O::SelectImplementation { result, .. }
-        | O::PrimitiveScalarRead { result, .. }
-        | O::StructuralCaseMembership { result, .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(result, ..)
         | O::ByteSequenceRead { result, .. }
         | O::ByteSequencePredicate { result, .. }
         | O::ByteSequenceEqual { result, .. }

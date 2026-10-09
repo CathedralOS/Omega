@@ -150,8 +150,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
-        | O::PrimitiveScalarRead { .. }
-        | O::StructuralCaseMembership { .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(..)
         | O::ByteSequenceRead { .. }
         | O::ByteSequencePredicate { .. }
         | O::ByteSequenceEqual { .. }

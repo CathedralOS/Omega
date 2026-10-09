@@ -147,8 +147,7 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
             vec![source.place]
         }
         O::ReleaseReference { source, .. } => vec![*source],
-        O::PrimitiveScalarRead { source, .. }
-        | O::StructuralCaseMembership { source, .. }
+        abstract_operations::scalar_read_or_membership_pattern!(source, ..)
         | O::ByteSequenceSubslice { source, .. }
         | O::StructuralCase { source, .. }
         | O::ByteSequenceRead { source, .. }

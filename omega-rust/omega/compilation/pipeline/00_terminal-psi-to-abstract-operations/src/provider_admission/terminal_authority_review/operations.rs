@@ -35,8 +35,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::StructuralByteViewFieldStore { .. }
         | AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
-        | AbstractOperation::PrimitiveScalarRead { .. }
-        | AbstractOperation::StructuralCaseMembership { .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(..)
         | AbstractOperation::StructuralScalarFieldStore { .. }
         | AbstractOperation::EstablishScalarArray { .. } | AbstractOperation::EstablishStructuralArray { .. }
         | AbstractOperation::EstablishCase { .. }

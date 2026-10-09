@@ -290,8 +290,7 @@ fn operation_effect(
         | O::IntegerArithmetic { .. } => (EffectClass::PureScalar, No, No, No, No),
         O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
-        | O::PrimitiveScalarRead { .. }
-        | O::StructuralCaseMembership { .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(..)
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )

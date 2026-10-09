@@ -29,8 +29,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         }
         O::EstablishPrimitiveLocal { psi_operation, .. }
         | O::PrimitiveLocalStore { psi_operation, .. }
-        | O::PrimitiveScalarRead { psi_operation, .. }
-        | O::StructuralCaseMembership { psi_operation, .. }
+        | abstract_operations::scalar_read_or_membership_pattern!(psi_operation, ..)
         | O::WriteOnlyPrimitiveStore { psi_operation, .. }
         | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::AtomicEvent { psi_operation, .. }

@@ -101,16 +101,8 @@ pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -
 /// [`invariant_place_observation_admission`].
 pub(crate) fn admissible_invariant_place_read(node: &OptimizationNode) -> Option<PlaceId> {
     let (psi_operation, source) = match &node.operation {
-        O::PrimitiveScalarRead {
-            psi_operation,
-            source,
-            ..
-        }
-        | O::StructuralCaseMembership {
-            psi_operation,
-            source,
-            ..
-        }
+        abstract_operations::scalar_read_or_membership_pattern!(psi_operation,
+            source, ..)
         | O::ByteSequenceLength {
             psi_operation,
             source,
