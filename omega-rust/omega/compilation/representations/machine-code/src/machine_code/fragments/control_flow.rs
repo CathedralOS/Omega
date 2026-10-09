@@ -12,7 +12,6 @@ use crate::machine_code::layout::{
 
 /// The fragment retains the resolved branch evidence verbatim.
 pub type FunctionFragmentBranchEvidence = ResolvedBranchEvidence;
-pub(crate) type FunctionFragmentJumpEvidence = ResolvedJumpEvidence;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentControlProvenance {
