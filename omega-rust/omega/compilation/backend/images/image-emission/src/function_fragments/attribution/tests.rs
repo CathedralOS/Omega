@@ -17,6 +17,22 @@ use semantic_vocabulary::{
     ValueId,
 };
 
+fn assert_requires_unique_operation_ordinal(source: &mut AbstractFunction, operation: OperationId) {
+    assert_eq!(
+        ordinal(source, SemanticCodeSite::Operation(operation)).unwrap(),
+        1
+    );
+    assert!(
+        ordinal(
+            source,
+            SemanticCodeSite::Operation(OperationId::new(99).unwrap())
+        )
+        .is_err()
+    );
+    source.operations.push(source.operations[1].clone());
+    assert!(ordinal(source, SemanticCodeSite::Operation(operation)).is_err());
+}
+
 #[test]
 fn boolean_equality_attribution_requires_a_unique_authored_operation_ordinal() {
     let (_, mut source) = fixture();
@@ -27,19 +43,7 @@ fn boolean_equality_attribution_requires_a_unique_authored_operation_ordinal() {
         left: ValueId::new(1).unwrap(),
         right: ValueId::new(2).unwrap(),
     };
-    assert_eq!(
-        ordinal(&source, SemanticCodeSite::Operation(operation)).unwrap(),
-        1
-    );
-    assert!(
-        ordinal(
-            &source,
-            SemanticCodeSite::Operation(OperationId::new(99).unwrap())
-        )
-        .is_err()
-    );
-    source.operations.push(source.operations[1].clone());
-    assert!(ordinal(&source, SemanticCodeSite::Operation(operation)).is_err());
+    assert_requires_unique_operation_ordinal(&mut source, operation);
 }
 
 #[test]
@@ -53,19 +57,7 @@ fn bitwise_and_attribution_requires_a_unique_authored_operation_ordinal() {
         left: ValueId::new(1).unwrap(),
         right: ValueId::new(2).unwrap(),
     };
-    assert_eq!(
-        ordinal(&source, SemanticCodeSite::Operation(operation)).unwrap(),
-        1
-    );
-    assert!(
-        ordinal(
-            &source,
-            SemanticCodeSite::Operation(OperationId::new(99).unwrap())
-        )
-        .is_err()
-    );
-    source.operations.push(source.operations[1].clone());
-    assert!(ordinal(&source, SemanticCodeSite::Operation(operation)).is_err());
+    assert_requires_unique_operation_ordinal(&mut source, operation);
 }
 
 #[test]
@@ -141,19 +133,7 @@ fn wrapping_remainder_attribution_requires_a_unique_authored_operation_ordinal()
         left: ValueId::new(1).unwrap(),
         right: ValueId::new(2).unwrap(),
     };
-    assert_eq!(
-        ordinal(&source, SemanticCodeSite::Operation(operation)).unwrap(),
-        1
-    );
-    assert!(
-        ordinal(
-            &source,
-            SemanticCodeSite::Operation(OperationId::new(99).unwrap())
-        )
-        .is_err()
-    );
-    source.operations.push(source.operations[1].clone());
-    assert!(ordinal(&source, SemanticCodeSite::Operation(operation)).is_err());
+    assert_requires_unique_operation_ordinal(&mut source, operation);
 }
 
 #[test]
