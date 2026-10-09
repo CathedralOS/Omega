@@ -22,11 +22,11 @@ pub(crate) use boolean_values::{record_boolean_assignment, record_boolean_local}
 mod case_facts;
 mod parameter_bounds;
 mod projected_facts;
-pub(crate) use arrivals::{inferred_normal_return_interval, occurrence_value_environment};
 pub use arrivals::{
     arrival_integer_expression_bounds, occurrence_integer_expression_bounds,
     occurrence_integer_expression_fits_range,
 };
+pub(crate) use arrivals::{inferred_normal_return_interval, occurrence_value_environment};
 use projected_facts::ProjectedOperand;
 
 // Sibling Requires readers must recover the comparison from the same exact
