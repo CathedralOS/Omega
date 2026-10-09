@@ -304,8 +304,7 @@ fn operation_effect(
         // a fresh owned value: structural state, unobservable from scalar
         // consumers but never erasable, duplicable, or reorderable.
         | O::StructuralLeafCopy { .. }
-        | O::EstablishScalarArray { .. } | O::EstablishStructuralArray { .. }
-        | O::EstablishCase { .. }
+        | O::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishTrivialAffineLocal { .. }

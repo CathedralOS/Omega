@@ -130,8 +130,7 @@ pub(crate) fn operation_scalar_types_match(
                 }
         }
         O::PrimitiveScalarRead { .. }
-        | O::EstablishScalarArray { .. } | O::EstablishStructuralArray { .. }
-        | O::EstablishCase { .. }
+        | O::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }

@@ -1041,8 +1041,7 @@ fn readable_field_type(
                 O::EstablishRecord { result, .. }
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishScalarArray { result, .. }
-                | O::EstablishStructuralArray { result, .. }
-                | O::EstablishCase { result, .. }
+                | abstract_operations::structural_array_or_case_pattern!(result, ..)
                 | O::EstablishReference { result, .. }
                 | O::MoveStructuralField { result, .. }
                 | O::CallStructural {

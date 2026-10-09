@@ -287,8 +287,7 @@ pub(super) fn lower_operation(
             provenance,
         ),
         AbstractOperation::EstablishRecord { .. }
-        | AbstractOperation::EstablishStructuralArray { .. }
-        | AbstractOperation::EstablishCase { .. } => super::records::establish(
+        | abstract_operations::structural_array_or_case_pattern!(..) => super::records::establish(
             operation,
             function,
             structural_types,

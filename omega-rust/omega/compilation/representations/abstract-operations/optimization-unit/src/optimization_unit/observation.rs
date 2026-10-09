@@ -402,8 +402,7 @@ fn operation_observations(
         // memory-ordering event. None of them may be erased or reordered
         // into ordinary scalar computation.
         | O::AtomicEvent { .. }
-        | O::EstablishScalarArray { .. } | O::EstablishStructuralArray { .. }
-        | O::EstablishCase { .. }
+        | O::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
         | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }

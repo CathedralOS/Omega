@@ -36,8 +36,7 @@ pub(crate) fn expected_provenance(
         | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::AtomicEvent { psi_operation, .. }
         | O::EstablishScalarArray { psi_operation, .. }
-        | O::EstablishStructuralArray { psi_operation, .. }
-        | O::EstablishCase { psi_operation, .. }
+        | abstract_operations::structural_array_or_case_pattern!(psi_operation, ..)
         | O::EstablishByteSequenceConcatenation { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
