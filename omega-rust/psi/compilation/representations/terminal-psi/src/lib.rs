@@ -7,6 +7,7 @@
 //! Canonical serialization and independent verification have separate owners.
 
 mod artifacts;
+mod digest_encoder;
 pub mod terminal_module;
 pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 

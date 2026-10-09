@@ -12,15 +12,10 @@ use crate::{
 const IDENTITY_WIDTH: usize = 32;
 
 fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
-    let mut digest = Sha256::new();
-    digest.update(domain);
-    digest.update(
-        u64::try_from(canonical.len())
-            .expect("canonical register identity input length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(canonical);
-    digest.finalize().into()
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
+    digest.raw(&u64::try_from(canonical.len()) .expect("canonical register identity input length fits u64") .to_le_bytes(),);
+    digest.raw(&canonical);
+    digest.finish()
 }
 
 macro_rules! identity {

@@ -90,29 +90,41 @@ pub enum TerminalSuspensionStorage {
 }
 
 pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8; 32] {
+<<<<<<< HEAD
     let mut hash = Sha256::new();
     hash.update(b"terminal-suspension-frontier-v3\0");
     hash.update(plan.operation.get().to_le_bytes());
     hash.update(plan.crossing.get().to_le_bytes());
+||||||| parent of 5e85929453d (psi: fold checking+register-model+numerics+terminal-psi domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
+    let mut hash = Sha256::new();
+    hash.update(b"terminal-suspension-frontier-v2\0");
+    hash.update(plan.operation.get().to_le_bytes());
+    hash.update(plan.crossing.get().to_le_bytes());
+=======
+    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v2\0");
+    hash.raw(&plan.operation.get().to_le_bytes());
+    hash.raw(&plan.crossing.get().to_le_bytes());
+>>>>>>> 5e85929453d (psi: fold checking+register-model+numerics+terminal-psi domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
     match plan.target {
         TerminalSuspensionCallTarget::Machine(machine) => {
-            hash.update([1]);
-            hash.update(machine.get().to_le_bytes());
+            hash.byte(1);
+            hash.raw(&machine.get().to_le_bytes());
         }
         TerminalSuspensionCallTarget::Boundary(boundary) => {
-            hash.update([2]);
-            hash.update(boundary.get().to_le_bytes());
+            hash.byte(2);
+            hash.raw(&boundary.get().to_le_bytes());
         }
     }
     hash_carry_policy(&mut hash, plan.effective);
-    hash.update(plan.live_value_count.to_le_bytes());
-    hash.update((plan.live_values.len() as u64).to_le_bytes());
+    hash.raw(&plan.live_value_count.to_le_bytes());
+    hash.u64(plan.live_values.len() as u64);
     for live in &plan.live_values {
         match &live.place {
             TerminalSuspensionPlace::Scalar(value) => {
-                hash.update([1]);
-                hash.update(value.get().to_le_bytes());
+                hash.byte(1);
+                hash.raw(&value.get().to_le_bytes());
             }
+<<<<<<< HEAD
             TerminalSuspensionPlace::Structural(argument) => {
                 hash.update([2]);
                 hash.update(argument.place.get().to_le_bytes());
@@ -124,30 +136,43 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
                 }]);
                 hash.update((argument.path.len() as u64).to_le_bytes());
                 for segment in &argument.path {
+||||||| parent of 5e85929453d (psi: fold checking+register-model+numerics+terminal-psi domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
+            TerminalSuspensionPlace::Structural { place, path } => {
+                hash.update([2]);
+                hash.update(place.get().to_le_bytes());
+                hash.update((path.len() as u64).to_le_bytes());
+                for segment in path {
+=======
+            TerminalSuspensionPlace::Structural { place, path } => {
+                hash.byte(2);
+                hash.raw(&place.get().to_le_bytes());
+                hash.u64(path.len() as u64);
+                for segment in path {
+>>>>>>> 5e85929453d (psi: fold checking+register-model+numerics+terminal-psi domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
                     match segment {
                         StructuralPathSegment::Case(case) => {
-                            hash.update([7]);
-                            hash.update(case.get().to_le_bytes());
+                            hash.byte(7);
+                            hash.raw(&case.get().to_le_bytes());
                         }
                         StructuralPathSegment::Field(field) => {
-                            hash.update([1]);
-                            hash.update((field.len() as u64).to_le_bytes());
-                            hash.update(field.as_bytes());
+                            hash.byte(1);
+                            hash.u64(field.len() as u64);
+                            hash.raw(field.as_bytes());
                         }
                         StructuralPathSegment::FixedIndex(index) => {
-                            hash.update([2]);
-                            hash.update(index.to_le_bytes());
+                            hash.byte(2);
+                            hash.raw(&index.to_le_bytes());
                         }
-                        StructuralPathSegment::Referent => hash.update([3]),
+                        StructuralPathSegment::Referent => hash.byte(3),
                         StructuralPathSegment::FixedByteRange { start, end } => {
-                            hash.update([4]);
-                            hash.update(start.to_le_bytes());
-                            hash.update(end.to_le_bytes());
+                            hash.byte(4);
+                            hash.raw(&start.to_le_bytes());
+                            hash.raw(&end.to_le_bytes());
                         }
                         StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                            hash.update([5]);
-                            hash.update(index.get().to_le_bytes());
-                            hash.update(obligation.get().to_le_bytes());
+                            hash.byte(5);
+                            hash.raw(&index.get().to_le_bytes());
+                            hash.raw(&obligation.get().to_le_bytes());
                         }
                     }
                 }
@@ -155,59 +180,57 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
         }
         match live.value_type {
             TerminalSuspensionValueType::Scalar(scalar) => {
-                hash.update([1]);
+                hash.byte(1);
                 hash_scalar_type(&mut hash, scalar);
             }
             TerminalSuspensionValueType::Structural(structural) => {
-                hash.update([2]);
-                hash.update(structural.get().to_le_bytes());
+                hash.byte(2);
+                hash.raw(&structural.get().to_le_bytes());
             }
         }
-        hash.update([match live.storage {
+        hash.byte(match live.storage {
             TerminalSuspensionStorage::Parameter => 2,
             TerminalSuspensionStorage::Local => 3,
             TerminalSuspensionStorage::CallArgument => 4,
-        }]);
-        hash.update(live.claim_count.to_le_bytes());
-        hash.update((live.claims.len() as u64).to_le_bytes());
+        });
+        hash.raw(&live.claim_count.to_le_bytes());
+        hash.u64(live.claims.len() as u64);
         for claim in &live.claims {
-            hash.update(claim.get().to_le_bytes());
+            hash.raw(&claim.get().to_le_bytes());
         }
         hash_carry_policy(&mut hash, live.effective);
     }
-    hash.finalize().into()
+    hash.finish()
 }
 
-fn hash_scalar_type(hash: &mut Sha256, scalar: ScalarType) {
+fn hash_scalar_type(hash: &mut crate::digest_encoder::DomainDigestEncoder, scalar: ScalarType) {
     match scalar {
-        ScalarType::Boolean => hash.update([1]),
+        ScalarType::Boolean => hash.byte(1),
         ScalarType::Integer(integer) => {
-            hash.update([2]);
-            hash.update([match integer.carrier() {
+            hash.byte(2);
+            hash.byte(match integer.carrier() {
                 IntegerCarrier::Fixed => 1,
                 IntegerCarrier::Address => 2,
-            }]);
-            hash.update([match integer.sign() {
+            });
+            hash.byte(match integer.sign() {
                 IntegerSign::Signed => 1,
                 IntegerSign::Unsigned => 2,
-            }]);
-            hash.update(integer.bits().to_le_bytes());
+            });
+            hash.raw(&integer.bits().to_le_bytes());
         }
         ScalarType::IeeeFloat(format) => {
-            hash.update([3]);
-            hash.update([match format {
+            hash.byte(3);
+            hash.byte(match format {
                 IeeeFloatFormat::Binary32 => 1,
                 IeeeFloatFormat::Binary64 => 2,
-            }]);
+            });
         }
     }
 }
 
-fn hash_carry_policy(hash: &mut Sha256, policy: CarryPolicy) {
-    hash.update([
-        u8::from(policy.suspension == language_semantics::CarrySuspension::Allowed),
-        u8::from(policy.cpu == language_semantics::CarryCpu::Any),
-        u8::from(policy.host_thread == language_semantics::CarryHostThread::Any),
-        u8::from(policy.address == language_semantics::CarryAddress::Movable),
-    ]);
+fn hash_carry_policy(hash: &mut crate::digest_encoder::DomainDigestEncoder, policy: CarryPolicy) {
+    hash.byte(u8::from(policy.suspension == language_semantics::CarrySuspension::Allowed));
+    hash.byte(u8::from(policy.cpu == language_semantics::CarryCpu::Any));
+    hash.byte(u8::from(policy.host_thread == language_semantics::CarryHostThread::Any));
+    hash.byte(u8::from(policy.address == language_semantics::CarryAddress::Movable));
 }

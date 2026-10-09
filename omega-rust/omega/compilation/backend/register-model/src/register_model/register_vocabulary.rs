@@ -1,7 +1,7 @@
 //! The register vocabulary: unit, view and class identities and the
 //! declarations behind them.
 
-use sha2::Digest;
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RegisterUnitId(pub u16);
@@ -73,14 +73,14 @@ pub struct RegisterClass {
 }
 
 /// Length-prefix writer shared by identity hashes.
-pub fn sha256_length(hasher: &mut sha2::Sha256, value: usize) {
-    hasher.update((value as u64).to_le_bytes());
+pub fn sha256_length(hasher: &mut crate::digest_encoder::DomainDigestEncoder, value: usize) {
+    hasher.u64(value as u64);
 }
 
 /// Length-framed register-unit roster writer shared by identity hashes.
-pub fn sha256_register_units(hasher: &mut sha2::Sha256, values: &[RegisterUnitId]) {
+pub fn sha256_register_units(hasher: &mut crate::digest_encoder::DomainDigestEncoder, values: &[RegisterUnitId]) {
     sha256_length(hasher, values.len());
     for value in values {
-        hasher.update(value.0.to_le_bytes());
+        hasher.raw(&value.0.to_le_bytes());
     }
 }

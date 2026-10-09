@@ -7,6 +7,7 @@
 //! payload parsing. Ranges and overflow are decided here once so every later
 //! stage agrees with the numeric-values specification the README links.
 
+mod digest_encoder;
 pub mod arithmetic;
 pub mod bignum;
 pub mod float_projection;

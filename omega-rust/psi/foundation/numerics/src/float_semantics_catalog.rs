@@ -1141,22 +1141,20 @@ impl FloatSemanticOperation {
     }
 
     pub fn contract_identity(&self) -> FloatSemanticContractIdentity {
-        let mut hasher = Sha256::new();
-        hasher.update(FLOAT_SEMANTICS_CONTRACT_DOMAIN);
-        hasher.update(FLOAT_SEMANTICS_CATALOG_VERSION.to_le_bytes());
-        hasher
-            .update(format!("toolchain::{}::{}", FLOAT_SEMANTICS_NAMESPACE, self.name).as_bytes());
-        hasher.update([0]);
+        let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(FLOAT_SEMANTICS_CONTRACT_DOMAIN);
+        hasher.raw(&FLOAT_SEMANTICS_CATALOG_VERSION.to_le_bytes());
+        hasher.raw(format!("toolchain::{}::{}", FLOAT_SEMANTICS_NAMESPACE, self.name).as_bytes());
+        hasher.byte(0);
         for parameter in self.parameters {
-            hasher.update(parameter.spelling().as_bytes());
-            hasher.update([0]);
+            hasher.raw(parameter.spelling().as_bytes());
+            hasher.byte(0);
         }
-        hasher.update(b"->");
-        hasher.update(self.result.spelling().as_bytes());
+        hasher.raw(b"->");
+        hasher.raw(self.result.spelling().as_bytes());
         FloatSemanticContractIdentity {
             row: self.ordinal(),
             catalog_version: FLOAT_SEMANTICS_CATALOG_VERSION,
-            commitment: hasher.finalize().into(),
+            commitment: hasher.finish(),
         }
     }
 }

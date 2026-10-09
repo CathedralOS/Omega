@@ -164,60 +164,59 @@ pub fn closed_conformance_application_report_fingerprint(
 pub fn closed_conformance_application_commitment(
     application: &ClosedConformanceApplication,
 ) -> ClosedConformanceApplicationCommitment {
-    fn push(digest: &mut Sha256, value: &str) {
-        digest.update((value.len() as u64).to_le_bytes());
-        digest.update(value.as_bytes());
+    fn push(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: &str) {
+        digest.u64(value.len() as u64);
+        digest.raw(value.as_bytes());
     }
 
-    let mut digest = Sha256::new();
-    digest.update(b"omega.psi.terminal.closed-conformance-application.v5\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.psi.terminal.closed-conformance-application.v5\0");
     push(&mut digest, &application.declaration_identity);
     push(&mut digest, &application.trait_identity);
-    digest.update((application.trait_lifetime_arguments.len() as u64).to_le_bytes());
+    digest.u64(application.trait_lifetime_arguments.len() as u64);
     for argument in &application.trait_lifetime_arguments {
         push(&mut digest, argument);
     }
-    digest.update((application.telescope.len() as u64).to_le_bytes());
+    digest.u64(application.telescope.len() as u64);
     for binding in &application.telescope {
         push(&mut digest, &binding.parameter);
-        digest.update([match binding.kind {
+        digest.byte(match binding.kind {
             ClosedConformanceParameterKind::Lifetime => 1,
             ClosedConformanceParameterKind::Type => 2,
             ClosedConformanceParameterKind::Const => 3,
             ClosedConformanceParameterKind::Machine => 4,
-        }]);
+        });
         push(&mut digest, &binding.argument);
     }
-    digest.update((application.trait_arguments.len() as u64).to_le_bytes());
+    digest.u64(application.trait_arguments.len() as u64);
     for argument in &application.trait_arguments {
         push(&mut digest, argument);
     }
-    digest.update((application.realization_callables.len() as u64).to_le_bytes());
+    digest.u64(application.realization_callables.len() as u64);
     for callable in &application.realization_callables {
         push(&mut digest, &callable.source_callable_identity);
-        digest.update(callable.machine.get().to_le_bytes());
-        digest.update([match callable.result {
+        digest.raw(&callable.machine.get().to_le_bytes());
+        digest.byte(match callable.result {
             ClosedConformanceCallableResult::Unit => 1,
             ClosedConformanceCallableResult::I32 => 2,
             ClosedConformanceCallableResult::Bool => 3,
-        }]);
+        });
     }
-    digest.update((application.rows.len() as u64).to_le_bytes());
+    digest.u64(application.rows.len() as u64);
     for row in &application.rows {
         push(&mut digest, &row.declaring_trait_identity);
         push(&mut digest, &row.public_requirement_identity);
-        digest.update((row.family_tuple.len() as u64).to_le_bytes());
+        digest.u64(row.family_tuple.len() as u64);
         for identity in &row.family_tuple {
             push(&mut digest, identity);
         }
         push(&mut digest, &row.requirement_identity);
         push(&mut digest, &row.realization_identity);
-        digest.update([u8::from(row.realization_callable_identity.is_some())]);
+        digest.byte(u8::from(row.realization_callable_identity.is_some()));
         if let Some(identity) = &row.realization_callable_identity {
             push(&mut digest, identity);
         }
     }
-    ClosedConformanceApplicationCommitment::from_digest(digest.finalize().into())
+    ClosedConformanceApplicationCommitment::from_digest(digest.finish())
 }
 
 #[cfg(test)]

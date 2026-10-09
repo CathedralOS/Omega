@@ -58,12 +58,11 @@ impl FloatProjectionOperation {
             self.source_namespace(),
             self.source_name(),
         );
-        let mut hasher = Sha256::new();
-        hasher.update(FLOAT_PROJECTION_CONTRACT_DOMAIN);
-        hasher.update(format.to_le_bytes());
-        hasher.update([operation]);
-        hasher.update([declaration]);
-        hasher.update(FLOAT_PROJECTION_CATALOG_VERSION.to_le_bytes());
+        let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(FLOAT_PROJECTION_CONTRACT_DOMAIN);
+        hasher.raw(&format.to_le_bytes());
+        hasher.byte(operation);
+        hasher.byte(declaration);
+        hasher.raw(&FLOAT_PROJECTION_CATALOG_VERSION.to_le_bytes());
         for owner in [
             FLOAT_PROJECTION_CORE_SOURCE,
             FLOAT_MEANING_CORE_SOURCE,
@@ -72,15 +71,15 @@ impl FloatProjectionOperation {
             source_carrier,
             FLOAT_MEANING_RESULT_IDENTITY,
         ] {
-            hasher.update((owner.len() as u64).to_le_bytes());
-            hasher.update(owner.as_bytes());
+            hasher.u64(owner.len() as u64);
+            hasher.raw(owner.as_bytes());
         }
         FloatProjectionContractIdentity {
             format,
             operation,
             declaration,
             catalog_version: FLOAT_PROJECTION_CATALOG_VERSION,
-            commitment: hasher.finalize().into(),
+            commitment: hasher.finish(),
         }
     }
 

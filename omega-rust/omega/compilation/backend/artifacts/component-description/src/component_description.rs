@@ -572,30 +572,12 @@ pub(crate) fn canonical_entry_contract_identity(entry: MachineId) -> [u8; 32] {
 }
 
 /// Derived assumption digest for one immediate port-space mechanism.
-<<<<<<< HEAD
 pub(crate) fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(PORT_MECHANISM_DOMAIN);
-    digest.update(service.get().to_le_bytes());
-    digest.update(port.to_le_bytes());
-    digest.update([value]);
-    digest.finalize().into()
-||||||| parent of e5a0301c9f0 (omega: fold provider-planning + component-description domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
-pub fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(PORT_MECHANISM_DOMAIN);
-    digest.update(service.get().to_le_bytes());
-    digest.update(port.to_le_bytes());
-    digest.update([value]);
-    digest.finalize().into()
-=======
-pub fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(PORT_MECHANISM_DOMAIN);
     digest.raw(&service.get().to_le_bytes());
     digest.raw(&port.to_le_bytes());
     digest.byte(value);
     digest.finish()
->>>>>>> e5a0301c9f0 (omega: fold provider-planning + component-description domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
 }
 
 pub(crate) fn hex(bytes: &[u8]) -> String {

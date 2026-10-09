@@ -37,15 +37,10 @@ pub(crate) fn preservation_storage_catalog_identity(
         canonical.extend_from_slice(&group.alignment_bytes.to_le_bytes());
     }
 
-    let mut digest = Sha256::new();
-    digest.update(IDENTITY_DOMAIN);
-    digest.update(
-        u64::try_from(canonical.len())
-            .expect("canonical preservation-storage identity length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(canonical);
-    PreservationStorageCatalogIdentity(digest.finalize().into())
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(IDENTITY_DOMAIN);
+    digest.raw(&u64::try_from(canonical.len()) .expect("canonical preservation-storage identity length fits u64") .to_le_bytes(),);
+    digest.raw(&canonical);
+    PreservationStorageCatalogIdentity(digest.finish())
 }
 
 fn string(bytes: &mut Vec<u8>, value: &str) {
