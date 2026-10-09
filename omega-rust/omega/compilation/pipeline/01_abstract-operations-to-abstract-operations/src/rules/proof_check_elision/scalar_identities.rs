@@ -15,8 +15,7 @@ use semantic_vocabulary::IntegerValue;
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::rules::proof_check_elision::identity_rewrite::{
-    ProofCertifiedScalarIdentityShape, integer_one, integer_zero,
-    propose_proof_certified_scalar_identities,
+    ProofCertifiedScalarIdentityShape, propose_proof_certified_scalar_identities,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -33,8 +32,8 @@ fn proof_certified_scalar_identity_shapes(
             left,
             right,
         } if arithmetic.policy() == IntegerOverflowPolicy::Exact => {
-            let zero = integer_zero(*scalar_type);
-            let one = integer_one(*scalar_type);
+            let zero = scalar_type.zero();
+            let one = scalar_type.one();
             // (replacement, identity operand, identity, identity constant),
             // left-literal law before right-literal law.
             let laws = match arithmetic.operator() {
@@ -90,7 +89,7 @@ fn proof_certified_scalar_identity_shapes(
                     IntegerShiftDirection::Right => Kind::ExactIntegerShiftRightZeroCount,
                 },
             },
-            integer_zero(*count_type),
+            count_type.zero(),
         )],
         _ => Vec::new(),
     }

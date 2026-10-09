@@ -113,6 +113,22 @@ impl IntegerType {
         target.admits(converted).then_some(converted)
     }
 
+    /// The additive identity, carried in the type's own signedness.
+    pub const fn zero(self) -> IntegerValue {
+        match self.sign {
+            IntegerSign::Signed => IntegerValue::Signed(0),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+        }
+    }
+
+    /// The multiplicative identity, carried in the type's own signedness.
+    pub const fn one(self) -> IntegerValue {
+        match self.sign {
+            IntegerSign::Signed => IntegerValue::Signed(1),
+            IntegerSign::Unsigned => IntegerValue::Unsigned(1),
+        }
+    }
+
     pub fn minimum_value(self) -> IntegerValue {
         match self.sign {
             IntegerSign::Signed if self.bits == 128 => IntegerValue::Signed(i128::MIN),

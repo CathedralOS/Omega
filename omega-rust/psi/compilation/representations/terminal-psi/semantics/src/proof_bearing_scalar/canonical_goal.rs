@@ -162,10 +162,7 @@ fn exact_multiply_representability_proposition(
     {
         return Ok(Proposition::Truth);
     }
-    let one = match integer_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(1),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-    };
+    let one = integer_type.one();
     if left.integer_value() == Some((integer_type, one))
         || right.integer_value() == Some((integer_type, one))
     {

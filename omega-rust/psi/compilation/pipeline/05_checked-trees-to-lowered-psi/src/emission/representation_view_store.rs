@@ -685,10 +685,7 @@ fn view_leaf_image(
         }
         (ScalarType::Integer(_), ScalarType::Boolean) => {
             let zero = match view {
-                ScalarType::Integer(integer) => match integer.sign() {
-                    semantic_vocabulary::IntegerSign::Signed => IntegerValue::Signed(0),
-                    semantic_vocabulary::IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-                },
+                ScalarType::Integer(integer) => integer.zero(),
                 _ => unreachable!("integer view checked above"),
             };
             Ok(LoweredDirectExpression::Boolean {

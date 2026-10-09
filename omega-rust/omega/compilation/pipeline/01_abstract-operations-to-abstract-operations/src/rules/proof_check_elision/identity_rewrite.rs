@@ -10,7 +10,7 @@ use optimization_unit::{
     ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, ValueId};
+use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ValueId};
 
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::node_elision::node_elision_accounting;
@@ -176,18 +176,4 @@ pub(super) struct ProofCertifiedScalarIdentityShape {
     pub(super) identity_operand: ValueId,
     pub(super) scalar_type: IntegerType,
     pub(super) identity: ProofCertifiedScalarIdentityKind,
-}
-
-pub(in crate::rules) fn integer_zero(scalar_type: IntegerType) -> IntegerValue {
-    match scalar_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(0),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-    }
-}
-
-pub(in crate::rules) fn integer_one(scalar_type: IntegerType) -> IntegerValue {
-    match scalar_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(1),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-    }
 }

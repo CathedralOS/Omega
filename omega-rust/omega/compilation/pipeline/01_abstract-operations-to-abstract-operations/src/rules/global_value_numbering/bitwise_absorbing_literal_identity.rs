@@ -10,7 +10,6 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
     TotalScalarIdentityShape, all_ones, exact_total_scalar_identity,
     propose_total_scalar_identities,
 };
-use crate::rules::proof_check_elision::integer_zero as zero;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -24,7 +23,12 @@ impl BitwiseAbsorbingLiteralIdentityRule {
     }
 }
 
-psi_optimization_rule_delegate!(BitwiseAbsorbingLiteralIdentityRule, propose = propose_total_scalar_identities, contract = Self::contract(),classify);
+psi_optimization_rule_delegate!(
+    BitwiseAbsorbingLiteralIdentityRule,
+    propose = propose_total_scalar_identities,
+    contract = Self::contract(),
+    classify
+);
 
 /// Return the four exact-width absorbing laws in canonical operation and
 /// left-literal/right-literal order. The law operand is also the replacement.
@@ -44,7 +48,7 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
             *right,
             TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft,
             TotalScalarIdentityKind::IntegerBitwiseAndZeroRight,
-            zero(*scalar_type),
+            scalar_type.zero(),
         ),
         O::IntegerBitwiseOr {
             psi_operation,

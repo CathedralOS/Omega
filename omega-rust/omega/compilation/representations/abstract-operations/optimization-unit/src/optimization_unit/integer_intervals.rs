@@ -185,18 +185,12 @@ pub(crate) fn integer_value_cmp(
 }
 
 fn predecessor(scalar_type: IntegerType, value: IntegerValue) -> Option<IntegerValue> {
-    let one = match scalar_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(1),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-    };
+    let one = scalar_type.one();
     scalar_type.exact_sub(value, one)
 }
 
 fn successor(scalar_type: IntegerType, value: IntegerValue) -> Option<IntegerValue> {
-    let one = match scalar_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(1),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-    };
+    let one = scalar_type.one();
     scalar_type.exact_add(value, one)
 }
 

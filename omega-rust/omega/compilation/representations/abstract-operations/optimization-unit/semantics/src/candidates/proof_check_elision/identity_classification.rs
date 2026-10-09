@@ -37,8 +37,8 @@ pub(crate) fn independent_proof_certified_scalar_identity(
             right,
         } => {
             let obligation = arithmetic.obligation()?;
-            let zero = independent_integer_zero(*scalar_type);
-            let one = independent_integer_one(*scalar_type);
+            let zero = scalar_type.zero();
+            let one = scalar_type.one();
             // (replacement, identity operand, identity constant)
             let (replacement, identity_operand, identity_constant) =
                 match (arithmetic.policy(), arithmetic.operator(), identity) {
@@ -114,7 +114,7 @@ pub(crate) fn independent_proof_certified_scalar_identity(
                 *count,
                 *value_type,
                 *count_type,
-                independent_integer_zero(*count_type),
+                count_type.zero(),
             ),
             (IntegerShiftDirection::Left, Kind::ExactIntegerShiftLeftZeroValue)
             | (IntegerShiftDirection::Right, Kind::ExactIntegerShiftRightZeroValue) => (
@@ -125,7 +125,7 @@ pub(crate) fn independent_proof_certified_scalar_identity(
                 *value,
                 *value_type,
                 *value_type,
-                independent_integer_zero(*value_type),
+                value_type.zero(),
             ),
             (IntegerShiftDirection::Right, Kind::ExactIntegerShiftRightNegativeOneValue)
                 if value_type.carrier() == IntegerCarrier::Fixed
@@ -156,18 +156,4 @@ pub(crate) fn independent_proof_certified_scalar_identity(
         identity_type: row.6,
         identity_constant: row.7,
     })
-}
-
-pub(crate) fn independent_integer_zero(scalar_type: IntegerType) -> IntegerValue {
-    match scalar_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(0),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-    }
-}
-
-pub(crate) fn independent_integer_one(scalar_type: IntegerType) -> IntegerValue {
-    match scalar_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(1),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-    }
 }

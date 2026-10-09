@@ -23,7 +23,6 @@ use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
 };
 
-use super::identity_classification::{independent_integer_one, independent_integer_zero};
 use crate::candidates::{candidate_block, candidate_function};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,7 +44,7 @@ pub(crate) enum IndependentRemainderUnitDivisor {
 impl IndependentRemainderUnitDivisor {
     fn value(self, scalar_type: IntegerType) -> Option<IntegerValue> {
         match self {
-            Self::PositiveOne => Some(independent_integer_one(scalar_type)),
+            Self::PositiveOne => Some(scalar_type.one()),
             Self::SignedNegativeOne if scalar_type.sign() == IntegerSign::Signed => {
                 Some(IntegerValue::Signed(-1))
             }
@@ -180,7 +179,7 @@ pub(crate) fn validate_proof_certified_integer_remainder_by_unit_candidate(
     if patch.source_operation != shape.psi_operation
         || patch.result != shape.result
         || patch.scalar_type != shape.scalar_type
-        || patch.constant != independent_integer_zero(shape.scalar_type)
+        || patch.constant != shape.scalar_type.zero()
         || node.definitions
             != [ValueDefinition {
                 value: shape.result,

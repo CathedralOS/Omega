@@ -10,7 +10,6 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
     TotalScalarIdentityShape, all_ones, exact_total_scalar_identity,
     propose_total_scalar_identities,
 };
-use crate::rules::proof_check_elision::integer_zero as zero;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -24,7 +23,12 @@ impl BitwiseNeutralLiteralIdentityRule {
     }
 }
 
-psi_optimization_rule_delegate!(BitwiseNeutralLiteralIdentityRule, propose = propose_total_scalar_identities, contract = Self::contract(),classify);
+psi_optimization_rule_delegate!(
+    BitwiseNeutralLiteralIdentityRule,
+    propose = propose_total_scalar_identities,
+    contract = Self::contract(),
+    classify
+);
 
 /// Return the six exact-width bitwise neutral laws in canonical operation and
 /// left-literal/right-literal order.
@@ -60,7 +64,7 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
             *right,
             TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft,
             TotalScalarIdentityKind::IntegerBitwiseOrZeroRight,
-            zero(*scalar_type),
+            scalar_type.zero(),
         ),
         O::IntegerBitwiseXor {
             psi_operation,
@@ -76,7 +80,7 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
             *right,
             TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft,
             TotalScalarIdentityKind::IntegerBitwiseXorZeroRight,
-            zero(*scalar_type),
+            scalar_type.zero(),
         ),
         _ => Vec::new(),
     }

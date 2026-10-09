@@ -20,10 +20,7 @@ pub(crate) fn safe_exact_structural_divisor(
         _ => {}
     }
 
-    let one = match integer_type.sign() {
-        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-        IntegerSign::Signed => IntegerValue::Signed(1),
-    };
+    let one = integer_type.one();
     if let Ok(one) = ScalarTerm::integer(integer_type, one)
         && requirements.contains(&Proposition::LessOrEqual(one, divisor.clone()))
     {
@@ -75,10 +72,7 @@ pub(crate) fn safe_policy_structural_divisor(
         _ => {}
     }
 
-    let one = match integer_type.sign() {
-        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-        IntegerSign::Signed => IntegerValue::Signed(1),
-    };
+    let one = integer_type.one();
     if ScalarTerm::integer(integer_type, one)
         .is_ok_and(|one| requirements.contains(&Proposition::LessOrEqual(one, divisor.clone())))
     {

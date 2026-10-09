@@ -7,7 +7,6 @@ use optimization_core::{
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
-use crate::rules::proof_check_elision::identity_rewrite::integer_one;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -51,7 +50,7 @@ impl PsiOptimizationRule for LiveProofCertifiedIntegerRemainderByOneEliminationR
             analyses,
             Self::contract(),
             false,
-            |scalar_type, constant| constant == integer_one(scalar_type),
+            |scalar_type, constant| constant == scalar_type.one(),
         )
     }
 }

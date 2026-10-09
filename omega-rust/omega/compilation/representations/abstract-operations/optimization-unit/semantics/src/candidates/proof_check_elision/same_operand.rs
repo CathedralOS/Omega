@@ -24,7 +24,6 @@ use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
 };
 
-use super::identity_classification::{independent_integer_one, independent_integer_zero};
 use crate::candidates::{candidate_block, candidate_function};
 
 /// Independently reconstructed scalar interface of one closed node region.
@@ -198,10 +197,10 @@ pub(crate) fn validate_proof_certified_same_operand_integer_constant_candidate(
             != match law {
                 ProofCertifiedSameOperandIntegerConstantLaw::ExactSubtractZero
                 | ProofCertifiedSameOperandIntegerConstantLaw::SelfRemainderZero => {
-                    independent_integer_zero(shape.scalar_type)
+                    shape.scalar_type.zero()
                 }
                 ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne => {
-                    independent_integer_one(shape.scalar_type)
+                    shape.scalar_type.one()
                 }
             }
         || node.definitions

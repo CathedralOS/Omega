@@ -11,7 +11,7 @@ use super::super::{
 use super::emission;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
-use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerValue};
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn record(
@@ -436,10 +436,7 @@ pub(crate) fn emit_completed(
 pub(crate) fn zero_constant(scalar_type: ScalarType) -> OperationKind {
     match scalar_type {
         ScalarType::Integer(integer) => OperationKind::IntegerConstant {
-            value: match integer.sign() {
-                IntegerSign::Signed => IntegerValue::Signed(0),
-                IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-            },
+            value: integer.zero(),
         },
         ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
         ScalarType::IeeeFloat(format) => OperationKind::IeeeFloatConstant {

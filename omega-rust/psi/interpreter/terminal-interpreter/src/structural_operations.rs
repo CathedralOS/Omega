@@ -444,10 +444,7 @@ impl TerminalExecution<'_> {
                 ScalarType::Boolean => Some(TerminalScalarValue::Boolean(false)),
                 ScalarType::Integer(integer_type) => Some(TerminalScalarValue::Integer {
                     scalar_type: integer_type,
-                    value: match integer_type.sign() {
-                        semantic_vocabulary::IntegerSign::Signed => IntegerValue::Signed(0),
-                        semantic_vocabulary::IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-                    },
+                    value: integer_type.zero(),
                 }),
                 ScalarType::IeeeFloat(format) => {
                     Some(TerminalScalarValue::IeeeFloat(match format {

@@ -2,9 +2,7 @@
 //! shape a rule's law partition selects, the contract they share, and the
 //! traversal that joins a selected shape to its literal and effect evidence.
 
-use abstract_operations::{
-    AbstractOperation, IntegerArithmeticOperator, IntegerOverflowPolicy,
-};
+use abstract_operations::{AbstractOperation, IntegerArithmeticOperator, IntegerOverflowPolicy};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -20,7 +18,6 @@ use semantic_vocabulary::{
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::global_value_numbering::exact_pure_scalar_effect;
 use crate::rules::node_elision::node_elision_accounting;
-use crate::rules::proof_check_elision::integer_zero;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
 pub(super) fn propose_total_scalar_identities(
@@ -177,7 +174,7 @@ pub(super) fn multiply_zero_annihilation_shapes(
             scalar_type: *scalar_type,
             law_operand_type: *scalar_type,
             identity: left_zero,
-            expected_law_value: integer_zero(*scalar_type),
+            expected_law_value: scalar_type.zero(),
         },
         TotalScalarIdentityShape {
             source_operation: *psi_operation,
@@ -187,7 +184,7 @@ pub(super) fn multiply_zero_annihilation_shapes(
             scalar_type: *scalar_type,
             law_operand_type: *scalar_type,
             identity: right_zero,
-            expected_law_value: integer_zero(*scalar_type),
+            expected_law_value: scalar_type.zero(),
         },
     ]
 }

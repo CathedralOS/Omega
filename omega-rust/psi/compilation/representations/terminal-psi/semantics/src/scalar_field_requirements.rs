@@ -85,7 +85,7 @@ pub fn scalar_field_accepts_literal(
 
 /// Zero provisioning is value admission, not a property of the scalar layout.
 pub fn scalar_field_accepts_zero(field_type: &StructuralFieldType) -> bool {
-    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerValue};
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
     let Some(carrier) = field_type.scalar_type() else {
         return false;
     };
@@ -93,10 +93,7 @@ pub fn scalar_field_accepts_zero(field_type: &StructuralFieldType) -> bool {
         ScalarType::Boolean => ScalarTerm::Boolean(false),
         ScalarType::Integer(integer) => ScalarTerm::Integer {
             scalar_type: integer,
-            value: match integer.sign() {
-                IntegerSign::Signed => IntegerValue::Signed(0),
-                IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-            },
+            value: integer.zero(),
         },
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => {
             ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0))

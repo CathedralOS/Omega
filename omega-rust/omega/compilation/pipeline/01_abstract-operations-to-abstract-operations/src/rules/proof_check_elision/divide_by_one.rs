@@ -14,7 +14,7 @@ use semantic_vocabulary::IntegerValue;
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::rules::proof_check_elision::identity_rewrite::{
-    ProofCertifiedScalarIdentityShape, integer_one, propose_proof_certified_scalar_identities,
+    ProofCertifiedScalarIdentityShape, propose_proof_certified_scalar_identities,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -58,7 +58,7 @@ fn proof_certified_integer_divide_by_one_shapes(
             scalar_type,
             identity,
         },
-        integer_one(scalar_type),
+        scalar_type.one(),
     )]
 }
 

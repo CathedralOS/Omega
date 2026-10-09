@@ -11,7 +11,6 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
     TotalScalarIdentityShape, exact_total_scalar_identity, propose_total_scalar_identities,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
-use crate::rules::proof_check_elision::{integer_one, integer_zero};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct WrappingNeutralArithmeticIdentityRule;
@@ -24,7 +23,12 @@ impl WrappingNeutralArithmeticIdentityRule {
     }
 }
 
-psi_optimization_rule_delegate!(WrappingNeutralArithmeticIdentityRule, propose = propose_total_scalar_identities, contract = Self::contract(),classify);
+psi_optimization_rule_delegate!(
+    WrappingNeutralArithmeticIdentityRule,
+    propose = propose_total_scalar_identities,
+    contract = Self::contract(),
+    classify
+);
 
 /// Return the exact laws in canonical left-literal/right-literal tie order.
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
@@ -43,8 +47,8 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     if arithmetic.policy() != IntegerOverflowPolicy::Wrapping {
         return Vec::new();
     }
-    let zero = integer_zero(*scalar_type);
-    let one = integer_one(*scalar_type);
+    let zero = scalar_type.zero();
+    let one = scalar_type.one();
     // (replacement, law operand, identity, expected law value)
     let laws = match arithmetic.operator() {
         IntegerArithmeticOperator::Add => vec![
@@ -75,4 +79,3 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
         )
         .collect()
 }
-

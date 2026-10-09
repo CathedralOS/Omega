@@ -26,8 +26,6 @@ mod signed_remainder_by_negative_one;
 mod zero_dividend;
 mod zero_value_shift;
 
-pub(super) use identity_rewrite::{integer_one, integer_zero};
-
 pub use divide_by_one::LiveProofCertifiedIntegerDivideByOneEliminationRule;
 pub use multiply_by_zero::LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;
 pub use negative_one_shift_right::LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule;
@@ -163,7 +161,7 @@ fn propose_proof_certified_remainder_by_constant(
                             source_operation: *psi_operation,
                             result: *result,
                             scalar_type: *scalar_type,
-                            constant: identity_rewrite::integer_zero(*scalar_type),
+                            constant: scalar_type.zero(),
                         },
                     )
                     .map_err(RuleProposalError::InvalidCandidate)?,

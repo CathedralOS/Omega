@@ -8,7 +8,6 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIde
 use crate::rules::global_value_numbering::total_scalar_identities::{
     TotalScalarIdentityShape, exact_total_scalar_identity, propose_total_scalar_identities,
 };
-use crate::rules::proof_check_elision::integer_zero;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -22,7 +21,12 @@ impl WrappingShiftZeroCountIdentityRule {
     }
 }
 
-psi_optimization_rule_delegate!(WrappingShiftZeroCountIdentityRule, propose = propose_total_scalar_identities, contract = Self::contract(),classify);
+psi_optimization_rule_delegate!(
+    WrappingShiftZeroCountIdentityRule,
+    propose = propose_total_scalar_identities,
+    contract = Self::contract(),
+    classify
+);
 
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     match operation {
@@ -43,7 +47,7 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
             scalar_type: *value_type,
             law_operand_type: *count_type,
             identity: TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
-            expected_law_value: integer_zero(*count_type),
+            expected_law_value: count_type.zero(),
         }],
         O::IntegerShift {
             psi_operation,
@@ -62,7 +66,7 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
             scalar_type: *value_type,
             law_operand_type: *count_type,
             identity: TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount,
-            expected_law_value: integer_zero(*count_type),
+            expected_law_value: count_type.zero(),
         }],
         _ => Vec::new(),
     }

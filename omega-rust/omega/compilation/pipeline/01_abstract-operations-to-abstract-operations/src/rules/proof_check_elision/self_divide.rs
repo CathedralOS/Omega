@@ -9,9 +9,7 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerType, OperationId, ValueId};
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
-use crate::rules::proof_check_elision::identity_rewrite::{
-    integer_one, propose_proof_certified_integer_constants,
-};
+use crate::rules::proof_check_elision::identity_rewrite::propose_proof_certified_integer_constants;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -41,7 +39,7 @@ psi_optimization_rule_delegate!(
     propose = propose_proof_certified_integer_constants,
     contract = Self::contract,
     classify,
-    integer_one
+    IntegerType::one
 );
 
 fn classify(operation: &O) -> Option<(&OperationId, &ValueId, &IntegerType)> {

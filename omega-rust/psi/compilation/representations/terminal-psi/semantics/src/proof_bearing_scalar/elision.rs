@@ -208,10 +208,7 @@ fn discharged_literal(
     {
         return Some(value);
     }
-    let zero = || match result_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(0),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-    };
+    let zero = || result_type.zero();
     let literal_of = |value: &ValueId| match literals.get(value) {
         Some(ScalarLeafLiteral::Integer(literal)) => Some(*literal),
         _ => None,
