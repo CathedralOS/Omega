@@ -1162,37 +1162,50 @@ fn signature_result_candidate_origins(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn boundary_result_candidate_origins(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-    call: &TableCallExpression,
-    expression: ExpressionHandle,
-    inference: &mut FrameInference,
-    parameters: &[StateParameter],
-    isolated_local_roots: &[String],
-    aliases: &[(String, FramePlaceOrigin)],
-    allow_isolated_local: bool,
-    stored: &[StoredLocalOrigins],
-) -> Option<Vec<FramePlaceOrigin>> {
-    signature_result_candidate_origins(
-        boundary_result_origins,
-        program,
-        current_machine,
-        machine_symbols,
-        symbols,
-        call,
-        expression,
-        inference,
-        parameters,
-        isolated_local_roots,
-        aliases,
-        allow_isolated_local,
-        stored,
-    )
+/// Each signature-routed candidate-origins adapter forwards the whole
+/// write-frames context to `signature_result_candidate_origins` with its own
+/// origins resolver; this states the shared forwarding shape once.
+macro_rules! signature_result_candidate_adapter {
+    ($(#[$attr:meta])* $adapter:ident => $origins:ident) => {
+        $(#[$attr])*
+        #[allow(clippy::too_many_arguments)]
+        pub(super) fn $adapter(
+            program: &dyn crate::CheckingInput,
+            current_machine: &Machine,
+            machine_symbols: &MachineSymbols<'_>,
+            symbols: &TopLevelSymbols<'_>,
+            call: &TableCallExpression,
+            expression: ExpressionHandle,
+            inference: &mut FrameInference,
+            parameters: &[StateParameter],
+            isolated_local_roots: &[String],
+            aliases: &[(String, FramePlaceOrigin)],
+            allow_isolated_local: bool,
+            stored: &[StoredLocalOrigins],
+        ) -> Option<Vec<FramePlaceOrigin>> {
+            signature_result_candidate_origins(
+                $origins,
+                program,
+                current_machine,
+                machine_symbols,
+                symbols,
+                call,
+                expression,
+                inference,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                allow_isolated_local,
+                stored,
+            )
+        }
+    };
 }
+
+signature_result_candidate_adapter! {
+    boundary_result_candidate_origins => boundary_result_origins
+}
+
 
 /// The candidate caller-storage origins a resolved requirement call's
 /// exclusive result may alias — the same admitted routes as a boundary
@@ -1319,40 +1332,14 @@ fn requirement_result_origins(
     )
 }
 
-/// The requirement signature's admitted candidate routes canonicalized into
-/// the caller's alias and stored-carrier namespace, kept as the exact finite
-/// union for the same shared consumers as `boundary_result_candidate_origins`.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn requirement_result_candidate_origins(
-    program: &dyn crate::CheckingInput,
-    current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-    call: &TableCallExpression,
-    expression: ExpressionHandle,
-    inference: &mut FrameInference,
-    parameters: &[StateParameter],
-    isolated_local_roots: &[String],
-    aliases: &[(String, FramePlaceOrigin)],
-    allow_isolated_local: bool,
-    stored: &[StoredLocalOrigins],
-) -> Option<Vec<FramePlaceOrigin>> {
-    signature_result_candidate_origins(
-        requirement_result_origins,
-        program,
-        current_machine,
-        machine_symbols,
-        symbols,
-        call,
-        expression,
-        inference,
-        parameters,
-        isolated_local_roots,
-        aliases,
-        allow_isolated_local,
-        stored,
-    )
+signature_result_candidate_adapter! {
+    /// The requirement signature's admitted candidate routes canonicalized
+    /// into the caller's alias and stored-carrier namespace, kept as the exact
+    /// finite union for the same shared consumers as
+    /// `boundary_result_candidate_origins`.
+    requirement_result_candidate_origins => requirement_result_origins
 }
+
 
 /// Canonicalize admitted candidate origins through the caller's current
 /// alias and stored-carrier evidence. A candidate no caller storage,
