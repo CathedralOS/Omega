@@ -113,7 +113,7 @@ pub(crate) use rewrites::{
 pub use rewrites::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runtime_value};
 
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) use rewrites::test_support;
+pub use rewrites::test_support;
 
 // Durable transform-output identities live with the selected-instruction
 // representation; the transform publishes them under its root so callers keep
