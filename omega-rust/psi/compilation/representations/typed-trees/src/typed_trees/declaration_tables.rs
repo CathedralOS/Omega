@@ -7,6 +7,16 @@ use arena::{Handle, HandleSpan};
 use symbols::JoinedPath;
 
 impl TypedTrees {
+    super::typed_tree_table! {
+        const_declarations => const_declarations(crate::constant::ConstDeclaration) [push_const_declaration];
+        data_definitions => data_definitions(data::DataDefinition) [push_data_definition], inline;
+        domain_definitions => domain_definitions(domain::DomainDefinition) [push_domain_definition];
+        propositions => propositions(proposition::PropositionDefinition) [push_proposition];
+        mathematical_definitions => mathematical_definitions(crate::mathematical::MathematicalDefinition);
+        measures => measures(measure::MeasureDefinition) [push_measure];
+        operators => operators(crate::operator::OperatorDefinition) [push_operator];
+    }
+
     pub fn retain_authored_declaration_selections(
         &mut self,
         selections: language_semantics::declaration_selection::AuthoredDeclarationSelections,
@@ -18,18 +28,6 @@ impl TypedTrees {
         &self,
     ) -> &language_semantics::declaration_selection::AuthoredDeclarationSelections {
         &self.tables.authored_declaration_selections
-    }
-
-    pub fn push_const_declaration(&mut self, declaration: crate::constant::ConstDeclaration) {
-        self.tables
-            .const_declarations
-            .append_to_span(&mut self.roots.const_declarations, declaration);
-    }
-
-    pub fn const_declarations(&self) -> &[crate::constant::ConstDeclaration] {
-        self.tables
-            .const_declarations
-            .span_or_empty(self.roots.const_declarations)
     }
 
     /// The const declaration `symbol` declares, if any.
@@ -65,19 +63,6 @@ impl TypedTrees {
             kind,
             selected_symbol,
         )
-    }
-
-    pub fn push_data_definition(&mut self, data_definition: data::DataDefinition) {
-        self.tables
-            .data_definitions
-            .append_to_span(&mut self.roots.data_definitions, data_definition);
-    }
-
-    #[inline]
-    pub fn data_definitions(&self) -> &[data::DataDefinition] {
-        self.tables
-            .data_definitions
-            .span_or_empty(self.roots.data_definitions)
     }
 
     /// The first data declaration `name` spells, if any.
@@ -309,12 +294,6 @@ impl TypedTrees {
             .find(|candidate| candidate.symbol == symbol)
     }
 
-    pub fn push_domain_definition(&mut self, domain_definition: domain::DomainDefinition) {
-        self.tables
-            .domain_definitions
-            .append_to_span(&mut self.roots.domain_definitions, domain_definition);
-    }
-
     pub fn domain_type_parameters(
         &self,
         domain: &domain::DomainDefinition,
@@ -330,12 +309,6 @@ impl TypedTrees {
     ) {
         self.operators
             .append_to_span(&mut domain.operators, operator);
-    }
-
-    pub fn domain_definitions(&self) -> &[domain::DomainDefinition] {
-        self.tables
-            .domain_definitions
-            .span_or_empty(self.roots.domain_definitions)
     }
 
     /// The domain definition `symbol` declares, if it exists.
@@ -378,18 +351,6 @@ impl TypedTrees {
         let index = proof_fact_source_span_index(handle);
         self.tables.proof_fact_source_spans.resize(index + 1, None);
         self.tables.proof_fact_source_spans[index] = Some(source_span);
-    }
-
-    pub fn push_proposition(&mut self, proposition: proposition::PropositionDefinition) {
-        self.tables
-            .propositions
-            .append_to_span(&mut self.roots.propositions, proposition);
-    }
-
-    pub fn propositions(&self) -> &[proposition::PropositionDefinition] {
-        self.tables
-            .propositions
-            .span_or_empty(self.roots.propositions)
     }
 
     /// The proposition definition `symbol` declares, if any.
@@ -449,12 +410,6 @@ impl TypedTrees {
             .append_to_span(&mut self.roots.mathematical_definitions, definition);
     }
 
-    pub fn mathematical_definitions(&self) -> &[crate::mathematical::MathematicalDefinition] {
-        self.tables
-            .mathematical_definitions
-            .span_or_empty(self.roots.mathematical_definitions)
-    }
-
     pub fn push_mathematical_parameter(
         &mut self,
         definition: &mut crate::mathematical::MathematicalDefinition,
@@ -493,16 +448,6 @@ impl TypedTrees {
         self.domain_path_members.span_or_empty(span)
     }
 
-    pub fn push_measure(&mut self, measure: measure::MeasureDefinition) {
-        self.tables
-            .measures
-            .append_to_span(&mut self.roots.measures, measure);
-    }
-
-    pub fn measures(&self) -> &[measure::MeasureDefinition] {
-        self.tables.measures.span_or_empty(self.roots.measures)
-    }
-
     pub fn push_measure_path_member(
         &mut self,
         measure: &mut measure::MeasureDefinition,
@@ -517,16 +462,6 @@ impl TypedTrees {
         span: HandleSpan<crate::name::Identifier>,
     ) -> &[crate::name::Identifier] {
         self.measure_path_members.span_or_empty(span)
-    }
-
-    pub fn push_operator(&mut self, operator: crate::operator::OperatorDefinition) {
-        self.tables
-            .operators
-            .append_to_span(&mut self.roots.operators, operator);
-    }
-
-    pub fn operators(&self) -> &[crate::operator::OperatorDefinition] {
-        self.tables.operators.span_or_empty(self.roots.operators)
     }
 
     /// The operator definition `symbol` declares, if any.

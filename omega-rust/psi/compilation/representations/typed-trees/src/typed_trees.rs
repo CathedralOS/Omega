@@ -9,6 +9,26 @@
 //! `type_reference_queries.rs` answers type reference queries, `placed_plans.rs`
 //! holds placed and plan-laid plans and `commitments.rs` the commitments.
 
+macro_rules! typed_tree_table {
+    ($( $field:ident => $get:ident ($ty:ty) $( [ $push:ident ] )? $(, $inline:ident)? ;)*) => {
+        $(
+            $( pub fn $push(&mut self, value: $ty) {
+                self.tables
+                    .$field
+                    .append_to_span(&mut self.roots.$field, value);
+            } )?
+
+            $( #[ $inline ] )?
+            pub fn $get(&self) -> &[$ty] {
+                self.tables
+                    .$field
+                    .span_or_empty(self.roots.$field)
+            }
+        )*
+    };
+}
+pub(crate) use typed_tree_table;
+
 mod authored_targets;
 pub mod calls;
 mod commitments;
@@ -358,10 +378,7 @@ impl TypedTrees {
         self.product_declaration_frontier.as_deref().unwrap_or(self)
     }
 
-    pub fn plan_laid_layout(
-        &self,
-        data_symbol: symbols::SymbolHandle,
-    ) -> Option<&PlanLaidLayout> {
+    pub fn plan_laid_layout(&self, data_symbol: symbols::SymbolHandle) -> Option<&PlanLaidLayout> {
         self.plan_laid_layouts
             .iter()
             .find(|layout| layout.data_symbol == data_symbol)
@@ -556,8 +573,7 @@ pub fn static_const_argument_spelling(
         );
     }
     if argument.symbol.is_valid() {
-        let declaration = program
-            .const_declaration_by_symbol(argument.symbol)?;
+        let declaration = program.const_declaration_by_symbol(argument.symbol)?;
         let value = CanonicalConstValue::new(
             program.display_type_reference(declaration.declared_type),
             declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),

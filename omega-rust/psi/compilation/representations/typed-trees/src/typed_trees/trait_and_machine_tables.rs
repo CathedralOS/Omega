@@ -5,6 +5,12 @@ use crate::{data, machine, signature, trait_definition, types};
 use symbols::SymbolHandle;
 
 impl TypedTrees {
+    super::typed_tree_table! {
+        traits => traits(trait_definition::TraitDefinition) [push_trait_definition];
+        conformances => conformances(trait_definition::Conformance) [push_conformance];
+        machines => machines(machine::Machine) [push_machine], inline;
+    }
+
     /// Instantiate every nominal machine binder's callable contract under its
     /// authored trait application (`Visitor<Context>::visit`). Machines lower
     /// before traits, so this runs once the whole program is typed. The trait's
@@ -179,16 +185,6 @@ impl TypedTrees {
         }
     }
 
-    pub fn push_trait_definition(&mut self, trait_definition: trait_definition::TraitDefinition) {
-        self.tables
-            .traits
-            .append_to_span(&mut self.roots.traits, trait_definition);
-    }
-
-    pub fn traits(&self) -> &[trait_definition::TraitDefinition] {
-        self.tables.traits.span_or_empty(self.roots.traits)
-    }
-
     /// The trait definition `symbol` declares, if any.
     pub fn trait_definition_by_symbol(
         &self,
@@ -197,18 +193,6 @@ impl TypedTrees {
         self.traits()
             .iter()
             .find(|definition| definition.symbol == symbol)
-    }
-
-    pub fn push_conformance(&mut self, conformance: trait_definition::Conformance) {
-        self.tables
-            .conformances
-            .append_to_span(&mut self.roots.conformances, conformance);
-    }
-
-    pub fn conformances(&self) -> &[trait_definition::Conformance] {
-        self.tables
-            .conformances
-            .span_or_empty(self.roots.conformances)
     }
 
     /// The conformance `symbol` declares, if any.
@@ -378,12 +362,6 @@ impl TypedTrees {
         }
     }
 
-    pub fn push_machine(&mut self, machine: machine::Machine) {
-        self.tables
-            .machines
-            .append_to_span(&mut self.roots.machines, machine);
-    }
-
     /// The realized declaration named `name`: never a target sibling, which
     /// shares its family's authored name but belongs to another target and
     /// is pruned once checking has committed. Evaluators and settlement
@@ -392,11 +370,6 @@ impl TypedTrees {
         self.machines()
             .iter()
             .find(|machine| machine.target.is_none() && machine.name.as_str() == name)
-    }
-
-    #[inline]
-    pub fn machines(&self) -> &[machine::Machine] {
-        self.tables.machines.span_or_empty(self.roots.machines)
     }
 
     /// The `(machine, state)` pairs whose state symbol is `symbol` —

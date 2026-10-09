@@ -6,6 +6,10 @@ use arena::HandleSpan;
 use symbols::JoinedPath;
 
 impl TypedTrees {
+    super::typed_tree_table! {
+        wire_schemas => wire_schemas(wire::WireSchema) [push_wire_schema];
+    }
+
     /// Record a schema's derived wire plan: placements land contiguously in
     /// the placement arena; the plan holds their span. `policy_verified` is
     /// true only when the authored grammar policy was evaluated for this
@@ -25,19 +29,6 @@ impl TypedTrees {
             encode_obligations: obligations,
             policy_verified,
         });
-    }
-
-
-    pub fn push_wire_schema(&mut self, wire_schema: wire::WireSchema) {
-        self.tables
-            .wire_schemas
-            .append_to_span(&mut self.roots.wire_schemas, wire_schema);
-    }
-
-    pub fn wire_schemas(&self) -> &[wire::WireSchema] {
-        self.tables
-            .wire_schemas
-            .span_or_empty(self.roots.wire_schemas)
     }
 
     pub fn append_wire_members(
@@ -285,8 +276,7 @@ impl TypedTrees {
         if !name.starts_with("FixedVec<") {
             return None;
         }
-        let data = self
-            .data_definition_by_name_str(name)?;
+        let data = self.data_definition_by_name_str(name)?;
         let mut items = None;
         let mut has_u64_length = false;
         for member in self.data_members(data) {
