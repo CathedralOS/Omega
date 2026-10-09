@@ -32,7 +32,7 @@ use crate::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
 };
-use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
+use optimization_unit::{FuelSettlement, OwnershipEvent, PsiProvenance};
 use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterUnitId, TargetRegisterEnvironmentIdentity,

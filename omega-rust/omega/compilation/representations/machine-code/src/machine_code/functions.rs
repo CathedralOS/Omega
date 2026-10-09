@@ -1,7 +1,6 @@
 //! Emitted program functions and separately identified compiler-private functions.
 
 pub mod exit_contract;
-pub(crate) use exit_contract::exit_policy_tag;
 pub use exit_contract::{
     WholeFunctionCrashEvidence, WholeFunctionEntryAssumption, WholeFunctionExitContract,
     WholeFunctionExitContractIdentity, WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody,
@@ -16,7 +15,7 @@ use semantic_vocabulary::PlaceId;
 use crate::{
     BoundarySettlementRecord, ForeignCallRelocation, InstalledProviderUnitScalarCallRecord,
     InternalCallRelocation, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
-    InternalUnitScalarCallRecord, MachineCodePlan, ParameterFunctionAbiRecord, PortEffectRecord,
+    InternalUnitScalarCallRecord, ParameterFunctionAbiRecord, PortEffectRecord,
     ScalarControlAffineCleanupRecord, ScalarStackEvidence, ScalarStructuralScalarFieldStoreRecord,
     SemanticCodeAttribution, StructuralCallScalarReturnEvidence, StructuralReturnRecord,
     UnitAffineCleanupRecord, UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord,

@@ -17,7 +17,6 @@ pub use data_regions::{
     PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, place_data_extent,
     place_data_regions, validate_placed_data_region_inventory,
 };
-pub(crate) use data_regions::{ PlacedDataGap, PlacedDataRegion};
 pub(crate) use executable_regions::validate_placed_executable_region_inventory_digest;
 pub use executable_regions::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest, PlacedExecutableGapBytesDigest, PlacedExecutableRegion,
@@ -25,8 +24,7 @@ pub use executable_regions::{
     PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, place_executable_regions,
     validate_placed_executable_region_inventory,
 };
-pub(crate) use executable_regions::{
-    PlacedExecutableGap, digest_bytes};
+pub(crate) use executable_regions::digest_bytes;
 #[cfg(test)]
 pub(crate) use executable_regions::{
     executable_inventory_digest, executable_inventory_report_fingerprint,

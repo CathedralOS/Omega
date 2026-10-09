@@ -17,7 +17,3 @@ pub use layout::{
     LocalStorageFrameSlot, OutgoingAbiFrameArea, ReturnAddressFrameCustody, StackProbePlan,
     TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
-pub(crate) use spill::{
-    FunctionSpillFrameRequirements, NonAuthoritativeSpillFrameRequirementPlan,
-    NonAuthoritativeSpillFrameRequirementPolicy,
-};

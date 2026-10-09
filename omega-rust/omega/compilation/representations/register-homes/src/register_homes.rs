@@ -36,7 +36,6 @@ pub use constraints::{
     fixed_precolored_intervals, fixed_precolored_split_requirement_plan_identity,
     fixed_precolored_split_requirements,
 };
-pub(crate) use constraints::{ AllocatorAvailabilityDecodeError};
 pub use identity::{
     AbstractSpillAccessConstraintPlanIdentity, RegisterHomeIdentity, register_home_identity,
 };
@@ -62,8 +61,7 @@ pub use recovery::{
     spill_choice, spill_choice_identity,
 };
 pub(crate) use recovery::{ FixedViewCopyDecodeError,
-    RecoveryClassificationDecodeError,
-    SpillChoiceDecodeError};
+    RecoveryClassificationDecodeError};
 pub use storage::{
     FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomePlan,
     FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSegmentHomePolicy,

@@ -30,4 +30,3 @@ pub use staged_output_tree::{ BuildStagedOutputEntryInput, BuildStagedOutputEntr
 pub(crate) use staged_output_tree::{ 
     BuildStagedOutputMaterializationError};
 
-pub(crate) use tree_from_entries::{OutputTreeEntry, from_entries};

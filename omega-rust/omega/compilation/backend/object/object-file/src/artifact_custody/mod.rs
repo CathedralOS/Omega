@@ -18,7 +18,7 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
-    FunctionFragmentObjectContainerManifest, RelocationFreeObjectContainerError,
+    RelocationFreeObjectContainerError,
     StagedOptimizedRelocationFreeObjectContainer};
 use crate::cursor::Cursor;
 use codec::{

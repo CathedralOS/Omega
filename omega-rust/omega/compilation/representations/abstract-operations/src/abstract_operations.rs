@@ -73,7 +73,6 @@ pub use atomic::{
     AtomicCoherenceViolation, AtomicModificationAfter,
     AtomicReadsFrom, happens_before_atomic_coherence_violation,
 };
-pub(crate) use atomic::{ AtomicModificationAfterViolation, AtomicReadsFromViolation};
 pub mod calls;
 pub use calls::{
     AbstractBoundaryResult, AbstractCallSignature, AbstractCallTarget,
@@ -96,7 +95,6 @@ pub use integer_arithmetic::{
 };
 pub mod operations;
 pub use operations::{AbstractOperation};
-pub(crate) use operations::{ IntegerArithmeticOperands, IntegerShiftOperands};
 mod structural_stores;
 pub use structural_stores::{StructuralScalarStoreDestination, StructuralWindowRoot};
 mod structural_copy;

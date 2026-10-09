@@ -23,7 +23,6 @@ use calling_conventions::{
     ValidatedBoundaryEntryPlan, ValueShape, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result};
 use diagnostics::Diagnostic;
-use layout::append_boundary_value_shape;
 use representation_planning::OpaqueRepresentationSelection;
 use sha2::Digest;
 use sha2::Sha256;

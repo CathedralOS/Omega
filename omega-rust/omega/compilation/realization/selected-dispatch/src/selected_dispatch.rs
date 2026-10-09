@@ -28,9 +28,6 @@ pub use operator_adapter::{ CheckedOperatorAuthoredUseKind,
     derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
 };
-pub(crate) use operator_adapter::{
-    CheckedNongenericOperatorApplicationRealization,
-    CheckedSpecializedOperatorApplicationRealization};
 
 /// Settle selected execution for the checked program the caller hands over.
 /// Failure publishes nothing.

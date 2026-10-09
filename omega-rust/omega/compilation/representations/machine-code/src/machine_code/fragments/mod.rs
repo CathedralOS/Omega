@@ -6,7 +6,6 @@ pub mod functions;
 pub mod identity;
 pub mod publication;
 
-pub(crate) use control_flow::FunctionFragmentJumpEvidence;
 pub use control_flow::{
     FunctionFragmentBranchEvidence, FunctionFragmentConditionalBranchEvidence,
     FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,

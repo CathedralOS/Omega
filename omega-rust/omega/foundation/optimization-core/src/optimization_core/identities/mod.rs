@@ -125,8 +125,6 @@ pub use rules_and_facts::{
     OptimizationRuleSetIdentity, OwnershipFrontierFactIdentity, ProofQuestionIdentity,
     ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
-pub(crate) use bundle::IdentityBundleDecodeError;
-pub(crate) use rules_and_facts::DuplicateOptimizationRuleIdentity;
 pub use stages::{
     FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,

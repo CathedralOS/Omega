@@ -1,7 +1,6 @@
 //! Whole-function exit records. Content identity does not grant admission.
 
 mod identity;
-pub(crate) use identity::exit_policy_tag;
 pub use identity::whole_function_exit_contract_identity;
 
 use optimization_core::Optimization;

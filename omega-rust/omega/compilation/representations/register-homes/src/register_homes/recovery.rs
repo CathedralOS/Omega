@@ -20,4 +20,3 @@ pub use spill_choice::{
     FunctionSpillChoices, PressureContender, PressureResident, SpillChoice,
     SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy, spill_choice_identity,
 };
-pub(crate) use spill_choice::{ SpillChoiceDecodeError};

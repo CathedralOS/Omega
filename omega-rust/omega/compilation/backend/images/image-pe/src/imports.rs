@@ -8,7 +8,7 @@ use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateFootp
 use diagnostics::Diagnostic;
 use image::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage,
-    FinalImageImportPlan, FinalImageLayout, FinalImageSection, PlacedExecutableRegion, PlacedExecutableRegionInventory};
+    FinalImageImportPlan, FinalImageLayout, FinalImageSection};
 use object_file::SymbolKind;
 use target::{Architecture, ForeignLocatorCandidate, ObjectFormat, TargetProfile};
 

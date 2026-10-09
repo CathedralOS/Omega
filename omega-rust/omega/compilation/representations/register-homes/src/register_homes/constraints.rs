@@ -4,8 +4,6 @@ pub mod allocator_availability;
 pub use allocator_availability::{ AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan,
     AllocatorAvailabilityPolicy, RegisterClassAvailability, allocator_availability_identity,
 };
-pub(crate) use allocator_availability::{
-    AllocatorAvailabilityDecodeError};
 pub mod allocation_legality;
 pub use allocation_legality::{
     AllocationLegalityIdentity, AllocationLegalityPlan, EntryFixedViewTransition,

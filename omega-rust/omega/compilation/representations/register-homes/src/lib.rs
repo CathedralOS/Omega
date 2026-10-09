@@ -46,4 +46,4 @@ pub use register_homes::{
     post_allocation_manifest, preservation, recovery, recovery_classification_identity,
     register_home_identity, spill_choice, spill_choice_identity, storage, view,
 };
-pub(crate) use register_homes::{AllocatorAvailabilityDecodeError, FixedViewCopyDecodeError, RecoveryClassificationDecodeError, SpillChoiceDecodeError};
+pub(crate) use register_homes::{FixedViewCopyDecodeError, RecoveryClassificationDecodeError};

@@ -17,8 +17,6 @@ pub use budget::{ OPTIMIZATION_REFERENCE_EXTENT, OptimizationWorkBudget,
 pub use decision::{OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationSafetyClass};
 pub(crate) use error::CoreContractDecodeError;
 pub use rule::{ OptimizationRuleContract};
-pub(crate) use budget::InvalidOptimizationWorkBudget;
-pub(crate) use rule::InvalidOptimizationRuleContract;
 
 #[cfg(test)]
 mod tests;

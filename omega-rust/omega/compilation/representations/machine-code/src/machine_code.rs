@@ -71,8 +71,6 @@ pub use fragments::{
     FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance, fixups,
     identity, publication,
 };
-pub(crate) use fragments::{FunctionFragmentJumpEvidence, function_fragment_emission_identity};
-pub(crate) use functions::exit_policy_tag;
 pub use functions::{
     CompilerPrivateMachineCodeFunction, MachineCodeFunction, WholeFunctionCrashEvidence,
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
@@ -89,7 +87,6 @@ pub use instructions::{
     X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,
     X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord, x86_fma,
 };
-pub(crate) use instructions::{X86ScalarFmaOperandRecord, x86_scalar_fma_fragment_identity};
 pub use layout::text_section::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
@@ -113,10 +110,7 @@ pub use ownership::{
     UnitContinuationRecord,
 };
 pub use provenance::{SemanticCodeAttribution, SemanticCodeSite, semantic_code_site};
-pub(crate) use storage::{
-    Aarch64ReturnLinkEvidence, FunctionSpillFrameRequirements,
-    NonAuthoritativeSpillFrameRequirementPlan, NonAuthoritativeSpillFrameRequirementPolicy,
-};
+pub(crate) use storage::Aarch64ReturnLinkEvidence;
 pub use storage::{
     CalleeSaveFrameSlot, FrameProtocolByteSpan, FrameUnwindPlan, FrameUnwindRestore,
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,

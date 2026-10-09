@@ -10,13 +10,9 @@ mod specialized_application_realization;
 pub use application_realization::{ CheckedOperatorAuthoredUseKind,
     derive_checked_nongeneric_operator_application_realizations,
 };
-pub(crate) use application_realization::{
-    CheckedNongenericOperatorApplicationRealization};
 pub use specialized_application_realization::{
     derive_checked_specialized_operator_application_realizations,
 };
-pub(crate) use specialized_application_realization::{
-    CheckedSpecializedOperatorApplicationRealization};
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;

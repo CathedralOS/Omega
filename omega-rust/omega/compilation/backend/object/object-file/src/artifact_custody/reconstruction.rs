@@ -1,11 +1,11 @@
 //! Independent semantic/proof-to-object reconstruction.
 
 use super::{
-    FunctionFragmentObjectContainerManifest, OptimizedObjectArtifactCustodyReceipt,
+    OptimizedObjectArtifactCustodyReceipt,
     OptimizedObjectArtifactError, OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifest,
     OptimizedObjectArtifactManifestIdentity, OptimizedObjectArtifactRecord,
     OptimizedObjectArtifactStage, OptimizedObjectArtifactStatistics,
-    OptimizedObjectArtifactUnavailableData, RelocationFreeObjectContainerIdentity,
+    OptimizedObjectArtifactUnavailableData,
     StagedOptimizedRelocationFreeObjectContainer, ValidatedOptimizedObjectArtifactManifest,
 };
 

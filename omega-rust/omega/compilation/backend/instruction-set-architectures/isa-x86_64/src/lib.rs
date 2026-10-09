@@ -129,7 +129,6 @@ pub use selected_form_encoding::{
     validate_x86_64_selected_scalar_call_template,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form};
-pub(crate) use selected_form_encoding::{  X86_64SelectedFormFootprint};
 pub use selected_form_encoding::{
     encode_x86_64_selected_hosted_write_byte_form, validate_x86_64_selected_hosted_write_byte_form};
 pub use semantic_unit_wrapper_encoding::{ ValidatedX86_64SemanticUnitWrapperTemplate,

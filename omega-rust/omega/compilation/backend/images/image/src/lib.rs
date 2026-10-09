@@ -145,7 +145,6 @@ pub use final_image::{
     place_data_regions, place_executable_regions, validate_placed_data_region_inventory,
     validate_placed_executable_region_inventory,
 };
-pub(crate) use final_image::PlacedExecutableGap;
 pub use footprint_certificate::{ FinalFootprintCertificateDigest, FinalFootprintCoverageDigest,
     FinalFootprintPlacementBindingDigest,
 };

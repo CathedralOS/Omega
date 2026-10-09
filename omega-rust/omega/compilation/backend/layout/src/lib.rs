@@ -37,4 +37,3 @@ pub(crate) use layout_plan::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout, RepeatedFieldLayout, StoredIntegerLayout,
     TypeLayoutDescriptor, VariantLayout};
 
-pub(crate) use sum_materialization::project_conventional_record_with_recursive_nested_sums_materialization_layout;

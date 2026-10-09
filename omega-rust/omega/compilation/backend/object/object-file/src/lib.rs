@@ -141,20 +141,17 @@ pub use names::{
 pub(crate) use names::{  symbol_section_name};
 pub use object_plan::container::{ ObjectContainerOutput,
 };
-pub(crate) use object_plan::container;
 pub use object_plan::relocations::admission;
 pub use object_plan::relocations::{
     RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
     boundary_relocation_origin, relocation_kind_tag,
 };
-pub(crate) use object_plan::relocations;
 pub use object_plan::sections::{SectionKind, SectionPlan};
 pub use object_plan::symbols::{
     FunctionSymbolPlan, NormalizedImportPlan, ObjectSymbolHandle, SymbolKind, SymbolPlan,
     SymbolSection,
 };
 pub use object_plan::{ ObjectPlan};
-pub(crate) use object_plan::{ObjectFileLayout};
 pub use relocation_free_object::publication;
 pub(crate) use relocation_free_object::publication::{
     FunctionFragmentObjectContainerManifest,
