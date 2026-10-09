@@ -715,7 +715,7 @@ impl LiteralFoldPlan {
         let identity = literal_fold_identity(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
         encoded.extend_from_slice(LITERAL_FOLD_MAGIC);
-        encoded.extend_from_slice(&LITERAL_FOLD_VERSION.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, LITERAL_FOLD_VERSION.to_le_bytes());
         encoded.extend_from_slice(&identity.bytes());
         encoded.extend_from_slice(&content);
         encoded

@@ -115,13 +115,13 @@ pub(crate) fn redundant_extension_identity(
     bytes.extend_from_slice(&receipt.source_selected.bytes());
     bytes.extend_from_slice(&receipt.transformed_selected.bytes());
     bytes.extend_from_slice(&receipt.optimization_unit.bytes());
-    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, receipt.fuel_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(
         &u64::try_from(receipt.function_index)
             .expect("redundant-extension function index fits u64")
             .to_le_bytes(),
     );
-    bytes.extend_from_slice(&receipt.extension.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, receipt.extension.0.to_le_bytes());
     RedundantExtensionIdentity::from_canonical_bytes(&bytes)
 }
 

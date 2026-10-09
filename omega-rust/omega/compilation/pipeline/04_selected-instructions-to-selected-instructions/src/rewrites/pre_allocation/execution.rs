@@ -1619,7 +1619,7 @@ fn pre_allocation_completion_identity(
     ] {
         canonical.extend_from_slice(&identity);
     }
-    canonical.extend_from_slice(&receipt.policy.canonical_bits().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, receipt.policy.canonical_bits().to_le_bytes());
     canonical.extend_from_slice(&receipt.budget.encode());
     canonical.extend_from_slice(&receipt.usage.encode());
     for count in [
@@ -1675,7 +1675,7 @@ fn pre_allocation_completion_identity(
             }
         }
         encode_count(&mut canonical, iteration.function_index());
-        canonical.extend_from_slice(&iteration.instruction().0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, iteration.instruction().0.to_le_bytes());
         canonical.extend_from_slice(&iteration.transformed_selected().bytes());
         canonical.extend_from_slice(&iteration.fresh_liveness().bytes());
         canonical.extend_from_slice(&iteration.fresh_ranges().bytes());
