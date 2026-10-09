@@ -95,10 +95,10 @@ pub(super) fn decode_statistics(
     cursor: &mut Cursor<'_>,
 ) -> Result<OptimizedObjectArtifactStatistics, OptimizedObjectArtifactRecordDecodeError> {
     Ok(OptimizedObjectArtifactStatistics {
-        text_bytes: u64::from_le_bytes(cursor.array()?),
-        object_container_bytes: u64::from_le_bytes(cursor.array()?),
-        function_symbols: u64::from_le_bytes(cursor.array()?),
-        relocation_records: u64::from_le_bytes(cursor.array()?),
+        text_bytes: cursor.u64()?,
+        object_container_bytes: cursor.u64()?,
+        function_symbols: cursor.u64()?,
+        relocation_records: cursor.u64()?,
     })
 }
 
@@ -110,7 +110,7 @@ pub(super) fn encode_psi(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
 pub(super) fn decode_psi(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalPsiIdentity, OptimizedObjectArtifactRecordDecodeError> {
-    let marker = u16::from_le_bytes(cursor.array()?);
+    let marker = cursor.u16()?;
     Ok(TerminalPsiIdentity {
         vocabulary_marker: VocabularyMarker::new(marker).ok_or(
             OptimizedObjectArtifactRecordDecodeError::UnknownVocabulary(marker),
@@ -137,9 +137,9 @@ pub(super) fn decode_target(
             return Err(OptimizedObjectArtifactRecordDecodeError::UnknownObjectFormat(tag));
         }
     };
-    let pointer_size = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_size = usize::try_from(cursor.u64()?)
         .map_err(|_| OptimizedObjectArtifactRecordDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_alignment = usize::try_from(cursor.u64()?)
         .map_err(|_| OptimizedObjectArtifactRecordDecodeError::TargetLayoutOverflow)?;
     Ok(NativeTarget {
         architecture,
@@ -152,7 +152,7 @@ pub(super) fn decode_target(
 pub(super) fn decode_machine(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineId, OptimizedObjectArtifactRecordDecodeError> {
-    MachineId::new(u64::from_le_bytes(cursor.array()?))
+    MachineId::new(cursor.u64()?)
         .ok_or(OptimizedObjectArtifactRecordDecodeError::InvalidMachine)
 }
 

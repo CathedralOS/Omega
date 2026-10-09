@@ -115,7 +115,7 @@ impl OptimizedObjectArtifactRecord {
         if cursor.take(8)? != ARTIFACT_MAGIC {
             return Err(OptimizedObjectArtifactRecordDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != ARTIFACT_VERSION {
             return Err(OptimizedObjectArtifactRecordDecodeError::UnsupportedVersion(version));
         }
@@ -171,7 +171,7 @@ impl OptimizedObjectArtifactManifest {
         if cursor.take(8)? != MANIFEST_MAGIC {
             return Err(OptimizedObjectArtifactManifestDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != MANIFEST_VERSION {
             return Err(OptimizedObjectArtifactManifestDecodeError::UnsupportedVersion(version));
         }

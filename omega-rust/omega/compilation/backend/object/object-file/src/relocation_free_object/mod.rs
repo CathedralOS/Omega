@@ -526,7 +526,7 @@ pub(crate) fn decode_relocation_free_object(
     if cursor.take(8)? != CONTAINER_MAGIC {
         return Err(RelocationFreeObjectDecodeError::WrongMagic);
     }
-    let version = u32::from_le_bytes(cursor.array()?);
+    let version = cursor.u32()?;
     if version != CONTAINER_VERSION {
         return Err(RelocationFreeObjectDecodeError::UnsupportedVersion(version));
     }
@@ -633,25 +633,25 @@ fn encode_plan_content(
 fn decode_implementation_table_address(
     cursor: &mut Cursor<'_>,
 ) -> Result<machine_code::PlacedImplementationTableAddress, RelocationFreeObjectDecodeError> {
-    let machine = MachineId::new(u64::from_le_bytes(cursor.array()?))
+    let machine = MachineId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
-    let block = SelectedBlockId(u32::from_le_bytes(cursor.array()?));
-    let instruction = SelectedInstructionId(u32::from_le_bytes(cursor.array()?));
+    let block = SelectedBlockId(cursor.u32()?);
+    let instruction = SelectedInstructionId(cursor.u32()?);
     let reference = machine_code::ImplementationTableReference {
-        table: u32::from_le_bytes(cursor.array()?),
+        table: cursor.u32()?,
     };
-    let operation = OperationId::new(u64::from_le_bytes(cursor.array()?))
+    let operation = OperationId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?;
-    let instruction_function_offset = u64::from_le_bytes(cursor.array()?);
-    let instruction_section_offset = u64::from_le_bytes(cursor.array()?);
-    let instruction_byte_count = u64::from_le_bytes(cursor.array()?);
+    let instruction_function_offset = cursor.u64()?;
+    let instruction_section_offset = cursor.u64()?;
+    let instruction_byte_count = cursor.u64()?;
     let fields = match cursor.byte()? {
         1 => machine_code::ByteLiteralAddressFields::X86_64Relative32 {
-            patch_offset: u64::from_le_bytes(cursor.array()?),
+            patch_offset: cursor.u64()?,
         },
         2 => machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
-            page_patch_offset: u64::from_le_bytes(cursor.array()?),
-            page_offset_patch_offset: u64::from_le_bytes(cursor.array()?),
+            page_patch_offset: cursor.u64()?,
+            page_offset_patch_offset: cursor.u64()?,
         },
         tag => return Err(RelocationFreeObjectDecodeError::UnknownByteLiteralFieldEncoding(tag)),
     };
@@ -671,24 +671,24 @@ fn decode_implementation_table_address(
 fn decode_byte_literal_address(
     cursor: &mut Cursor<'_>,
 ) -> Result<machine_code::PlacedByteLiteralAddress, RelocationFreeObjectDecodeError> {
-    let machine = MachineId::new(u64::from_le_bytes(cursor.array()?))
+    let machine = MachineId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
-    let block = SelectedBlockId(u32::from_le_bytes(cursor.array()?));
-    let instruction = SelectedInstructionId(u32::from_le_bytes(cursor.array()?));
-    let operation = OperationId::new(u64::from_le_bytes(cursor.array()?))
+    let block = SelectedBlockId(cursor.u32()?);
+    let instruction = SelectedInstructionId(cursor.u32()?);
+    let operation = OperationId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?;
-    let place = semantic_vocabulary::PlaceId::new(u64::from_le_bytes(cursor.array()?))
+    let place = semantic_vocabulary::PlaceId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidPlace)?;
-    let instruction_function_offset = u64::from_le_bytes(cursor.array()?);
-    let instruction_section_offset = u64::from_le_bytes(cursor.array()?);
-    let instruction_byte_count = u64::from_le_bytes(cursor.array()?);
+    let instruction_function_offset = cursor.u64()?;
+    let instruction_section_offset = cursor.u64()?;
+    let instruction_byte_count = cursor.u64()?;
     let fields = match cursor.byte()? {
         1 => machine_code::ByteLiteralAddressFields::X86_64Relative32 {
-            patch_offset: u64::from_le_bytes(cursor.array()?),
+            patch_offset: cursor.u64()?,
         },
         2 => machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
-            page_patch_offset: u64::from_le_bytes(cursor.array()?),
-            page_offset_patch_offset: u64::from_le_bytes(cursor.array()?),
+            page_patch_offset: cursor.u64()?,
+            page_offset_patch_offset: cursor.u64()?,
         },
         tag => return Err(RelocationFreeObjectDecodeError::UnknownByteLiteralFieldEncoding(tag)),
     };
@@ -799,14 +799,14 @@ fn decode_plan_content(
 ) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectDecodeError> {
     let source_text_section =
         TerminalRelocationFreeTextSectionIdentity::from_bytes(cursor.array()?);
-    let marker = u16::from_le_bytes(cursor.array()?);
+    let marker = cursor.u16()?;
     let vocabulary_marker = VocabularyMarker::new(marker)
         .ok_or(RelocationFreeObjectDecodeError::InvalidVocabulary(marker))?;
     let psi = TerminalPsiIdentity {
         vocabulary_marker,
         program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
     };
-    let fuel = u32::from_le_bytes(cursor.array()?);
+    let fuel = cursor.u32()?;
     let fuel_schedule = FuelScheduleIdentity::new(fuel)
         .ok_or(RelocationFreeObjectDecodeError::InvalidFuelSchedule)?;
     let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
@@ -814,8 +814,8 @@ fn decode_plan_content(
     let target = decode_target(cursor)?;
     let text_section = RelocationFreeObjectTextSection {
         name: cursor_string(cursor)?,
-        alignment: u64::from_le_bytes(cursor.array()?),
-        byte_count: u64::from_le_bytes(cursor.array()?),
+        alignment: cursor.u64()?,
+        byte_count: cursor.u64()?,
         bytes: cursor_bytes(cursor)?,
     };
     let symbol_policy_tag = cursor.byte()?;
@@ -827,14 +827,14 @@ fn decode_plan_content(
     let symbol_count = cursor_length(cursor)?;
     let mut symbols = Vec::with_capacity(symbol_count);
     for _ in 0..symbol_count {
-        let symbol = ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
+        let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
             .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
-        let source_function_index = u64::from_le_bytes(cursor.array()?);
-        let machine = MachineId::new(u64::from_le_bytes(cursor.array()?))
+        let source_function_index = cursor.u64()?;
+        let machine = MachineId::new(cursor.u64()?)
             .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
         let name = cursor_string(cursor)?;
-        let section_offset = u64::from_le_bytes(cursor.array()?);
-        let byte_count = u64::from_le_bytes(cursor.array()?);
+        let section_offset = cursor.u64()?;
+        let byte_count = cursor.u64()?;
         let linkage_tag = cursor.byte()?;
         if linkage_tag != 1 {
             return Err(RelocationFreeObjectDecodeError::UnknownLinkage(linkage_tag));
@@ -857,18 +857,18 @@ fn decode_plan_content(
             role,
         });
     }
-    let semantic_entry = MachineId::new(u64::from_le_bytes(cursor.array()?))
+    let semantic_entry = MachineId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
-    let semantic_entry_symbol = ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
+    let semantic_entry_symbol = ObjectLocalSymbolId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
     let import_count = cursor_length(cursor)?;
     let mut normalized_imports = Vec::with_capacity(import_count);
     for _ in 0..import_count {
-        let symbol = ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
+        let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
             .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
-        let boundary = BoundaryMachineId::new(u64::from_le_bytes(cursor.array()?))
+        let boundary = BoundaryMachineId::new(cursor.u64()?)
             .ok_or(RelocationFreeObjectDecodeError::InvalidBoundary)?;
-        let ordinal = u32::from_le_bytes(cursor.array()?);
+        let ordinal = cursor.u32()?;
         let name = cursor_string(cursor)?;
         normalized_imports.push(RelocationFreeObjectNormalizedImport {
             symbol,
@@ -880,13 +880,13 @@ fn decode_plan_content(
     let field_count = cursor_length(cursor)?;
     let mut unresolved_normalized_foreign_calls = Vec::with_capacity(field_count);
     for _ in 0..field_count {
-        let symbol = ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
+        let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
             .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
         let resolution = decode_normalized_foreign_resolution(cursor)?;
         unresolved_normalized_foreign_calls
             .push(RelocationFreeObjectUnresolvedForeignCall { symbol, resolution });
     }
-    let relocation_record_count = u64::from_le_bytes(cursor.array()?);
+    let relocation_record_count = cursor.u64()?;
     let relocation_requirements = match cursor.byte()? {
         1 => {
             RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
@@ -944,7 +944,7 @@ fn decode_boundary_invocation_site(
     cursor: &mut Cursor<'_>,
 ) -> Result<semantic_vocabulary::BoundaryInvocationSite, RelocationFreeObjectDecodeError> {
     let tag = cursor.byte()?;
-    let identity = u64::from_le_bytes(cursor.array()?);
+    let identity = cursor.u64()?;
     semantic_vocabulary::BoundaryInvocationSite::from_tagged_identity(tag, identity).ok_or_else(
         || match tag {
             0 | 1 => RelocationFreeObjectDecodeError::InvalidBoundaryInvocationSite,
@@ -974,23 +974,23 @@ fn decode_normalized_foreign_resolution(
     Ok(PlacedNormalizedForeignCallResolution {
         kind,
         state,
-        caller: MachineId::new(u64::from_le_bytes(cursor.array()?))
+        caller: MachineId::new(cursor.u64()?)
             .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?,
-        block: SelectedBlockId(u32::from_le_bytes(cursor.array()?)),
-        instruction: SelectedInstructionId(u32::from_le_bytes(cursor.array()?)),
+        block: SelectedBlockId(cursor.u32()?),
+        instruction: SelectedInstructionId(cursor.u32()?),
         invocation_site: decode_boundary_invocation_site(cursor)?,
-        boundary: BoundaryMachineId::new(u64::from_le_bytes(cursor.array()?))
+        boundary: BoundaryMachineId::new(cursor.u64()?)
             .ok_or(RelocationFreeObjectDecodeError::InvalidBoundary)?,
-        ordinal: u32::from_le_bytes(cursor.array()?),
-        call_function_offset: u64::from_le_bytes(cursor.array()?),
-        call_section_offset: u64::from_le_bytes(cursor.array()?),
-        call_byte_count: u64::from_le_bytes(cursor.array()?),
-        opcode_function_offset: u64::from_le_bytes(cursor.array()?),
-        opcode_section_offset: u64::from_le_bytes(cursor.array()?),
-        field_function_offset: u64::from_le_bytes(cursor.array()?),
-        field_section_offset: u64::from_le_bytes(cursor.array()?),
-        next_instruction_function_offset: u64::from_le_bytes(cursor.array()?),
-        next_instruction_section_offset: u64::from_le_bytes(cursor.array()?),
+        ordinal: cursor.u32()?,
+        call_function_offset: cursor.u64()?,
+        call_section_offset: cursor.u64()?,
+        call_byte_count: cursor.u64()?,
+        opcode_function_offset: cursor.u64()?,
+        opcode_section_offset: cursor.u64()?,
+        field_function_offset: cursor.u64()?,
+        field_section_offset: cursor.u64()?,
+        next_instruction_function_offset: cursor.u64()?,
+        next_instruction_section_offset: cursor.u64()?,
         field_byte_width: cursor.byte()?,
         addend: i64::from_le_bytes(cursor.array()?),
         callback_materializations: decode_placed_callback_materializations(cursor)?,
@@ -1037,11 +1037,11 @@ fn decode_placed_callback_materializations(
                 machine_code::CallbackAddressDestination::Register(decode_machine_register(cursor)?)
             }
             2 => machine_code::CallbackAddressDestination::OutgoingStack {
-                byte_offset: u32::from_le_bytes(cursor.array()?),
+                byte_offset: cursor.u32()?,
             },
             3 => machine_code::CallbackAddressDestination::RecordField {
                 root_register: decode_machine_register(cursor)?,
-                byte_offset: u32::from_le_bytes(cursor.array()?),
+                byte_offset: cursor.u32()?,
             },
             tag => {
                 return Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
@@ -1049,19 +1049,19 @@ fn decode_placed_callback_materializations(
                 ));
             }
         };
-        let code_function_offset = u64::from_le_bytes(cursor.array()?);
-        let code_section_offset = u64::from_le_bytes(cursor.array()?);
-        let code_byte_count = u64::from_le_bytes(cursor.array()?);
+        let code_function_offset = cursor.u64()?;
+        let code_section_offset = cursor.u64()?;
+        let code_byte_count = cursor.u64()?;
         let encoding = match cursor.byte()? {
             1 => PlacedCallbackAddressEncoding::X86_64Relative32 {
-                relocation_function_offset: u64::from_le_bytes(cursor.array()?),
-                relocation_section_offset: u64::from_le_bytes(cursor.array()?),
+                relocation_function_offset: cursor.u64()?,
+                relocation_section_offset: cursor.u64()?,
             },
             2 => PlacedCallbackAddressEncoding::Aarch64PageAddress {
-                page_relocation_function_offset: u64::from_le_bytes(cursor.array()?),
-                page_relocation_section_offset: u64::from_le_bytes(cursor.array()?),
-                page_offset_relocation_function_offset: u64::from_le_bytes(cursor.array()?),
-                page_offset_relocation_section_offset: u64::from_le_bytes(cursor.array()?),
+                page_relocation_function_offset: cursor.u64()?,
+                page_relocation_section_offset: cursor.u64()?,
+                page_offset_relocation_function_offset: cursor.u64()?,
+                page_offset_relocation_section_offset: cursor.u64()?,
             },
             tag => {
                 return Err(RelocationFreeObjectDecodeError::UnknownCallbackEncoding(
@@ -1110,9 +1110,9 @@ fn decode_target(cursor: &mut Cursor<'_>) -> Result<NativeTarget, RelocationFree
         3 => ObjectFormat::Coff,
         tag => return Err(RelocationFreeObjectDecodeError::UnknownObjectFormat(tag)),
     };
-    let pointer_size = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_size = usize::try_from(cursor.u64()?)
         .map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)?;
-    let pointer_alignment = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_alignment = usize::try_from(cursor.u64()?)
         .map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)?;
     Ok(NativeTarget {
         architecture,
@@ -1139,7 +1139,7 @@ fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), RelocationFree
 fn cursor_length(
     cursor: &mut Cursor,
 ) -> Result<usize, RelocationFreeObjectDecodeError> {
-    usize::try_from(u64::from_le_bytes(cursor.array()?))
+    usize::try_from(cursor.u64()?)
         .map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)
 }
 

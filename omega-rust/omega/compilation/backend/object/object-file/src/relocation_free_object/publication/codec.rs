@@ -36,7 +36,7 @@ impl FunctionFragmentObjectContainerManifest {
         if cursor.take(8)? != MANIFEST_MAGIC {
             return Err(FunctionFragmentObjectContainerManifestDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != MANIFEST_VERSION {
             return Err(
                 FunctionFragmentObjectContainerManifestDecodeError::UnsupportedVersion(version),
@@ -52,23 +52,23 @@ impl FunctionFragmentObjectContainerManifest {
         let source_text_section_manifest =
             FunctionFragmentTextSectionManifestIdentity::from_bytes(cursor.array()?);
         let text_section = TerminalRelocationFreeTextSectionIdentity::from_bytes(cursor.array()?);
-        let marker = u16::from_le_bytes(cursor.array()?);
+        let marker = cursor.u16()?;
         let vocabulary_marker = VocabularyMarker::new(marker)
             .ok_or(FunctionFragmentObjectContainerManifestDecodeError::UnknownVocabulary(marker))?;
         let psi = TerminalPsiIdentity {
             vocabulary_marker,
             program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
         };
-        let fuel = u32::from_le_bytes(cursor.array()?);
+        let fuel = cursor.u32()?;
         let fuel_schedule = FuelScheduleIdentity::new(fuel)
             .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidFuelSchedule)?;
         let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;
-        let semantic_entry = MachineId::new(u64::from_le_bytes(cursor.array()?))
+        let semantic_entry = MachineId::new(cursor.u64()?)
             .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidSemanticEntry)?;
         let semantic_entry_symbol =
-            ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
+            ObjectLocalSymbolId::new(cursor.u64()?)
                 .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidSymbolId)?;
         if cursor.byte()? != 1 {
             return Err(FunctionFragmentObjectContainerManifestDecodeError::UnknownSymbolPolicy);
@@ -86,13 +86,13 @@ impl FunctionFragmentObjectContainerManifest {
             }
         };
         let statistics = FunctionFragmentObjectContainerStatistics {
-            sections: u64::from_le_bytes(cursor.array()?),
-            function_symbols: u64::from_le_bytes(cursor.array()?),
-            object_local_symbols: u64::from_le_bytes(cursor.array()?),
-            external_symbols: u64::from_le_bytes(cursor.array()?),
-            text_bytes: u64::from_le_bytes(cursor.array()?),
-            container_bytes: u64::from_le_bytes(cursor.array()?),
-            relocation_records: u64::from_le_bytes(cursor.array()?),
+            sections: cursor.u64()?,
+            function_symbols: cursor.u64()?,
+            object_local_symbols: cursor.u64()?,
+            external_symbols: cursor.u64()?,
+            text_bytes: cursor.u64()?,
+            container_bytes: cursor.u64()?,
+            relocation_records: cursor.u64()?,
         };
         for _ in 0..4 {
             if cursor.byte()? != 1 {
@@ -190,9 +190,9 @@ pub(super) fn decode_target(
             );
         }
     };
-    let pointer_size = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_size = usize::try_from(cursor.u64()?)
         .map_err(|_| FunctionFragmentObjectContainerManifestDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_alignment = usize::try_from(cursor.u64()?)
         .map_err(|_| FunctionFragmentObjectContainerManifestDecodeError::TargetLayoutOverflow)?;
     Ok(NativeTarget {
         architecture,
