@@ -90,14 +90,6 @@ pub fn preliminary_check_totals() -> (u64, u64) {
     )
 }
 
-/// Account one pre-build declaration-authority check's wall time.
-pub(crate) fn record_preliminary_check(elapsed: std::time::Duration) {
-    PRELIMINARY_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    PRELIMINARY_CHECK_MICROS.fetch_add(
-        u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),
-        std::sync::atomic::Ordering::Relaxed,
-    );
-}
 
 /// Record entry to the checked-compilation API, including rejected requests.
 pub fn record_checked_compilation() {
@@ -123,20 +115,14 @@ mod tests {
         let requests = checked_compilation_call_count();
         let assemblies = source_assembly_invocation_count();
         let reuses = typed_frontier_reuse_count();
-        let preliminary = preliminary_check_totals();
         let settled = settled_check_totals();
         record_checked_compilation();
         record_source_assembly();
         record_typed_frontier_reuse();
-        record_preliminary_check(std::time::Duration::from_micros(7));
         record_settled_check(std::time::Duration::from_micros(11));
         assert_eq!(checked_compilation_call_count(), requests + 1);
         assert_eq!(source_assembly_invocation_count(), assemblies + 1);
         assert_eq!(typed_frontier_reuse_count(), reuses + 1);
-        assert_eq!(
-            preliminary_check_totals(),
-            (preliminary.0 + 1, preliminary.1 + 7)
-        );
         assert_eq!(settled_check_totals(), (settled.0 + 1, settled.1 + 11));
     }
 }
