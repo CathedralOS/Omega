@@ -14,17 +14,26 @@ pub struct PreparedEffectPlans {
     pub service_reaches: ServiceReachInferencePlan,
 }
 
-pub(super) fn operational_plan(program: &dyn crate::CheckingInput) -> OperationalPlan {
+/// Read the exact invocation's completed graph without cloning its arenas.
+/// Queries that consume selected call identity share this owner with effect
+/// inference; a bare program computes one temporary graph for the query.
+pub(crate) fn with_operational_plan<Result>(
+    program: &dyn crate::CheckingInput,
+    query: impl FnOnce(&OperationalPlan) -> Result,
+) -> Result {
     if let Some(plans) = program.prepared_effect_plans() {
-        return plans.operational.clone();
+        return query(&plans.operational);
     }
-    crate::frozen_program::frozen_memo(
+    let plan = crate::frozen_program::frozen_memo(
         program,
         |memos| &memos.operational,
         || super::operational::infer_operational_may_uncached(program),
-    )
-    .as_ref()
-    .clone()
+    );
+    query(&plan)
+}
+
+pub(super) fn operational_plan(program: &dyn crate::CheckingInput) -> OperationalPlan {
+    with_operational_plan(program, Clone::clone)
 }
 
 pub(super) fn service_reach_plan(

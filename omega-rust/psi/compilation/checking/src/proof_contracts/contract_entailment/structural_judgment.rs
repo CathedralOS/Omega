@@ -155,6 +155,7 @@ pub(super) struct StructuralJudge<'program> {
     entry_machines: std::sync::Arc<EntryMachines>,
     machine_symbol: SymbolHandle,
     normal_results: Vec<(ExpressionHandle, StructuralTerm)>,
+    pub(super) normal_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
     resolve_applications: bool,
     runtime_body_values: bool,
     case_facts_only: bool,
@@ -185,6 +186,7 @@ impl Clone for StructuralJudge<'_> {
             entry_machines: std::sync::Arc::clone(&self.entry_machines),
             machine_symbol: self.machine_symbol,
             normal_results: self.normal_results.clone(),
+            normal_guarantees: self.normal_guarantees.clone(),
             resolve_applications: self.resolve_applications,
             runtime_body_values: self.runtime_body_values,
             case_facts_only: self.case_facts_only,
@@ -266,6 +268,7 @@ impl<'program> StructuralJudge<'program> {
             ),
             machine_symbol: judged_machine.symbol,
             normal_results: Vec::new(),
+            normal_guarantees: Vec::new(),
             resolve_applications,
             runtime_body_values: false,
             case_facts_only: false,
@@ -965,11 +968,7 @@ impl<'program> StructuralJudge<'program> {
     /// name-free binary operands (see `binary_term_in_scope`).
     pub(super) fn callee_term_in_scope(
         &self,
-        scope: Option<(
-            &'program Machine,
-            &'program typed_trees::state::State,
-            TypeReferenceHandle,
-        )>,
+        scope: Option<(&Machine, &typed_trees::state::State, TypeReferenceHandle)>,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         depth: usize,
@@ -1014,11 +1013,7 @@ impl<'program> StructuralJudge<'program> {
             String,
             typed_trees::expression::StaticMachineArgument,
         )],
-        scope: Option<(
-            &'program Machine,
-            &'program typed_trees::state::State,
-            TypeReferenceHandle,
-        )>,
+        scope: Option<(&Machine, &typed_trees::state::State, TypeReferenceHandle)>,
         depth: usize,
     ) -> Option<StructuralTerm> {
         if depth >= 32 {

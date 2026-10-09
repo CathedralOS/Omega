@@ -542,7 +542,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
             }
             // Per-arm citations (N3 rung 2): the arm's sub-state facts,
             // already instantiated under this arm's environment.
-            for (left, right) in &arm.citations {
+            for (left, right) in arm.citations.iter().chain(&arm.normal_guarantees) {
                 bound.intake_equation(left.clone(), right.clone(), 0);
             }
             // Inductive hypotheses: instantiate every ensures conjunct for

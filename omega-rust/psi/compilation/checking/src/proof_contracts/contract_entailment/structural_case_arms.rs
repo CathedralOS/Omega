@@ -45,6 +45,8 @@ pub(crate) struct StructuralCaseArm {
     /// (comm's step case cites add_succ_law at `prev`, which machine-level
     /// statements cannot see). Empty for direct value arms.
     pub(crate) citations: Vec<(StructuralTerm, StructuralTerm)>,
+    /// Selected callable guarantees captured on this normal path only.
+    pub(crate) normal_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
     /// The arm's value term, converted under the case environment (payload
     /// member reads resolve against the fresh-variable constructor).
     pub(crate) value: StructuralTerm,
@@ -140,12 +142,19 @@ pub(crate) fn recognize_guarded_structural_value_arms(
             else {
                 return None;
             };
+            let mut branch_judge = judge.clone();
+            let value = branch_judge.normal_return_term(
+                *value,
+                &environment,
+                (machine, root, root.return_type),
+            )?;
             Some(StructuralCaseArm {
                 parameter_names: parameter_names.clone(),
                 case_hypotheses: Vec::new(),
                 case_equations: Vec::new(),
                 citations: Vec::new(),
-                value: judge.callee_term(*value, &environment, 0)?,
+                normal_guarantees: branch_judge.normal_guarantees.clone(),
+                value,
             })
         })
         .collect()
@@ -305,6 +314,9 @@ fn recognize_structural_state_leaves(
         return None;
     }
     path.push(state.symbol);
+    let mut path_judge =
+        structural_arm_judge(program, machine, judge, &case_hypotheses, &case_equations);
+    let judge = &mut path_judge;
 
     let result = (|| {
         let mut transitions = Vec::new();
@@ -372,6 +384,11 @@ fn recognize_structural_state_leaves(
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
+                    let _ = judge.normal_return_term(
+                        local.initial_value,
+                        &environment,
+                        (machine, state, local.type_reference),
+                    );
                     let term = judge.local_term(local, &environment)?;
                     if collect_citations
                         && let Some((target, argument_handles)) =
@@ -542,12 +559,24 @@ fn recognize_structural_state_leaves(
                 );
                 continue;
             }
+            let mut branch_judge = structural_arm_judge(
+                program,
+                machine,
+                judge,
+                &branch_hypotheses,
+                &branch_equations,
+            );
+            let judge = &mut branch_judge;
             match program.statement_table.transition_target(transition.target) {
                 TransitionTargetNode::Value(value) => {
                     if requirement.is_some() {
                         continue;
                     }
-                    let value = judge.callee_term(*value, &branch_environment, 0)?;
+                    let value = judge.normal_return_term(
+                        *value,
+                        &branch_environment,
+                        (machine, state, state.return_type),
+                    )?;
                     leaves.push(finalize_structural_case_arm(
                         program,
                         machine,
@@ -584,7 +613,11 @@ fn recognize_structural_state_leaves(
                         .map(|(parameter, argument)| {
                             Some((
                                 parameter.name.as_str().to_owned(),
-                                judge.callee_term(*argument, &branch_environment, 0)?,
+                                judge.normal_return_term(
+                                    *argument,
+                                    &branch_environment,
+                                    (machine, state, parameter.type_reference),
+                                )?,
                             ))
                         })
                         .collect::<Option<Vec<_>>>()?;
@@ -682,6 +715,7 @@ fn finalize_structural_case_arm(
         case_hypotheses,
         case_equations,
         citations,
+        normal_guarantees: judge.normal_guarantees.clone(),
         value,
     }
 }

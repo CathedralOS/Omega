@@ -26,8 +26,8 @@ impl<'program> StructuralJudge<'program> {
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         scope: (
-            &'program typed_trees::machine::Machine,
-            &'program typed_trees::state::State,
+            &typed_trees::machine::Machine,
+            &typed_trees::state::State,
             TypeReferenceHandle,
         ),
     ) -> Option<StructuralTerm> {
@@ -40,8 +40,8 @@ impl<'program> StructuralJudge<'program> {
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         scope: (
-            &'program typed_trees::machine::Machine,
-            &'program typed_trees::state::State,
+            &typed_trees::machine::Machine,
+            &typed_trees::state::State,
             TypeReferenceHandle,
         ),
         depth: usize,
@@ -194,6 +194,7 @@ impl<'program> StructuralJudge<'program> {
         }
         self.normal_results.push((expression, captured));
         for (left, right) in equations {
+            self.normal_guarantees.push((left.clone(), right.clone()));
             self.intake_equation(left, right, 0);
         }
     }
@@ -206,29 +207,30 @@ fn independent_callee(
     caller: SymbolHandle,
     callee: SymbolHandle,
 ) -> bool {
-    let operational = crate::infer_operational_may(program);
-    let mut pending = vec![callee];
-    let mut visited = Vec::new();
-    while let Some(machine) = pending.pop() {
-        if machine == caller {
-            return false;
-        }
-        if visited.contains(&machine) {
-            continue;
-        }
-        visited.push(machine);
-        let Some(summary) = operational.machine_by_symbol(machine) else {
-            return false;
-        };
-        for state in operational.states.span_or_empty(summary.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                if call.target_machine_symbol.is_valid() {
-                    pending.push(call.target_machine_symbol);
+    crate::machine_calls::effect_inference::with_operational_plan(program, |operational| {
+        let mut pending = vec![callee];
+        let mut visited = Vec::new();
+        while let Some(machine) = pending.pop() {
+            if machine == caller {
+                return false;
+            }
+            if visited.contains(&machine) {
+                continue;
+            }
+            visited.push(machine);
+            let Some(summary) = operational.machine_by_symbol(machine) else {
+                return false;
+            };
+            for state in operational.states.span_or_empty(summary.states) {
+                for call in operational.calls.span_or_empty(state.calls) {
+                    if call.target_machine_symbol.is_valid() {
+                        pending.push(call.target_machine_symbol);
+                    }
                 }
             }
         }
-    }
-    true
+        true
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
