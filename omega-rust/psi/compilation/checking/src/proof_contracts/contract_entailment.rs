@@ -138,6 +138,7 @@ pub use ranking_range::{
     discover_state_entry_mappings_preferring, prove_arithmetic_call_requirement,
     prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
     ranking_range_premise_symbols, ranking_range_required_symbols,
+    ranking_slice_length_observation,
 };
 pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;

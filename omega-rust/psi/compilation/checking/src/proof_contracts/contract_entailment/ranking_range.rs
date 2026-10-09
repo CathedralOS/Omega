@@ -58,6 +58,85 @@ pub fn closed_collection_length(
         .to_u64()
 }
 
+/// The same declared slice coordinate used by range entry and arrival
+/// checking. A bare slice retains the ordinary whole-formal length binding;
+/// a projected or packed arrival retains the exact field chain selected by
+/// the source coordinate and its independently established entry telescope.
+fn slice_rank_coordinate<'program>(
+    program: &'program dyn crate::CheckingInput,
+    root: &State,
+    state: &State,
+    entry_parameters: Option<&[symbols::SymbolHandle]>,
+    subject: ExpressionHandle,
+) -> Option<Option<lengths::SliceCoordinate<'program>>> {
+    match lengths::SliceCoordinate::resolve_length(program, root, subject) {
+        Some(coordinate) => Some(Some(coordinate.at_entry_arrival(
+            program,
+            state,
+            entry_parameters,
+        )?)),
+        None => Some(
+            match (entry_parameters, lengths::parameter(program, root, subject)) {
+                (Some(entries), Some(formal)) => {
+                    fields::unique_entry_carrier(program, state, entries, formal.symbol)
+                        .and_then(|carrier| lengths::slice_leaf_coordinate(program, carrier))
+                }
+                _ => None,
+            },
+        ),
+    }
+}
+
+/// Compile the source range owner's selected sequence coordinate into the
+/// existing checked scalar observation vocabulary. The supplied telescope is
+/// an established arrival correspondence, not a type-based guess. This query
+/// grants no range, descent, access or write-preservation authority; those
+/// remain independently proved by the caller's ranking judgment.
+pub fn ranking_slice_length_observation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    entry_parameters: &[symbols::SymbolHandle],
+    subject: ExpressionHandle,
+) -> Option<(
+    symbols::SymbolHandle,
+    u32,
+    checked_trees::CheckedScalarExpression,
+)> {
+    let root = program.machine_states(machine).first()?;
+    let coordinate = slice_rank_coordinate(program, root, state, Some(entry_parameters), subject)?;
+    let (parameter, path) = if let Some(coordinate) = coordinate {
+        let path = coordinate
+            .steps
+            .iter()
+            .chain([&coordinate.field])
+            .map(|field| {
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(field.path_identity())
+            })
+            .collect();
+        (coordinate.parameter, path)
+    } else {
+        let formal = lengths::parameter(program, root, subject)?;
+        let carrier =
+            fields::unique_entry_carrier(program, state, entry_parameters, formal.symbol)?;
+        lengths::is_slice(program, carrier.type_reference).then_some(())?;
+        (carrier, Vec::new())
+    };
+    let position = program
+        .state_parameters(state)
+        .iter()
+        .position(|candidate| candidate.symbol == parameter.symbol)?;
+    let position = u32::try_from(position).ok()?;
+    Some((
+        parameter.symbol,
+        position,
+        checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+            root: checked_trees::CheckedStorageRoot::Parameter { index: position },
+            path,
+        },
+    ))
+}
+
 /// The scalar rank produced by an independently selected ranking view.
 #[derive(Clone, Copy)]
 pub enum RankingRangeMeasure {
@@ -543,24 +622,8 @@ fn prove_edge(
     // `length_bindings` coordinate below.
     let mut slice_rank = match measure {
         RankingRangeMeasure::SliceLength(subject) => {
-            match lengths::SliceCoordinate::resolve_length(program, root, subject) {
-                Some(coordinate) => {
-                    let coordinate =
-                        coordinate.at_entry_arrival(program, state, entry_parameters)?;
-                    Some(lengths::SliceCoordinates::new(coordinate))
-                }
-                // A bare slice formal can name a coordinate at this state
-                // when its entry role arrives packed inside a record carrier:
-                // the record holds the collection at its unique slice leaf.
-                None => match (entry_parameters, lengths::parameter(program, root, subject)) {
-                    (Some(entries), Some(formal)) => {
-                        fields::unique_entry_carrier(program, state, entries, formal.symbol)
-                            .and_then(|carrier| lengths::slice_leaf_coordinate(program, carrier))
-                            .map(lengths::SliceCoordinates::new)
-                    }
-                    _ => None,
-                },
-            }
+            slice_rank_coordinate(program, root, state, entry_parameters, subject)?
+                .map(lengths::SliceCoordinates::new)
         }
         _ => None,
     };

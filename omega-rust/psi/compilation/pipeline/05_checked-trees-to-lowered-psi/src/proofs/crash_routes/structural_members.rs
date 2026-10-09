@@ -107,7 +107,9 @@ pub(crate) fn lower_structural_member_path(
             continue;
         }
         let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
-            unreachable!("case and index paths handled above")
+            return unsupported(
+                "structural contract runtime index requires occurrence-bound evidence",
+            );
         };
         let fields = if let Some(fields) = selected_case_fields.take() {
             fields
@@ -265,7 +267,9 @@ fn lower_sum_path(
             continue;
         }
         let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
-            unreachable!("case and index paths handled above")
+            return unsupported(
+                "structural contract runtime index requires occurrence-bound evidence",
+            );
         };
         let fields = if let Some(fields) = selected_case_fields.take() {
             fields

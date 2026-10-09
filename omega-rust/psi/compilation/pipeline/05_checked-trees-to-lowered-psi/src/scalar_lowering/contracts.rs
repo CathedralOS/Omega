@@ -438,9 +438,88 @@ impl ScalarContractTerms<'_> {
             .collect()
     }
 
+    /// A descriptor extent retains the full structural path. Carrier checking
+    /// distinguishes element counts from byte storage; neither field names nor
+    /// an equally numbered scalar parameter supply descriptor authority.
+    fn sequence_extent(
+        &self,
+        parameter_position: u32,
+        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    ) -> Result<ScalarTerm, LoweringError> {
+        let parameters = self.authored_structural_parameters();
+        let parameter = parameters
+            .iter()
+            .find(|parameter| parameter.position == parameter_position)
+            .ok_or(LoweringError::Unsupported(
+                "closed sequence extent names a non-structural parameter",
+            ))?;
+        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+            return unsupported("closed sequence extent requires readable access");
+        }
+        let (root, path, carrier) = if path.is_empty() {
+            (
+                parameter.place,
+                Vec::new(),
+                terminal_psi::StructuralFieldType::Structural(parameter.structural_type),
+            )
+        } else {
+            crate::proofs::crash_routes::lower_structural_member_path(
+                parameter_position,
+                path,
+                &parameters,
+                self.views.structural_types,
+            )?
+        };
+        let carrier = match carrier {
+            terminal_psi::StructuralFieldType::Structural(identity) => {
+                let declaration =
+                    terminal_psi::find_structural_type(self.views.structural_types, identity)
+                        .ok_or(LoweringError::Unsupported(
+                            "closed sequence extent type is absent",
+                        ))?;
+                match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::ElementView { .. } => None,
+                    terminal_psi::StructuralTypeShape::ByteSequence(carrier) => Some(*carrier),
+                    _ => return unsupported("closed sequence extent leaf is not a descriptor"),
+                }
+            }
+            leaf => Some(
+                leaf.byte_sequence_carrier()
+                    .ok_or(LoweringError::Unsupported(
+                        "closed sequence extent leaf is not a descriptor",
+                    ))?,
+            ),
+        };
+        if matches!(
+            carrier,
+            Some(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
+                } | terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
+                    ..
+                }
+            )
+        ) {
+            return unsupported("closed sequence extent requires readable access");
+        }
+        let integer = terminal_scalar_type(language_semantics::PrimitiveType::U64)?
+            .as_integer()
+            .ok_or(LoweringError::Unsupported(
+                "sequence extent is not an integer",
+            ))?;
+        Ok(ScalarTerm::view_extent(root, path, integer))
+    }
+
     fn leaf(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
         if let CheckedScalarExpression::Boolean(predicate) = expression {
             return self.boolean(predicate);
+        }
+        if let CheckedScalarExpression::StructuralParameterByteLength { root, path } = expression {
+            let position = root.parameter().ok_or(LoweringError::Unsupported(
+                "closed sequence extent requires a structural formal",
+            ))?;
+            return self.sequence_extent(position, path);
         }
         // Member leaves root at the contract's structural parameters and
         // mint field-rooted scalar terms; the entry namespace carries the

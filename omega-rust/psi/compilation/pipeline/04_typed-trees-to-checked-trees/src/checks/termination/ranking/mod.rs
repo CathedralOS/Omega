@@ -508,9 +508,8 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
-    if witness.view_path != "Slice::Length"
+    if witness.ranking_view != language_semantics::RankingViewId::SLICE_LENGTH
         || !witness.view_arguments.is_empty()
-        || witness.rank_range.is_some()
         || !matches!(
             machine_decrease_outcome(program, machine, call_frames),
             DecreaseOutcome::Proven
@@ -522,6 +521,26 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
     let [subject] = subjects.as_slice() else {
         return None;
     };
+    let root = program.machine_states(machine).first()?;
+    let place =
+        validation::canonical_place_from_expression_in_state(program, root.symbol, 0, *subject)?;
+    let facts::PlaceRoot::Symbol(entry) = place.root else {
+        return None;
+    };
+    let required = match program
+        .ranking_expression_custody_for(machine.symbol)
+        .and_then(|custody| custody.rank_range)
+    {
+        Some(range) => validation::ranking_range_required_symbols(
+            program,
+            machine,
+            range,
+            validation::RankingRangeMeasure::SliceLength(*subject),
+            validation::RankingRangePremises::RankInvariant,
+        )?,
+        None => vec![entry],
+    };
+    let mappings = validation::discover_state_entry_mappings(program, machine, entry, &required)?;
     let adjacency = graph::machine_adjacency(program, machine);
     let states = program.machine_states(machine);
     let mut ranks = Vec::new();
@@ -531,17 +550,21 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
     {
         for position in component {
             let state = states.get(position)?;
-            let parameter = patterns::parameter_matched_by_expression(program, state, *subject)?;
-            let parameter_position = program
-                .state_parameters(state)
-                .iter()
-                .position(|candidate| candidate.symbol == parameter.symbol)?;
+            let (parameter, parameter_position, _) = validation::ranking_slice_length_observation(
+                program,
+                machine,
+                state,
+                mappings.get(position)?,
+                *subject,
+            )?;
             ranks.push(checked_trees::CheckedStateNaturalRank {
                 observation: Default::default(),
                 state: state.symbol,
-                parameter: parameter.symbol,
-                parameter_position: u32::try_from(parameter_position).ok()?,
-                measure: checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength,
+                parameter,
+                parameter_position,
+                measure: checked_trees::CheckedNaturalRankMeasure::SequenceLength {
+                    subject: *subject,
+                },
             });
         }
     }

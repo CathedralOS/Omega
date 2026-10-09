@@ -154,7 +154,7 @@ fn scalar_rank(
         // Declared views retain their body's formation and descent authority;
         // the primitive-formal judgment cannot stand in for that application.
         CheckedNaturalRankMeasure::DeclaredMeasure { .. }
-        | CheckedNaturalRankMeasure::ByteSequenceLength => false,
+        | CheckedNaturalRankMeasure::SequenceLength { .. } => false,
     };
     scalar.then_some(rank)
 }

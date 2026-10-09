@@ -78,14 +78,15 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         | CheckedScalarExpression::IntegerLiteral { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
         | CheckedScalarExpression::ImplementationSelection { .. } => Ok(()),
-        // A whole-view extent reads the parameter's own view descriptor — an
-        // entry observation the closed namespace admits once the lowering
-        // names the retained place. A nested byte-field extent still fails
-        // closed at the term: its carrier path needs canonical field ids the
-        // contract namespace does not mint.
-        CheckedScalarExpression::StructuralParameterByteLength { path, .. } if path.is_empty() => {
-            Ok(())
-        }
+        // The term owner rejoins the complete descriptor path against the
+        // supplied structural signature. A local storage root cannot borrow
+        // an equally numbered contract parameter.
+        CheckedScalarExpression::StructuralParameterByteLength { root, .. } => root
+            .parameter()
+            .map(|_| ())
+            .ok_or(LoweringError::Unsupported(
+                "closed sequence extent requires a structural formal",
+            )),
         // A member leaf roots at a declared structural parameter; the
         // structural signature lowering names its retained place and field
         // path. An empty path would name the whole parameter — never a
@@ -102,11 +103,6 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
                 ));
             }
             crate::emission::scalar_types::terminal_scalar_type(*primitive_type).map(|_| ())
-        }
-        CheckedScalarExpression::StructuralParameterByteLength { .. } => {
-            Err(LoweringError::Unsupported(
-                "closed scalar contract operand requires a scalar namespace",
-            ))
         }
     }
 }

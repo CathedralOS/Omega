@@ -171,19 +171,6 @@ fn parameter(
     ))
 }
 
-fn length(builder: &mut Builder<'_, '_>, position: u32) -> Option<CheckedScalarComputationHandle> {
-    builder.authored_parameters.get(position as usize)?;
-    Some(builder.insert(
-        PrimitiveType::U64,
-        CheckedScalarComputationKind::Value(
-            CheckedScalarExpression::StructuralParameterByteLength {
-                root: checked_trees::CheckedStorageRoot::Parameter { index: position },
-                path: Vec::new(),
-            },
-        ),
-    ))
-}
-
 fn observation(
     builder: &mut Builder<'_, '_>,
     rank: &CheckedStateNaturalRank,
@@ -243,7 +230,57 @@ fn observation(
         CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
             parameter(builder, rank.parameter_position, primitive_type)
         }
-        CheckedNaturalRankMeasure::ByteSequenceLength => length(builder, rank.parameter_position),
+        CheckedNaturalRankMeasure::SequenceLength { subject } => {
+            let (owner, state) =
+                validation::find_state_with_machine(builder.program, builder.state)?;
+            let root = builder.program.machine_states(owner).first()?;
+            let place = validation::canonical_place_from_expression_in_state(
+                builder.program,
+                root.symbol,
+                0,
+                subject,
+            )?;
+            let facts::PlaceRoot::Symbol(entry) = place.root else {
+                return None;
+            };
+            let required = match builder
+                .program
+                .ranking_expression_custody_for(owner.symbol)
+                .and_then(|custody| custody.rank_range)
+            {
+                Some(range) => validation::ranking_range_required_symbols(
+                    builder.program,
+                    owner,
+                    range,
+                    validation::RankingRangeMeasure::SliceLength(subject),
+                    validation::RankingRangePremises::RankInvariant,
+                )?,
+                None => vec![entry],
+            };
+            let mappings = validation::discover_state_entry_mappings(
+                builder.program,
+                owner,
+                entry,
+                &required,
+            )?;
+            let state_position = builder
+                .program
+                .machine_states(owner)
+                .iter()
+                .position(|candidate| candidate.symbol == state.symbol)?;
+            let (parameter, position, expression) = validation::ranking_slice_length_observation(
+                builder.program,
+                owner,
+                state,
+                mappings.get(state_position)?,
+                subject,
+            )?;
+            (parameter == rank.parameter && position == rank.parameter_position).then_some(())?;
+            Some(builder.insert(
+                PrimitiveType::U64,
+                CheckedScalarComputationKind::Value(expression),
+            ))
+        }
         CheckedNaturalRankMeasure::UnsignedDistance { primitive_type, .. }
         | CheckedNaturalRankMeasure::ConstantDistance { primitive_type, .. } => {
             let lower = parameter(builder, rank.parameter_position, primitive_type)?;
