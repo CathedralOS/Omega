@@ -34,30 +34,3 @@ pub(super) fn reconstruct(
         max_residuals,
     )
 }
-
-/// Preserve cleanup operation boundaries inside the maximal live complement.
-/// A boundary selects an intact receiver with its own hook; it is not a move.
-/// Nested boundaries are legal and run parent-first, then in recursive reverse
-/// declaration order. Duplicate hooks and hooks overlapping a move are not.
-/// The same count-before-enumeration walk serves ordinary no-code residuals.
-pub(super) fn reconstruct_with_boundaries(
-    types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
-    source: &CheckedUnitStructuralArgumentSourcePlan,
-    root_type: &str,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    max_residuals: usize,
-) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
-    let borrowed = types
-        .iter()
-        .map(|(identity, plan)| (identity.as_str(), plan))
-        .collect();
-    validation::reconstruct_with_boundaries(
-        &borrowed,
-        source,
-        root_type,
-        moved_paths,
-        boundaries,
-        max_residuals,
-    )
-}

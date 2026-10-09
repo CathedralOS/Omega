@@ -187,83 +187,94 @@ pub(crate) fn finalize_scalar_actions(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Option<()> {
-    let targets = facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter()
-        .map(checked_trees::CheckedUnitEffectMachinePlan::callable_entry)
-        .chain(
-            facts
-                .flow
-                .terminal_unit_effects
-                .composed_machines
-                .iter()
-                .filter_map(checked_trees::CheckedComposedUnitControlMachinePlan::callable_entry),
-        )
-        .collect::<Vec<_>>();
     let mut shapes = ShapeCollector::new(program);
-    let plans = &facts.values.scalar_computations;
-    let mut replacements = Vec::new();
-    for (_, node) in plans.nodes.iter() {
-        let (source_call, operands, retained) = match node.kind {
-            checked_trees::CheckedScalarComputationKind::Call {
-                source_call,
-                structural_arguments,
-                temporary_cleanups,
-                ..
-            } => (source_call, structural_arguments, temporary_cleanups),
-            _ => continue,
-        };
-        if retained.is_empty() {
-            continue;
-        }
-        let call = facts.flow.control.calls.get(source_call);
-        let state_flow = facts.flow.control.states.iter().find_map(|(_, row)| {
-            facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(row.calls)
-                .iter()
-                .any(|candidate| std::ptr::eq(candidate, call))
-                .then_some(row)
-        })?;
-        let operands = plans.structural_arguments.span(operands)?;
-        let coordinate = CheckedUnitCallCoordinate {
-            statement_index: u32::try_from(call.statement_index).ok()?,
-            call_ordinal: u32::try_from(call.call_ordinal).ok()?,
-        };
-        for (row_position, row) in plans.temporary_cleanups.span(retained)?.iter().enumerate() {
-            let identity = arena::Handle::from_parts(
-                retained
-                    .start()
-                    .arena_index()
-                    .checked_add(u32::try_from(row_position).ok()?)?,
-                retained.start().generation(),
-            );
-            let argument = operands.get(row.argument_ordinal as usize)?.as_place()?;
-            let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
-                argument.source
-            else {
-                return None;
+    // Computed calls append conditions to the same published catalog as
+    // statement continuations. Restore that owner even when plan selection
+    // declines: existing action spans must never outlive their arena.
+    shapes.cleanup_control = std::mem::take(&mut facts.flow.terminal_unit_effects.cleanup_control);
+    let replacements = (|| {
+        let targets = facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .map(checked_trees::CheckedUnitEffectMachinePlan::callable_entry)
+            .chain(
+                facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_machines
+                    .iter()
+                    .filter_map(
+                        checked_trees::CheckedComposedUnitControlMachinePlan::callable_entry,
+                    ),
+            )
+            .collect::<Vec<_>>();
+        let plans = &facts.values.scalar_computations;
+        let mut replacements = Vec::new();
+        for (_, node) in plans.nodes.iter() {
+            let (source_call, operands, retained) = match node.kind {
+                checked_trees::CheckedScalarComputationKind::Call {
+                    source_call,
+                    structural_arguments,
+                    temporary_cleanups,
+                    ..
+                } => (source_call, structural_arguments, temporary_cleanups),
+                _ => continue,
             };
-            replacements.push((
-                identity,
-                selected_actions(
-                    program,
-                    facts,
-                    &targets,
-                    &mut shapes,
-                    state_flow.machine_symbol,
-                    state_flow.state_symbol,
-                    coordinate,
-                    facts::PlaceRoot::Expression(expression),
-                    argument.source.clone(),
-                )?,
-            ));
+            if retained.is_empty() {
+                continue;
+            }
+            let call = facts.flow.control.calls.get(source_call);
+            let state_flow = facts.flow.control.states.iter().find_map(|(_, row)| {
+                facts
+                    .flow
+                    .control
+                    .calls
+                    .span_or_empty(row.calls)
+                    .iter()
+                    .any(|candidate| std::ptr::eq(candidate, call))
+                    .then_some(row)
+            })?;
+            let operands = plans.structural_arguments.span(operands)?;
+            let coordinate = CheckedUnitCallCoordinate {
+                statement_index: u32::try_from(call.statement_index).ok()?,
+                call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+            };
+            for (row_position, row) in plans.temporary_cleanups.span(retained)?.iter().enumerate() {
+                let identity = arena::Handle::from_parts(
+                    retained
+                        .start()
+                        .arena_index()
+                        .checked_add(u32::try_from(row_position).ok()?)?,
+                    retained.start().generation(),
+                );
+                let argument = operands.get(row.argument_ordinal as usize)?.as_place()?;
+                let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
+                    argument.source
+                else {
+                    return None;
+                };
+                replacements.push((
+                    identity,
+                    selected_actions(
+                        program,
+                        facts,
+                        &targets,
+                        &mut shapes,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                        coordinate,
+                        facts::PlaceRoot::Expression(expression),
+                        argument.source.clone(),
+                    )?,
+                ));
+            }
         }
-    }
+        Some(replacements)
+    })();
+    facts.flow.terminal_unit_effects.cleanup_control = std::mem::take(&mut shapes.cleanup_control);
+    let replacements = replacements?;
     let mut actions = arena::Arena::new();
     for (identity, selected) in replacements {
         facts

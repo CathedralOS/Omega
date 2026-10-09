@@ -671,6 +671,7 @@ impl OpenWindows {
                             source: old_value.source,
                             path: old_value.path,
                             type_identity: produced.type_identity.clone(),
+                            case_conditions: Default::default(),
                         },
                     )],
                 }

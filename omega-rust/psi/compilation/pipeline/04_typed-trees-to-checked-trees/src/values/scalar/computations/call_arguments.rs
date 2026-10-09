@@ -203,6 +203,7 @@ impl Builder<'_, '_> {
                                             source: argument_plan.source.clone(),
                                             path: Vec::new(),
                                             type_identity: self.program.normalized_type_identity(owner_type).into_string(),
+                                            case_conditions: Default::default(),
                                         }]);
                                     }
                                     language_semantics::Multiplicity::Unrestricted => {}

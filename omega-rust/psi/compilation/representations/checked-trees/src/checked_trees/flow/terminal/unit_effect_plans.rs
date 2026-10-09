@@ -47,6 +47,9 @@ pub enum CheckedUnitCleanupBoundary {
 /// have recorded their authoritative facts.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedUnitEffectPlans {
+    /// One condition/path namespace for statement, computed-call and normal
+    /// exit cleanup. Action spans never refer to a temporary collector's arena.
+    pub cleanup_control: crate::CheckedCleanupControlPlans,
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,

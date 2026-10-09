@@ -286,6 +286,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                         },
                     path: Vec::new(),
                     type_identity: result.type_identity.clone(),
+                    case_conditions: Default::default(),
                 },
             )],
         });

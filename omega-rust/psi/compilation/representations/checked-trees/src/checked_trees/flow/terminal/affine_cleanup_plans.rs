@@ -8,6 +8,22 @@ use crate::checked_trees::flow::terminal::{
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
 
+/// Conditions and their paths share the ordinary Unit plan's storage namespace.
+/// They are control dependencies, not permission to dispose a payload. A nested
+/// condition follows its enclosing condition in the retained span.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedCleanupControlPlans {
+    pub conditions: arena::Arena<CheckedCleanupCaseCondition>,
+    pub paths: arena::Arena<CheckedUnitStructuralPathSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedCleanupCaseCondition {
+    pub path: arena::HandleSpan<CheckedUnitStructuralPathSegment>,
+    pub type_identity: String,
+    pub case_identity: String,
+}
+
 /// One claim-free affine structural place disposed on the normal edge selected
 /// by its containing plan. An empty path denotes the whole root; a nonempty path
 /// denotes a retained residual subtree. The root is a structural parameter or
@@ -18,6 +34,10 @@ pub struct CheckedUnitPartialAffineDiscardPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
+    /// Conditions in `CheckedUnitEffectPlans::cleanup_control`. A guarded
+    /// whole-region discard disposes only the selected alternative; it must
+    /// not intrinsically retire the home needed by other cleanup branches.
+    pub case_conditions: arena::HandleSpan<CheckedCleanupCaseCondition>,
 }
 
 impl Default for CheckedUnitPartialAffineDiscardPlan {
@@ -28,6 +48,7 @@ impl Default for CheckedUnitPartialAffineDiscardPlan {
             },
             path: Vec::new(),
             type_identity: String::new(),
+            case_conditions: Default::default(),
         }
     }
 }
@@ -117,6 +138,9 @@ pub struct CheckedUnitNominalAffineCleanupPlan {
     pub cleanup_machine: SymbolHandle,
     pub cleanup_state: SymbolHandle,
     pub cleanup_contract_report_fingerprint: u64,
+    /// Select this exact occurrence before lending its intact receiver. These
+    /// conditions do not discharge the callable's ordinary prerequisites.
+    pub case_conditions: arena::HandleSpan<CheckedCleanupCaseCondition>,
     // The callable owns its complete prerequisite roster. Retaining a second,
     // simplified copy here would make cleanup accept a different contract from
     // ordinary calls. Emission binds obligations to that callable's signature.
@@ -201,6 +225,14 @@ impl Default for CheckedNormalCleanupAction {
 }
 
 impl CheckedNormalCleanupAction {
+    pub fn case_conditions(&self) -> arena::HandleSpan<CheckedCleanupCaseCondition> {
+        match self {
+            Self::Discard(discard) => discard.case_conditions,
+            Self::InvokeNominal(cleanup) => cleanup.case_conditions,
+            Self::RetireHome { .. } => Default::default(),
+        }
+    }
+
     pub fn nominal(&self) -> Option<&CheckedUnitNominalAffineCleanupPlan> {
         match self {
             Self::Discard(_) | Self::RetireHome { .. } => None,

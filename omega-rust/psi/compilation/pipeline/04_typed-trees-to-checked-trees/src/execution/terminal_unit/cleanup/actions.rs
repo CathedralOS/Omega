@@ -8,7 +8,8 @@
 //! either decline an executable destination or observe it again after the RHS.
 //! Effect discovery includes every possible case. Executable regions instead
 //! consume the exact disposition's edge facts: an inactive payload has neither
-//! a moved region nor a hook, and an unknown tag cannot authorize either.
+//! a moved region nor a hook. An unknown tag retains a runtime selection
+//! condition; it never becomes static authority for every possible payload.
 
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders};
 use checked_trees::{
@@ -61,12 +62,12 @@ pub(super) fn finish_home(
     let source = retirement.source();
     if actions.iter().any(|action| {
         action.source() == source
-            && matches!(action, CheckedNormalCleanupAction::Discard(discard) if discard.path.is_empty())
+            && matches!(action, CheckedNormalCleanupAction::Discard(discard) if discard.path.is_empty() && discard.case_conditions.is_empty())
     }) {
         return;
     }
     let mut selected = actions.iter().filter(|action| action.source() == source);
-    if matches!(selected.next(), Some(CheckedNormalCleanupAction::InvokeNominal(cleanup)) if cleanup.path.is_empty())
+    if matches!(selected.next(), Some(CheckedNormalCleanupAction::InvokeNominal(cleanup)) if cleanup.path.is_empty() && cleanup.case_conditions.is_empty())
         && selected.next().is_none()
     {
         return;
@@ -115,14 +116,18 @@ pub(super) fn disposition_actions(
                 disposition,
             )
         });
-    let live_path = |segments: &[facts::PlaceSegment]| -> Option<bool> {
+    let case_reachability = |segments: &[facts::PlaceSegment]| {
+        use validation::CleanupCaseReachability;
         if !segments
             .iter()
             .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
         {
-            return Some(true);
+            return Some(CleanupCaseReachability::Selected);
         }
         let contexts = contexts.as_ref()?;
+        if contexts.is_empty() {
+            return None;
+        }
         let subject = validation::CanonicalPlace {
             root: disposition.root,
             segments: segments.to_vec(),
@@ -138,22 +143,24 @@ pub(super) fn disposition_actions(
                 &subject,
             )
         }) {
-            return Some(false);
+            return Some(CleanupCaseReachability::Inactive);
         }
-        contexts
-            .iter()
-            .all(|(statement, contexts)| {
-                crate::flow::place_cases_are_selected(
-                    program,
-                    &facts.semantic,
-                    contexts,
-                    disposition.machine,
-                    disposition.state,
-                    *statement,
-                    &subject,
-                )
-            })
-            .then_some(true)
+        let selected = contexts.iter().all(|(statement, contexts)| {
+            crate::flow::place_cases_are_selected(
+                program,
+                &facts.semantic,
+                contexts,
+                disposition.machine,
+                disposition.state,
+                *statement,
+                &subject,
+            )
+        });
+        Some(if selected {
+            CleanupCaseReachability::Selected
+        } else {
+            CleanupCaseReachability::Runtime
+        })
     };
     let place = validation::CanonicalPlace {
         root: disposition.root,
@@ -198,8 +205,12 @@ pub(super) fn disposition_actions(
         .span(disposition.exclusions)?
     {
         let excluded = facts.contextual_cleanup.segments.span(removed.segments)?;
-        if !live_path(excluded)? {
-            continue;
+        match case_reachability(excluded)? {
+            validation::CleanupCaseReachability::Inactive => continue,
+            validation::CleanupCaseReachability::Selected => {}
+            // An uncertain earlier transfer needs its own selected custody
+            // join. A tag condition alone cannot establish that transfer.
+            validation::CleanupCaseReachability::Runtime => return None,
         }
         // The contextual row remembers earlier transfers under the original
         // owner. A selected residual ignores siblings outside its subtree;
@@ -232,7 +243,7 @@ pub(super) fn disposition_actions(
             return None;
         };
         for segments in crate::flow::concrete_cleanup_paths(&selected_path)? {
-            if !live_path(&segments)? {
+            if case_reachability(&segments)? == validation::CleanupCaseReachability::Inactive {
                 continue;
             }
             let relative_segments = segments.strip_prefix(place.segments.as_slice())?;
@@ -266,10 +277,14 @@ pub(super) fn disposition_actions(
     // the paths that reach hooks, preserving maximal ordinary residual
     // subtrees and the same reverse declaration/index order for every kind.
     let residuals = if moved.is_empty() && hooks.is_empty() {
-        vec![CheckedUnitPartialAffineDiscardPlan {
-            source: source.clone(),
-            path: Vec::new(),
-            type_identity: type_identity.clone(),
+        vec![validation::CaseSelectedCleanupRegion {
+            disposition: CheckedUnitPartialAffineDiscardPlan {
+                source: source.clone(),
+                path: Vec::new(),
+                type_identity: type_identity.clone(),
+                case_conditions: Default::default(),
+            },
+            conditions: Vec::new(),
         }]
     } else {
         let moved = moved
@@ -285,13 +300,30 @@ pub(super) fn disposition_actions(
                 ))
             })
             .collect::<Option<Vec<_>>>()?;
-        super::residuals::reconstruct_with_boundaries(
-            &shapes.types,
+        let types = shapes
+            .types
+            .iter()
+            .map(|(identity, plan)| (identity.as_str(), plan))
+            .collect();
+        validation::reconstruct_case_selected_regions(
+            &types,
             &source,
             &type_identity,
             &moved,
             &boundaries,
             usize::MAX,
+            &|prefix, _, case| {
+                let mut segments = place.segments.clone();
+                segments.extend(checked_case_segments(
+                    program,
+                    disposition.state,
+                    statement_index,
+                    reference,
+                    prefix,
+                    case,
+                )?);
+                case_reachability(&segments)
+            },
         )?
     };
     // The effect traversal groups repeated array leaves by field. Index
@@ -300,13 +332,31 @@ pub(super) fn disposition_actions(
     let mut selected_hooks = 0;
     let actions = residuals
         .into_iter()
-        .map(|mut residual| {
+        .map(|region| {
+            let conditions = region
+                .conditions
+                .into_iter()
+                .map(|condition| {
+                    let mut condition_path = path.clone();
+                    condition_path.extend(condition.path);
+                    checked_trees::CheckedCleanupCaseCondition {
+                        path: shapes.cleanup_control.paths.insert_many(condition_path),
+                        type_identity: condition.type_identity,
+                        case_identity: condition.case_identity,
+                    }
+                })
+                .collect::<Vec<_>>();
+            let case_conditions = shapes.cleanup_control.conditions.insert_many(conditions);
+            let mut residual = region.disposition;
+            residual.case_conditions = case_conditions;
             let mut full_path = path.clone();
             full_path.append(&mut residual.path);
             residual.path = full_path;
             if let Ok(position) = hooks.binary_search_by(|hook| hook.path.cmp(&residual.path)) {
                 selected_hooks += 1;
-                CheckedNormalCleanupAction::InvokeNominal(hooks[position].clone())
+                let mut hook = hooks[position].clone();
+                hook.case_conditions = case_conditions;
+                CheckedNormalCleanupAction::InvokeNominal(hook)
             } else {
                 CheckedNormalCleanupAction::Discard(residual)
             }
@@ -316,6 +366,111 @@ pub(super) fn disposition_actions(
         return None;
     }
     Some(actions)
+}
+
+/// Join normalized cleanup geometry back to the exact checked source place.
+/// Matching declaration identities is required: same-shaped fields or case
+/// payloads are not interchangeable evidence namespaces. Geometry generates
+/// only fields, cases and fixed indices beneath the retained disposed value;
+/// dynamic destination coordinates stay in the caller's captured prefix.
+fn checked_case_segments(
+    program: &dyn ::validation::CheckingInput,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    root_type: typed_trees::types::TypeReferenceHandle,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+    selected_case: &str,
+) -> Option<Vec<facts::PlaceSegment>> {
+    use checked_trees::CheckedUnitStructuralPathSegment;
+    use typed_trees::data::DataMember;
+
+    let mut place = validation::CanonicalPlace {
+        root: facts::PlaceRoot::TypeReference(root_type),
+        segments: Vec::new(),
+    };
+    let mut payload_fields = None;
+    for segment in path
+        .iter()
+        .chain(std::iter::once(&CheckedUnitStructuralPathSegment::Case(
+            selected_case.to_owned(),
+        )))
+    {
+        match segment {
+            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                if payload_fields.is_some() {
+                    return None;
+                }
+                place.segments.push(facts::PlaceSegment::FixedIndex {
+                    index: usize::try_from(*index).ok()?,
+                });
+            }
+            CheckedUnitStructuralPathSegment::Field(identity) => {
+                let field = if let Some(fields) = payload_fields.take() {
+                    let fields: &[typed_trees::data::DataField] = fields;
+                    fields
+                        .iter()
+                        .find(|field| field.path_identity() == *identity)?
+                } else {
+                    let reference = validation::canonical_place_type_reference(
+                        program,
+                        state,
+                        statement_index,
+                        &place,
+                    )?;
+                    let owner = program.closed_data_definition(
+                        validation::unwrapped_type_reference(program, reference)?,
+                    )?;
+                    program
+                        .data_members(owner)
+                        .iter()
+                        .find_map(|member| match member {
+                            DataMember::Field(field) if field.path_identity() == *identity => {
+                                Some(field)
+                            }
+                            _ => None,
+                        })?
+                };
+                if field.relevance.is_erased() || !field.symbol.is_valid() {
+                    return None;
+                }
+                place.segments.push(facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                });
+            }
+            CheckedUnitStructuralPathSegment::Case(identity) => {
+                if payload_fields.is_some() {
+                    return None;
+                }
+                let reference = validation::canonical_place_type_reference(
+                    program,
+                    state,
+                    statement_index,
+                    &place,
+                )?;
+                let owner = program.closed_data_definition(
+                    validation::unwrapped_type_reference(program, reference)?,
+                )?;
+                let case = program
+                    .data_members(owner)
+                    .iter()
+                    .find_map(|member| match member {
+                        DataMember::Variant(case) if case.path_identity() == *identity => {
+                            Some(case)
+                        }
+                        _ => None,
+                    })?;
+                if !case.symbol.is_valid() {
+                    return None;
+                }
+                place.segments.push(facts::PlaceSegment::Case {
+                    variant: case.symbol,
+                });
+                payload_fields = Some(program.data_payload_fields(case));
+            }
+            _ => return None,
+        }
+    }
+    Some(place.segments)
 }
 
 fn selected_nominal(
@@ -339,5 +494,6 @@ fn selected_nominal(
         cleanup_machine: hook,
         cleanup_state: state.symbol,
         cleanup_contract_report_fingerprint: target.contract_report_fingerprint,
+        case_conditions: Default::default(),
     })
 }

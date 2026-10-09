@@ -37,6 +37,7 @@ mod terminal;
 mod queries;
 
 pub use self::terminal::{
+    CheckedCleanupCaseCondition, CheckedCleanupControlPlans,
     CheckedAffineConstructionElementPlan, CheckedAtomicAccessPlan, CheckedAtomicEvent,
     CheckedAtomicReadModifyWrite, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedBoundaryScalarGuarantee, CheckedByteSequenceCarrier, CheckedByteSequenceValue,

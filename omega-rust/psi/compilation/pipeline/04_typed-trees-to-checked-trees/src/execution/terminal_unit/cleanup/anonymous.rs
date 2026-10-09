@@ -253,6 +253,7 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
                 source,
                 path: Vec::new(),
                 type_identity: result.type_identity.clone(),
+                case_conditions: Default::default(),
             });
         } else {
             let [argument] = transfers.as_slice() else {

@@ -256,6 +256,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             cleanup_machine: cleanup_machine.symbol,
             cleanup_state: cleanup_state.symbol,
             cleanup_contract_report_fingerprint: cleanup_target.contract_report_fingerprint,
+            case_conditions: Default::default(),
         });
     }
 

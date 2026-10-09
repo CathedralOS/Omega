@@ -6,6 +6,7 @@
 pub mod checked_trees;
 
 pub use checked_trees::{CheckedStructuralCaseRoot, CheckedStructuralCaseSubject};
+pub use checked_trees::{CheckedCleanupCaseCondition, CheckedCleanupControlPlans};
 
 pub use checked_trees::CheckedValueQualification;
 

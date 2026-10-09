@@ -391,6 +391,13 @@ pub enum CheckedUnitStructuralPathSegment {
     Referent,
 }
 
+impl Default for CheckedUnitStructuralPathSegment {
+    fn default() -> Self {
+        // Arena slot zero has no declaration identity and is never a path.
+        Self::Field(String::new())
+    }
+}
+
 // Path ordering canonicalizes static claim/reference rosters and keys the
 // checked open-window set. A computed selector has no numeric order: its full
 // arena identity only distinguishes keys within this checked product. It is

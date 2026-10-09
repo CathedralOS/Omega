@@ -159,15 +159,33 @@ pub(super) fn actions(
                         source: source.clone(),
                         path: destination.path.clone(),
                         type_identity: destination.type_identity.clone(),
+                        case_conditions: action.case_conditions(),
                     },
                 );
             }
             if displaced {
+                let conditions = shapes
+                    .cleanup_control
+                    .conditions
+                    .span_or_empty(action.case_conditions())
+                    .to_vec();
+                let conditions = conditions
+                    .into_iter()
+                    .map(|mut condition| {
+                        let path = shapes.cleanup_control.paths.span_or_empty(condition.path);
+                        let path = path.strip_prefix(destination.path.as_slice())?.to_vec();
+                        condition.path = shapes.cleanup_control.paths.insert_many(path);
+                        Some(condition)
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let case_conditions = shapes.cleanup_control.conditions.insert_many(conditions);
                 let (source, path) = match &mut action {
                     CheckedNormalCleanupAction::Discard(action) => {
+                        action.case_conditions = case_conditions;
                         (&mut action.source, &mut action.path)
                     }
                     CheckedNormalCleanupAction::InvokeNominal(action) => {
+                        action.case_conditions = case_conditions;
                         (&mut action.source, &mut action.path)
                     }
                     CheckedNormalCleanupAction::RetireHome { .. } => return None,

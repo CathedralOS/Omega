@@ -786,6 +786,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     shapes.retain_transitive(&retained_type_identities);
 
     CheckedUnitEffectPlans {
+        cleanup_control: shapes.cleanup_control,
         structural_types: shapes.types.into_values().collect(),
         structural_domains: {
             shapes.domains.sort_by_key(|domain| domain.domain.0);

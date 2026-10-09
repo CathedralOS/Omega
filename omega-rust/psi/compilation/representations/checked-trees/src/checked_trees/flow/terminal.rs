@@ -34,6 +34,7 @@ mod unit_effect_plans;
 mod unit_plans;
 
 pub use affine_cleanup_plans::{
+    CheckedCleanupCaseCondition, CheckedCleanupControlPlans,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
     CheckedNormalCleanupAction, CheckedNormalExitCleanupPlan,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,

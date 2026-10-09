@@ -72,6 +72,9 @@ pub(crate) fn lower_checked_cleanup_actions<'action>(
     ) -> Result<NominalAffineCleanup, LoweringError>,
 ) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, LoweringError> {
     actions.into_iter().map(|action| {
+        if !action.case_conditions().is_empty() {
+            return unsupported("selected-case cleanup control has no executable edge yet");
+        }
         let (place, root_type) = storage(action.source())?;
         match action {
             checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => Ok(terminal_psi::TerminalAffineCleanupAction::RetireHome(place)),
@@ -212,6 +215,9 @@ fn materialize_nominal_cleanup_action(
     requirement_count: usize,
     allocate_requirement: &mut impl FnMut() -> Result<semantic_vocabulary::ObligationId, LoweringError>,
 ) -> Result<NominalAffineCleanup, LoweringError> {
+    if !cleanup.case_conditions.is_empty() {
+        return unsupported("selected-case cleanup control has no executable edge yet");
+    }
     Ok(NominalAffineCleanup {
         place,
         path,

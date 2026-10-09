@@ -825,6 +825,11 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let mut actions = Vec::new();
         for action in cleanup_actions {
+            if !action.case_conditions().is_empty() {
+                return Err(LoweringError::Unsupported(
+                    "selected-case cleanup control has no executable edge yet",
+                ));
+            }
             let captured = match boundary {
                 checked_trees::CheckedUnitCleanupBoundary::Replacement {
                     statement_index,

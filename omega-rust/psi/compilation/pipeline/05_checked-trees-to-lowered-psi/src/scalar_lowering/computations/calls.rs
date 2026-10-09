@@ -697,6 +697,9 @@ impl Expansion<'_> {
             let action_start = actions.len();
             for action in discards {
                 use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
+                if !action.case_conditions().is_empty() {
+                    return unsupported("selected-case cleanup control has no executable edge yet");
+                }
                 if action.source() != &argument.source {
                     return unsupported("temporary cleanup names a different owner");
                 }

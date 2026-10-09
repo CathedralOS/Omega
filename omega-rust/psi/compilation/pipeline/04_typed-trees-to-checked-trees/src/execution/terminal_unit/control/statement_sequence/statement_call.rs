@@ -310,6 +310,7 @@ pub(super) fn plan(
                         },
                         path: Vec::new(),
                         type_identity: result.type_identity.clone(),
+                        case_conditions: Default::default(),
                     },
                 )],
             });

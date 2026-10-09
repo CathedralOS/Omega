@@ -93,6 +93,7 @@ pub use facts::{
     contract_plan_by_machine, declared_termination_commitment,
 };
 pub use flow::{
+    CheckedCleanupCaseCondition, CheckedCleanupControlPlans,
     CheckedAffineConstructionElementPlan, CheckedAtomicAccessPlan, CheckedAtomicEvent,
     CheckedAtomicReadModifyWrite, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedBoundaryScalarGuarantee, CheckedByteSequenceCarrier, CheckedByteSequenceValue,

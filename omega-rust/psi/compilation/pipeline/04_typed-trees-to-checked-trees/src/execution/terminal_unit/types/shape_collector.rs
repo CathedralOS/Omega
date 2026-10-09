@@ -1,5 +1,7 @@
-//! The structural type catalog a Unit plan family publishes, collected from the
-//! types its signatures, locals, and results name.
+//! The catalogs a Unit plan family publishes, collected from the types its
+//! signatures, locals, results and cleanup control name. Cleanup conditions
+//! retain their own arenas beside the type catalog; they never alter a shape's
+//! declaration or grant custody.
 //!
 //! Collection describes storage, not permission to copy, construct, or discard
 //! it. Fields and array elements collect the same stored value shapes,
@@ -12,6 +14,8 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) program: &'program dyn ::validation::CheckingInput,
     pub(in crate::execution::terminal_unit) types: BTreeMap<String, CheckedUnitStructuralTypePlan>,
     pub(in crate::execution::terminal_unit) domains: Vec<CheckedUnitStructuralDomainPlan>,
+    pub(in crate::execution::terminal_unit) cleanup_control:
+        checked_trees::CheckedCleanupControlPlans,
     in_progress: BTreeSet<String>,
     /// The element rows registered beside borrowed byte views. A byte
     /// carrier's plan keeps no element field, so `retain_transitive` follows
@@ -25,6 +29,7 @@ impl<'program> ShapeCollector<'program> {
             program,
             types: BTreeMap::new(),
             domains: Vec::new(),
+            cleanup_control: Default::default(),
             in_progress: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
         }

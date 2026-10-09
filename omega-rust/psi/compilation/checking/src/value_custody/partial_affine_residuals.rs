@@ -1,21 +1,83 @@
 //! Type-directed maximal residual complement for finite structural transfers.
 //!
-//! Only the complement is validated: a partially touched node must be a
-//! record, array, or exactly selected case whose fields are partial-affine
-//! leaves; each untouched subtree must be a finite tree of them. Closed alternatives
-//! remain whole when every alternative is custody-free; this does not select
-//! a case or authorize disposal of resource-bearing case payloads. A touched
-//! case instead retains only its selected payload siblings and common fields.
-//! Membership and nominal-hook admission remain the caller's responsibility.
-//! A moved subtree transfers whole with its own custody, so its shape (references included) is the
-//! consumer's concern, not this discard roster's.
+//! Validate only the complement: moved subtrees leave with their own custody.
+//! Keep untouched finite cleanup-free trees maximal, refine paths to nominal
+//! boundaries, and retain recursive reverse-field/index disposal order.
+//! Source checking supplies case reachability. Established cases need no
+//! condition; possible alternatives keep outer-to-inner runtime conditions,
+//! including empty alternatives whose disposed region is the sum itself.
+//! Common fields run once after payload selection. These are independent
+//! alternatives, not a Cartesian expansion of unrelated discriminators.
+//!
+//! This walk does not admit hooks, prove membership, or publish executable
+//! control. Its caller owns those joins and must retain every condition. The
+//! static residual API uses the same walk but accepts no runtime conditions.
+//! Count before array enumeration and reject recursive by-value complements;
+//! an output bound must apply before a huge dimension can allocate or expand.
 use checked_trees::{
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
-    is_partial_affine_field_type,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, is_partial_affine_field_type,
 };
 use std::collections::BTreeMap;
+
+/// Source checking decides whether a case is impossible, established, or must
+/// be selected at execution. Geometry never turns a possible case into a fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CleanupCaseReachability {
+    Inactive,
+    Selected,
+    Runtime,
+}
+
+/// Construction-time condition for a cleanup region. Conditions are ordered
+/// outermost first: a nested tag must not be read before its enclosing case is
+/// selected. The path names the sum, not the payload being disposed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CleanupCaseCondition {
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
+    pub type_identity: String,
+    pub case_identity: String,
+}
+
+/// Invocation-owned geometry scratch, not another durable checked IR. The
+/// publishing caller must retain conditions with its cleanup control plan;
+/// dropping them would authorize disposal of inactive payloads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaseSelectedCleanupRegion {
+    pub disposition: CheckedUnitPartialAffineDiscardPlan,
+    pub conditions: Vec<CleanupCaseCondition>,
+}
+
+struct ResidualTraversal<'selection> {
+    select_case: &'selection dyn Fn(
+        &[CheckedUnitStructuralPathSegment],
+        &str,
+        &str,
+    ) -> Option<CleanupCaseReachability>,
+    conditions: Vec<CleanupCaseCondition>,
+    regions: Vec<CaseSelectedCleanupRegion>,
+    active_types: Vec<String>,
+}
+
+impl ResidualTraversal<'_> {
+    fn emit(
+        &mut self,
+        source: &CheckedUnitStructuralArgumentSourcePlan,
+        path: &[CheckedUnitStructuralPathSegment],
+        type_identity: &str,
+    ) {
+        self.regions.push(CaseSelectedCleanupRegion {
+            disposition: CheckedUnitPartialAffineDiscardPlan {
+                source: source.clone(),
+                path: path.to_vec(),
+                type_identity: type_identity.to_owned(),
+                case_conditions: Default::default(),
+            },
+            conditions: self.conditions.clone(),
+        });
+    }
+}
 
 fn validate_type(
     types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
@@ -122,25 +184,57 @@ fn visit(
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
     boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
     prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
-    residuals: &mut Vec<CheckedUnitPartialAffineDiscardPlan>,
+    traversal: &mut ResidualTraversal<'_>,
+    emit: bool,
+) -> Option<usize> {
+    if moved_paths.iter().any(|(path, _)| path.is_empty()) {
+        return (moved_paths.len() == 1 && moved_paths[0].1 == current_type).then_some(0);
+    }
+    if traversal
+        .active_types
+        .iter()
+        .any(|identity| identity == current_type)
+    {
+        return None;
+    }
+    traversal.active_types.push(current_type.to_owned());
+    let result = visit_region(
+        types,
+        source,
+        current_type,
+        moved_paths,
+        boundaries,
+        prefix,
+        traversal,
+        emit,
+    );
+    traversal.active_types.pop();
+    result
+}
+
+fn visit_region(
+    types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
+    source: &CheckedUnitStructuralArgumentSourcePlan,
+    current_type: &str,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
+    traversal: &mut ResidualTraversal<'_>,
     emit: bool,
 ) -> Option<usize> {
     if moved_paths.is_empty() && boundaries.is_empty() {
         // Only the complement is discarded here, so only the complement must
         // be a finite record/array tree of cleanup-free leaves. A moved
         // subtree leaves whole with its own custody and is never inspected.
-        validate_type(types, current_type, &mut Vec::new(), &mut Vec::new())?;
-        if emit {
-            residuals.push(CheckedUnitPartialAffineDiscardPlan {
-                source: source.clone(),
-                path: prefix.clone(),
-                type_identity: current_type.to_owned(),
-            });
+        if validate_type(types, current_type, &mut Vec::new(), &mut Vec::new()).is_some() {
+            if emit {
+                traversal.emit(source, prefix, current_type);
+            }
+            return Some(1);
         }
-        return Some(1);
-    }
-    if moved_paths.iter().any(|(path, _)| path.is_empty()) {
-        return (moved_paths.len() == 1 && moved_paths[0].1 == current_type).then_some(0);
+        // A sum with structural payloads needs selected-case geometry, even
+        // when none of those payloads has a hook. Do not flatten it into a
+        // whole-root discard merely because no nominal boundary was recorded.
     }
     let nominal_boundary = boundaries.iter().any(|(path, _)| path.is_empty());
     if nominal_boundary
@@ -157,11 +251,7 @@ fn visit(
     // ordering in this same traversal rather than flattening hooks into a set
     // of disjoint leaves or disposing the whole receiver twice.
     if nominal_boundary && emit {
-        residuals.push(CheckedUnitPartialAffineDiscardPlan {
-            source: source.clone(),
-            path: prefix.clone(),
-            type_identity: current_type.to_owned(),
-        });
+        traversal.emit(source, prefix, current_type);
     }
     let declaration = *types.get(current_type)?;
     let mut count = usize::from(nominal_boundary);
@@ -179,7 +269,7 @@ fn visit(
                 moved_paths,
                 &child_boundaries,
                 prefix,
-                residuals,
+                traversal,
                 emit,
             )?)?;
         }
@@ -209,6 +299,18 @@ fn visit(
             touched.sort_unstable();
             touched.dedup();
             let untouched = usize::try_from(*length).ok()?.checked_sub(touched.len())?;
+            if untouched > 0 {
+                // Counting each untouched element as one region is valid only
+                // for a maximal cleanup-free subtree. A case-dependent element
+                // needs its own checked selection/boundary rows; never discover
+                // a larger conditional roster after reserving the output.
+                validate_type(
+                    types,
+                    element_type_identity,
+                    &mut Vec::new(),
+                    &mut Vec::new(),
+                )?;
+            }
             if !emit {
                 count = count.checked_add(untouched)?;
             }
@@ -234,7 +336,7 @@ fn visit(
                     &matching,
                     &child_boundaries,
                     prefix,
-                    residuals,
+                    traversal,
                     emit,
                 )?)?;
                 prefix.pop();
@@ -242,70 +344,34 @@ fn visit(
         }
         CheckedUnitStructuralTypeShape::Sum { cases }
         | CheckedUnitStructuralTypeShape::Mixed { cases, .. } => {
-            let selected_case =
-                moved_paths
-                    .iter()
-                    .chain(boundaries)
-                    .find_map(|(path, _)| match path.first() {
-                        Some(CheckedUnitStructuralPathSegment::Case(identity)) => Some(identity),
-                        _ => None,
-                    })?;
-            let selected = cases.iter().find(|case| &case.identity == selected_case)?;
             let common = match &declaration.shape {
                 CheckedUnitStructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
                 _ => &[],
             };
-            if moved_paths
-                .iter()
-                .chain(boundaries)
-                .any(|(path, _)| match path.first() {
-                    Some(CheckedUnitStructuralPathSegment::Case(identity)) => {
-                        identity != selected_case
-                    }
-                    Some(CheckedUnitStructuralPathSegment::Field(_)) => !matches!(
-                        declaration.shape,
-                        CheckedUnitStructuralTypeShape::Mixed { .. }
-                    ),
-                    None => !nominal_boundary,
-                    _ => true,
+            if cases.is_empty()
+                || cases.iter().enumerate().any(|(case_index, case)| {
+                    case.identity.is_empty()
+                        || cases[..case_index]
+                            .iter()
+                            .any(|earlier| earlier.identity == case.identity)
                 })
+                || moved_paths
+                    .iter()
+                    .chain(boundaries)
+                    .any(|(path, _)| match path.first() {
+                        Some(CheckedUnitStructuralPathSegment::Case(identity)) => {
+                            !cases.iter().any(|case| &case.identity == identity)
+                        }
+                        Some(CheckedUnitStructuralPathSegment::Field(_)) => !matches!(
+                            declaration.shape,
+                            CheckedUnitStructuralTypeShape::Mixed { .. }
+                        ),
+                        None => !nominal_boundary,
+                        _ => true,
+                    })
             {
                 return None;
             }
-            let payload_moves = moved_paths
-                .iter()
-                .filter(|(path, _)| {
-                    matches!(
-                        path.first(),
-                        Some(CheckedUnitStructuralPathSegment::Case(_))
-                    )
-                })
-                .map(|(path, identity)| (&path[1..], *identity))
-                .collect::<Vec<_>>();
-            let payload_boundaries = boundaries
-                .iter()
-                .filter(|(path, _)| {
-                    matches!(
-                        path.first(),
-                        Some(CheckedUnitStructuralPathSegment::Case(_))
-                    )
-                })
-                .map(|(path, identity)| (&path[1..], *identity))
-                .collect::<Vec<_>>();
-            prefix.push(CheckedUnitStructuralPathSegment::Case(
-                selected_case.clone(),
-            ));
-            count = count.checked_add(visit_fields(
-                types,
-                source,
-                &selected.fields,
-                &payload_moves,
-                &payload_boundaries,
-                prefix,
-                residuals,
-                emit,
-            )?)?;
-            prefix.pop();
             let common_moves = moved_paths
                 .iter()
                 .copied()
@@ -326,6 +392,76 @@ fn visit(
                     )
                 })
                 .collect::<Vec<_>>();
+            let mut reachable_cases = 0_usize;
+            let mut established_cases = 0_usize;
+            for case in cases {
+                let reachability = (traversal.select_case)(prefix, current_type, &case.identity)?;
+                if reachability == CleanupCaseReachability::Inactive {
+                    continue;
+                }
+                reachable_cases = reachable_cases.checked_add(1)?;
+                if reachability == CleanupCaseReachability::Selected {
+                    established_cases = established_cases.checked_add(1)?;
+                }
+                let condition_depth = traversal.conditions.len();
+                if reachability == CleanupCaseReachability::Runtime {
+                    traversal.conditions.push(CleanupCaseCondition {
+                        path: prefix.clone(),
+                        type_identity: current_type.to_owned(),
+                        case_identity: case.identity.clone(),
+                    });
+                }
+                let payload_moves = moved_paths.iter().filter_map(|(path, identity)| {
+                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)
+                        .then_some((&path[1..], *identity))
+                }).collect::<Vec<_>>();
+                let payload_boundaries = boundaries.iter().filter_map(|(path, identity)| {
+                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)
+                        .then_some((&path[1..], *identity))
+                }).collect::<Vec<_>>();
+                // An empty/inline selected alternative still owes disposal of
+                // the sum occurrence. Its condition names the tag separately:
+                // a bare Case segment is not a typed payload projection.
+                if !nominal_boundary
+                    && payload_moves.is_empty()
+                    && payload_boundaries.is_empty()
+                    && common_moves.is_empty()
+                    && common_boundaries.is_empty()
+                    && !common.iter().any(|field| {
+                        matches!(
+                            field.field_type,
+                            CheckedUnitStructuralFieldType::Structural { .. }
+                        )
+                    })
+                    && validate_inline_alternatives(common, std::slice::from_ref(case)).is_some()
+                {
+                    if emit {
+                        traversal.emit(source, prefix, current_type);
+                    }
+                    count = count.checked_add(1)?;
+                } else {
+                    prefix.push(CheckedUnitStructuralPathSegment::Case(
+                        case.identity.clone(),
+                    ));
+                    count = count.checked_add(visit_fields(
+                        types,
+                        source,
+                        &case.fields,
+                        &payload_moves,
+                        &payload_boundaries,
+                        prefix,
+                        traversal,
+                        emit,
+                    )?)?;
+                    prefix.pop();
+                }
+                traversal.conditions.truncate(condition_depth);
+            }
+            if reachable_cases == 0 || (established_cases > 0 && reachable_cases != 1) {
+                return None;
+            }
+            // Common storage is independent of the active payload. Schedule it
+            // once after payload selection, not once in every alternative.
             count = count.checked_add(visit_fields(
                 types,
                 source,
@@ -333,7 +469,7 @@ fn visit(
                 &common_moves,
                 &common_boundaries,
                 prefix,
-                residuals,
+                traversal,
                 emit,
             )?)?;
         }
@@ -351,7 +487,7 @@ fn visit_fields(
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
     boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
     prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
-    residuals: &mut Vec<CheckedUnitPartialAffineDiscardPlan>,
+    traversal: &mut ResidualTraversal<'_>,
     emit: bool,
 ) -> Option<usize> {
     if fields.iter().enumerate().any(|(position, field)| {
@@ -396,7 +532,7 @@ fn visit_fields(
             &matching,
             &child_boundaries,
             prefix,
-            residuals,
+            traversal,
             emit,
         )?)?;
         prefix.pop();
@@ -413,6 +549,57 @@ pub fn reconstruct_with_boundaries(
     boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
     max_residuals: usize,
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
+    let select_case = |prefix: &[CheckedUnitStructuralPathSegment], _: &str, case: &str| {
+        let mut selected = None;
+        for (path, _) in moved_paths.iter().chain(boundaries) {
+            let Some([CheckedUnitStructuralPathSegment::Case(identity), ..]) =
+                path.strip_prefix(prefix)
+            else {
+                continue;
+            };
+            if selected.is_some_and(|earlier| earlier != identity.as_str()) {
+                return None;
+            }
+            selected = Some(identity.as_str());
+        }
+        Some(if selected? == case {
+            CleanupCaseReachability::Selected
+        } else {
+            CleanupCaseReachability::Inactive
+        })
+    };
+    reconstruct_case_selected_regions(
+        types,
+        source,
+        root_type,
+        moved_paths,
+        boundaries,
+        max_residuals,
+        &select_case,
+    )?
+    .into_iter()
+    .map(|region| region.conditions.is_empty().then_some(region.disposition))
+    .collect()
+}
+
+/// Reconstruct the same maximal complement while retaining runtime case
+/// conditions. The source owner supplies reachability, not hook geometry.
+/// Alternatives are independent branches, never a product of unrelated cases;
+/// recursive payload conditions retain their enclosing selection. Count before
+/// enumeration still bounds arrays and the complete published region roster.
+pub fn reconstruct_case_selected_regions(
+    types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
+    source: &CheckedUnitStructuralArgumentSourcePlan,
+    root_type: &str,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    max_residuals: usize,
+    select_case: &dyn Fn(
+        &[CheckedUnitStructuralPathSegment],
+        &str,
+        &str,
+    ) -> Option<CleanupCaseReachability>,
+) -> Option<Vec<CaseSelectedCleanupRegion>> {
     if boundaries.iter().enumerate().any(|(position, (path, _))| {
         boundaries[..position]
             .iter()
@@ -431,7 +618,12 @@ pub fn reconstruct_with_boundaries(
     }) {
         return None;
     }
-    let mut residuals = Vec::new();
+    let mut traversal = ResidualTraversal {
+        select_case,
+        conditions: Vec::new(),
+        regions: Vec::new(),
+        active_types: Vec::new(),
+    };
     let count = visit(
         types,
         source,
@@ -439,13 +631,13 @@ pub fn reconstruct_with_boundaries(
         moved_paths,
         boundaries,
         &mut Vec::new(),
-        &mut residuals,
+        &mut traversal,
         false,
     )?;
     if count > max_residuals {
         return None;
     }
-    residuals.try_reserve_exact(count).ok()?;
+    traversal.regions.try_reserve_exact(count).ok()?;
     let emitted = visit(
         types,
         source,
@@ -453,8 +645,8 @@ pub fn reconstruct_with_boundaries(
         moved_paths,
         boundaries,
         &mut Vec::new(),
-        &mut residuals,
+        &mut traversal,
         true,
     )?;
-    (emitted == count && residuals.len() == count).then_some(residuals)
+    (emitted == count && traversal.regions.len() == count).then_some(traversal.regions)
 }
