@@ -17,7 +17,7 @@ use std::sync::Arc;
 /// carrier. Symbolic links carry only their exact link path and target
 /// spelling; construction grants them no filesystem authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OutputTreeEntry<'entry> {
+pub(crate) enum OutputTreeEntry<'entry> {
     Directory {
         relative_path: &'entry [u8],
     },
@@ -80,7 +80,7 @@ enum NamespaceEntryKind {
 /// canonical path order. Any exact path collision, including a directory/file
 /// collision, rejects. Entry, aggregate path, per-file, and unique-content byte
 /// ceilings are the same limits used by physical staged-output capture.
-pub fn from_entries(
+pub(crate) fn from_entries(
     entries: &[OutputTreeEntry<'_>],
 ) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
     if entries.len() > MAX_STAGED_OUTPUT_ENTRIES {

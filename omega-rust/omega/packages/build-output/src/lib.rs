@@ -22,12 +22,14 @@ mod tree_from_entries;
 
 pub use capture::capture;
 pub use captured_source::{
-    CapturedBuildSourceInput, CapturedSourceEntry, CapturedSourceEntryKind, CapturedSourceEntryRef,
-    CapturedSourceFile,
+    CapturedBuildSourceInput, CapturedSourceEntry, CapturedSourceEntryKind,
 };
-pub use staged_output_tree::{
-    BuildStagedOutputEntry, BuildStagedOutputEntryInput, BuildStagedOutputEntryKind,
-    BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
+pub(crate) use captured_source::{ CapturedSourceEntryRef,
+    CapturedSourceFile};
+pub use staged_output_tree::{ BuildStagedOutputEntryInput, BuildStagedOutputEntryKind, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
     PackageGeneratedSource, empty, select_included_sources,
 };
-pub use tree_from_entries::{OutputTreeEntry, from_entries};
+pub(crate) use staged_output_tree::{
+    BuildStagedOutputEntry,
+    BuildStagedOutputMaterializationError};
+pub(crate) use tree_from_entries::{OutputTreeEntry, from_entries};
