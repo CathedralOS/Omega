@@ -14,14 +14,14 @@ pub(crate) fn non_authoritative_placement_compatibility_fingerprint(
     access: AccessPlanId,
     reach: &BoundaryReach,
 ) -> PlacementPlanId {
-    let mut hash = 0xcbf29ce484222325u64;
-    hash_bytes(&mut hash, b"omega.placement-plan.v1");
-    hash_u64(&mut hash, access.compatibility_fingerprint());
-    hash_u64(&mut hash, reach.services().len() as u64);
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(b"omega.placement-plan.v1");
+    hash.u64(access.compatibility_fingerprint());
+    hash.u64(reach.services().len() as u64);
     for service in reach.services() {
-        hash_u64(&mut hash, service.normalized_identity());
+        hash.u64(service.normalized_identity());
     }
-    PlacementPlanId(if hash == 0 { 1 } else { hash })
+    PlacementPlanId(hash.finish().max(1))
 }
 
 /// Collision-resistant semantic owner of compiler-issued access field keys.
@@ -214,81 +214,72 @@ pub(crate) fn non_authoritative_resource_profile_compatibility_fingerprint(
     length: u64,
     regions: &[ResourceRegion],
 ) -> ResourceProfileId {
-    let mut hash = 0xcbf29ce484222325u64;
-    hash_bytes(&mut hash, b"omega.resource-profile.v1");
-    hash_u64(&mut hash, length);
-    hash_u64(&mut hash, regions.len() as u64);
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(b"omega.resource-profile.v1");
+    hash.u64(length);
+    hash.u64(regions.len() as u64);
     for region in regions {
-        hash_u64(&mut hash, region.offset);
-        hash_u64(&mut hash, region.length);
-        hash_byte(
-            &mut hash,
-            match region.stable {
-                StableCapability::None => 0,
-                StableCapability::Read => 1,
-                StableCapability::Write => 2,
-                StableCapability::ReadWrite => 3,
-            },
-        );
+        hash.u64(region.offset);
+        hash.u64(region.length);
+        hash.byte(match region.stable {
+            StableCapability::None => 0,
+            StableCapability::Read => 1,
+            StableCapability::Write => 2,
+            StableCapability::ReadWrite => 3,
+        });
         match &region.external {
-            ExternalCapability::None => hash_byte(&mut hash, 0),
+            ExternalCapability::None => hash.byte(0),
             ExternalCapability::Access {
                 read,
                 write,
                 transfers,
             } => {
-                hash_byte(&mut hash, 1);
-                hash_byte(
-                    &mut hash,
-                    match read {
-                        ExternalReadBehavior::None => 0,
-                        ExternalReadBehavior::Repeatable => 1,
-                        ExternalReadBehavior::Destructive => 2,
-                    },
-                );
-                hash_byte(&mut hash, u8::from(*write));
+                hash.byte(1);
+                hash.byte(match read {
+                    ExternalReadBehavior::None => 0,
+                    ExternalReadBehavior::Repeatable => 1,
+                    ExternalReadBehavior::Destructive => 2,
+                });
+                hash.byte(u8::from(*write));
                 hash_transfer_rules(&mut hash, transfers);
             }
         }
         match &region.atomic {
-            AtomicCapability::None => hash_byte(&mut hash, 0),
+            AtomicCapability::None => hash.byte(0),
             AtomicCapability::Access { transfers } => {
-                hash_byte(&mut hash, 1);
-                hash_u64(&mut hash, transfers.len() as u64);
+                hash.byte(1);
+                hash.u64(transfers.len() as u64);
                 for rule in transfers {
                     hash_transfer_rule(&mut hash, rule.transfer);
                     hash_atomic_permissions(&mut hash, rule.operations);
                 }
             }
         }
-        hash_byte(
-            &mut hash,
-            match region.peer {
-                PeerWritability::Exclusive => 0,
-                PeerWritability::HostileShared => 1,
-            },
-        );
-        hash_u64(&mut hash, region.reach.services().len() as u64);
+        hash.byte(match region.peer {
+            PeerWritability::Exclusive => 0,
+            PeerWritability::HostileShared => 1,
+        });
+        hash.u64(region.reach.services().len() as u64);
         for service in region.reach.services() {
-            hash_u64(&mut hash, service.normalized_identity());
+            hash.u64(service.normalized_identity());
         }
     }
-    ResourceProfileId(if hash == 0 { 1 } else { hash })
+    ResourceProfileId(hash.finish().max(1))
 }
 
-fn hash_transfer_rules(hash: &mut u64, rules: &[TransferRule]) {
-    hash_u64(hash, rules.len() as u64);
+fn hash_transfer_rules(hash: &mut semantic_vocabulary::Fnv1a, rules: &[TransferRule]) {
+    hash.u64(rules.len() as u64);
     for rule in rules {
         hash_transfer_rule(hash, *rule);
     }
 }
 
-fn hash_transfer_rule(hash: &mut u64, rule: TransferRule) {
-    hash_u64(hash, u64::from(rule.width_bits));
-    hash_u64(hash, rule.alignment_bytes);
+fn hash_transfer_rule(hash: &mut semantic_vocabulary::Fnv1a, rule: TransferRule) {
+    hash.u64(u64::from(rule.width_bits));
+    hash.u64(rule.alignment_bytes);
 }
 
-fn hash_atomic_permissions(hash: &mut u64, permissions: AtomicPermissions) {
+fn hash_atomic_permissions(hash: &mut semantic_vocabulary::Fnv1a, permissions: AtomicPermissions) {
     for enabled in [
         permissions.load,
         permissions.store,
@@ -303,7 +294,7 @@ fn hash_atomic_permissions(hash: &mut u64, permissions: AtomicPermissions) {
         permissions.try_exchange,
         permissions.try_exchange_once,
     ] {
-        hash_byte(hash, u8::from(enabled));
+        hash.byte(u8::from(enabled));
     }
 }
 
@@ -314,24 +305,24 @@ pub(super) fn non_authoritative_access_plan_compatibility_fingerprint(
     // FNV-1a is used as a compact deterministic artifact identity here, never
     // as authorization or collision-resistant evidence. The versioned prefix
     // makes any future vocabulary change an explicit identity migration.
-    let mut hash = 0xcbf29ce484222325u64;
-    hash_bytes(&mut hash, b"omega.access-plan.v5");
-    hash_u64(&mut hash, layout_report_fingerprint);
-    hash_u64(&mut hash, plan.entries.len() as u64);
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(b"omega.access-plan.v5");
+    hash.u64(layout_report_fingerprint);
+    hash.u64(plan.entries.len() as u64);
     for entry in &plan.entries {
-        hash_u64(&mut hash, u64::from(entry.key.slot));
+        hash.u64(u64::from(entry.key.slot));
         match &entry.access {
-            FieldAccess::Inaccessible => hash_byte(&mut hash, 0),
+            FieldAccess::Inaccessible => hash.byte(0),
             FieldAccess::Stable {
                 transfer_width_bits,
                 read,
                 write,
                 exposure,
             } => {
-                hash_byte(&mut hash, 1);
-                hash_u64(&mut hash, u64::from(*transfer_width_bits));
-                hash_byte(&mut hash, u8::from(*read));
-                hash_byte(&mut hash, u8::from(*write));
+                hash.byte(1);
+                hash.u64(u64::from(*transfer_width_bits));
+                hash.byte(u8::from(*read));
+                hash.byte(u8::from(*write));
                 hash_exposure(&mut hash, *exposure);
             }
             FieldAccess::External {
@@ -340,17 +331,14 @@ pub(super) fn non_authoritative_access_plan_compatibility_fingerprint(
                 write,
                 exposure,
             } => {
-                hash_byte(&mut hash, 2);
-                hash_u64(&mut hash, u64::from(*transfer_width_bits));
-                hash_byte(
-                    &mut hash,
-                    match read {
-                        ExternalRead::None => 0,
-                        ExternalRead::Read => 1,
-                        ExternalRead::Take => 2,
-                    },
-                );
-                hash_byte(&mut hash, u8::from(*write));
+                hash.byte(2);
+                hash.u64(u64::from(*transfer_width_bits));
+                hash.byte(match read {
+                    ExternalRead::None => 0,
+                    ExternalRead::Read => 1,
+                    ExternalRead::Take => 2,
+                });
+                hash.byte(u8::from(*write));
                 hash_exposure(&mut hash, *exposure);
             }
             FieldAccess::Atomic {
@@ -358,8 +346,8 @@ pub(super) fn non_authoritative_access_plan_compatibility_fingerprint(
                 operations,
                 exposure,
             } => {
-                hash_byte(&mut hash, 3);
-                hash_u64(&mut hash, u64::from(*transfer_width_bits));
+                hash.byte(3);
+                hash.u64(u64::from(*transfer_width_bits));
                 hash_atomic_permissions(&mut hash, *operations);
                 hash_exposure(&mut hash, *exposure);
             }
@@ -368,30 +356,12 @@ pub(super) fn non_authoritative_access_plan_compatibility_fingerprint(
     // Zero is reserved as the inert/no-plan identity throughout the semantic
     // spine. A hash hitting it remains deterministic but is remapped out of
     // the reserved value.
-    AccessPlanId(if hash == 0 { 1 } else { hash })
+    AccessPlanId(hash.finish().max(1))
 }
 
-fn hash_exposure(hash: &mut u64, exposure: AccessExposure) {
-    hash_byte(
-        hash,
-        match exposure {
-            AccessExposure::Exported => 0,
-            AccessExposure::BindingPrivate => 1,
-        },
-    );
-}
-
-fn hash_u64(hash: &mut u64, value: u64) {
-    hash_bytes(hash, &value.to_le_bytes());
-}
-
-fn hash_bytes(hash: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        hash_byte(hash, *byte);
-    }
-}
-
-fn hash_byte(hash: &mut u64, byte: u8) {
-    *hash ^= u64::from(byte);
-    *hash = hash.wrapping_mul(0x100000001b3);
+fn hash_exposure(hash: &mut semantic_vocabulary::Fnv1a, exposure: AccessExposure) {
+    hash.byte(match exposure {
+        AccessExposure::Exported => 0,
+        AccessExposure::BindingPrivate => 1,
+    });
 }

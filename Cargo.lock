@@ -66,6 +66,7 @@ dependencies = [
  "extents",
  "language-core",
  "layout-plans",
+ "semantic-vocabulary",
  "sha2",
 ]
 
