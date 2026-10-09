@@ -15,16 +15,16 @@ use isa_x86_64::{
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    MachineEncodedEffects, SelectedBlock, SelectedBlockId,
-    SelectedInstruction, SelectedTerminator,
+    MachineEncodedEffects, SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedTerminator,
 };
 use target::Architecture;
 
-use super::plan::{branch_size, unexpected};
 use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence, declared_size_matches,
+    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
+    declared_size_matches,
 };
+use super::plan::{branch_size, unexpected};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve(
@@ -54,7 +54,7 @@ pub(super) fn resolve(
                     let end = instruction_offset
                         .checked_add(5)
                         .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-                    let displacement = checked_delta(target_offset, end)?;
+                    let displacement = super::plan::byte_displacement(target_offset, end)?;
                     let result = isa_x86_64::encode_x86_64_selected_jump_form(
                         physical,
                         machine.alternative.key,
@@ -68,7 +68,8 @@ pub(super) fn resolve(
                     )
                 }
                 Architecture::Aarch64 => {
-                    let displacement = checked_delta(target_offset, instruction_offset)?;
+                    let displacement =
+                        super::plan::byte_displacement(target_offset, instruction_offset)?;
                     let result = isa_aarch64::encode_aarch64_selected_jump_form(
                         physical,
                         machine.alternative.key,
@@ -160,8 +161,8 @@ pub(super) fn resolve(
         );
     }
     let displacement = match architecture {
-        Architecture::X86_64 => checked_delta(taken_offset, branch_end)?,
-        Architecture::Aarch64 => checked_delta(taken_offset, instruction_offset)?,
+        Architecture::X86_64 => super::plan::byte_displacement(taken_offset, branch_end)?,
+        Architecture::Aarch64 => super::plan::byte_displacement(taken_offset, instruction_offset)?,
     };
     let (bytes, register_reads, effects) = encode(
         architecture,
@@ -321,8 +322,3 @@ fn encode(
         }
     }
 }
-fn checked_delta(target: u64, base: u64) -> Result<i64, OptimizedResolvedSelectedFormLayoutError> {
-    i64::try_from(i128::from(target) - i128::from(base))
-        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)
-}
-

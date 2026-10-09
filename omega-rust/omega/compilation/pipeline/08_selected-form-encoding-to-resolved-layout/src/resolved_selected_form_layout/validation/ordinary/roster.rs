@@ -18,7 +18,7 @@ pub(super) fn collect_pre_layout_rows<'a>(
 > {
     let mut collected = BTreeMap::new();
     for block in &function.blocks {
-        for instruction in instructions(block) {
+        for instruction in crate::resolved_selected_form_layout::ordinary::instructions(block) {
             let row = rows.next().ok_or(
                 OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
             )?;
@@ -35,11 +35,4 @@ pub(super) fn collect_pre_layout_rows<'a>(
         }
     }
     Ok(collected)
-}
-
-pub(super) fn instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
-    block
-        .instructions
-        .iter()
-        .chain(std::iter::once(selected_instructions::terminator_instruction(&block.terminator)))
 }

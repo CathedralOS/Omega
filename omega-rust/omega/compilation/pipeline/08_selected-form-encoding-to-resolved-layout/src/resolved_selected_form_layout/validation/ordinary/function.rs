@@ -5,9 +5,9 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::SelectedFunction;
 use target::Architecture;
 
+use super::super::super::ordinary::plan;
 use super::super::row;
 use super::{PreLayoutRows, order, roster};
-use super::super::super::ordinary::plan;
 
 use super::super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedFunctionLayout,
@@ -61,9 +61,10 @@ pub(super) fn validate(
             return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
         }
         let mut instruction_offset = candidate_block.offset;
-        for ((instruction, machine_instruction), candidate_row) in roster::instructions(block)
-            .zip(&machine_block.instructions)
-            .zip(&candidate_block.instructions)
+        for ((instruction, machine_instruction), candidate_row) in
+            crate::resolved_selected_form_layout::ordinary::instructions(block)
+                .zip(&machine_block.instructions)
+                .zip(&candidate_block.instructions)
         {
             if machine_instruction.instruction != instruction.id {
                 return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
