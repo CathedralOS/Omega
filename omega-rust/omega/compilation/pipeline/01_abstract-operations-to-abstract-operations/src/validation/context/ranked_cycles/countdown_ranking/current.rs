@@ -23,7 +23,7 @@ pub(super) fn derive(
     for component in &snapshot.components {
         let function = unit
             .function(component.id.machine)
-            .ok_or_else(|| mismatch(component))?;
+            .ok_or_else(|| super::mismatch(component))?;
         certificates.push(derive_one(function, component)?);
     }
     certificates.sort_by(|left, right| left.component.cmp(&right.component));
@@ -38,9 +38,11 @@ fn derive_one(
         .members
         .iter()
         .filter_map(|header| derive_from_header(function, component, *header).ok());
-    let certificate = candidates.next().ok_or_else(|| mismatch(component))?;
+    let certificate = candidates
+        .next()
+        .ok_or_else(|| super::mismatch(component))?;
     if candidates.next().is_some() {
-        return Err(mismatch(component));
+        return Err(super::mismatch(component));
     }
     Ok(certificate)
 }
@@ -217,10 +219,4 @@ fn scalar_node(
             .iter()
             .any(|definition| definition.value == value)
     })
-}
-
-fn mismatch(component: &OptimizerCycleComponent) -> OptimizationUnitValidationError {
-    OptimizationUnitValidationError::RankedCycleRankingEvidenceMismatch {
-        machine: component.id.machine,
-    }
 }

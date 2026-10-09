@@ -19,7 +19,7 @@ pub(super) fn project(
 ) -> Result<Option<OptimizerUnsignedCountdownRankingCertificate>, OptimizationUnitValidationError> {
     let machine = module
         .machine(component.id.machine)
-        .ok_or_else(|| mismatch(component))?;
+        .ok_or_else(|| super::mismatch(component))?;
     Ok(project_one(machine, component))
 }
 
@@ -201,10 +201,4 @@ fn scalar_operation(
         .operations
         .iter()
         .find(|operation| operation.result.scalar().map(|result| result.id) == Some(value))
-}
-
-fn mismatch(component: &OptimizerCycleComponent) -> OptimizationUnitValidationError {
-    OptimizationUnitValidationError::RankedCycleRankingEvidenceMismatch {
-        machine: component.id.machine,
-    }
 }

@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Exact countdown ranking-evidence reconstruction.
 
 use super::{
-    OptimizationUnitValidationError, OptimizerCycleComponentSnapshot,
+    OptimizationUnitValidationError, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
     OptimizerRankingCertificateSnapshot, PsiOptimizationUnit,
 };
 mod current;
@@ -43,4 +43,10 @@ pub(super) fn rederive_exact_certificates(
         terminal_psi: components.terminal_psi,
         certificates: current,
     })
+}
+
+fn mismatch(component: &OptimizerCycleComponent) -> OptimizationUnitValidationError {
+    OptimizationUnitValidationError::RankedCycleRankingEvidenceMismatch {
+        machine: component.id.machine,
+    }
 }
