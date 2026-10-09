@@ -302,17 +302,7 @@ pub(super) fn result_loans(
                 return Some(limit_access(loans, &access_limits));
             }
             checked_trees::expression::ExpressionNode::Borrow(borrow) => {
-                access_limits.push(match borrow.access {
-                    language_semantics::ReferenceAccess::Shared => {
-                        checked_trees::BorrowAccessKind::Read
-                    }
-                    language_semantics::ReferenceAccess::Mutable => {
-                        checked_trees::BorrowAccessKind::Mutable
-                    }
-                    language_semantics::ReferenceAccess::WriteOnly => {
-                        checked_trees::BorrowAccessKind::WriteOnly
-                    }
-                });
+                access_limits.push(super::borrow_access_kind(borrow.access));
                 expression = borrow.target;
                 continue;
             }

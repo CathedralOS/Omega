@@ -355,3 +355,20 @@ fn assignment_borrow_loans(
         })
         .collect()
 }
+
+/// The borrow-fact access kind matching a reference access.
+pub(crate) fn borrow_access_kind(
+    access: language_semantics::ReferenceAccess,
+) -> checked_trees::BorrowAccessKind {
+    match access {
+        language_semantics::ReferenceAccess::Shared => {
+            checked_trees::BorrowAccessKind::Read
+        }
+        language_semantics::ReferenceAccess::Mutable => {
+            checked_trees::BorrowAccessKind::Mutable
+        }
+        language_semantics::ReferenceAccess::WriteOnly => {
+            checked_trees::BorrowAccessKind::WriteOnly
+        }
+    }
+}

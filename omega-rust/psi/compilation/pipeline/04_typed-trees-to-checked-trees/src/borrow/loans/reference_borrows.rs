@@ -289,17 +289,7 @@ pub(super) fn selected_arm_borrow_loans(
             else {
                 return Vec::new();
             };
-            let kind = match borrow.access {
-                language_semantics::ReferenceAccess::Shared => {
-                    checked_trees::BorrowAccessKind::Read
-                }
-                language_semantics::ReferenceAccess::Mutable => {
-                    checked_trees::BorrowAccessKind::Mutable
-                }
-                language_semantics::ReferenceAccess::WriteOnly => {
-                    checked_trees::BorrowAccessKind::WriteOnly
-                }
-            };
+            let kind = super::borrow_access_kind(borrow.access);
             let Some(place) = borrow_access_place(
                 program,
                 state_symbol,
