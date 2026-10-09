@@ -18,14 +18,11 @@ mod error;
 mod fixed_frame;
 mod frame;
 
-pub(crate) use carriers::{
-    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt};
 pub use carriers::{
     StagedFixedFrameFunctionRelativeRealization};
 pub use error::FunctionRelativeOptimizationRealizationError;
 pub use fixed_frame::{
-    stage_fixed_frame_function_relative_realization,
-};
+    stage_fixed_frame_function_relative_realization};
 pub(crate) use fixed_frame::{
     validate_fixed_frame_function_relative_realization};
 pub(crate) use frame::FunctionRelativeFrame;
@@ -33,30 +30,25 @@ pub(crate) use frame::FunctionRelativeFrame;
 use machine_code::{
     ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy,
     TargetFrameLayoutIdentity, TargetFrameProtocolEncodingIdentity,
-    WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
-};
+    WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity};
 use optimization_core::{
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    SelectedLoweringOptimizationCompletionIdentity,
-};
+    SelectedLoweringOptimizationCompletionIdentity};
 use selected_instructions::SelectedInstructionPlanIdentity;
 use target::NativeTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {
-    ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
-}
+    ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationScope {
-    FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
-}
+    FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationUnavailableData {
-    Unavailable,
-}
+    Unavailable}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FunctionRelativeOptimizationRealizationStatistics {
@@ -65,17 +57,14 @@ pub struct FunctionRelativeOptimizationRealizationStatistics {
     pub instructions: u64,
     pub bytes: u64,
     pub resolved_conditional_branches: u64,
-    pub unresolved_internal_machine_fixups: u64,
-}
+    pub unresolved_internal_machine_fixups: u64}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeFrameDisposition {
     Unavailable,
     CanonicalFixedFrameV1 {
         layout: TargetFrameLayoutIdentity,
-        protocol: TargetFrameProtocolEncodingIdentity,
-    },
-}
+        protocol: TargetFrameProtocolEncodingIdentity}}
 
 /// Structured report at the function-relative selected-form boundary after
 /// validating the admitted whole-function exit discipline. A role-tagged
@@ -116,13 +105,11 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub object_relocations: FunctionRelativeOptimizationUnavailableData,
     pub executable_image: FunctionRelativeOptimizationUnavailableData,
     pub installation: FunctionRelativeOptimizationUnavailableData,
-    pub publication: FunctionRelativeOptimizationUnavailableData,
-}
+    pub publication: FunctionRelativeOptimizationUnavailableData}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedFunctionRelativeOptimizationRealizationManifest {
-    record: FunctionRelativeOptimizationRealizationManifest,
-}
+    record: FunctionRelativeOptimizationRealizationManifest}
 
 impl ValidatedFunctionRelativeOptimizationRealizationManifest {
     pub const fn record(&self) -> &FunctionRelativeOptimizationRealizationManifest {
