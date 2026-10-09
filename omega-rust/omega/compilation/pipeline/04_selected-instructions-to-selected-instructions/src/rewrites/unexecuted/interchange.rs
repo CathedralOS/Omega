@@ -52,7 +52,3 @@
 //! Validation consumes the proposed program, requires the touched block's
 //! window and the roster's window rows to equal the independently
 //! computed interchange, and restores the complete source by content.
-
-mod admission;
-mod rewrite;
-mod validation;

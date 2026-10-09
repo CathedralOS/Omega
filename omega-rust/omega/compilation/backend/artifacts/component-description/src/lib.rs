@@ -23,16 +23,13 @@
 //! evidence-only `VerifiedComponent` whose `realizes_selected_plan` joins a
 //! build-selected provider plan to the component's exported realizations.
 //! Native compilation may supply the same explicit facts directly when it
-//! publishes a component product. `test_support` (feature `test-support`)
+//! publishes a component product.
 //! builds canonical provider-component modules for consumer tests that need a
 //! real described-and-verified component.
 
 pub mod component_description;
 pub(crate) mod component_verification;
 mod publication;
-#[cfg(any(test, feature = "test-support"))]
-pub mod test_support;
-
 pub use component_description::{
     COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescriptionFacts,
     DescribeError,

@@ -13,7 +13,6 @@
 mod adapter_conformance;
 mod plan_derivation;
 mod requirement_identities;
-mod selection_replay;
 mod specialization_rows;
 
 pub(crate) use adapter_conformance::{

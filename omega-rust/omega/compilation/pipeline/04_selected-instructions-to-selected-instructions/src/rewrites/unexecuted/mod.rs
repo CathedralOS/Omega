@@ -83,10 +83,8 @@
 mod arm_relocation;
 mod boundary_boolean;
 mod boundary_branch;
-mod commuting_accesses;
 mod commuting_relocation;
 mod confluence_relocation;
-mod dead_path;
 mod dead_store;
 mod inflow_relocation;
 mod interchange;

@@ -8,7 +8,6 @@ mod control_flow;
 mod facts;
 mod function;
 mod provenance;
-mod restamp;
 mod scalar_dataflow;
 mod structural_custody;
 pub use function::reconstruct_psi_optimization_function_seed;

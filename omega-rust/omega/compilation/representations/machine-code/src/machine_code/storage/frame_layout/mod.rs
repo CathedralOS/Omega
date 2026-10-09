@@ -5,8 +5,6 @@
 
 mod callee_save;
 mod layout;
-mod spill;
-
 pub use callee_save::{
     FunctionNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveSlot,
     NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageIdentity,

@@ -62,7 +62,3 @@
 //! outcome-scoped surface requirements — never consulting the producer's
 //! `admission` routine; only the module's shared condition-state walk and
 //! boundary-operand audit are common to both sides.
-
-mod admission;
-mod rewrite;
-mod validation;

@@ -64,7 +64,3 @@
 //! block. Validation consumes the proposed program, requires the run to
 //! sit contiguous at the landing index in the destination block, and
 //! restores the complete source by content.
-
-mod admission;
-mod rewrite;
-mod validation;

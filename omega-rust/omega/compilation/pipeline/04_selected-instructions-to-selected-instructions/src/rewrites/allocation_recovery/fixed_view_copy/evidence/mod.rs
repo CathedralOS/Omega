@@ -1,8 +1,6 @@
 //! Optimizer module role: stage group. Segment-home authority for fixed-view-copy policy.
 
 mod compute;
-mod replay;
-
 pub(crate) use compute::derive as derive_positionally;
 use optimization_core::OptimizationWorkUsage;
 use register_homes::{FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId};

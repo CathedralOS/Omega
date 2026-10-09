@@ -11,8 +11,6 @@
 //! assignment into the `CallTargetBinding` rows `bind_call_targets`
 //! consumes, deriving each bound subtree and its canonical crossings through
 //! the same call-graph derivation a resolved call would have used.
-
-mod call_target_bindings;
 mod carry_crossings;
 mod runtime_requirements;
 mod specialization_commitments;

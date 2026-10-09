@@ -104,8 +104,3 @@
 //! settlement remap — rebuilds the demanded function itself, requires the
 //! proposed program to equal it, and restores the complete source by
 //! content.
-
-mod admission;
-mod motion;
-mod rewrite;
-mod validation;

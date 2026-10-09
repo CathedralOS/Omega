@@ -1,5 +1,3 @@
-mod candidates;
-
 use crate::{AllocationLegalityValidationReceipt, ValidatedAllocationLegality};
 use register_homes::{
     AllocationLegalityPlan, allocation_legality_function_digest,

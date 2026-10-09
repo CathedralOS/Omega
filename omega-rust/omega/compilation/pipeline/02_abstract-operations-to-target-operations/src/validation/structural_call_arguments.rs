@@ -8,16 +8,3 @@
 //! self-reported placements, and any producer-side digest are never admission
 //! authority. A retained row bound to no source call operation, or a second
 //! row under an operation key that already has one, is forged by construction.
-
-
-
-mod canonical_roots;
-
-
-
-
-
-
-
-
-

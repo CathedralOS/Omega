@@ -4,7 +4,6 @@
 //! intervals. It does not choose a home, insert a copy, or split a live range.
 
 mod compute;
-mod replay;
 mod validate;
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};

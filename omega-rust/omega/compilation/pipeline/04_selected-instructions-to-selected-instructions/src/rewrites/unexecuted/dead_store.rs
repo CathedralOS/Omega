@@ -147,7 +147,3 @@
 //! the function that audit produces and restores the complete source by
 //! content, so a wrong legality decision fails validation even when the
 //! proposal matches the emitted edit.
-
-mod admission;
-mod rewrite;
-mod validation;

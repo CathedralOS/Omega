@@ -41,7 +41,3 @@
 //! and restores the complete source by content — every other block,
 //! instruction, register, roster row, call, and settlement is retained
 //! bit-identical.
-
-mod admission;
-mod rewrite;
-mod validation;
