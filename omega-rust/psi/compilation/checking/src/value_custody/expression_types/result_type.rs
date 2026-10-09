@@ -246,6 +246,14 @@ fn result_type(
                     join_result_type_references(program, &references, &anonymous)
                 })
                 .and_then(|result| {
+                    // A numeric `as` retains the source operand's operation
+                    // policy beneath its selected raw conversion. The authored
+                    // cast owns the result qualification; transferring the source
+                    // policy here would invent another result operation (or ask
+                    // for a nonexistent float Wrapping carrier).
+                    if call.exact_coercion_target.is_valid() {
+                        return Some(result);
+                    }
                     // Spelled boundary machines are rewritten to calls naming
                     // their entry state. That state belongs to the same exact
                     // callable contract as the original operator declaration;

@@ -642,6 +642,12 @@ pub(super) fn named_float_policy_adapter(
     origin: CheckedValueOrigin,
     format: FloatFormat,
 ) -> CheckedArithmeticPolicyAdapter {
+    // Numeric `as` selects a raw conversion beneath its authored cast. Source
+    // arithmetic policy governs the already-evaluated operand; the cast's
+    // exact formation and result qualification own this conversion's use.
+    if call.exact_coercion_target.is_valid() {
+        return CheckedArithmeticPolicyAdapter::None;
+    }
     let operands: Vec<_> = program
         .expression_table
         .expression_handles(call.arguments)
