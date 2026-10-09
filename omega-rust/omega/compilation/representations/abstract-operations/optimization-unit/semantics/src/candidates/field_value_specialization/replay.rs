@@ -132,20 +132,12 @@ fn forwarded_resolution(
             if !referenced {
                 continue;
             }
-            if matches!(
-                &use_node.operation,
-                O::ByteSequenceRead { .. }
-                    | O::StructuralByteSequenceFieldRead { .. }
-                    | O::ByteSequenceWrite { .. }
-                    | O::ByteSequenceSubslice { .. }
-                    | O::ByteSequenceStore { .. }
-                    | O::StructuralByteSequenceFieldStore { .. }
-                    | O::StructuralByteSequenceFieldByteStore { .. }
-            ) || use_node
-                .operation
-                .runtime_indices()
-                .iter()
-                .any(|(index, _)| *index == result)
+            if use_node.operation.operates_on_byte_sequence_storage()
+                || use_node
+                    .operation
+                    .runtime_indices()
+                    .iter()
+                    .any(|(index, _)| *index == result)
             {
                 return None;
             }

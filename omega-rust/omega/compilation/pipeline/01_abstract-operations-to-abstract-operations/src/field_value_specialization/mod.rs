@@ -95,8 +95,6 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{PlaceId, ScalarType};
 
-use abstract_operations::AbstractOperation as O;
-
 pub(crate) mod accounting;
 mod admission;
 pub(crate) mod propose;
