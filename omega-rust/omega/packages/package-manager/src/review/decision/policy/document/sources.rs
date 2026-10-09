@@ -1,6 +1,7 @@
 //! Source identities and paths; package-origin strings are always quoted data.
 
-use super::output::{Hex, Output};
+use super::output::Output;
+use crate::Hex;
 use crate::declarations::PackageKey;
 use crate::review::PackagePolicyDependencyPath;
 use package_source::{GitTransport, ImmutableSourceResolution, SourceLineage};

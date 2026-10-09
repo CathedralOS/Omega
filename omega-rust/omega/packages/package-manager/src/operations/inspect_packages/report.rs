@@ -1,5 +1,6 @@
 //! Readable inspection only; accepted policy remains historical project data.
 
+use crate::Hex;
 use crate::declarations::PackageKey;
 use crate::lock::PackageLockTarget;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
@@ -432,8 +433,6 @@ impl Write for Output {
     }
 }
 
-struct Hex<'a>(&'a [u8]);
-
 struct Name<'a> {
     source: &'a CanonicalSourceClosureSubject,
     identity: &'a PackageReviewNominalIdentity,
@@ -471,14 +470,5 @@ impl fmt::Display for Name<'_> {
         }
         // Nominal paths are compiler payloads, never decoded or reconstructed here.
         write!(formatter, "{:?}", self.identity.path())
-    }
-}
-
-impl fmt::Display for Hex<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in self.0 {
-            write!(formatter, "{byte:02x}")?;
-        }
-        Ok(())
     }
 }
