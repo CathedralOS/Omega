@@ -411,11 +411,11 @@ fn encode_content_conservation_term(term: &ContentConservationTerm, output: &mut
                 match segment {
                     ContentPlaceSegment::Case(case) => {
                         output.push(3);
-                        encode_string(&case.name, output);
+                        semantic_vocabulary::encode_fingerprint_string(&case.name, output);
                     }
                     ContentPlaceSegment::Field(field) => {
                         output.push(1);
-                        encode_string(&field.name, output);
+                        semantic_vocabulary::encode_fingerprint_string(&field.name, output);
                     }
                     ContentPlaceSegment::FixedIndex(index) => {
                         output.push(2);
@@ -469,12 +469,12 @@ pub fn terminal_projection_report_fingerprint(
                 });
                 crate::codec_bytes::push_encoded(output, (path.len() as u64).to_le_bytes());
                 for segment in path {
-                    encode_string(segment, output);
+                    semantic_vocabulary::encode_fingerprint_string(segment, output);
                 }
             }
             Scalar::Natural(value) => {
                 output.push(3);
-                encode_string(value, output);
+                semantic_vocabulary::encode_fingerprint_string(value, output);
             }
             Scalar::Successor(value) => {
                 output.push(4);
@@ -499,11 +499,11 @@ pub fn terminal_projection_report_fingerprint(
     match algebra.kind {
         semantic_vocabulary::ContentAlgebraKind::IntervalSet => {
             bytes.push(3);
-            encode_string(&algebra.parameter, &mut bytes);
+            semantic_vocabulary::encode_fingerprint_string(&algebra.parameter, &mut bytes);
         }
         semantic_vocabulary::ContentAlgebraKind::CountedQuantity => {
             bytes.push(2);
-            encode_string(&algebra.parameter, &mut bytes);
+            semantic_vocabulary::encode_fingerprint_string(&algebra.parameter, &mut bytes);
         }
     }
     match expression {
@@ -529,11 +529,11 @@ fn encode_algebra(algebra: &ContentAlgebraIdentity, output: &mut Vec<u8>) {
     match algebra {
         ContentAlgebraIdentity::IntervalSet { coordinate_space } => {
             output.push(3);
-            encode_string(coordinate_space, output);
+            semantic_vocabulary::encode_fingerprint_string(coordinate_space, output);
         }
         ContentAlgebraIdentity::CountedQuantity { unit } => {
             output.push(2);
-            encode_string(unit, output);
+            semantic_vocabulary::encode_fingerprint_string(unit, output);
         }
     }
 }
@@ -561,19 +561,19 @@ fn encode_scalar(expression: &ContentScalarExpression, output: &mut Vec<u8>) {
             output.push(1);
             crate::codec_bytes::push_encoded(output, (path.len() as u64).to_le_bytes());
             for segment in path {
-                encode_string(&segment.name, output);
+                semantic_vocabulary::encode_fingerprint_string(&segment.name, output);
             }
         }
         ContentScalarExpression::RuntimeScalarEmbedding(path) => {
             output.push(2);
             crate::codec_bytes::push_encoded(output, (path.len() as u64).to_le_bytes());
             for segment in path {
-                encode_string(&segment.name, output);
+                semantic_vocabulary::encode_fingerprint_string(&segment.name, output);
             }
         }
         ContentScalarExpression::Natural(value) => {
             output.push(3);
-            encode_string(value, output);
+            semantic_vocabulary::encode_fingerprint_string(value, output);
         }
         ContentScalarExpression::Successor(value) => {
             output.push(4);
@@ -594,11 +594,6 @@ fn encode_scalar(expression: &ContentScalarExpression, output: &mut Vec<u8>) {
             encode_scalar(right, output);
         }
     }
-}
-
-fn encode_string(value: &str, output: &mut Vec<u8>) {
-    crate::codec_bytes::push_encoded(output, (value.len() as u64).to_le_bytes());
-    output.extend_from_slice(value.as_bytes());
 }
 
 #[cfg(test)]
