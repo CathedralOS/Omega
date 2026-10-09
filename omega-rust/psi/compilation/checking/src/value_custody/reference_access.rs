@@ -38,6 +38,28 @@ pub(crate) fn receiving_reference_access_refusal(
     required: TypeReferenceHandle,
 ) -> Option<ReferenceAccessRefusal> {
     use language_semantics::ReferenceAccess;
+    // Selection completes one of the retained arm values. Every possible
+    // result must supply the same receiving permission; the destination's
+    // access and the selected subject cannot supply it for an arm. Pattern
+    // effects, coverage and each arm's loans keep their ordinary formation
+    // judgments. Reuse those exact result handles rather than deriving one
+    // access from a representative arm or flattening the source expression.
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(value) {
+        return program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .find_map(|arm| {
+                receiving_reference_access_refusal(
+                    program,
+                    machine,
+                    state,
+                    prior_statements,
+                    arm.value,
+                    required,
+                )
+            });
+    }
     let expected_access = declared_reference_access(program, required);
     let supplied_access = supplied_reference_access(program, value);
     if let Some(borrow) = program.expression_table.borrow_expression(value)
