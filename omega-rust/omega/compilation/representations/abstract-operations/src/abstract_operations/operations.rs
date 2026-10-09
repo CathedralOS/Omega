@@ -1429,3 +1429,12 @@ macro_rules! establish_set_quint_pattern {
             | $crate::AbstractOperation::EstablishStructuralArray { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! scalar_read_membership_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::PrimitiveScalarRead { $($fields)* }
+            | $crate::AbstractOperation::StructuralCaseMembership { $($fields)* }
+            | $crate::AbstractOperation::StructuralScalarFieldRead { $($fields)* }
+    };
+}

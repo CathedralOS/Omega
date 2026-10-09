@@ -193,9 +193,7 @@ pub(crate) fn scalar_case_result_contained(
                 // observe a place whose one consumption the relocation
                 // collapses into the preheader.
                 O::StructuralCase { source, .. }
-                | O::StructuralCaseMembership { source, .. }
-                | O::StructuralScalarFieldRead { source, .. }
-                | O::PrimitiveScalarRead { source, .. }
+                | abstract_operations::scalar_read_membership_triple_pattern!(source, ..)
                 | abstract_operations::byte_read_subslice_triple_pattern!(source, ..)
                 | O::StructuralByteSequenceFieldLength { source, .. }
                     if *source == picked =>

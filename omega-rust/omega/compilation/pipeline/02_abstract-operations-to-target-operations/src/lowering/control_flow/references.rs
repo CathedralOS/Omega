@@ -1268,9 +1268,7 @@ pub(super) fn check_operation_access(
         // formation rules here would invent a stricter source requirement.
         // Storage owners still join the live root and exact physical path,
         // and explicit reference crossings retain the custody walk above.
-        AbstractOperation::PrimitiveScalarRead { .. }
-        | AbstractOperation::StructuralScalarFieldRead { .. }
-        | AbstractOperation::StructuralCaseMembership { .. } => false,
+        abstract_operations::scalar_read_membership_triple_pattern!(..) => false,
         AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => {
             check_projected_access(function, live, types, place, path, None)
         }

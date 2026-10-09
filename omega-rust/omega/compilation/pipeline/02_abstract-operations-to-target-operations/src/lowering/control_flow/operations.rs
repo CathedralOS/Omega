@@ -61,9 +61,7 @@ pub(super) fn lower_operation(
         AbstractOperation::AtomicEvent { event, .. } => (event.place(), false),
         // Observation does not form a loan. Primitive reference crossings
         // still traverse current lineage before their address is selected.
-        AbstractOperation::PrimitiveScalarRead { source, .. }
-        | AbstractOperation::StructuralScalarFieldRead { source, .. }
-        | AbstractOperation::StructuralCaseMembership { source, .. } => (Some(*source), false),
+        abstract_operations::scalar_read_membership_triple_pattern!(source, ..) => (Some(*source), false),
         AbstractOperation::StructuralCase { source, path, .. } => {
             // Explicit reference crossings use the case lowerer's general
             // live descriptor walk, not the whole root's owned-access rule.

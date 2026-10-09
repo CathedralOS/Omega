@@ -120,21 +120,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         } => Ok((*psi_operation, *result)),
-        AbstractOperation::PrimitiveScalarRead {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::StructuralScalarFieldRead {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::StructuralCaseMembership {
-            psi_operation,
-            result,
-            ..
-        } => Ok((*psi_operation, result.value)),
+        abstract_operations::scalar_read_membership_triple_pattern!(psi_operation,result, ..) => Ok((*psi_operation, result.value)),
         AbstractOperation::IeeeFloatConstant {
             psi_operation,
             result,
