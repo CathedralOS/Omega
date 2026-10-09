@@ -319,9 +319,7 @@ impl TerminalExecution<'_> {
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         let Some(terminal_psi::StructuralPlaceDeclaration {
             kind:
                 semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
@@ -613,9 +611,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         let Some(terminal_psi::StructuralPlaceDeclaration {
             kind:
                 semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
@@ -672,9 +668,7 @@ impl TerminalExecution<'_> {
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         let access = machine
             .structural_parameter(destination)
             .filter(|parameter| {

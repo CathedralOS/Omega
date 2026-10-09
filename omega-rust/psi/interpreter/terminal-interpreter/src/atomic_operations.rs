@@ -30,9 +30,7 @@ impl TerminalExecution<'_> {
         field: StructuralFieldId,
         event: AtomicAccessEvent,
     ) -> Result<(), TerminalInterpretError> {
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         machine
             .structural_parameter(place)
             .filter(|parameter| {

@@ -374,9 +374,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         if !machine.structural_places.iter().any(|place| {
             place.id == result.place
                 && place.kind.as_operation_result() == Some((operation.id, result.structural_type))
@@ -1045,9 +1043,7 @@ impl TerminalExecution<'_> {
         let view = self.element_view_values.get(source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
         )?;
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         let access = match result.multiplicity {
             StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
             StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,

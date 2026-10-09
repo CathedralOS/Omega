@@ -327,10 +327,7 @@ impl TerminalExecution<'_> {
         claim_transfers: &[ClaimTransfer],
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
-        let callee = program
-            .machines()
-            .get(&callee_id)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+        let callee = program.verified_machine(callee_id)?;
         if callee.result != TerminalMachineResult::Unit {
             return Err(malformed());
         }
@@ -361,10 +358,7 @@ impl TerminalExecution<'_> {
         claim_transfers: &[ClaimTransfer],
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
-        let callee = program
-            .machines()
-            .get(&callee_id)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+        let callee = program.verified_machine(callee_id)?;
         if callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type) {
             return Err(malformed());
         }
@@ -390,10 +384,7 @@ impl TerminalExecution<'_> {
         claim_origin: crate::execution::ResultClaimOrigin,
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
-        let callee = program
-            .machines()
-            .get(&callee_id)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+        let callee = program.verified_machine(callee_id)?;
         let Some(callee_result) = callee.result.structural() else {
             return Err(malformed());
         };

@@ -22,7 +22,7 @@ pub(crate) use declarations::ProgramDeclarations;
 use crate::instance::TerminalInstance;
 use crate::structural_inputs::TerminalStructuralInputs;
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::{BoundaryMachineId, StructuralTypeId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use terminal_psi::{
@@ -42,6 +42,17 @@ pub(crate) struct AdmittedTerminalProgram<'artifact> {
 impl AdmittedTerminalProgram<'_> {
     pub(crate) fn machines(&self) -> ProgramDeclarations<'_, terminal_psi::TerminalMachine> {
         ProgramDeclarations::new(&self.catalogs.machines)
+    }
+
+    /// The machine keyed `machine` — admission proves the catalog entry
+    /// exists, so a miss reports a defect through the verified-target arm.
+    pub(crate) fn verified_machine(
+        &self,
+        machine: MachineId,
+    ) -> Result<&terminal_psi::TerminalMachine, TerminalInterpretError> {
+        self.machines()
+            .get(&machine)
+            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(machine))
     }
 
     pub(crate) fn structural_types(&self) -> ProgramDeclarations<'_, StructuralTypeDeclaration> {

@@ -49,9 +49,7 @@ impl TerminalExecution<'_> {
                 | crate::byte_sequences::binding::ByteSequenceBinding::MutableOwner { .. }
         );
         let source_length = self.byte_sequence_length(*source)?;
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         // Canonical verification owns unique producer/result IDs. Retain the
         // exact operation declaration here so reuse cannot overwrite a parameter
         // or another producer's storage, even in malformed private runtime state.

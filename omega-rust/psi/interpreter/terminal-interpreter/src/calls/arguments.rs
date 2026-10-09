@@ -79,11 +79,7 @@ impl TerminalExecution<'_> {
         callee: MachineId,
         arguments: &[StructuralArgument],
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&callee)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee))?;
+        let machine = self.program.verified_machine(callee)?;
         if machine.structural_parameters.len() != arguments.len() {
             return Err(TerminalInterpretError::StructuralArgumentCount {
                 expected: machine.structural_parameters.len(),

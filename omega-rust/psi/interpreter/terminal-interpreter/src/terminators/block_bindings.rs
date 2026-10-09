@@ -253,9 +253,7 @@ impl TerminalExecution<'_> {
         arguments: &[ValueId],
         structural_arguments: &[StructuralArgument],
     ) -> Result<BlockBindings, TerminalInterpretError> {
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         let block = machine
             .block(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;

@@ -66,9 +66,7 @@ pub(crate) fn check(
         if !visited.insert(machine_id) {
             continue;
         }
-        let machine = program.machines().get(&machine_id).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(machine_id),
-        )?;
+        let machine = program.verified_machine(machine_id)?;
         let mut blocks = vec![machine.entry];
         let mut visited_blocks = BTreeSet::new();
         while let Some(block_id) = blocks.pop() {

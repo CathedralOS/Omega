@@ -555,11 +555,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let program = std::sync::Arc::clone(&self.program);
         loop {
             while let Some(operation) = program
-                .machines()
-                .get(&self.current_machine)
-                .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
-                    self.current_machine,
-                ))?
+                .verified_machine(self.current_machine)?
                 .block(&self.current)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
                 .operations
@@ -841,11 +837,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 self.next_operation += 1;
             }
             let terminator = &program
-                .machines()
-                .get(&self.current_machine)
-                .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
-                    self.current_machine,
-                ))?
+                .verified_machine(self.current_machine)?
                 .block(&self.current)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
                 .terminator;

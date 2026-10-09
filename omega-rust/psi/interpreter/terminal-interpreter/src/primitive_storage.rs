@@ -1461,9 +1461,7 @@ impl TerminalExecution<'_> {
         &mut self,
         target: semantic_vocabulary::BlockId,
     ) -> Result<(), TerminalInterpretError> {
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         let block = machine
             .block(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;

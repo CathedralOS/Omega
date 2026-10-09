@@ -195,11 +195,7 @@ impl TerminalExecution<'_> {
             .ok_or(malformed())?;
         let target = self
             .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
-                self.current_machine,
-            ))?
+            .verified_machine(self.current_machine)?
             .block(&successor.target)
             .ok_or(malformed())?;
         if target.parameters.len() != successor.payload_fields.len() {
@@ -247,9 +243,7 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched settle_return")
         };
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
             return Err(malformed());
         }
@@ -282,9 +276,7 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched settle_return_unit")
         };
-        let machine = self.program.machines().get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
+        let machine = self.program.verified_machine(self.current_machine)?;
         if machine.result != TerminalMachineResult::Unit {
             return Err(malformed());
         }

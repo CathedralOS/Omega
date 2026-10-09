@@ -57,13 +57,7 @@ impl TerminalExecution<'_> {
         remaining: std::vec::IntoIter<TerminalAffineCleanupAction>,
         continuation: CleanupContinuation,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
-        let callee = self
-            .program
-            .machines()
-            .get(&completed.0.cleanup_machine)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
-                completed.0.cleanup_machine,
-            ))?;
+        let callee = self.program.verified_machine(completed.0.cleanup_machine)?;
         let entry = callee.entry;
         let target = completed.0.cleanup_machine;
         let receiver = completed

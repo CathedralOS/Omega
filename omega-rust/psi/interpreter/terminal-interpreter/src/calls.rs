@@ -366,11 +366,7 @@ impl TerminalExecution<'_> {
                     boundary,
                 ));
             };
-            let callee = self
-                .program
-                .machines()
-                .get(&callee_id)
-                .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+            let callee = self.program.verified_machine(callee_id)?;
             let mut prepared_arguments = boundary_arguments.into_call_arguments(
                 &select_positions(&callee.structural_parameters, &opaque_positions)?,
             )?;
@@ -582,10 +578,7 @@ impl TerminalExecution<'_> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let callee_id = callee;
-        let callee = program
-            .machines()
-            .get(&callee_id)
-            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+        let callee = program.verified_machine(callee_id)?;
         if !callee.structural_parameters.is_empty()
             || !callee.entry_claims.is_empty()
             || !callee.content_entry_claims.is_empty()
