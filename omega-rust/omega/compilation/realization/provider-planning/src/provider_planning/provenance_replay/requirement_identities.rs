@@ -349,31 +349,6 @@ pub(crate) fn satisfied_row_requirement<'typed>(
     .ok()
 }
 
-/// The boundary application a provider plan's schema is instantiated at: a
-/// named implementation's own explicit trait arguments. An exact requirement
-/// edge's plan, whose provider is the data owning the realizing machine,
-/// carries no whole-trait application and receives none.
-pub(crate) fn provider_boundary_arguments(
-    typed: &TypedTrees,
-    boundary: &typed_trees::trait_definition::TraitDefinition,
-    provider_symbol: Option<symbols::SymbolHandle>,
-) -> Vec<typed_trees::types::TypeReferenceHandle> {
-    typed
-        .conformances()
-        .iter()
-        .find(|conformance| {
-            Some(conformance.symbol) == provider_symbol
-                && crate::provider_identity::eligible(conformance)
-                && conformance.trait_symbol == boundary.symbol
-        })
-        .map(|conformance| {
-            typed
-                .type_reference_table
-                .type_reference_handles(conformance.arguments)
-                .to_vec()
-        })
-        .unwrap_or_default()
-}
 
 /// Whether two boundary names denote the same slot: equal, or one is the
 /// unqualified leaf of the other. External-root slot resolution matches

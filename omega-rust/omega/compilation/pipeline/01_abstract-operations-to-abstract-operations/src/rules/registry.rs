@@ -215,10 +215,6 @@ impl OrderedRuleRegistry {
         self.rules.len()
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn is_empty(&self) -> bool {
-        self.rules.is_empty()
-    }
 
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &dyn PsiOptimizationRule> {
         self.rules.iter().map(Arc::as_ref)
