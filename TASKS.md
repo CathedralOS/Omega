@@ -2309,12 +2309,12 @@ crash and native exit behavior.
     conversion cannot stand in for an exact cast.
     Run `float/named_integer_conversion_source_proofs_exit` (78) on
     Linux/Windows; those matching-host results remain unverified.
-    `float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` need native
-    realization for the selected `F32/F64::{classify,is_finite,is_normal,is_subnormal}`
-    calls. Longer probes reached that gap after the comparison-literal repair;
-    **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT** owns stale macOS timeout records.
-    Reproduce the current frontier and require matching-host exit 70 after
-    repair. Late certificate search is gone; do not add a float-specific replay.
+    Retain `float/build_runtime_semantics_twins_x86_baseline` at native and
+    Terminal exit 70. `float/build_runtime_semantics_twins_windows_x64` still
+    needs matching-host native and Terminal exit 70; Linux execution does not
+    establish Windows execution. **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT** owns
+    stale macOS timeout records. Late certificate search is gone; do not add
+    a float-specific replay.
   - **Windows GUI providers.** Verify explicit Windows provider selection and
     native execution for `samples/gui/{window_app,window_demo,windowed_calculator}`.
     Their current named maps select macOS operations; historical stage-05
@@ -2556,11 +2556,9 @@ crash and native exit behavior.
   Those are cross-target production measurements, not execution of foreign
   binaries. Confirm authored exit 70 separately on matching hosts after repair.
 
-  A longer probe reached eight missing native realization diagnostics for
-  `F32/F64::{classify,is_finite,is_normal,is_subnormal}`, not a Unit-plan
-  omission. **OPERATOR-BOUNDARY-CALLS** owns that capability; recheck before
-  attributing a new failure. A timeout identifies an exhausted measurement
-  budget, not a source rejection.
+  Recheck completed production before attributing a new failure;
+  **OPERATOR-BOUNDARY-CALLS** retains matching-host Windows twin execution.
+  A timeout identifies an exhausted measurement budget, not a source rejection.
 
   Acceptance: both macOS rows reflect completed production verdicts at a named
   revision, with no timeout replacing the actual diagnostic. Native execution
