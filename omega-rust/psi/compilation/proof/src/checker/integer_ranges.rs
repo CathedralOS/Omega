@@ -44,17 +44,40 @@ fn integer_range_for_value(
     }
 }
 
-pub(crate) fn integer_range_for_transition_argument(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedTransitionArgumentObligation,
-) -> Option<IntegerRange> {
-    integer_range_for_argument(
-        proof_plan,
-        obligation.argument,
-        obligation.base_type,
-        obligation.argument_constraints,
-    )
+/// `argument`/`base_type`/`argument_constraints` obligation adapter onto the
+/// argument-range spine.
+macro_rules! argument_obligation_range {
+    ($name:ident, $obligation:ty) => {
+        pub(crate) fn $name(
+            proof_plan: &ProofPlan,
+            obligation: &$obligation,
+        ) -> Option<IntegerRange> {
+            integer_range_for_argument(
+                proof_plan,
+                obligation.argument,
+                obligation.base_type,
+                obligation.argument_constraints,
+            )
+        }
+    };
 }
+
+/// `value`/`value_constraints` obligation adapter onto the stored-value spine.
+macro_rules! value_obligation_range {
+    ($vis:vis $name:ident, $obligation:ty) => {
+        $vis fn $name(
+            proof_plan: &ProofPlan,
+            obligation: &$obligation,
+        ) -> Option<IntegerRange> {
+            integer_range_for_value(proof_plan, obligation.value, obligation.value_constraints)
+        }
+    };
+}
+
+argument_obligation_range!(
+    integer_range_for_transition_argument,
+    BoundedTransitionArgumentObligation
+);
 
 pub(crate) fn guarded_integer_range_for_transition_argument(
     proof_plan: &ProofPlan,
@@ -205,17 +228,10 @@ fn complement_refined_binary_range(
     })
 }
 
-pub(crate) fn integer_range_for_call_argument(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedCallArgumentObligation,
-) -> Option<IntegerRange> {
-    integer_range_for_argument(
-        proof_plan,
-        obligation.argument,
-        obligation.base_type,
-        obligation.argument_constraints,
-    )
-}
+argument_obligation_range!(
+    integer_range_for_call_argument,
+    BoundedCallArgumentObligation
+);
 
 fn anonymous_integer_argument_range(
     proof_plan: &ProofPlan,
@@ -233,12 +249,7 @@ fn anonymous_integer_argument_range(
     integer_range_for_literal(&literal)
 }
 
-fn integer_range_for_assignment(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedAssignmentObligation,
-) -> Option<IntegerRange> {
-    integer_range_for_value(proof_plan, obligation.value, obligation.value_constraints)
-}
+value_obligation_range!(integer_range_for_assignment, BoundedAssignmentObligation);
 
 pub(crate) fn guarded_integer_range_for_assignment(
     proof_plan: &ProofPlan,
@@ -621,19 +632,15 @@ fn guard_refined_binary_range(
     })
 }
 
-pub(crate) fn integer_range_for_return_value(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedStateReturnObligation,
-) -> Option<IntegerRange> {
-    integer_range_for_value(proof_plan, obligation.value, obligation.value_constraints)
-}
+value_obligation_range!(
+    pub(crate) integer_range_for_return_value,
+    BoundedStateReturnObligation
+);
 
-pub(crate) fn integer_range_for_initializer(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedInitializerObligation,
-) -> Option<IntegerRange> {
-    integer_range_for_value(proof_plan, obligation.value, obligation.value_constraints)
-}
+value_obligation_range!(
+    pub(crate) integer_range_for_initializer,
+    BoundedInitializerObligation
+);
 
 /// The "know nothing" starting interval for guard refinement: the i64 line.
 /// Sound as a start (guard refinement only intersects, and an end the guard
