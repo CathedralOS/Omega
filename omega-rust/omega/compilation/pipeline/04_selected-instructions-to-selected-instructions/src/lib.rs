@@ -47,6 +47,22 @@ macro_rules! shared_analysis_identity_accessors {
     };
 }
 
+/// The validated analyses a staged optimization keeps: liveness, live
+/// ranges, and allocation legality.
+macro_rules! validated_analysis_accessors {
+    () => {
+        pub const fn liveness(&self) -> &ValidatedLiveness {
+            &self.liveness
+        }
+        pub const fn ranges(&self) -> &ValidatedLiveRanges {
+            &self.ranges
+        }
+        pub const fn legality(&self) -> &ValidatedAllocationLegality {
+            &self.legality
+        }
+    };
+}
+
 mod analyses;
 mod rewrites;
 mod selected_optimization;

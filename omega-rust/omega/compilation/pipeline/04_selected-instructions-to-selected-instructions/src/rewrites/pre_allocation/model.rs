@@ -376,15 +376,7 @@ impl StagedOptimizedPreAllocationStep {
     pub const fn transformation(&self) -> &ValidatedPreAllocationTransformation {
         &self.transformation
     }
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        &self.liveness
-    }
-    pub const fn ranges(&self) -> &ValidatedLiveRanges {
-        &self.ranges
-    }
-    pub const fn legality(&self) -> &ValidatedAllocationLegality {
-        &self.legality
-    }
+    validated_analysis_accessors!();
     pub const fn declined(&self) -> usize {
         self.declined
     }

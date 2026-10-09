@@ -76,15 +76,7 @@ impl StagedOptimizedLiteralFoldStep {
     pub const fn fold(&self) -> &ValidatedLiteralFold {
         &self.fold
     }
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        &self.liveness
-    }
-    pub const fn ranges(&self) -> &ValidatedLiveRanges {
-        &self.ranges
-    }
-    pub const fn legality(&self) -> &ValidatedAllocationLegality {
-        &self.legality
-    }
+    validated_analysis_accessors!();
 }
 
 /// One independently validated selected-lowering attempt before deciding

@@ -75,15 +75,7 @@ impl StagedOptimizedSelectedReanalysis {
         self.transformation.budget_per_pass()
     }
 
-    pub const fn liveness(&self) -> &ValidatedLiveness {
-        &self.liveness
-    }
-    pub const fn ranges(&self) -> &ValidatedLiveRanges {
-        &self.ranges
-    }
-    pub const fn legality(&self) -> &ValidatedAllocationLegality {
-        &self.legality
-    }
+    validated_analysis_accessors!();
     pub const fn custody(&self) -> StagedOptimizedSelectedReanalysisCustodyReceipt {
         self.custody
     }
