@@ -1,4 +1,4 @@
-//! Prepare target families before resolution, then select a product body later.
+//! Prepare target families before resolution and select exact provider members.
 //!
 //! Product source uses the first authored target in name order as each
 //! family's canonical body. Other bodies retain their markers and resolve as
@@ -10,9 +10,10 @@
 //! admitted as provider-selection inputs. Uncatalogued authored targets retain
 //! their own bodies; duplicate members reject across authored and generated units.
 //!
-//! `select_product_target` still swaps typed bodies before checking. Moving
-//! that selection behind Terminal Psi remains separate work; canonical source
-//! preparation alone does not establish the final pipeline boundary.
+//! Product selection never changes typed bodies, names or references. Portable
+//! direct family use awaits a checked family-wide contract and is refused by
+//! Psi; explicit provider requirements retain their existing contracts.
+//! Moving provider selection behind Terminal Psi remains separate work.
 
 use crate::SettledTargetMachineDeclarations;
 use diagnostics::Diagnostic;
@@ -234,192 +235,6 @@ impl SelectedTargetMachineDeclarations {
         Ok(())
     }
 
-    /// Replace each product-scope family's canonical body with `target`'s own
-    /// body before checking: calls that resolved to the canonical body move to
-    /// the target's sibling, which loses its sibling marker and so brings its
-    /// own conformances into selection, while the canonical body becomes that
-    /// target's sibling. A family with no body for `target` stays inert;
-    /// only a call the realized product reaches demands an implementation
-    /// ([`reject_reached_inert_sibling_calls`]). The number of foreign
-    /// implementations does not change that obligation.
-    pub fn select_product_target(
-        &mut self,
-        typed: &mut TypedTrees,
-        target: TargetProfile,
-    ) -> Result<(), Vec<Diagnostic>> {
-        let machine_index = |symbol| typed.machine_position_by_symbol(symbol);
-        let mut diagnostics = Vec::new();
-        let mut replacements = Vec::new();
-        let mut swaps = Vec::new();
-        // Typing already owns family membership. Never rebuild a name-keyed
-        // map here: equal names in different namespaces remain independent.
-        for family in &typed.target_machine_families {
-            let name = family.name.as_str();
-            let Some(canonical) = family
-                .members
-                .iter()
-                .find(|member| member.machine == family.canonical)
-            else {
-                return Err(vec![Diagnostic::error(format!(
-                    "target family `{name}` has no canonical member"
-                ))]);
-            };
-            // A native shape is not deployment identity: Windows and UEFI
-            // share x86-64/COFF but must never select each other's bodies.
-            if TargetProfile::from_canonical_target_name(canonical.target.as_str())
-                .is_ok_and(|resolved| resolved == target)
-            {
-                continue;
-            }
-            let Some(canonical_index) = machine_index(canonical.machine) else {
-                return Err(vec![Diagnostic::error(format!(
-                    "canonical body of target family `{name}` did not survive typing"
-                ))]);
-            };
-            let canonical_origin = self.origin_index(typed, canonical)?;
-            let wanted = family.members.iter().find(|member| {
-                TargetProfile::from_canonical_target_name(member.target.as_str())
-                    .is_ok_and(|resolved| resolved == target)
-            });
-            let Some(wanted) = wanted else {
-                // Demote the canonical body before examining calls. Its mere
-                // presence in a shared source set does not demand realization.
-                swaps.push((canonical_index, None, canonical_origin, None));
-                continue;
-            };
-            let Some(wanted_index) = machine_index(wanted.machine) else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "target `{}` body of machine `{name}` did not survive typing",
-                    wanted.target,
-                )));
-                continue;
-            };
-            let wanted_origin = self.origin_index(typed, wanted)?;
-            let canonical_machine = &typed.machines()[canonical_index];
-            let wanted_machine = &typed.machines()[wanted_index];
-            let canonical_states = typed.machine_states(canonical_machine);
-            let wanted_states = typed.machine_states(wanted_machine);
-            if let (Some(from), Some(to)) = (canonical_states.first(), wanted_states.first()) {
-                replacements.push((from.symbol, to.symbol));
-            }
-            for from in canonical_states.iter().skip(1) {
-                if let Some(to) = wanted_states.iter().find(|state| state.name == from.name) {
-                    replacements.push((from.symbol, to.symbol));
-                }
-            }
-            swaps.push((
-                canonical_index,
-                Some(wanted_index),
-                canonical_origin,
-                Some(wanted_origin),
-            ));
-        }
-        if !diagnostics.is_empty() {
-            return Err(diagnostics);
-        }
-        for (canonical_index, wanted_index, canonical_origin, wanted_origin) in swaps {
-            let canonical_target = typed_trees::name::Identifier::generated(
-                self.all_machine_origins[canonical_origin].target.clone(),
-            );
-            let machines = typed.machines_mut();
-            machines[canonical_index].target = Some(canonical_target);
-            let canonical_symbol = machines[canonical_index].symbol;
-            let demoted_spelling = machines[canonical_index].symbol_spelling().into_owned();
-            let promoted = wanted_index.map(|wanted_index| {
-                machines[wanted_index].target = None;
-                (
-                    machines[wanted_index].symbol,
-                    machines[wanted_index].symbol_spelling().into_owned(),
-                )
-            });
-            // Validation joins each machine to its symbol by spelling, so the
-            // symbol table follows the markers.
-            typed.symbols.rename(canonical_symbol, &demoted_spelling);
-            if let Some((symbol, spelling)) = promoted {
-                typed.symbols.rename(symbol, &spelling);
-            }
-            self.reselect(canonical_origin, wanted_origin);
-        }
-        // Resolution already binds every target-authored body to its own
-        // target's callees. Only portable callers still name family entries.
-        // Rewriting the whole arena would change foreign bodies before they
-        // are checked, judging them against another target's contracts.
-        for machine_position in 0..typed.machines().len() {
-            let machine = &typed.machines()[machine_position];
-            if machine.target.is_some()
-                || typed.target_machine_families.iter().any(|family| {
-                    family
-                        .members
-                        .iter()
-                        .any(|member| member.machine == machine.symbol)
-                })
-            {
-                continue;
-            }
-            let machine = machine.clone();
-            typed.retarget_machine_calls(&machine, &replacements);
-        }
-        Ok(())
-    }
-
-    /// Join the exact resolved member back to source-admission custody.
-    fn origin_index(
-        &self,
-        typed: &TypedTrees,
-        member: &typed_trees::machine::TargetMachineFamilyMember,
-    ) -> Result<usize, Vec<Diagnostic>> {
-        let machine = typed.machine_by_symbol(member.machine);
-        let source = typed.symbols.symbol_provenance_source_span(member.machine);
-        let origin = machine.zip(source).and_then(|(machine, source)| {
-            self.all_machine_origins.iter().position(|origin| {
-                origin.scope == source::DependencyScope::Product
-                    && origin.source == source.source_id
-                    && origin.full_name == machine.name.as_str()
-                    && origin.target == member.target.as_str()
-            })
-        });
-        origin.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "typed target-family member has no retained source declaration",
-            )]
-        })
-    }
-
-    /// Update only the two exact source rows selected by the typed family.
-    fn reselect(&mut self, canonical_index: usize, wanted_index: Option<usize>) {
-        self.all_machine_origins[canonical_index].selected = false;
-        if let Some(wanted_index) = wanted_index {
-            self.all_machine_origins[wanted_index].selected = true;
-        }
-        let canonical = &self.all_machine_origins[canonical_index];
-        let wanted = wanted_index.map(|index| &self.all_machine_origins[index]);
-        self.selected_machine_origins
-            .retain(|(name, target, source)| {
-                !(name == &canonical.full_name
-                    && target == &canonical.target
-                    && *source == canonical.source)
-            });
-        let was_provider_default = self
-            .provider_default_machine_names
-            .iter()
-            .any(|(name, source)| name == &canonical.full_name && *source == canonical.source);
-        self.provider_default_machine_names
-            .retain(|(name, source)| {
-                !(name == &canonical.full_name && *source == canonical.source)
-            });
-        if let Some(wanted) = wanted {
-            self.selected_machine_origins.push((
-                wanted.full_name.clone(),
-                wanted.target.clone(),
-                wanted.source,
-            ));
-            if was_provider_default {
-                self.provider_default_machine_names
-                    .push((wanted.full_name.clone(), wanted.source));
-            }
-        }
-    }
-
     /// Normalize every Product declaration's effects before choosing a row.
     /// Build declarations use their admitted execution scope instead; their
     /// foreign siblings are not programs executed by this activation.
@@ -482,7 +297,7 @@ impl SelectedTargetMachineDeclarations {
         target: TargetProfile,
     ) -> Result<SettledTargetMachineDeclarations, Vec<Diagnostic>> {
         let typed = context.typed;
-        // Source-instance identity survives target-body selection. A shared
+        // Source-instance identity survives target selection. A shared
         // roster must not feed the Build's defaults to Product or vice versa.
         // Missing source records remain a rejoin error below, not an omission.
         let outside_context = |source: source::SourceId| {
@@ -504,6 +319,26 @@ impl SelectedTargetMachineDeclarations {
             .collect();
         let mut origins = Vec::new();
         let mut diagnostics = Vec::new();
+        if context.scope == source::DependencyScope::Product {
+            // Families already retain exact member handles. Product realization
+            // selects those handles; it never promotes a source declaration or
+            // joins a selected body back by its diagnostic name.
+            origins.extend(typed.target_machine_families.iter().flat_map(|family| {
+                family.members.iter().filter_map(|member| {
+                    (context.contains(member.machine)
+                        && TargetProfile::from_canonical_target_name(member.target.as_str())
+                            .is_ok_and(|resolved| resolved == target))
+                    .then(|| crate::SelectedTargetMachineOrigin {
+                        machine: member.machine,
+                        target: member.target.as_str().to_owned(),
+                    })
+                })
+            }));
+            return Ok(SettledTargetMachineDeclarations {
+                provider_defaults: defaults,
+                origins,
+            });
+        }
         for (machine_name, target, source) in &self.selected_machine_origins {
             if outside_context(*source) {
                 continue;
@@ -765,7 +600,7 @@ pub fn reject_reached_inert_sibling_calls(
     let mut reached = vec![false; machines.len()];
     let mut frontier: Vec<usize> = entry
         .and_then(|entry| typed.machine_position_by_symbol(entry))
-        .filter(|position| inert_target(&machines[*position], target).is_none())
+        .filter(|position| inert_target(typed, &machines[*position], target).is_none())
         .into_iter()
         .collect();
     for position in &frontier {
@@ -791,7 +626,7 @@ pub fn reject_reached_inert_sibling_calls(
                     })
                     .filter_map(|(_, realization)| called_machine(typed, *realization));
                 for callee in direct.into_iter().chain(realizations) {
-                    if inert_target(callee, target).is_some() {
+                    if inert_target(typed, callee, target).is_some() {
                         refusals.push((
                             position,
                             Diagnostic::error(unrealized_call_message(
@@ -832,17 +667,40 @@ fn called_machine(
         .or_else(|| typed.machine_holding_state(called_symbol))
 }
 
-/// The authored target of a body this build does not realize. Realized
-/// bodies carry no marker, or one naming the realized profile.
-fn inert_target(machine: &typed_trees::machine::Machine, target: TargetProfile) -> Option<&str> {
-    machine
-        .target
-        .as_ref()
-        .map(|declared| declared.as_str())
-        .filter(|declared| {
-            !TargetProfile::from_canonical_target_name(declared)
-                .is_ok_and(|resolved| resolved == target)
-        })
+/// The authored target of a body this build does not realize. Canonical
+/// members are not implicitly realized just because their suffix is absent.
+fn inert_target<'program>(
+    typed: &'program TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    target: TargetProfile,
+) -> Option<&'program str> {
+    typed.machine_authored_target(machine).filter(|declared| {
+        !TargetProfile::from_canonical_target_name(declared)
+            .is_ok_and(|resolved| resolved == target)
+    })
+}
+
+/// Select declaration candidates without changing the shared source program.
+/// Build has its own admitted execution scope; its selected declaration marker
+/// is resolved during Build preparation, not from the product target.
+pub(crate) fn realizes_machine(
+    context: crate::ProviderPlanningContext<'_>,
+    machine: &typed_trees::machine::Machine,
+    target: Option<&str>,
+) -> bool {
+    if !context.contains(machine.symbol) {
+        return false;
+    }
+    if context.scope == source::DependencyScope::Build {
+        return machine.target.is_none();
+    }
+    let target = target
+        .filter(|target| !target.is_empty())
+        .unwrap_or_else(|| TargetProfile::host().target_name());
+    context
+        .typed
+        .machine_authored_target(machine)
+        .is_none_or(|authored| authored == target)
 }
 
 /// Name every target the callee's family supplies: a family with bodies for

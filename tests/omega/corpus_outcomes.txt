@@ -2117,27 +2117,41 @@ fail/structs/local_record_policy_erasure rejected 258ms expected @2d8ed253669f
 	store in machine `observe` state `entry` local `value` implicitly converts `u8 in Wrapping` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
 fail/structural/foreign_case_record_member rejected 119ms expected @ca8c127c90c5
 	machine `inspect` state `entry` reads a nested member `count`, but data `Scanned` has no field `count` (check the spelling of the field name)
-fail/targets/inactive_external_locator_target_rejected rejected 52ms expected @db1571e34f4a+wt
+fail/targets/inactive_external_locator_target_rejected rejected 637ms expected @d54a6f89c75b+wt
 	ordinary external `via` returned an invalid locator: foreign locator MachODylibSymbol is not applicable to selected target `windows_x86_64`
-fail/targets/reached_foreign_body_through_selected_provider_rejected rejected 2419ms expected @23c026832955+wt
-	machine `RelayValue::read` state `read` calls `Helper::firmware_only`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::firmware_only` for the target being built.
-fail/targets/reached_foreign_family_relay_rejected rejected 2400ms expected @23c026832955+wt
-	machine `Helper::relay` state `relay` calls `Helper::firmware_only`, which is declared only for targets `macos_x86_64`, `uefi_x86_64`. This build realizes `<selected target>`, so those bodies are inert siblings and the call has no implementation; scope the caller to one of those targets, or declare `Helper::firmware_only` for the target being built.
-fail/targets/sibling_body_type_error_rejected rejected 1059ms expected @2d8ed253669f
+fail/targets/reached_foreign_body_through_selected_provider_rejected rejected 21527ms unexpected @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `Helper::firmware_only` referenced by `RelayValue::read`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+fail/targets/reached_foreign_family_relay_rejected rejected 21078ms unexpected @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `Helper::firmware_only` referenced by `Helper::relay`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+fail/targets/sibling_body_type_error_rejected rejected 10935ms expected @d54a6f89c75b+wt
 	machine `Helper::paradigm_internal` state `paradigm_internal` local `wrong` stores a boolean into a `i32` local, which holds a numeric value
-fail/targets/single_target_internal_caller_rejected rejected 831ms expected @2d8ed253669f
-	machine `Main::main` state `main` calls `Helper::paradigm_internal`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::paradigm_internal` for the target being built.
-fail/targets/single_target_internal_package_caller_rejected rejected 330ms expected @c08960bee2b1+wt
-	machine `Main::main` state `main` calls `Helper::paradigm_internal`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::paradigm_internal` for the target being built.
-fail/targets/single_target_internal_package_statement_caller_rejected rejected 318ms expected @c08960bee2b1+wt
-	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
-fail/targets/single_target_internal_statement_caller_rejected rejected 867ms expected @2d8ed253669f
-	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
-fail/targets/target_machine_duplicate_rejected rejected 5ms expected @2740301f86f2+wt
+fail/targets/single_target_internal_caller_rejected rejected 18489ms unexpected @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `Helper::paradigm_internal` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+fail/targets/single_target_internal_package_caller_rejected rejected 17951ms unexpected @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `Helper::paradigm_internal` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+fail/targets/single_target_internal_package_statement_caller_rejected rejected 17805ms unexpected @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `Helper::record_paradigm_event` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+fail/targets/single_target_internal_statement_caller_rejected rejected 17027ms unexpected @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `Helper::record_paradigm_event` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+fail/targets/target_local_precondition_rejected rejected 9428ms expected @d54a6f89c75b+wt
+	machine `read` state `entry` value call to `private_value` violates required fact `input == 2`: the instantiated fact is structurally false
+fail/targets/target_machine_duplicate_rejected rejected 55ms expected @d54a6f89c75b+wt
 	machine `Helper::pick` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
-fail/targets/unrealized_conformance_rejected rejected 929ms expected @20ecc46e082d+wt
+fail/targets/unrealized_conformance_rejected rejected 11790ms expected @d54a6f89c75b+wt
 	machine `Helper::value` state `value` does not satisfy trait `Predicate` machine `value`: expected return `bool`, got `u32`
-fail/targets/unrealized_family_signature_rejected rejected 17ms expected @2740301f86f2+wt
+fail/targets/unrealized_family_signature_rejected rejected 155ms expected @d54a6f89c75b+wt
 	machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature
 fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 145ms expected @e5560874d7d4+wt
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
@@ -3962,14 +3976,31 @@ pass/structural/sum_attachment_receiver_compile checked 288ms @2d8ed253669f
 pass/targets/aarch64_hfa_entry_argument checked 1288ms @2d8ed253669f
 pass/targets/efi_vtable_call checked 638ms @2d8ed253669f
 pass/targets/private_target_supplies_remain_disclosed checked 1493ms check-target:macos_arm64 @db1571e34f4a+wt
+pass/targets/provider_family_private_contracts_exit checked 36557ms check-target:macos_arm64 @d54a6f89c75b+wt
 pass/targets/retained_target_family_bodies checked 1604ms check-target:macos_arm64 @2740301f86f2+wt
-pass/targets/retained_target_provider_family_exit checked 1613ms check-target:macos_arm64 @8b63d5091f67
-pass/targets/single_target_internal_package_same_target_caller checked 1208ms check-target:macos_arm64 @21cec730b99e+wt
-pass/targets/single_target_internal_same_target_caller checked 1238ms check-target:macos_arm64 @2d8ed253669f
+pass/targets/retained_target_provider_family_exit rejected 18215ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+pass/targets/single_target_internal_package_same_target_caller rejected 18829ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+pass/targets/single_target_internal_same_target_caller rejected 18967ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
 pass/targets/sysv_mixed_aggregate_entry checked 1308ms @2d8ed253669f
-pass/targets/target_body_call_contracts_exit checked 708ms check-target:macos_arm64 @2d8ed253669f
-pass/targets/target_machine_gating_exit checked 675ms check-target:macos_arm64 @63377f7122bb+wt
-pass/targets/unreached_foreign_body_caller_exit checked 4122ms check-target:macos_arm64 @23c026832955+wt
+pass/targets/target_body_call_contracts_exit rejected 20881ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `Helper::run` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
+pass/targets/target_family_entry_exit checked 42426ms check-target:macos_arm64 @d54a6f89c75b+wt
+pass/targets/target_machine_gating_exit rejected 20414ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `Helper::pick` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `Helper::delta` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
+pass/targets/unreached_foreign_body_caller_exit rejected 21085ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d54a6f89c75b+wt
+	unimplemented: portable target-family contract for `Helper::firmware_only` referenced by `Helper::firmware_bridge`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `Helper::firmware_only` referenced by `FirmwareValue::read`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
+	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
 pass/tasks/task_runtime_machine_selection_compile checked 309ms @e95f2c8d09cf+wt
 pass/terminal_psi/content_custody_exit checked 301ms @2d8ed253669f
 pass/terminal_psi/integer_control_contract checked 735ms @2d8ed253669f

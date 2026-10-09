@@ -23,6 +23,7 @@
 
 pub(crate) mod call_acknowledgements;
 pub(crate) mod program_validation;
+mod target_families;
 
 use crate::checking::program_validation::prepare_typed_program;
 use crate::checks;
@@ -271,6 +272,7 @@ fn check_program(
 
     let mut checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;
+    target_families::reject_unbound_family_references(&checked)?;
     crate::operators::retain_boundary_body_candidates(&mut checked)
         .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
     Ok(checked)

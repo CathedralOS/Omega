@@ -29,10 +29,10 @@ pub(crate) fn derive_provider_plans(
     let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
     // Typed trees retain every authored body and its conformances. This
-    // transitional settlement derives only the promoted realization's rows;
+    // transitional settlement derives only the requested realization's rows;
     // semantic declaration queries must never perform that selection for us.
     for machine in typed.machines() {
-        if machine.target.is_some() || !context.contains(machine.symbol) {
+        if !crate::target_machines::realizes_machine(context, machine, selected_target) {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
@@ -261,8 +261,11 @@ fn derive_named_provider_plans(
             for row in rows {
                 let machine = typed.machines().iter().find(|machine| {
                     machine.symbol == row.realization_machine
-                        && machine.target.is_none()
-                        && context.contains(machine.symbol)
+                        && crate::target_machines::realizes_machine(
+                            context,
+                            machine,
+                            selected_target,
+                        )
                         && typed.symbols.symbol_package_identity(machine.symbol) == origin_package
                 })?;
                 if typed.machine_states(machine).first()?.symbol != row.realization_state {
@@ -348,7 +351,7 @@ fn derive_top_level_requirement_plans(
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if machine.target.is_some() || !context.contains(machine.symbol) {
+        if !crate::target_machines::realizes_machine(context, machine, selected_target) {
             continue;
         }
         // A specialization instance is minted from its authored template,
@@ -524,7 +527,7 @@ fn derive_boundary_operator_plans(
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if machine.target.is_some() || !context.contains(machine.symbol) {
+        if !crate::target_machines::realizes_machine(context, machine, selected_target) {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
@@ -544,9 +547,7 @@ fn derive_boundary_operator_plans(
             // A token-bearing requirement has a signature view for overload
             // matching, not a second provider slot. Its machine declaration
             // owns the schema and provenance in derive_top_level_requirement_plans.
-            if typed
-                .machine(operator.symbol).is_some()
-            {
+            if typed.machine(operator.symbol).is_some() {
                 continue;
             }
             let binding = match (machine.supply_mode, clause.external_binding) {

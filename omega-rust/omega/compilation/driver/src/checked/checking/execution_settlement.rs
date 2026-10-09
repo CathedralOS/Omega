@@ -28,7 +28,7 @@ pub(crate) fn check_selected_execution(
 > {
     let (
         mut typed,
-        mut selected_target_machine_declarations,
+        selected_target_machine_declarations,
         pending_pre_checks,
         computed_build_config,
         mut admission,
@@ -46,12 +46,6 @@ pub(crate) fn check_selected_execution(
     let selected_native_target = selected_target_profile
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
-    // The frontend typed every family's canonical body; this target's own
-    // body replaces it before anything target-specific reads the program.
-    selected_target_machine_declarations.select_product_target(
-        &mut typed,
-        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-    )?;
     let boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &mut typed,
@@ -90,17 +84,6 @@ pub(crate) fn check_selected_execution(
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
-    )?;
-    // Only the selected entry's reach, through its selected providers,
-    // demands this target's bodies; portable code it never reaches stays
-    // checked source, not a missing realization.
-    provider_planning::target_machines::reject_reached_inert_sibling_calls(
-        &typed,
-        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-        selected_program_entry
-            .as_ref()
-            .map(|entry| entry.machine_symbol()),
-        &selected_provider_provenance,
     )?;
     let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
     let provider_selection_target =
@@ -176,6 +159,17 @@ pub(crate) fn check_selected_execution(
         retained: settled_check,
         ..
     } = program;
+    // Check the common source before asking which declarations this product
+    // realizes. In particular, a missing portable family contract is not a
+    // missing target body, and must not be disguised as one by reach analysis.
+    provider_planning::target_machines::reject_reached_inert_sibling_calls(
+        &program.typed,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
+        selected_program_entry
+            .as_ref()
+            .map(|entry| entry.machine_symbol()),
+        &selected_provider_provenance,
+    )?;
     let mut checked = prepared.bind(program, provider_request)?;
     // Product target bodies remain checked input to Terminal production.
     // Only Omega realization may discard another target's implementation.

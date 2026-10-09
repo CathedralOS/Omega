@@ -650,9 +650,36 @@ pub fn select_compiler_program_entry(
     realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
-    let Some(selected) = selected_program_entry_machine(root_bindings, selected_profile)? else {
+    let Some(mut selected) = selected_program_entry_machine(root_bindings, selected_profile)?
+    else {
         return Ok(None);
     };
+    // A root binding names the family, not the body that happens to own its
+    // canonical spelling. Select the exact entry handle without changing the
+    // source graph; every body still undergoes the ordinary Psi checks.
+    if let Some(family) = typed.target_machine_families.iter().find(|family| {
+        family
+            .members
+            .iter()
+            .any(|member| member.machine == selected.machine_symbol)
+    }) {
+        let profile = selected.slot.owner;
+        let member = family
+            .members
+            .iter()
+            .find(|member| {
+                target::TargetProfile::from_canonical_target_name(member.target.as_str())
+                    .is_ok_and(|target| target == profile)
+            })
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "entry family `{}` has no body for target `{}`",
+                    family.name,
+                    profile.target_name(),
+                ))]
+            })?;
+        selected.machine_symbol = member.machine;
+    }
     let source_signature = validate_selected_program_entry_shape(typed, selected)?;
     // Only an exact selected target activates an entry. Resolve its physical
     // contract's accepted package role here, never from the host or a caller-

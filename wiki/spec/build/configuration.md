@@ -220,10 +220,15 @@ implementations of uncalled boundary-trait requirements. Native installation mat
 actual callable IDs remaining in the selected deployment's execution scope,
 not whichever candidate first shares a portable overload identity. Generic and
 named per-member conformance transport remains incomplete. The compiler
-still selects the realized target's source roles before checking, evaluates
-the Build per target, and settles providers on checked trees before Terminal
-Psi. Portable family-call binding and complete family transport through the
-remaining entry routes are unfinished. The
+still evaluates the Build and checks source inside the per-target route, and
+settles providers on checked trees before Terminal Psi. It no longer rewrites
+source roles or calls to select a target body: providers and roots select exact
+member handles. Portable direct family references currently reject with an
+`unimplemented:` diagnostic, including references from contracts or static
+arguments. They need a family-wide callable contract, not the canonical member's
+body-derived guarantees. Explicit boundary requirements and target-local calls
+remain supported. Portable family-call binding and complete family transport
+through the remaining entry routes are unfinished. The
 [pipeline route items](../../../TASKS.md#pipeline-route) own the repair.
 
 ## Directional wire compatibility

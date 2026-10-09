@@ -56,7 +56,7 @@ impl VerifiedNativeArtifactInput {
     /// this does not redirect calls or substitute a body at a family head.
     /// A surviving call to an excluded member still fails ordinary closure
     /// admission. Portable family-call binding is a separate pending producer
-    /// change: the current source continuation already selected those calls.
+    /// change: source checking refuses such uses until that contract exists.
     fn select_target_families(mut self, profile: target::TargetProfile) -> Self {
         let members = self
             .optimization_input

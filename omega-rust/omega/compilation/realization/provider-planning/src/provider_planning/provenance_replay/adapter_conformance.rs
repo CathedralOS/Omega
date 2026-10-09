@@ -151,11 +151,7 @@ pub fn exact_checked_adapter<'typed>(
         .machines()
         .iter()
         .filter(|candidate| {
-            // Target selection leaves inactive siblings in the checked source
-            // set. They share the callable identity but cannot supply the
-            // selected context; only the active declaration has no target tag.
-            candidate.target.is_none()
-                && context.contains(candidate.symbol)
+            crate::target_machines::realizes_machine(context, candidate, Some(&plan.target))
                 && typed
                     .machine_callable_identity_text(candidate)
                     .is_some_and(|identity| identity == *machine_identity)

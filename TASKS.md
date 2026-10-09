@@ -2053,8 +2053,8 @@ crash and native exit behavior.
   lint alone does not close this outcome.
   - Remove the current violations rather than grandfathering them:
     `compiler.rs` loops targets around checking and Terminal production;
-    `checked/checking/execution_settlement.rs` selects a target body, plans
-    providers, folds target layout, checks and prunes siblings before Terminal;
+    `checked/checking/execution_settlement.rs` plans providers and folds target
+    layout before checking and Terminal production;
     `realization/provider-planning` depends on syntax/typed/checked trees,
     stage 04, validation and the checked interpreter; Omega stage 00 consumes
     checked entry and source-shaped callback ABI/resource placements beside the
@@ -2405,9 +2405,15 @@ crash and native exit behavior.
     canonical Terminal storage stays complete. Its concrete provider catalog
     includes foreign checked members and their uncalled satisfied requirements;
     execution matches candidate IDs present in the selected deployment scope.
-  - The frontier: `select_product_target` still swaps roles and retargets
-    portable source calls before checking. Replace that selection with explicit
-    portable family-call custody, finish generic and named per-member
+  - The frontier: portable direct family references reject `unimplemented:`.
+    Source body/name/call rewriting is removed; provider and root selection
+    read exact member handles without changing the shared source graph. Carry
+    a family-wide callable contract through checking and Terminal dispatch;
+    checking must not import one member's private return-range or proof facts.
+    This also blocks std's portable Console adapters and their consumers.
+    Existing missing-target rejection fixtures retain their original expected
+    diagnostics but currently stop at the missing-contract refusal; restore
+    those checks as part of the same outcome. Finish generic and named per-member
     conformance transport, and publish target-default effects in the source-free
     Build companion. Ensure
     every entry/result lowering route uses the same complete family catalog;

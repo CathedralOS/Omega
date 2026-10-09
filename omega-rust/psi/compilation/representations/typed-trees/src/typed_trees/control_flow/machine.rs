@@ -7,7 +7,21 @@ use arena::HandleSpan;
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
 
-mod references;
+impl crate::TypedTrees {
+    /// Authored target membership, including the canonical member whose source
+    /// spelling has no sibling suffix. Selection never changes this identity.
+    pub fn machine_authored_target<'program>(
+        &'program self,
+        machine: &'program Machine,
+    ) -> Option<&'program str> {
+        self.target_machine_families
+            .iter()
+            .flat_map(|family| &family.members)
+            .find(|member| member.machine == machine.symbol)
+            .map(|member| member.target.as_str())
+            .or_else(|| machine.target.as_ref().map(|target| target.as_str()))
+    }
+}
 
 /// Whether this declaration's implementation has entered typed storage.
 /// Deferred states retain their real interfaces, not executable empty bodies.
@@ -129,20 +143,12 @@ impl Machine {
 /// One target-scoped machine family: the authored contract path plus every
 /// target's checked body.
 ///
-/// The frontend installs one target's body at the authored path and lowers
-/// every other target's body as a sibling declaration (`<path>::<target>`),
-/// and `SelectedTargetMachineDeclarations::select_product_target` later
-/// re-marks those roles for the realized target — so neither the sibling
-/// marker nor the symbol spelling is a durable family record. This record
-/// is: typing produces it from resolved family handles before the realized
-/// target's swap runs. It names each member's machine symbol, which stays
-/// valid across the swap's renames. `members` keys every authored body by
-/// its authored target name, including the canonical one; the canonical
-/// member's `Machine::target` reads `None` until a swap for another target
-/// re-marks it. The current consumer still swaps bodies before checking;
-/// retaining every body through lowering and Terminal Psi does not yet retire
-/// that early selection. A family owns a contract head even when none of its
-/// deployment tags belongs to the native target catalog.
+/// The frontend places one canonical member at the authored path and gives
+/// siblings distinct symbols. Those roles remain stable across realizations.
+/// This roster, not the presence of a sibling suffix, owns target membership.
+/// A canonical body is not a portable contract: direct portable references
+/// remain unsupported until checking carries that independent contract.
+/// Families also retain deployment tags unknown to the native target catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetMachineFamily {
     /// The authored contract path every member implements
@@ -150,10 +156,8 @@ pub struct TargetMachineFamily {
     pub name: Identifier,
     /// The machine the frontend placed at the family path: the canonical
     /// body, selected in target-name order independently of the native catalog.
-    /// Portable call sites bind this symbol. When `select_product_target`
-    /// runs for another target it renames the realized member's symbol to
-    /// the family path and demotes this one; `canonical` still names the
-    /// originally canonical body.
+    /// Portable references initially resolve here, but that resolution alone
+    /// never authorizes using this member's body as a family-wide guarantee.
     pub canonical: SymbolHandle,
     /// All members share the declaration's execution phase.
     pub purpose: MachinePurpose,
