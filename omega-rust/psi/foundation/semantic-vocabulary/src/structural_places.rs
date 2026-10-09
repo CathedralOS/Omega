@@ -59,6 +59,23 @@ pub enum StructuralPlaceKind {
 }
 
 impl StructuralPlaceKind {
+    /// The exact carrier retained by a declared producer home. Parameter and
+    /// result-slot kinds instead receive their type from their signature.
+    pub fn produced_structural_type(&self) -> Option<StructuralTypeId> {
+        match self {
+            Self::OperationResult {
+                structural_type, ..
+            }
+            | Self::ByteSequenceLiteral {
+                structural_type, ..
+            }
+            | Self::TrivialAffineLocal {
+                structural_type, ..
+            } => Some(*structural_type),
+            _ => None,
+        }
+    }
+
     /// The producing operation and declared structural type when the root is an
     /// operation result.
     pub fn as_operation_result(&self) -> Option<(crate::OperationId, StructuralTypeId)> {

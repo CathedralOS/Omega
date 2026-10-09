@@ -29,6 +29,7 @@ mod record_captures;
 mod scalar_control;
 mod source_values;
 mod state_emission;
+mod straight_line;
 
 pub(crate) use scalar_control::ScalarReturnCleanup;
 
@@ -135,7 +136,9 @@ pub(crate) struct StructuralValueOwner {
 impl Evaluation {
     /// The evaluation's scalar bindings extended with the storage, local,
     /// parameter and observation context every lowering walker needs.
-    fn contextual_bindings(&self) -> crate::expression_preparation::bindings::ScalarBindings {
+    pub(crate) fn contextual_bindings(
+        &self,
+    ) -> crate::expression_preparation::bindings::ScalarBindings {
         self.scalar_bindings
             .clone()
             .with_primitive_storage(&self.primitive_storage)
@@ -1162,6 +1165,17 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Vec<ValueDeclaration>, LoweringError> {
+        if let Some(completed) = self.complete_straight_line(
+            states,
+            entry_index,
+            result_types,
+            values,
+            next_value,
+            operations,
+            calls,
+        )? {
+            return Ok(completed);
+        }
         let source_types = values
             .iter()
             .map(|value| value.value_type())

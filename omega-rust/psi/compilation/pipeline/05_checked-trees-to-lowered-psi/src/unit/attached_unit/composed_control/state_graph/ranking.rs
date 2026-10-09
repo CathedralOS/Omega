@@ -1,21 +1,22 @@
 //! Retain the selected source view as natural ranks over the emitted graph.
 //!
 //! Each ranked state names one checked measure over its own parameters. The
-//! state's entry evaluates it once; every successor edge into a ranked state
-//! evaluates the same measure over that edge's actual arguments. The verifier
+//! state's entry evaluates it once through the ordinary scalar scheduler. Each
+//! successor evaluates that computation over already completed actual values. The
+//! verifier
 //! substitutes the arriving evaluation for the target's entry evaluation and
 //! proves the edge's comparison.
 //!
 //! A distance (`Nat::BoundedDistance`, `Nat::IncreasingTo`) ranks as its
 //! climbing subject's distance below the carrier ceiling, `MAX - lower`, by
-//! ordinary exact subtraction from one `IntegerConstant`. The rank must be
-//! total at a loop header, where the subjects may already have crossed
+//! ordinary exact subtraction from the carrier's `IntegerConstant`. The rank
+//! must be total at a loop header, where the subjects may already have crossed
 //! (`count(i, j)` entered with `j > i`); `MAX - lower` always is, and its own
 //! subtraction obligation is just the carrier bound. Every edge the checker
 //! proves keeps `upper` and advances `lower`, so along a cycle this rank and
 //! the view's `upper - lower` differ by the invariant `MAX - upper` and order
-//! every edge alike. Each successor edge reuses its source state's ceiling
-//! value, so an edge's decrease is `IntegerSubtractAntitone` over one minuend
+//! every edge alike. The retained computation gives entry and arrival the same
+//! constant denotation, so decrease is `IntegerSubtractAntitone` over one minuend
 //! with `IntegerAddOrder` for the advance. Rejected: `SaturatingIntegerSubtract`
 //! states the view literally, but the kernel keeps saturation opaque, so no
 //! edge comparison over it certifies; ranking only after a published
@@ -26,16 +27,14 @@
 //! rank. No synthetic length parameter or new proof rule is needed.
 //! A constant bound (`Nat::IncreasingTo(8)`) is the same ceiling distance with
 //! no bound lane at all.
-use super::super::super::super::{BlockId, IntegerType, PrimitiveType, TerminalRankedScc, ValueId};
-use super::super::super::{OperationResult, TerminalMachine, Terminator, unsupported};
+use super::super::super::super::{BlockId, IntegerType, TerminalRankedScc, ValueId};
+use super::super::super::{TerminalMachine, Terminator, unsupported};
 use super::super::LoweringError;
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
-use crate::emission::operation_emission::buffer::OperationBuffer;
-use checked_trees::CheckedNaturalRankMeasure;
 use std::collections::BTreeMap;
 use terminal_psi::{
-    OperationKind, TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
-    TerminalNaturalRankEdge, find_structural_type,
+    TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    TerminalNaturalRankEdge,
 };
 
 /// A machine with a termination witness needs its ranks on the graph: stage
@@ -51,201 +50,85 @@ pub(super) fn require_witness_ranks(
     Ok(())
 }
 
-pub(super) fn parameter_position(
+/// Find the retained executable observation, independent of the source measure's
+/// proof/order descriptor. Its arena node keeps the signed integer carrier.
+pub(super) fn observation<'a>(
+    checked: &'a checked_trees::CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
-) -> Option<usize> {
-    let rank = plan.natural_ranks.iter().find(|rank| {
-        rank.state == state.state && rank.measure == CheckedNaturalRankMeasure::ByteSequenceLength
-    })?;
-    state
-        .structural_parameters
-        .iter()
-        .position(|parameter| parameter.position == rank.parameter_position)
-}
-
-/// Observe the ranked descriptor in its declared units on both state entry
-/// and arrival. Slice::Length counts elements for element views, not bytes;
-/// using the same carrier selection at both sites preserves substitution.
-pub(super) fn emit_view_rank(
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    source: semantic_vocabulary::PlaceId,
-    types: &[terminal_psi::StructuralTypeDeclaration],
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<ValueId, LoweringError> {
-    let declaration = find_structural_type(types, structural_type).ok_or(
-        LoweringError::Unsupported("view rank has no declared carrier"),
-    )?;
-    match declaration.shape {
-        terminal_psi::StructuralTypeShape::ByteSequence(_) => Ok(
-            crate::emission::operation_emission::emit_byte_length(source, next_value, operations),
-        ),
-        terminal_psi::StructuralTypeShape::ElementView { .. } => Ok(
-            crate::emission::operation_emission::expressions::emit_element_length(
-                source, next_value, operations,
-            ),
-        ),
-        _ => unsupported("view rank requires a byte or element sequence carrier"),
-    }
-}
-
-/// A scalar rank's operands as positions in the state's scalar parameter
-/// lane, which is also the order of an arriving edge's scalar arguments.
-#[derive(Clone, Copy)]
-pub(super) enum ScalarRank {
-    Parameter(usize),
-    CeilingDistance {
-        lower: usize,
-        primitive_type: PrimitiveType,
-    },
-}
-
-/// One state's evaluated scalar rank, with the ceiling its successor edges
-/// subtract from so each edge compares two differences of one minuend.
-#[derive(Clone, Copy)]
-pub(super) struct ScalarRankValue {
-    pub(super) rank: ValueId,
-    pub(super) ceiling: Option<ValueId>,
-}
-
-pub(super) fn scalar_rank(
-    plan: &CheckedComposedUnitControlMachinePlan,
-    state: &CheckedComposedUnitControlStatePlan,
-) -> Option<ScalarRank> {
-    let rank = plan
+) -> Result<Option<&'a checked_trees::CheckedScalarComputationRoot>, LoweringError> {
+    let Some(rank) = plan
         .natural_ranks
         .iter()
-        .find(|rank| rank.state == state.state)?;
-    let lane = |position: u32, primitive_type: PrimitiveType| {
-        state.scalar_parameters.iter().position(|parameter| {
-            parameter.source_position == position && parameter.primitive_type == primitive_type
-        })
+        .find(|rank| rank.state == state.state)
+    else {
+        return Ok(None);
     };
-    match rank.measure {
-        CheckedNaturalRankMeasure::ByteSequenceLength => None,
-        CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
-            lane(rank.parameter_position, primitive_type).map(ScalarRank::Parameter)
-        }
-        CheckedNaturalRankMeasure::UnsignedDistance {
-            primitive_type,
-            upper_position,
-            ..
-        } => {
-            // The bound stays a checked scalar lane though the ceiling
-            // distance does not read it: plan and graph name both subjects.
-            lane(upper_position, primitive_type)?;
-            Some(ScalarRank::CeilingDistance {
-                lower: lane(rank.parameter_position, primitive_type)?,
-                primitive_type,
-            })
-        }
-        // A constant bound has no lane; the ceiling distance reads only the
-        // cursor either way.
-        CheckedNaturalRankMeasure::ConstantDistance { primitive_type, .. } => {
-            Some(ScalarRank::CeilingDistance {
-                lower: lane(rank.parameter_position, primitive_type)?,
-                primitive_type,
-            })
-        }
-        CheckedNaturalRankMeasure::CollectionLengthDistance {
-            collection_position,
-            ..
-        } => {
-            state
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.position == collection_position)?;
-            Some(ScalarRank::CeilingDistance {
-                lower: lane(rank.parameter_position, PrimitiveType::U64)?,
-                primitive_type: PrimitiveType::U64,
-            })
-        }
+    let mut roots = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| {
+            root.state == state.state
+                && root.root == rank.observation
+                && root.statement_ordinal == 0
+                && root.role == checked_trees::CheckedScalarExpressionRole::RankObservation
+        });
+    let root = roots.next().ok_or(LoweringError::Unsupported(
+        "Unit graph rank lost its retained observation root",
+    ))?;
+    if roots.next().is_some() || !rank.observation.is_valid() {
+        return unsupported("Unit graph rank duplicates its observation custody");
     }
+    Ok(Some(root))
 }
 
-/// Evaluate one scalar rank over a state's scalar lane: its entry values, or
-/// an arriving edge's arguments in the same order. A ceiling distance emits
-/// its constant once per state; an arrival passes that state's `ceiling`.
-pub(super) fn emit_scalar_rank(
-    rank: ScalarRank,
-    lane: &[ValueId],
-    ceiling: Option<ValueId>,
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<ScalarRankValue, LoweringError> {
-    let operand = |position: usize| {
-        lane.get(position)
-            .copied()
-            .ok_or(LoweringError::Unsupported(
-                "Unit graph rank lost its scalar operand",
-            ))
-    };
-    match rank {
-        ScalarRank::Parameter(position) => Ok(ScalarRankValue {
-            rank: operand(position)?,
-            ceiling: None,
-        }),
-        ScalarRank::CeilingDistance {
-            lower,
-            primitive_type,
-        } => {
-            let scalar_type = crate::emission::scalar_types::integer_scalar_type(primitive_type)?;
-            let Some(integer_type) = scalar_type.as_integer() else {
-                return unsupported("Unit graph distance rank needs an integer carrier");
-            };
-            let ceiling = match ceiling {
-                Some(ceiling) => ceiling,
-                None => crate::emission::operation_emission::expressions::emit_scalar_leaf(
-                    OperationKind::IntegerConstant {
-                        value: integer_type.maximum_value(),
-                    },
-                    scalar_type,
-                    next_value,
-                    operations,
-                ),
-            };
-            let lower = operand(lower)?;
-            let id = crate::terminal_identities::value_id(*next_value);
-            *next_value = next_value
-                .checked_add(1)
-                .ok_or(LoweringError::Unsupported("Unit graph rank value overflow"))?;
-            let operation = operations.allocate();
-            operations.push(terminal_psi::Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type,
-                }),
-                kind: crate::emission::operation_emission::integer::LoweredIntegerBinaryKind::ExactSubtract
-                    .operation(operation, ceiling, lower),
-            });
-            Ok(ScalarRankValue {
-                rank: id,
-                ceiling: Some(ceiling),
-            })
-        }
-    }
-}
-
-/// The subject's position among the successor edge's emitted structural
-/// arguments: the persistent receiver and claim-aliased parameters are not
-/// edge arguments, so neither occupies a slot here.
-pub(super) fn view_argument_position(
-    plan: &CheckedComposedUnitControlMachinePlan,
+/// Bind a state telescope to completed values without changing their physical
+/// ownership. Structural actuals include retained receiver aliases in the same
+/// dense order as the checked structural formals; their source positions remain
+/// independent of that lane. The backing namespace belongs to the caller.
+pub(super) fn formal_bindings(
+    checked: &checked_trees::CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
-    aliased: &BTreeMap<u32, u32>,
-) -> Option<usize> {
-    let parameter = &state.structural_parameters[parameter_position(plan, state)?];
-    state
+    bindings: &crate::expression_preparation::bindings::ScalarBindings,
+    scalar_slots: &[(usize, semantic_vocabulary::ScalarType)],
+    structural_actuals: &[(
+        terminal_psi::StructuralArgument,
+        semantic_vocabulary::StructuralTypeId,
+    )],
+) -> Result<crate::expression_preparation::bindings::ScalarBindings, LoweringError> {
+    if scalar_slots.len() != state.scalar_parameters.len()
+        || structural_actuals.len() != state.structural_parameters.len()
+    {
+        return unsupported("Unit graph observation lost its complete formal telescope");
+    }
+    let (_, declaration) = crate::declarations::state_declaration(checked, state.state)?;
+    let parameters = checked.state_parameters(declaration);
+    let formals = state
         .structural_parameters
         .iter()
-        .enumerate()
-        .filter(|(dense, _)| !aliased.contains_key(&(*dense as u32)))
-        .position(|(_, candidate)| candidate.position == parameter.position)
+        .zip(structural_actuals)
+        .map(|(formal, (argument, structural_type))| {
+            let parameter =
+                parameters
+                    .get(formal.position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph observation lost its exact structural formal",
+                    ))?;
+            Ok(
+                crate::expression_preparation::bindings::CapturedStructuralFormal {
+                    source_position: formal.position,
+                    symbol: parameter.symbol,
+                    argument: argument.clone(),
+                    structural_type: *structural_type,
+                },
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    bindings.capture_formal_observations(scalar_slots, &formals)
 }
 
 pub(super) fn retain(

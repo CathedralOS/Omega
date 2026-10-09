@@ -246,11 +246,6 @@ impl<'a> Expansion<'a> {
         result_type: QualifiedScalarType,
         target: usize,
     ) -> Result<usize, LoweringError> {
-        let site = Site {
-            state,
-            statement,
-            bindings,
-        };
         let mut roots = self
             .checked
             .facts
@@ -265,9 +260,32 @@ impl<'a> Expansion<'a> {
         let root = roots.next().ok_or(LoweringError::Unsupported(
             "scalar retained value has no checked computation root",
         ))?;
-        if roots.next().is_some() || root.machine != self.machine {
+        if roots.next().is_some() {
             return unsupported("scalar computation root custody is duplicated or mismatched");
         }
+        self.retained_root(root, bindings, source_types, result_type, target)
+    }
+
+    /// Complete one retained root through the same scheduling owner as a source
+    /// destination. The root keeps its exact declaration frame; callers may
+    /// supply a captured formal namespace without replaying source operands.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn retained_root(
+        &mut self,
+        root: &checked_trees::CheckedScalarComputationRoot,
+        bindings: &storage::ScalarBindings,
+        source_types: &[QualifiedScalarType],
+        result_type: QualifiedScalarType,
+        target: usize,
+    ) -> Result<usize, LoweringError> {
+        if root.machine != self.machine || !root.root.is_valid() {
+            return unsupported("scalar computation root custody is duplicated or mismatched");
+        }
+        let site = Site {
+            state: root.state,
+            statement: root.statement_ordinal,
+            bindings,
+        };
         if self
             .checked
             .facts
@@ -282,12 +300,12 @@ impl<'a> Expansion<'a> {
                 "scalar computation calls need exact named proof-output operation custody",
             );
         }
-        if let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } = role {
+        if let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } = root.role {
             calls::consume_pure_call_arguments(
                 self.checked,
                 site.bindings,
-                state,
-                statement,
+                root.state,
+                root.statement_ordinal,
                 binding_ordinal,
                 root.root,
             )?;

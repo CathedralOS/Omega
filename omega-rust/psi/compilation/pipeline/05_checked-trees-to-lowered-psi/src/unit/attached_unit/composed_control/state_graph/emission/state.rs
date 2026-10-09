@@ -215,28 +215,6 @@ impl StateGraphEmission<'_, '_> {
         let mut next_value = self.catalogs.next_value;
         let mut next_block = self.catalogs.next_block;
         let mut next_edge = self.catalogs.next_edge;
-        // The state's own rank, evaluated once on entry; `rank_ceiling` is the
-        // constant its successor edges recompute a distance rank from.
-        let mut rank_ceiling = None;
-        let current_rank = if let Some(rank) = ranking::scalar_rank(plan, state) {
-            let lane = values.iter().map(|value| value.id).collect::<Vec<_>>();
-            let evaluated =
-                ranking::emit_scalar_rank(rank, &lane, None, &mut next_value, &mut operations)?;
-            rank_ceiling = evaluated.ceiling;
-            Some(evaluated.rank)
-        } else {
-            ranking::parameter_position(plan, state)
-                .map(|parameter_position| {
-                    ranking::emit_view_rank(
-                        state_parameters[parameter_position].structural_type,
-                        state_parameters[parameter_position].place,
-                        &self.catalogs.structural_types,
-                        &mut next_value,
-                        &mut operations,
-                    )
-                })
-                .transpose()?
-        };
         // The state's namespace starts from its scalar formals, its arriving
         // referents and its formal storage; its statements, immutable locals
         // included, lower through the one operation sequence.
@@ -266,6 +244,64 @@ impl StateGraphEmission<'_, '_> {
             &evaluation.structural_parameters,
             &self.catalogs.structural_types,
         );
+        // Observe the immutable arrival values before the first authored
+        // statement. Mutable formal homes have been established above, but
+        // the retained root's Parameters bind the captured scalar snapshots.
+        let current_rank = if let Some(root) = ranking::observation(checked, plan, state)? {
+            let scalar_slots = values
+                .iter()
+                .enumerate()
+                .map(|(position, value)| (position, value.scalar_type))
+                .collect::<Vec<_>>();
+            let structural_actuals = state_parameters
+                .iter()
+                .map(|parameter| {
+                    (
+                        terminal_psi::StructuralArgument {
+                            place: parameter.place,
+                            path: Vec::new(),
+                            access: parameter.access,
+                        },
+                        parameter.structural_type,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let bindings = ranking::formal_bindings(
+                checked,
+                state,
+                &evaluation.scalar_bindings,
+                &scalar_slots,
+                &structural_actuals,
+            )?;
+            let mut calls = self.catalogs.scalar_calls.emission_context();
+            let observation_entry = evaluation.current;
+            let observed = evaluation.retained_observation(
+                checked,
+                root,
+                &bindings,
+                &mut values,
+                &mut next_value,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+                &mut calls,
+            )?;
+            self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            // Admitted source measures are pure scalar observations. Their
+            // prepared chains complete inline before the body, so this value
+            // dominates every cyclic block carrying the state's rank. Never
+            // attach a later completion's SSA value to pre-observation blocks
+            // if a retained root unexpectedly contains selective control.
+            if evaluation.current != observation_entry {
+                return unsupported("Unit graph entry rank has pre-observation control");
+            }
+            if observed.scalar_type.as_integer().is_none() {
+                return unsupported("Unit graph rank observation lost its integer carrier");
+            }
+            Some(observed.id)
+        } else {
+            None
+        };
         super::super::super::emission::emit_call_operations(
             checked,
             owner,
@@ -840,21 +876,25 @@ impl StateGraphEmission<'_, '_> {
                     &evaluation,
                     &operations,
                 )?;
-                super::super::cleanup::selection(
-                    state, &evaluation, &operations, &mut regions,
-                )?;
+                super::super::cleanup::selection(state, &evaluation, &operations, &mut regions)?;
                 // Capture the authored result before hooks run. Private cleanup
                 // edges transport that value, never evaluate the result again.
                 let return_position = scalar_return.map(|value| {
-                    values.iter().position(|candidate| candidate.id == value.id)
+                    values
+                        .iter()
+                        .position(|candidate| candidate.id == value.id)
                         .unwrap_or_else(|| {
                             values.push(value);
                             values.len() - 1
                         })
                 });
                 let actions = evaluation.emit_cleanup_regions(
-                    regions, &mut values, &mut next_value, &mut next_block,
-                    &mut next_edge, &mut operations,
+                    regions,
+                    &mut values,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
                 )?;
                 if let Some(position) = return_position {
                     scalar_return = Some(values[position]);
@@ -875,7 +915,6 @@ impl StateGraphEmission<'_, '_> {
             state_parameters: &state_parameters,
             bindings: &bindings,
             current_rank,
-            rank_ceiling,
             inherited_lengths: &inherited_lengths,
             inherited_field_lengths: &inherited_field_lengths,
         };

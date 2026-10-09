@@ -13,6 +13,8 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use terminal_psi::find_structural_type;
 
+mod formal_observations;
+pub(crate) use formal_observations::CapturedStructuralFormal;
 pub(crate) mod primitive_reads;
 pub(crate) use primitive_reads::primitive_storage_read;
 pub(crate) mod place_observations;
@@ -164,6 +166,12 @@ pub(crate) struct ScalarBindings {
     scalar_parameter_homes: Vec<(u32, PlaceId, ScalarType, StructuralAccess)>,
     /// Authored parameter positions stay separate from dense Terminal positions.
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
+    /// Observation-only formal aliases retain completed values and their full
+    /// prefixes. The ordinary published homes still own backing geometry.
+    captured_structural_formals: Vec<CapturedStructuralFormal>,
+    /// Completed anonymous producers have physical homes without an authored
+    /// local binding. Their emitted declarations retain backing type geometry.
+    captured_place_declarations: Vec<terminal_psi::StructuralPlaceDeclaration>,
     structural_locals: Vec<StructuralLocalBinding>,
     structural_fields: StructuralFieldBindings,
     structural_cases: Vec<structural_cases::StructuralCaseBinding>,
@@ -223,6 +231,15 @@ impl ScalarBindings {
             ) || (source == StructuralAccess::SharedBorrow
                 && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
         };
+        if let Some(captured) = self.captured_formal_home(argument)? {
+            if !supports_borrow(captured.access) {
+                return unsupported("captured formal observation widens source access");
+            }
+            return Ok(StructuralArgument {
+                access: structural_paths::terminal_access(argument.access),
+                ..captured
+            });
+        }
         // A shared read retains the established place and its qualifications;
         // it cannot invalidate them. Mutable borrowing still needs a separate
         // preservation contract for both root and descendant memberships.
@@ -376,7 +393,25 @@ impl ScalarBindings {
 
     /// Resolve the exact published carrier at a live source place.
     pub(crate) fn structural_place_type(&self, place: PlaceId) -> Option<StructuralTypeId> {
-        published_structural_type(&self.structural_parameters, &self.structural_locals, place)
+        let named =
+            published_structural_type(&self.structural_parameters, &self.structural_locals, place);
+        let mut emitted = self
+            .captured_place_declarations
+            .iter()
+            .filter(|declaration| declaration.id == place)
+            .filter_map(|declaration| declaration.kind.produced_structural_type());
+        let selected = named.or_else(|| emitted.next())?;
+        emitted
+            .all(|candidate| candidate == selected)
+            .then_some(selected)
+    }
+
+    pub(crate) fn with_completed_place_declarations(
+        mut self,
+        declarations: impl IntoIterator<Item = terminal_psi::StructuralPlaceDeclaration>,
+    ) -> Self {
+        self.captured_place_declarations = declarations.into_iter().collect();
+        self
     }
 
     /// The selected alias type is distinct from the physical root declaration.
@@ -612,6 +647,8 @@ impl ScalarBindings {
             primitive_storage: Vec::new(),
             scalar_parameter_homes: Vec::new(),
             structural_parameters: Vec::new(),
+            captured_structural_formals: Vec::new(),
+            captured_place_declarations: Vec::new(),
             structural_locals: Vec::new(),
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
@@ -650,6 +687,7 @@ impl ScalarBindings {
         parameters: &[(u32, StructuralParameterDeclaration)],
     ) -> Self {
         self.structural_parameters = parameters.to_vec();
+        self.captured_structural_formals.clear();
         self.structural_fields.clear_parameters();
         self.structural_cases.clear();
         // Element views are keyed by structural type, not by parameter: a

@@ -46,7 +46,6 @@ impl StateGraphEmission<'_, '_> {
             state_parameters,
             bindings,
             current_rank,
-            rank_ceiling,
             inherited_lengths,
             inherited_field_lengths,
         } = *frame;
@@ -790,59 +789,92 @@ impl StateGraphEmission<'_, '_> {
         } else {
             terminal_psi::TerminalNaturalRankComparison::Strict
         };
-        let arriving_rank = if current_rank.is_some() {
-            // The target's measure over this edge's actual arguments,
-            // which the verifier substitutes for the target's own rank.
-            if let Some(rank) = ranking::scalar_rank(plan, target_state) {
-                Some(
-                    ranking::emit_scalar_rank(
-                        rank,
-                        &arguments,
-                        rank_ceiling,
-                        next_value,
-                        operations,
-                    )?
-                    .rank,
-                )
-            } else if let Some(dense) = ranking::parameter_position(plan, target_state) {
-                let source = if let Some(root) = self
-                    .admitted
-                    .entry_aliases
-                    .get(target)
-                    .and_then(|aliased| aliased.get(&(dense as u32)))
-                {
-                    // An aliased rank subject is not an edge argument;
-                    // its length reads the retained entry place — taken
-                    // from the machine parameters since the target's view
-                    // roster drains when its block seals.
-                    self.parameters
-                        .get(*root as usize)
-                        .map(|parameter| parameter.place)
-                } else {
-                    ranking::view_argument_position(
-                        plan,
-                        target_state,
-                        &self.admitted.entry_aliases[target],
-                    )
-                    .map(|parameter_position| structural_arguments[parameter_position].place)
-                };
-                source
-                    .map(|source| {
-                        ranking::emit_view_rank(
-                            crate::terminal_identities::lookup_type_id(
-                                &self.catalogs.type_ids,
-                                &target_state.structural_parameters[dense].type_identity,
-                            )?,
-                            source,
-                            &self.catalogs.structural_types,
-                            next_value,
-                            operations,
-                        )
-                    })
-                    .transpose()?
-            } else {
-                None
+        let arriving_rank = if current_rank.is_some()
+            && let Some(root) = ranking::observation(checked, plan, target_state)?
+        {
+            // Scalar and structural operands are already complete. Rejoin the
+            // exact target telescope here, before projected transfer or cleanup.
+            let mut scalar_slots = Vec::with_capacity(arguments.len());
+            for (argument, formal) in arguments.iter().zip(&target_state.scalar_parameters) {
+                scalar_slots.push((
+                    edge_values.len(),
+                    terminal_scalar_type(formal.primitive_type)?,
+                ));
+                edge_values.push(ValueDeclaration {
+                    id: *argument,
+                    scalar_type: terminal_scalar_type(formal.primitive_type)?,
+                    qualifications: Default::default(),
+                });
             }
+            let mut emitted = structural_arguments.iter();
+            let structural_actuals = target_state
+                .structural_parameters
+                .iter()
+                .enumerate()
+                .map(|(dense, formal)| {
+                    let argument = if let Some(entry) =
+                        self.admitted.entry_aliases[target].get(&(dense as u32))
+                    {
+                        let retained = self.parameters.get(*entry as usize).ok_or(
+                            LoweringError::Unsupported(
+                                "Unit graph observation lost its retained entry alias",
+                            ),
+                        )?;
+                        StructuralArgument {
+                            place: retained.place,
+                            path: Vec::new(),
+                            access: retained.access,
+                        }
+                    } else {
+                        emitted.next().cloned().ok_or(LoweringError::Unsupported(
+                            "Unit graph observation lost its completed structural actual",
+                        ))?
+                    };
+                    Ok((
+                        argument,
+                        crate::terminal_identities::lookup_type_id(
+                            &self.catalogs.type_ids,
+                            &formal.type_identity,
+                        )?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            if emitted.next().is_some() || arguments.len() != target_state.scalar_parameters.len() {
+                return unsupported("Unit graph observation has excess completed actuals");
+            }
+            let backing = edge_evaluation
+                .contextual_bindings()
+                .with_completed_place_declarations(
+                    self.catalogs
+                        .temporary_places
+                        .iter()
+                        .chain(&self.structural_places)
+                        .cloned(),
+                );
+            let bindings = ranking::formal_bindings(
+                checked,
+                target_state,
+                &backing,
+                &scalar_slots,
+                &structural_actuals,
+            )?;
+            let mut calls = self.catalogs.scalar_calls.emission_context();
+            let observed = edge_evaluation.retained_observation(
+                checked,
+                root,
+                &bindings,
+                &mut edge_values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+                &mut calls,
+            )?;
+            self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            if observed.scalar_type.as_integer().is_none() {
+                return unsupported("Unit graph rank observation lost its integer carrier");
+            }
+            Some(observed.id)
         } else {
             None
         };
@@ -983,7 +1015,6 @@ pub(super) struct SuccessorFrame<'f> {
     pub(super) state_parameters: &'f [StructuralParameterDeclaration],
     pub(super) bindings: &'f ScalarBindings,
     pub(super) current_rank: Option<ValueId>,
-    pub(super) rank_ceiling: Option<ValueId>,
     pub(super) inherited_lengths: &'f [(PlaceId, ValueId)],
     pub(super) inherited_field_lengths: &'f [(
         PlaceId,

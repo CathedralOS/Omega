@@ -16,6 +16,50 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 
 impl Evaluation {
+    /// Consume an already retained computation over one captured formal frame.
+    /// A fresh Expansion owns completion caches for this activation only: the
+    /// same observation root at entry and on another arrival has new actuals.
+    pub(crate) fn retained_observation(
+        &mut self,
+        checked: &CheckedTrees,
+        root: &checked_trees::CheckedScalarComputationRoot,
+        bindings: &crate::expression_preparation::bindings::ScalarBindings,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let source_types = values
+            .iter()
+            .map(|value| value.value_type())
+            .collect::<Vec<_>>();
+        let result_type = crate::scalar_lowering::computations::computation_value_type(
+            checked,
+            &self.shared_qualifications,
+            root.root,
+            bindings,
+            &source_types,
+        )?;
+        let mut expansion =
+            self.scalar_computation_expansion(checked, &self.shared_qualifications, root.machine);
+        let entry = expansion.retained_root(root, bindings, &source_types, result_type, 0)?;
+        let states = expansion.finish();
+        self.single_completed_expansion(
+            &states,
+            entry,
+            result_type,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
+            "retained observation has no single completed value",
+        )
+    }
+
     /// A pure Boolean used only to choose an edge needs no joined value.
     /// Merging its outcomes before branching would discard predecessor bounds
     /// that the selected body's independent operation proofs still need.

@@ -165,6 +165,11 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     scalar_type: count_type,
                 });
             }
+            if let Some(bindings) = scalar_bindings
+                && let Some((home, structural_type)) = bindings.captured_storage_home(*root)?
+            {
+                return captured_sequence_length(bindings, &home, structural_type, count_type);
+            }
             let (source, carrier) = match *root {
                 checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
@@ -1083,6 +1088,83 @@ fn lower_checked_boolean_expression_with_parameters(
     })
 }
 
+/// A completed descriptor may be a whole home or one exact field below its
+/// captured prefix. The storage declaration selects the existing descriptor
+/// observation operation; the actual's source expression is not replayed.
+fn captured_sequence_length(
+    bindings: &crate::expression_preparation::bindings::ScalarBindings,
+    home: &terminal_psi::StructuralArgument,
+    structural_type: StructuralTypeId,
+    scalar_type: ScalarType,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let declaration =
+        terminal_psi::find_structural_type(bindings.structural_declarations(), structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "captured sequence observation has no descriptor declaration",
+            ))?;
+    if home.path.is_empty() {
+        return match declaration.shape {
+            terminal_psi::StructuralTypeShape::ByteSequence(_) => {
+                Ok(LoweredDirectExpression::ByteSequenceLength {
+                    source: home.place,
+                    scalar_type,
+                })
+            }
+            terminal_psi::StructuralTypeShape::ElementView { .. } => {
+                Ok(LoweredDirectExpression::ElementViewLength {
+                    source: home.place,
+                    scalar_type,
+                })
+            }
+            _ => unsupported("captured length requires a sequence descriptor"),
+        };
+    }
+    if !matches!(
+        declaration.shape,
+        terminal_psi::StructuralTypeShape::ByteSequence(_)
+    ) {
+        return unsupported("nested element view requires its established descriptor home");
+    }
+    let Some((terminal_psi::StructuralPathSegment::Field(identity), prefix)) =
+        home.path.split_last()
+    else {
+        return unsupported("captured sequence descriptor has no field observation geometry");
+    };
+    let root = bindings
+        .structural_place_type(home.place)
+        .ok_or(LoweringError::Unsupported(
+            "captured sequence observation lost its backing declaration",
+        ))?;
+    let parent = terminal_semantics::runtime_structural_path_tip(
+        bindings.structural_declarations().iter(),
+        root,
+        prefix,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "captured sequence observation lost its backing prefix",
+    ))?;
+    let field = parent
+        .shape
+        .direct_fields()
+        .and_then(|fields| terminal_psi::live_field(fields, identity))
+        .ok_or(LoweringError::Unsupported(
+            "captured sequence observation lost its descriptor field",
+        ))?;
+    if field.field_type.as_structural() != Some(structural_type) {
+        return unsupported("captured sequence observation changes its declared field type");
+    }
+    Ok(LoweredDirectExpression::ByteSequenceFieldLength {
+        source: home.place,
+        path: prefix
+            .iter()
+            .cloned()
+            .map(LoweredElementPathSegment::Static)
+            .collect(),
+        field: field.id,
+        scalar_type,
+    })
+}
+
 fn byte_field_observation(
     fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
     structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
@@ -1099,8 +1181,25 @@ fn byte_field_observation(
     LoweringError,
 > {
     use crate::emission::runtime_elements::ProjectionStep;
-    let (source, structural_type) =
-        fields.observation_source(root, structural_locals, view_locals)?;
+    let captured = bindings
+        .map(|bindings| bindings.captured_storage_home(root))
+        .transpose()?
+        .flatten();
+    let (home, structural_type) = if let Some(captured) = captured {
+        captured
+    } else {
+        let (source, structural_type) =
+            fields.observation_source(root, structural_locals, view_locals)?;
+        (
+            terminal_psi::StructuralArgument {
+                place: source,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            },
+            structural_type,
+        )
+    };
+    let source = home.place;
     let Some((source, steps, field)) =
         crate::expression_preparation::bindings::structural_fields::resolve_byte_projection(
             source,
@@ -1127,10 +1226,15 @@ fn byte_field_observation(
             }
             _ => None,
         });
-    let path = steps
+    let prefix_length = home.path.len();
+    if prefix_length != 0 && view_prefix.is_some() {
+        return unsupported("nested element view requires its established descriptor home");
+    }
+    let path = home
+        .path
         .into_iter()
-        .enumerate()
-        .map(|(ordinal, step)| {
+        .map(|segment| Ok(LoweredElementPathSegment::Static(segment)))
+        .chain(steps.into_iter().enumerate().map(|(ordinal, step)| {
             let selector = match step {
                 ProjectionStep::Static(segment) => {
                     return Ok(LoweredElementPathSegment::Static(segment));
@@ -1172,7 +1276,7 @@ fn byte_field_observation(
                 extent,
                 bound_decided: false,
             })
-        })
+        }))
         .collect::<Result<Vec<_>, LoweringError>>()?;
     if path
         .iter()
