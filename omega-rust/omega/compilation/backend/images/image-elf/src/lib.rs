@@ -133,6 +133,66 @@ pub(crate) use dynamic_executable::load_placement::resolved_dynamic_table::ElfDy
 
 
 #[cfg(test)]
+pub(crate) use dynamic_executable::dynamic_table::dynamic_table_descriptor::plan_elf_dynamic_table_section_descriptor;
+#[cfg(test)]
+pub(crate) use dynamic_executable::dynamic_table::dynamic_tag_bytes::serialize_elf_dynamic_table;
+#[cfg(test)]
+pub(crate) use dynamic_executable::dynamic_table::dynamic_tags::{ValidatedElfDynamicTagPlan, plan_elf_dynamic_tags};
+#[cfg(test)]
+pub(crate) use dynamic_executable::file_assembly::dynamic_file_envelope::{
+    ValidatedElfDynamicFileEnvelope, serialize_elf_dynamic_file_envelope,
+};
+#[cfg(test)]
+pub(crate) use dynamic_executable::file_assembly::resolved_procedure_linkage::{
+    ElfAppliedProcedureLinkageFixup, apply_elf_procedure_linkage_fixups,
+};
+#[cfg(test)]
+pub(crate) use dynamic_executable::import_sections::dynamic_link::{
+    PlannedElfDynamicLinkInputs, plan_elf_dynamic_link_inputs,
+};
+#[cfg(test)]
+pub(crate) use dynamic_executable::import_sections::dynamic_section_bytes::serialize_elf_dynamic_sections;
+#[cfg(test)]
+pub(crate) use dynamic_executable::import_sections::dynamic_section_descriptors::plan_elf_dynamic_section_descriptors;
+#[cfg(test)]
+pub(crate) use dynamic_executable::import_sections::dynamic_sections::plan_elf_dynamic_sections;
+#[cfg(test)]
+pub(crate) use dynamic_executable::load_placement::load_layout::{
+    ElfLoadProgramHeaderKind, ValidatedElfDynamicLoadLayout, plan_elf_dynamic_load_layout,
+};
+#[cfg(test)]
+pub(crate) use dynamic_executable::load_placement::placed_section_headers::apply_elf_section_header_placements;
+#[cfg(test)]
+pub(crate) use dynamic_executable::load_placement::resolved_dynamic_table::apply_elf_dynamic_address_fixups;
+#[cfg(test)]
+pub(crate) use dynamic_executable::procedure_linkage::dynamic_import_relocations::{
+    ValidatedElfProcedureLinkageRelocationPlan, plan_elf_procedure_linkage_relocations,
+};
+#[cfg(test)]
+pub(crate) use dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
+    ValidatedElfProcedureLinkageSectionDescriptorPlan,
+    plan_elf_procedure_linkage_section_descriptors,
+};
+#[cfg(test)]
+pub(crate) use dynamic_executable::procedure_linkage::dynamic_linkage_templates::plan_elf_procedure_linkage_templates;
+#[cfg(test)]
+pub(crate) use dynamic_executable::section_headers::relative_section_layout::plan_elf_relative_section_payload_layout;
+#[cfg(test)]
+pub(crate) use dynamic_executable::section_headers::section_header_bytes::{
+    ValidatedElfSectionHeaderTableTemplate, serialize_elf_section_header_table,
+};
+#[cfg(test)]
+pub(crate) use dynamic_executable::section_headers::section_name_table::{
+    ValidatedElfSectionNameTablePlan, plan_elf_section_name_table,
+};
+#[cfg(test)]
+pub(crate) use dynamic_executable::section_headers::section_payload_roster::{
+    ValidatedElfIndexedSectionPayloadPlan, plan_elf_indexed_section_payloads,
+};
+#[cfg(test)]
+pub(crate) use dynamic_executable::section_headers::section_roster::plan_elf_dynamic_section_roster;
+
+#[cfg(test)]
 pub(crate) mod test_support {
     use crate::{
         ValidatedElfProcedureLinkageRelocationPlan, plan_elf_dynamic_link_inputs,
