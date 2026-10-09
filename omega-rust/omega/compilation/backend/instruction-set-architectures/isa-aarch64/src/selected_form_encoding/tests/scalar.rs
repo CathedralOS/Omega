@@ -74,15 +74,9 @@ fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
     }
 }
 
-fn movn(register: u8, halfword: u8, immediate: u16) -> [u8; 4] {
-    (0x9280_0000 | (u32::from(halfword) << 21) | (u32::from(immediate) << 5) | u32::from(register))
-        .to_le_bytes()
-}
 
-fn movk(register: u8, halfword: u8, immediate: u16) -> [u8; 4] {
-    (0xf280_0000 | (u32::from(halfword) << 21) | (u32::from(immediate) << 5) | u32::from(register))
-        .to_le_bytes()
-}
+
+
 
 #[test]
 fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
@@ -190,212 +184,15 @@ fn zero_seeded_materialization_is_canonical_and_decoded_independently() {
     }
 }
 
-#[test]
-fn shortest_movn_materialization_shrinks_all_ones_and_high_ones() {
-    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-    let x9 = physical.model().view_named("x9").unwrap().id;
-    for (value, baseline_bytes, movn_bytes, seed, patches) in [
-        (
-            IntegerValue::Unsigned(u64::MAX as u128),
-            16,
-            4,
-            Aarch64MovnSeed {
-                halfword: 0,
-                immediate: 0,
-            },
-            vec![],
-        ),
-        (
-            IntegerValue::Unsigned(0xffff_ffff_0000_0000),
-            12,
-            8,
-            Aarch64MovnSeed {
-                halfword: 0,
-                immediate: u16::MAX,
-            },
-            vec![Aarch64MovkPatch {
-                halfword: 1,
-                immediate: 0,
-            }],
-        ),
-    ] {
-        let recipe = aarch64_shortest_movn_materialization_recipe(value).unwrap();
-        assert_eq!(recipe.seed(), seed);
-        assert_eq!(recipe.patches(), patches);
-        assert_eq!(recipe.baseline_byte_count(), baseline_bytes);
-        assert_eq!(recipe.encoded_byte_count(), movn_bytes);
 
-        let baseline = encode_aarch64_selected_form(
-            &physical,
-            SelectedInstructionKind::MaterializeI64 { value },
-            alternative(MachineAlternativeFamily::MaterializeI64),
-            &[x9],
-        )
-        .unwrap();
-        let encoded = encode_aarch64_shortest_movn_materialization(&physical, x9, value).unwrap();
-        assert_eq!(baseline.bytes().len(), baseline_bytes);
-        assert_eq!(encoded.bytes().len(), movn_bytes);
-        assert!(encoded.bytes().len() < baseline.bytes().len());
-        assert_eq!(encoded.footprint().register_writes, [x9]);
-        validate_aarch64_shortest_movn_materialization(&physical, x9, value, encoded.bytes())
-            .unwrap();
-    }
-}
 
-#[test]
-fn movn_recipe_rejects_zero_small_and_equal_length_baselines() {
-    for value in [
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(1),
-        IntegerValue::Unsigned(0x5678_ffff_0000_1234),
-    ] {
-        assert_eq!(
-            aarch64_shortest_movn_materialization_recipe(value),
-            Err(Aarch64SelectedFormEncodingError::MovnMaterializationDoesNotShrink)
-        );
-    }
 
-    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-    let x9 = physical.model().view_named("x9").unwrap().id;
-    let zero_movn = [
-        movn(9, 0, u16::MAX),
-        movk(9, 1, 0),
-        movk(9, 2, 0),
-        movk(9, 3, 0),
-    ]
-    .concat();
-    assert_eq!(
-        validate_aarch64_shortest_movn_materialization(
-            &physical,
-            x9,
-            IntegerValue::Unsigned(0),
-            &zero_movn,
-        ),
-        Err(Aarch64SelectedFormEncodingError::MovnMaterializationDoesNotShrink)
-    );
-}
 
-#[test]
-fn movn_recipe_chooses_the_lowest_seed_among_minimum_count_recipes() {
-    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-    let x9 = physical.model().view_named("x9").unwrap().id;
-    let value = IntegerValue::Unsigned(0xffff_ffff_0000_0000);
-    let recipe = aarch64_shortest_movn_materialization_recipe(value).unwrap();
-    assert_eq!(recipe.seed().halfword(), 0);
 
-    // Seeding halfword one has the same instruction count and reconstructs
-    // the same bits, but it is not the canonical lowest seed.
-    let noncanonical = [movn(9, 1, u16::MAX), movk(9, 0, 0)].concat();
-    assert!(
-        validate_aarch64_shortest_movn_materialization(&physical, x9, value, &noncanonical,)
-            .is_err()
-    );
-}
 
-#[test]
-fn movn_recipe_is_bit_pattern_canonical_across_signedness() {
-    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-    let x9 = physical.model().view_named("x9").unwrap().id;
-    for (signed, unsigned) in [
-        (
-            IntegerValue::Signed(-1),
-            IntegerValue::Unsigned(u64::MAX as u128),
-        ),
-        (
-            IntegerValue::Signed(-4_294_967_296),
-            IntegerValue::Unsigned(0xffff_ffff_0000_0000),
-        ),
-    ] {
-        assert_eq!(
-            aarch64_shortest_movn_materialization_recipe(signed).unwrap(),
-            aarch64_shortest_movn_materialization_recipe(unsigned).unwrap()
-        );
-        assert_eq!(
-            encode_aarch64_shortest_movn_materialization(&physical, x9, signed)
-                .unwrap()
-                .bytes(),
-            encode_aarch64_shortest_movn_materialization(&physical, x9, unsigned)
-                .unwrap()
-                .bytes()
-        );
-    }
-}
 
-#[test]
-fn movn_validation_rejects_opcode_destination_value_recipe_and_order_corruption() {
-    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-    let x9 = physical.model().view_named("x9").unwrap().id;
-    let x10 = physical.model().view_named("x10").unwrap().id;
-    let value = IntegerValue::Unsigned(0xffff_0003_0002_0001);
-    let encoded = encode_aarch64_shortest_movn_materialization(&physical, x9, value).unwrap();
-    assert_eq!(encoded.bytes().len(), 12);
 
-    let rejects = |bytes: &[u8]| {
-        assert!(
-            validate_aarch64_shortest_movn_materialization(&physical, x9, value, bytes,).is_err()
-        );
-    };
 
-    let mut wrong_opcode = encoded.bytes().to_vec();
-    crate::codec_bytes::patch_encoded(&mut wrong_opcode, 0, 0xd280_0009_u32.to_le_bytes());
-    rejects(&wrong_opcode);
-
-    let mut wrong_destination = encoded.bytes().to_vec();
-    wrong_destination[0] = (wrong_destination[0] & !0x1f) | 10;
-    rejects(&wrong_destination);
-    assert!(
-        validate_aarch64_shortest_movn_materialization(&physical, x10, value, encoded.bytes(),)
-            .is_err()
-    );
-
-    let all_ones = IntegerValue::Unsigned(u64::MAX as u128);
-    for corrupted in [movn(9, 1, 0).to_vec(), movn(9, 0, 1).to_vec()] {
-        assert!(
-            validate_aarch64_shortest_movn_materialization(&physical, x9, all_ones, &corrupted,)
-                .is_err()
-        );
-    }
-
-    let mut reversed_patches = encoded.bytes().to_vec();
-    let first_patch = reversed_patches[4..8].to_vec();
-    let second_patch = reversed_patches[8..12].to_vec();
-    reversed_patches[4..8].copy_from_slice(&second_patch);
-    reversed_patches[8..12].copy_from_slice(&first_patch);
-    rejects(&reversed_patches);
-
-    let mut wrong_immediate = encoded.bytes().to_vec();
-    wrong_immediate[4] ^= 0x20;
-    rejects(&wrong_immediate);
-
-    let mut redundant_patch = encode_aarch64_shortest_movn_materialization(
-        &physical,
-        x9,
-        IntegerValue::Unsigned(u64::MAX as u128),
-    )
-    .unwrap()
-    .bytes()
-    .to_vec();
-    redundant_patch.extend_from_slice(&movk(9, 1, u16::MAX));
-    assert!(
-        validate_aarch64_shortest_movn_materialization(
-            &physical,
-            x9,
-            IntegerValue::Unsigned(u64::MAX as u128),
-            &redundant_patch,
-        )
-        .is_err()
-    );
-
-    assert!(
-        validate_aarch64_shortest_movn_materialization(
-            &physical,
-            x9,
-            IntegerValue::Unsigned(0xffff_0003_0002_0000),
-            encoded.bytes(),
-        )
-        .is_err()
-    );
-}
 
 #[test]
 fn bitwise_xor_preserves_exact_eor_registers_aliases_and_effects() {

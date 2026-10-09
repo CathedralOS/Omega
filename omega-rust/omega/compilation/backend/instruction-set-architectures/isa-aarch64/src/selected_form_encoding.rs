@@ -59,19 +59,13 @@ pub use branch_forms::{
     validate_aarch64_selected_u64_less_than_widened_branch_form};
 pub use encoding_types::{ Aarch64SelectedFormEncodingError,
     ValidatedAarch64SelectedFormEncoding};
-pub(crate) use encoding_types::{
-    Aarch64MovkPatch, Aarch64MovnSeed,
-    Aarch64SelectedFormFootprint, Aarch64ShortestMovnMaterializationRecipe};
+pub(crate) use encoding_types::Aarch64SelectedFormFootprint;
 pub use hosted_write_byte::{
     encode_aarch64_selected_hosted_write_byte_form,
     validate_aarch64_selected_hosted_write_byte_form};
 pub use jump::{encode_aarch64_selected_jump_form, validate_aarch64_selected_jump_form};
 pub use memory::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
 
-#[cfg(test)]
-pub(crate) use movn_materialization::{
-    aarch64_shortest_movn_materialization_recipe, encode_aarch64_shortest_movn_materialization,
-    validate_aarch64_shortest_movn_materialization};
 
 pub use normalized_foreign_call::{ Aarch64CallbackAddressMaterialization,
     Aarch64CallbackMaterializationDestination, Aarch64NormalizedForeignCallFixup,

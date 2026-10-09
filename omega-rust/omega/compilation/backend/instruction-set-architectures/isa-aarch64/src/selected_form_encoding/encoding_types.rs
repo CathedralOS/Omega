@@ -29,58 +29,6 @@ impl ValidatedAarch64SelectedFormEncoding {
     }
 }
 
-/// Canonical 64-bit `MOVN` seed for a shortest complement-seeded immediate
-/// materialization. `halfword` is the architectural `hw` field, in `0..=3`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct Aarch64MovnSeed {
-    pub(crate) halfword: u8,
-    pub(crate) immediate: u16,
-}
-
-impl Aarch64MovnSeed {
-    pub const fn halfword(&self) -> u8 {
-        self.halfword
-    }
-}
-
-/// One canonical 64-bit `MOVK` patch following a complement-seeded `MOVN`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct Aarch64MovkPatch {
-    pub(crate) halfword: u8,
-    pub(crate) immediate: u16,
-}
-
-impl Aarch64MovkPatch {}
-
-/// The unique shortest `MOVN`-seeded recipe that is strictly smaller than the
-/// baseline zero-seeded `MOVZ`/`MOVK` materialization.
-///
-/// Equal-length recipes choose the lowest possible seed halfword. Patches are
-/// then ordered by strictly ascending halfword index.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct Aarch64ShortestMovnMaterializationRecipe {
-    pub(crate) seed: Aarch64MovnSeed,
-    pub(crate) patches: Vec<Aarch64MovkPatch>,
-    pub(crate) baseline_byte_count: usize,
-}
-
-impl Aarch64ShortestMovnMaterializationRecipe {
-    pub const fn seed(&self) -> Aarch64MovnSeed {
-        self.seed
-    }
-
-    pub fn patches(&self) -> &[Aarch64MovkPatch] {
-        &self.patches
-    }
-
-    pub const fn baseline_byte_count(&self) -> usize {
-        self.baseline_byte_count
-    }
-
-    pub(crate) fn encoded_byte_count(&self) -> usize {
-        (1 + self.patches.len()) * 4
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Aarch64SelectedFormEncodingError {

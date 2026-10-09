@@ -1,16 +1,14 @@
 //! Tests for aarch64 selected form encoding.
 
 use super::{
-    Aarch64MovkPatch, Aarch64MovnSeed, Aarch64SelectedFormEncodingError,
-    aarch64_shortest_movn_materialization_recipe,
-    encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
+    Aarch64SelectedFormEncodingError,
+        encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     encode_aarch64_selected_form, encode_aarch64_selected_i64_less_than_branch_form,
     encode_aarch64_selected_i64_less_than_widened_branch_form,
     encode_aarch64_selected_nonzero_branch_form,
     encode_aarch64_selected_nonzero_widened_branch_form,
     encode_aarch64_selected_u64_less_than_branch_form,
     encode_aarch64_selected_u64_less_than_widened_branch_form,
-    encode_aarch64_shortest_movn_materialization,
     validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     validate_aarch64_selected_form_encoding, validate_aarch64_selected_i64_less_than_branch_form,
     validate_aarch64_selected_i64_less_than_widened_branch_form,
@@ -18,7 +16,6 @@ use super::{
     validate_aarch64_selected_nonzero_widened_branch_form,
     validate_aarch64_selected_u64_less_than_branch_form,
     validate_aarch64_selected_u64_less_than_widened_branch_form,
-    validate_aarch64_shortest_movn_materialization,
 };
 use crate::aarch64_physical_register_model;
 use crate::saturating_forms::SaturatingRealization;

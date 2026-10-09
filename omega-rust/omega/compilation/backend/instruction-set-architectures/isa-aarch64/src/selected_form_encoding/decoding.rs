@@ -3,12 +3,11 @@
 
 use crate::aarch64_physical_register_model_ref;
 use crate::saturating_forms::SaturatingRealization;
-use crate::selected_form_encoding::movn_materialization::append_canonical_materialization;
 use crate::selected_form_encoding::selected_forms::BOUND_WORDS;
 use crate::selected_form_encoding::selected_forms::{integer_bits, u12};
 use crate::selected_form_encoding::{
-    Aarch64MovkPatch, Aarch64MovnSeed, Aarch64SelectedFormEncodingError,
-    Aarch64SelectedFormFootprint, Aarch64ShortestMovnMaterializationRecipe,
+    Aarch64SelectedFormEncodingError,
+    Aarch64SelectedFormFootprint,
 };
 use register_model::RegisterViewId;
 use selected_instructions::{
@@ -1057,65 +1056,6 @@ fn decode_materialization(decoded: &[DecodedWord], register: u8) -> Option<u64> 
     Some(value)
 }
 
-pub(crate) fn decode_movn_materialization(
-    decoded: &[DecodedWord],
-    register: u8,
-) -> Option<(u64, Aarch64ShortestMovnMaterializationRecipe)> {
-    let DecodedWord::MovN {
-        register: actual,
-        shift,
-        immediate,
-    } = *decoded.first()?
-    else {
-        return None;
-    };
-    if actual != register || shift > 3 {
-        return None;
-    }
-    let seed_shift = u64::from(shift) * 16;
-    let mut value = u64::MAX;
-    value = (value & !(0xffff_u64 << seed_shift)) | (u64::from(!immediate) << seed_shift);
-    let mut patches = Vec::with_capacity(decoded.len().saturating_sub(1));
-    let mut previous_halfword = None;
-    for word in &decoded[1..] {
-        let DecodedWord::MovK {
-            register: actual,
-            shift,
-            immediate,
-        } = *word
-        else {
-            return None;
-        };
-        if actual != register
-            || shift > 3
-            || previous_halfword.is_some_and(|previous| shift <= previous)
-        {
-            return None;
-        }
-        previous_halfword = Some(shift);
-        let patch_shift = u64::from(shift) * 16;
-        value = (value & !(0xffff_u64 << patch_shift)) | (u64::from(immediate) << patch_shift);
-        patches.push(Aarch64MovkPatch {
-            halfword: shift,
-            immediate,
-        });
-    }
-    Some((
-        value,
-        Aarch64ShortestMovnMaterializationRecipe {
-            seed: Aarch64MovnSeed {
-                halfword: shift,
-                immediate,
-            },
-            patches,
-            baseline_byte_count: {
-                let mut baseline = Vec::new();
-                append_canonical_materialization(&mut baseline, register, value);
-                baseline.len() * 4
-            },
-        },
-    ))
-}
 
 pub(crate) fn footprint(
     kind: SelectedInstructionKind,
