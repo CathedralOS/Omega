@@ -11,7 +11,6 @@ mod record_layouts;
 #[cfg(test)]
 mod tests;
 
-
 use crate::artifacts::Artifact;
 use crate::artifacts::container::ContainerLimits;
 use crate::authority_digests::NonAuthoritativeInformationalFingerprint64;
@@ -55,17 +54,12 @@ pub(crate) fn non_authoritative_informational_section_fingerprint(
     kind: u16,
     payload: &[u8],
 ) -> NonAuthoritativeInformationalFingerprint64 {
-    let mut hash = 0xcbf29ce484222325_u64;
-    for byte in b"omega.executable-container.information.v1"
-        .iter()
-        .copied()
-        .chain(kind.to_le_bytes())
-        .chain((payload.len() as u64).to_le_bytes())
-        .chain(payload.iter().copied())
-    {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
+    let mut hash = crate::fnv1a::Fnv1a::new();
+    hash.bytes(b"omega.executable-container.information.v1");
+    hash.u16(kind);
+    hash.u64(payload.len() as u64);
+    hash.bytes(payload);
+    let hash = hash.finish();
     NonAuthoritativeInformationalFingerprint64::from_compatibility_value(if hash == 0 {
         1
     } else {

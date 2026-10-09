@@ -147,7 +147,6 @@ impl ValidatedArtifactContainer {
         &self.artifact
     }
 
-
     /// Canonical destination-order relocation records. Their symbolic targets
     /// remain sealed identities; this projection grants no resolver.
     pub fn relocations(&self) -> &[DecodedArtifactRelocation] {
@@ -559,7 +558,7 @@ pub(crate) fn derive_artifact_content_commitments(
     } else {
         b"omega.executable-content.sha256.v1\0".as_slice()
     });
-    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    let mut fingerprint = crate::fnv1a::Fnv1a::new();
     fingerprint_bytes(&mut fingerprint, b"omega-executable-content-v1");
     content_commitment_bytes(
         &mut digest,
@@ -660,6 +659,7 @@ pub(crate) fn derive_artifact_content_commitments(
         digest.update(commitments.installation_scope().as_bytes());
     }
 
+    let fingerprint = fingerprint.finish();
     Ok((
         ArtifactContentDigest::from_digest(digest.finalize().into()),
         NonAuthoritativeContainerFingerprint64::from_compatibility_value(if fingerprint == 0 {
@@ -672,7 +672,7 @@ pub(crate) fn derive_artifact_content_commitments(
 
 fn fingerprint_placement(
     digest: &mut Sha256,
-    compatibility_fingerprint: &mut u64,
+    compatibility_fingerprint: &mut crate::fnv1a::Fnv1a,
     placement: PlacementConstraints,
 ) {
     if let Some(range) = placement.permitted_range() {
@@ -726,16 +726,17 @@ fn fingerprint_placement(
     }
 }
 
-fn content_commitment_bytes(digest: &mut Sha256, fingerprint: &mut u64, bytes: &[u8]) {
+fn content_commitment_bytes(
+    digest: &mut Sha256,
+    fingerprint: &mut crate::fnv1a::Fnv1a,
+    bytes: &[u8],
+) {
     digest.update(bytes);
     fingerprint_bytes(fingerprint, bytes);
 }
 
-fn fingerprint_bytes(fingerprint: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        *fingerprint ^= u64::from(*byte);
-        *fingerprint = fingerprint.wrapping_mul(0x100_0000_01b3);
-    }
+fn fingerprint_bytes(fingerprint: &mut crate::fnv1a::Fnv1a, bytes: &[u8]) {
+    fingerprint.bytes(bytes);
 }
 
 pub(super) fn validate_decoded_relocations(
