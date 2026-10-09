@@ -47,33 +47,37 @@ pub(crate) fn check_call_named_constraints(
     }
 }
 
-pub(crate) fn check_assignment_named_constraints(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedAssignmentObligation,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !assignment_satisfies_named_constraint(proof_plan, obligation, constraint) {
-            diagnostics.push(cannot_prove_assignment_named_constraint(
-                proof_plan, obligation, constraint,
-            ));
+macro_rules! check_named_constraints {
+    ($name:ident, $obligation:ty, $satisfies:ident, $diagnostic:ident) => {
+        pub(crate) fn $name(
+            proof_plan: &ProofPlan,
+            obligation: &$obligation,
+            diagnostics: &mut Vec<Diagnostic>,
+        ) {
+            for constraint in
+                named_constraints(type_constraints(proof_plan, obligation.constraints))
+            {
+                if !$satisfies(proof_plan, obligation, constraint) {
+                    diagnostics.push($diagnostic(proof_plan, obligation, constraint));
+                }
+            }
         }
-    }
+    };
 }
 
-pub(crate) fn check_transition_named_constraints(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedTransitionArgumentObligation,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !transition_argument_satisfies_named_constraint(proof_plan, obligation, constraint) {
-            diagnostics.push(cannot_prove_transition_named_constraint(
-                proof_plan, obligation, constraint,
-            ));
-        }
-    }
-}
+check_named_constraints!(
+    check_assignment_named_constraints,
+    BoundedAssignmentObligation,
+    assignment_satisfies_named_constraint,
+    cannot_prove_assignment_named_constraint
+);
+
+check_named_constraints!(
+    check_transition_named_constraints,
+    BoundedTransitionArgumentObligation,
+    transition_argument_satisfies_named_constraint,
+    cannot_prove_transition_named_constraint
+);
 
 pub(crate) fn check_return_named_constraints(
     proof_plan: &ProofPlan,
@@ -100,19 +104,12 @@ pub(crate) fn check_return_named_constraints(
     }
 }
 
-pub(crate) fn check_initializer_named_constraints(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedInitializerObligation,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !initializer_satisfies_named_constraint(proof_plan, obligation, constraint) {
-            diagnostics.push(cannot_prove_initializer_named_constraint(
-                proof_plan, obligation, constraint,
-            ));
-        }
-    }
-}
+check_named_constraints!(
+    check_initializer_named_constraints,
+    BoundedInitializerObligation,
+    initializer_satisfies_named_constraint,
+    cannot_prove_initializer_named_constraint
+);
 
 fn named_constraints(constraints: &[ProofConstraint]) -> impl Iterator<Item = &str> {
     constraints.iter().filter_map(|constraint| {
