@@ -162,11 +162,11 @@ impl PostAllocationOptimizationManifest {
         let emission = decode_unavailable(&mut cursor)?;
         let publication = decode_unavailable(&mut cursor)?;
         let statistics = PostAllocationStatistics {
-            functions: u64::from_le_bytes(cursor.array()?),
-            assignments: u64::from_le_bytes(cursor.array()?),
-            distinct_physical_views: u64::from_le_bytes(cursor.array()?),
-            virtual_interferences: u64::from_le_bytes(cursor.array()?),
-            fixed_view_transitions: u64::from_le_bytes(cursor.array()?),
+            functions: cursor.u64()?,
+            assignments: cursor.u64()?,
+            distinct_physical_views: cursor.u64()?,
+            virtual_interferences: cursor.u64()?,
+            fixed_view_transitions: cursor.u64()?,
         };
         if cursor.remaining() != 0 {
             return Err(PostAllocationOptimizationManifestDecodeError::TrailingBytes);
@@ -365,9 +365,9 @@ fn decode_target(
             return Err(PostAllocationOptimizationManifestDecodeError::UnknownObjectFormat(tag));
         }
     };
-    let pointer_size = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_size = usize::try_from(cursor.u64()?)
         .map_err(|_| PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_alignment = usize::try_from(cursor.u64()?)
         .map_err(|_| PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow)?;
     Ok(NativeTarget {
         architecture,
