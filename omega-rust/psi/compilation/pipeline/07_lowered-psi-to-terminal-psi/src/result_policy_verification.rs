@@ -163,7 +163,7 @@ pub fn verify_boundary_result_policies(
                         };
                         if raw_result != raw.id
                             || !saturation_eligibility::verify(
-                                &block.operations[..position],
+                                &machine.operations().collect::<Vec<_>>(),
                                 eligible,
                                 arguments,
                                 &declaration.scalar_parameters,

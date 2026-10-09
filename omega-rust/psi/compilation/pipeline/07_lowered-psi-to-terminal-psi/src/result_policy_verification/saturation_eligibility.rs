@@ -14,7 +14,7 @@ enum Predicate {
 }
 
 pub(super) fn verify(
-    operations: &[Operation],
+    operations: &[&Operation],
     eligible: ValueId,
     arguments: &[ValueId],
     types: &[ScalarType],
@@ -50,6 +50,9 @@ pub(super) fn verify(
     {
         return false;
     }
+    if let OperationKind::BooleanConstant { value } = root.kind {
+        return constant_conjunction(operations, &expected, &mut budget) == Some(value);
+    }
     let OperationKind::IntegerEqual { left, right } = root.kind else {
         return false;
     };
@@ -65,7 +68,7 @@ pub(super) fn verify(
 }
 
 fn definition<'a>(
-    operations: &'a [Operation],
+    operations: &[&'a Operation],
     value: ValueId,
     budget: &mut usize,
 ) -> Option<&'a Operation> {
@@ -76,11 +79,11 @@ fn definition<'a>(
             .scalar_ref()
             .is_some_and(|result| result.id == value)
     });
-    let operation = matches.next()?;
+    let operation = *matches.next()?;
     matches.next().is_none().then_some(operation)
 }
 fn unsigned_constant(
-    operations: &[Operation],
+    operations: &[&Operation],
     value: ValueId,
     bits: u16,
     budget: &mut usize,
@@ -100,11 +103,11 @@ fn unsigned_constant(
     };
     Some(value)
 }
-fn is_byte_one(operations: &[Operation], value: ValueId, budget: &mut usize) -> bool {
+fn is_byte_one(operations: &[&Operation], value: ValueId, budget: &mut usize) -> bool {
     unsigned_constant(operations, value, 8, budget) == Some(1)
 }
 fn byte_predicates(
-    operations: &[Operation],
+    operations: &[&Operation],
     value: ValueId,
     budget: &mut usize,
     predicates: &mut Vec<Predicate>,
@@ -140,7 +143,7 @@ fn byte_predicates(
         _ => false,
     }
 }
-fn predicate(operations: &[Operation], value: ValueId, budget: &mut usize) -> Option<Predicate> {
+fn predicate(operations: &[&Operation], value: ValueId, budget: &mut usize) -> Option<Predicate> {
     let negation = definition(operations, value, budget)?;
     if negation.result.scalar_ref()?.scalar_type != ScalarType::Boolean {
         return None;
@@ -159,7 +162,7 @@ fn predicate(operations: &[Operation], value: ValueId, budget: &mut usize) -> Op
         .or_else(|| image_comparison(operations, right, left, budget))
 }
 fn image_comparison(
-    operations: &[Operation],
+    operations: &[&Operation],
     image: ValueId,
     comparison: ValueId,
     budget: &mut usize,
@@ -211,4 +214,50 @@ fn image_comparison(
     } else {
         None
     }
+}
+
+/// Folding preserves the conjunction's truth, not its producer graph. A known
+/// false operand proves false even if another input remains unknown; true
+/// requires every original operand condition to be known true.
+fn constant_conjunction(
+    operations: &[&Operation],
+    predicates: &[Predicate],
+    budget: &mut usize,
+) -> Option<bool> {
+    let mut unknown = false;
+    for predicate in predicates {
+        let (source, format) = match *predicate {
+            Predicate::Finite(source, format) | Predicate::Nonzero(source, format) => {
+                (source, format)
+            }
+        };
+        let truth = definition(operations, source, budget).and_then(|operation| {
+            let OperationKind::IeeeFloatConstant { value } = operation.kind else {
+                return None;
+            };
+            if value.format() != format {
+                return None;
+            }
+            Some(match (predicate, value) {
+                (Predicate::Finite(..), semantic_vocabulary::IeeeFloatValue::Binary32(bits)) => {
+                    f32::from_bits(bits).is_finite()
+                }
+                (Predicate::Finite(..), semantic_vocabulary::IeeeFloatValue::Binary64(bits)) => {
+                    f64::from_bits(bits).is_finite()
+                }
+                (Predicate::Nonzero(..), semantic_vocabulary::IeeeFloatValue::Binary32(bits)) => {
+                    f32::from_bits(bits) != 0.0
+                }
+                (Predicate::Nonzero(..), semantic_vocabulary::IeeeFloatValue::Binary64(bits)) => {
+                    f64::from_bits(bits) != 0.0
+                }
+            })
+        });
+        match truth {
+            Some(false) => return Some(false),
+            None => unknown = true,
+            Some(true) => {}
+        }
+    }
+    (!unknown).then_some(true)
 }
