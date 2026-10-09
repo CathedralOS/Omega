@@ -19,61 +19,48 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
 
-pub(crate) fn float_range_for_transition_argument(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedTransitionArgumentObligation,
-) -> Option<FloatRange> {
-    float_range(
-        proof_plan,
-        obligation.machine_symbol,
-        obligation.state_symbol,
-        obligation.statement_index,
-        obligation.argument,
-        obligation.argument_constraints,
-    )
+macro_rules! float_range_for {
+    ($name:ident, $obligation:ty, $expression:ident, $constraints:ident) => {
+        pub(crate) fn $name(
+            proof_plan: &ProofPlan,
+            obligation: &$obligation,
+        ) -> Option<FloatRange> {
+            float_range(
+                proof_plan,
+                obligation.machine_symbol,
+                obligation.state_symbol,
+                obligation.statement_index,
+                obligation.$expression,
+                obligation.$constraints,
+            )
+        }
+    };
 }
 
-pub(crate) fn float_range_for_assignment(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedAssignmentObligation,
-) -> Option<FloatRange> {
-    float_range(
-        proof_plan,
-        obligation.machine_symbol,
-        obligation.state_symbol,
-        obligation.statement_index,
-        obligation.value,
-        obligation.value_constraints,
-    )
-}
-
-pub(crate) fn float_range_for_call_argument(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedCallArgumentObligation,
-) -> Option<FloatRange> {
-    float_range(
-        proof_plan,
-        obligation.machine_symbol,
-        obligation.state_symbol,
-        obligation.statement_index,
-        obligation.argument,
-        obligation.argument_constraints,
-    )
-}
-
-pub(crate) fn float_range_for_return_value(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedStateReturnObligation,
-) -> Option<FloatRange> {
-    float_range(
-        proof_plan,
-        obligation.machine_symbol,
-        obligation.state_symbol,
-        obligation.statement_index,
-        obligation.value,
-        obligation.value_constraints,
-    )
-}
+float_range_for!(
+    float_range_for_transition_argument,
+    BoundedTransitionArgumentObligation,
+    argument,
+    argument_constraints
+);
+float_range_for!(
+    float_range_for_assignment,
+    BoundedAssignmentObligation,
+    value,
+    value_constraints
+);
+float_range_for!(
+    float_range_for_call_argument,
+    BoundedCallArgumentObligation,
+    argument,
+    argument_constraints
+);
+float_range_for!(
+    float_range_for_return_value,
+    BoundedStateReturnObligation,
+    value,
+    value_constraints
+);
 
 /// The literal-or-consulted float range spine every per-role
 /// `float_range_for_*` shares — the role wrappers read out their own
