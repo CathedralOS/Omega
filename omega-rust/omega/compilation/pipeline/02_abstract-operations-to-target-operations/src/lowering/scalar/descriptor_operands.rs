@@ -39,17 +39,26 @@ pub(in crate::lowering) fn descriptor_projection(
                 .map(|home| (home.structural_type(), home.access()))
         })
         .or_else(|| {
-            function.structural_places.iter().find_map(|declaration| {
-                if declaration.id != source.place {
+            function.operations.iter().find_map(|operation| {
+                let abstract_operations::AbstractOperation::EstablishByteSequenceLiteral {
+                    place,
+                    structural_type,
+                    ..
+                } = operation
+                else {
                     return None;
-                }
-                match declaration.kind {
-                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
-                        structural_type,
-                        ..
-                    } => Some((structural_type, StructuralAccess::SharedBorrow)),
-                    _ => None,
-                }
+                };
+                (place.id == source.place
+                    && structural_type.shape.is_borrowed_byte_view()
+                    && structural_types.get(&structural_type.id).copied() == Some(structural_type)
+                    && matches!(
+                        place.kind,
+                        semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                            structural_type: identity,
+                            ..
+                        } if identity == structural_type.id
+                    ))
+                .then_some((structural_type.id, StructuralAccess::SharedBorrow))
             })
         })
         .ok_or_else(invalid)?;
