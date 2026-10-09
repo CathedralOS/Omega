@@ -3,7 +3,7 @@
 //! plan, machine states and regimes, entry stacks and preemption.
 
 use crate::callback_materializations::CallbackMaterialization;
-use semantic_vocabulary::ScalarType;
+use semantic_vocabulary::{IntegerType, ScalarType};
 use target::Architecture;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -170,26 +170,30 @@ pub struct ValueShape {
 }
 
 impl ValueShape {
-    /// The carried shape of a scalar for foreign-call transport: the retained
-    /// hosted address model uses a 64-bit integer-class slot, while its
-    /// semantic carrier remains an address throughout replay.
+    /// The carried shape of an integer scalar for foreign-call transport: the
+    /// retained hosted address model uses a 64-bit integer-class slot, while
+    /// its semantic carrier remains an address throughout replay.
+    pub fn for_integer(integer: IntegerType) -> Option<Self> {
+        if integer.is_address() && integer.bits() == 64 {
+            return Some(Self::integer(8, 8));
+        }
+        if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
+            || !matches!(integer.bits(), 8 | 16 | 32 | 64)
+        {
+            return None;
+        }
+        let bytes = integer.bits() / 8;
+        Some(Self::integer(u32::from(bytes), bytes))
+    }
+
+    /// The carried shape of a scalar for foreign-call transport: fixed-width
+    /// integers take the integer-class slot of their byte extent, Booleans one
+    /// byte, and IEEE floats their interchange size.
     pub fn for_scalar(scalar_type: ScalarType) -> Option<Self> {
         match scalar_type {
-            ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
-                Some(Self::integer(8, 8))
-            }
             ScalarType::Boolean => Some(Self::integer(1, 1)),
             ScalarType::IeeeFloat(format) => Some(Self::float(format.byte_size())),
-            ScalarType::Integer(integer)
-                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                    && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-            {
-                Some(Self::integer(
-                    u32::from(integer.bits() / 8),
-                    integer.bits() / 8,
-                ))
-            }
-            _ => None,
+            ScalarType::Integer(integer) => Self::for_integer(integer),
         }
     }
 

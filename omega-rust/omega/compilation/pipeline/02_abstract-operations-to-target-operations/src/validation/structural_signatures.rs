@@ -4,7 +4,7 @@
 use super::structural_shapes;
 use abstract_operations::{AbstractCallSignature, AbstractFunction, AbstractFunctionResult};
 use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-use semantic_vocabulary::{IntegerCarrier, IntegerType, ScalarType};
+use semantic_vocabulary::{IntegerType, ScalarType};
 use target::NativeTarget;
 use target_operations::{
     MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, TargetFunction,
@@ -240,29 +240,12 @@ fn scalar_rows(
 /// Producer-independent fixed native shape eligibility for the published
 /// scalar ABI: Booleans, fixed 8/16/32/64 integers, 64-bit addresses, and IEEE floats.
 pub(super) fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
-    match scalar_type {
-        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::Integer(integer) => fixed_native_integer_shape(integer),
-        ScalarType::IeeeFloat(format) => Some(ValueShape::float(match format {
-            semantic_vocabulary::IeeeFloatFormat::Binary32 => 4,
-            semantic_vocabulary::IeeeFloatFormat::Binary64 => 8,
-        })),
-    }
+    ValueShape::for_scalar(scalar_type)
 }
 
 pub(super) fn fixed_native_integer_shape(integer: IntegerType) -> Option<ValueShape> {
     // Hosted address models currently use one 64-bit scalar transport. Keep
     // the address carrier in every value record; an integer-class ABI slot
     // does not convert it to a count or admit other address models.
-    if integer.is_address() && integer.bits() == 64 {
-        return Some(ValueShape::integer(8, 8));
-    }
-    if integer.carrier() != IntegerCarrier::Fixed || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
-        return None;
-    }
-    let bytes = integer.bits().div_ceil(8);
-    Some(ValueShape::integer(
-        u32::from(bytes),
-        bytes.next_power_of_two().min(8),
-    ))
+    ValueShape::for_integer(integer)
 }
