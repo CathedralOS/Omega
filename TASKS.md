@@ -1533,17 +1533,11 @@ defines the complete product bar.
   Remaining: `pass/core/numeric_*` reach all 170 public machines of
   `source/library/core/numeric_conversion.omg` but run natively and
   interpreted on macOS ARM64 only; run them on Linux x86-64 and Windows x86-64
-  and record those goldens. `as` never changes the denoted value
-  ([exact coercion](wiki/spec/language/domains.md#exact-coercion-and-erasure)):
-  a policy-qualified target (`value as i8 in Saturating` from `i16`) must
-  still prove the value representable, and clamping or wrapping conversions
-  are the named machines of `core/numeric_conversion.omg`. Stage 04 still
-  admits signed and mixed-sign `in Saturating`/`in Wrapping` casts that would
-  clamp or wrap; reject them as unproven representability, and migrate their
-  customers with **OPERATOR-BOUNDARY-CALLS** (which already records this rule
-  for integer policy-qualified carrier changes). The product checker
-  enforces it. Float policy/conversion customers belong to
-  **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS**.
+  and record those goldens. Preserve exact coercion under every policy:
+  `as` requires unchanged denotation and representability; wrapping and
+  clamping belong to the named machines of `core/numeric_conversion.omg`.
+  Float policy/conversion customers belong to **OPERATOR-BOUNDARY-CALLS** /
+  **FLOAT-PROVIDERS**.
 
   Acceptance: comparisons and conversions agree between the interpreter and
   matching-host native execution across all six relations and operand
@@ -2312,12 +2306,7 @@ crash and native exit behavior.
     `float/runtime_qualified_carrier_conversion_exit` (0) and
     `float/qualified_conversion_requires_operand_proof` for selected exact
     conversions beneath declared tags, aliases and inline arguments; a rounding
-    conversion cannot stand in for an exact cast. Integer policy-qualified
-    carrier changes still take legacy conversion semantics: enforce unchanged
-    denotation for `as`, leaving policy-bearing conversions on the named-call
-    surface. `core/numeric_unsigned_narrowing_policies` still uses
-    `(70000u32 as u16 in Saturating) as u16` to clamp its source; migrate that
-    invalid fixture premise to a named conversion as the integer route is repaired.
+    conversion cannot stand in for an exact cast.
     Run `float/named_integer_conversion_source_proofs_exit` (78) on
     Linux/Windows; those matching-host results remain unverified.
     `float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` need native
