@@ -7,12 +7,8 @@ use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, ServiceId};
 
 use super::semantically_reachable_blocks;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum EffectKnowledge {
-    No,
-    May,
-    Yes,
-}
+/// The effect lattice is the observation knowledge verbatim.
+pub type EffectKnowledge = optimization_unit::ObservationKnowledge;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EffectClass {
@@ -132,7 +128,7 @@ struct PendingFunctionEffect {
 
 fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffectSummary> {
     fn join(left: EffectKnowledge, right: EffectKnowledge) -> EffectKnowledge {
-        use EffectKnowledge::{May, No, Yes};
+        use optimization_unit::ObservationKnowledge::{May, No, Yes};
         match (left, right) {
             (May, _) | (_, May) => May,
             (Yes, _) | (_, Yes) => Yes,
@@ -273,7 +269,7 @@ fn operation_effect(
     EffectKnowledge,
     EffectKnowledge,
 ) {
-    use EffectKnowledge::{May, No, Yes};
+    use optimization_unit::ObservationKnowledge::{May, No, Yes};
     match operation {
         O::SelectImplementation { .. }
         | O::IntegerConstant { .. }

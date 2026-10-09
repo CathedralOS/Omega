@@ -8,10 +8,9 @@ use language_semantics::quotient_correspondence::{
     QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
     QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
     QuotientResultFlow, QuotientStateForwarding, QuotientStaticApplication,
-    QuotientTerminationCertificate, QuotientTheoremApplicationSide, QuotientTheoremConclusion,
-    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
-    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
-    QuotientTheoremRole,
+    QuotientTerminationCertificate, QuotientTheoremConclusion, QuotientTheoremCorrespondence,
+    QuotientTheoremEligibility, QuotientTheoremEvidence, QuotientTheoremParameter,
+    QuotientTheoremParameterRole, QuotientTheoremRelationPremise, QuotientTheoremRole,
 };
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -25,7 +24,7 @@ use super::precondition::{ContractFactLocation, ContractOwner};
 use super::representative::MachineStateCoordinate;
 use super::result_flow::{CompleteResultFlow, CompleteStateForwardingResultFlow};
 use super::runtime_correspondence::{DirectLiftArgumentSource, direct_public_parameter_symbol};
-use super::theorem_schema::{TheoremApplicationSide, TheoremParameterRole};
+use super::theorem_schema::TheoremParameterRole;
 use super::transport_schema::VerifiedForwardPreconditionTransportSchema;
 use super::{DirectTerminalRelationPlan, ExactQuotientRelation, InputRelation};
 
@@ -560,7 +559,7 @@ fn theorem_correspondence(
                         .find(|premise| premise.expected_position == position)
                         .ok_or_else(|| "verified theorem legality premise is absent".to_owned())?;
                     Ok(QuotientForwardPreconditionTransportFact {
-                        application: theorem_application_side(expected.application),
+                        application: expected.application,
                         source: theorem_contract_coordinate(expected.fact)?,
                         actual: contract_coordinate(verified.actual)?,
                     })
@@ -676,7 +675,7 @@ fn transport_correspondence(
         fact: &super::transport_schema::VerifiedTransportFact,
     ) -> Result<QuotientForwardPreconditionTransportFact, String> {
         Ok(QuotientForwardPreconditionTransportFact {
-            application: theorem_application_side(fact.application),
+            application: fact.application,
             source: representative_contract_coordinate(fact.source)?,
             actual: contract_coordinate(fact.actual)?,
         })
@@ -693,13 +692,6 @@ fn transport_correspondence(
             .map(row)
             .collect::<Result<Vec<_>, _>>()?,
     })
-}
-
-fn theorem_application_side(application: TheoremApplicationSide) -> QuotientTheoremApplicationSide {
-    match application {
-        TheoremApplicationSide::Left => QuotientTheoremApplicationSide::Left,
-        TheoremApplicationSide::Right => QuotientTheoremApplicationSide::Right,
-    }
 }
 
 fn theorem_contract_coordinate(

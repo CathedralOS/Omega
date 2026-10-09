@@ -528,7 +528,7 @@ fn blocked(
         .filter(|entry| Some(entry.register) != omitted)
         .any(|entry| {
             interferes(incoming, entry.register, interference)
-                && footprints_overlap(view, &physical.model().views[usize::from(entry.view.0)])
+                && view.footprints_overlap(&physical.model().views[usize::from(entry.view.0)])
         })
 }
 
@@ -549,11 +549,4 @@ fn interferes(
         }
     };
     interference.binary_search(&pair).is_ok()
-}
-
-fn footprints_overlap(left: &RegisterView, right: &RegisterView) -> bool {
-    left.units
-        .iter()
-        .chain(&left.write_units)
-        .any(|unit| right.units.contains(unit) || right.write_units.contains(unit))
 }

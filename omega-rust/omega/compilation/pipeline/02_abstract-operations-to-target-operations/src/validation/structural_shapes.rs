@@ -39,7 +39,7 @@ pub(super) fn reconstruct(
     shape(root, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new())
 }
 
-pub(super) fn parameter_shape(referent: ValueShape, access: StructuralAccess) -> ValueShape {
+pub(crate) fn parameter_shape(referent: ValueShape, access: StructuralAccess) -> ValueShape {
     match access {
         StructuralAccess::Owned => referent,
         StructuralAccess::SharedBorrow

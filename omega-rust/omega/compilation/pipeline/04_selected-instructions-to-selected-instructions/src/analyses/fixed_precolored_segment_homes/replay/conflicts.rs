@@ -85,7 +85,7 @@ pub(super) fn reconstruct(
                 for &right_candidate in &right.candidates {
                     work.candidate_pair()?;
                     let right_view = view(function, right, right_candidate, physical)?;
-                    if aliases(left_view, right_view) {
+                    if left_view.footprints_overlap(right_view) {
                         view_pairs.insert((left.id, left_candidate, right.id, right_candidate));
                         conflicting
                             .entry((left.id, left_candidate))
@@ -144,13 +144,6 @@ fn view<'a>(
             register: domain.virtual_register.0,
             view: id.0,
         })
-}
-
-fn aliases(left: &RegisterView, right: &RegisterView) -> bool {
-    left.units
-        .iter()
-        .chain(&left.write_units)
-        .any(|unit| right.units.contains(unit) || right.write_units.contains(unit))
 }
 
 fn order_domains(

@@ -19,7 +19,7 @@ use machine_code::{
     InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitCallSource,
     InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallArgumentRecord,
     InternalUnitStructuralArgumentSourceRecord, SemanticCodeAttribution, SemanticCodeSite,
-    StructuralSourceLocation, UnitParameterHomeRecord, UnitParameterRecord,
+    StructuralSourceLocation, UnitParameterHomeRecord, UnitParameterRecord, semantic_code_site,
 };
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use selected_instructions::{
@@ -590,7 +590,7 @@ pub(super) fn settlement_attributions(
             )
         })
         .map(|row| {
-            let site = SemanticCodeSite::from(row.settlement.invocation_site());
+            let site = semantic_code_site(row.settlement.invocation_site());
             Ok(SemanticCodeAttribution {
                 site,
                 operation_ordinal: attribution::ordinal(abstracted, site)?,

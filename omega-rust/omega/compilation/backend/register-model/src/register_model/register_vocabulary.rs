@@ -55,6 +55,16 @@ pub struct RegisterView {
     pub allocatable: bool,
 }
 
+impl RegisterView {
+    /// Whether either view stores through a unit the other occupies or writes.
+    pub fn footprints_overlap(&self, other: &RegisterView) -> bool {
+        self.units
+            .iter()
+            .chain(&self.write_units)
+            .any(|unit| other.units.contains(unit) || other.write_units.contains(unit))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegisterClass {
     pub id: RegisterClassId,

@@ -37,20 +37,7 @@ pub(in crate::legalization) fn signature(
 pub(in crate::legalization) fn native_target(
     target: impl Into<AbstractCallTarget>,
 ) -> target_operations::NativeCallTarget {
-    match target.into() {
-        AbstractCallTarget::Machine(machine) => {
-            target_operations::NativeCallTarget::Machine(machine)
-        }
-        AbstractCallTarget::Dynamic {
-            selector,
-            interface,
-            slot,
-        } => target_operations::NativeCallTarget::Dynamic {
-            selector,
-            interface,
-            slot,
-        },
-    }
+    target.into()
 }
 
 pub(in crate::legalization) fn parameter(

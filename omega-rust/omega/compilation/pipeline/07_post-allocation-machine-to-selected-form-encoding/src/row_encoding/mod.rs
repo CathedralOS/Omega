@@ -34,8 +34,8 @@ use isa_x86_64::encode_x86_64_selected_form;
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeKey, MachineEncodedEffects, MachineSizeKnowledge, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    MachineAlternativeKey, MachineEncodedEffects, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind,
 };
 use target::{Architecture, NativeTarget};
 
@@ -524,24 +524,4 @@ fn validate_operand_footprint(
     Ok(())
 }
 
-fn validate_size(
-    instruction: SelectedInstructionId,
-    knowledge: MachineSizeKnowledge,
-    actual: usize,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let actual = u16::try_from(actual)
-        .map_err(|_| OptimizedSelectedFormEncodingError::SizeDeclarationMismatch(instruction))?;
-    let matches = match knowledge {
-        MachineSizeKnowledge::ExactBytes(expected) => actual == expected,
-        MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes,
-            maximum_bytes,
-        } => actual >= minimum_bytes && maximum_bytes.is_none_or(|maximum| actual <= maximum),
-    };
-    if !matches {
-        return Err(OptimizedSelectedFormEncodingError::SizeDeclarationMismatch(
-            instruction,
-        ));
-    }
-    Ok(())
-}
+use crate::validation::row::validate_size;

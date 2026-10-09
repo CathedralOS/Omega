@@ -96,11 +96,8 @@ pub(super) fn collect_contract_facts<'a>(
     Ok((requires, ensures))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum TheoremApplicationSide {
-    Left,
-    Right,
-}
+pub(super) type TheoremApplicationSide =
+    language_semantics::quotient_correspondence::QuotientTheoremApplicationSide;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct TheoremLegalityPremise {

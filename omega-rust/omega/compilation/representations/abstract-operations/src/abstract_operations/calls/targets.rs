@@ -30,6 +30,27 @@ impl AbstractCallTarget {
             Self::Dynamic { selector, .. } => Some(selector),
         }
     }
+
+    pub fn canonical_bytes(self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        match self {
+            Self::Machine(machine) => {
+                bytes.push(0);
+                bytes.extend_from_slice(&machine.get().to_le_bytes());
+            }
+            Self::Dynamic {
+                selector,
+                interface,
+                slot,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&selector.get().to_le_bytes());
+                bytes.extend_from_slice(&interface.to_le_bytes());
+                bytes.extend_from_slice(&slot.to_le_bytes());
+            }
+        }
+        bytes
+    }
 }
 
 impl From<MachineId> for AbstractCallTarget {

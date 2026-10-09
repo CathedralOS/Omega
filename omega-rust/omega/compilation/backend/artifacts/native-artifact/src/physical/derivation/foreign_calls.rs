@@ -602,8 +602,7 @@ pub(crate) fn derive_normalized_foreign_child(
         .iter()
         .filter(|attribution| {
             attribution.machine == occurrence.machine()
-                && attribution.attribution.site
-                    == machine_code::SemanticCodeSite::from(invocation_site)
+                && attribution.attribution.site == machine_code::semantic_code_site(invocation_site)
                 && attribution.attribution.operation_ordinal == occurrence.operation_ordinal()
         })
         .collect::<Vec<_>>();

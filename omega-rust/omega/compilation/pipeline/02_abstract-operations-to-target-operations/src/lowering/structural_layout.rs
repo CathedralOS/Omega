@@ -491,19 +491,7 @@ pub(super) fn scalar_storage_type(
     runtime_abi::ScalarStorageCodec::from_scalar(scalar).map(|_| scalar)
 }
 
-pub(super) fn structural_parameter_shape(
-    referent: ValueShape,
-    access: StructuralAccess,
-) -> ValueShape {
-    match access {
-        StructuralAccess::Owned => referent,
-        StructuralAccess::SharedBorrow
-        | StructuralAccess::MutableBorrow
-        | StructuralAccess::WriteOnlyBorrow => {
-            ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
-        }
-    }
-}
+pub(super) use crate::validation::structural_shapes::parameter_shape as structural_parameter_shape;
 
 pub(super) fn structural_sum_layout(
     structural_type: StructuralTypeId,

@@ -1,23 +1,17 @@
 //! Semantic operations and edges attributed to exact native byte intervals.
 
-use semantic_vocabulary::{EdgeId, OperationId};
-
 /// Semantic operation or edge owning one exact emitted byte interval.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SemanticCodeSite {
-    Operation(OperationId),
-    Edge(EdgeId),
-}
+/// The emitted code site is the psi provenance verbatim.
+pub type SemanticCodeSite = optimization_unit::PsiProvenance;
 
-impl From<semantic_vocabulary::BoundaryInvocationSite> for SemanticCodeSite {
-    fn from(site: semantic_vocabulary::BoundaryInvocationSite) -> Self {
-        match site {
-            semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
-                Self::Operation(operation)
-            }
-            semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
-                Self::Edge(edge)
-            }
+/// The boundary invocation's emitted provenance, verbatim.
+pub fn semantic_code_site(site: semantic_vocabulary::BoundaryInvocationSite) -> SemanticCodeSite {
+    match site {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            SemanticCodeSite::Operation(operation)
+        }
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            SemanticCodeSite::Edge(edge)
         }
     }
 }

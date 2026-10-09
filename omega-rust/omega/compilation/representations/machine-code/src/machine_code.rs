@@ -112,7 +112,7 @@ pub use ownership::{
     ScalarCleanupPreservationEvidence, ScalarControlAffineCleanupRecord, UnitAffineCleanupRecord,
     UnitContinuationRecord,
 };
-pub use provenance::{SemanticCodeAttribution, SemanticCodeSite};
+pub use provenance::{SemanticCodeAttribution, SemanticCodeSite, semantic_code_site};
 pub use storage::{
     Aarch64ReturnLinkEvidence, CalleeSaveFrameSlot, FrameProtocolByteSpan, FrameUnwindPlan,
     FrameUnwindRestore, FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol,

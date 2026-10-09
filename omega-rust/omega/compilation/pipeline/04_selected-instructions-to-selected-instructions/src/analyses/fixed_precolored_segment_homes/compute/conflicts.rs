@@ -89,7 +89,7 @@ pub(super) fn build(
                 for &right_candidate in &right.candidates {
                     work.candidate_pair()?;
                     let right_view = checked_view(function, right, right_candidate, physical)?;
-                    if footprints_overlap(left_view, right_view) {
+                    if left_view.footprints_overlap(right_view) {
                         views.insert((left.id, left_candidate, right.id, right_candidate));
                         conflicting
                             .entry((left.id, left_candidate))
@@ -153,13 +153,6 @@ fn checked_view<'a>(
             register: domain.virtual_register.0,
             view: candidate.0,
         })
-}
-
-fn footprints_overlap(left: &RegisterView, right: &RegisterView) -> bool {
-    left.units
-        .iter()
-        .chain(&left.write_units)
-        .any(|unit| right.units.contains(unit) || right.write_units.contains(unit))
 }
 
 fn ordered_domains(

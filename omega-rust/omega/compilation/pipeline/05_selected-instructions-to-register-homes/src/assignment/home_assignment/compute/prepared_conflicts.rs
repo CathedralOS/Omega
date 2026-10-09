@@ -133,7 +133,7 @@ impl<'a> PreparedConflicts<'a> {
         for &(other_index, other_view_id) in assigned {
             let other_view = self.checked_view(function, other_index, other_view_id, domains)?;
             let pair = self.pair(domain_index, other_index);
-            if (pair.interferes && symmetric_footprints_overlap(candidate_view, other_view))
+            if (pair.interferes && candidate_view.footprints_overlap(other_view))
                 || (pair.left_defines && definition_overwrites_use(candidate_view, other_view))
                 || (pair.right_defines && definition_overwrites_use(other_view, candidate_view))
             {
@@ -162,13 +162,6 @@ impl<'a> PreparedConflicts<'a> {
                 view: candidate.0,
             })
     }
-}
-
-fn symmetric_footprints_overlap(left: &RegisterView, right: &RegisterView) -> bool {
-    left.units
-        .iter()
-        .chain(&left.write_units)
-        .any(|unit| right.units.contains(unit) || right.write_units.contains(unit))
 }
 
 fn definition_overwrites_use(definition: &RegisterView, used: &RegisterView) -> bool {

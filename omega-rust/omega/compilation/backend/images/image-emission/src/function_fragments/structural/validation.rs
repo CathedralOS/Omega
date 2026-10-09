@@ -8,7 +8,7 @@ use super::{
     SemanticCodeAttribution, SemanticCodeSite, StagedOptimizedRelocationFreeObjectContainer,
     StructuralSourceLocation, ValueLocation, ValuePlacement, attribution, byte_input, byte_output,
     established_views, fragment, host, inline_owned_placement, primitive_locals, process_exit,
-    published_call, scalar_result, scalar_type, selected, source,
+    published_call, scalar_result, scalar_type, selected, semantic_code_site, source,
 };
 pub(in crate::function_fragments) fn validate_function(
     source: &StagedOptimizedRelocationFreeObjectContainer,
@@ -523,7 +523,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
     let invalid = || Error::Mismatch("settlement attribution differs from admitted operation");
     let mut sites = Vec::new();
     for located in &function.boundary_settlements {
-        let site = SemanticCodeSite::from(located.settlement.invocation_site());
+        let site = semantic_code_site(located.settlement.invocation_site());
         if sites.contains(&site) {
             return Err(invalid());
         }
@@ -573,7 +573,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
                 matches!(
                     located.settlement,
                     selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(_)
-                ) && row.site == SemanticCodeSite::from(located.settlement.invocation_site())
+                ) && row.site == semantic_code_site(located.settlement.invocation_site())
             })
         })
         .copied()

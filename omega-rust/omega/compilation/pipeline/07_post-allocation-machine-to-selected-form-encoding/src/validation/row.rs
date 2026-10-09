@@ -421,7 +421,7 @@ fn validate_external_operands(
     Ok(())
 }
 
-fn validate_size(
+pub(crate) fn validate_size(
     instruction: SelectedInstructionId,
     knowledge: MachineSizeKnowledge,
     actual: usize,

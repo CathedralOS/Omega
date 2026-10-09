@@ -95,7 +95,7 @@ pub use machine_code::{
     function_fragment_frame_application_identity, functions, identity, instructions, internal,
     layout, ownership, parameters, ports, provenance, publication,
     relocation_free_text_section_identity, resolved_machine_layout_identity, results, scalars,
-    settlements, stack, storage, stores, target_frame_layout_identity,
+    semantic_code_site, settlements, stack, storage, stores, target_frame_layout_identity,
     target_frame_protocol_encoding_identity, unit_call_arguments,
     whole_function_exit_contract_identity, x86_fma, x86_scalar_fma_fragment_identity,
 };
