@@ -313,16 +313,9 @@ fn instantiate_proof_expression_parameter(
         .map(|(_, contract)| contract)
         .find(|contract| contract.evidence_term == Some(parameter))?;
     let application = program.proof_facts.get(contract.fact).as_proposition()?;
-    let binder_labels = application
-        .binder_arguments
-        .iter()
-        .map(|argument| argument.display_name())
-        .collect::<Vec<_>>();
-    let argument_labels = program
-        .expression_table
-        .expression_handles(application.arguments)
-        .iter()
-        .map(|argument| {
+    let (binder_labels, argument_handles) =
+        crate::labels::proposition_label_sources(application, program);
+    let argument_labels = argument_handles.iter().map(|argument| {
             super::labels::instantiate_call_contract_expression_label(
                 program,
                 symbols::SymbolHandle::invalid(),

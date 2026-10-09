@@ -566,16 +566,9 @@ fn requires_fact_proven(
                     .iter()
                     .copied(),
             );
-            let binder_labels = application
-                .binder_arguments
-                .iter()
-                .map(|argument| argument.display_name())
-                .collect::<Vec<_>>();
-            let argument_labels = program
-                .expression_table
-                .expression_handles(application.arguments)
-                .iter()
-                .map(|argument| {
+            let (binder_labels, argument_handles) =
+                crate::labels::proposition_label_sources(application, program);
+            let argument_labels = argument_handles.iter().map(|argument| {
                     instantiate_operator_contract_expression_label_with_labels(
                         program,
                         parameters,

@@ -885,16 +885,9 @@ fn instantiate_proof_output_proposition(
         expression: package.call,
         call,
     };
-    let binder_labels = application
-        .binder_arguments
-        .iter()
-        .map(|argument| argument.display_name())
-        .collect::<Vec<_>>();
-    let argument_labels = program
-        .expression_table
-        .expression_handles(application.arguments)
-        .iter()
-        .map(|argument| {
+    let (binder_labels, argument_handles) =
+        crate::labels::proposition_label_sources(application, program);
+    let argument_labels = argument_handles.iter().map(|argument| {
             crate::checks::contracts::labels::instantiate_call_contract_expression_label(
                 program,
                 package.state_symbol,
