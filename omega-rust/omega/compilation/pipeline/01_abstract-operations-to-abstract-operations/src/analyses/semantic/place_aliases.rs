@@ -55,21 +55,10 @@ pub(crate) struct PlaceAliasesAnalysis {
 }
 
 impl PlaceAliasesAnalysis {
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn function(&self, machine: MachineId) -> Option<&PlaceAliasFunction> {
-        self.functions
-            .binary_search_by_key(&machine, |function| function.machine)
-            .ok()
-            .map(|index| &self.functions[index])
-    }
 }
 
 impl PlaceAliasFunction {}
 
-#[cfg(any(test, feature = "test-support"))]
-fn is_referent(segment: &StructuralPathSegment) -> bool {
-    matches!(segment, StructuralPathSegment::Referent)
-}
 
 pub(in crate::analyses) fn place_aliases(unit: &PsiOptimizationUnit) -> PlaceAliasesAnalysis {
     let mut claim_views: BTreeMap<MachineId, BTreeMap<PlaceView, BTreeSet<OwnershipFrontierSite>>> =

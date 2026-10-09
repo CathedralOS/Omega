@@ -26,10 +26,6 @@ pub use frame_layout::{
     NonAuthoritativeCalleeSaveStoragePolicy, OutgoingAbiFrameArea, ReturnAddressFrameCustody,
     StackProbePlan, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
-pub(crate) use frame_layout::{
-    FunctionSpillFrameRequirements, NonAuthoritativeSpillFrameRequirementPlan,
-    NonAuthoritativeSpillFrameRequirementPolicy,
-};
 pub use frame_protocol::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,
     TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,

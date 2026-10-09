@@ -50,9 +50,6 @@ pub(crate) struct MissingTerminalAuthorityPermission {
 }
 
 impl MissingTerminalAuthorityPermission {
-    pub const fn service_schema(&self) -> ServiceSchemaDigest {
-        self.service_schema
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
