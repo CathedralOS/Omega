@@ -1,20 +1,9 @@
-// REGRESSION PIN (recorded `incomplete`): a boundary call whose argument is
-// itself a call must lower. The `let` statement
-//   let ok: i32 = Io::c_close_handle(narrow_u64_to_i64_wrapping(main.handle));
-// checked at 350a9385f4b and reads `incomplete` --
-//   "... has no executable body: this compiler does not lower a statement of
-//    it yet (outer calls: statement shape)"
-// after the stage-04 statement-shape rework in the 2026-10-08 main. The
-// earliest incoming commit in 350a9385f4b..origin/main touching
-// execution/terminal_unit/control/call_occurrences/traced.rs is
-// b693b5271d7 "psi: look statements and machine states up through the
-// tables"; this is the candidate, unconfirmed -- a two-point bisect needs a
-// full compiler rebuild per step and was not performed.
-//
-// Intended behavior once the statement shape lowers again: the boundary
-// requirement `Io::c_close_handle` binds kernel32 `CloseHandle`; handle 0
-// is invalid, CloseHandle fails and returns 0, so the program exits 70
-// (71 otherwise). windows_x86_64 only.
+// An ordinary nested call produces a boundary operand before the enclosing
+// invocation. Its local initializer uses the same exact call ownership as
+// direct scalar operands, without hoisting the conversion into another local.
+// Windows only: the boundary binds kernel32 CloseHandle. The zero-initialized
+// handle is invalid, so CloseHandle returns 0 and the program exits 70
+// (71 otherwise). Target checking alone does not establish that native result.
 use omega_language_std::console;
 use omega::language::core::binding;
 use omega::language::core::external_binding;
