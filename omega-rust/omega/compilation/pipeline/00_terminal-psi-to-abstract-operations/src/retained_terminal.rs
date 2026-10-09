@@ -9,7 +9,7 @@ pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realiz
 
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::{ RetainedNativeProviderInputs};
-pub use native_providers::{PreparedRetainedNativeProviders};
+pub(crate) use native_providers::{PreparedRetainedNativeProviders};
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
 

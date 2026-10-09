@@ -37,26 +37,26 @@ pub use source_evaluated_bindings::{ SourceEvaluatedImportSettlement,
 };
 pub(crate) use source_evaluated_bindings::{
     prepare_source_evaluated_bindings};
-pub use source_evaluated_bindings::{
+pub(crate) use source_evaluated_bindings::{
     PreparedSourceEvaluatedBindings};
 
 pub(crate) use request::{
     NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
-pub use request::{ NativeProviderSettlement,
+pub(crate) use request::{ NativeProviderSettlement,
     ProviderAdmissionRequest};
 pub use terminal_authority_permission_policy::{
     TerminalAuthorityPermissionPolicy,
     TerminalAuthorityPermissionPolicyRow,
     terminal_authority_permission_policy_with_rows,
 };
-pub use terminal_authority_permission_policy::{ TerminalAuthorityPermissionPolicyBuildError};
+pub(crate) use terminal_authority_permission_policy::{ TerminalAuthorityPermissionPolicyBuildError};
 pub use terminal_authority_policy::{ TerminalAuthorityPolicy,
     current_terminal_authority_policy,
     filesystem_host_permission_rows, terminal_authority_policy_with_rows, time_host_permission_rows,
 };
 pub(crate) use terminal_authority_policy::{ normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations};
-pub use terminal_authority_policy::{ UnsettledFilesystemRequirement, UnsettledTimeHostRequirement};
+pub(crate) use terminal_authority_policy::{ UnsettledFilesystemRequirement, UnsettledTimeHostRequirement};
 
 mod model;
 use crate::AdmittedProviderInstallation;

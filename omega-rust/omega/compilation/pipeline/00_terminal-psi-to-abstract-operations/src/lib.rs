@@ -54,14 +54,14 @@ pub use retained_terminal::{ RetainedNativeProviderInputs, RetainedTerminalArtif
     TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
     TerminalNativeRealizationProposal, project_terminal_native_realization_proposal,
 };
-pub use retained_terminal::{
+pub(crate) use retained_terminal::{
     PreparedRetainedNativeProviders};
 
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
     artifact_lowering_error,
 };
-pub use native_execution_scope::NativeExecutionScopeError;
+pub(crate) use native_execution_scope::NativeExecutionScopeError;
 pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
 };
@@ -69,7 +69,7 @@ pub use provider_admission::{
 pub use artifact_admission::{ ArtifactSections,
     TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
-pub use artifact_admission::{ ArtifactLoweringError};
+pub(crate) use artifact_admission::{ ArtifactLoweringError};
 pub use boundary_application_settlement::BoundaryApplicationSettlement;
 pub(crate) use callback_settlement::{CallbackRegistrarOccurrence, settle_callback_registrar_imports};
 pub use entry_settlement::{
@@ -80,11 +80,11 @@ pub use lowering::LoweringError;
 pub use optimization::{ VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
     VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
-pub use optimization::{
+pub(crate) use optimization::{
     VerifiedPsiOptimizationContext};
 pub use provider_installation::{ AdmittedProviderInstallation, ProviderInstallationError,
 };
-pub use provider_installation::{
+pub(crate) use provider_installation::{
     SelectedProviderAdapter};
-pub use provider_installation::{
+pub(crate) use provider_installation::{
     AdmittedInstalledProviderCall};

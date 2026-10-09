@@ -127,7 +127,7 @@ impl VerifiedNativeArtifactInput {
 /// One canonical native-admitted plan with its exact retained verifier context.
 /// Placed-view rows are semantic custody, not backing or access-event authority.
 #[derive(Debug, Clone)]
-pub struct AdmittedNativeArtifact {
+pub(crate) struct AdmittedNativeArtifact {
     optimization_input: VerifiedPsiOptimizationInput,
 }
 

@@ -17,7 +17,7 @@ use abstract_operations::AbstractOperationPlan;
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedOptimizationArtifact {
+pub(crate) struct AdmittedOptimizationArtifact {
     pub(super) input: VerifiedPsiOptimizationInput,
 }
 

@@ -8,7 +8,7 @@ mod establishment;
 mod native;
 mod retention;
 
-pub use error::ArtifactLoweringError;
+pub(crate) use error::ArtifactLoweringError;
 pub use establishment::TerminalPlacedViewEstablishment;
 pub use native::{ VerifiedNativeArtifactInput};
 pub(crate) use native::{AdmittedNativeArtifact};
