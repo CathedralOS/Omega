@@ -377,67 +377,6 @@ pub(crate) fn validate_import_thunk_footprints(
     Ok(())
 }
 
-/// Replay the exact thunk↔IAT-slot pairing against the placed region
-/// inventories. Every import thunk must decode to the canonical
-/// `jmp [rip+disp32]` whose memory operand names a committed import-binding
-/// slot inside the `.rdata` extent, and each thunk must pair with exactly one
-/// placed slot naming the same symbol — and vice versa. An import-directory
-/// RVA or an unrecorded slot cannot substitute for this placed custody.
-pub(crate) fn validate_pe_x86_64_import_binding_pairing(
-    final_text_bytes: &[u8],
-    executable_regions: &PlacedExecutableRegionInventory,
-    import_data_regions: &PlacedDataRegionInventory,
-) -> Result<(), Diagnostic> {
-    let thunks: Vec<_> = executable_regions
-        .regions
-        .iter()
-        .filter(|region| region.origin == FinalExecutableRegionOrigin::ImportThunk)
-        .collect();
-    let slots: Vec<_> = import_data_regions
-        .regions
-        .iter()
-        .filter(|region| region.origin == FinalDataRegionOrigin::ImportBindingSlot)
-        .collect();
-
-    let mut bound = Vec::with_capacity(thunks.len());
-    for thunk in &thunks {
-        bound.push((thunk, thunk_bound_slot_address(final_text_bytes, thunk)?));
-    }
-    for (thunk, bound_address) in &bound {
-        let matching = slots
-            .iter()
-            .filter(|slot| {
-                slot.symbol == thunk.symbol
-                    && slot.address == *bound_address
-                    && slot.byte_count == 8
-                    && slot.address.checked_sub(import_data_regions.data_address)
-                        == Some(slot.section_offset as u64)
-            })
-            .count();
-        if matching != 1 {
-            return Err(Diagnostic::error(format!(
-                "PE import thunk `{}` must bind exactly one placed binding slot at its decoded pointer address; found {matching}",
-                thunk.symbol
-            )));
-        }
-    }
-    for slot in &slots {
-        let matching = bound
-            .iter()
-            .filter(|(thunk, bound_address)| {
-                thunk.symbol == slot.symbol && *bound_address == slot.address
-            })
-            .count();
-        if matching != 1 {
-            return Err(Diagnostic::error(format!(
-                "PE import binding slot `{}` must be loaded by exactly one placed thunk; found {matching}",
-                slot.symbol
-            )));
-        }
-    }
-    Ok(())
-}
-
 /// Decode the canonical `jmp [rip+disp32]` thunk and return the absolute
 /// address its memory operand loads through — the IAT slot a PE loader fills.
 fn thunk_bound_slot_address(

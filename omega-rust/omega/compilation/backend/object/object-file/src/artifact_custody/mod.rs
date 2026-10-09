@@ -38,13 +38,6 @@ const MANIFEST_VERSION: u32 = 1;
 mod codec;
 mod reconstruction;
 
-pub(crate) fn stage_validated_optimized_object_artifact(
-    terminal: terminal_codec::CanonicalTerminalArtifact,
-    source: StagedOptimizedRelocationFreeObjectContainer,
-) -> Result<StagedValidatedOptimizedObjectArtifact, OptimizedObjectArtifactError> {
-    stage_validated_optimized_object_artifact_shared(terminal, std::sync::Arc::new(source))
-}
-
 /// The same staging over shared container custody: callers that must keep the
 /// relocation-free container available to another retained artifact — the
 /// emitted fragment object and the semantic-entry object are one content —

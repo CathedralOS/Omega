@@ -344,23 +344,6 @@ pub fn compute_boundary_calling_plans(
     Ok(evaluated)
 }
 
-pub(crate) fn evaluate_calling_policy_plan(
-    typed: &TypedTrees,
-    policy_machine: &str,
-    signature: &CallSignature,
-) -> Result<ValidatedBoundaryEntryPlan, String> {
-    let materialized = materialized_boundary_signature_from_abi(signature)?;
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(typed, None);
-    evaluate_materialized_calling_policy_plan(
-        typed,
-        &admission,
-        policy_machine,
-        &materialized,
-        None,
-    )
-    .map_err(|rejection| rejection.reason)
-}
-
 /// One refused calling-policy evaluation. `source_span` locates the authored
 /// occurrence build-time admission rejected, when it named one; the caller
 /// otherwise reports the `Calling<Policy>` relationship it was evaluating.

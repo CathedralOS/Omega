@@ -1525,33 +1525,6 @@ fn usize_to_u64(value: usize, role: &str) -> Result<u64, Diagnostic> {
     u64::try_from(value).map_err(|_| Diagnostic::error(format!("{role} exceeds report width")))
 }
 
-/// Project the first compact fixed-array-of-conventional-sums rung.
-///
-/// The owner is the same exact closed `[copy]` record as the direct-field
-/// projection, but it must contain exactly one runtime-relevant direct field
-/// of type `[S; N]` where `N > 0` is literal and `S` is a conventional pure
-/// sum. The complete sum layout is retained once with exact count/stride;
-/// value-sensitive materialization retains the selected case separately for
-/// each literal index.
-pub(crate) fn project_conventional_record_with_sum_array_materialization_layout(
-    program: &TypedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-) -> Result<(LayoutPlanReport, ConventionalSumArrayFieldLayoutReport), Diagnostic> {
-    let (outer, mut rows) = project_conventional_record_with_sum_arrays_materialization_layout(
-        program,
-        plan,
-        data_symbol,
-    )?;
-    if rows.len() != 1 {
-        return Err(Diagnostic::error(format!(
-            "singular nested-sum array materialization requires exactly one direct field; found {}",
-            rows.len()
-        )));
-    }
-    Ok((outer, rows.pop().expect("exactly one array row")))
-}
-
 /// Project the complete authored-order set of direct nonzero literal
 /// fixed-array-of-conventional-sum fields while retaining each complete sum
 /// layout only once per outer field occurrence.

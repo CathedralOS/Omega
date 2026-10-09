@@ -123,15 +123,6 @@ fn decode_structural_type(
     StructuralTypeId::new(cursor.u64()?).ok_or(PreAllocationMachineEffectDecodeError::InvalidField)
 }
 
-pub(crate) fn decode_effect_link(
-    cursor: &mut Cursor<'_>,
-) -> Result<EffectLink, PreAllocationMachineEffectDecodeError> {
-    Ok(EffectLink {
-        input: cursor.u64()?,
-        output: cursor.u64()?,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
