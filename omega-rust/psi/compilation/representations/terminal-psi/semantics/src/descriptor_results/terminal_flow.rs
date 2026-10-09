@@ -330,7 +330,7 @@ pub(super) fn adapt(
                             | StructuralTypeShape::Mixed { cases, .. } => cases,
                             _ => return None,
                         };
-                        if !cases.iter().any(|case| case.id == *result_case) {
+                        if terminal_psi::find_structural_case(cases, *result_case).is_none() {
                             return None;
                         }
                         // The retained constructor tag proves that sibling-case

@@ -466,7 +466,7 @@ fn validate_evidence_forwarding_definite_assignment(
                                 } else {
                                     path.symbol
                                 };
-                                if states.iter().any(|state| state.symbol == target) {
+                                if typed_trees::state::state_by_symbol(states, target).is_some() {
                                     work.push_back((target, assigned.clone(), known.clone()));
                                 } else {
                                     append_missing_evidence_diagnostics(

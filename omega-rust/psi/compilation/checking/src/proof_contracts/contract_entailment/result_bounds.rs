@@ -109,7 +109,8 @@ pub(super) fn infer(program: &dyn crate::CheckingInput, machine: &Machine) -> Op
                             } => {
                                 if static_machine_parameter.is_valid()
                                     || !evidence_arguments.is_empty()
-                                    || !states.iter().any(|target| target.symbol == path.symbol)
+                                    || typed_trees::state::state_by_symbol(states, path.symbol)
+                                        .is_none()
                                 {
                                     return None;
                                 }
