@@ -2060,7 +2060,9 @@ crash and native exit behavior.
     stage 04, validation and the checked interpreter; Omega stage 00 consumes
     checked entry and source-shaped callback ABI/resource placements beside the
     canonical artifact; stage 05 selects shape-specific routes. Callback body
-    identity now lives in Terminal machines and demands, not a lowering receipt.
+    identity lives in Terminal machines and demands; native callback identities
+    use the caller's Terminal identity and placement ordinal, not source handles.
+    Callback ABI/resource planning still needs a source-free production input.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming
     stage's declared inputs. Add one workspace architecture gate derived from

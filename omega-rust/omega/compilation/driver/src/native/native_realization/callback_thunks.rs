@@ -1,17 +1,9 @@
 //! Lower each settled callback thunk's canonical Terminal artifact to machine
 //! code inside the same realization as the semantic program.
 //!
-//! `produce_callback_thunk_artifact` deliberately stops at
-//! `finalize_terminal_artifact`: the settlement carries the artifact, private
-//! function identity and boundary entry plan, never machine bytes or the
-//! producer's source-to-Terminal lowering receipt. Backend callback admission
-//! rechecks that receipt before projecting these native inputs. This stage is
-//! the consumer half of that contract — every thunk follows the ordinary
-//! native pipeline (borrowed Terminal input, abstract optimization, target lowering,
-//! instruction selection, register homes, fragment emission, frame
-//! application, fixed-frame text placement) as a standalone module and
-//! materializes as a `CompilerPrivateMachineCodeFunction` the retained
-//! object's private-function channel can publish.
+//! The settlement carries a Terminal artifact, a caller-scoped private function
+//! identity and a boundary entry plan. Every thunk follows the ordinary native
+//! pipeline; emission derives its linker name from the retained identity.
 
 use backend_plan::NativeCallbackThunkSettlement;
 use compilation_products::NativeRealizationRequest;
@@ -94,7 +86,6 @@ fn lower_callback_thunk(
         text,
         machine_emission::PrivateCallbackMaterializationRequest {
             callback_function: settlement.callback_function,
-            private_symbol: settlement.private_symbol,
             boundary_entry_plan: settlement.boundary_entry_plan,
             placement_index: settlement.placement_index,
         },

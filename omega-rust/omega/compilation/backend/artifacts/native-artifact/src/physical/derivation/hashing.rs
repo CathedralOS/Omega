@@ -671,27 +671,7 @@ pub(crate) fn hash_machine_function_identity(
     digest: &mut Sha256,
     identity: function_identity::MachineFunctionIdentity,
 ) {
-    let (tag, continuation, coordinate) = if let Some(source) = identity.source_key() {
-        (1, source, 0)
-    } else if let Some(continuation) = identity.program_storage_entry_continuation() {
-        (2, continuation, 0)
-    } else {
-        (
-            3,
-            identity.associated_source_continuation(),
-            identity
-                .callback_thunk_placement_index()
-                .expect("machine function identity has one closed role"),
-        )
-    };
-    digest.update([tag]);
-    for symbol in [continuation.machine, continuation.state] {
-        digest.update([u8::from(symbol.is_valid())]);
-        digest.update(u64::from(symbol.arena_index()).to_le_bytes());
-        digest.update(u64::from(symbol.generation()).to_le_bytes());
-    }
-    digest.update(canonical_usize(continuation.segment_index));
-    digest.update(canonical_usize(coordinate));
+    digest.update(identity.to_bytes());
 }
 
 pub(crate) fn hash_callback_relocation(
@@ -722,7 +702,6 @@ pub(crate) fn hash_relocation_origin(digest: &mut Sha256, origin: RelocationOrig
     digest.update([tag]);
     digest.update(coordinate.to_le_bytes());
 }
-
 
 pub(crate) fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
     digest.update(canonical_usize(bytes.len()));

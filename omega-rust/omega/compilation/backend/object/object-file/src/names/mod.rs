@@ -108,25 +108,7 @@ pub fn object_entry_symbol_name(object: &ObjectPlan) -> &str {
 /// Source spelling is deliberately absent: independently selected source and
 /// import names may coincide, while compiler-private identity cannot.
 pub fn private_function_symbol_name(identity: MachineFunctionIdentity) -> Option<String> {
-    if !identity.is_valid() {
-        return None;
-    }
-    let continuation = identity.associated_source_continuation();
-    let role = if identity.source_key().is_some() {
-        "source"
-    } else if identity.program_storage_entry_continuation().is_some() {
-        "program_storage_entry_wrapper"
-    } else {
-        return None;
-    };
-    Some(format!(
-        "__omega_function_{role}_m{}_mg{}_s{}_sg{}_segment{}",
-        continuation.machine.arena_index(),
-        continuation.machine.generation(),
-        continuation.state.arena_index(),
-        continuation.state.generation(),
-        continuation.segment_index,
-    ))
+    identity.private_symbol()
 }
 
 pub fn entry_symbol_name(target: NativeTarget) -> String {
@@ -160,64 +142,27 @@ mod tests {
         entry_symbol_name, object_symbol_handle_by_foreign_locator, private_function_symbol_name,
         section_name, symbol_section_name,
     };
-    use crate::{
-        NormalizedImportPlan, ObjectPlan, SectionKind, SymbolSection,
-    };
-    use function_identity::{MachineFunctionIdentity, StateKey};
+    use crate::{NormalizedImportPlan, ObjectPlan, SectionKind, SymbolSection};
+    use function_identity::MachineFunctionIdentity;
     use target::{
         Architecture, ForeignLocatorCandidate, NativeTarget, ObjectFormat, TargetProfile,
         normalize_foreign_locator,
     };
 
     #[test]
-    fn private_function_names_bind_role_handles_generations_and_segment() {
-        let continuation = StateKey {
-            machine: arena::Handle::from_parts(1, 2),
-            state: arena::Handle::from_parts(3, 4),
-            segment_index: 5,
+    fn private_function_names_bind_terminal_program_and_placement() {
+        let caller = terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
         };
-        let source = MachineFunctionIdentity::source(continuation);
-        let source_name = private_function_symbol_name(source).expect("source private name");
-        assert_eq!(
-            source_name,
-            "__omega_function_source_m1_mg2_s3_sg4_segment5"
-        );
-
-        for drifted in [
-            StateKey {
-                machine: arena::Handle::from_parts(1, 3),
-                ..continuation
-            },
-            StateKey {
-                state: arena::Handle::from_parts(3, 5),
-                ..continuation
-            },
-            StateKey {
-                segment_index: 6,
-                ..continuation
-            },
-        ] {
-            assert_ne!(
-                source_name,
-                private_function_symbol_name(MachineFunctionIdentity::source(drifted))
-                    .expect("drifted source private name")
-            );
-        }
+        let first = MachineFunctionIdentity::callback_thunk(caller, 0).unwrap();
+        let second = MachineFunctionIdentity::callback_thunk(caller, 1).unwrap();
+        assert_eq!(private_function_symbol_name(first), first.private_symbol());
         assert_ne!(
-            source_name,
-            private_function_symbol_name(
-                MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
-                    .expect("wrapper identity")
-            )
-            .expect("wrapper private name")
+            private_function_symbol_name(first),
+            private_function_symbol_name(second)
         );
-        assert!(
-            private_function_symbol_name(
-                MachineFunctionIdentity::callback_thunk(continuation, 0)
-                    .expect("callback identity")
-            )
-            .is_none()
-        );
+        assert!(private_function_symbol_name(MachineFunctionIdentity::default()).is_none());
     }
 
     #[test]

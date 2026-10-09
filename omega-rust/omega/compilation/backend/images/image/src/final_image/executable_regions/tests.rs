@@ -12,7 +12,7 @@ use calling_conventions::{
     MachineRegister, MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence,
 };
 use diagnostics::Diagnostic;
-use function_identity::{MachineFunctionIdentity, StateKey};
+use function_identity::MachineFunctionIdentity;
 use optimization_core::{
     MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
 };
@@ -82,11 +82,14 @@ fn compiler_entry_footprint_is_bound_into_inventory_identity() {
         MachineStateSet::empty(),
     );
     let binding = crate::CompilerEntryRegionBindingEvidence {
-        function_identity: MachineFunctionIdentity::source(StateKey {
-            machine: arena::Handle::from_parts(1, 2),
-            state: arena::Handle::from_parts(3, 4),
-            segment_index: 5,
-        }),
+        function_identity: MachineFunctionIdentity::callback_thunk(
+            terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
+            },
+            0,
+        )
+        .unwrap(),
         object_symbol_handle: arena::Handle::from_parts(6, 7),
         region_index: 0,
         symbol: "entry".into(),
@@ -106,11 +109,14 @@ fn compiler_entry_footprint_is_bound_into_inventory_identity() {
     binding.evidence_report_fingerprint = binding.recomputed_evidence_report_fingerprint();
 
     let mut identity_drift = binding.clone();
-    identity_drift.function_identity = MachineFunctionIdentity::source(StateKey {
-        machine: arena::Handle::from_parts(1, 2),
-        state: arena::Handle::from_parts(3, 9),
-        segment_index: 5,
-    });
+    identity_drift.function_identity = MachineFunctionIdentity::callback_thunk(
+        terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([2; 32]),
+        },
+        0,
+    )
+    .unwrap();
     assert!(
         bind_compiler_entry_footprint(
             &mut inventory.clone(),

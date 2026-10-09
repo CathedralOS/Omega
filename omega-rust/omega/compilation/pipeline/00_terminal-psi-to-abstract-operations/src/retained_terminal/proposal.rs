@@ -105,7 +105,7 @@ pub fn project_terminal_native_realization_proposal(
         )?;
     let callback_occurrences = project_callback_occurrences(
         callback_placements,
-        terminal_module,
+        artifact.view(),
         request.callback_thunks,
     )?;
     let boundary_application_coverage = request.boundaries.settle(artifact)?;
@@ -154,9 +154,10 @@ pub fn project_terminal_native_realization_proposal(
 /// compile, so their native interfaces are not re-checked here.
 fn project_callback_occurrences(
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
-    module: &terminal_psi::TerminalModule,
+    caller: terminal_codec::TerminalArtifactView<'_>,
     thunks: Vec<crate::TerminalCallbackThunkArtifact>,
 ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
+    let module = caller.module();
     if callback_placements.len() != thunks.len() {
         return Err(vec![Diagnostic::error(
             "callback thunk roster differs from checked placement roster",
@@ -180,7 +181,7 @@ fn project_callback_occurrences(
                 return Err(vec![Diagnostic::error("callback placement disagrees with its checked Terminal application")]);
             }
             let callback_thunk_identity =
-                backend_plan::canonical_callback_thunk_identity(placement_index, placement)
+                function_identity::MachineFunctionIdentity::callback_thunk(caller.identity(), placement_index)
                     .ok_or_else(|| {
                         vec![Diagnostic::error(format!(
                             "callback placement {placement_index} cannot derive one valid callback-thunk identity",

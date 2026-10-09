@@ -1,9 +1,7 @@
 //! Callback placement tests.
 
 use super::{
-    Arc, BoundNominalCallbackPlacement, CallbackThunkPlan, NominalMachineUseSite, StateKey,
-    SymbolHandle, callback_placement_binding_identity,
-    callback_thunk_placement_identity_report_fingerprint, canonical_callback_private_symbol,
+    BoundNominalCallbackPlacement, NominalMachineUseSite, SymbolHandle,
     validate_bound_nominal_callback_placement,
 };
 use calling_conventions::{
@@ -208,36 +206,6 @@ pub(crate) fn placement() -> BoundNominalCallbackPlacement {
 }
 
 #[test]
-fn canonical_private_symbol_binds_site_selected_handles_ordinal_and_plan() {
-    let baseline = placement();
-    let baseline_symbol = canonical_callback_private_symbol(&baseline);
-    let mut drifts = Vec::new();
-
-    let mut site = baseline.clone();
-    site.site = NominalMachineUseSite::Expression(
-        checked_trees::expression::ExpressionHandle::from_parts(9, 4),
-    );
-    drifts.push(site);
-    let mut ordinal = baseline.clone();
-    ordinal.static_machine_ordinal += 1;
-    drifts.push(ordinal);
-    let mut machine = baseline.clone();
-    machine.selected_machine = SymbolHandle::from_parts(4, 5);
-    drifts.push(machine);
-    let mut entry = baseline.clone();
-    entry.selected_entry = SymbolHandle::from_parts(5, 6);
-    drifts.push(entry);
-    let mut fingerprint = baseline.clone();
-    fingerprint.boundary_calling_plan_report_fingerprint ^= 1;
-    drifts.push(fingerprint);
-
-    assert!(baseline_symbol.starts_with("__omega_callback_e"));
-    for drifted in drifts {
-        assert_ne!(canonical_callback_private_symbol(&drifted), baseline_symbol);
-    }
-}
-
-#[test]
 fn callback_placement_replay_rejects_plan_or_fingerprint_drift() {
     let baseline = placement();
     validate_bound_nominal_callback_placement(&baseline)
@@ -269,135 +237,4 @@ fn callback_placement_replay_rejects_plan_or_fingerprint_drift() {
     let error = validate_bound_nominal_callback_placement(&fingerprint_drift)
         .expect_err("changed callback fingerprint must not retain the old plan");
     assert!(error.0.contains("drifted from its retained fingerprint"));
-}
-
-#[test]
-fn callback_placement_binding_identity_binds_registration_and_satisfaction_row() {
-    let baseline = placement();
-    let identity = callback_placement_binding_identity(&baseline);
-
-    let mut compact_equal_plan_substitution = baseline.clone();
-    compact_equal_plan_substitution
-        .boundary_entry_plan
-        .state
-        .preemption = calling_conventions::Preemption::ProviderDefined;
-    assert_eq!(
-        compact_equal_plan_substitution.boundary_calling_plan_report_fingerprint,
-        baseline.boundary_calling_plan_report_fingerprint,
-    );
-    assert_ne!(
-        callback_placement_binding_identity(&compact_equal_plan_substitution),
-        identity,
-        "an equal compact report coordinate cannot hide exact plan substitution",
-    );
-
-    let mut registration_drift = baseline.clone();
-    registration_drift.registration_operation = SymbolHandle::from_parts(3, 2);
-    assert_ne!(
-        callback_placement_binding_identity(&registration_drift),
-        identity
-    );
-
-    let mut satisfaction_drift = baseline.clone();
-    satisfaction_drift.satisfaction_requirement = SymbolHandle::from_parts(8, 2);
-    assert_ne!(
-        callback_placement_binding_identity(&satisfaction_drift),
-        identity
-    );
-
-    let mut overload_drift = baseline;
-    overload_drift.canonical_requirement_overload = "Handler::other".to_owned();
-    assert_ne!(
-        callback_placement_binding_identity(&overload_drift),
-        identity
-    );
-
-    let mut resource_drift = placement();
-    resource_drift.resource_receipt = resource_receipt(
-        resource_drift.selected_machine,
-        resource_drift.selected_entry,
-        0xbeef,
-    );
-    assert_ne!(
-        callback_placement_binding_identity(&resource_drift),
-        identity
-    );
-
-    let mut compact_equal_resource_substitution = placement();
-    compact_equal_resource_substitution.resource_receipt = resource_receipt_with_commitment(
-        compact_equal_resource_substitution.selected_machine,
-        compact_equal_resource_substitution.selected_entry,
-        0xfeed,
-        checked_trees::MachineContractCommitment::from_digest([0x77; 32]),
-    );
-    assert_eq!(
-        compact_equal_resource_substitution
-            .resource_receipt
-            .contract_report_fingerprint(),
-        identity.resource_receipt.contract_report_fingerprint(),
-    );
-    assert_ne!(
-        callback_placement_binding_identity(&compact_equal_resource_substitution),
-        identity,
-        "an equal compact resource coordinate cannot hide contract substitution",
-    );
-}
-
-#[test]
-fn callback_thunk_placement_report_fingerprint_binds_exact_ordered_receipts() {
-    let baseline = placement();
-    let entry_key = StateKey {
-        machine: baseline.selected_machine,
-        state: baseline.selected_entry,
-        segment_index: 0,
-    };
-    let function_identity =
-        function_identity::MachineFunctionIdentity::callback_thunk(entry_key, 0)
-            .expect("callback identity");
-    let private_symbol = canonical_callback_private_symbol(&baseline);
-    let root_schedule = Arc::new(
-        crate::plan_callback_root_schedule(
-            0,
-            &baseline,
-            entry_key,
-            function_identity,
-            Arc::clone(&private_symbol),
-        )
-        .expect("callback root schedule"),
-    );
-    let thunk = CallbackThunkPlan {
-        placement_index: 0,
-        placement_identity: callback_placement_binding_identity(&baseline),
-        entry_key,
-        function_identity,
-        private_symbol,
-        root_schedule,
-    };
-    let fingerprint =
-        callback_thunk_placement_identity_report_fingerprint(std::slice::from_ref(&thunk));
-
-    let mut drifted = thunk.clone();
-    drifted.placement_identity.satisfaction_requirement = SymbolHandle::from_parts(8, 2);
-    assert_ne!(
-        callback_thunk_placement_identity_report_fingerprint(&[drifted]),
-        fingerprint
-    );
-
-    let mut resource_drifted = thunk.clone();
-    resource_drifted.placement_identity.resource_receipt = resource_receipt(
-        resource_drifted.placement_identity.selected_machine,
-        resource_drifted.placement_identity.selected_entry,
-        0xbeef,
-    );
-    assert_ne!(
-        callback_thunk_placement_identity_report_fingerprint(&[resource_drifted]),
-        fingerprint
-    );
-
-    let mut reindexed = thunk;
-    reindexed.placement_index = 1;
-    assert_ne!(
-        callback_thunk_placement_identity_report_fingerprint(&[reindexed]),
-        fingerprint
-    );
 }

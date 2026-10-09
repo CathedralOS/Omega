@@ -1,8 +1,8 @@
 //! The evidence an emitter hands forward: text and function validation, entry
 //! bindings, and the image output kinds that carry them.
 
-use sha2::{Digest, Sha256};
 use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
+use sha2::{Digest, Sha256};
 
 macro_rules! image_evidence_digest {
     ($name:ident) => {
@@ -139,30 +139,9 @@ pub struct CompilerEntryRegionBindingEvidence {
 impl CompilerEntryRegionBindingEvidence {
     pub fn recomputed_evidence_digest(&self) -> CompilerEntryRegionBindingDigest {
         let mut digest = Sha256::new();
-        digest.update(b"omega.compiler-entry-region-binding.sha256.v1\0");
+        digest.update(b"omega.compiler-entry-region-binding.sha256.v2\0");
         let identity = self.function_identity;
-        let role_tag = if identity.source_key().is_some() {
-            1u8
-        } else if identity.program_storage_entry_continuation().is_some() {
-            2u8
-        } else if identity.callback_thunk_placement_index().is_some() {
-            3u8
-        } else {
-            0u8
-        };
-        digest.update([role_tag]);
-        let continuation = identity.associated_source_continuation();
-        digest.update(u64::from(continuation.machine.arena_index()).to_le_bytes());
-        digest.update(u64::from(continuation.machine.generation()).to_le_bytes());
-        digest.update(u64::from(continuation.state.arena_index()).to_le_bytes());
-        digest.update(u64::from(continuation.state.generation()).to_le_bytes());
-        digest.update((continuation.segment_index as u64).to_le_bytes());
-        digest.update(
-            (identity
-                .callback_thunk_placement_index()
-                .unwrap_or(usize::MAX) as u64)
-                .to_le_bytes(),
-        );
+        digest.update(identity.to_bytes());
         digest.update(u64::from(self.object_symbol_handle.arena_index()).to_le_bytes());
         digest.update(u64::from(self.object_symbol_handle.generation()).to_le_bytes());
         digest.update((self.region_index as u64).to_le_bytes());
@@ -184,44 +163,7 @@ impl CompilerEntryRegionBindingEvidence {
     pub fn recomputed_evidence_report_fingerprint(&self) -> u64 {
         let mut hash = FNV_OFFSET;
         let identity = self.function_identity;
-        let role_tag = if identity.source_key().is_some() {
-            1u8
-        } else if identity.program_storage_entry_continuation().is_some() {
-            2u8
-        } else if identity.callback_thunk_placement_index().is_some() {
-            3u8
-        } else {
-            0u8
-        };
-        fingerprint_bytes(&mut hash, &[role_tag]);
-        let continuation = identity.associated_source_continuation();
-        fingerprint_bytes(
-            &mut hash,
-            &u64::from(continuation.machine.arena_index()).to_le_bytes(),
-        );
-        fingerprint_bytes(
-            &mut hash,
-            &u64::from(continuation.machine.generation()).to_le_bytes(),
-        );
-        fingerprint_bytes(
-            &mut hash,
-            &u64::from(continuation.state.arena_index()).to_le_bytes(),
-        );
-        fingerprint_bytes(
-            &mut hash,
-            &u64::from(continuation.state.generation()).to_le_bytes(),
-        );
-        fingerprint_bytes(
-            &mut hash,
-            &(continuation.segment_index as u64).to_le_bytes(),
-        );
-        fingerprint_bytes(
-            &mut hash,
-            &(identity
-                .callback_thunk_placement_index()
-                .unwrap_or(usize::MAX) as u64)
-                .to_le_bytes(),
-        );
+        fingerprint_bytes(&mut hash, &identity.to_bytes());
         fingerprint_bytes(
             &mut hash,
             &u64::from(self.object_symbol_handle.arena_index()).to_le_bytes(),
@@ -383,7 +325,6 @@ impl CompilerFunctionValidationEvidence {
         hash
     }
 }
-
 
 macro_rules! compiler_text_digest {
     ($name:ident) => {

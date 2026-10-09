@@ -1,8 +1,7 @@
 //! Canonical installation transport for compiler-private callback functions.
 
-use function_identity::{MachineFunctionIdentity, StateKey};
+use function_identity::MachineFunctionIdentity;
 use semantic_vocabulary::MachineId;
-use symbols::SymbolHandle;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use super::scalar::abi::{decode_scalar_abi, encode_scalar_abi};
@@ -19,27 +18,12 @@ pub(crate) fn encode_private_functions(
 ) -> Result<(), InstallationError> {
     push_u32(bytes, count);
     for function in functions {
-        let placement_index = function
-            .identity
-            .callback_thunk_placement_index()
-            .ok_or(InstallationError::InvalidCompilerPrivateFunctionIdentity)?;
-        let continuation = function.identity.associated_source_continuation();
+        if !function.identity.is_valid() {
+            return Err(InstallationError::InvalidCompilerPrivateFunctionIdentity);
+        }
         bytes.push(CALLBACK_THUNK_ROLE);
         bytes.extend_from_slice(&[0; 7]);
-        push_u32(bytes, continuation.machine.arena_index());
-        push_u32(bytes, continuation.machine.generation());
-        push_u32(bytes, continuation.state.arena_index());
-        push_u32(bytes, continuation.state.generation());
-        push_u64(
-            bytes,
-            u64::try_from(continuation.segment_index)
-                .map_err(|_| InstallationError::InvalidCompilerPrivateFunctionIdentity)?,
-        );
-        push_u64(
-            bytes,
-            u64::try_from(placement_index)
-                .map_err(|_| InstallationError::InvalidCompilerPrivateFunctionIdentity)?,
-        );
+        bytes.extend_from_slice(&function.identity.to_bytes());
         push_u16(bytes, function.source_psi.vocabulary_marker.get());
         push_u16(bytes, 0);
         bytes.extend_from_slice(function.source_psi.program_fingerprint.as_bytes());
@@ -64,7 +48,7 @@ pub(crate) fn decode_private_functions(
 ) -> Result<Vec<InstalledCompilerPrivateFunction>, InstallationError> {
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyCompilerPrivateFunctions)?;
-    if count > reader.remaining() / 100 {
+    if count > reader.remaining() / 114 {
         return Err(InstallationError::TooManyCompilerPrivateFunctions);
     }
     let mut functions = Vec::with_capacity(count);
@@ -78,15 +62,7 @@ pub(crate) fn decode_private_functions(
         if reader.take(7)? != [0; 7] {
             return Err(InstallationError::NonzeroReservedField);
         }
-        let continuation = StateKey {
-            machine: SymbolHandle::from_parts(reader.u32()?, reader.u32()?),
-            state: SymbolHandle::from_parts(reader.u32()?, reader.u32()?),
-            segment_index: usize::try_from(reader.u64()?)
-                .map_err(|_| InstallationError::InvalidCompilerPrivateFunctionIdentity)?,
-        };
-        let placement_index = usize::try_from(reader.u64()?)
-            .map_err(|_| InstallationError::InvalidCompilerPrivateFunctionIdentity)?;
-        let identity = MachineFunctionIdentity::callback_thunk(continuation, placement_index)
+        let identity = MachineFunctionIdentity::from_bytes(reader.array()?)
             .ok_or(InstallationError::InvalidCompilerPrivateFunctionIdentity)?;
         let vocabulary_raw = reader.u16()?;
         let vocabulary_marker = VocabularyMarker::new(vocabulary_raw).ok_or(
@@ -123,7 +99,7 @@ pub(crate) fn decode_private_functions(
 mod tests {
     use super::{
         InstallationError, InstalledCompilerPrivateFunction, MachineFunctionIdentity, MachineId,
-        Reader, SemanticFingerprint, StateKey, SymbolHandle, TerminalPsiIdentity, VocabularyMarker,
+        Reader, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
         decode_private_functions, encode_private_functions,
     };
     use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
@@ -147,10 +123,9 @@ mod tests {
         let result_placement = call_plan.result.clone().expect("result placement");
         InstalledCompilerPrivateFunction {
             identity: MachineFunctionIdentity::callback_thunk(
-                StateKey {
-                    machine: SymbolHandle::from_parts(11, 2),
-                    state: SymbolHandle::from_parts(13, 3),
-                    segment_index: 5,
+                terminal_psi::TerminalPsiIdentity {
+                    vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                    program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
                 },
                 7,
             )
@@ -192,13 +167,13 @@ mod tests {
         assert_eq!(reader.remaining(), 0);
 
         let mut drifted_source = bytes.clone();
-        drifted_source[48] ^= 0x80;
+        drifted_source[58] ^= 0x80;
         let mut reader = Reader::new(&drifted_source);
         let decoded = decode_private_functions(&mut reader).expect("source-Psi drift decodes");
         assert_ne!(decoded[0].source_psi, function.source_psi);
 
         let mut drifted_interval = bytes.clone();
-        drifted_interval[88] ^= 1;
+        drifted_interval[98] ^= 1;
         let mut reader = Reader::new(&drifted_interval);
         let decoded = decode_private_functions(&mut reader).expect("interval drift decodes");
         assert_ne!(decoded[0].text_offset, function.text_offset);
@@ -209,10 +184,9 @@ mod tests {
         let first = private_function();
         let mut second = first.clone();
         second.identity = MachineFunctionIdentity::callback_thunk(
-            StateKey {
-                machine: SymbolHandle::from_parts(11, 2),
-                state: SymbolHandle::from_parts(13, 3),
-                segment_index: 5,
+            terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
             },
             8,
         )
@@ -248,14 +222,14 @@ mod tests {
         );
 
         let mut invalid_continuation = bytes.clone();
-        invalid_continuation[12..16].copy_from_slice(&0_u32.to_le_bytes());
+        invalid_continuation[14..46].fill(0);
         assert_eq!(
             decode_private_functions(&mut Reader::new(&invalid_continuation)),
             Err(InstallationError::InvalidCompilerPrivateFunctionIdentity)
         );
 
         let mut missing_abi = bytes;
-        missing_abi[104] = 0;
+        missing_abi[114] = 0;
         assert_eq!(
             decode_private_functions(&mut Reader::new(&missing_abi)),
             Err(InstallationError::MissingCompilerPrivateFunctionAbi)

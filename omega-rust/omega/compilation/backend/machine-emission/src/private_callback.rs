@@ -10,7 +10,6 @@ use semantic_vocabulary::MachineId;
 /// Identity and boundary ABI for one already-settled private callback.
 pub struct PrivateCallbackMaterializationRequest<'request> {
     pub callback_function: MachineFunctionIdentity,
-    pub private_symbol: &'request str,
     pub boundary_entry_plan: &'request BoundaryEntryPlan,
     /// Original placement order, retained for diagnostics.
     pub placement_index: usize,
@@ -73,7 +72,8 @@ pub fn materialize_private_callback_function(
             "a private callback thunk cannot call outside its own machine",
         ));
     }
-    let targeted = target_plan.function(placed.machine)
+    let targeted = target_plan
+        .function(placed.machine)
         .ok_or_else(|| reject("emitted thunk machine is absent from its target operations"))?;
     let boundary_signature = &request.boundary_entry_plan.call;
     let Some(emitted_signature) = targeted.scalar_abi.as_ref() else {
@@ -99,7 +99,12 @@ pub fn materialize_private_callback_function(
         .to_vec();
     Ok(CompilerPrivateMachineCodeFunction {
         identity: request.callback_function,
-        private_symbol: std::sync::Arc::from(request.private_symbol),
+        private_symbol: std::sync::Arc::from(
+            request
+                .callback_function
+                .private_symbol()
+                .ok_or_else(|| reject("callback function identity is absent"))?,
+        ),
         source_psi: section.psi,
         function: materialize_function(placed.machine, targeted, bytes),
     })

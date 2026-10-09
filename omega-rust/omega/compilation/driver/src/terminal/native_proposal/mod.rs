@@ -63,9 +63,6 @@ fn produce_callback_thunk_artifact(
         produced.unoptimized(),
         placement.selected_machine,
     )?;
-    compilation_products::TerminalCallbackThunkArtifact::new(
-        backend_plan::canonical_callback_private_symbol(placement),
-        produced.into_artifact(),
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])
+    compilation_products::TerminalCallbackThunkArtifact::new(produced.into_artifact())
+        .map_err(|message| vec![Diagnostic::error(message)])
 }

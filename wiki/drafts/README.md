@@ -51,10 +51,6 @@ Cross-cutting notes that outlive any single rung.
 - [Rust compiler completion](reference/rust_compiler_completion.md): required release
   coverage before resuming self-hosting; delete the plan after closure,
   retaining the release evidence and maintained gates with their owners.
-- [Specialized-variant identity impact](reference/specialized_variant_identity_impact.md):
-  how future specialized variants interact with code identity, deduplication,
-  and component replacement; delete when a variant producer lands or the
-  referenced machinery changes.
 - [Typed-to-one-sorted encoding](reference/matching_logic_sort_encoding.md): how Omega
   types, slices, sums, and loans encode into the one-sorted fragment; delete
   once the bounded comparison rules on the encoding.

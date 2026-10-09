@@ -89,7 +89,7 @@ impl TerminalNativeRealizationProposal {
             self.occurrences().callbacks.as_slice(),
         )?;
         let callback_thunks = backend_plan::admitted_native_callback_thunks(
-            artifact.semantic_module(),
+            artifact.view(),
             callback_placements,
             self.occurrences().callbacks.as_slice(),
         )

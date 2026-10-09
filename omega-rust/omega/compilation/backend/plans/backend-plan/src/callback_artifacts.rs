@@ -5,27 +5,17 @@
 //! native admission then borrows only executable and ABI evidence. These checks
 //! do not replace callback interface admission or final object/image replay.
 
-use crate::{
-    BoundNominalCallbackPlacement, canonical_callback_private_symbol,
-    canonical_callback_thunk_identity,
-};
+use crate::BoundNominalCallbackPlacement;
 
 /// Canonical callback body. Its entry retains the declaration chosen by Psi;
 /// native preparation joins that identity to the caller's portable demand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackThunkArtifact {
-    private_symbol: std::sync::Arc<str>,
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
 }
 
 impl TerminalCallbackThunkArtifact {
-    pub fn new(
-        private_symbol: std::sync::Arc<str>,
-        artifact: terminal_codec::CanonicalTerminalArtifact,
-    ) -> Result<Self, &'static str> {
-        if private_symbol.is_empty() {
-            return Err("Terminal callback thunk has an empty private symbol");
-        }
+    pub fn new(artifact: terminal_codec::CanonicalTerminalArtifact) -> Result<Self, &'static str> {
         let module = artifact.semantic_module();
         // Callees may be present too; the artifact's entry is the callback.
         let Some(machine) = module.machine(module.entry) else {
@@ -35,13 +25,8 @@ impl TerminalCallbackThunkArtifact {
             return Err("Terminal callback thunk has no checked declaration identity");
         }
         Ok(Self {
-            private_symbol,
             artifact: std::sync::Arc::new(artifact),
         })
-    }
-
-    pub fn private_symbol(&self) -> &std::sync::Arc<str> {
-        &self.private_symbol
     }
 
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
@@ -111,15 +96,12 @@ impl TerminalCallbackOccurrenceProposal {
 /// target lowering cannot confuse executable body custody with a semantic
 /// registrar argument.
 ///
-/// Source-to-Terminal reconstruction is not a lowering input. The
-/// existing private function identity still retains its source continuation
-/// key; removing that cross-stage identity is a separate representation change.
+/// Native identity is scoped to the caller's canonical Terminal program.
 #[derive(Debug, Clone, Copy)]
 pub struct NativeCallbackThunkSettlement<'artifact> {
     pub terminal_operation: semantic_vocabulary::OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,
-    pub private_symbol: &'artifact str,
     pub artifact: &'artifact terminal_codec::CanonicalTerminalArtifact,
     pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
 }
@@ -131,10 +113,11 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
 /// Callers separately validate occurrence coverage, registrar destinations,
 /// the thunk's native interface, and the canonical program and proof.
 pub fn admitted_native_callback_thunks<'artifact>(
-    module: &terminal_psi::TerminalModule,
+    caller: terminal_codec::TerminalArtifactView<'_>,
     placements: &'artifact [BoundNominalCallbackPlacement],
     occurrences: &'artifact [TerminalCallbackOccurrenceProposal],
 ) -> Result<Vec<NativeCallbackThunkSettlement<'artifact>>, &'static str> {
+    let module = caller.module();
     let mut admitted = Vec::with_capacity(occurrences.len());
     for occurrence in occurrences {
         let placement = placements
@@ -152,27 +135,26 @@ pub fn admitted_native_callback_thunks<'artifact>(
             .machine(body.entry)
             .and_then(|machine| machine.declaration.as_ref())
             .ok_or("callback thunk has no entry declaration")?;
-        let expected_symbol = canonical_callback_private_symbol(placement);
-        let expected_function =
-            canonical_callback_thunk_identity(occurrence.placement_index(), placement);
+        let expected_function = function_identity::MachineFunctionIdentity::callback_thunk(
+            caller.identity(),
+            occurrence.placement_index(),
+        );
         if declaration != &application.body
             || application.registrar != occurrence.terminal_operation()
             || application.static_machine_ordinal != placement.static_machine_ordinal
             || application.requirement != placement.canonical_requirement_overload
             || application.body.contract
                 != placement.resource_receipt.contract_commitment().as_bytes()
-            || thunk.private_symbol() != &expected_symbol
             || expected_function != Some(occurrence.callback_thunk_identity())
         {
             return Err(
-                "callback thunk body, symbol, or function identity drifted from its retained placement",
+                "callback thunk body or function identity drifted from its retained placement",
             );
         }
         admitted.push(NativeCallbackThunkSettlement {
             terminal_operation: occurrence.terminal_operation(),
             placement_index: occurrence.placement_index(),
             callback_function: occurrence.callback_thunk_identity(),
-            private_symbol: thunk.private_symbol(),
             artifact: thunk.artifact(),
             boundary_entry_plan: &placement.boundary_entry_plan,
         });

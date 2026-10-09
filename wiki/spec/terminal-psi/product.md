@@ -60,7 +60,11 @@ callback binders may share one registrar. Native settlement consumes these
 rows, not a parallel source-call catalog. A callback artifact's entry declaration
 must match the selected body in the caller's demand; no source-side lowering
 receipt is required. Callback body correspondence and
-target ABI/installation evidence remain separate obligations.
+target ABI/installation evidence remain separate obligations. Native callback
+function identities are scoped by the caller's canonical Terminal identity and
+its retained placement ordinal. Source-arena coordinates and separately supplied
+private symbol strings are not native identity; linker names derive from that
+portable identity.
 
 The reference interpreter executes the portable semantics directly. Native
 code realizes the same semantics. Differential agreement is evidence about

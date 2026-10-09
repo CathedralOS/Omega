@@ -109,17 +109,20 @@ mod tests {
         validate_final_image_function_linkage,
     };
     use crate::{FinalImageInput, FinalImageSymbol, build_final_image};
-    use function_identity::{MachineFunctionIdentity, StateKey};
+    use function_identity::MachineFunctionIdentity;
     use object_file::{FunctionSymbolPlan, SymbolPlan};
     use target::NativeTarget;
 
     fn linked_image() -> (FinalImage, ObjectPlan) {
         let target = NativeTarget::linux_x64();
-        let identity = MachineFunctionIdentity::source(StateKey {
-            machine: arena::Handle::from_parts(1, 2),
-            state: arena::Handle::from_parts(3, 4),
-            segment_index: 5,
-        });
+        let identity = MachineFunctionIdentity::callback_thunk(
+            terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
+            },
+            0,
+        )
+        .unwrap();
         let mut object = ObjectPlan::with_capacities(target, 0, 1, 1);
         let symbol = object.layout.symbols.insert(SymbolPlan {
             name: object_file::entry_symbol_name(target),

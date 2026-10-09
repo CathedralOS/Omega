@@ -113,29 +113,12 @@ pub fn encode_native_callback_argument(
     bytes.extend_from_slice(&callback.registrar_application_commitment);
 }
 
-/// Machine-function identity encodes its kind, retained source continuation,
-/// and thunk placement slot. The continuation's arena coordinates are exact
-/// identity, not an addressable reference.
+/// Canonical source-free function identity shared by all native consumers.
 pub fn encode_machine_function_identity(
     bytes: &mut Vec<u8>,
     identity: &function_identity::MachineFunctionIdentity,
 ) {
-    let continuation = identity.associated_source_continuation();
-    bytes.extend_from_slice(&continuation.machine.arena_index().to_le_bytes());
-    bytes.extend_from_slice(&continuation.machine.generation().to_le_bytes());
-    bytes.extend_from_slice(&continuation.state.arena_index().to_le_bytes());
-    bytes.extend_from_slice(&continuation.state.generation().to_le_bytes());
-    bytes.extend_from_slice(&(continuation.segment_index as u64).to_le_bytes());
-    if let Some(placement_index) = identity.callback_thunk_placement_index() {
-        bytes.push(3);
-        bytes.extend_from_slice(&(placement_index as u64).to_le_bytes());
-    } else if identity.source_key().is_some() {
-        bytes.push(1);
-    } else if identity.program_storage_entry_continuation().is_some() {
-        bytes.push(2);
-    } else {
-        bytes.push(0);
-    }
+    bytes.extend_from_slice(&identity.to_bytes());
 }
 
 /// The complete evaluated binding: mechanism, boundary-entry plan and custody.

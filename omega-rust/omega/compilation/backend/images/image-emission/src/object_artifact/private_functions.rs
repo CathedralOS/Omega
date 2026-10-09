@@ -18,7 +18,6 @@ pub(crate) fn validate_private_functions<'plan>(
     // is unbounded but every member must carry a distinct callback-thunk
     // identity and a distinct private symbol.
     let mut identities = std::collections::HashSet::new();
-    let mut symbols = std::collections::BTreeSet::new();
     let mut validated = Vec::with_capacity(private_functions.len());
     for private in private_functions {
         let Some(_placement_index) = private.identity.callback_thunk_placement_index() else {
@@ -30,8 +29,8 @@ pub(crate) fn validate_private_functions<'plan>(
         if private.private_symbol.is_empty() {
             return Err(ObjectError::EmptyPrivateFunctionSymbol);
         }
-        if !symbols.insert(private.private_symbol.as_ref()) {
-            return Err(ObjectError::PrivateFunctionSymbolCollision);
+        if private.identity.private_symbol().as_deref() != Some(private.private_symbol.as_ref()) {
+            return Err(ObjectError::InvalidPrivateFunctionIdentity);
         }
         if private.function.scalar_abi.is_none() {
             return Err(ObjectError::InvalidPrivateFunctionAbi);

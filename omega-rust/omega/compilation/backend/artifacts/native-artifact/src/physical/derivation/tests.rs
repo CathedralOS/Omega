@@ -1569,7 +1569,7 @@ fn physical_child_identity_binds_every_retained_field() {
 /// the same child.
 #[test]
 fn physical_child_identity_binds_the_normalized_foreign_relocation() {
-    use function_identity::{MachineFunctionIdentity, StateKey};
+    use function_identity::MachineFunctionIdentity;
     use object_file::{ObjectSymbolHandle, RelocationKind, RelocationOrigin};
     use semantic_vocabulary::{IntegerValue, ValueId};
     use target_operations::{
@@ -1878,10 +1878,16 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
                 -4,
                 RelocationKind::X86_64Relative32,
                 Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
-                    callback_function: MachineFunctionIdentity::source(StateKey {
-                        segment_index: 1,
-                        ..Default::default()
-                    }),
+                    callback_function: MachineFunctionIdentity::callback_thunk(
+                        terminal_psi::TerminalPsiIdentity {
+                            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes(
+                                [1; 32],
+                            ),
+                        },
+                        0,
+                    )
+                    .unwrap(),
                     relocation: callback_relocation(23),
                 }),
                 [29; 32],

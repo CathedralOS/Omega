@@ -74,6 +74,7 @@ use codec::wire::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u12
 
 /// The current vocabulary includes owned incoming stack pointers and AArch64's
 /// dedicated indirect-result register. Earlier envelopes cannot carry those roles.
+/// Marker 110 scopes callback function identities to Terminal programs.
 /// Marker 107 retains the exact owned subtree path for nominal cleanup.
 /// Marker 106 encodes explicit structural parameters without a receiver flag.
 /// Marker 100 retains byte-field predicate sets and exact carrier access.
@@ -89,7 +90,7 @@ use codec::wire::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u12
 /// identities for the bound image; marker 96 records carry no complete-custody
 /// digests.
 /// Marker 109 retains typed paths and Case guards in internal call transfers.
-pub const INSTALLATION_FORMAT_MARKER: u16 = 109;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 110;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer

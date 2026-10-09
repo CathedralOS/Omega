@@ -689,8 +689,7 @@ mod tests {
             NativeParameterApplication, NativeParameterId, NativePlace, StaticMachineBinderId,
             ValueLocation,
         };
-        use function_identity::{MachineFunctionIdentity, StateKey};
-        use symbols::SymbolHandle;
+        use function_identity::MachineFunctionIdentity;
 
         for alternate_abi in [false, true] {
             let (physical, kind, _, _, _, _, mut record) = inputs(alternate_abi, 3, 1);
@@ -738,10 +737,9 @@ mod tests {
                     destination,
                 })
                 .collect();
-            let continuation = StateKey {
-                machine: SymbolHandle::from_parts(1, 1),
-                state: SymbolHandle::from_parts(2, 1),
-                segment_index: 0,
+            let continuation = terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
             };
             let mut encoded_destinations = Vec::new();
             for (placement_index, destination) in destinations.into_iter().enumerate() {
@@ -814,9 +812,7 @@ mod tests {
                 scratch_register,
             ] {
                 let view = crate::x86_64_fixed_register_view(&physical, register).unwrap();
-                let view = physical
-                    .model().view(view)
-                    .unwrap();
+                let view = physical.model().view(view).unwrap();
                 assert!(
                     view.units
                         .iter()

@@ -102,16 +102,12 @@ dependencies = [
 name = "backend-plan"
 version = "0.1.0"
 dependencies = [
- "arena",
  "calling-conventions",
  "checked-trees",
  "function-identity",
- "layout-plans",
  "semantic-vocabulary",
  "symbols",
- "target",
  "terminal-codec",
- "terminal-psi",
 ]
 
 [[package]]
@@ -666,7 +662,7 @@ dependencies = [
 name = "function-identity"
 version = "0.1.0"
 dependencies = [
- "symbols",
+ "terminal-psi",
 ]
 
 [[package]]

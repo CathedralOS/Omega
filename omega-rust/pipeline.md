@@ -282,7 +282,9 @@ not compiler primitives or backend realization plans.
 Omega `foundation/` owns shared host primitives and native compiler vocabulary:
 bounded process execution, filesystem custody, function identities and optimization
 contracts/selections. These independent packages depend on host libraries and
-Psi foundations, never on program IRs, producing stages or product coordinators.
+Psi foundations, never on producing stages or product coordinators. Native
+function identities also consume the public Terminal identity vocabulary,
+not program contents or an intermediate representation.
 Psi retains its source/arena/numeric and optimization-selection foundations; do
 not duplicate them in Omega. Target/ABI/register descriptions and retained
 realization evidence belong to their backend owners. Psi must not depend on Omega. A coordinator forwards complete typed

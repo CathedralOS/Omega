@@ -51,17 +51,7 @@ pub(super) fn validate_function_rows(record: &InstallationRecord) -> Result<(), 
             || !private.identity.is_valid()
             || private.byte_count == 0
             || private.text_offset != expected_text_offset
-            || !private_identities.insert({
-                let continuation = private.identity.associated_source_continuation();
-                (
-                    continuation.machine.arena_index(),
-                    continuation.machine.generation(),
-                    continuation.state.arena_index(),
-                    continuation.state.generation(),
-                    continuation.segment_index,
-                    private.identity.callback_thunk_placement_index(),
-                )
-            })
+            || !private_identities.insert(private.identity.to_bytes())
             || !installed_unit_scalar_transport::installed_scalar_abi_is_canonical(
                 &private.scalar_abi,
                 record.target,

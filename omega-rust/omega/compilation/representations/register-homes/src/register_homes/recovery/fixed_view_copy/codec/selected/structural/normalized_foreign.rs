@@ -17,7 +17,7 @@ use calling_conventions::{
     NativeCallbackDemand, NativeParameterApplication, NativeParameterId, Preemption, StatePlan,
     StaticMachineBinderId,
 };
-use function_identity::{MachineFunctionIdentity, StateKey};
+use function_identity::MachineFunctionIdentity;
 use legalized_operations::{
     LegalizedNormalizedForeignCall, encode_call_binding, encode_placement,
     encode_provider_execution, encode_shape,
@@ -25,7 +25,6 @@ use legalized_operations::{
 use selected_instructions::effects::program::identity::encode_ownership;
 use selected_instructions::{SelectedInstructionId, SelectedNormalizedForeignCall};
 use semantic_vocabulary::{BoundaryMachineId, OperationId, ScalarType, ValueId};
-use symbols::SymbolHandle;
 use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
 use target_operations::{
     NormalizedForeignCallBinding, TargetNativeCallbackArgument, TargetScalarBlockValue,
@@ -251,22 +250,8 @@ fn decode_native_callback_argument(
 fn decode_machine_function_identity(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineFunctionIdentity, FixedViewCopyDecodeError> {
-    let continuation = StateKey {
-        machine: SymbolHandle::from_parts(cursor.u32()?, cursor.u32()?),
-        state: SymbolHandle::from_parts(cursor.u32()?, cursor.u32()?),
-        segment_index: usize::try_from(cursor.u64()?)
-            .map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?,
-    };
-    match cursor.byte()? {
-        1 => Some(MachineFunctionIdentity::source(continuation)),
-        2 => MachineFunctionIdentity::program_storage_entry_wrapper(continuation),
-        3 => MachineFunctionIdentity::callback_thunk(
-            continuation,
-            usize::try_from(cursor.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?,
-        ),
-        tag => return Err(FixedViewCopyDecodeError::UnknownMachineFunctionKind(tag)),
-    }
-    .ok_or(FixedViewCopyDecodeError::InvalidMachineFunctionIdentity)
+    MachineFunctionIdentity::from_bytes(cursor.array()?)
+        .ok_or(FixedViewCopyDecodeError::InvalidMachineFunctionIdentity)
 }
 
 fn decode_call_binding(
@@ -596,6 +581,35 @@ pub(super) fn decode_scalar_source(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn callback_function_identity_roundtrip_uses_terminal_coordinates() {
+        let caller = terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([9; 32]),
+        };
+        let identity = function_identity::MachineFunctionIdentity::callback_thunk(caller, 17)
+            .expect("valid callback identity");
+        let mut bytes = Vec::new();
+        legalized_operations::encode_machine_function_identity(&mut bytes, &identity);
+        let mut cursor = super::Cursor::new(&bytes);
+        assert_eq!(
+            super::decode_machine_function_identity(&mut cursor),
+            Ok(identity)
+        );
+        assert_eq!(cursor.remaining(), 0);
+        for length in 0..bytes.len() {
+            assert!(
+                super::decode_machine_function_identity(&mut super::Cursor::new(&bytes[..length]))
+                    .is_err()
+            );
+        }
+        bytes[2..34].fill(0);
+        assert_eq!(
+            super::decode_machine_function_identity(&mut super::Cursor::new(&bytes)),
+            Err(super::FixedViewCopyDecodeError::InvalidMachineFunctionIdentity),
+        );
+    }
+
     use super::super::declarations::encode_string;
     use super::{
         decode_call_binding, decode_locator, decode_normalized_foreign_call, decode_scalar_source,
