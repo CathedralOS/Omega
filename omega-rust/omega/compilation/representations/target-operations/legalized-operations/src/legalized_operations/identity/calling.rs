@@ -48,12 +48,12 @@ pub fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     }
 }
 
-pub fn encode_callback_materialization(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
+pub(crate) fn encode_callback_materialization(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
     bytes.extend_from_slice(&row.binder.get().to_le_bytes());
     encode_native_place(bytes, &row.destination);
 }
 
-pub fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace) {
+pub(crate) fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace) {
     match destination {
         NativePlace::Parameter(parameter) => {
             bytes.push(1);
@@ -124,7 +124,7 @@ pub fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {
     }
 }
 
-pub fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPointerLocation) {
+pub(crate) fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPointerLocation) {
     match pointer {
         IndirectPointerLocation::Register(register) => {
             bytes.push(1);
@@ -161,7 +161,7 @@ pub fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
     bytes.extend_from_slice(&shape.alignment.to_le_bytes());
 }
 
-pub fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyteClass) {
+pub(crate) fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyteClass) {
     bytes.push(match class {
         SystemVEightbyteClass::Integer => 1,
         SystemVEightbyteClass::Sse => 2,

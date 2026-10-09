@@ -5,6 +5,7 @@
 
 mod structural;
 pub use structural::{
-    LegalizedBoundarySettlement, LegalizedCallSourceError, LegalizedCallUnitParameter,
+    LegalizedBoundarySettlement, LegalizedCallUnitParameter,
     LegalizedStructuralContract, NativeCallOrigin,
 };
+pub(crate) use structural::{ LegalizedCallSourceError};
