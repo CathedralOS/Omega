@@ -726,7 +726,7 @@ impl LiteralFoldPlan {
         if cursor.take(LITERAL_FOLD_MAGIC.len())? != LITERAL_FOLD_MAGIC {
             return Err(LiteralFoldDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != LITERAL_FOLD_VERSION {
             return Err(LiteralFoldDecodeError::UnsupportedVersion(version));
         }
@@ -740,10 +740,10 @@ impl LiteralFoldPlan {
         let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let machine_effect_catalog = MachineEffectCatalogIdentity::from_bytes(cursor.array()?);
         let optimization_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
-        let raw_fuel = u32::from_le_bytes(cursor.array()?);
+        let raw_fuel = cursor.u32()?;
         let fuel_schedule = FuelScheduleIdentity::new(raw_fuel)
             .ok_or(LiteralFoldDecodeError::InvalidFuelSchedule(raw_fuel))?;
-        let policy_bits = u32::from_le_bytes(cursor.array()?);
+        let policy_bits = cursor.u32()?;
         let policy = LiteralFoldPolicy::from_canonical_bits(policy_bits)
             .ok_or(LiteralFoldDecodeError::UnknownPolicy(policy_bits))?;
         let budget = OptimizationWorkBudget::decode(cursor.take(40)?)
@@ -753,26 +753,26 @@ impl LiteralFoldPlan {
         let function_count = cursor.length()?;
         let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
         for _ in 0..function_count {
-            let raw_machine = u64::from_le_bytes(cursor.array()?);
+            let raw_machine = cursor.u64()?;
             let machine = MachineId::new(raw_machine)
                 .ok_or(LiteralFoldDecodeError::InvalidMachineId(raw_machine))?;
             let action_count = cursor.length()?;
             let mut actions = Vec::with_capacity(action_count.min(cursor.remaining()));
             for _ in 0..action_count {
                 actions.push(LiteralFoldAction {
-                    block: SelectedBlockId(u32::from_le_bytes(cursor.array()?)),
-                    literal_instruction: SelectedInstructionId(u32::from_le_bytes(cursor.array()?)),
-                    victim: VirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
+                    block: SelectedBlockId(cursor.u32()?),
+                    literal_instruction: SelectedInstructionId(cursor.u32()?),
+                    victim: VirtualRegisterId(cursor.u32()?),
                     consumer_instruction: SelectedInstructionId(u32::from_le_bytes(
                         cursor.array()?,
                     )),
-                    surviving: VirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
+                    surviving: VirtualRegisterId(cursor.u32()?),
                     result: match cursor.byte()? {
                         0 => None,
-                        1 => Some(VirtualRegisterId(u32::from_le_bytes(cursor.array()?))),
+                        1 => Some(VirtualRegisterId(cursor.u32()?)),
                         tag => return Err(LiteralFoldDecodeError::UnknownOption(tag)),
                     },
-                    immediate: u64::from_le_bytes(cursor.array()?),
+                    immediate: cursor.u64()?,
                     immediate_constraint: decode_constraint_key(&mut cursor)?,
                 });
             }
@@ -1008,7 +1008,7 @@ fn decode_constraint_key(
     };
     Ok(RegisterConstraintKey {
         family,
-        variant: u32::from_le_bytes(cursor.array()?),
+        variant: cursor.u32()?,
     })
 }
 

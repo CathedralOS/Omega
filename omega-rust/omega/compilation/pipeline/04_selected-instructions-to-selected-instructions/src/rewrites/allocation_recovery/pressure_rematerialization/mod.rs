@@ -128,7 +128,7 @@ impl PressureRematerializationPlan {
         if cursor.take(8)? != MAGIC {
             return Err(PressureRematerializationDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != VERSION {
             return Err(PressureRematerializationDecodeError::UnsupportedVersion(
                 version,
@@ -143,7 +143,7 @@ impl PressureRematerializationPlan {
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
         let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let optimization_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
-        let raw_fuel = u32::from_le_bytes(cursor.array()?);
+        let raw_fuel = cursor.u32()?;
         let fuel_schedule = FuelScheduleIdentity::new(raw_fuel).ok_or(
             PressureRematerializationDecodeError::InvalidFuelSchedule(raw_fuel),
         )?;
@@ -159,30 +159,30 @@ impl PressureRematerializationPlan {
         let count = cursor.length()?;
         let mut functions = Vec::with_capacity(count.min(cursor.remaining()));
         for _ in 0..count {
-            let raw_machine = u64::from_le_bytes(cursor.array()?);
+            let raw_machine = cursor.u64()?;
             let machine = MachineId::new(raw_machine).ok_or(
                 PressureRematerializationDecodeError::InvalidMachineId(raw_machine),
             )?;
             let action = match cursor.byte()? {
                 0 => None,
                 1 => {
-                    let block = SelectedBlockId(u32::from_le_bytes(cursor.array()?));
-                    let pressure_point = LiveRangePoint(u32::from_le_bytes(cursor.array()?));
-                    let victim = VirtualRegisterId(u32::from_le_bytes(cursor.array()?));
-                    let current_view = RegisterViewId(u16::from_le_bytes(cursor.array()?));
-                    let reclaimed_view = RegisterViewId(u16::from_le_bytes(cursor.array()?));
+                    let block = SelectedBlockId(cursor.u32()?);
+                    let pressure_point = LiveRangePoint(cursor.u32()?);
+                    let victim = VirtualRegisterId(cursor.u32()?);
+                    let current_view = RegisterViewId(cursor.u16()?);
+                    let reclaimed_view = RegisterViewId(cursor.u16()?);
                     let original_materialize =
-                        SelectedInstructionId(u32::from_le_bytes(cursor.array()?));
-                    let source_value = ValueId::new(u64::from_le_bytes(cursor.array()?))
+                        SelectedInstructionId(cursor.u32()?);
+                    let source_value = ValueId::new(cursor.u64()?)
                         .ok_or(PressureRematerializationDecodeError::InvalidValueId)?;
                     let value = decode_integer_value(&mut cursor)?;
                     let rewrite_count = cursor.length()?;
                     let mut rewrites = Vec::with_capacity(rewrite_count.min(cursor.remaining()));
                     for _ in 0..rewrite_count {
                         rewrites.push(PressureRematerializationRewrite {
-                            point: LiveRangePoint(u32::from_le_bytes(cursor.array()?)),
-                            instruction: SelectedInstructionId(u32::from_le_bytes(cursor.array()?)),
-                            operand: u16::from_le_bytes(cursor.array()?),
+                            point: LiveRangePoint(cursor.u32()?),
+                            instruction: SelectedInstructionId(cursor.u32()?),
+                            operand: cursor.u16()?,
                         });
                     }
                     Some(PressureRematerializationAction {
@@ -426,14 +426,14 @@ fn decode_constraint_key(
     };
     Ok(RegisterConstraintKey {
         family,
-        variant: u32::from_le_bytes(cursor.array()?),
+        variant: cursor.u32()?,
     })
 }
 
 fn decode_integer_value(
     cursor: &mut Cursor<'_>,
 ) -> Result<IntegerValue, PressureRematerializationDecodeError> {
-    let value = u128::from_le_bytes(cursor.array()?);
+    let value = cursor.u128()?;
     match cursor.byte()? {
         0 => Ok(IntegerValue::Unsigned(value)),
         1 => Ok(IntegerValue::Signed(value as i128)),
