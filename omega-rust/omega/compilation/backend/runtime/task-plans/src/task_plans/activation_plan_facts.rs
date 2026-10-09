@@ -1,6 +1,7 @@
 //! Facts a selected runtime provider publishes about one activation plan:
 //! the start operation, the specialization commitment and the plan set.
 
+use crate::task_plans::identities::commitment_digest;
 use crate::{TaskRuntimeId, ValidatedActivationPlan};
 
 /// Which ordinary `TaskRuntime` operation requested one concrete activation.
@@ -10,25 +11,12 @@ pub enum TaskStartOperation {
     TryStart,
 }
 
-/// Domain-separated SHA-256 commitment to the exact checked TaskRuntime
-/// requirement, operation, target entry, and target contract selected by one
-/// task activation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TaskSpecializationCommitment([u8; 32]);
-
-impl TaskSpecializationCommitment {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
-}
+commitment_digest!(
+    /// Domain-separated SHA-256 commitment to the exact checked TaskRuntime
+    /// requirement, operation, target entry, and target contract selected by
+    /// one task activation.
+    TaskSpecializationCommitment
+);
 
 /// Exact selected runtime evidence paired with one Omega activation plan.
 /// This is post-check provider realization state, not part of Psi checked

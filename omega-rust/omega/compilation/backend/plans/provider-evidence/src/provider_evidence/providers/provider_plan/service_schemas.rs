@@ -1,47 +1,30 @@
 //! Provider plan and service schema digests, service schemas, methods,
 //! progress premises and entry claims.
 
+use crate::provider_evidence::evidence_digest;
 use crate::provider_evidence::providers::provider_plan::ProviderPlanRow;
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 use typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 
-/// Collision-resistant identity of one exact normalized provider plan.
-///
-/// Construction remains crate-owned. Compact plan fingerprints are retained
-/// for existing reports and coordinates, but admission joins should retain
-/// this digest or the complete [`ProviderPlan`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProviderPlanDigest([u8; 32]);
+evidence_digest!(
+    /// Collision-resistant identity of one exact normalized provider plan.
+    ///
+    /// Construction remains crate-owned. Compact plan fingerprints are
+    /// retained for existing reports and coordinates, but admission joins
+    /// should retain this digest or the complete [`ProviderPlan`].
+    ProviderPlanDigest,
+    from: #[doc(hidden)] pub
+);
 
-impl ProviderPlanDigest {
-    #[doc(hidden)]
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
-
-/// Collision-resistant identity of one exact normalized service schema.
-///
-/// This excludes provider realization rows while retaining the declaration
-/// owner, every requirement signature, authority flow, and selected calling-
-/// plan application carried by [`ServiceSchema`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ServiceSchemaDigest([u8; 32]);
-
-impl ServiceSchemaDigest {
-    #[doc(hidden)]
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
+evidence_digest!(
+    /// Collision-resistant identity of one exact normalized service schema.
+    ///
+    /// This excludes provider realization rows while retaining the
+    /// declaration owner, every requirement signature, authority flow, and
+    /// selected calling-plan application carried by [`ServiceSchema`].
+    ServiceSchemaDigest,
+    from: #[doc(hidden)] pub
+);
 
 /// The service schema a plan serves: a boundary trait's callable surface,
 /// reified from the typed `TraitDefinition` (today that read is scattered

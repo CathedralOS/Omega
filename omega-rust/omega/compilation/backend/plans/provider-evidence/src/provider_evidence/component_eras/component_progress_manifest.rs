@@ -1,29 +1,23 @@
 //! The progress demands a component is bound to, and the digest that pins them.
 
+use crate::provider_evidence::evidence_digest;
 use crate::{
     SelectedProviderClosureDigest, SelectedProviderPlanFacts,
     provider_plan::{ProviderPlanDigest, ServiceProgressSubject},
 };
 use sha2::{Digest, Sha256};
 
-/// Collision-resistant commitment to one exact component progress manifest.
-///
-/// The compact normalized identity remains available for diagnostics and
-/// compatibility records. Installation admission must retain this commitment
-/// (or the complete manifest) so a compact-equal substitute cannot authorize
-/// a different selected provider closure or pending demand set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ComponentProgressManifestDigest([u8; 32]);
-
-impl ComponentProgressManifestDigest {
-    const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
+evidence_digest!(
+    /// Collision-resistant commitment to one exact component progress
+    /// manifest.
+    ///
+    /// The compact normalized identity remains available for diagnostics
+    /// and compatibility records. Installation admission must retain this
+    /// commitment (or the complete manifest) so a compact-equal substitute
+    /// cannot authorize a different selected provider closure or pending
+    /// demand set.
+    ComponentProgressManifestDigest
+);
 
 /// Source-handle-free input derived from checked call facts before composition.
 /// It names an obligation only; selected-plan identity is joined by

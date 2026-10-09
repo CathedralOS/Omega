@@ -28,6 +28,33 @@ macro_rules! normalized_id {
 
 normalized_id!(MachineContractId, "machine-contract");
 normalized_id!(MachineEntryId, "machine-entry");
+
+/// Strong `[u8; 32]` commitment wrappers: the domain-separated digest types
+/// every plan commits through — `from_digest` constructs, `as_bytes` hands
+/// the owned bytes, `is_zero` is the absence check.
+macro_rules! commitment_digest {
+    ($(#[$attr:meta])* $name:ident $(, from: $(#[$fdoc:meta])*)?) => {
+        $(#[$attr])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            $($(#[$fdoc])*)?
+            pub const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(self) -> [u8; 32] {
+                self.0
+            }
+
+            pub fn is_zero(self) -> bool {
+                self.0 == [0; 32]
+            }
+        }
+    };
+}
+
 normalized_id!(ValueLayoutId, "value-layout");
 normalized_id!(CallingPlanId, "calling-plan");
 normalized_id!(StackRepresentationId, "stack-representation");
@@ -63,3 +90,5 @@ normalized_id!(ExecutorSelectionId, "executor-selection");
 normalized_id!(LiveCarryPlaceId, "live-carry-place");
 normalized_id!(LiveCarryTypeId, "live-carry-type");
 normalized_id!(CompositionModelId, "composition-model");
+
+pub(crate) use commitment_digest;

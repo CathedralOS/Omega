@@ -15,23 +15,54 @@ use crate::provider_plan::ProviderPlan;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
-/// Collision-resistant identity of one complete selected-provider closure.
-///
-/// This commits the exact selected plans and every attached closure fact. The
-/// existing compact normalized identity remains a compatibility/report
-/// coordinate and must not authorize artifact replay by itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SelectedProviderClosureDigest([u8; 32]);
+/// Strong `[u8; 32]` evidence digests: `from_digest` constructs at the
+/// visibility the caller's contract needs, `as_bytes` hands back the bytes.
+macro_rules! evidence_digest {
+    ($(#[$attr:meta])* $name:ident, from: $(#[$fdoc:meta])* $fv:vis) => {
+        $(#[$attr])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
 
-impl SelectedProviderClosureDigest {
-    const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
+        impl $name {
+            $(#[$fdoc])*
+            $fv const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
 
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
+            pub const fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+    };
+    ($(#[$attr:meta])* $name:ident) => {
+        $(#[$attr])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+    };
 }
+
+pub(crate) use evidence_digest;
+
+evidence_digest!(
+    /// Collision-resistant identity of one complete selected-provider
+    /// closure.
+    ///
+    /// This commits the exact selected plans and every attached closure
+    /// fact. The existing compact normalized identity remains a
+    /// compatibility/report coordinate and must not authorize artifact
+    /// replay by itself.
+    SelectedProviderClosureDigest
+);
 
 /// The exact provider plans selected by the compiler for one checked program.
 ///

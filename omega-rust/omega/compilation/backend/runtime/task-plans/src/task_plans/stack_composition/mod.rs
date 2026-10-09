@@ -21,6 +21,8 @@
 //! Projections spelled `wcsu` carry the worst-case stack usage (WCSU) that the
 //! storage contract defines.
 
+use crate::task_plans::identities::commitment_digest;
+
 use crate::{
     AdmittedStackContributionReportId, CanonicalSuspensionCrossing,
     SameStackContributionAdmissionReceiptId, StackPlan, StackPlanProjectionId,
@@ -48,47 +50,23 @@ pub struct SameStackContributionAdmissionCandidate {
     pub alignment: u64,
 }
 
-/// Domain-separated commitment to the exact selected provider plan that owns
-/// one opaque same-stack contribution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SameStackProviderPlanCommitment([u8; 32]);
-
-impl SameStackProviderPlanCommitment {
+commitment_digest!(
+    /// Domain-separated commitment to the exact selected provider plan that
+    /// owns one opaque same-stack contribution.
+    SameStackProviderPlanCommitment,
+    from:
     /// Wrap a digest issued by canonical provider-plan construction.
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
+);
 
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
-}
-
-/// Domain-separated commitment to the complete admitted same-stack claim.
-/// This remains authoritative when the compact report identity is projected
-/// into later WCSU planning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SameStackContributionCommitment([u8; 32]);
-
-impl SameStackContributionCommitment {
+commitment_digest!(
+    /// Domain-separated commitment to the complete admitted same-stack
+    /// claim. This remains authoritative when the compact report identity is
+    /// projected into later WCSU planning.
+    SameStackContributionCommitment,
+    from:
     /// Reconstruct a retained non-authoritative commitment projection.
     /// Admission authority remains with [`AdmittedSameStackContribution`].
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
-}
+);
 
 /// Sealed opaque same-stack demand accepted against an exact provider choice.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
