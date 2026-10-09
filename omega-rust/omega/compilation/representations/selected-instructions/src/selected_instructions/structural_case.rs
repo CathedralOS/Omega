@@ -90,18 +90,18 @@ impl SelectedStructuralCaseEdge {
                 byte_size,
             } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&place.get().to_le_bytes());
-                bytes.extend_from_slice(&pointer.0.to_le_bytes());
-                bytes.extend_from_slice(&byte_size.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, pointer.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_size.to_le_bytes());
             }
         }
-        bytes.extend_from_slice(&self.case.get().to_le_bytes());
-        bytes.extend_from_slice(&self.case_tag.to_le_bytes());
-        bytes.extend_from_slice(&(self.payloads.len() as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.case.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.case_tag.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, (self.payloads.len() as u64).to_le_bytes());
         for payload in &self.payloads {
-            bytes.extend_from_slice(&payload.semantic.field.get().to_le_bytes());
-            bytes.extend_from_slice(&payload.semantic.field_byte_offset.to_le_bytes());
-            bytes.extend_from_slice(&payload.semantic.parameter.value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, payload.semantic.field.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, payload.semantic.field_byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, payload.semantic.parameter.value.get().to_le_bytes());
             encode_scalar_type(bytes, payload.semantic.parameter.scalar_type);
             encode_value_definition_site_identity(
                 bytes,
@@ -111,19 +111,19 @@ impl SelectedStructuralCaseEdge {
                 SelectedCasePayloadTransport::Unused => bytes.push(0),
                 SelectedCasePayloadTransport::Unmaterialized { parameter } => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&parameter.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, parameter.0.to_le_bytes());
                 }
                 SelectedCasePayloadTransport::Registers {
                     argument,
                     parameter,
                 } => {
                     bytes.push(2);
-                    bytes.extend_from_slice(&argument.0.to_le_bytes());
-                    bytes.extend_from_slice(&parameter.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, argument.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, parameter.0.to_le_bytes());
                 }
             }
         }
-        bytes.extend_from_slice(&(self.cleanup_actions.len() as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, (self.cleanup_actions.len() as u64).to_le_bytes());
         for action in &self.cleanup_actions {
             super::effects::program::identity::encode_cleanup(bytes, action);
         }

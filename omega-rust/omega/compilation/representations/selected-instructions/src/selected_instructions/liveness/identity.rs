@@ -31,7 +31,7 @@ pub fn liveness_identity_from_digests(
     bytes.extend_from_slice(b"omega.terminal-register-liveness.v10\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.target.architecture {
         Architecture::X86_64 => 0,
         Architecture::Aarch64 => 1,
@@ -41,8 +41,8 @@ pub fn liveness_identity_from_digests(
         ObjectFormat::MachO => 1,
         ObjectFormat::Coff => 2,
     });
-    bytes.extend_from_slice(&(plan.target.pointer_size as u64).to_le_bytes());
-    bytes.extend_from_slice(&(plan.target.pointer_alignment as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_size as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_alignment as u64).to_le_bytes());
     encode_len(&mut bytes, digests.len());
     for digest in digests {
         bytes.extend_from_slice(digest);
@@ -59,37 +59,37 @@ pub fn liveness_function_digest(function: &FunctionLiveness) -> [u8; 32] {
 }
 
 fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
-    bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     encode_len(bytes, function.entry_definitions.len());
     for definition in &function.entry_definitions {
-        bytes.extend_from_slice(&definition.virtual_register.0.to_le_bytes());
-        bytes.extend_from_slice(&definition.class.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, definition.virtual_register.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, definition.class.0.to_le_bytes());
         encode_option_u16(bytes, definition.fixed_view.map(|view| view.0));
     }
     encode_len(bytes, function.operand_positions.len());
     for operand in &function.operand_positions {
-        bytes.extend_from_slice(&operand.position.0.to_le_bytes());
-        bytes.extend_from_slice(&operand.instruction.0.to_le_bytes());
-        bytes.extend_from_slice(&operand.operand.to_le_bytes());
-        bytes.extend_from_slice(&operand.virtual_register.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.position.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.instruction.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.operand.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
         bytes.push(access_tag(operand.access));
-        bytes.extend_from_slice(&operand.class.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.class.0.to_le_bytes());
         encode_option_u16(bytes, operand.fixed_view.map(|view| view.0));
         encode_option_u16(bytes, operand.tied_to);
         bytes.push(u8::from(operand.early_clobber));
     }
     encode_len(bytes, function.blocks.len());
     for block in &function.blocks {
-        bytes.extend_from_slice(&block.block.0.to_le_bytes());
-        bytes.extend_from_slice(&block.source_block.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, block.block.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, block.source_block.get().to_le_bytes());
         encode_vregs(bytes, &block.virtual_live_in);
         encode_vregs(bytes, &block.virtual_live_out);
         encode_units(bytes, &block.unit_live_in);
         encode_units(bytes, &block.unit_live_out);
         encode_len(bytes, block.instructions.len());
         for instruction in &block.instructions {
-            bytes.extend_from_slice(&instruction.position.0.to_le_bytes());
-            bytes.extend_from_slice(&instruction.instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.position.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.instruction.0.to_le_bytes());
             encode_vregs(bytes, &instruction.virtual_uses);
             encode_vregs(bytes, &instruction.virtual_defs);
             encode_vregs(bytes, &instruction.virtual_live_in);
@@ -102,10 +102,10 @@ fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
         }
         encode_len(bytes, block.successors.len());
         for successor in &block.successors {
-            bytes.extend_from_slice(&successor.terminator.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, successor.terminator.0.to_le_bytes());
             bytes.push(successor.polarity_ordinal);
-            bytes.extend_from_slice(&successor.psi_edge.get().to_le_bytes());
-            bytes.extend_from_slice(&successor.target.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, successor.psi_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, successor.target.0.to_le_bytes());
             encode_vregs(bytes, &successor.virtual_live);
             encode_units(bytes, &successor.unit_live);
         }
@@ -125,7 +125,7 @@ fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
         None => bytes.push(0),
         Some(value) => {
             bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
         }
     }
 }
@@ -133,14 +133,14 @@ fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
 fn encode_vregs(bytes: &mut Vec<u8>, values: &[crate::VirtualRegisterId]) {
     encode_len(bytes, values.len());
     for value in values {
-        bytes.extend_from_slice(&value.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.0.to_le_bytes());
     }
 }
 
 fn encode_units(bytes: &mut Vec<u8>, values: &[register_model::RegisterUnitId]) {
     encode_len(bytes, values.len());
     for value in values {
-        bytes.extend_from_slice(&value.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.0.to_le_bytes());
     }
 }
 

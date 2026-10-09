@@ -7,6 +7,8 @@
 //! Data construction alone does not grant execution or publication authority.
 
 pub(crate) mod cursor;
+mod codec_bytes;
+
 mod digest_encoder;
 pub mod machine_code;
 pub use machine_code::{

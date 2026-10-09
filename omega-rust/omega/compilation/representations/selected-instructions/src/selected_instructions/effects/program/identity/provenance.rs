@@ -13,13 +13,13 @@ pub fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionPr
         match settlement.site {
             PsiProvenance::Operation(operation) => {
                 bytes.push(0);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             }
             PsiProvenance::Edge(edge) => {
                 bytes.push(1);
-                bytes.extend_from_slice(&edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
         }
-        bytes.extend_from_slice(&settlement.units.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, settlement.units.to_le_bytes());
     }
 }

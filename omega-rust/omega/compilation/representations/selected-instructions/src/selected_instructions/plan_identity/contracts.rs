@@ -18,8 +18,8 @@ pub(super) fn frame_slot(bytes: &mut Vec<u8>, slot: crate::FrameStorageSlotId) {
             abi_stack_byte_offset,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&parameter_index.to_le_bytes());
-            bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, parameter_index.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, abi_stack_byte_offset.to_le_bytes());
         }
         crate::FrameStorageSlotId::Outgoing(value) => {
             bytes.push(match value.role {
@@ -27,7 +27,7 @@ pub(super) fn frame_slot(bytes: &mut Vec<u8>, slot: crate::FrameStorageSlotId) {
                 crate::OutgoingArgumentSlotRole::ValueCopy => 3,
             });
             value.invocation_site.encode_identity(bytes);
-            bytes.extend_from_slice(&value.argument_index.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, value.argument_index.to_le_bytes());
         }
         crate::FrameStorageSlotId::Local(value) => {
             bytes.push(1);
@@ -46,36 +46,36 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     encode_len(bytes, function.outgoing_arguments.len());
     for row in &function.outgoing_arguments {
         slot(bytes, row.id);
-        bytes.extend_from_slice(&row.byte_size.to_le_bytes());
-        bytes.extend_from_slice(&row.alignment.to_le_bytes());
-        bytes.extend_from_slice(&row.abi_stack_byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.byte_size.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.alignment.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.abi_stack_byte_offset.to_le_bytes());
     }
     encode_len(bytes, function.local_storage_slots.len());
     for row in &function.local_storage_slots {
         local_slot(bytes, row.id);
-        bytes.extend_from_slice(&row.byte_size.to_le_bytes());
-        bytes.extend_from_slice(&row.alignment.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.byte_size.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.alignment.to_le_bytes());
     }
     encode_len(bytes, function.calls.len());
     for row in &function.calls {
-        bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
         match row.owner {
             target_operations::CallSiteOwner::Operation(operation) => {
                 bytes.push(0);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             }
             target_operations::CallSiteOwner::ExternalCompletion(edge) => {
                 bytes.push(2);
 
-                bytes.extend_from_slice(&edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
             target_operations::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,
             } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&edge.get().to_le_bytes());
-                bytes.extend_from_slice(&action_ordinal.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, action_ordinal.to_le_bytes());
             }
         }
         blob(
@@ -86,7 +86,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     }
     encode_len(bytes, function.normalized_foreign_calls.len());
     for row in &function.normalized_foreign_calls {
-        bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
         row.invocation_site.encode_identity(bytes);
         blob(
             bytes,
@@ -96,11 +96,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     }
     encode_len(bytes, function.memory_accesses.len());
     for row in &function.memory_accesses {
-        bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
         row.origin.encode_identity(bytes);
-        bytes.extend_from_slice(&row.place.get().to_le_bytes());
-        bytes.extend_from_slice(&row.byte_offset.to_le_bytes());
-        bytes.extend_from_slice(&row.byte_count.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.place.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.byte_count.to_le_bytes());
         match row.role {
             SelectedMemoryAccessRole::ReadByteSpan {
                 length,
@@ -119,8 +119,8 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                         9
                     },
                 );
-                bytes.extend_from_slice(&length.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::WriteByteSequence {
@@ -132,7 +132,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
             } => {
                 bytes.push(7);
                 for identity in [index.get(), value.get(), length.get(), obligation.get()] {
-                    bytes.extend_from_slice(&identity.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                 }
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
@@ -143,9 +143,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 accepted_fact,
             } => {
                 bytes.push(3);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&length.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::WriteIndexedPrimitive {
@@ -158,13 +158,13 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
             } => {
                 bytes.push(10);
                 for identity in [index.get(), value.get(), obligation.get()] {
-                    bytes.extend_from_slice(&identity.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                 }
-                bytes.extend_from_slice(&stride.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
                 match extent {
                     Some(extent) => {
                         bytes.push(1);
-                        bytes.extend_from_slice(&extent.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes());
                     }
                     None => bytes.push(0),
                 }
@@ -179,13 +179,13 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
             } => {
                 bytes.push(13);
                 for identity in [index.get(), obligation.get()] {
-                    bytes.extend_from_slice(&identity.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                 }
-                bytes.extend_from_slice(&stride.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
                 match extent {
                     Some(extent) => {
                         bytes.push(1);
-                        bytes.extend_from_slice(&extent.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes());
                     }
                     None => bytes.push(0),
                 }
@@ -200,13 +200,13 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
             } => {
                 bytes.push(12);
                 for identity in [index.get(), obligation.get()] {
-                    bytes.extend_from_slice(&identity.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                 }
-                bytes.extend_from_slice(&stride.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
                 match extent {
                     Some(extent) => {
                         bytes.push(1);
-                        bytes.extend_from_slice(&extent.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, extent.to_le_bytes());
                     }
                     None => bytes.push(0),
                 }
@@ -219,9 +219,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 accepted_fact,
             } => {
                 bytes.push(11);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&length.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::WriteElementView {
@@ -231,18 +231,18 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 accepted_fact,
             } => {
                 bytes.push(14);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&length.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::ReadReturnedView { producer } => {
                 bytes.push(15);
-                bytes.extend_from_slice(&producer.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
             }
             SelectedMemoryAccessRole::ReadMeasuredSpan { length } => {
                 bytes.push(16);
-                bytes.extend_from_slice(&length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
             }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
             SelectedMemoryAccessRole::WritePlace => bytes.push(6),
@@ -266,8 +266,8 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     }
     encode_len(bytes, function.boundary_settlements.len());
     for row in &function.boundary_settlements {
-        bytes.extend_from_slice(&row.block.0.to_le_bytes());
-        bytes.extend_from_slice(&row.instruction_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.block.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.instruction_index.to_le_bytes());
         blob(bytes, &row.settlement.canonical_bytes());
     }
 }

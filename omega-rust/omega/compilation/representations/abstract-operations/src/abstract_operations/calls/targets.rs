@@ -36,7 +36,7 @@ impl AbstractCallTarget {
         match self {
             Self::Machine(machine) => {
                 bytes.push(0);
-                bytes.extend_from_slice(&machine.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, machine.get().to_le_bytes());
             }
             Self::Dynamic {
                 selector,
@@ -44,9 +44,9 @@ impl AbstractCallTarget {
                 slot,
             } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&selector.get().to_le_bytes());
-                bytes.extend_from_slice(&interface.to_le_bytes());
-                bytes.extend_from_slice(&slot.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, selector.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, interface.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, slot.to_le_bytes());
             }
         }
         bytes

@@ -24,7 +24,7 @@ impl OutgoingArgumentSlotId {
     /// Complete slot identity for versioned rosters without an enclosing frame tag.
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         self.invocation_site.encode_identity(bytes);
-        bytes.extend_from_slice(&self.argument_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.argument_index.to_le_bytes());
         bytes.push(match self.role {
             OutgoingArgumentSlotRole::Argument => 0,
             OutgoingArgumentSlotRole::ValueCopy => 1,
@@ -93,30 +93,30 @@ impl LocalStorageSlotId {
                 argument_index,
             } => {
                 bytes.push(5);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                bytes.extend_from_slice(&argument_index.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, argument_index.to_le_bytes());
             }
             Self::StructuralParameter { place } => {
                 bytes.push(4);
-                bytes.extend_from_slice(&place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
             }
             Self::StructuralBlockParameter { block, place } => {
                 bytes.push(3);
-                bytes.extend_from_slice(&block.get().to_le_bytes());
-                bytes.extend_from_slice(&place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
             }
             Self::Spill { register } => {
                 bytes.push(2);
-                bytes.extend_from_slice(&register.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
             }
             Self::Structural { operation, place } => {
                 bytes.push(0);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                bytes.extend_from_slice(&place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
             }
             Self::Boundary { operation } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             }
         }
     }
@@ -306,7 +306,7 @@ impl SelectedMemoryAccessOrigin {
             Self::Block(identity) => (2, identity.get()),
         };
         bytes.push(tag);
-        bytes.extend_from_slice(&identity.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
     }
 }
 
@@ -378,12 +378,12 @@ impl SelectedBoundarySettlementPayload {
                 source,
             } => {
                 bytes.push(2);
-                bytes.extend_from_slice(&edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
                 legalized_operations::identity::encode_boundary_execution_identity(
                     &mut bytes, *execution,
                 );
-                bytes.extend_from_slice(&boundary.get().to_le_bytes());
-                bytes.extend_from_slice(&source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, boundary.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
             }
             Self::HostedWriteByteI32 {
                 operation,
@@ -391,9 +391,9 @@ impl SelectedBoundarySettlementPayload {
                 source,
             } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                bytes.extend_from_slice(&boundary.get().to_le_bytes());
-                bytes.extend_from_slice(&source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, boundary.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
             }
         }
         bytes

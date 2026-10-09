@@ -12,7 +12,7 @@ pub(crate) fn encode_terminal_pre_allocation_machine_effect_plan(
     let content = identity::encode_terminal_pre_allocation_machine_effect_content(plan);
     let mut encoded = Vec::with_capacity(44 + content.len());
     encoded.extend_from_slice(MAGIC);
-    encoded.extend_from_slice(&VERSION.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut encoded, VERSION.to_le_bytes());
     encoded.extend_from_slice(&plan.identity.bytes());
     encoded.extend_from_slice(&content);
     encoded

@@ -10,5 +10,5 @@ pub(super) fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraint
         register_model::RegisterConstraintFamily::InlineAssembly => 3,
         register_model::RegisterConstraintFamily::Instruction => 4,
     });
-    bytes.extend_from_slice(&key.variant.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, key.variant.to_le_bytes());
 }

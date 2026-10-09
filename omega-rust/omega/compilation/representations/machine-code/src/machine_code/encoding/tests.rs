@@ -131,13 +131,13 @@ fn current_encoding_binds_the_version_22_ordinary_instruction_schema() {
     canonical.extend_from_slice(&[1; 32]); // Selected identity.
     canonical.extend_from_slice(&[2; 32]); // Physical identity.
     canonical.push(0); // No post-allocation rewrite custody.
-    canonical.extend_from_slice(&1_u64.to_le_bytes()); // One row.
-    canonical.extend_from_slice(&7_u32.to_le_bytes()); // Instruction.
+    crate::codec_bytes::push_encoded(&mut canonical, 1_u64.to_le_bytes()); // One row.
+    crate::codec_bytes::push_encoded(&mut canonical, 7_u32.to_le_bytes()); // Instruction.
     canonical.push(6); // ConditionalBranchNonZero family.
-    canonical.extend_from_slice(&0_u32.to_le_bytes()); // Alternative variant.
+    crate::codec_bytes::push_encoded(&mut canonical, 0_u32.to_le_bytes()); // Alternative variant.
     canonical.extend_from_slice(&[0, 0, 1, 0, 0]); // No address, retained, deferred, reason, no frame.
     for count in [0_u64, 1, 0, 0, 0, 0] {
-        canonical.extend_from_slice(&count.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, count.to_le_bytes());
     }
     assert_eq!(canonical.len(), 195);
     let expected = [

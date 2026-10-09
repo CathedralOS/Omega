@@ -167,7 +167,7 @@ mod tests {
         }
 
         let mut retired_envelope = super::super::MAGIC.to_vec();
-        retired_envelope.extend_from_slice(&33_u32.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut retired_envelope, 33_u32.to_le_bytes());
         assert_eq!(
             super::super::decode_terminal_pre_allocation_machine_effect_plan(&retired_envelope),
             Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
@@ -209,7 +209,7 @@ mod tests {
         );
 
         let mut retired_envelope = super::super::MAGIC.to_vec();
-        retired_envelope.extend_from_slice(&32_u32.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut retired_envelope, 32_u32.to_le_bytes());
         assert_eq!(
             super::super::decode_terminal_pre_allocation_machine_effect_plan(&retired_envelope),
             Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(

@@ -36,7 +36,7 @@ impl FunctionFragmentTextSectionManifest {
         let content = encode_manifest_content(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
         encoded.extend_from_slice(MANIFEST_MAGIC);
-        encoded.extend_from_slice(&MANIFEST_VERSION.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, MANIFEST_VERSION.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
         encoded.extend_from_slice(&content);
         encoded
@@ -182,9 +182,9 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.extend_from_slice(&record.source_fragment_manifest.bytes());
     bytes.extend_from_slice(&record.source_realization.bytes());
     bytes.extend_from_slice(&record.selections.bytes());
-    bytes.extend_from_slice(&record.psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(record.psi.program_fingerprint.as_bytes());
-    bytes.extend_from_slice(&record.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.fuel_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&record.selected.bytes());
     bytes.extend_from_slice(&record.post_allocation_manifest.bytes());
     bytes.extend_from_slice(&record.post_allocation_machine.bytes());
@@ -193,8 +193,8 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.extend_from_slice(&record.whole_function_exit_contract.bytes());
     bytes.extend_from_slice(&record.fragments.bytes());
     bytes.extend_from_slice(&record.target.wire_identity_bytes());
-    bytes.extend_from_slice(&record.semantic_entry.get().to_le_bytes());
-    bytes.extend_from_slice(&record.semantic_entry_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.semantic_entry.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.semantic_entry_offset.to_le_bytes());
     bytes.push(match record.placement_policy {
         TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1 => 1,
     });
@@ -204,13 +204,13 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
         TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
         TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     });
-    bytes.extend_from_slice(&record.statistics.functions.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.blocks.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.instruction_spans.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.zero_byte_instruction_spans.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.bytes.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.padding_bytes.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.relocation_requirements.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.functions.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.blocks.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.instruction_spans.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.zero_byte_instruction_spans.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.bytes.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.padding_bytes.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.relocation_requirements.to_le_bytes());
     bytes.extend_from_slice(
         &record
             .statistics

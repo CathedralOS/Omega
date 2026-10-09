@@ -65,12 +65,12 @@ impl SelectedCallTarget {
         match self {
             Self::Machine(machine) => {
                 bytes.push(0);
-                bytes.extend_from_slice(&machine.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
             }
             Self::Dynamic { interface, slot } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&interface.to_le_bytes());
-                bytes.extend_from_slice(&slot.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, interface.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, slot.to_le_bytes());
             }
         }
     }
@@ -93,12 +93,12 @@ impl SelectedImageAddressReference {
         match self {
             Self::ByteLiteral { operation, place } => {
                 bytes.push(0);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                bytes.extend_from_slice(&place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
             }
             Self::ImplementationTable { table } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&table.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, table.to_le_bytes());
             }
         }
     }

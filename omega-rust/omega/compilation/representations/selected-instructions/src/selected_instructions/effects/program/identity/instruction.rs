@@ -62,13 +62,13 @@ fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffec
             pre_call_stack_alignment,
         } => {
             bytes.push(1);
-            bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, pre_call_stack_alignment.to_le_bytes());
         }
         MachineCallEffect::DirectExternalNormalReturnV1 {
             pre_call_stack_alignment,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, pre_call_stack_alignment.to_le_bytes());
         }
     }
     bytes.push(match instruction.cleanup {
@@ -78,7 +78,7 @@ fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffec
 }
 
 fn encode_common_fields(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffects) {
-    bytes.extend_from_slice(&instruction.instruction.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, instruction.instruction.0.to_le_bytes());
     encode_kind(bytes, instruction.kind);
     encode_constraint_key(bytes, instruction.constraint);
     encode_units(bytes, &instruction.unit_uses);
@@ -213,18 +213,18 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     match kind {
         SelectedInstructionKind::LoadPacked { byte_offset, width }
         | SelectedInstructionKind::StorePacked { byte_offset, width } => {
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             bytes.push(width.byte_size());
         }
         SelectedInstructionKind::Store {
             byte_offset,
             byte_size,
         } => {
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             bytes.push(byte_size);
         }
         SelectedInstructionKind::AddressOffset { byte_offset } => {
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::Load64 { byte_offset }
         | SelectedInstructionKind::Load8 { byte_offset }
@@ -240,8 +240,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
                     abi_stack_byte_offset,
                 } => {
                     bytes.push(2);
-                    bytes.extend_from_slice(&parameter_index.to_le_bytes());
-                    bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, parameter_index.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, abi_stack_byte_offset.to_le_bytes());
                 }
                 crate::FrameStorageSlotId::Outgoing(slot) => {
                     bytes.push(match slot.role {
@@ -249,14 +249,14 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
                         crate::OutgoingArgumentSlotRole::ValueCopy => 3,
                     });
                     slot.invocation_site.encode_identity(bytes);
-                    bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, slot.argument_index.to_le_bytes());
                 }
                 crate::FrameStorageSlotId::Local(slot) => {
                     bytes.push(1);
                     slot.encode_identity(bytes);
                 }
             }
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::HostedReadByte { slot }
         | SelectedInstructionKind::HostedWriteByteI32 { slot }
@@ -321,7 +321,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             obligation,
             accepted_fact,
         } => {
-            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::ExactAddI64Immediate {
@@ -335,7 +335,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             accepted_fact,
         } => {
             encode_integer(bytes, immediate);
-            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::CompareI64Immediate { immediate } => {
@@ -404,8 +404,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             target.encode_identity(bytes);
         }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
-            bytes.extend_from_slice(&boundary.get().to_le_bytes());
-            bytes.extend_from_slice(&ordinal.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, ordinal.to_le_bytes());
         }
         SelectedInstructionKind::ImmutableImageAddress { reference } => {
             reference.encode_identity(bytes);
@@ -417,11 +417,11 @@ fn encode_integer(bytes: &mut Vec<u8>, value: semantic_vocabulary::IntegerValue)
     match value {
         semantic_vocabulary::IntegerValue::Signed(value) => {
             bytes.push(0);
-            bytes.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
         }
         semantic_vocabulary::IntegerValue::Unsigned(value) => {
             bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
         }
     }
 }
@@ -468,9 +468,9 @@ mod outgoing_slot_tests {
             ),
         ] {
             let mut legacy = vec![tag, 0];
-            legacy.extend_from_slice(&43_u64.to_le_bytes());
-            legacy.extend_from_slice(&7_u32.to_le_bytes());
-            legacy.extend_from_slice(&8_u32.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut legacy, 43_u64.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut legacy, 7_u32.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut legacy, 8_u32.to_le_bytes());
             let mut encoded = Vec::new();
             encode_kind(&mut encoded, argument_kind);
             assert_eq!(encoded, legacy);

@@ -42,24 +42,24 @@ pub fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction)
     match action {
         TerminalAffineCleanupAction::RetireHome(place) => {
             bytes.push(4);
-            bytes.extend_from_slice(&place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
         }
         TerminalAffineCleanupAction::DiscardRoot(place) => {
             bytes.push(1);
-            bytes.extend_from_slice(&place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
         }
         TerminalAffineCleanupAction::DiscardResidual(discard) => {
             bytes.push(2);
-            bytes.extend_from_slice(&discard.place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, discard.place.get().to_le_bytes());
             encode_path(bytes, &discard.path);
-            bytes.extend_from_slice(&discard.structural_type.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, discard.structural_type.get().to_le_bytes());
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             bytes.push(if cleanup.retains_descendants { 5 } else { 3 });
-            bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, cleanup.place.get().to_le_bytes());
             encode_path(bytes, &cleanup.path);
-            bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
-            bytes.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, cleanup.structural_type.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, cleanup.cleanup_machine.get().to_le_bytes());
             encode_ids(
                 bytes,
                 cleanup.consumed_claims.iter().map(|claim| claim.get()),
@@ -68,7 +68,7 @@ pub fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction)
                 None => bytes.push(0),
                 Some(place) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&place.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
                 }
             }
             encode_ids(
@@ -85,13 +85,13 @@ pub fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
         match segment {
             StructuralPathSegment::Case(case) => {
                 bytes.push(7);
-                bytes.extend_from_slice(&case.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
             }
             StructuralPathSegment::Referent => bytes.push(3),
             StructuralPathSegment::FixedByteRange { start, end } => {
                 bytes.push(4);
-                bytes.extend_from_slice(&start.to_le_bytes());
-                bytes.extend_from_slice(&end.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, start.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, end.to_le_bytes());
             }
             StructuralPathSegment::Field(name) => {
                 bytes.push(1);
@@ -100,12 +100,12 @@ pub fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
             }
             StructuralPathSegment::FixedIndex(index) => {
                 bytes.push(2);
-                bytes.extend_from_slice(&index.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.to_le_bytes());
             }
             StructuralPathSegment::RuntimeIndex { index, obligation } => {
                 bytes.push(6);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             }
         }
     }

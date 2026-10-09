@@ -861,8 +861,8 @@ mod local_slot_tests {
             let mut encoded = Vec::new();
             slot.encode_identity(&mut encoded);
             let mut expected = vec![5];
-            expected.extend_from_slice(&operation.to_le_bytes());
-            expected.extend_from_slice(&argument_index.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, operation.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, argument_index.to_le_bytes());
             assert_eq!(encoded, expected);
             assert!(identities.insert(encoded.clone()));
             let mut cursor = Cursor::new(&encoded);
@@ -947,7 +947,7 @@ mod packed_tests {
         for tag in [46, 47] {
             for raw in 0..=8 {
                 let mut bytes = vec![tag];
-                bytes.extend_from_slice(&37_u32.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, 37_u32.to_le_bytes());
                 bytes.push(raw);
                 let decoded = decode_kind(&mut Cursor::new(&bytes), true, true, true);
                 if let Some(width) = crate::PackedByteWidth::from_byte_size(raw) {

@@ -11,24 +11,24 @@ pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
         ObjectFormat::MachO => 1,
         ObjectFormat::Coff => 2,
     });
-    bytes.extend_from_slice(&(target.pointer_size as u64).to_le_bytes());
-    bytes.extend_from_slice(&(target.pointer_alignment as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, (target.pointer_size as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, (target.pointer_alignment as u64).to_le_bytes());
 }
 
 pub(super) fn encode_units(bytes: &mut Vec<u8>, units: &[RegisterUnitId]) {
     encode_len(bytes, units.len());
     for unit in units {
-        bytes.extend_from_slice(&unit.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, unit.0.to_le_bytes());
     }
 }
 
 pub fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
     encode_len(bytes, values.len());
     for value in values {
-        bytes.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
     }
 }
 
 pub(super) fn encode_len(bytes: &mut Vec<u8>, length: usize) {
-    bytes.extend_from_slice(&(length as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, (length as u64).to_le_bytes());
 }

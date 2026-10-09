@@ -68,15 +68,15 @@ impl ByteLiteralAddressFields {
         match self {
             Self::X86_64Relative32 { patch_offset } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&patch_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, patch_offset.to_le_bytes());
             }
             Self::Aarch64PageAddress {
                 page_patch_offset,
                 page_offset_patch_offset,
             } => {
                 bytes.push(2);
-                bytes.extend_from_slice(&page_patch_offset.to_le_bytes());
-                bytes.extend_from_slice(&page_offset_patch_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, page_patch_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, page_offset_patch_offset.to_le_bytes());
             }
         }
     }
@@ -84,8 +84,8 @@ impl ByteLiteralAddressFields {
 
 impl ByteLiteralReference {
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&self.operation.get().to_le_bytes());
-        bytes.extend_from_slice(&self.place.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.operation.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.place.get().to_le_bytes());
     }
 }
 
@@ -120,13 +120,13 @@ pub struct PlacedByteLiteralAddress {
 
 impl PlacedByteLiteralAddress {
     pub fn encode_identity(&self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&self.machine.get().to_le_bytes());
-        bytes.extend_from_slice(&self.block.0.to_le_bytes());
-        bytes.extend_from_slice(&self.instruction.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.block.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.instruction.0.to_le_bytes());
         self.literal.encode_identity(bytes);
-        bytes.extend_from_slice(&self.instruction_function_offset.to_le_bytes());
-        bytes.extend_from_slice(&self.instruction_section_offset.to_le_bytes());
-        bytes.extend_from_slice(&self.instruction_byte_count.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.instruction_function_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.instruction_section_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.instruction_byte_count.to_le_bytes());
         self.fields.encode_identity(bytes);
     }
 }

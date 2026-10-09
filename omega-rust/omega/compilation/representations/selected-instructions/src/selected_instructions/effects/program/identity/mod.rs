@@ -42,7 +42,7 @@ pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     encode_target(&mut bytes, plan.target);
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.register_constraints.bytes());
@@ -50,10 +50,10 @@ pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
 
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
         encode_len(&mut bytes, function.blocks.len());
         for block in &function.blocks {
-            bytes.extend_from_slice(&block.block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, block.block.0.to_le_bytes());
             encode_len(&mut bytes, block.instructions.len());
             for instruction in &block.instructions {
                 encode_cfg_instruction(&mut bytes, instruction);

@@ -14,7 +14,7 @@ pub struct ImplementationTableReference {
 
 impl ImplementationTableReference {
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&self.table.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.table.to_le_bytes());
     }
 }
 
@@ -45,14 +45,14 @@ pub struct PlacedImplementationTableAddress {
 
 impl PlacedImplementationTableAddress {
     pub fn encode_identity(&self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&self.machine.get().to_le_bytes());
-        bytes.extend_from_slice(&self.block.0.to_le_bytes());
-        bytes.extend_from_slice(&self.instruction.0.to_le_bytes());
-        bytes.extend_from_slice(&self.reference.table.to_le_bytes());
-        bytes.extend_from_slice(&self.operation.get().to_le_bytes());
-        bytes.extend_from_slice(&self.instruction_function_offset.to_le_bytes());
-        bytes.extend_from_slice(&self.instruction_section_offset.to_le_bytes());
-        bytes.extend_from_slice(&self.instruction_byte_count.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.block.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.instruction.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.reference.table.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.operation.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.instruction_function_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.instruction_section_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, self.instruction_byte_count.to_le_bytes());
         self.fields.encode_identity(bytes);
     }
 }

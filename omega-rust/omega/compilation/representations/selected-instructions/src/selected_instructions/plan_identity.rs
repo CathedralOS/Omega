@@ -45,10 +45,10 @@ pub fn selected_instruction_plan_identity(
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
-    bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
-    bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&plan.target.identity_bytes());
-    bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
     encode_len(&mut bytes, plan.functions.len());
     for digest in plan.functions.identity_digests() {
         bytes.extend_from_slice(&digest);
@@ -61,7 +61,7 @@ pub fn selected_instruction_plan_identity(
 pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v1\0");
-    bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(
         &mut bytes,
         function.attachment.map(|attachment| attachment.get()),
@@ -85,31 +85,31 @@ pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] 
         function.provenance.edges.iter().map(|edge| edge.get()),
     );
     contracts::encode(&mut bytes, function);
-    bytes.extend_from_slice(&function.entry_block.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, function.entry_block.0.to_le_bytes());
     encode_len(&mut bytes, function.virtual_registers.len());
     for register in &function.virtual_registers {
         register::encode(&mut bytes, register);
     }
     encode_len(&mut bytes, function.blocks.len());
     for block in &function.blocks {
-        bytes.extend_from_slice(&block.id.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, block.id.0.to_le_bytes());
         match block.origin {
             crate::SelectedBlockOrigin::Source(source) => {
                 bytes.push(0);
-                bytes.extend_from_slice(&source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
             }
             crate::SelectedBlockOrigin::CaseDispatch {
                 source,
                 case_ordinal,
             } => {
                 bytes.push(2);
-                bytes.extend_from_slice(&source.get().to_le_bytes());
-                bytes.extend_from_slice(&case_ordinal.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, case_ordinal.to_le_bytes());
             }
             crate::SelectedBlockOrigin::EdgeTransfer { edge, target } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&edge.get().to_le_bytes());
-                bytes.extend_from_slice(&target.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, target.get().to_le_bytes());
             }
         }
         encode_len(&mut bytes, block.instructions.len());
@@ -122,7 +122,7 @@ pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] 
 }
 
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
-    bytes.extend_from_slice(&instruction.id.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, instruction.id.0.to_le_bytes());
     bytes.push(match instruction.kind {
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::ScanByteSequence { .. } => 233,
@@ -237,7 +237,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::StoreEncodedScalar => {}
         SelectedInstructionKind::LoadPacked { byte_offset, width }
         | SelectedInstructionKind::StorePacked { byte_offset, width } => {
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             bytes.push(width.byte_size());
         }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
@@ -252,11 +252,11 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             byte_offset,
             byte_size,
         } => {
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             bytes.push(byte_size);
         }
         SelectedInstructionKind::AddressOffset { byte_offset } => {
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::Load64 { byte_offset }
         | SelectedInstructionKind::Load8 { byte_offset }
@@ -267,16 +267,16 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::Store64 { slot, byte_offset }
         | SelectedInstructionKind::FrameAddress { slot, byte_offset } => {
             contracts::frame_slot(bytes, slot);
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::MaterializeI64 { value } => match value {
             semantic_vocabulary::IntegerValue::Signed(value) => {
                 bytes.push(0);
-                bytes.extend_from_slice(&value.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
             }
             semantic_vocabulary::IntegerValue::Unsigned(value) => {
                 bytes.push(1);
-                bytes.extend_from_slice(&value.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
             }
         },
         SelectedInstructionKind::ExactDivideU64 {
@@ -317,7 +317,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             obligation,
             accepted_fact,
         } => {
-            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::ExactSubtractI64 {
@@ -340,7 +340,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             obligation,
             accepted_fact,
         } => {
-            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::ExactAddI64Immediate {
@@ -356,24 +356,24 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             match immediate {
                 semantic_vocabulary::IntegerValue::Signed(value) => {
                     bytes.push(0);
-                    bytes.extend_from_slice(&value.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
                 }
                 semantic_vocabulary::IntegerValue::Unsigned(value) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&value.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
                 }
             }
-            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::CompareI64Immediate { immediate } => match immediate {
             semantic_vocabulary::IntegerValue::Signed(value) => {
                 bytes.push(0);
-                bytes.extend_from_slice(&value.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
             }
             semantic_vocabulary::IntegerValue::Unsigned(value) => {
                 bytes.push(1);
-                bytes.extend_from_slice(&value.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
             }
         },
         // Every float form shares one tag; its dense ordinal follows.
@@ -429,8 +429,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             target.encode_identity(bytes);
         }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
-            bytes.extend_from_slice(&boundary.get().to_le_bytes());
-            bytes.extend_from_slice(&ordinal.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, ordinal.to_le_bytes());
         }
         SelectedInstructionKind::ImmutableImageAddress { reference } => {
             reference.encode_identity(bytes);
@@ -439,14 +439,14 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     encode_constraint_key(bytes, instruction.constraint);
     encode_len(bytes, instruction.operands.len());
     for operand in &instruction.operands {
-        bytes.extend_from_slice(&operand.operand.to_le_bytes());
-        bytes.extend_from_slice(&operand.virtual_register.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.operand.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
         bytes.push(match operand.access {
             RegisterOperandAccess::Use => 0,
             RegisterOperandAccess::Def => 1,
             RegisterOperandAccess::UseDef => 2,
         });
-        bytes.extend_from_slice(&operand.class.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.class.0.to_le_bytes());
         encode_option_u16(bytes, operand.fixed_view.map(|view| view.0));
         encode_option_u16(bytes, operand.tied_to);
         bytes.push(u8::from(operand.early_clobber));
@@ -491,13 +491,13 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
         crate::SelectedSuccessorRole::EdgeTransferContinuation => 1,
         crate::SelectedSuccessorRole::CaseDispatchContinuation => 2,
     });
-    bytes.extend_from_slice(&successor.psi_edge.get().to_le_bytes());
-    bytes.extend_from_slice(&successor.block.0.to_le_bytes());
-    bytes.extend_from_slice(&successor.source_target.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, successor.psi_edge.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, successor.block.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, successor.source_target.get().to_le_bytes());
     encode_len(bytes, successor.bindings.len());
     for binding in &successor.bindings {
-        bytes.extend_from_slice(&binding.semantic.parameter.get().to_le_bytes());
-        bytes.extend_from_slice(&binding.semantic.argument.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, binding.semantic.argument.get().to_le_bytes());
         encode_scalar_type(bytes, binding.semantic.scalar_type);
         match binding.transport {
             crate::SelectedValueTransport::Unused => bytes.push(0),
@@ -506,8 +506,8 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 parameter,
             } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&argument.0.to_le_bytes());
-                bytes.extend_from_slice(&parameter.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, argument.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, parameter.0.to_le_bytes());
             }
         }
     }
@@ -520,20 +520,20 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     }
     encode_len(bytes, successor.structural_bindings.len());
     for binding in &successor.structural_bindings {
-        bytes.extend_from_slice(&binding.semantic.parameter.get().to_le_bytes());
-        bytes.extend_from_slice(&binding.semantic.argument.place.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, binding.semantic.argument.place.get().to_le_bytes());
         encode_len(bytes, binding.semantic.argument.path.len());
         for segment in &binding.semantic.argument.path {
             match segment {
                 terminal_psi::StructuralPathSegment::Case(case) => {
                     bytes.push(7);
-                    bytes.extend_from_slice(&case.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
                 }
                 terminal_psi::StructuralPathSegment::Referent => bytes.push(2),
                 terminal_psi::StructuralPathSegment::FixedByteRange { start, end } => {
                     bytes.push(3);
-                    bytes.extend_from_slice(&start.to_le_bytes());
-                    bytes.extend_from_slice(&end.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, start.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, end.to_le_bytes());
                 }
                 terminal_psi::StructuralPathSegment::Field(field) => {
                     bytes.push(0);
@@ -542,12 +542,12 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 }
                 terminal_psi::StructuralPathSegment::FixedIndex(index) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&index.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, index.to_le_bytes());
                 }
                 terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation } => {
                     bytes.push(4);
-                    bytes.extend_from_slice(&index.get().to_le_bytes());
-                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 }
             }
         }
@@ -567,11 +567,11 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 alignment,
             } => {
                 bytes.push(2);
-                bytes.extend_from_slice(&argument.0.to_le_bytes());
-                bytes.extend_from_slice(&source_byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, argument.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, source_byte_offset.to_le_bytes());
                 destination.encode_identity(bytes);
-                bytes.extend_from_slice(&byte_size.to_le_bytes());
-                bytes.extend_from_slice(&alignment.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_size.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, alignment.to_le_bytes());
             }
             crate::SelectedStructuralTransport::ScalarReference {
                 base,
@@ -583,18 +583,18 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 match base {
                     crate::SelectedAddressBase::Register(register) => {
                         bytes.push(0);
-                        bytes.extend_from_slice(&register.0.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
                     }
                     crate::SelectedAddressBase::Local(slot) => {
                         bytes.push(1);
                         slot.encode_identity(bytes);
                     }
                 }
-                bytes.extend_from_slice(&byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
                 match source {
                     crate::SelectedScalarReferenceSource::Canonical { codec } => {
                         bytes.push(0);
-                        bytes.extend_from_slice(&codec.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, codec.to_le_bytes());
                     }
                     crate::SelectedScalarReferenceSource::Descriptor => bytes.push(1),
                 }
@@ -610,15 +610,15 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 match base {
                     crate::SelectedAddressBase::Register(register) => {
                         bytes.push(0);
-                        bytes.extend_from_slice(&register.0.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
                     }
                     crate::SelectedAddressBase::Local(slot) => {
                         bytes.push(1);
                         slot.encode_identity(bytes);
                     }
                 }
-                bytes.extend_from_slice(&byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&byte_count.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_count.to_le_bytes());
                 destination.encode_identity(bytes);
             }
         }
@@ -627,19 +627,19 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
 }
 
 fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
-    bytes.extend_from_slice(&(fuel.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, (fuel.len() as u64).to_le_bytes());
     for settlement in fuel {
         match settlement.site {
             PsiProvenance::Operation(operation) => {
                 bytes.push(0);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             }
             PsiProvenance::Edge(edge) => {
                 bytes.push(1);
-                bytes.extend_from_slice(&edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
         }
-        bytes.extend_from_slice(&settlement.units.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, settlement.units.to_le_bytes());
     }
 }
 
@@ -656,7 +656,7 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
                 IntegerSign::Signed => 0,
                 IntegerSign::Unsigned => 1,
             });
-            bytes.extend_from_slice(&integer.bits().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, integer.bits().to_le_bytes());
         }
         ScalarType::IeeeFloat(format) => {
             bytes.push(2);
@@ -672,20 +672,20 @@ fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
     match value {
         Some(value) => {
             bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
         }
         None => bytes.push(0),
     }
 }
 
 fn encode_len(bytes: &mut Vec<u8>, len: usize) {
-    bytes.extend_from_slice(&(len as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, (len as u64).to_le_bytes());
 }
 
 fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) {
     encode_len(bytes, values.len());
     for value in values {
-        bytes.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
     }
 }
 

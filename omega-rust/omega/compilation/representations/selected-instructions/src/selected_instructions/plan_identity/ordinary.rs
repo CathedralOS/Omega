@@ -14,7 +14,7 @@ pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTermin
         } => {
             bytes.push(6);
             encode_instruction(bytes, instruction);
-            bytes.extend_from_slice(&psi_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
             bytes.push(match cause {
                 terminal_psi::CrashCause::Trap => 1,
                 terminal_psi::CrashCause::Abort => 2,
@@ -29,7 +29,7 @@ pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTermin
             }
             super::encode_len(bytes, frontier_lower_bound.len());
             for claim in frontier_lower_bound {
-                bytes.extend_from_slice(&claim.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, claim.get().to_le_bytes());
             }
         }
 
@@ -39,7 +39,7 @@ pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTermin
         } => {
             bytes.push(5);
             encode_instruction(bytes, instruction);
-            bytes.extend_from_slice(&completion_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, completion_edge.get().to_le_bytes());
         }
         SelectedTerminator::Jump {
             instruction,
@@ -65,7 +65,7 @@ pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTermin
         } => {
             bytes.push(1);
             encode_instruction(bytes, instruction);
-            bytes.extend_from_slice(&psi_return_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_return_edge.get().to_le_bytes());
         }
         SelectedTerminator::ConditionalBranchU64LessThan {
             instruction,
