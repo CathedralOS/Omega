@@ -65,7 +65,7 @@ impl ExpressionNode {
             }
             Self::Borrow(expression) => format!(
                 "{}{}",
-                borrow_access_prefix(expression.access),
+                expression.access.borrow_prefix(),
                 table.display_name(expression.target)
             ),
             Self::Name(path) => display_name_path(table.name_path_members(path.members), "::"),
@@ -84,14 +84,6 @@ impl ExpressionNode {
             Self::Unary(unary) => unary.display_name(table),
             Self::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }
-    }
-}
-
-fn borrow_access_prefix(access: language_core::ReferenceAccess) -> &'static str {
-    match access {
-        language_core::ReferenceAccess::Mutable => "&mut ",
-        language_core::ReferenceAccess::WriteOnly => "&write ",
-        language_core::ReferenceAccess::Shared => "&",
     }
 }
 

@@ -57,7 +57,7 @@ impl Expression {
             ),
             Expression::Borrow(expression) => format!(
                 "{}{}",
-                borrow_access_prefix(expression.access),
+                expression.access.borrow_prefix(),
                 expression.target.display_name()
             ),
             Expression::Name(path) => display_name_path(path, "::"),
@@ -148,7 +148,7 @@ impl ExpressionNode {
                 );
             }
             Self::Borrow(expression) => {
-                out.push_str(borrow_access_prefix(expression.access));
+                out.push_str(expression.access.borrow_prefix());
                 table.write_display_name(expression.target, out);
             }
             Self::Name(path) => {
@@ -170,14 +170,6 @@ impl ExpressionNode {
             Self::Unary(unary) => unary.write_display_name(table, out),
             Self::ZeroValue(_) => out.push_str("zero_value<type>()"),
         }
-    }
-}
-
-fn borrow_access_prefix(access: language_core::ReferenceAccess) -> &'static str {
-    match access {
-        language_core::ReferenceAccess::Mutable => "&mut ",
-        language_core::ReferenceAccess::WriteOnly => "&write ",
-        language_core::ReferenceAccess::Shared => "&",
     }
 }
 
