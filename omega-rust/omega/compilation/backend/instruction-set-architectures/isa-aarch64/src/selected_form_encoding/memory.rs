@@ -191,7 +191,7 @@ fn request(
 ) -> Result<[u8; 2], Aarch64SelectedFormEncodingError> {
     let width = load_width(kind)?;
     if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-        || !matches!(kind, SelectedInstructionKind::Load8 { byte_offset } | SelectedInstructionKind::Load16 { byte_offset } | SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Load64 { byte_offset } if byte_offset == displacement)
+        || !matches!(kind, selected_instructions::load_width_triple_pattern!(byte_offset, ..) | SelectedInstructionKind::Load64 { byte_offset } if byte_offset == displacement)
         || alternative
             != (MachineAlternativeKey {
                 family: match kind {

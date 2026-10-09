@@ -227,9 +227,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::Load64 { byte_offset }
-        | SelectedInstructionKind::Load8 { byte_offset }
-        | SelectedInstructionKind::Load16 { byte_offset }
-        | SelectedInstructionKind::Load32 { byte_offset } => {
+        | crate::load_width_triple_pattern!(byte_offset, ..) => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes())
         }
         SelectedInstructionKind::Store64 { slot, byte_offset }

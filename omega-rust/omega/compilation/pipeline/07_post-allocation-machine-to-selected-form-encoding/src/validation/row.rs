@@ -39,9 +39,7 @@ pub(crate) fn validate(
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::LoadPacked { .. }
         | SelectedInstructionKind::StorePacked { .. }
-        | SelectedInstructionKind::Load8 { .. }
-        | SelectedInstructionKind::Load16 { .. }
-        | SelectedInstructionKind::Load32 { .. }
+        | selected_instructions::load_width_triple_pattern!(..)
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::HostedReadByte { .. }
         | SelectedInstructionKind::Load8Indexed

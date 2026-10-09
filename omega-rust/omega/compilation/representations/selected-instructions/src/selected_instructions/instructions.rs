@@ -597,3 +597,12 @@ macro_rules! saturating_add_or_subtract_pattern {
             | $crate::SelectedInstructionKind::SaturatingSubtract { .. }
     };
 }
+
+#[macro_export]
+macro_rules! load_width_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::SelectedInstructionKind::Load8 { $($fields)* }
+            | $crate::SelectedInstructionKind::Load16 { $($fields)* }
+            | $crate::SelectedInstructionKind::Load32 { $($fields)* }
+    };
+}

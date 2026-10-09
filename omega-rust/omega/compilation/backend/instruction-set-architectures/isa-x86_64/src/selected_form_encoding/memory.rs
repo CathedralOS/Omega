@@ -120,7 +120,7 @@ pub fn validate_x86_64_selected_memory_form(
         kind,
         SelectedInstructionKind::Load8 { .. } | SelectedInstructionKind::Load16 { .. }
     );
-    if matches!(kind, SelectedInstructionKind::Load8 { byte_offset } | SelectedInstructionKind::Load16 { byte_offset } | SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if i64::from(byte_offset) != displacement)
+    if matches!(kind, selected_instructions::load_width_triple_pattern!(byte_offset, ..) | SelectedInstructionKind::Store { byte_offset, .. } | SelectedInstructionKind::AddressOffset { byte_offset } if i64::from(byte_offset) != displacement)
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -289,9 +289,7 @@ fn request(
             MachineEncodedMemoryEffect::NoneV1,
             MachineEncodedTrapBehavior::NeverV1,
         ),
-        SelectedInstructionKind::Load8 { .. }
-        | SelectedInstructionKind::Load16 { .. }
-        | SelectedInstructionKind::Load32 { .. }
+        selected_instructions::load_width_triple_pattern!(..)
         | SelectedInstructionKind::Load64 { .. } => (
             vec![0],
             vec![1],

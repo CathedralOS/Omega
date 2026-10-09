@@ -330,9 +330,7 @@ fn is_family_candidate(
         Optimization::SelectedStoredLoadForwardingV1 => matches!(
             instruction.kind,
             SelectedInstructionKind::Load64 { .. }
-                | SelectedInstructionKind::Load32 { .. }
-                | SelectedInstructionKind::Load16 { .. }
-                | SelectedInstructionKind::Load8 { .. }
+                | selected_instructions::load_width_triple_pattern!(..)
                 | SelectedInstructionKind::Load8Indexed
         ),
         _ => false,
@@ -362,9 +360,7 @@ fn is_extension_candidate(kind: SelectedInstructionKind) -> bool {
 /// surface, scanned in plan order.
 fn is_fold_consumer(kind: SelectedInstructionKind) -> bool {
     match kind {
-        SelectedInstructionKind::Load8 { .. }
-        | SelectedInstructionKind::Load16 { .. }
-        | SelectedInstructionKind::Load32 { .. }
+        selected_instructions::load_width_triple_pattern!(..)
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::AddressOffset { .. } => true,
         SelectedInstructionKind::Store { byte_size, .. } => {

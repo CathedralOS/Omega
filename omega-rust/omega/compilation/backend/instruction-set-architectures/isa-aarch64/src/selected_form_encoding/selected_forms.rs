@@ -303,9 +303,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::LoadEncodedScalar
         | SelectedInstructionKind::StoreEncodedScalar
         | SelectedInstructionKind::Load8Indexed
-        | SelectedInstructionKind::Load8 { .. }
-        | SelectedInstructionKind::Load16 { .. }
-        | SelectedInstructionKind::Load32 { .. }
+        | selected_instructions::load_width_triple_pattern!(..)
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::LoadPacked { .. }
         | SelectedInstructionKind::StorePacked { .. }

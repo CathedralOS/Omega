@@ -247,9 +247,7 @@ pub(super) fn admit<'source>(
         }
     }
     let byte_offset = match consumer.kind {
-        SelectedInstructionKind::Load8 { byte_offset }
-        | SelectedInstructionKind::Load16 { byte_offset }
-        | SelectedInstructionKind::Load32 { byte_offset }
+        selected_instructions::load_width_triple_pattern!(byte_offset, ..)
         | SelectedInstructionKind::Load64 { byte_offset }
         | SelectedInstructionKind::Store { byte_offset, .. }
         | SelectedInstructionKind::AddressOffset { byte_offset } => byte_offset,
