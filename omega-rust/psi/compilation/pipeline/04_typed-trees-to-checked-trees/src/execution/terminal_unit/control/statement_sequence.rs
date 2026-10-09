@@ -770,15 +770,8 @@ fn scalar_computation_local_at(
 )> {
     let role = CheckedScalarExpressionRole::LocalInitializer { binding_ordinal };
     let computations = &facts.values.scalar_computations;
-    let mut roots = computations
-        .roots
-        .iter()
-        .map(|(_, root)| root)
-        .filter(|root| {
-            root.state == state.symbol
-                && root.statement_ordinal == statement_index
-                && root.role == role
-        });
+    let mut roots =
+        computations.roots_for_statement_role(state.symbol, statement_index, role);
     let Some(root) = roots.next() else {
         trace.phase("statement sequence: local data: scalar local: pure initializer");
         trace.statement(Some(statement_index));

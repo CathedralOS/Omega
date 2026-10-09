@@ -81,11 +81,27 @@ impl CheckedScalarComputationPlans {
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> Option<&CheckedScalarComputationRoot> {
-        let mut roots = self.roots.iter().map(|(_, root)| root).filter(|root| {
-            root.state == state && root.statement_ordinal == statement_ordinal && root.role == role
-        });
+        let mut roots = self.roots_for_statement_role(state, statement_ordinal, role);
         let root = roots.next()?;
         roots.next().is_none().then_some(root)
+    }
+
+    /// Roots matching one statement's role filter, in arena order — the
+    /// shared stem behind role-specific root lookups.
+    pub fn roots_for_statement_role<'plans>(
+        &'plans self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        role: CheckedScalarExpressionRole,
+    ) -> impl Iterator<Item = &'plans CheckedScalarComputationRoot> {
+        self.roots
+            .iter()
+            .map(|(_, root)| root)
+            .filter(move |root| {
+                root.state == state
+                    && root.statement_ordinal == statement_ordinal
+                    && root.role == role
+            })
     }
 
     /// Root handles of computations owned by `machine`, in arena order.

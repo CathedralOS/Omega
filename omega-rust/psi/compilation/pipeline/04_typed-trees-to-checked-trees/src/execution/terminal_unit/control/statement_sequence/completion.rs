@@ -400,15 +400,8 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
             let role = CheckedScalarExpressionRole::Return;
             let computations = &facts.values.scalar_computations;
-            let mut roots = computations
-                .roots
-                .iter()
-                .map(|(_, root)| root)
-                .filter(|root| {
-                    root.state == state.symbol
-                        && root.statement_ordinal == statement_index
-                        && root.role == role
-                });
+            let mut roots =
+                computations.roots_for_statement_role(state.symbol, statement_index, role);
             let value = if let Some(root) = roots.next() {
                 if roots.next().is_some()
                     || !computations.is_authored_root(
