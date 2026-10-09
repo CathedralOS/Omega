@@ -15,7 +15,6 @@ use selected_instructions::{
 };
 use std::collections::BTreeMap;
 use work::Work;
-mod replay;
 mod validation;
 mod work;
 

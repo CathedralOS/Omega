@@ -22,7 +22,6 @@ pub use task_plans::activation_plan_facts::{
     SelectedTaskRuntimeProviderFact, TaskActivationPlanFact, TaskActivationPlanSet,
     TaskSpecializationCommitment, TaskStartOperation,
 };
-pub use task_plans::composition_model;
 pub use task_plans::diagnostic::TaskPlanDiagnostic;
 pub use task_plans::identities::{
     ActivationPlanId, AdmittedStackContributionReportId, CallingPlanId, CompositionModelId,

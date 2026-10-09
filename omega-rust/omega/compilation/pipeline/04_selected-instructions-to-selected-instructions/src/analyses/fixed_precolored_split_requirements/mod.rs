@@ -6,7 +6,6 @@
 
 mod compute;
 mod error;
-mod replay;
 mod validation;
 
 pub(crate) use error::FixedPrecoloredSplitRequirementError;

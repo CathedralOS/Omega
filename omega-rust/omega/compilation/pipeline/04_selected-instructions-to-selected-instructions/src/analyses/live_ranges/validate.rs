@@ -7,8 +7,6 @@
 //! producer computation remains a sibling of this entire validation subtree.
 
 mod receipt;
-mod replay;
-
 pub(crate) use receipt::admit;
 
 use crate::{LiveRangeError, ValidatedLiveness};

@@ -12,7 +12,6 @@
 //! coordinate and `report_fingerprints` the compact report values.
 
 pub(crate) mod activation_plan_facts;
-pub mod composition_model;
 pub(crate) mod diagnostic;
 pub(crate) mod identities;
 pub(crate) mod report_fingerprints;

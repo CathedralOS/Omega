@@ -13,10 +13,6 @@ use register_model::{
 pub(crate) mod compute;
 pub(crate) mod identity;
 mod receipt;
-
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) mod tests;
-
 use identity::encode_terminal_pressure_rematerialization_content;
 pub(crate) use identity::pressure_rematerialization_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
