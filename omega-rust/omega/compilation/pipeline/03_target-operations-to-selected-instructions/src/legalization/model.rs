@@ -54,9 +54,6 @@ impl LegalizationValidationReceipt {
         self.fuel_schedule
     }
 
-    pub const fn target(self) -> target::NativeTarget {
-        self.target
-    }
 
     pub const fn function_count(self) -> usize {
         self.function_count
