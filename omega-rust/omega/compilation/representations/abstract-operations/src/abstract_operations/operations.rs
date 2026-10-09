@@ -1341,3 +1341,12 @@ macro_rules! structural_establish_triple_pattern {
             | $crate::AbstractOperation::EstablishRecord { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! byte_view_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::StructuralByteViewFieldStore { $($fields)* }
+            | $crate::AbstractOperation::StructuralByteSequenceFieldByteStore { $($fields)* }
+            | $crate::AbstractOperation::ByteSequenceSubslice { $($fields)* }
+    };
+}

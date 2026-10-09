@@ -231,9 +231,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceWrite { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )
-        | O::StructuralByteViewFieldStore { .. }
-        | O::StructuralByteSequenceFieldByteStore { .. }
-        | O::ByteSequenceSubslice { .. }
+        | abstract_operations::byte_view_triple_pattern!(..)
         | O::ByteSequenceLength { .. }
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
