@@ -427,6 +427,7 @@ pub(crate) fn validate_checked_call_candidate<'program>(
         return None;
     }
     if !crate::machine_calls::denotational_calls::has_pure_effect_closure(
+        program,
         machine.symbol,
         state.symbol,
         program

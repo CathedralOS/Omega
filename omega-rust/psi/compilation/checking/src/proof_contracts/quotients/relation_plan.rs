@@ -453,6 +453,7 @@ pub(super) fn derive_direct_terminal_plan(
                 &selected_application,
             );
             let purity = theorem::pure_selected_theorem_effect(
+                program,
                 &selected_application,
                 &theorem_operational,
                 &theorem_reaches,

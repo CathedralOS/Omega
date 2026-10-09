@@ -105,11 +105,13 @@ pub(super) fn unconditional_representative_termination(
 /// from that machine must retain a resolved machine target. Custody occurrence
 /// remains a separate fence.
 pub(in crate::proof_contracts::quotients) fn pure_representative_effect(
+    program: &dyn crate::CheckingInput,
     representative: &RepresentativeTelescope,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Option<MachineStateCoordinate> {
     crate::machine_calls::denotational_calls::has_pure_effect_closure(
+        program,
         representative.machine_symbol,
         representative.state_symbol,
         representative

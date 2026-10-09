@@ -101,11 +101,13 @@ pub(super) fn unconditional_selected_theorem_termination(
 }
 
 pub(super) fn pure_selected_theorem_effect(
+    program: &dyn crate::CheckingInput,
     theorem: &SelectedTheoremTelescope,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Option<MachineStateCoordinate> {
     crate::machine_calls::denotational_calls::has_pure_effect_closure(
+        program,
         theorem.machine_symbol,
         theorem.state_symbol,
         theorem

@@ -24,6 +24,7 @@ pub fn normal_return_call_candidate<'program>(
     let (machine, state) = plain_value_call_target(program, call)
         .ok_or("the call is not one exact concrete free value call")?;
     if !super::has_pure_effect_closure(
+        program,
         machine.symbol,
         state.symbol,
         program

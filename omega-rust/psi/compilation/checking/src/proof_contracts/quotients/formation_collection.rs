@@ -70,8 +70,7 @@ pub(crate) fn collect_validated_quotient_formations(
             }));
         }
 
-        let Some(relation) = program
-            .proposition_definition_by_symbol(quotient.relation_symbol)
+        let Some(relation) = program.proposition_definition_by_symbol(quotient.relation_symbol)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` relation `{relation_name}` must resolve to one exact proposition family",
@@ -163,6 +162,7 @@ pub(crate) fn reject_quotient_operation_requests(
                 Ok(plan) => {
                     let congruence = &plan.theorem_evidence[0];
                     let representative_purity = relation_plan::pure_representative_effect(
+                        program,
                         &plan.representative,
                         &operational,
                         &service_reaches,

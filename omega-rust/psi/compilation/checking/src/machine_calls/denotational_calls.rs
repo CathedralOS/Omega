@@ -3,7 +3,9 @@
 //! Quotient operations and fact-position call projections must agree on the
 //! operational meaning of "pure and unconditionally terminating".  This
 //! module consumes the existing whole-program summaries; it never performs a
-//! second expression-local effect inference.
+//! second expression-local effect inference. Concrete calls extend the shared
+//! checked-machine walk; exact sealed total value operators close a leaf.
+//! Abstract requirements and unresolved calls supply neither kind of authority.
 
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -82,7 +84,7 @@ fn each_reachable_checked_machine(
             return false;
         };
         if !admits(program, machine)
-            || !push_checked_machine_call_targets(operational, current, &mut pending)
+            || !push_checked_machine_call_targets(program, operational, current, &mut pending)
         {
             return false;
         }
@@ -241,8 +243,9 @@ pub(crate) fn unconditionally_terminates(
 /// Whole-closure purity used by denotational calls.  The selected entry must
 /// have no mutable runtime parameter; its machine has no service reach,
 /// suspension, or blocking behavior; and every reachable call target is one
-/// exact checked machine.
+/// exact checked machine or a sealed closed-value operator leaf.
 pub(crate) fn has_pure_effect_closure(
+    program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     has_mutable_parameters: bool,
@@ -297,17 +300,19 @@ pub(crate) fn has_pure_effect_closure(
             continue;
         }
         visited.push(current);
-        if !push_checked_machine_call_targets(operational, current, &mut pending) {
+        if !push_checked_machine_call_targets(program, operational, current, &mut pending) {
             return false;
         }
     }
     true
 }
 
-/// Push every checked call target a reachable machine's operational
-/// summary names; `false` when the machine has no single summary or an
-/// unresolveable target.
+/// Extend the concrete DFS through exact checked machine/state edges. A sealed
+/// total value operator completes a leaf under the same eligibility owner for
+/// purity, observations and crashes; a boundary spelling alone never does.
+/// Missing summaries, abstract selection and unresolved targets fail closed.
 fn push_checked_machine_call_targets(
+    program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
     current: symbols::SymbolHandle,
     pending: &mut Vec<symbols::SymbolHandle>,
@@ -322,10 +327,42 @@ fn push_checked_machine_call_targets(
     };
     for state in operational.states.span_or_empty(summary.states) {
         for call in operational.calls.span_or_empty(state.calls) {
-            if !call.target_machine_symbol.is_valid() {
+            if call.target_machine_symbol.is_valid() {
+                let Some(machine) = program.machine(call.target_machine_symbol) else {
+                    return false;
+                };
+                if !program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == call.target_state_symbol)
+                {
+                    return false;
+                }
+                pending.push(machine.symbol);
+                continue;
+            }
+            // A retained abstract binder remains its own contract. The
+            // operator field cannot turn an unresolved selection into a
+            // concrete denotation, even when a catalog declaration is nearby.
+            if call.static_machine_parameter.is_valid()
+                || !call.static_machine_bindings.is_empty()
+                || call.direct_may_suspend
+                || call.direct_may_block
+                || call.transitive_may_suspend
+                || call.transitive_may_block
+            {
                 return false;
             }
-            pending.push(call.target_machine_symbol);
+            let Some(operator) =
+                typed_trees::operator::declaration_by_symbol(program, call.target_operator_symbol)
+            else {
+                return false;
+            };
+            if (call.target_state_symbol.is_valid() && call.target_state_symbol != operator.symbol)
+                || !selected_operator_has_closed_value_denotation(program, operator)
+            {
+                return false;
+            }
         }
     }
     true

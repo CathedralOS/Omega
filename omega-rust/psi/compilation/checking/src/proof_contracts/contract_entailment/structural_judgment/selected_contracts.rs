@@ -88,7 +88,7 @@ impl StructuralJudge<'_> {
                 }
                 let plans = crate::operand_call_plans(program, None);
                 if !crate::machine_calls::denotational_calls::has_pure_effect_closure(
-                    machine.symbol, state.symbol, false, &plans.0, &plans.1,
+                    program, machine.symbol, state.symbol, false, &plans.0, &plans.1,
                 ) || !crate::machine_calls::denotational_calls::has_observation_free_checked_closure(
                     program, machine.symbol, &plans.0,
                 ) || !crate::machine_calls::denotational_calls::has_no_crash_routes(

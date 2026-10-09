@@ -111,6 +111,7 @@ fn extract_one(
     )
     .map_err(|error| format!("direct faithful plan is unresolved: {error}"))?;
     let representative_purity = super::relation_plan::pure_representative_effect(
+        program,
         &plan.representative,
         operational,
         service_reaches,
