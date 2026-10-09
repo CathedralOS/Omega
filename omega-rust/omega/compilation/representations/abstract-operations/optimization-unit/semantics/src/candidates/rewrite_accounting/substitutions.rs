@@ -129,7 +129,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::ByteSequencePredicate { .. }
         | O::ByteSequenceEqual { .. }
         | O::ByteSequenceWrite { .. }
-        | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
+        | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | O::StructuralByteViewFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceSubslice { .. }

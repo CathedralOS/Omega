@@ -490,18 +490,12 @@ fn validate_structural_field_range_authority(
                     return Err(invalid);
                 }
             }
-            O::ByteSequenceStore {
+            abstract_operations::byte_sequence_store_pair_pattern!(
                 psi_operation,
                 length,
                 obligation,
                 ..
-            }
-            | O::StructuralByteSequenceFieldStore {
-                psi_operation,
-                length,
-                obligation,
-                ..
-            } => {
+            ) => {
                 use semantic_vocabulary::{
                     IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm,
                 };

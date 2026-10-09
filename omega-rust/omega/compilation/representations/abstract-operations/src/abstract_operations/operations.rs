@@ -1181,3 +1181,11 @@ macro_rules! structural_leaf_copy_pair_pattern {
             | $crate::AbstractOperation::StructuralCaseLeafCopy { .. }
     };
 }
+
+#[macro_export]
+macro_rules! byte_sequence_store_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::ByteSequenceStore { $($fields)* }
+            | $crate::AbstractOperation::StructuralByteSequenceFieldStore { $($fields)* }
+    };
+}

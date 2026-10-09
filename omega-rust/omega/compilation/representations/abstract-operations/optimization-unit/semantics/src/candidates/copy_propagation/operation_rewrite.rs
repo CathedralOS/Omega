@@ -158,7 +158,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::ByteSequencePredicate { .. }
         | O::ByteSequenceEqual { .. }
         | O::ByteSequenceWrite { .. }
-        | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
+        | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | O::StructuralByteViewFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceSubslice { .. }

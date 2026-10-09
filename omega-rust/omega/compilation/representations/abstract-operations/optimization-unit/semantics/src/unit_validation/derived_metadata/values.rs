@@ -48,8 +48,7 @@ pub(crate) fn expected_uses(
         O::ByteSequenceEqual { left, right, .. } => {
             vec![left.length(), right.length()]
         }
-        O::ByteSequenceStore { length, .. }
-        | O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
+        abstract_operations::byte_sequence_store_pair_pattern!( length, .. ) => vec![*length],
         O::ByteSequenceWrite {
             index,
             value,

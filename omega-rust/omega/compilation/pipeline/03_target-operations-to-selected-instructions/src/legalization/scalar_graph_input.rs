@@ -428,16 +428,11 @@ pub(super) fn match_input(
             capacity_obligation: obligation,
             ..
         }
-        | AbstractOperation::ByteSequenceStore {
+        | abstract_operations::byte_sequence_store_pair_pattern!(
             psi_operation,
             obligation,
             ..
-        }
-        | AbstractOperation::StructuralByteSequenceFieldStore {
-            psi_operation,
-            obligation,
-            ..
-        }
+        )
         | AbstractOperation::ByteSequenceRead {
             psi_operation,
             obligation,

@@ -457,16 +457,11 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         | O::StructuralByteSequenceFieldByteStore { destination, .. } => {
             references.insert(*destination);
         }
-        O::ByteSequenceStore {
+        abstract_operations::byte_sequence_store_pair_pattern!(
             destination,
             source,
             ..
-        }
-        | O::StructuralByteSequenceFieldStore {
-            destination,
-            source,
-            ..
-        } => {
+        ) => {
             references.insert(*destination);
             references.insert(*source);
         }

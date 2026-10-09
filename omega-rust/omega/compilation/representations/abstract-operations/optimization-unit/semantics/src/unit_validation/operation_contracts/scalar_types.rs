@@ -73,7 +73,7 @@ pub(crate) fn operation_scalar_types_match(
                 }
         }
         O::EstablishByteSequenceConcatenation { .. }
-        | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
+        | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceRead { .. }

@@ -398,7 +398,7 @@ fn operation_observations(
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
-        | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
+        | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | O::StructuralByteViewFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::StructuralScalarFieldStore { .. }

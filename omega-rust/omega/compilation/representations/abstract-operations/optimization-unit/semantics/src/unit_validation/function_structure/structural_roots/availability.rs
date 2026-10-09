@@ -124,16 +124,11 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
             .iter()
             .map(|argument| argument.place)
             .collect(),
-        O::ByteSequenceStore {
+        abstract_operations::byte_sequence_store_pair_pattern!(
             destination,
             source,
             ..
-        }
-        | O::StructuralByteSequenceFieldStore {
-            destination,
-            source,
-            ..
-        }
+        )
         | O::StructuralByteViewFieldStore {
             destination,
             source,

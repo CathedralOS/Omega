@@ -772,21 +772,13 @@ pub(super) fn replacement_footprints_retained(
     use selected_instructions::{
         SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
     };
-    let (AbstractOperation::ByteSequenceStore {
+    let (abstract_operations::byte_sequence_store_pair_pattern!(
         psi_operation,
         destination: _,
         source,
         length,
         obligation,
-    }
-    | AbstractOperation::StructuralByteSequenceFieldStore {
-        psi_operation,
-        destination: _,
-        source,
-        length,
-        obligation,
-        ..
-    }) = operation
+    )) = operation
     else {
         return false;
     };

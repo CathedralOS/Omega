@@ -182,8 +182,7 @@ pub(crate) fn validate_structural_root_operations(
                         return Err(catalog_mismatch(function));
                     }
                 }
-                O::ByteSequenceStore { source, .. }
-                | O::StructuralByteSequenceFieldStore { source, .. } => {
+                abstract_operations::byte_sequence_store_pair_pattern!( source, .. ) => {
                     super::byte_views::validate_byte_view_source(
                         function,
                         block.id,

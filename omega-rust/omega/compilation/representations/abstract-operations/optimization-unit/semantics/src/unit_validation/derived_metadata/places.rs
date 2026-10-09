@@ -195,16 +195,11 @@ pub(crate) fn validate_operation_places(
                 require(argument.place, known)?;
             }
         }
-        O::ByteSequenceStore {
+        abstract_operations::byte_sequence_store_pair_pattern!(
             destination,
             source,
             ..
-        }
-        | O::StructuralByteSequenceFieldStore {
-            destination,
-            source,
-            ..
-        } => {
+        ) => {
             require(*destination, known)?;
             require(*source, known)?;
         }

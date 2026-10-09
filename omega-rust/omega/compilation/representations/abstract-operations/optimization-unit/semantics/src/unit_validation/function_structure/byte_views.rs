@@ -230,8 +230,7 @@ pub(super) fn validate_byte_view_source(
             ..
         } => (*destination, Some(*length)),
         AbstractOperation::ByteSequenceLength { source, .. } => (*source, None),
-        AbstractOperation::ByteSequenceStore { source, length, .. }
-        | AbstractOperation::StructuralByteSequenceFieldStore { source, length, .. }
+        abstract_operations::byte_sequence_store_pair_pattern!( source, length, .. )
         | AbstractOperation::ByteSequenceRead { source, length, .. }
         | AbstractOperation::ByteSequenceSubslice { source, length, .. } => {
             (*source, Some(*length))
@@ -264,8 +263,7 @@ pub(super) fn validate_source(
 ) -> Result<(), OptimizationUnitValidationError> {
     let permitted_access = |access| match operation {
         AbstractOperation::ByteSequenceWrite { .. } => access == StructuralAccess::MutableBorrow,
-        AbstractOperation::ByteSequenceStore { .. }
-        | AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
+        abstract_operations::byte_sequence_store_pair_pattern!( .. ) => {
             access == StructuralAccess::SharedBorrow
         }
         _ => matches!(
@@ -301,8 +299,7 @@ pub(super) fn validate_source(
                                 StructuralAccess::Owned | StructuralAccess::WriteOnlyBorrow
                             )
                     }
-                    AbstractOperation::ByteSequenceStore { .. }
-                    | AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
+                    abstract_operations::byte_sequence_store_pair_pattern!( .. ) => {
                         parameter.access == StructuralAccess::SharedBorrow
                             || owned && parameter.access == StructuralAccess::Owned
                     }
