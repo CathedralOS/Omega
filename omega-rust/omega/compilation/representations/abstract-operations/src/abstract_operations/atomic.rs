@@ -354,6 +354,33 @@ pub enum AbstractAtomicEvent {
 }
 
 impl AbstractAtomicEvent {
+    /// Apply `visit` to every `ValueId` the event reads: store and swap
+    /// values, the read-modify-write operand, and both compare-exchange
+    /// operands. Result bindings (`result`, `prior`, `observed`, `outcome`)
+    /// are produced by the event rather than read and are skipped.
+    pub fn for_each_input_mut(&mut self, mut visit: impl FnMut(&mut ValueId)) {
+        match self {
+            Self::Store { value, .. } | Self::Swap { value, .. } => visit(value),
+            Self::ReadModifyWrite { operand, .. } => visit(operand),
+            Self::CompareExchange {
+                expected,
+                replacement,
+                ..
+            }
+            | Self::CompareExchangeOnce {
+                expected,
+                replacement,
+                ..
+            } => {
+                visit(expected);
+                visit(replacement);
+            }
+            Self::Load { .. } | Self::Fence { .. } => {}
+        }
+    }
+}
+
+impl AbstractAtomicEvent {
     /// The location whose modification order this event joins. A fence joins
     /// no modification order because it accesses no location.
     pub const fn location(&self) -> Option<&AbstractAtomicLocation> {

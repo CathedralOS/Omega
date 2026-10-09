@@ -76,7 +76,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
     use abstract_operations::AbstractOperation as O;
 
     let mut normalized = operation.clone();
-    let replace = |value: &mut ValueId| {
+    let mut replace = |value: &mut ValueId| {
         if *value == patch.parameter {
             *value = patch.replacement;
         }
@@ -223,27 +223,9 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         }
         O::Return { value, .. } => replace(value),
         O::AtomicEvent { event, .. } => {
-            use abstract_operations::AbstractAtomicEvent as E;
             // Atomic operands are scalar uses; the observed prior and
             // results are definitions the event produces, not uses.
-            match event {
-                E::Store { value, .. } | E::Swap { value, .. } => replace(value),
-                E::ReadModifyWrite { operand, .. } => replace(operand),
-                E::CompareExchange {
-                    expected,
-                    replacement,
-                    ..
-                }
-                | E::CompareExchangeOnce {
-                    expected,
-                    replacement,
-                    ..
-                } => {
-                    replace(expected);
-                    replace(replacement);
-                }
-                E::Load { .. } | E::Fence { .. } => {}
-            }
+            event.for_each_input_mut(&mut replace);
         }
         O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
