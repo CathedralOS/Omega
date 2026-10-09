@@ -44,7 +44,7 @@ pub struct CallbackAddressMaterialization {
 /// Canonical identity encoding of one materialization destination, shared by
 /// every identity builder that hashes a fixup's callback roster.
 pub(crate) fn encode_callback_destination_identity(
-    hasher: &mut sha2::Sha256,
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
     destination: CallbackAddressDestination,
 ) {
     use sha2::Digest;

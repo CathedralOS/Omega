@@ -78,7 +78,7 @@ pub fn resolved_machine_layout_identity(
                 );
                 hasher.raw(&instruction.offset.to_le_bytes());
                 hasher.u64(instruction.bytes.len() as u64);
-                hasher.update(&instruction.bytes);
+                hasher.raw(&instruction.bytes);
                 match instruction.branch.as_deref() {
                     None => hasher.byte(0),
                     Some(super::ResolvedBranchEvidence::Conditional(branch)) => {

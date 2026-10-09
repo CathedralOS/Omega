@@ -77,9 +77,9 @@ pub fn artifact_identity(
         hasher.raw(&action.old_displacement.to_le_bytes());
         hasher.raw(&action.new_displacement.to_le_bytes());
         hasher.u64(action.old_bytes.len() as u64);
-        hasher.update(&action.old_bytes);
+        hasher.raw(&action.old_bytes);
         hasher.u64(action.new_bytes.len() as u64);
-        hasher.update(&action.new_bytes);
+        hasher.raw(&action.new_bytes);
     }
     encode_functions(&mut hasher, functions);
     X86BranchRelaxationIdentity::from_bytes(hasher.finish())
@@ -112,7 +112,7 @@ fn encode_functions(hasher: &mut crate::digest_encoder::DomainDigestEncoder, fun
                 );
                 hasher.raw(&row.offset.to_le_bytes());
                 hasher.u64(row.bytes.len() as u64);
-                hasher.update(&row.bytes);
+                hasher.raw(&row.bytes);
                 match row.branch.as_deref() {
                     None => hasher.byte(0),
                     Some(crate::ResolvedBranchEvidence::Conditional(branch)) => {

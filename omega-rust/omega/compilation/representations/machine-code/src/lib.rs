@@ -7,6 +7,7 @@
 //! Data construction alone does not grant execution or publication authority.
 
 pub(crate) mod cursor;
+mod digest_encoder;
 pub mod machine_code;
 pub use machine_code::{
     Aarch64ForeignCallFloatingControlRecord,

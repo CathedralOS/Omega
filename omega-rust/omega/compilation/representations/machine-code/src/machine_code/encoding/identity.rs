@@ -50,7 +50,7 @@ pub(super) fn encoding_identity(
         None => hasher.byte(0),
         Some(frame) => {
             hasher.byte(1);
-            hasher.update(crate::target_frame_layout_identity(frame).bytes());
+            hasher.raw(&crate::target_frame_layout_identity(frame).bytes());
         }
     }
     encode_counts(&mut hasher, counts);

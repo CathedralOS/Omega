@@ -125,7 +125,7 @@ pub(crate) fn x86_scalar_fma_fragment_identity(
         X86ScalarFmaFormat::Binary32 => 1,
         X86ScalarFmaFormat::Binary64 => 2,
     });
-    hasher.byte(destination, addend, multiplicand);
+    hasher.byte(destination); hasher.byte(addend); hasher.byte(multiplicand);
     hasher.u64(fragment.code_offset as u64);
     hasher.u64(fragment.byte_count as u64);
     Some(hasher.finish())

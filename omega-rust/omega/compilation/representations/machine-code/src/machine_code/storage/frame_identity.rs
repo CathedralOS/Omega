@@ -39,7 +39,7 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
     hasher.raw(&plan.callee_save_storage.bytes());
     hasher.raw(&plan.register_environment.bytes());
     hasher.raw(&plan.physical_register_model.bytes());
-    plan.target.encode_identity(&mut hasher);
+    hasher.raw(&plan.target.identity_bytes());
     hasher.byte(plan.abi.abi_tag());
     hasher.byte(match plan.policy {
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1 => 0,

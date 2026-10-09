@@ -25,6 +25,6 @@ pub fn target_frame_protocol_encoding_identity(
         hasher.raw(&function.epilogue.length.to_le_bytes());
     }
     hasher.u64(plan.bytes.len() as u64);
-    hasher.update(&plan.bytes);
+    hasher.raw(&plan.bytes);
     TargetFrameProtocolEncodingIdentity::from_bytes(hasher.finish())
 }

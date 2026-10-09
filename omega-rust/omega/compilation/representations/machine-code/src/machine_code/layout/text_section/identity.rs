@@ -122,7 +122,6 @@ pub fn relocation_free_text_section_identity(
     if !section.unresolved_implementation_table_addresses.is_empty() {
         hasher.raw(b"implementation-table-addresses");
         hasher
-            .update((section.unresolved_implementation_table_addresses.len() as u64).to_le_bytes());
         for placed in &section.unresolved_implementation_table_addresses {
             let mut identity = Vec::new();
             placed.encode_identity(&mut identity);
@@ -134,7 +133,7 @@ pub fn relocation_free_text_section_identity(
         TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
         TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     });
-    TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(&hasher.finalize())
+    TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(&hasher.finish())
 }
 
 fn encode_bytes(hasher: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {

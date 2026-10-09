@@ -86,7 +86,7 @@ pub(crate) fn function_fragment_emission_identity(
             }
         }
     }
-    FunctionFragmentEmissionIdentity::from_canonical_bytes(&hasher.finalize())
+    FunctionFragmentEmissionIdentity::from_canonical_bytes(&hasher.finish())
 }
 
 fn encode_optional_internal_machine_fixup(

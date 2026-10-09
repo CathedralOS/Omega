@@ -78,3 +78,9 @@ impl DomainDigestEncoder {
         }
     }
 }
+
+impl selected_instructions::MachineIdentityBytes for DomainDigestEncoder {
+    fn identity_bytes(&mut self, bytes: &[u8]) {
+        self.raw(bytes);
+    }
+}
