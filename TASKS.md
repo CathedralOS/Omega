@@ -5409,6 +5409,18 @@ wait for Cathedral's instruction coverage. The interpreter is
   **COMPONENT-SUBSTRATE**. **OPERATOR-MACHINE-SUPPLY** continues to own the
   separate retirement of `MachineSupplyMode::Boundary`.
 
+  Frontier: the library's 39 caller-free collection, blocking-executor and
+  `Vec::close` rows are boundary-trait requirements. Its 84 std raw platform
+  rows, 2 interrupt rows and 126 float rows wait on the owner decision
+  `boundary-trait-requirement-service-row`: a migrated call reaches its
+  trait's own service, which the portable `Clock`, `Console`, `TimeHost` and
+  `PosixFilesystemHost` ceilings and `InterruptEntry::enter`'s bound do not
+  admit. `core/task.omg`'s generic `request_cancel` and `finish` wait on stage
+  04's borrow-elision fence (`checks/borrows/elision/templates.rs`), which
+  rejects a direct call to a generic trait requirement with a
+  template-dependent result carrier unless static machine arguments close
+  it. 78 files under `tests/` still author 99 retired rows.
+
   Acceptance: no accepted source, product source, durable IR, package record or
   artifact schema contains the standalone declaration kind. Migrated customers
   run through Terminal and native paths under boundary-trait selection;
