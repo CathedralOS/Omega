@@ -146,7 +146,7 @@ impl<'a> Elaborator<'a> {
         // denote one type. The bounded denotation canonicalizes at the
         // proposition level; signatures carry no proposition stage, so
         // the kernel terms themselves order here.
-        if self.denotation_key(left) > self.denotation_key(right) {
+        if self.term_order_key(left) > self.term_order_key(right) {
             std::mem::swap(&mut left, &mut right);
         }
         let ty = self.carrier_term(carrier);
@@ -239,7 +239,7 @@ impl<'a> Elaborator<'a> {
                 }
             }
         }
-        terms.sort_by_key(|term| self.denotation_key(*term));
+        terms.sort_by_key(|term| self.term_order_key(*term));
         Ok(match operator {
             BinaryOperator::And => self.right_nested_sigma(&terms, 0),
             _ => self.tagged_sum(&terms, 0),

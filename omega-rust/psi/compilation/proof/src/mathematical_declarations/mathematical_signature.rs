@@ -20,7 +20,6 @@
 
 mod applications;
 mod carriers;
-mod denotation_keys;
 mod dependencies;
 mod level_types;
 mod normalization;
@@ -28,6 +27,7 @@ mod operand_terms;
 mod propositions;
 mod scope;
 mod source_domains;
+mod term_order;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -135,19 +135,17 @@ struct Elaborator<'a> {
     integer_less_or_equal: Option<u32>,
     /// `IntAdd`/`IntSub : Π(_ : Int). Π(_ : Int). Int` — open exact
     /// addition and subtraction compose; every other open machine
-    /// operation interns opaquely through `open_terms` instead.
+    /// operation retains its exact opaque source occurrence instead.
     integer_add: Option<u32>,
     integer_subtract: Option<u32>,
     /// `Not : Π(_ : Type 0). Type 0` — proposition negation stays at
     /// `Type 0` so `x != y` composes inside the `Σ`-conjunction and
     /// `Two`-disjunction vocabulary exactly like `x == y`.
     proposition_negation: Option<u32>,
-    /// Open machine terms the composing vocabulary does not name intern
-    /// as opaque carrier assumptions keyed by expression structure — the
-    /// `MathTermKey::Open`/`scalar_integer_terms` rule of the bounded
-    /// denotation, so `x * y` and `x * y` name one constant while
-    /// `x * y` and `x * z` do not.
-    open_terms: BTreeMap<Vec<u8>, u32>,
+    /// Opaque source operations retain exact selected occurrence/scope/result
+    /// custody. Known kernel operations separately own their algebraic laws;
+    /// a matching source shape cannot invent an opaque operation equality.
+    source_operations: Vec<operand_terms::SourceOperationDeclaration>,
 
     /// Closed scalar literals interned by `(carrier position, exact
     /// value)` — the denotation is by value, so `2 + 0` and `2` name one
@@ -217,7 +215,7 @@ pub(crate) fn check_mathematical_signature(
         integer_subtract: None,
         proposition_negation: None,
         numeric_literals: BTreeMap::new(),
-        open_terms: BTreeMap::new(),
+        source_operations: Vec::new(),
         boolean_literals: [None, None],
         float_literals: BTreeMap::new(),
         authored_positions: HashMap::new(),
@@ -310,6 +308,7 @@ impl<'a> Elaborator<'a> {
             MathematicalBody::Assumption => None,
             MathematicalBody::Definition(term) => {
                 let mut body = self.elaborate_body(*term, strict_result)?;
+                self.retain_source_result(*term, result, body, strict_result)?;
                 for entry in self.scope.iter().rev() {
                     body = self.arena.insert(Term::Lambda {
                         domain: entry.domain,

@@ -30,10 +30,20 @@ pub(super) struct SourceInput {
 pub(super) struct SourceInvocation {
     pub expression: ExpressionHandle,
     pub span: Option<source::SourceSpan>,
-    pub callee: TermHandle,
-    pub inputs: Vec<SourceInput>,
+    pub formation: SourceFormation,
     pub domains: Vec<TermHandle>,
     pub level_arity: u32,
+}
+
+pub(super) enum SourceFormation {
+    Application {
+        callee: TermHandle,
+        inputs: Vec<SourceInput>,
+    },
+    Result {
+        expected: TermHandle,
+        actual: SourceInput,
+    },
 }
 
 impl Elaborator<'_> {
@@ -60,8 +70,7 @@ impl Elaborator<'_> {
             } else {
                 self.span
             },
-            callee,
-            inputs,
+            formation: SourceFormation::Application { callee, inputs },
             domains: self.scope.iter().map(|entry| entry.domain).collect(),
             level_arity: self.level_binders.len() as u32 + self.generalized_levels,
         });
@@ -73,6 +82,18 @@ impl Elaborator<'_> {
         expression: ExpressionHandle,
     ) -> Result<SourceInput, Vec<Diagnostic>> {
         let term = self.elaborate_expression(expression)?;
+        let domain = self.source_expression_domain(expression)?;
+        Ok(SourceInput {
+            expression,
+            term,
+            domain,
+        })
+    }
+
+    pub(super) fn source_expression_domain(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Result<Option<TermHandle>, Vec<Diagnostic>> {
         let node = self.program.expression_table.expression(expression);
         // A mathematical function's instantiated type and a type-valued
         // declaration are calculus terms. Ordinary values keep the source
@@ -86,13 +107,38 @@ impl Elaborator<'_> {
         } else {
             validation::mathematical_applications::operand_type_reference(self.program, expression)
         };
-        Ok(SourceInput {
+        reference
+            .map(|reference| self.elaborate_type_reference(reference))
+            .transpose()
+    }
+
+    pub(super) fn retain_source_result(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TermHandle,
+        term: TermHandle,
+        strict_result: bool,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let domain = if strict_result {
+            None
+        } else {
+            self.source_expression_domain(expression)?
+        };
+        self.source_invocations.push(SourceInvocation {
             expression,
-            term,
-            domain: reference
-                .map(|reference| self.elaborate_type_reference(reference))
-                .transpose()?,
-        })
+            span: Some(self.program.expression_table.source_span(expression)),
+            formation: SourceFormation::Result {
+                expected,
+                actual: SourceInput {
+                    expression,
+                    term,
+                    domain,
+                },
+            },
+            domains: self.scope.iter().map(|entry| entry.domain).collect(),
+            level_arity: self.level_binders.len() as u32 + self.generalized_levels,
+        });
+        Ok(())
     }
 
     pub(super) fn source_type_alias(
@@ -156,11 +202,41 @@ impl Elaborator<'_> {
                 |context, domain| context.extend(*domain),
             );
             let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
-            let mut function_type =
-                infer_type(&mut self.arena, &context, invocation.callee, &mut budget).map_err(
-                    |error| self.source_domain_error(invocation.expression, format!("{error:?}")),
-                )?;
-            for input in invocation.inputs {
+            let (callee, inputs) = match invocation.formation {
+                SourceFormation::Application { callee, inputs } => (callee, inputs),
+                SourceFormation::Result { expected, actual } => {
+                    let domain = match actual.domain {
+                        Some(domain) => domain,
+                        None => infer_type(&mut self.arena, &context, actual.term, &mut budget)
+                            .map_err(|error| {
+                                self.source_domain_error(
+                                    invocation.expression,
+                                    format!("{error:?}"),
+                                )
+                            })?,
+                    };
+                    if !self.source_domains_correspond(
+                        signature,
+                        &context,
+                        expected,
+                        domain,
+                        Some(actual.expression),
+                        &mut budget,
+                    )? {
+                        return Err(self.source_domain_error(
+                            invocation.expression,
+                            "mathematical result does not preserve its declared carrier and policy"
+                                .to_owned(),
+                        ));
+                    }
+                    continue;
+                }
+            };
+            let mut function_type = infer_type(&mut self.arena, &context, callee, &mut budget)
+                .map_err(|error| {
+                    self.source_domain_error(invocation.expression, format!("{error:?}"))
+                })?;
+            for input in inputs {
                 let function_head =
                     self.source_domain_head(signature, function_type, &mut budget)?;
                 let Term::Pi { domain, codomain } = self.arena.get(function_head) else {

@@ -13,6 +13,16 @@ use typed_trees::types::TypeReferenceHandle;
 
 use super::{Elaborator, ScalarCarrier};
 
+/// Construction-time custody of one opaque source operation. The selected
+/// source expression, declaration scope and complete result reference define
+/// identity; matching syntax never supplies an operation/value equality.
+pub(super) struct SourceOperationDeclaration {
+    expression: ExpressionHandle,
+    owner: symbols::SymbolHandle,
+    source_type: TypeReferenceHandle,
+    declaration: u32,
+}
+
 impl<'a> Elaborator<'a> {
     /// One operand of a relation or connective, denoted at the shared
     /// `carrier` — literals and zero values take it, while names, calls
@@ -393,11 +403,13 @@ impl<'a> Elaborator<'a> {
             index += 1;
         }
         dependencies.sort_unstable();
-        let mut key = Vec::new();
-        self.write_carrier_key(carrier, &mut key);
-        self.write_expression_key(handle, &mut key);
-        let position = match self.open_terms.get(&key) {
-            Some(&position) => position,
+        let source_type = source_type.unwrap_or_default();
+        let position = match self.source_operations.iter().find(|operation| {
+            operation.expression == handle
+                && operation.owner == self.source_owner
+                && operation.source_type == source_type
+        }) {
+            Some(operation) => operation.declaration,
             None => {
                 let mut domains = Vec::new();
                 for (index, position) in dependencies.iter().enumerate() {
@@ -430,12 +442,17 @@ impl<'a> Elaborator<'a> {
                     });
                 }
                 let position = self.push_assumption(ty);
-                self.open_terms.insert(key, position);
+                self.source_operations.push(SourceOperationDeclaration {
+                    expression: handle,
+                    owner: self.source_owner,
+                    source_type,
+                    declaration: position,
+                });
                 self.prepared.constants.append(super::PreparedConstant {
                     declaration: position,
                     meaning: super::PreparedConstantMeaning::SourceOperation {
                         expression: handle,
-                        source_type: source_type.unwrap_or_default(),
+                        source_type,
                     },
                 });
                 position
