@@ -292,7 +292,7 @@ fn normalized_final_bytes_identity(
         Architecture::Aarch64 => 1,
         Architecture::X86_64 => 2,
     });
-    digest.u64((bytes.len() as u64);
+    digest.u64(bytes.len() as u64);
     digest.raw(&bytes);
     Ok(FinalBytesDigest::from_digest(digest.finish()))
 }
