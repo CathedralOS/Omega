@@ -51,13 +51,22 @@ impl<'facts> InvocationContexts<'facts> {
         operator_use: Handle<CheckedOperatorUseFact>,
         operands: &[ExpressionHandle],
     ) -> Self {
-        let mut matching =
-            flow.control
-                .operator_invocations
-                .iter()
-                .filter_map(|(_, invocation)| {
-                    (invocation.operator_use == operator_use).then_some(invocation)
-                });
+        Self::from_matching_invocation(flow, semantic, operands, |invocation| {
+            invocation.operator_use == operator_use
+        })
+    }
+
+    fn from_matching_invocation(
+        flow: &'facts FlowFacts,
+        semantic: &'facts FactPlan,
+        operands: &[ExpressionHandle],
+        matches: impl Fn(&FlowOperatorInvocationFact) -> bool,
+    ) -> Self {
+        let mut matching = flow
+            .control
+            .operator_invocations
+            .iter()
+            .filter_map(|(_, invocation)| matches(invocation).then_some(invocation));
         let invocation = match (matching.next(), matching.next()) {
             (Some(invocation), None) if operand_expressions_match(flow, invocation, operands) => {
                 Some(CapturedInvocation::Operator(invocation))
@@ -85,24 +94,9 @@ impl<'facts> InvocationContexts<'facts> {
         named_use: Handle<CheckedNamedOperatorUseFact>,
         operands: &[ExpressionHandle],
     ) -> Self {
-        let mut matching =
-            flow.control
-                .operator_invocations
-                .iter()
-                .filter_map(|(_, invocation)| {
-                    (invocation.named_use == named_use).then_some(invocation)
-                });
-        let invocation = match (matching.next(), matching.next()) {
-            (Some(invocation), None) if operand_expressions_match(flow, invocation, operands) => {
-                Some(CapturedInvocation::Operator(invocation))
-            }
-            _ => None,
-        };
-        Self {
-            flow,
-            semantic,
-            invocation,
-        }
+        Self::from_matching_invocation(flow, semantic, operands, |invocation| {
+            invocation.named_use == named_use
+        })
     }
 
     /// Select the exact capture of a resolved expression occurrence. Spelled,
