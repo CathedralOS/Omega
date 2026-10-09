@@ -158,28 +158,29 @@ pub(super) fn lower_operation(
             // Resolve every input from the same live environment as the
             // preceding call. The adapter never invokes its provider again.
             let source = |value| super::scalar_sources::source(value, function, live);
-            let policy = match *policy {
+            let policy = match policy {
                 terminal_psi::FloatResultPolicy::Trapping { raw_result } => {
                     target_operations::TargetFloatResultPolicy::Trapping {
-                        raw_result: source(raw_result)?,
+                        raw_result: source(*raw_result)?,
                     }
                 }
                 terminal_psi::FloatResultPolicy::Saturating {
                     raw_result,
-                    left,
-                    right,
-                    rule,
+                    eligible,
                 } => target_operations::TargetFloatResultPolicy::Saturating {
-                    left: source(left)?,
-                    right: source(right)?,
-                    raw_result: source(raw_result)?,
-                    rule,
+                    eligible: source(*eligible)?,
+                    raw_result: source(*raw_result)?,
                 },
             };
             let scalar_type = ScalarType::IeeeFloat(*format);
-            if policy
-                .operands()
-                .any(|operand| operand.scalar_type() != scalar_type)
+            if !policy
+                .semantic_policy()
+                .accepts_operand_types(*format, |value| {
+                    policy
+                        .operands()
+                        .find(|operand| operand.source_value() == value)
+                        .map(|operand| operand.scalar_type())
+                })
             {
                 return Err(LoweringError::ValueTypeMismatch(*result));
             }

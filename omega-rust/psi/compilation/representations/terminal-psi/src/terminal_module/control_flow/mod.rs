@@ -12,7 +12,7 @@ mod termination;
 mod trapping_integer;
 
 pub use atomic::{AtomicAccessEvent, AtomicReadModifyWrite, MemoryOrdering};
-pub use float_result_policy::{FloatResultPolicy, FloatSaturationRule};
+pub use float_result_policy::FloatResultPolicy;
 pub use machines::{Block, TerminalMachine, structural_parameter_position};
 pub use operations::{
     ByteSequenceOperand, ElementViewRegion, Operation, OperationKind, OperationResult,

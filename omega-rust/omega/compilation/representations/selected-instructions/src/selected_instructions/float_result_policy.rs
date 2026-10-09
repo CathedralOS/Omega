@@ -1,16 +1,15 @@
 //! Post-call policy checks on already-completed IEEE payloads. These forms do
 //! not repeat arithmetic or select a provider. Trapping reads the raw result;
-//! saturation reads the original left and right operands, then that raw result.
+//! saturation reads the reduced overflow eligibility, then that raw result.
 //! The output follows all inputs and may alias an input only after it is read.
-//! Format and the division-zero exception are semantic identity, not ISA state.
+//! Source operand classification belongs to scalar selection, not ISA state.
 
 use semantic_vocabulary::IeeeFloatFormat;
-pub use terminal_psi::FloatSaturationRule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FloatResultPolicyKind {
     Trapping,
-    Saturating(FloatSaturationRule),
+    Saturating,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -20,12 +19,11 @@ pub struct FloatResultPolicyForm {
 }
 
 impl FloatResultPolicyForm {
-    pub const COUNT: usize = 6;
+    pub const COUNT: usize = 4;
     pub const ALL: [Self; Self::COUNT] = {
         let policies = [
             FloatResultPolicyKind::Trapping,
-            FloatResultPolicyKind::Saturating(FloatSaturationRule::FiniteOperandOverflow),
-            FloatResultPolicyKind::Saturating(FloatSaturationRule::FiniteDivisionOverflow),
+            FloatResultPolicyKind::Saturating,
         ];
         let formats = [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64];
         let mut forms = [Self {
@@ -58,8 +56,7 @@ impl FloatResultPolicyForm {
     pub const fn ordinal(self) -> u8 {
         let policy = match self.policy {
             FloatResultPolicyKind::Trapping => 0,
-            FloatResultPolicyKind::Saturating(FloatSaturationRule::FiniteOperandOverflow) => 1,
-            FloatResultPolicyKind::Saturating(FloatSaturationRule::FiniteDivisionOverflow) => 2,
+            FloatResultPolicyKind::Saturating => 1,
         };
         policy * 2
             + match self.format {
@@ -88,11 +85,11 @@ impl FloatResultPolicyForm {
         matches!(self.policy, FloatResultPolicyKind::Trapping)
     }
 
-    /// Inputs are `[raw]` or `[left, right, raw]`; the output is at this index.
+    /// Inputs are `[raw]` or `[eligible, raw]`; output follows all inputs.
     pub const fn operand_count(self) -> usize {
         match self.policy {
             FloatResultPolicyKind::Trapping => 1,
-            FloatResultPolicyKind::Saturating(_) => 3,
+            FloatResultPolicyKind::Saturating => 2,
         }
     }
 }
@@ -113,9 +110,9 @@ mod tests {
             );
             assert_eq!(form.is_binary32(), ordinal % 2 == 0);
             assert_eq!(form.can_trap(), ordinal < 2);
-            assert_eq!(form.operand_count(), if ordinal < 2 { 1 } else { 3 });
+            assert_eq!(form.operand_count(), if ordinal < 2 { 1 } else { 2 });
         }
-        for payload in 6..=u8::MAX {
+        for payload in 4..=u8::MAX {
             assert_eq!(FloatResultPolicyForm::from_machine_payload(payload), None);
         }
     }

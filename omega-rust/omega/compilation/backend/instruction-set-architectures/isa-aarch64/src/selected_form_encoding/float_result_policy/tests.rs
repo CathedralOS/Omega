@@ -170,12 +170,7 @@ fn decoded_policy_matches_ieee_semantics_with_aliased_outputs() {
             } else {
                 let overflow = number(left).is_finite()
                     && number(right).is_finite()
-                    && number(raw).is_infinite()
-                    && (form.policy
-                        != FloatResultPolicyKind::Saturating(
-                            FloatSaturationRule::FiniteDivisionOverflow,
-                        )
-                        || number(right) != 0.0);
+                    && number(raw).is_infinite();
                 Some(if overflow {
                     maximum | (raw & if wide { 1 << 63 } else { 1 << 31 })
                 } else {
@@ -185,7 +180,10 @@ fn decoded_policy_matches_ieee_semantics_with_aliased_outputs() {
             let inputs = if form.can_trap() {
                 vec![raw]
             } else {
-                vec![left, right, raw]
+                vec![
+                    u64::from(number(left).is_finite() && number(right).is_finite()),
+                    raw,
+                ]
             };
             for output in 1..=inputs.len() as u8 + 1 {
                 let mut registers = (1..=inputs.len() as u8).collect::<Vec<_>>();
@@ -213,8 +211,8 @@ fn policy_constraints_and_effects_declare_only_actual_scratch_and_control() {
         } else {
             crate::AARCH64_FLOAT_RESULT_SATURATING
         };
-        let constraint = register_model::find_register_constraint(&constraints.constraints, key)
-            .unwrap();
+        let constraint =
+            register_model::find_register_constraint(&constraints.constraints, key).unwrap();
         let declaration = declaration(form, key);
         let registers = (1..=form.operand_count() as u8 + 1).collect::<Vec<_>>();
         let operands = registers
@@ -224,12 +222,12 @@ fn policy_constraints_and_effects_declare_only_actual_scratch_and_control() {
         let footprint = footprint(form, &operands);
         assert!(constraint.implicit_uses.is_empty());
         assert!(footprint.encoded.implicit_unit_uses.is_empty());
-        // Trap touches one scratch vector; saturation actually saves three.
+        // Trap touches one scratch vector; saturation saves eligibility and raw result.
         // Derive this roster independently, not from the producer's helper.
         let expected_views: &[&str] = if form.can_trap() {
             &["q16", "nzcv"]
         } else {
-            &["q16", "q17", "q18", "nzcv"]
+            &["q16", "q17", "nzcv"]
         };
         let mut expected_units = expected_views
             .iter()

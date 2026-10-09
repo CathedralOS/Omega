@@ -75,11 +75,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 LegalizedScalarInstructionKind::FloatResultPolicy { format, policy } => {
                     bytes.push(170);
                     encode_scalar_type(bytes, semantic_vocabulary::ScalarType::IeeeFloat(*format));
-                    bytes.push(match policy {
-                        terminal_psi::FloatResultPolicy::Trapping { .. } => 0,
-                        terminal_psi::FloatResultPolicy::Saturating { rule, .. } => match rule {
-                            terminal_psi::FloatSaturationRule::FiniteOperandOverflow => 1,
-                            terminal_psi::FloatSaturationRule::FiniteDivisionOverflow => 2}});
+                    match policy {
+                        terminal_psi::FloatResultPolicy::Trapping { .. } => bytes.push(0),
+                        terminal_psi::FloatResultPolicy::Saturating { .. } => bytes.push(1),
+                    };
                     for operand in policy.operands() {
                         bytes.extend_from_slice(&operand.get().to_le_bytes());
                     }

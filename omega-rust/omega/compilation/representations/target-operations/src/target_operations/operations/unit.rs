@@ -32,8 +32,7 @@ pub enum NativeCallOrigin {
     },
 }
 
-/// Exact available sources consumed by a post-call float adapter. Fixed fields
-/// preserve the divisor position without another argument roster to reconcile.
+/// Exact completed inputs of a post-call float adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetFloatResultPolicy {
     Trapping {
@@ -41,42 +40,32 @@ pub enum TargetFloatResultPolicy {
     },
     Saturating {
         raw_result: TargetUnitScalarArgumentSource,
-        left: TargetUnitScalarArgumentSource,
-        right: TargetUnitScalarArgumentSource,
-        rule: terminal_psi::FloatSaturationRule,
+        eligible: TargetUnitScalarArgumentSource,
     },
 }
-
 impl TargetFloatResultPolicy {
     pub fn operands(self) -> impl Iterator<Item = TargetUnitScalarArgumentSource> {
         match self {
-            Self::Trapping { raw_result } => [Some(raw_result), None, None],
+            Self::Trapping { raw_result } => [None, Some(raw_result)],
             Self::Saturating {
-                left,
-                right,
+                eligible,
                 raw_result,
-                ..
-            } => [Some(left), Some(right), Some(raw_result)],
+            } => [Some(eligible), Some(raw_result)],
         }
         .into_iter()
         .flatten()
     }
-
     pub fn semantic_policy(self) -> terminal_psi::FloatResultPolicy {
         match self {
             Self::Trapping { raw_result } => terminal_psi::FloatResultPolicy::Trapping {
                 raw_result: raw_result.source_value(),
             },
             Self::Saturating {
+                eligible,
                 raw_result,
-                left,
-                right,
-                rule,
             } => terminal_psi::FloatResultPolicy::Saturating {
+                eligible: eligible.source_value(),
                 raw_result: raw_result.source_value(),
-                left: left.source_value(),
-                right: right.source_value(),
-                rule,
             },
         }
     }

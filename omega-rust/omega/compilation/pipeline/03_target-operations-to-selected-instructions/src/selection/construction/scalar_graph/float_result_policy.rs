@@ -1,6 +1,5 @@
-//! Select the post-call adapter without replaying its boundary operation.
-//! The form keeps one original operation site, including a possible Trap;
-//! all inputs remain the exact IEEE payloads completed before this adapter.
+//! Select post-call result adaptation; Psi already established overflow
+//! eligibility over exact original operands before the boundary operation.
 use super::{
     Builder, LegalizedScalarInstructionKind, SelectedInstructionKind,
     SelectedInstructionProvenance, VirtualRegisterId,
@@ -9,7 +8,6 @@ use crate::SelectedInstructionError;
 use selected_instructions::{FloatResultPolicyForm, FloatResultPolicyKind, MachineSemanticKind};
 use semantic_vocabulary::ScalarType;
 use terminal_psi::FloatResultPolicy;
-
 pub(super) fn emit(
     operation: &legalized_operations::LegalizedScalarInstruction,
     state: &mut Builder<'_>,
@@ -21,28 +19,31 @@ pub(super) fn emit(
     else {
         return Err(SelectedInstructionError::custody());
     };
+    let scalar_type = ScalarType::IeeeFloat(format);
+    if result.scalar_type != scalar_type
+        || !policy.accepts_operand_types(format, |value| {
+            state.resolve(value).map(|(_, _, _, kind)| kind)
+        })
+    {
+        return Err(SelectedInstructionError::custody());
+    }
     let form = FloatResultPolicyForm {
         format,
         policy: match policy {
             FloatResultPolicy::Trapping { .. } => FloatResultPolicyKind::Trapping,
-            FloatResultPolicy::Saturating { rule, .. } => FloatResultPolicyKind::Saturating(rule),
+            FloatResultPolicy::Saturating { .. } => FloatResultPolicyKind::Saturating,
         },
     };
-    let scalar_type = ScalarType::IeeeFloat(format);
-    if result.scalar_type != scalar_type {
-        return Err(SelectedInstructionError::custody());
-    }
     let values = policy.operands();
-    let mut registers = Vec::with_capacity(values.len() + 1);
-    for value in &values {
-        let (_, register, _, value_type) = state
-            .resolve(*value)
-            .ok_or(SelectedInstructionError::custody())?;
-        if value_type != scalar_type {
-            return Err(SelectedInstructionError::custody());
-        }
-        registers.push(register);
-    }
+    let mut registers = values
+        .iter()
+        .map(|value| {
+            state
+                .resolve(*value)
+                .map(|(_, register, _, _)| register)
+                .ok_or(SelectedInstructionError::custody())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let key = state
         .constraints
         .keys

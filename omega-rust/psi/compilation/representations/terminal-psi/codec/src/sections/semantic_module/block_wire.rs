@@ -678,7 +678,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             scalar_operations::encode_trapping_integer(writer, operation)?
         }
         OperationKind::FloatResultPolicy { policy } => {
-            scalar_operations::encode_float_result_policy(writer, policy);
+            scalar_operations::encode_float_result_policy(writer, &policy)?;
         }
         OperationKind::AtomicAccess {
             place,

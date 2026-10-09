@@ -785,11 +785,7 @@ pub(super) fn validate(
             }
             AbstractOperation::FloatResultPolicy { format, policy, .. } => {
                 let scalar_type = ScalarType::IeeeFloat(*format);
-                if policy
-                    .operands()
-                    .into_iter()
-                    .any(|operand| value_type(optimized, operand) != Some(scalar_type))
-                {
+                if !policy.accepts_operand_types(*format, |value| value_type(optimized, value)) {
                     return Err(LegalizationError::custody());
                 }
                 scalar_type

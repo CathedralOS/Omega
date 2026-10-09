@@ -1,6 +1,6 @@
 //! Raw IEEE result adaptation with integer predicates, independent of MXCSR.
 //!
-//! MOVD/Q saves all inputs into volatile xmm3..5 before the output becomes
+//! MOVD/Q saves all inputs into volatile xmm3..4 before the output becomes
 //! scratch, so the output can alias any input. Integer shifts expose exponent,
 //! fraction and signed-zero predicates without quieting NaNs or repeating the
 //! provider's arithmetic. A finite overflow's infinity encoding minus one is
@@ -19,11 +19,11 @@ use register_model::{
     RegisterConstraintKey, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
 };
 use selected_instructions::{
-    FloatResultPolicyForm, FloatResultPolicyKind, FloatSaturationRule, MachineAlternative,
+    FloatResultPolicyForm, FloatResultPolicyKind, MachineAlternative,
     MachineAlternativeApplicability, MachineAlternativeFamily, MachineAlternativeKey,
     MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
-    MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, SelectedInstructionKind,
+    MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
+    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
 
 #[cfg(test)]
@@ -34,7 +34,7 @@ pub(crate) fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
     let names: &[&str] = if form.can_trap() {
         &["xmm3", "rflags"]
     } else {
-        &["xmm3", "xmm4", "xmm5", "rflags"]
+        &["xmm3", "xmm4", "rflags"]
     };
     let mut units = names
         .iter()
@@ -206,30 +206,14 @@ fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Instruction> {
         return instructions;
     }
     let mut retain_raw_branches = Vec::new();
-    for vector in [3, 4] {
-        instructions.extend([
-            restore(vector),
-            shift(true, 1),
-            shift(false, fraction + 1),
-            compare(exponent_mask),
-        ]);
-        retain_raw_branches.push(instructions.len());
-        instructions.push(Instruction::Conditional {
-            equal: true,
-            displacement: 0,
-        });
-    }
-    if form.policy == FloatResultPolicyKind::Saturating(FloatSaturationRule::FiniteDivisionOverflow)
-    {
-        instructions.extend([restore(4), shift(true, 1), compare(0)]);
-        retain_raw_branches.push(instructions.len());
-        instructions.push(Instruction::Conditional {
-            equal: true,
-            displacement: 0,
-        });
-    }
+    instructions.extend([restore(3), compare(0)]);
+    retain_raw_branches.push(instructions.len());
+    instructions.push(Instruction::Conditional {
+        equal: true,
+        displacement: 0,
+    });
     instructions.extend([
-        restore(5),
+        restore(4),
         shift(true, 1),
         shift(false, fraction + 1),
         compare(exponent_mask),
@@ -240,7 +224,7 @@ fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Instruction> {
         displacement: 0,
     });
     instructions.extend([
-        restore(5),
+        restore(4),
         shift(true, if wide { 12 } else { 9 }),
         compare(0),
     ]);
@@ -250,7 +234,7 @@ fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Instruction> {
         displacement: 0,
     });
     instructions.extend([
-        restore(5),
+        restore(4),
         Instruction::SubtractOne { wide, general },
         Instruction::Jump { displacement: 5 },
     ]);
@@ -258,7 +242,7 @@ fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Instruction> {
         .iter()
         .map(|instruction| instruction.size())
         .sum::<usize>();
-    instructions.push(restore(5));
+    instructions.push(restore(4));
     for position in retain_raw_branches {
         let next_offset = instructions[..=position]
             .iter()
@@ -518,24 +502,26 @@ fn validate_program(
         })?;
     } else {
         let raw_destination = bytes.len().checked_sub(5).ok_or(Error::MalformedEncoding)?;
-        for vector in [3, 4] {
-            replay.exponent(wide, vector, general)?;
-            replay.branch(true, raw_destination)?;
-        }
-        if form.policy
-            == FloatResultPolicyKind::Saturating(FloatSaturationRule::FiniteDivisionOverflow)
-        {
-            replay.shifted_zero(wide, 4, general, 1)?;
-            replay.branch(true, raw_destination)?;
-        }
-        replay.exponent(wide, 5, general)?;
+        replay.require(Instruction::Transfer {
+            save: false,
+            wide,
+            vector: 3,
+            general,
+        })?;
+        replay.require(Instruction::Compare {
+            wide,
+            general,
+            immediate: 0,
+        })?;
+        replay.branch(true, raw_destination)?;
+        replay.exponent(wide, 4, general)?;
         replay.branch(false, raw_destination)?;
-        replay.shifted_zero(wide, 5, general, if wide { 12 } else { 9 })?;
+        replay.shifted_zero(wide, 4, general, if wide { 12 } else { 9 })?;
         replay.branch(false, raw_destination)?;
         replay.require(Instruction::Transfer {
             save: false,
             wide,
-            vector: 5,
+            vector: 4,
             general,
         })?;
         replay.require(Instruction::SubtractOne { wide, general })?;
@@ -550,7 +536,7 @@ fn validate_program(
         replay.require(Instruction::Transfer {
             save: false,
             wide,
-            vector: 5,
+            vector: 4,
             general,
         })?;
     }

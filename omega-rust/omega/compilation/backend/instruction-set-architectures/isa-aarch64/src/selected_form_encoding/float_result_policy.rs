@@ -1,14 +1,14 @@
 //! Adapt completed IEEE payloads without evaluating floating-point arithmetic.
 //!
-//! All inputs are saved into v16..v18 before the result register is used as
+//! All inputs are saved into v16..v17 before the result register is used as
 //! scratch. Thus the output may alias any input, while no temporary general
 //! register becomes an undeclared clobber. Integer field extraction detects
 //! nonfinite exponents, infinity and either signed zero; NaN payloads never
 //! pass through a floating-point operation. FPCR is neither read nor changed.
 //! NZCV and the scratch vectors are explicit clobbers.
 //!
-//! Saturation keeps the raw result unless both operands are finite and the
-//! result is infinity (and a division's divisor is nonzero). Subtracting one
+//! Saturation keeps the raw result unless input eligibility is true and the
+//! result is infinity. The scalar selector already checked input carriers and zero divisors. Subtracting one
 //! from either infinity's raw encoding produces its signed maximum finite
 //! neighbor. Trapping rejects every all-ones exponent at this operation's
 //! own BRK, before publishing the result.
@@ -20,11 +20,10 @@
 use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
 use selected_instructions::{
-    FloatResultPolicyForm, FloatResultPolicyKind, FloatSaturationRule, IeeeFloatFormat,
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedEffects,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
+    FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat, MachineAlternative,
+    MachineAlternativeApplicability, MachineAlternativeFamily, MachineAlternativeKey,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+    MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
     MachineSizeKnowledge, MachineTrapBehavior,
 };
 
@@ -33,7 +32,7 @@ fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
     let names: &[&str] = if form.can_trap() {
         &["q16", "nzcv"]
     } else {
-        &["q16", "q17", "q18", "nzcv"]
+        &["q16", "q17", "nzcv"]
     };
     let mut units = names
         .iter()
@@ -141,7 +140,7 @@ enum Word {
 
 fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Word> {
     let wide = form.format == IeeeFloatFormat::Binary64;
-    let (fraction, exponent, bits) = if wide { (52, 11, 64) } else { (23, 8, 32) };
+    let (fraction, exponent) = if wide { (52, 11) } else { (23, 8) };
     let exponent_mask = (1_u16 << exponent) - 1;
     let inputs = form.operand_count();
     let result = registers[inputs];
@@ -185,31 +184,16 @@ fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Word> {
         return words;
     }
     let mut retain_raw_branches = Vec::new();
-    for vector in [16, 17] {
-        words.extend([
-            restore(vector),
-            extract(fraction, exponent),
-            compare(exponent_mask),
-        ]);
-        retain_raw_branches.push(words.len());
-        words.push(Word::Conditional {
-            equal: true,
-            words: 0,
-        });
-    }
-    if form.policy == FloatResultPolicyKind::Saturating(FloatSaturationRule::FiniteDivisionOverflow)
-    {
-        words.extend([restore(17), extract(0, bits - 1), compare(0)]);
-        retain_raw_branches.push(words.len());
-        words.push(Word::Conditional {
-            equal: true,
-            words: 0,
-        });
-    }
+    words.extend([restore(16), compare(0)]);
+    retain_raw_branches.push(words.len());
+    words.push(Word::Conditional {
+        equal: true,
+        words: 0,
+    });
     // Infinity has an all-ones exponent and an empty fraction. An unordered
     // result is preserved, not converted to a finite value.
     for (first, count, immediate) in [(fraction, exponent, exponent_mask), (0, fraction, 0)] {
-        words.extend([restore(18), extract(first, count), compare(immediate)]);
+        words.extend([restore(17), extract(first, count), compare(immediate)]);
         retain_raw_branches.push(words.len());
         words.push(Word::Conditional {
             equal: false,
@@ -217,7 +201,7 @@ fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Word> {
         });
     }
     words.extend([
-        restore(18),
+        restore(17),
         Word::SubtractOne {
             wide,
             general: result,
@@ -225,7 +209,7 @@ fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Word> {
         Word::Jump { words: 2 },
     ]);
     let retain_raw = words.len();
-    words.push(restore(18));
+    words.push(restore(17));
     for position in retain_raw_branches {
         if let Word::Conditional { words: offset, .. } = &mut words[position] {
             *offset = (retain_raw - position) as i32;

@@ -37,13 +37,20 @@ pub(super) fn validate(
                 || result_home.shape != shape
                 || format != expected_format
                 || policy.semantic_policy() != *expected_policy
+                || !policy
+                    .semantic_policy()
+                    .accepts_operand_types(*format, |value| {
+                        policy
+                            .operands()
+                            .find(|operand| operand.source_value() == value)
+                            .map(|operand| operand.scalar_type())
+                    })
                 || policy.operands().any(|operand| {
-                    operand.scalar_type() != scalar_type
-                        || !sources
-                            .iter()
-                            .filter(|(value, _)| *value == operand.source_value())
-                            .map(|(_, source)| source)
-                            .eq(std::iter::once(&operand))
+                    !sources
+                        .iter()
+                        .filter(|(value, _)| *value == operand.source_value())
+                        .map(|(_, source)| source)
+                        .eq(std::iter::once(&operand))
                 })
             {
                 return Err(LegalizationError::custody());

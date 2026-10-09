@@ -9,7 +9,7 @@ use crate::results::TerminalExecutionStatus;
 use crate::values::TerminalScalarValue;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ValueId};
-use terminal_psi::{FloatResultPolicy, FloatSaturationRule, Operation, OperationKind};
+use terminal_psi::{FloatResultPolicy, Operation, OperationKind};
 
 fn meaning(value: IeeeFloatValue) -> FloatMeaning {
     match value {
@@ -37,7 +37,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::FloatResultPolicy { policy } = operation.kind else {
+        let OperationKind::FloatResultPolicy { policy } = &operation.kind else {
             return Err(malformed());
         };
         let Some(result) = operation.result.scalar_ref() else {
@@ -57,32 +57,21 @@ impl TerminalExecution<'_> {
                 }
                 raw_result
             }
-            FloatResultPolicy::Saturating {
-                left, right, rule, ..
-            } => {
-                let left = meaning(self.float_policy_operand(left, format)?);
-                let right = meaning(self.float_policy_operand(right, format)?);
+            FloatResultPolicy::Saturating { eligible, .. } => {
+                let eligible = match self.values.get(eligible).copied() {
+                    Some(TerminalScalarValue::Boolean(eligible)) => eligible,
+                    Some(_) => return Err(malformed()),
+                    None => return Err(TerminalInterpretError::VerifiedValueMissing(*eligible)),
+                };
                 let semantic_format = match format {
                     IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
                     IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
                 };
                 let was_infinite = raw_meaning.is_infinite();
-                let adapted = match rule {
-                    FloatSaturationRule::FiniteOperandOverflow => {
-                        FloatSemantics::apply_saturating_policy(
-                            semantic_format,
-                            &[&left, &right],
-                            raw_meaning,
-                        )
-                    }
-                    FloatSaturationRule::FiniteDivisionOverflow => {
-                        FloatSemantics::apply_saturating_divide_policy(
-                            semantic_format,
-                            &left,
-                            &right,
-                            raw_meaning,
-                        )
-                    }
+                let adapted = if eligible && was_infinite {
+                    FloatSemantics::maximum_finite(semantic_format, raw_meaning.is_negative())
+                } else {
+                    raw_meaning
                 };
                 // Only a clamp creates new bits. Re-encoding unchanged NaNs
                 // through their payloadless meaning would alter runtime data.

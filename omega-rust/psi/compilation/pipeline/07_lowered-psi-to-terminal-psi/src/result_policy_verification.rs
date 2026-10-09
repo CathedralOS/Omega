@@ -7,11 +7,12 @@
 //! or bypassed source policy. The artifact identity commits the checked pair.
 
 use checked_trees::{CheckedArithmeticPolicyAdapter, CheckedTrees, NominalMachineUseSite};
-use language_core::operator_spelling::OperatorSpelling;
 use lowered_psi::LoweredSourceCustody;
 use numerics::float_semantics::FloatFormat;
 use semantic_vocabulary::IeeeFloatFormat;
-use terminal_psi::{FloatResultPolicy, FloatSaturationRule, OperationKind};
+use terminal_psi::{FloatResultPolicy, OperationKind};
+
+mod saturation_eligibility;
 
 /// Independent source-correspondence audit for tests and artifact review, not
 /// a second construction pass on the ordinary compilation route.
@@ -141,25 +142,39 @@ pub fn verify_boundary_result_policies(
                         let signature =
                             typed_trees::operator::declaration_by_symbol(&checked.typed, target)
                                 .ok_or("saturating result lost its exact declaration")?;
-                        let rule = match signature.spelling {
-                            Some(OperatorSpelling::Divide) => {
-                                FloatSaturationRule::FiniteDivisionOverflow
-                            }
-                            Some(
-                                OperatorSpelling::Add
-                                | OperatorSpelling::Subtract
-                                | OperatorSpelling::Multiply,
-                            ) => FloatSaturationRule::FiniteOperandOverflow,
-                            _ => return Err("saturating result lacks exact overflow semantics"),
+                        let divisor = validation::float_saturation_divisor_parameter(
+                            &checked.typed,
+                            signature,
+                        )
+                        .ok_or("saturating result lost its raw semantic equation")?;
+                        let adapter = block
+                            .operations
+                            .get(position + 1)
+                            .ok_or("float call lost its result adapter")?;
+                        let OperationKind::FloatResultPolicy {
+                            policy:
+                                FloatResultPolicy::Saturating {
+                                    eligible,
+                                    raw_result,
+                                },
+                        } = adapter.kind
+                        else {
+                            return Err("saturating result lost its adapter");
                         };
-                        let [left, right] = arguments.as_slice() else {
-                            return Err("saturating result lost its binary operands");
-                        };
+                        if raw_result != raw.id
+                            || !saturation_eligibility::verify(
+                                &block.operations[..position],
+                                eligible,
+                                arguments,
+                                &declaration.scalar_parameters,
+                                divisor,
+                            )
+                        {
+                            return Err("saturating result changed its exact input eligibility");
+                        }
                         FloatResultPolicy::Saturating {
                             raw_result: raw.id,
-                            left: *left,
-                            right: *right,
-                            rule,
+                            eligible,
                         }
                     }
                 };

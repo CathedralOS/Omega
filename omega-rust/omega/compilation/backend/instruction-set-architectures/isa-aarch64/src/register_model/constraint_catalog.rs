@@ -38,11 +38,10 @@ use crate::{
     aarch64_indirect_aggregate_call_keys, aarch64_mixed_aggregate_call_keys,
 };
 use register_model::{
-        sorted_units,
-PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
+    PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
     RegisterConstraintCatalogValidationError, RegisterConstraintId, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog, sorted_units,
     validate_register_constraint_catalog,
 };
 use target::Architecture;
@@ -112,7 +111,8 @@ pub fn aarch64_register_constraint_catalog(
         }
     };
     let convention = |name: &str| {
-        physical.convention_named(name)
+        physical
+            .convention_named(name)
             .unwrap_or_else(|| panic!("validated AArch64 model must define {name}"))
     };
     let call_operands = || {
@@ -558,7 +558,10 @@ pub fn aarch64_register_constraint_catalog(
             operands: Vec::new(),
             implicit_uses: merged_units(view("sp").units.clone(), &["pc"]),
             implicit_defs: Vec::new(),
-            clobbers: merged_units(Vec::new(), &["x0", "x1", "x2", syscall_register, "x9", "nzcv"]),
+            clobbers: merged_units(
+                Vec::new(),
+                &["x0", "x1", "x2", syscall_register, "x9", "nzcv"],
+            ),
         });
     }
     for (key, syscall_register) in [
@@ -1001,7 +1004,7 @@ pub fn aarch64_register_constraint_catalog(
             implicit_uses: sorted_units(view("fpcr").units.iter().copied()),
             implicit_defs: Vec::new(),
             clobbers: sorted_units(
-                ["q16", "q17", "q18"]
+                ["q16", "q17"]
                     .into_iter()
                     .flat_map(|name| view(name).units.iter().copied()),
             ),
@@ -1011,12 +1014,12 @@ pub fn aarch64_register_constraint_catalog(
     // aliasing is safe without early-clobber or another GPR temporary.
     for (key, inputs) in [
         (crate::AARCH64_FLOAT_RESULT_TRAPPING, 1),
-        (crate::AARCH64_FLOAT_RESULT_SATURATING, 3),
+        (crate::AARCH64_FLOAT_RESULT_SATURATING, 2),
     ] {
         let scratch: &[&str] = if inputs == 1 {
             &["q16", "nzcv"]
         } else {
-            &["q16", "q17", "q18", "nzcv"]
+            &["q16", "q17", "nzcv"]
         };
         let mut operands = (0..inputs)
             .map(|position| allocatable(position, RegisterOperandAccess::Use, GPR64))

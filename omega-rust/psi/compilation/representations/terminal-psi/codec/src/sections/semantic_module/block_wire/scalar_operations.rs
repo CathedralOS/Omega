@@ -7,7 +7,7 @@ use super::super::wire::{Reader, Writer};
 use super::operation_tags;
 use semantic_vocabulary::IeeeFloatComparisonOperation;
 use semantic_vocabulary::{ObligationId, ValueId};
-use terminal_psi::{FloatResultPolicy, FloatSaturationRule};
+use terminal_psi::FloatResultPolicy;
 use terminal_psi::{OperationKind, TrappingIntegerOperation};
 
 // Fixed-tag scalar payloads declare their ordered, typed IDs beside the decoder.
@@ -394,32 +394,28 @@ pub(super) fn decode_trapping_integer(
     Ok(OperationKind::TrappingInteger { operation })
 }
 
-/// The result format is carried by the result declaration, not repeated here.
-/// Preserve exact input order: division's right operand is its divisor.
-pub(super) fn encode_float_result_policy(writer: &mut Writer, policy: FloatResultPolicy) {
+/// Result format belongs to its declaration. Eligibility is already Bool.
+pub(super) fn encode_float_result_policy(
+    writer: &mut Writer,
+    policy: &FloatResultPolicy,
+) -> Result<(), CodecError> {
     writer.u8(operation_tags::FLOAT_RESULT_POLICY);
     match policy {
         FloatResultPolicy::Trapping { raw_result } => {
             writer.u8(1);
-            writer.id(raw_result);
+            writer.id(*raw_result);
         }
         FloatResultPolicy::Saturating {
             raw_result,
-            left,
-            right,
-            rule,
+            eligible,
         } => {
-            writer.u8(match rule {
-                FloatSaturationRule::FiniteOperandOverflow => 2,
-                FloatSaturationRule::FiniteDivisionOverflow => 3,
-            });
-            writer.id(raw_result);
-            writer.id(left);
-            writer.id(right);
+            writer.u8(4);
+            writer.id(*raw_result);
+            writer.id(*eligible);
         }
     }
+    Ok(())
 }
-
 pub(super) fn decode_float_result_policy(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
@@ -427,15 +423,9 @@ pub(super) fn decode_float_result_policy(
         1 => FloatResultPolicy::Trapping {
             raw_result: reader.id("ValueId")?,
         },
-        tag @ (2 | 3) => FloatResultPolicy::Saturating {
+        4 => FloatResultPolicy::Saturating {
             raw_result: reader.id("ValueId")?,
-            left: reader.id("ValueId")?,
-            right: reader.id("ValueId")?,
-            rule: if tag == 2 {
-                FloatSaturationRule::FiniteOperandOverflow
-            } else {
-                FloatSaturationRule::FiniteDivisionOverflow
-            },
+            eligible: reader.id("ValueId")?,
         },
         tag => return Err(CodecError::InvalidTag("FloatResultPolicy", tag)),
     };

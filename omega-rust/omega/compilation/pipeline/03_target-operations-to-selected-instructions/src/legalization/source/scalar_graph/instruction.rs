@@ -108,7 +108,7 @@ pub(super) fn project(
         AbstractOperation::FloatResultPolicy { format, policy, .. } => {
             LegalizedScalarInstructionKind::FloatResultPolicy {
                 format: *format,
-                policy: *policy,
+                policy: policy.clone(),
             }
         }
         AbstractOperation::ScalarRepresentationView {

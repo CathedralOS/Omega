@@ -153,7 +153,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::FloatResultPolicy(form) => {
                 return match form.policy {
                     crate::FloatResultPolicyKind::Trapping => self.float_result_trapping,
-                    crate::FloatResultPolicyKind::Saturating(_) => self.float_result_saturating,
+                    crate::FloatResultPolicyKind::Saturating => self.float_result_saturating,
                 };
             }
             MachineSemanticKind::CopyBytes => return self.copy_bytes,

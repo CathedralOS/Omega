@@ -11,13 +11,10 @@ use crate::terminal_identities::{allocate_dense, value_id};
 use checked_trees::{
     CheckedArithmeticPolicyAdapter, CheckedTrees, CheckedValueOrigin, NominalMachineUseSite,
 };
-use language_core::operator_spelling::OperatorSpelling;
 use numerics::float_semantics::FloatFormat;
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType, ValueId};
 use symbols::SymbolHandle;
-use terminal_psi::{
-    FloatResultPolicy, FloatSaturationRule, OperationKind, OperationResult, ValueDeclaration,
-};
+use terminal_psi::{FloatResultPolicy, OperationKind, OperationResult, ValueDeclaration};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BoundaryResultPolicy {
@@ -27,7 +24,7 @@ pub(crate) enum BoundaryResultPolicy {
     },
     Saturating {
         format: IeeeFloatFormat,
-        rule: FloatSaturationRule,
+        divisor_position: Option<usize>,
     },
 }
 
@@ -78,22 +75,15 @@ impl BoundaryResultPolicy {
                             "saturating boundary lost its selected declaration",
                         ),
                     )?;
-                // The division exception is part of the selected operation's
-                // meaning. The authored expression may be a named call.
-                let rule = match declaration.spelling {
-                    Some(OperatorSpelling::Divide) => FloatSaturationRule::FiniteDivisionOverflow,
-                    Some(
-                        OperatorSpelling::Add
-                        | OperatorSpelling::Subtract
-                        | OperatorSpelling::Multiply,
-                    ) => FloatSaturationRule::FiniteOperandOverflow,
-                    _ => {
-                        return unsupported(
-                            "unimplemented: saturation needs exact overflow semantics for this boundary",
-                        );
-                    }
-                };
-                Ok(Self::Saturating { format, rule })
+                let divisor =
+                    validation::float_saturation_divisor_parameter(&checked.typed, declaration)
+                        .ok_or(LoweringError::Unsupported(
+                            "saturating boundary lost its raw semantic equation",
+                        ))?;
+                Ok(Self::Saturating {
+                    format,
+                    divisor_position: divisor,
+                })
             }
         }
     }
@@ -102,6 +92,9 @@ impl BoundaryResultPolicy {
         self,
         raw: ValueDeclaration,
         arguments: &[ValueId],
+        argument_types: &[ScalarType],
+        next_value: &mut u64,
+        operations: &mut OperationBuffer,
     ) -> Result<Option<FloatResultPolicy>, LoweringError> {
         let format = match self {
             Self::None => return Ok(None),
@@ -112,17 +105,19 @@ impl BoundaryResultPolicy {
         }
         Ok(Some(match self {
             Self::Trapping { .. } => FloatResultPolicy::Trapping { raw_result: raw.id },
-            Self::Saturating { rule, .. } => {
-                let [left, right] = arguments else {
-                    return unsupported(
-                        "unimplemented: saturation needs two exact scalar call operands",
-                    );
-                };
+            Self::Saturating {
+                divisor_position, ..
+            } => {
+                let eligible = super::overflow_eligibility::emit(
+                    arguments,
+                    argument_types,
+                    divisor_position,
+                    next_value,
+                    operations,
+                )?;
                 FloatResultPolicy::Saturating {
                     raw_result: raw.id,
-                    left: *left,
-                    right: *right,
-                    rule,
+                    eligible,
                 }
             }
             Self::None => return Ok(None),

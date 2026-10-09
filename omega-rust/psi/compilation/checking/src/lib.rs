@@ -235,8 +235,8 @@ pub use proof_contracts::float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,
     float_boolean_semantic_contract, float_format_conversion_contract,
     float_integer_conversion_bounds, float_integer_conversion_contract,
-    float_result_semantic_contract, is_exact_toolchain_float_meaning_type,
-    numeric_float_conversion_contract,
+    float_result_semantic_contract, float_saturation_divisor_parameter,
+    is_exact_toolchain_float_meaning_type, numeric_float_conversion_contract,
 };
 pub use proof_contracts::float_projection_invocations::exact_projection_operation as exact_toolchain_float_projection_operation;
 pub use proof_contracts::properties::{

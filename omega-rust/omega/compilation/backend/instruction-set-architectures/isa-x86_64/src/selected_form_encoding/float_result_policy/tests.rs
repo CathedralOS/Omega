@@ -198,12 +198,7 @@ fn float_result_policy_decoded_semantics_preserve_payloads_and_aliases() {
             } else {
                 let overflow = number(left).is_finite()
                     && number(right).is_finite()
-                    && number(raw).is_infinite()
-                    && (form.policy
-                        != FloatResultPolicyKind::Saturating(
-                            FloatSaturationRule::FiniteDivisionOverflow,
-                        )
-                        || number(right) != 0.0);
+                    && number(raw).is_infinite();
                 Some(if overflow {
                     maximum | (raw & if wide { 1 << 63 } else { 1 << 31 })
                 } else {
@@ -213,7 +208,10 @@ fn float_result_policy_decoded_semantics_preserve_payloads_and_aliases() {
             let mut inputs = if form.can_trap() {
                 vec![raw]
             } else {
-                vec![left, right, raw]
+                vec![
+                    u64::from(number(left).is_finite() && number(right).is_finite()),
+                    raw,
+                ]
             };
             // A binary32 payload's unrelated upper half must not affect any predicate.
             if !wide {
@@ -273,7 +271,7 @@ fn float_result_policy_public_route_binds_constraints_and_effects() {
         let scratch: &[&str] = if form.can_trap() {
             &["xmm3", "rflags"]
         } else {
-            &["xmm3", "xmm4", "xmm5", "rflags"]
+            &["xmm3", "xmm4", "rflags"]
         };
         let mut expected_clobbers = scratch
             .iter()

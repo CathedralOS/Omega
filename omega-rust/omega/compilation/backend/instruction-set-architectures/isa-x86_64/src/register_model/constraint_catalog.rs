@@ -41,11 +41,10 @@ use crate::{
     x86_64_system_v_mixed_unit_call_keys,
 };
 use register_model::{
-        sorted_units,
-PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
+    PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
     RegisterConstraintCatalogValidationError, RegisterConstraintId, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog, sorted_units,
     validate_register_constraint_catalog,
 };
 use target::Architecture;
@@ -98,7 +97,8 @@ pub fn x86_64_register_constraint_catalog(
         }
     };
     let convention = |name: &str| {
-        physical.convention_named(name)
+        physical
+            .convention_named(name)
             .unwrap_or_else(|| panic!("validated x86-64 model must define {name}"))
     };
 
@@ -808,7 +808,10 @@ pub fn x86_64_register_constraint_catalog(
         operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
         implicit_uses: merged_units(view("rsp").units.clone(), &["rip"]),
         implicit_defs: Vec::new(),
-        clobbers: merged_units(Vec::new(), &["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"]),
+        clobbers: merged_units(
+            Vec::new(),
+            &["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"],
+        ),
     });
     constraints.push(RegisterInstructionConstraint {
         id: RegisterConstraintId(0),
@@ -816,7 +819,10 @@ pub fn x86_64_register_constraint_catalog(
         operands: Vec::new(),
         implicit_uses: merged_units(view("rsp").units.clone(), &["rip"]),
         implicit_defs: Vec::new(),
-        clobbers: merged_units(Vec::new(), &["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"]),
+        clobbers: merged_units(
+            Vec::new(),
+            &["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"],
+        ),
     });
     for key in [X86_64_HOSTED_EXIT_PROCESS_I32] {
         constraints.push(RegisterInstructionConstraint {
@@ -930,12 +936,12 @@ pub fn x86_64_register_constraint_catalog(
     // output/input aliasing without an undeclared general-register clobber.
     for (key, inputs) in [
         (crate::X86_64_FLOAT_RESULT_TRAPPING, 1),
-        (crate::X86_64_FLOAT_RESULT_SATURATING, 3),
+        (crate::X86_64_FLOAT_RESULT_SATURATING, 2),
     ] {
         let scratch: &[&str] = if inputs == 1 {
             &["xmm3", "rflags"]
         } else {
-            &["xmm3", "xmm4", "xmm5", "rflags"]
+            &["xmm3", "xmm4", "rflags"]
         };
         let mut operands = (0..inputs)
             .map(|position| allocatable(position, RegisterOperandAccess::Use, GPR64))

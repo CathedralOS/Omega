@@ -20,7 +20,7 @@ pub mod calls;
 mod float_result_policy;
 mod ieee_float_arithmetic;
 pub use atomic::{AtomicForm, AtomicOperation, AtomicWidth};
-pub use float_result_policy::{FloatResultPolicyForm, FloatResultPolicyKind, FloatSaturationRule};
+pub use float_result_policy::{FloatResultPolicyForm, FloatResultPolicyKind};
 pub use ieee_float_arithmetic::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
     IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
@@ -82,8 +82,8 @@ pub use identity::{
     SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity, VirtualRegisterId,
 };
 pub use instructions::{
-    instruction_position, SelectedCallTarget, SelectedImageAddressReference, SelectedInstruction,
-    SelectedInstructionKind,
+    SelectedCallTarget, SelectedImageAddressReference, SelectedInstruction,
+    SelectedInstructionKind, instruction_position,
 };
 pub use legalized_operations::{
     SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,

@@ -18,17 +18,10 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 semantic_vocabulary::IeeeFloatFormat::Binary32 => 0,
                 semantic_vocabulary::IeeeFloatFormat::Binary64 => 1,
             });
-            bytes.u8(match policy {
-                terminal_psi::FloatResultPolicy::Trapping { .. } => 0,
-                terminal_psi::FloatResultPolicy::Saturating {
-                    rule: terminal_psi::FloatSaturationRule::FiniteOperandOverflow,
-                    ..
-                } => 1,
-                terminal_psi::FloatResultPolicy::Saturating {
-                    rule: terminal_psi::FloatSaturationRule::FiniteDivisionOverflow,
-                    ..
-                } => 2,
-            });
+            match policy {
+                terminal_psi::FloatResultPolicy::Trapping { .. } => bytes.u8(0),
+                terminal_psi::FloatResultPolicy::Saturating { .. } => bytes.u8(1),
+            };
             for operand in policy.operands() {
                 bytes.id(operand);
             }

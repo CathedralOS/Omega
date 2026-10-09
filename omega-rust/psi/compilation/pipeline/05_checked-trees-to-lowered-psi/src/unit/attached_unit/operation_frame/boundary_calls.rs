@@ -85,7 +85,12 @@ impl OperationFrame<'_, '_> {
         inputs: &CallInputs<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let target_machine = &call.target.machine;
-        unique_unit_boundary(self.callees.plans, *target_machine)?;
+        let target = unique_unit_boundary(self.callees.plans, *target_machine)?;
+        let argument_types = target
+            .scalar_parameters
+            .iter()
+            .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+            .collect::<Result<Vec<_>, _>>()?;
         let operands = self.boundary_operands(call, inputs)?;
         let value = ValueDeclaration {
             qualifications: Default::default(),
@@ -103,7 +108,13 @@ impl OperationFrame<'_, '_> {
             call.source_site().flatten(),
             *target_machine,
         )?
-        .bind(value, &operands.arguments)?;
+        .bind(
+            value,
+            &operands.arguments,
+            &argument_types,
+            self.next_value,
+            self.operations,
+        )?;
         let id = self.operations.allocate();
         self.record_source_call(
             call.coordinate,

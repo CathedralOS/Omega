@@ -114,6 +114,48 @@ pub fn float_result_semantic_contract(
     None
 }
 
+/// The overflow adapter's zero-divisor exception, selected from the sealed raw
+/// semantic equation. This catalog identity never comes from the source token
+/// or the public callable's name. Every other operation uses all finite inputs.
+pub fn float_saturation_divisor_parameter(
+    program: &dyn crate::CheckingInput,
+    operator: &OperatorDefinition,
+) -> Option<Option<usize>> {
+    let raw = float_result_semantic_contract(program, operator)?;
+    let call = program.expression_table.call_node(raw)?;
+    let selected = resolve_named_expression_call(program, call)?;
+    let (row, _) =
+        super::semantic_operations::exact_toolchain_float_semantic_contract(program, selected)?;
+    if !matches!(
+        row.name,
+        "divide" | "divide_toward_zero" | "divide_toward_positive" | "divide_toward_negative"
+    ) {
+        return Some(None);
+    }
+    let divisor = *program
+        .expression_table
+        .expression_handles(call.arguments)
+        .last()?;
+    let projection = program.expression_table.call_node(divisor)?;
+    crate::proof_contracts::float_projection_invocations::exact_projection_operation(
+        program, projection,
+    )?;
+    let [source] = program
+        .expression_table
+        .expression_handles(projection.arguments)
+    else {
+        return None;
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(*source) else {
+        return None;
+    };
+    program
+        .operator_parameters(operator)
+        .iter()
+        .position(|parameter| parameter.symbol == path.symbol)
+        .map(Some)
+}
+
 fn semantic_term_uses_only_inputs(
     program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,

@@ -1632,7 +1632,7 @@ fn float_result_policy_identities_and_constraint_selection_are_exact() {
         identities.push(bytes);
         let expected = match form.policy {
             FloatResultPolicyKind::Trapping => selected_keys.float_result_trapping,
-            FloatResultPolicyKind::Saturating(_) => selected_keys.float_result_saturating,
+            FloatResultPolicyKind::Saturating => selected_keys.float_result_saturating,
         };
         assert_eq!(selected_keys.for_semantic(semantic), expected);
     }

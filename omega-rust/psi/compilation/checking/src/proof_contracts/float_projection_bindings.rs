@@ -6,7 +6,10 @@
 
 mod conversion_contracts;
 mod result_contracts;
-pub use result_contracts::{float_boolean_semantic_contract, float_result_semantic_contract};
+pub use result_contracts::{
+    float_boolean_semantic_contract, float_result_semantic_contract,
+    float_saturation_divisor_parameter,
+};
 /// The sibling closed catalog: `FloatSemantics::<name>` semantic definitions,
 /// validated by the same custody rule. Its row/contract query
 /// (`semantic_operations::exact_toolchain_float_semantic_contract`) is shared

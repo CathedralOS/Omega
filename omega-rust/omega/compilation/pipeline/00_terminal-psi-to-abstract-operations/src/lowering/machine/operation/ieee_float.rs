@@ -17,11 +17,7 @@ pub(super) fn lower(
             let Some(format) = result.scalar_type.as_ieee_float() else {
                 return Err(invalid);
             };
-            if policy
-                .operands()
-                .iter()
-                .any(|operand| value_types.get(operand) != Some(&ScalarType::IeeeFloat(format)))
-            {
+            if !policy.accepts_operand_types(format, |value| value_types.get(&value).copied()) {
                 return Err(invalid);
             }
             AbstractOperation::FloatResultPolicy {

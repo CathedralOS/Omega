@@ -8,6 +8,7 @@
 //! does, so stage 07 rejoins it to one checked operator application and
 //! provider selection stays one-to-one with Terminal operations.
 
+mod overflow_eligibility;
 pub(crate) mod result_policy;
 
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -100,6 +101,18 @@ pub(super) fn emit_boundary_call_binding(
         .ok_or(LoweringError::Unsupported(
             "nested boundary application value identity overflow",
         ))?;
+    let raw = ValueDeclaration {
+        id: result,
+        scalar_type: call.result_type.scalar_type,
+        qualifications: Default::default(),
+    };
+    let policy = call.result_policy.bind(
+        raw,
+        &arguments,
+        &target.scalar,
+        next_value_identity,
+        operations,
+    )?;
     let operation = operations.allocate();
     operations.record_source_call(
         call.source_coordinate,
@@ -109,12 +122,6 @@ pub(super) fn emit_boundary_call_binding(
         operation,
         call.target_machine,
     )?;
-    let raw = ValueDeclaration {
-        id: result,
-        scalar_type: call.result_type.scalar_type,
-        qualifications: Default::default(),
-    };
-    let policy = call.result_policy.bind(raw, &arguments)?;
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
