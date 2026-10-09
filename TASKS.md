@@ -3974,7 +3974,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     matching host. Preserve `host/runtime_descriptor_direct_array_exit` and
     `host/runtime_descriptor_output_streams_exit`: readonly byte views transport
     their evaluated pointer/length on macOS ARM64, never the descriptor's address.
-  - Execute indirect (memory-returned) aggregate results natively.
+  - Qualify indirect (memory-returned) aggregate results on the remaining
+    matching hosts. Linux x86-64 uses caller-owned result storage through
+    foreign calls, ordinary helpers and owned state arrivals; retain
+    `providers/foreign_indirect_record_{result,relay}_exit` at exit 70.
 
   Acceptance: corpus fixtures pass a borrowed descriptor and receive an
   indirect aggregate result from C with exact values, register/stack placement

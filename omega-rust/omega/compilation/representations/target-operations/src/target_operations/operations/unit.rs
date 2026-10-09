@@ -642,6 +642,9 @@ impl TargetUnitOperation {
     /// identity is retained beside the home so receiving replay can compare
     /// the home origin with both its producer and the abstract declaration.
     /// Borrowed descriptors and scalar homes are separate storage contracts.
+    /// Foreign and builtin boundary calls establish the same owned result
+    /// home. Consumers must retain that producer identity through ordinary
+    /// returns and control-flow joins regardless of the call's entry mechanism.
     pub fn structural_result_home(
         &self,
     ) -> Option<(OperationId, &TargetStructuralHomeRequirement)> {
@@ -701,6 +704,11 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::BoundarySettlement {
+                psi_operation,
+                result: TargetBoundaryResult::Structural(result_home),
+                ..
+            }
+            | Self::NormalizedForeignCall {
                 psi_operation,
                 result: TargetBoundaryResult::Structural(result_home),
                 ..

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 2.22, "load1_start": 2.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "4", "load1_end": 1.19, "load1_start": 1.19, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -3913,6 +3913,8 @@ pass/providers/component_owner_provider_override_compile checked 626ms check-tar
 pass/providers/direct_boundary_array_snapshot_exit checked 2938ms check-target:macos_arm64 @36ad3370c97a
 pass/providers/external_boundary_requirement_via_exit checked 8941ms check-target:macos_arm64 @5ce9755c44a5+wt
 pass/providers/external_leaf_dllimport_compile checked 808ms check-target:macos_arm64 @2d8ed253669f
+pass/providers/foreign_indirect_record_relay_exit checked 4261ms check-target:linux_x86_64 @30eb6513ae80+wt
+pass/providers/foreign_indirect_record_result_exit checked 4077ms check-target:linux_x86_64 @30eb6513ae80+wt
 pass/providers/foreign_multiregister_result_exit checked 5866ms check-target:macos_arm64 @cfe60a3a242
 pass/providers/foreign_out_parameter_write_observed_exit checked 11330ms check-target:macos_arm64 @22d7c734257c+wt
 pass/providers/foreign_owned_record_exit checked 5220ms check-target:macos_arm64 @cfe60a3a242
