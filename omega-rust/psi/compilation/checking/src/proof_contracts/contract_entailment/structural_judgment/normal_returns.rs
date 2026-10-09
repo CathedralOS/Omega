@@ -12,6 +12,7 @@ use super::super::specification_calls::{
 use super::selected_contracts::{bound_term, capture_equations, independent_callee};
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
+use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::signature::SignatureContractKind;

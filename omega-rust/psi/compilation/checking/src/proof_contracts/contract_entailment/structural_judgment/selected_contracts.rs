@@ -393,22 +393,18 @@ pub(super) fn bound_term(
             })
         }
         ExpressionNode::StructLiteral(literal) => {
-            super::super::structural_terms::constructor_literal_term(
-                program,
-                literal,
-                |_, value| {
-                    bound_term(
-                        program,
-                        value,
-                        scope,
-                        parameters,
-                        callable,
-                        bindings,
-                        result,
-                        depth + 1,
-                    )
-                },
-            )
+            super::super::structural_terms::constructor_literal_term(program, literal, |field| {
+                bound_term(
+                    program,
+                    field.value,
+                    scope,
+                    parameters,
+                    callable,
+                    bindings,
+                    result,
+                    depth + 1,
+                )
+            })
         }
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
             super::super::structural_terms::structural_term(program, expression)
