@@ -107,6 +107,9 @@ pub struct CheckedStateNaturalRank {
     pub parameter: SymbolHandle,
     pub parameter_position: u32,
     pub measure: CheckedNaturalRankMeasure,
+    /// Executable observation in this state's exact formal namespace. The
+    /// selected view and its proof metadata do not select another evaluator.
+    pub observation: crate::CheckedScalarComputationHandle,
 }
 
 /// The measures the termination checker proves, each a total function of
@@ -114,6 +117,12 @@ pub struct CheckedStateNaturalRank {
 /// one more measure, not as another producer route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedNaturalRankMeasure {
+    /// Exact declared view identity; executable arithmetic and projections
+    /// reside in the common scalar computation graph.
+    DeclaredMeasure {
+        measure: SymbolHandle,
+        primitive_type: PrimitiveType,
+    },
     /// `Slice::Length`: the subject slice's live byte length.
     ByteSequenceLength,
     /// `Nat::Descending`: the fixed-width integer subject itself, signed or

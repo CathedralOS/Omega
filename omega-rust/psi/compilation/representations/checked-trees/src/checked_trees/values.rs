@@ -260,6 +260,9 @@ pub struct CheckedLocatedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedScalarExpressionRole {
+    /// Arrival observation of the independently checked natural rank, before
+    /// the state prefix. Its root uses this state's exact formal telescope.
+    RankObservation,
     /// Captured byte coordinate of this representation view occurrence.
     RepresentationViewOffset {
         expression: ExpressionHandle,
