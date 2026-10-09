@@ -25,18 +25,21 @@ mod tests;
 
 pub use build_declaration::{
     ApplicationDeclaration, BUILD_FILE_NAME, BUILD_TYPE_NAME, BuildDeclaration,
-    BuildDeclarationKind, InvalidWorkspaceMemberPath, PackageDeclaration, ProjectName,
+    BuildDeclarationKind, PackageDeclaration, ProjectName,
     WorkspaceDeclaration, WorkspaceMemberPath,
 };
+pub(crate) use build_declaration::{ InvalidWorkspaceMemberPath};
 pub use declaration_errors::BuildDeclarationError;
-pub use dependencies::{
-    CONDITIONAL_DEPENDENCY_CALL_NAMES, DependencyOperation, DependencyPurpose, DependencyRow,
+pub use dependencies::{ DependencyOperation, DependencyPurpose, DependencyRow,
     DependencyRowError, is_dependency_call_name, project_dependency_rows,
 };
+pub(crate) use dependencies::{
+    CONDITIONAL_DEPENDENCY_CALL_NAMES};
 pub use prelude::build_prelude_source;
-pub use syntax_projection::{
-    BuildDeclarationSyntaxProjection, BuildEntrySyntaxProjection, extract_build_declaration,
-    package_authored_type_name, project_build_declaration_from_source,
-    project_build_declaration_from_syntax_trees, project_build_declaration_in_entry,
-    project_build_declaration_syntax, project_build_entry_syntax, read_build_file_source,
+pub use syntax_projection::{ BuildEntrySyntaxProjection, extract_build_declaration,
+    package_authored_type_name, project_build_declaration_from_source, project_build_declaration_in_entry, project_build_entry_syntax, read_build_file_source,
 };
+pub(crate) use syntax_projection::{
+    BuildDeclarationSyntaxProjection,
+    project_build_declaration_from_syntax_trees,
+    project_build_declaration_syntax};

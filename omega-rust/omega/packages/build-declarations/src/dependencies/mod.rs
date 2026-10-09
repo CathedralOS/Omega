@@ -110,7 +110,7 @@ impl DependencyOperation {
 /// deliberately. A conditional call can never project an unconditional
 /// edge, so [`project_dependency_rows`] leaves them unclassified rather
 /// than admitting them as rows or letting them pass silently.
-pub const CONDITIONAL_DEPENDENCY_CALL_NAMES: [&str; 4] = [
+pub(crate) const CONDITIONAL_DEPENDENCY_CALL_NAMES: [&str; 4] = [
     "depend_when",
     "depend_as_when",
     "build_depend_when",
