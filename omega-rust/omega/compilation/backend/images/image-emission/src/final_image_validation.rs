@@ -620,7 +620,7 @@ mod tests {
     #[test]
     fn x86_relative_target_resolves_forward_displacement() {
         let mut text = vec![0u8; 16];
-        crate::codec_bytes::patch_encoded(&mut text, 4, 0x40i32.to_le_bytes());
+        text[4..4 + 4].copy_from_slice(&0x40i32.to_le_bytes());
         let output = emitted_output(text, 0x1000);
 
         assert_eq!(decode_x86_relative_target(&output, 4).unwrap(), 0x1048);
@@ -664,8 +664,8 @@ mod tests {
     #[test]
     fn aarch64_page_target_resolves_forward_page_and_offset() {
         let mut text = vec![0u8; 0x20];
-        crate::codec_bytes::patch_encoded(&mut text, 0x10, adrp_word(3).to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut text, 0x14, add_imm_word(0x234).to_le_bytes());
+        text[0x10..0x10 + 4].copy_from_slice(&adrp_word(3).to_le_bytes());
+        text[0x14..0x14 + 4].copy_from_slice(&add_imm_word(0x234).to_le_bytes());
         let output = emitted_output(text, 0x4000);
 
         assert_eq!(
@@ -678,7 +678,7 @@ mod tests {
     fn aarch64_page_target_sign_extends_negative_page_delta() {
         let mut text = vec![0u8; 0x20];
         text[0x10..0x14].copy_from_slice(&adrp_word(-2).to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut text, 0x14, add_imm_word(0x10).to_le_bytes());
+        text[0x14..0x14 + 4].copy_from_slice(&add_imm_word(0x10).to_le_bytes());
         let output = emitted_output(text, 0x4000);
 
         assert_eq!(
@@ -690,8 +690,8 @@ mod tests {
     #[test]
     fn aarch64_page_target_uses_the_instruction_page_base() {
         let mut text = vec![0u8; 0x20];
-        crate::codec_bytes::patch_encoded(&mut text, 0x14, adrp_word(0).to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut text, 0x18, add_imm_word(0x8).to_le_bytes());
+        text[0x14..0x14 + 4].copy_from_slice(&adrp_word(0).to_le_bytes());
+        text[0x18..0x18 + 4].copy_from_slice(&add_imm_word(0x8).to_le_bytes());
         let output = emitted_output(text, 0x4000);
 
         // The ADRP sits at unaligned offset 0x14; its decode base is the

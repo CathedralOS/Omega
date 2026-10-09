@@ -851,10 +851,10 @@ mod tests {
             (184, 0x8000_0028),
             (188, 24),
         ] {
-            crate::codec_bytes::patch_encoded(&mut bytes, offset, word.to_le_bytes());
+            bytes[offset..offset + 4].copy_from_slice(&word.to_le_bytes());
         }
         bytes[104..120].copy_from_slice(b"__text\0\0\0\0\0\0\0\0\0\0");
-        crate::codec_bytes::patch_encoded(&mut bytes, 192, 4160u64.to_le_bytes());
+        bytes[192..192 + 8].copy_from_slice(&4160u64.to_le_bytes());
         let arm64 = target::NativeTarget::macos_arm64();
         assert!(main_points_to(&bytes, 64, arm64));
         assert!(!main_points_to(&bytes, 68, arm64));
@@ -871,7 +871,7 @@ mod tests {
             target::NativeTarget::linux_x64()
         ));
         let mut intel = bytes.clone();
-        crate::codec_bytes::patch_encoded(&mut intel, 4, 0x0100_0007u32.to_le_bytes());
+        intel[4..4 + 4].copy_from_slice(&0x0100_0007u32.to_le_bytes());
         assert!(main_points_to(
             &intel,
             64,
@@ -948,19 +948,19 @@ mod tests {
         let shim = encode_windows(0x20, 0).unwrap();
         let mut bytes = vec![0u8; 0x400];
         bytes[0..2].copy_from_slice(b"MZ");
-        crate::codec_bytes::patch_encoded(&mut bytes, 0x3c, 0x80u32.to_le_bytes());
+        bytes[0x3c..0x3c + 4].copy_from_slice(&0x80u32.to_le_bytes());
         bytes[0x80..0x84].copy_from_slice(b"PE\0\0");
         let coff = 0x84;
-        crate::codec_bytes::patch_encoded(&mut bytes, coff + 2, 1u16.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, coff + 16, 240u16.to_le_bytes());
+        bytes[coff + 2..coff + 2 + 2].copy_from_slice(&1u16.to_le_bytes());
+        bytes[coff + 16..coff + 16 + 2].copy_from_slice(&240u16.to_le_bytes());
         let optional = coff + 20;
-        crate::codec_bytes::patch_encoded(&mut bytes, optional, 0x20bu16.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, optional + 16, 0x1020u32.to_le_bytes());
+        bytes[optional..optional + 2].copy_from_slice(&0x20bu16.to_le_bytes());
+        bytes[optional + 16..optional + 16 + 4].copy_from_slice(&0x1020u32.to_le_bytes());
         let header = optional + 240;
         bytes[header..header + 8].copy_from_slice(b".text\0\0\0");
-        crate::codec_bytes::patch_encoded(&mut bytes, header + 12, 0x1000u32.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, header + 16, 0x200u32.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, header + 20, 0x200u32.to_le_bytes());
+        bytes[header + 12..header + 12 + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        bytes[header + 16..header + 16 + 4].copy_from_slice(&0x200u32.to_le_bytes());
+        bytes[header + 20..header + 20 + 4].copy_from_slice(&0x200u32.to_le_bytes());
         bytes[0x220..0x230].copy_from_slice(&shim);
         assert!(pe_entry_points_to(&bytes, 0x20, &shim));
         assert!(!pe_entry_points_to(&bytes, 0x24, &shim));
@@ -1040,24 +1040,24 @@ mod tests {
         bytes[0..4].copy_from_slice(&[0x7f, b'E', b'L', b'F']);
         bytes[4] = 2;
         bytes[5] = 1;
-        crate::codec_bytes::patch_encoded(&mut bytes, 16, 2u16.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 18, 62u16.to_le_bytes());
+        bytes[16..16 + 2].copy_from_slice(&2u16.to_le_bytes());
+        bytes[18..18 + 2].copy_from_slice(&62u16.to_le_bytes());
         bytes[24..32].copy_from_slice(&(text_address + 0x140).to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 32, 64u64.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 54, 56u16.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 56, 2u16.to_le_bytes());
+        bytes[32..32 + 8].copy_from_slice(&64u64.to_le_bytes());
+        bytes[54..54 + 2].copy_from_slice(&56u16.to_le_bytes());
+        bytes[56..56 + 2].copy_from_slice(&2u16.to_le_bytes());
         // RX PT_LOAD: whole file mapped at 0x400000.
-        crate::codec_bytes::patch_encoded(&mut bytes, 64, 1u32.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 68, 5u32.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 72, 0u64.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 80, 0x400000u64.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 96, 0x1200u64.to_le_bytes());
+        bytes[64..64 + 4].copy_from_slice(&1u32.to_le_bytes());
+        bytes[68..68 + 4].copy_from_slice(&5u32.to_le_bytes());
+        bytes[72..72 + 8].copy_from_slice(&0u64.to_le_bytes());
+        bytes[80..80 + 8].copy_from_slice(&0x400000u64.to_le_bytes());
+        bytes[96..96 + 8].copy_from_slice(&0x1200u64.to_le_bytes());
         // RW PT_LOAD for .data.
-        crate::codec_bytes::patch_encoded(&mut bytes, 120, 1u32.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 124, 6u32.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 128, 0x2000u64.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 136, 0x402000u64.to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 152, 0x100u64.to_le_bytes());
+        bytes[120..120 + 4].copy_from_slice(&1u32.to_le_bytes());
+        bytes[124..124 + 4].copy_from_slice(&6u32.to_le_bytes());
+        bytes[128..128 + 8].copy_from_slice(&0x2000u64.to_le_bytes());
+        bytes[136..136 + 8].copy_from_slice(&0x402000u64.to_le_bytes());
+        bytes[152..152 + 8].copy_from_slice(&0x100u64.to_le_bytes());
         bytes[0x1140..0x1140 + 19].copy_from_slice(&shim);
         assert!(elf_entry_points_to(&bytes, 62, text_address, 0x140, &shim));
         assert!(!elf_entry_points_to(&bytes, 62, text_address, 0x144, &shim));
