@@ -3,11 +3,10 @@
 
 use crate::{
     ActivationPlanId, ExecutorPreservationAxis, ExecutorPreservationEvidence,
-    ExecutorSelectionCandidate, SelectedTaskRuntimeProviderFact, TaskActivationPlanFact,
+    TaskActivationPlanFact,
     TaskPlanDiagnostic, TaskRuntimeId, TaskRuntimeInstanceId, TaskRuntimeInvocationBindingId,
     TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId, TaskSpecializationCommitment,
-    TaskStartOperation, ValidatedExecutorSelection, validate_executor_selection,
-};
+    TaskStartOperation, ValidatedExecutorSelection, validate_executor_selection};
 
 /// Provider-authored evidence for one dynamic invocation of an already
 /// selected `TaskRuntime::{start,try_start}<M>` specialization.

@@ -4,12 +4,10 @@ use std::collections::BTreeMap;
 
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use target::NativeTarget;
-use target_operations::{TargetOperationPlan, TargetUnitOperation};
 
 use super::{
-    AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
-    AbstractToTargetTranslationValidationReceipt,
-};
+    AbstractToTargetTranslationValidationError,
+    AbstractToTargetTranslationValidationReceipt};
 
 /// Raw IEEE fused multiply-add has no target realization; reject it even when
 /// the target rows omit it.

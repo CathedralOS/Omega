@@ -28,21 +28,16 @@
 use optimization_core::ExternalDecisionLog;
 use optimization_core::{
     OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
-    PsiOptimizationSelectionProjection,
-};
+    PsiOptimizationSelectionProjection};
 use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
-    VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
-};
+    VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit};
 
 #[cfg(any(test, feature = "test-support"))]
-use crate::pass_manager::{ExternalDecisionReplayError, run_registries_with_external_decisions};
 use crate::pass_manager::{
-    OptimizationRun, OptimizationRunError, VerifiedPsiOptimizationSession, run_registries,
-};
+    OptimizationRun, OptimizationRunError, VerifiedPsiOptimizationSession, run_registries};
 use crate::publication::{
-    OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan, publish_optimization_run,
-};
+    OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan, publish_optimization_run};
 #[cfg(any(test, feature = "test-support"))]
 use crate::rules::built_in_psi_registry;
 use crate::rules::built_in_psi_steps_for_selections;

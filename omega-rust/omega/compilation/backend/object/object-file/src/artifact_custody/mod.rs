@@ -5,30 +5,25 @@
 //! `reconstruction`, and canonical bytes in `codec`.
 
 use crate::artifact_custody::reconstruction::{
-    construct_artifact, construct_manifest, receipt, replay_artifact, validate_terminal_join,
-};
+    construct_artifact, construct_manifest, receipt};
 use optimization_core::{
     FunctionFragmentEmissionManifestIdentity, FunctionFragmentObjectContainerManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
-};
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity};
 use semantic_vocabulary::MachineId;
 use target::{Architecture, NativeTarget, ObjectFormat};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
     FunctionFragmentObjectContainerManifest, RelocationFreeObjectContainerError,
-    StagedOptimizedRelocationFreeObjectContainer,
-    validate_optimized_relocation_free_object_container,
-};
+    StagedOptimizedRelocationFreeObjectContainer};
 use crate::cursor::Cursor;
 use codec::{
     decode_artifact_content, decode_machine, decode_psi, decode_statistics, decode_target,
-    encode_artifact_content, encode_manifest_content,
-};
+    encode_artifact_content, encode_manifest_content};
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"OMGOTA\0\0";
 const ARTIFACT_VERSION: u32 = 2;

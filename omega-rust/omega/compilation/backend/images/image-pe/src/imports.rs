@@ -7,10 +7,8 @@ use crate::layout::align_to;
 use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence};
 use diagnostics::Diagnostic;
 use image::{
-    FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage,
-    FinalImageImportPlan, FinalImageLayout, FinalImageSection, PlacedDataRegionInventory,
-    PlacedExecutableRegion, PlacedExecutableRegionInventory,
-};
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage,
+    FinalImageImportPlan, FinalImageLayout, FinalImageSection, PlacedExecutableRegion, PlacedExecutableRegionInventory};
 use object_file::SymbolKind;
 use target::{Architecture, ForeignLocatorCandidate, ObjectFormat, TargetProfile};
 
@@ -380,13 +378,11 @@ pub(crate) fn validate_import_thunk_footprints(
 #[cfg(test)]
 mod tests {
     use super::{
-        PeImportThunk, build_import_table, install_import_thunks, validate_import_thunk_footprints,
-    };
+        PeImportThunk, build_import_table, install_import_thunks, validate_import_thunk_footprints};
     use arena::Handle;
     use image::{
         FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageImportPlan,
-        FinalImageSymbol,
-    };
+        FinalImageSymbol};
     use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
 
     #[test]
