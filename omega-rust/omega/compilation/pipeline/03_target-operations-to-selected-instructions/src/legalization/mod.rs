@@ -8,10 +8,10 @@ mod runtime_indices;
 mod scalar_graph_input;
 mod source;
 mod source_input;
-pub use source_input::LegalizationSource;
+pub(crate) use source_input::LegalizationSource;
 
 pub(crate) use model::legalization_validator_identity;
-pub use model::{LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations};
+pub(crate) use model::{LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations};
 
 use abstract_operations::AbstractOperationPlan;
 use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
@@ -19,7 +19,7 @@ use target_operations::TargetOperationPlan;
 
 use source::derive_source_function_rosters;
 
-pub fn legalize_target_operations<'source>(
+pub(crate) fn legalize_target_operations<'source>(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     source: impl Into<LegalizationSource<'source>>,

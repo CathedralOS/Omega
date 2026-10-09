@@ -5,7 +5,7 @@ use target_operations::MachineRegister;
 
 use register_environment::ValidatedTargetRegisterEnvironment;
 
-pub fn selection_constraints(
+pub(crate) fn selection_constraints(
     legalized: &ValidatedLegalizedOperations,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> SelectedSelectionConstraints {

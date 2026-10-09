@@ -7,7 +7,7 @@ use optimization_unit::PsiOptimizationUnit;
 /// artifact retained by the validated abstract phase. Construction and replay
 /// independently authenticate its current graph before admitting those cycles.
 #[derive(Clone, Copy)]
-pub struct LegalizationSource<'source> {
+pub(crate) struct LegalizationSource<'source> {
     pub(super) unit: &'source PsiOptimizationUnit,
 }
 

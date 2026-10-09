@@ -6,12 +6,14 @@ mod error;
 use machine_code::layout::evidence::relaxation_identity as identity;
 mod validation;
 
-pub use catalog::x86_rel8_selected;
+pub(crate) use catalog::x86_rel8_selected;
 pub use catalog::{
-    FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
-    FunctionRelativeLayoutRuleCatalogEntry, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES,
 };
-pub use error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis};
+pub(crate) use catalog::{
+    FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
+    FunctionRelativeLayoutRuleCatalogEntry, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES};
+pub use error::{OptimizedX86BranchRelaxationError};
+pub(crate) use error::{ X86BranchRelaxationWorkAxis};
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -32,7 +34,7 @@ use selected_form_encoding_to_resolved_layout::{
 use target::NativeTarget;
 use validation::{compare_replayed_evidence, validate_roots};
 
-pub fn stage_optimized_x86_branch_relaxation(
+pub(crate) fn stage_optimized_x86_branch_relaxation(
     physical: &ValidatedPhysicalRegisterModel,
     source: &StagedOptimizedResolvedSelectedFormLayout,
     budget: OptimizationWorkBudget,
@@ -44,7 +46,7 @@ pub fn stage_optimized_x86_branch_relaxation(
 /// Independent replay does not call the production fixed-point driver. It
 /// reconstructs the ordered scan, each shrink, every dense offset, the terminal
 /// no-change sweep, work usage, revisions, and final receipt.
-pub fn validate_optimized_x86_branch_relaxation<S: ValidatedSelectedAnalysis>(
+pub(crate) fn validate_optimized_x86_branch_relaxation<S: ValidatedSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
