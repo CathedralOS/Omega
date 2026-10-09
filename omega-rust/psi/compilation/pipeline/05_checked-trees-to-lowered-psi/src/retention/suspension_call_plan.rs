@@ -2,9 +2,9 @@
 //!
 //! Source environments, scalar/structural operand lanes and machine-local
 //! claims have different coordinates. The ephemeral call companion names
-//! current homes and established identities; the callee's checked telescope
-//! reindexes actual argument lanes. Neither join recreates storage, infers a
-//! claim from a type, nor admits a loan without its checked carry obligations.
+//! current homes, access and established identities; the callee's checked
+//! telescope reindexes actual argument lanes. Neither join recreates storage,
+//! infers a claim from a type, nor admits a loan without its checked carry obligations.
 //! Runtime backing and parking remain selected-provider responsibilities.
 
 use super::{
@@ -120,11 +120,11 @@ pub(crate) fn retain_suspension_call_plans(
                 {
                     return unsupported("suspension frontier scalar type join is inconsistent");
                 }
-            } else if let TerminalSuspensionPlace::Structural { place, .. } = &place
+            } else if let TerminalSuspensionPlace::Structural(argument) = &place
                 && !module.machines[machine_index]
                     .structural_places
                     .iter()
-                    .any(|declaration| declaration.id == *place)
+                    .any(|declaration| declaration.id == argument.place)
             {
                 return unsupported(
                     "suspension structural frontier has no caller storage declaration",
@@ -208,7 +208,10 @@ pub(crate) fn retain_suspension_call_plans(
 }
 
 /// Source positions and Terminal lanes are different namespaces. A structural
-/// binding keeps the current home and path; an SSA binding keeps its value.
+/// binding keeps its existing storage operand, including access; an SSA
+/// binding keeps its value. Neither a caller binding nor a callee formal may
+/// replace the actual operand's access with ownership just because their
+/// physical representations agree.
 fn source_binding(
     bindings: &lowered_psi::LoweredSourceFrontierBindings,
     position: usize,
@@ -231,10 +234,7 @@ fn source_binding(
             "suspension frontier source position has no storage binding",
         ))?;
     Ok((
-        TerminalSuspensionPlace::Structural {
-            place: binding.argument.place,
-            path: binding.argument.path.clone(),
-        },
+        TerminalSuspensionPlace::Structural(binding.argument.clone()),
         TerminalSuspensionValueType::Structural(binding.structural_type),
     ))
 }
@@ -333,10 +333,7 @@ fn call_argument_binding(
             "suspension call structural argument has no emitted formal",
         ))?;
     Ok((
-        TerminalSuspensionPlace::Structural {
-            place: argument.place,
-            path: argument.path.clone(),
-        },
+        TerminalSuspensionPlace::Structural(argument.clone()),
         TerminalSuspensionValueType::Structural(parameter.structural_type),
     ))
 }

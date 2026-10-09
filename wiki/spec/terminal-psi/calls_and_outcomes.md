@@ -277,9 +277,9 @@ on terminal source position or a producer's generic safe-to-suspend flag.
 
 A suspension site binds the exact call, checked crossing, callee, and commitment
 to the complete ordered live frontier. Its plan retains each value/place,
-type, storage role, exact live claims, and carry requirements for suspension,
-CPU, host thread, and address stability. Validation checks site/plan bijection,
-target, frontier commitment, membership, visibility/provenance, order, counts,
+type, storage role, structural access, exact live claims, and carry requirements
+for suspension, CPU, host thread, and address stability. Validation checks
+site/plan bijection, target, frontier commitment, membership, visibility/provenance, order, counts,
 types, and policies. Missing, duplicate, redirected, or understated rows reject.
 
 Completeness requires an independently established possibly-suspending crossing

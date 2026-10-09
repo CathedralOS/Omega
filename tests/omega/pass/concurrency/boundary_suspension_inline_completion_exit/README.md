@@ -35,10 +35,12 @@ The repair needs one per-value loan-to-backing join, not a permissive reference
 type or an exception for an inline provider. Checked `BorrowLoanFact` rows
 already retain the source occurrence, captured referent, owner path, available
 parent lineage and last use; these are not physical backing or pinning evidence.
-The checked suspension frontier records no loan relation, and
-`retention/suspension_call_plan.rs::source_binding` retains the structural home
-and path but drops `StructuralArgument::access`. Activation-wide analysis in
-stage 04 also assigns every borrow formation a strict CPU/thread contribution.
-Carry those loan obligations into the canonical frontier and activation envelope
-before relaxing admission; runtime backing, preservation and cancellation joins
-remain separate requirements.
+The canonical suspension frontier retains the complete current structural
+operand, including owned/shared/mutable/write-only access, in its wire bytes
+and frontier commitment. That access describes the existing binding; it is
+not proof of loan backing or pinning. The checked suspension frontier still
+records no loan relation, and activation-wide analysis in stage 04 assigns
+every borrow formation a strict CPU/thread contribution. Carry the loan
+lineage and lifetime obligations into the canonical frontier and activation
+envelope before relaxing admission; runtime backing, preservation and
+cancellation joins remain separate requirements.

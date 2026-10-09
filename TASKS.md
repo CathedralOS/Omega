@@ -5182,7 +5182,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     `retention/suspension_call_plan.rs`. The
     [local-loan reproduction](tests/omega/pass/concurrency/boundary_suspension_inline_completion_exit/README.md#retained-loan-implementation-frontier)
     first rejects the live reference's strict type policy. The canonical frontier
-    drops borrower access and retains no loan lineage/lifetime relation;
+    retains current structural access but no loan lineage/lifetime relation;
     activation-wide analysis separately treats borrow formation as strict.
     Connect the existing checked loan facts to all three consumers before
     relaxing admission, without a reference-type or inline-provider exception. Keep

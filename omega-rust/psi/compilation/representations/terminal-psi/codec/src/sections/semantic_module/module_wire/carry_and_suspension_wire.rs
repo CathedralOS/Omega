@@ -1,8 +1,15 @@
 //! Carry policies and suspension call plans, sites and targets on the
-//! wire.
+//! wire. Structural frontiers use the ordinary storage operand vocabulary:
+//! neither serialization nor the frontier commitment may erase loan access.
 
 use crate::sections::semantic_module::CodecError;
 use crate::sections::semantic_module::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use crate::sections::semantic_module::structural_place_wire::{
+    decode_structural_path, encode_structural_path,
+};
+use crate::sections::semantic_module::structural_signature_wire::{
+    decode_structural_access, encode_structural_access,
+};
 use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted, decode_ids};
 use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use terminal_psi::{
@@ -71,37 +78,11 @@ pub(crate) fn encode_suspension_call_plan(
                 writer.u8(1);
                 writer.id(*value);
             }
-            TerminalSuspensionPlace::Structural { place, path } => {
+            TerminalSuspensionPlace::Structural(argument) => {
                 writer.u8(2);
-                writer.id(*place);
-                writer.len("suspension structural path", path.len())?;
-                for segment in path {
-                    match segment {
-                        terminal_psi::StructuralPathSegment::Case(case) => {
-                            writer.u8(7);
-                            writer.id(*case);
-                        }
-                        terminal_psi::StructuralPathSegment::Field(field) => {
-                            writer.u8(1);
-                            writer.string("suspension structural field", field)?;
-                        }
-                        terminal_psi::StructuralPathSegment::FixedIndex(index) => {
-                            writer.u8(2);
-                            writer.u64(*index);
-                        }
-                        terminal_psi::StructuralPathSegment::Referent => writer.u8(3),
-                        terminal_psi::StructuralPathSegment::FixedByteRange { start, end } => {
-                            writer.u8(4);
-                            writer.u64(*start);
-                            writer.u64(*end);
-                        }
-                        terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                            writer.u8(6);
-                            writer.id(*index);
-                            writer.id(*obligation);
-                        }
-                    }
-                }
+                writer.id(argument.place);
+                encode_structural_access(writer, argument.access);
+                encode_structural_path(writer, "suspension structural path", &argument.path)?;
             }
         }
         match live.value_type {
@@ -185,30 +166,11 @@ pub(crate) fn decode_suspension_call_plan(
     let live_values = decode_counted(reader, |reader| {
         let place = match reader.u8()? {
             1 => TerminalSuspensionPlace::Scalar(reader.id("ValueId")?),
-            2 => TerminalSuspensionPlace::Structural {
+            2 => TerminalSuspensionPlace::Structural(terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
-                path: decode_counted(reader, |reader| match reader.u8()? {
-                    1 => Ok(terminal_psi::StructuralPathSegment::Field(
-                        reader.string("suspension structural field")?,
-                    )),
-                    2 => Ok(terminal_psi::StructuralPathSegment::FixedIndex(
-                        reader.u64()?,
-                    )),
-                    3 => Ok(terminal_psi::StructuralPathSegment::Referent),
-                    4 => Ok(terminal_psi::StructuralPathSegment::FixedByteRange {
-                        start: reader.u64()?,
-                        end: reader.u64()?,
-                    }),
-                    6 => Ok(terminal_psi::StructuralPathSegment::RuntimeIndex {
-                        index: reader.id("ValueId")?,
-                        obligation: reader.id("ObligationId")?,
-                    }),
-                    7 => Ok(terminal_psi::StructuralPathSegment::Case(
-                        reader.id("StructuralCaseId")?,
-                    )),
-                    tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
-                })?,
-            },
+                access: decode_structural_access(reader)?,
+                path: decode_structural_path(reader)?,
+            }),
             tag => return Err(CodecError::InvalidTag("TerminalSuspensionPlace", tag)),
         };
         let value_type = match reader.u8()? {
@@ -239,4 +201,98 @@ pub(crate) fn decode_suspension_call_plan(
         live_value_count,
         live_values,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{decode_suspension_call_plan, encode_suspension_call_plan};
+    use crate::codec_error::CodecError;
+    use crate::sections::semantic_module::wire::{Reader, Writer};
+    use language_semantics::CarryPolicy;
+    use semantic_vocabulary::{
+        MachineId, ObligationId, OperationId, PlaceId, StructuralCaseId, StructuralTypeId,
+        SuspensionCrossingId, ValueId,
+    };
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralPathSegment, TerminalSuspensionCallPlan,
+        TerminalSuspensionCallTarget, TerminalSuspensionLiveValue, TerminalSuspensionPlace,
+        TerminalSuspensionStorage, TerminalSuspensionValueType, suspension_frontier_commitment,
+    };
+
+    #[test]
+    fn suspension_storage_access_survives_wire_and_changes_identity() {
+        let mut encodings = Vec::new();
+        let mut commitments = Vec::new();
+        for access in [
+            StructuralAccess::Owned,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let selector = ValueId::new(7).expect("nonzero selector");
+            let plan = TerminalSuspensionCallPlan {
+                operation: OperationId::new(1).expect("nonzero operation"),
+                crossing: SuspensionCrossingId::new(2).expect("nonzero crossing"),
+                target: TerminalSuspensionCallTarget::Machine(
+                    MachineId::new(3).expect("nonzero machine"),
+                ),
+                effective: CarryPolicy::STRICT,
+                live_value_count: 1,
+                live_values: vec![TerminalSuspensionLiveValue {
+                    place: TerminalSuspensionPlace::Structural(StructuralArgument {
+                        place: PlaceId::new(4).expect("nonzero place"),
+                        access,
+                        path: vec![
+                            StructuralPathSegment::Case(
+                                StructuralCaseId::new(5).expect("nonzero case"),
+                            ),
+                            StructuralPathSegment::Field("values".to_owned()),
+                            StructuralPathSegment::Referent,
+                            StructuralPathSegment::FixedIndex(2),
+                            StructuralPathSegment::FixedByteRange { start: 1, end: 4 },
+                            StructuralPathSegment::RuntimeIndex {
+                                index: selector,
+                                obligation: ObligationId::new(8).expect("nonzero obligation"),
+                            },
+                        ],
+                    }),
+                    value_type: TerminalSuspensionValueType::Structural(
+                        StructuralTypeId::new(6).expect("nonzero structural type"),
+                    ),
+                    storage: TerminalSuspensionStorage::Local,
+                    claim_count: 0,
+                    claims: Vec::new(),
+                    effective: CarryPolicy::STRICT,
+                }],
+            };
+            let mut writer = Writer::default();
+            encode_suspension_call_plan(&mut writer, &plan).expect("encode frontier");
+            let encoded = writer.finish();
+            let mut reader = Reader::new(&encoded);
+            let decoded = decode_suspension_call_plan(&mut reader).expect("decode frontier");
+            assert_eq!(decoded, plan);
+            assert_eq!(reader.remaining(), 0);
+
+            let mut retained_values = Vec::new();
+            decoded.live_values[0]
+                .place
+                .visit_value_ids(|value| retained_values.push(value));
+            assert_eq!(retained_values, vec![selector]);
+            let commitment = suspension_frontier_commitment(&decoded);
+            assert!(!encodings.contains(&encoded));
+            assert!(!commitments.contains(&commitment));
+            encodings.push(encoded);
+            commitments.push(commitment);
+        }
+    }
+
+    #[test]
+    fn suspension_access_wire_rejects_accessless_module_format() {
+        let mut encoded = super::super::super::MAGIC.to_vec();
+        encoded.extend_from_slice(&130_u16.to_le_bytes());
+        assert!(matches!(
+            super::super::super::decode_module(&encoded),
+            Err(CodecError::UnsupportedFormatMarker(130))
+        ));
+    }
 }

@@ -1,8 +1,15 @@
-use crate::StructuralPathSegment;
+//! Provider-neutral storage retained at checked suspending calls.
+//!
+//! Structural frontiers keep the ordinary operand's location and access
+//! together. Pointer-equivalent owned and borrowed operands must not share a
+//! frontier commitment. This records existing authority; loan ancestry,
+//! backing lifetime and runtime preservation still require their own joins.
+
+use crate::{StructuralAccess, StructuralArgument, StructuralPathSegment};
 use language_semantics::CarryPolicy;
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, IeeeFloatFormat, IntegerCarrier, IntegerSign, MachineId,
-    OperationId, PlaceId, ScalarType, StructuralTypeId, SuspensionCrossingId, ValueId,
+    OperationId, ScalarType, StructuralTypeId, SuspensionCrossingId, ValueId,
 };
 use sha2::{Digest, Sha256};
 
@@ -46,10 +53,10 @@ pub struct TerminalSuspensionLiveValue {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalSuspensionPlace {
     Scalar(ValueId),
-    Structural {
-        place: PlaceId,
-        path: Vec<StructuralPathSegment>,
-    },
+    /// Retain the ordinary storage operand, including its access. A physical
+    /// pointer and path do not distinguish ownership from a loan; this row
+    /// records the existing authority without establishing backing or pinning.
+    Structural(StructuralArgument),
 }
 
 impl TerminalSuspensionPlace {
@@ -58,8 +65,8 @@ impl TerminalSuspensionPlace {
     pub fn visit_value_ids(&self, mut visit: impl FnMut(ValueId)) {
         match self {
             Self::Scalar(value) => visit(*value),
-            Self::Structural { path, .. } => {
-                for segment in path {
+            Self::Structural(argument) => {
+                for segment in &argument.path {
                     if let StructuralPathSegment::RuntimeIndex { index, .. } = segment {
                         visit(*index);
                     }
@@ -84,7 +91,7 @@ pub enum TerminalSuspensionStorage {
 
 pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8; 32] {
     let mut hash = Sha256::new();
-    hash.update(b"terminal-suspension-frontier-v2\0");
+    hash.update(b"terminal-suspension-frontier-v3\0");
     hash.update(plan.operation.get().to_le_bytes());
     hash.update(plan.crossing.get().to_le_bytes());
     match plan.target {
@@ -106,11 +113,17 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
                 hash.update([1]);
                 hash.update(value.get().to_le_bytes());
             }
-            TerminalSuspensionPlace::Structural { place, path } => {
+            TerminalSuspensionPlace::Structural(argument) => {
                 hash.update([2]);
-                hash.update(place.get().to_le_bytes());
-                hash.update((path.len() as u64).to_le_bytes());
-                for segment in path {
+                hash.update(argument.place.get().to_le_bytes());
+                hash.update([match argument.access {
+                    StructuralAccess::Owned => 1,
+                    StructuralAccess::SharedBorrow => 2,
+                    StructuralAccess::MutableBorrow => 3,
+                    StructuralAccess::WriteOnlyBorrow => 4,
+                }]);
+                hash.update((argument.path.len() as u64).to_le_bytes());
+                for segment in &argument.path {
                     match segment {
                         StructuralPathSegment::Case(case) => {
                             hash.update([7]);

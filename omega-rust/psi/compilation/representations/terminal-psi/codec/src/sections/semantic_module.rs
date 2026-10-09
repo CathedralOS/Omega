@@ -58,7 +58,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Machine and callback bodies retain their checked declaration identities.
 // Normal exclusive calls also retain their caller-local storage custody joins.
 // Boundary requirements retain their exact nominal service owner.
-pub(crate) const FORMAT_MARKER: u16 = 130;
+// Suspension storage operands retain the same access axis as ordinary calls.
+pub(crate) const FORMAT_MARKER: u16 = 131;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
