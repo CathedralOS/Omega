@@ -535,9 +535,11 @@ pub enum OperationKind {
         obligation: ObligationId,
     },
     /// Derive a borrowed byte view for [start, end), with a certificate of
-    /// start <= end <= length. Length must directly observe the same source.
+    /// start <= end <= length. The complete operand names the live descriptor,
+    /// including stored-reference crossings and captured selectors. Length
+    /// must directly observe that same descriptor, never its containing root.
     ByteSequenceSubslice {
-        source: PlaceId,
+        source: StructuralArgument,
         start: ValueId,
         end: ValueId,
         length: ValueId,
@@ -614,9 +616,11 @@ pub enum OperationKind {
     },
     /// Derive a borrowed element view for [start, end), with a certificate of
     /// start <= end <= length counted in elements. Length must directly
-    /// observe the same source through `ElementViewLength`.
+    /// observe the complete descriptor operand through `ElementViewLength`.
+    /// Access retains the selected loan; deriving a window never consumes or
+    /// copies the descriptor's backing.
     ElementViewSubslice {
-        source: PlaceId,
+        source: StructuralArgument,
         start: ValueId,
         end: ValueId,
         length: ValueId,
