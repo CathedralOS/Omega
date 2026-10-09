@@ -324,12 +324,7 @@ pub(crate) fn resolve_typed(
                 let StructuralTypeShape::PrimitiveScalar(scalar_type) = element.shape else {
                     return unsupported("indexed observation requires a primitive endpoint");
                 };
-                let (source, path) = resolve_primitive(fields, position, path, scalar_type)?;
-                return Ok(LoweredDirectExpression::PrimitiveRead {
-                    source,
-                    path,
-                    scalar_type,
-                });
+                return resolve_primitive(fields, position, path, scalar_type);
             }
             continue;
         }
