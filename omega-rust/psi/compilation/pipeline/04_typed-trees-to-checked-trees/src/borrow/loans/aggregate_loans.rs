@@ -25,28 +25,6 @@ pub(super) fn borrow_carrying_data_loans(
     local_data: &checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
-    if matches!(
-        program
-            .expression_table
-            .expression(local_data.initial_value),
-        checked_trees::expression::ExpressionNode::Call(_)
-            | checked_trees::expression::ExpressionNode::Name(_)
-            | checked_trees::expression::ExpressionNode::Member(_)
-            | checked_trees::expression::ExpressionNode::Indexed(_)
-    ) {
-        return aggregate_expression_borrow_loans(
-            program,
-            state.symbol,
-            statement_index,
-            machine_symbol,
-            local_data,
-            local_data.type_reference,
-            local_data.initial_value,
-            &[],
-            loan_trackers,
-        );
-    }
-
     let initializers = borrowed_initializers(
         program,
         local_data.type_reference,

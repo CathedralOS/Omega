@@ -1,5 +1,5 @@
 //! Definition scheduling only: no cut executable edges or ranking conclusions.
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 
 pub(crate) fn schedule(
     incoming: &[Vec<usize>],
@@ -39,11 +39,20 @@ pub(crate) fn schedule(
             break;
         }
     }
-    // Strict dominators form a chain. Their exit definitions are available on
-    // every arrival, including a backedge. Predecessor-only observations are
-    // never imported; destination parameters are introduced by the block itself.
-    let mut order = (0..incoming.len()).collect::<Vec<_>>();
-    order.sort_by_key(|position| dominators[*position].len());
+    // First-arrival order gives every non-entry block an actual incoming exit
+    // before its replay. Strict dominators still own ordinary definitions;
+    // custody instead follows that incoming edge and checks every later arrival,
+    // including backedges. Sorting by dominator depth could visit a diamond's
+    // join before the deeper arm that transports its descriptors.
+    let mut order = Vec::with_capacity(incoming.len());
+    let mut visited = BTreeSet::new();
+    let mut pending = VecDeque::from([entry]);
+    while let Some(position) = pending.pop_front() {
+        if visited.insert(position) {
+            order.push(position);
+            pending.extend(outgoing[position].iter().copied());
+        }
+    }
     order
         .into_iter()
         .map(|position| {

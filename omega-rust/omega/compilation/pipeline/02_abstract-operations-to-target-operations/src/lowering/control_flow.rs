@@ -1,4 +1,6 @@
-//! Ordinary control graphs; available definitions belong to dominating blocks.
+//! Ordinary control graphs: definitions belong to dominating blocks, but
+//! reference custody follows actual post-transfer, post-cleanup edges. Every
+//! arrival must agree with the first, including backedges, before publication.
 use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -49,8 +51,8 @@ use operations::lower_operation;
 use target_operations::{TargetControlBlock, TargetControlGraph, TargetScalarBlockParameter};
 use terminator::lower_terminator;
 
-/// Cleanup only removes reference leaves. An edge snapshot therefore retains
-/// the incoming descriptors unchanged under their exact carrier/path keys.
+/// Exact custody after simultaneous edge transfer and cleanup. Descriptor
+/// identity, backing and parents survive relocation under the receiving keys.
 #[derive(Clone)]
 struct ReferenceEdgeCustody {
     target: semantic_vocabulary::BlockId,
@@ -130,44 +132,40 @@ impl LiveDefinitions {
         }
     }
 
-    /// Only custody surviving every path is available from a dominator alone.
-    /// Direct successors additionally select their own edge snapshots at entry.
+    /// Keep each outgoing edge intact. An intersection would lose both
+    /// transported permissions and the obligations of conditionally live loans.
     fn finish_reference_edges(&mut self, exits: Vec<ReferenceEdgeCustody>) {
-        self.references
-            .retain(|key, _| exits.iter().all(|exit| exit.references.contains_key(key)));
-        self.drained_loan_roots = exits
-            .first()
-            .map(|exit| {
-                exit.drained_loan_roots
-                    .iter()
-                    .copied()
-                    .filter(|root| {
-                        exits
-                            .iter()
-                            .all(|other| other.drained_loan_roots.contains(root))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
         self.reference_edge_exits = exits;
     }
 
-    fn enter_reference_edge(&mut self, target: semantic_vocabulary::BlockId) {
+    /// Select post-transfer, post-cleanup custody from an actual edge. The
+    /// checked ownership contract requires exact agreement at every arrival;
+    /// a type declaration cannot restore a missing loan or choose its origin.
+    fn reference_arrival(
+        &self,
+        target: semantic_vocabulary::BlockId,
+        machine: MachineId,
+    ) -> Result<ReferenceEdgeCustody, LoweringError> {
+        if self.reference_edge_exits.is_empty() {
+            return Ok(self.reference_edge_exit(target));
+        }
         let mut exits = self
             .reference_edge_exits
             .iter()
             .filter(|exit| exit.target == target);
-        if let Some(first) = exits.next() {
-            self.references = first.references.clone();
-            self.drained_loan_roots = first.drained_loan_roots.clone();
-            for other in exits {
-                self.references
-                    .retain(|key, _| other.references.contains_key(key));
-                self.drained_loan_roots
-                    .retain(|root| other.drained_loan_roots.contains(root));
+        let mut arrival = exits
+            .next()
+            .ok_or_else(|| LoweringError::unsupported_control_flow(machine))?
+            .clone();
+        for other in exits {
+            if arrival.references != other.references {
+                return Err(LoweringError::unsupported_control_flow(machine));
             }
+            arrival
+                .drained_loan_roots
+                .retain(|root| other.drained_loan_roots.contains(root));
         }
-        self.reference_edge_exits.clear();
+        Ok(arrival)
     }
 
     /// Resolve the declared type of one currently readable structural root.
@@ -452,6 +450,7 @@ pub(super) fn lower(
     let schedule = dominance::schedule(&incoming, &outgoing, entry_position)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let mut live_exits: Vec<Option<LiveDefinitions>> = vec![None; entries.len()];
+    let mut reference_entries = vec![None; entries.len()];
     let mut lowered = vec![None; entries.len()];
     let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
     let initial = LiveDefinitions {
@@ -488,7 +487,21 @@ pub(super) fn lower(
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                 .clone(),
         };
-        live.enter_reference_edge(entries[position].block);
+        if position != entry_position {
+            let predecessor = incoming[position]
+                .iter()
+                .find_map(|predecessor| live_exits[*predecessor].as_ref())
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let arrival =
+                predecessor.reference_arrival(entries[position].block, function.machine)?;
+            // Ordinary homes and scalar definitions still come from the
+            // dominator. Loan membership must come from an incoming edge:
+            // overlaying it would revive a child moved out by both arms.
+            live.references = arrival.references;
+            live.drained_loan_roots = arrival.drained_loan_roots;
+        }
+        live.reference_edge_exits.clear();
+        reference_entries[position] = Some(live.references.clone());
         if position != entry_position {
             transfers::enter(&entries[position], &mut live);
             // Outgoing reference carriers were captured on the selected edge
@@ -605,6 +618,21 @@ pub(super) fn lower(
             terminator,
         });
         live_exits[position] = Some(live);
+    }
+    // First arrival permits cyclic graphs to be replayed once. Every edge,
+    // including a later arm or backedge, must carry the same exact permission
+    // roster before any lowered graph is returned. This mirrors checked IR
+    // ownership, rather than intersecting availability and erasing obligations.
+    for (position, predecessors) in incoming.iter().enumerate() {
+        for predecessor in predecessors {
+            let arrival = live_exits[*predecessor]
+                .as_ref()
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+                .reference_arrival(entries[position].block, function.machine)?;
+            if reference_entries[position].as_ref() != Some(&arrival.references) {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+        }
     }
     let blocks = lowered
         .into_iter()

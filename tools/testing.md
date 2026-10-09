@@ -239,6 +239,17 @@ One re-record pinned fifteen rows to a diagnostic removed eleven commits
 earlier, and it was caught only because the text contradicted a landed change.
 Reuse a runner only within one tree state.
 
+Keep baseline and candidate builds in separate `CARGO_TARGET_DIR` directories
+when comparing worktrees. A successful Cargo invocation against a shared target
+directory can retain another worktree's artifacts when timestamp freshness sees
+the candidate sources as older than those artifacts. Rebuilding the runner alone
+does not establish that its linked compiler dependencies came from the candidate.
+An isolated target directory avoids that ambiguity without deleting peer caches.
+On the pinned nightly, content freshness needs both
+`CARGO_UNSTABLE_CHECKSUM_FRESHNESS=true` (or `cargo -Z checksum-freshness`)
+and `CARGO_BUILD_FINGERPRINT=content`; enabling the unstable feature alone keeps
+timestamp freshness. See [Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
+
 The gate defaults `OMEGA_LIBRARY_ROOT` to the measured checkout's
 `source/library`, preserving an explicit caller override. Shared Cargo caches
 can retain a different worktree's development library path; a fresh runner can

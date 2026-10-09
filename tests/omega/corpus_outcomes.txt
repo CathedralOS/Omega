@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.5, "load1_start": 2.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 4.15, "load1_start": 4.15, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -384,6 +384,8 @@ fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
 	cannot prove index `main.off` is within length 48 in Main::main::main
 fail/borrows/same_initializer_reference_live_source_move rejected 538ms expected @e477ee0294de+wt
 	statement 0 moves `main.inventory` while local borrow `bundle` is still active (borrowed at statement 0; its last use is at statement 1)
+fail/borrows/selected_reference_child_live_source_write rejected 359ms expected @2a4f3488664b+wt
+	statement 3 mutates `first.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/selected_reference_live_nested_parent_write rejected 393ms expected @c910d797b35a
 	statement 4 mutates `second_parent` while local borrow `nested` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/selected_reference_live_reborrow_parent_write rejected 391ms expected @c910d797b35a
@@ -2372,6 +2374,7 @@ pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 3
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 2675ms check-target:macos_arm64 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 1330ms check-target:macos_arm64 @b5d8c6882a8b+wt
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 1151ms check-target:macos_arm64 @104c2da31081
+pass/borrows/runtime_selected_reference_child_retirement_exit checked 1397ms check-target:macos_arm64 @2a4f3488664b+wt
 pass/borrows/runtime_selected_reference_nested_restoration_exit checked 1862ms check-target:macos_arm64 @c910d797b35a
 pass/borrows/runtime_shared_qualified_view_cycle_exit checked 1705ms check-target:macos_arm64 @954364ed064e
 pass/borrows/runtime_shared_qualified_view_scalar_choice_exit checked 2700ms check-target:macos_arm64 @fb52befd538a

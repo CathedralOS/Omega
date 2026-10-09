@@ -32,6 +32,27 @@ pub(super) fn borrowed_initializers(
 ) -> Vec<BorrowedInitializer> {
     use typed_trees::types::TypeReferenceNode;
 
+    // Selection contributes every possible leaf at the same result path.
+    // The runtime chooses one arm, but all captured origins remain constrained
+    // for the result's live range. This is not proof of an every-arm transfer;
+    // retirement derives that separately from the retained value graph.
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        return program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .flat_map(|arm| {
+                borrowed_initializers(
+                    program,
+                    type_reference,
+                    arm.value,
+                    substitutions,
+                    owner_path,
+                )
+            })
+            .collect();
+    }
+
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { access, .. } => vec![BorrowedInitializer {
             owner_path: owner_path.to_vec(),

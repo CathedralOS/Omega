@@ -17,8 +17,8 @@ use super::{
 use crate::LegalizationError;
 use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::call_source;
-use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
@@ -29,7 +29,7 @@ use terminal_psi::{
 /// suspends, the producing operation, and the result row that formed the
 /// carrier identity. `root` is compile-time custody — it never names a
 /// pointer or descriptor.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::legalization) struct Leaf {
     /// Stable identity: the place and path where the carrier leaf was formed.
     /// Owned moves relocate the carrier, never this identity.
@@ -99,6 +99,7 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
 pub(in crate::legalization) struct Custody {
     leaves: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
     edge_exits: Vec<(
+        EdgeId,
         BlockId,
         BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
     )>,
@@ -106,29 +107,22 @@ pub(in crate::legalization) struct Custody {
 }
 
 impl Custody {
-    /// Cleanup only removes leaves. Each outgoing edge retains an independent
-    /// snapshot; descendants without a direct edge inherit the common survivors.
-    fn finish_edges(
-        &mut self,
-        exits: Vec<(
-            BlockId,
-            BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
-        )>,
-    ) {
-        self.leaves
-            .retain(|key, _| exits.iter().all(|(_, leaves)| leaves.contains_key(key)));
-        self.edge_exits = exits;
-    }
-
-    fn enter_edge(&mut self, target: BlockId) {
-        let mut matching = self.edge_exits.iter().filter(|(block, _)| *block == target);
-        if let Some((_, leaves)) = matching.next() {
-            self.leaves = leaves.clone();
-            for (_, leaves) in matching {
-                self.leaves.retain(|key, _| leaves.contains_key(key));
-            }
+    /// Arrival uses this exact edge's post-transfer, post-cleanup roster.
+    /// A block declaration or a dominator's survivors cannot restore a leaf.
+    fn edge_custody(&self, edge: EdgeId, target: BlockId) -> Result<Self, LegalizationError> {
+        let mut matching = self
+            .edge_exits
+            .iter()
+            .filter(|(candidate, block, _)| *candidate == edge && *block == target);
+        let (_, _, leaves) = matching.next().ok_or_else(invalid)?;
+        if matching.next().is_some() {
+            return Err(invalid());
         }
-        self.edge_exits.clear();
+        Ok(Self {
+            leaves: leaves.clone(),
+            edge_exits: Vec::new(),
+            borrowed_sources: self.borrowed_sources.clone(),
+        })
     }
 
     pub(in crate::legalization) fn leaf(
@@ -1805,13 +1799,13 @@ pub(in crate::legalization) fn apply_terminator(
                 re_home_bound_leaves(&mut exit, bindings, &destination.structural_parameters);
             }
             apply_cleanup_actions(&mut exit, actions.iter().cloned(), function, types)?;
-            exits.push((target, exit.leaves));
+            exits.push((edge, target, exit.leaves));
         } else {
             apply_cleanup_actions(custody, actions.iter().cloned(), function, types)?;
         }
     }
     if !exits.is_empty() {
-        custody.finish_edges(exits);
+        custody.edge_exits = exits;
     }
     Ok(())
 }
@@ -1971,11 +1965,11 @@ fn borrowed_sources(
     std::sync::Arc::new(sources)
 }
 
-/// Compute each block's entry custody snapshot: ingress seeding at the entry
-/// block and each dominator's exit state elsewhere, replayed over the exact
-/// optimized node order. Whole owned edge bindings may re-home a carrier —
-/// every stored loan travels with its record — so a block's entry state is
-/// its dominator's exit state with the edge's bound leaves re-keyed.
+/// Compute entries from actual incoming edges, never dominator storage alone.
+/// The first arrival seeds one block replay; every later arrival, including a
+/// backedge, must reproduce its exact leaf identities, origins and parents.
+/// This is the checked current-ownership join contract, not an origin union.
+/// Results remain provisional until every reachable edge has been compared.
 pub(in crate::legalization) fn block_entry_states(
     function: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
@@ -1988,105 +1982,18 @@ pub(in crate::legalization) fn block_entry_states(
         .enumerate()
         .map(|(position, block)| (block.id, position))
         .collect();
-    let mut incoming = vec![Vec::new(); blocks.len()];
-    let mut outgoing = vec![Vec::new(); blocks.len()];
-    for (position, block) in blocks.iter().enumerate() {
-        let terminator = block.nodes.last().ok_or_else(|| invalid())?;
-        for edge in &terminator.successors {
-            let target = *positions.get(&edge.target).ok_or_else(|| invalid())?;
-            if !outgoing[position].contains(&target) {
-                outgoing[position].push(target);
-                incoming[target].push(position);
-            }
-        }
-    }
     let entry_position = *positions.get(&function.entry).ok_or_else(|| invalid())?;
-    if !incoming[entry_position].is_empty() {
+    if positions.len() != blocks.len() {
         return Err(invalid());
-    }
-    // Strict-dominator chain schedule, mirroring the lowering's dominance walk.
-    let mut reachable = BTreeSet::new();
-    let mut pending = vec![entry_position];
-    while let Some(position) = pending.pop() {
-        if reachable.insert(position) {
-            pending.extend(outgoing[position].iter().copied());
-        }
-    }
-    if reachable.len() != blocks.len() {
-        return Err(invalid());
-    }
-    let mut dominators = vec![reachable.clone(); blocks.len()];
-    dominators[entry_position] = BTreeSet::from([entry_position]);
-    loop {
-        let mut changed = false;
-        for (position, predecessors) in incoming.iter().enumerate() {
-            if position == entry_position {
-                continue;
-            }
-            let Some((first, others)) = predecessors.split_first() else {
-                return Err(invalid());
-            };
-            let mut current = dominators[*first].clone();
-            for predecessor in others {
-                current.retain(|candidate| dominators[*predecessor].contains(candidate));
-            }
-            current.insert(position);
-            if current != dominators[position] {
-                dominators[position] = current;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
     }
     let borrowed_sources = borrowed_sources(function, types, unit);
-    let mut order = (0..blocks.len()).collect::<Vec<_>>();
-    order.sort_by_key(|position| dominators[*position].len());
-    let mut states: Vec<Option<Custody>> = vec![None; blocks.len()];
-    let mut entries = BTreeMap::new();
-    for position in order {
-        let mut custody = if position == entry_position {
-            let mut custody = entry(function, types)?;
-            custody.borrowed_sources = borrowed_sources.clone();
-            custody
-        } else {
-            let dominator = dominators[position]
-                .iter()
-                .copied()
-                .filter(|dominator| *dominator != position)
-                .max_by_key(|dominator| dominators[*dominator].len())
-                .ok_or_else(|| invalid())?;
-            let mut custody = states[dominator].clone().ok_or_else(|| invalid())?;
-            custody.enter_edge(blocks[position].id);
-            // A dominating edge that binds this block's parameters carries
-            // each whole owned move's loans onto the bound places. When the
-            // dominator reaches this block through an intermediate block —
-            // a merge point — no binding happens on its terminator and the
-            // entry state stays its exit state unchanged.
-            if let Some(edge) = blocks[dominator].nodes.last().and_then(|terminator| {
-                // Ordinary edge transfers were captured before cleanup.
-                // Case payload establishment keeps its separate transport.
-                if !matches!(
-                    terminator.operation,
-                    AbstractOperation::StructuralCase { .. }
-                ) {
-                    return None;
-                }
-                terminator
-                    .successors
-                    .iter()
-                    .find(|edge| edge.target == blocks[position].id)
-            }) {
-                re_home_bound_leaves(
-                    &mut custody,
-                    &edge.structural_bindings,
-                    &blocks[position].structural_parameters,
-                );
-            }
-            custody
-        };
-        entries.insert(blocks[position].id, custody.clone());
+    let mut initial = entry(function, types)?;
+    initial.borrowed_sources = borrowed_sources;
+    let mut entries = BTreeMap::from([(function.entry, initial)]);
+    let mut pending = VecDeque::from([entry_position]);
+    while let Some(position) = pending.pop_front() {
+        let block = &blocks[position];
+        let mut custody = entries.get(&block.id).cloned().ok_or_else(invalid)?;
         for node in &blocks[position].nodes {
             if matches!(
                 node.operation,
@@ -2103,7 +2010,37 @@ pub(in crate::legalization) fn block_entry_states(
                 apply(&mut custody, &node.operation, function, plan, unit)?;
             }
         }
-        states[position] = Some(custody);
+        let terminator = block.nodes.last().ok_or_else(invalid)?;
+        for edge in &terminator.successors {
+            let target_position = *positions.get(&edge.target).ok_or_else(invalid)?;
+            if target_position == entry_position {
+                return Err(invalid());
+            }
+            let mut arrival = custody.edge_custody(edge.psi_edge, edge.target)?;
+            // Case payload establishment has its own transport; ordinary owned
+            // bindings were already captured before their edge cleanup.
+            if matches!(
+                terminator.operation,
+                AbstractOperation::StructuralCase { .. }
+            ) {
+                re_home_bound_leaves(
+                    &mut arrival,
+                    &edge.structural_bindings,
+                    &blocks[target_position].structural_parameters,
+                );
+            }
+            if let Some(existing) = entries.get(&edge.target) {
+                if existing.leaves != arrival.leaves {
+                    return Err(invalid());
+                }
+            } else {
+                entries.insert(edge.target, arrival);
+                pending.push_back(target_position);
+            }
+        }
+    }
+    if entries.len() != blocks.len() {
+        return Err(invalid());
     }
     Ok(entries)
 }

@@ -11,7 +11,7 @@ use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::unit::{
     LoweringError, OperationKind, OperationResult, PlaceId, StructuralPlaceDeclaration,
-    StructuralPlaceKind, unsupported,
+    StructuralPlaceKind, StructuralTypeId, unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
 use std::borrow::Cow;
@@ -88,16 +88,14 @@ impl StructuralResults<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "call continuation result has not been produced",
                         ))?;
-                let place = place.as_ref().ok_or(LoweringError::Unsupported(
+                place.as_ref().ok_or(LoweringError::Unsupported(
                     "call continuation result is a projected alias",
                 ))?;
                 if *discard_on_return {
                     return unsupported("call continuation cleanup has conflicting custody");
                 }
-                if !matches!(place.kind, StructuralPlaceKind::OperationResult { .. }) {
-                    return unsupported("call continuation cleanup has no operation result");
-                }
-                Ok(place.id)
+                self.completed_value(binding_ordinal, operations)
+                    .map(|(place, _)| place)
             }
             Self::StateGraph { state, .. } => {
                 let binding = super::super::composed_control::state_graph_result(
@@ -116,16 +114,31 @@ impl StructuralResults<'_> {
         binding_ordinal: u32,
         operations: &OperationBuffer,
     ) -> Result<BorrowedWindowRepairValue, LoweringError> {
+        let (place, structural_type) = self.completed_value(binding_ordinal, operations)?;
+        Ok(BorrowedWindowRepairValue {
+            place,
+            structural_type,
+        })
+    }
+
+    /// Cleanup and restoration consume the completed binding, not the last
+    /// operation in its producer. Selection owns one join parameter; requiring
+    /// an operation result would recreate the value or omit its disposal.
+    fn completed_value(
+        &self,
+        binding_ordinal: u32,
+        operations: &OperationBuffer,
+    ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
         match self {
             Self::Dense(roster) => {
                 let (declaration, _) =
                     roster
                         .get(binding_ordinal as usize)
                         .ok_or(LoweringError::Unsupported(
-                            "borrowed-window repair binding is absent",
+                            "completed structural binding is absent",
                         ))?;
                 let declaration = declaration.as_ref().ok_or(LoweringError::Unsupported(
-                    "borrowed-window repair binding is a projected alias",
+                    "completed structural binding is a projected alias",
                 ))?;
                 let structural_type = match declaration.kind {
                     StructuralPlaceKind::OperationResult {
@@ -137,25 +150,24 @@ impl StructuralResults<'_> {
                         // already owns the join's type and custody; rejoin it
                         // to the exact declared place rather than requiring a
                         // second operation to manufacture the same value.
-                        let (_, binding) = operations
+                        let mut bindings = operations
                             .structural_values
                             .iter()
-                            .find(|(ordinal, _)| *ordinal == binding_ordinal)
-                            .ok_or(LoweringError::Unsupported(
-                                "borrowed-window repair join has no completed binding",
-                            ))?;
-                        binding.operation_result()?.structural_type
+                            .filter(|(ordinal, _)| *ordinal == binding_ordinal);
+                        let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                            "completed join has no registered binding",
+                        ))?;
+                        let result = binding.operation_result()?;
+                        if bindings.next().is_some() || result.place != declaration.id {
+                            return unsupported("completed join has no unique exact binding");
+                        }
+                        result.structural_type
                     }
                     _ => {
-                        return unsupported(
-                            "borrowed-window repair binding is not a completed value",
-                        );
+                        return unsupported("structural binding is not a completed value");
                     }
                 };
-                Ok(BorrowedWindowRepairValue {
-                    place: declaration.id,
-                    structural_type,
-                })
+                Ok((declaration.id, structural_type))
             }
             Self::StateGraph { state, .. } => {
                 let binding = super::super::composed_control::state_graph_result(
@@ -164,10 +176,7 @@ impl StructuralResults<'_> {
                     operations,
                 )?;
                 let produced = binding.operation_result()?;
-                Ok(BorrowedWindowRepairValue {
-                    place: produced.place,
-                    structural_type: produced.structural_type,
-                })
+                Ok((produced.place, produced.structural_type))
             }
         }
     }

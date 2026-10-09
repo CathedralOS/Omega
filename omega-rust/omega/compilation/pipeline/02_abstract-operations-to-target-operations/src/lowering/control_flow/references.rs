@@ -110,7 +110,7 @@ pub(in crate::lowering) fn borrowed_source_catalog(
 /// which referent root it suspends, which parent leaf it descends from, and
 /// which result row formed its identity. `root` is compile-time custody — it
 /// never names a pointer or descriptor.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ReferenceCustody {
     /// Stable identity: the place and path where the carrier leaf was formed.
     /// Owned moves relocate the carrier, never this identity.

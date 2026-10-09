@@ -7,9 +7,11 @@
 //! descend through the callee's formal ingress, and surviving leaves keep the
 //! root they were formed with. This module recomputes the same roster from the
 //! caller's own operation stream alone: entry seeding, carrier moves, record
-//! relocations, call results, and edge discards are walked in dominator order,
-//! so the retained rows are compared against an independent derivation rather
-//! than trusted. Producer admission gates that cannot change an emitted row —
+//! relocations, call results, and edge discards follow first-arrival scheduling.
+//! Every later arrival must carry the same complete live leaf roster; only
+//! dominating definitions, not custody, are inherited from the dominator.
+//! Retained rows are compared against this independent derivation rather than
+//! trusted. Producer admission gates that cannot change an emitted row —
 //! suspended-root checks, parent/child exclusivity, referent typing — are
 //! source verification's concern, so this replay only tracks which leaf lives
 //! at which carrier path and which root it suspends.
@@ -47,7 +49,7 @@ pub(super) enum BoundaryCallRow {
 /// whose referent storage stays with the caller. The row retains only the
 /// root's place, so the replay does the same while keeping the two origins
 /// distinct for `formal_origin` routing.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 enum Root {
     Place(PlaceId),
     Ingress(PlaceId, Vec<StructuralPathSegment>),
@@ -74,7 +76,7 @@ impl Root {
 /// it suspends and the structural contract its carrier place reports while
 /// holding the leaf. Formation identity and parentage decide admission only —
 /// never which row is emitted — so they are not retained.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 struct Leaf {
     root: Root,
     structural_type: StructuralTypeId,
@@ -94,33 +96,6 @@ struct Custody {
         BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
     )>,
     homes: BTreeMap<PlaceId, (StructuralTypeId, StructuralMultiplicity)>,
-}
-
-impl Custody {
-    /// Cleanup only removes leaves. Each outgoing edge retains an independent
-    /// snapshot; descendants without a direct edge inherit the common survivors.
-    fn finish_edges(
-        &mut self,
-        exits: Vec<(
-            BlockId,
-            BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
-        )>,
-    ) {
-        self.leaves
-            .retain(|key, _| exits.iter().all(|(_, leaves)| leaves.contains_key(key)));
-        self.edge_exits = exits;
-    }
-
-    fn enter_edge(&mut self, target: BlockId) {
-        let mut matching = self.edge_exits.iter().filter(|(block, _)| *block == target);
-        if let Some((_, leaves)) = matching.next() {
-            self.leaves = leaves.clone();
-            for (_, leaves) in matching {
-                self.leaves.retain(|key, _| leaves.contains_key(key));
-            }
-        }
-        self.edge_exits.clear();
-    }
 }
 
 /// Reconstruct immutable borrowed arrivals from current source operations.
@@ -1644,9 +1619,7 @@ fn apply_terminator(
             apply_cleanup_actions(custody, actions.iter().cloned(), function, declarations)?;
         }
     }
-    if !exits.is_empty() {
-        custody.finish_edges(exits);
-    }
+    custody.edge_exits = exits;
     Some(())
 }
 
@@ -1690,15 +1663,14 @@ fn apply_cleanup_actions(
     Some(())
 }
 
-/// Dominator-order block schedule: each block inherits its immediate
-/// dominator's exit custody. Unreachable or predecessor-free non-entry blocks
-/// have no honest lowering.
-
-/// Replay the caller's custody in dominator order and collect the reference
+/// Replay the caller's custody in first-arrival order and collect the reference
 /// leaf roster each structural-result `CallStructural` — authored or
 /// installed-provider — establishes. A source whose custody stream cannot be
 /// replayed yields no expected rows, and a retained structural-result `Call`
-/// row without an expected entry rejects.
+/// row without an expected entry rejects. Each block receives its live leaves
+/// from an actual predecessor edge. Every other edge, including a backedge or
+/// a second alternative with the same target, must agree on the complete leaf
+/// records. Immediate dominators supply only operation-established definitions.
 pub(super) fn expected(
     function: &AbstractFunction,
     source_functions: &[AbstractFunction],
@@ -1769,13 +1741,16 @@ pub(super) fn expected(
         declarations,
     ));
     let mut exits: Vec<Option<Custody>> = vec![None; entries.len()];
+    let mut arrivals = vec![None; entries.len()];
+    arrivals[entry_position] = Some(initial.leaves.clone());
     let mut expected = BTreeMap::new();
     for (position, dominator) in dominator_schedule(&incoming, &outgoing, entry_position)? {
         let mut custody = match dominator {
             None => initial.clone(),
             Some(dominator) => exits[dominator].clone()?,
         };
-        custody.enter_edge(entries[position].block);
+        custody.leaves = arrivals[position].as_ref()?.clone();
+        custody.edge_exits.clear();
         let range = &ranges[position];
         for operation in &function.operations[range.start..range.end - 1] {
             apply(
@@ -1794,6 +1769,21 @@ pub(super) fn expected(
             function,
             declarations,
         )?;
+        // Do not deduplicate edges by target or intersect carrier keys: two
+        // arrivals may hold different referents or contracts at the same path.
+        // A processed target still retains its entry roster for backedge checks.
+        for (target, leaves) in &custody.edge_exits {
+            let target_position = entries
+                .iter()
+                .position(|candidate| candidate.block == *target)?;
+            if let Some(existing) = &arrivals[target_position] {
+                if existing != leaves {
+                    return None;
+                }
+            } else {
+                arrivals[target_position] = Some(leaves.clone());
+            }
+        }
         exits[position] = Some(custody);
     }
     Some(expected)
