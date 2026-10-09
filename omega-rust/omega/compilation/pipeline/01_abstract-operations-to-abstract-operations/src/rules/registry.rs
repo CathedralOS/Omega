@@ -88,7 +88,7 @@ impl<'a> RuleAnalysisView<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RuleProposalError {
+pub enum RuleProposalError {
     MissingAnalysis(AnalysisKind),
     InvalidCandidate(PsiRewriteCandidateError),
     MissingAcceptedObligation {
@@ -135,7 +135,7 @@ impl RuleScheduleKey {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RuleRegistryError {
+pub enum RuleRegistryError {
     UnsupportedOptimization(PsiOptimization),
     UnsupportedOptimizationCombination,
     DuplicateRule(OptimizationRuleIdentity),

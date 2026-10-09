@@ -39,34 +39,25 @@ mod rewrites;
 pub use register_allocation::{RegisterAllocationError, stage_register_allocation};
 
 // Stages sequenced by `stage_register_allocation`, in route order.
-pub use assignment::baseline::{
-};
+
 pub(crate) use assignment::baseline::{
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies};
 pub use assignment::home_assignment::{
     FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeIdentity,
-    RegisterHomePlan, ValidatedRegisterHomes, VirtualRegisterHome, register_home_identity,
-};
+    RegisterHomePlan, ValidatedRegisterHomes, VirtualRegisterHome, register_home_identity};
 pub(crate) use assignment::home_assignment::{ RegisterHomeError, RegisterHomeValidationReceipt,
     assign_register_homes};
 pub use assignment::post_allocation_manifest::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,
     PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
     PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
-    PostAllocationUnavailableData, ValidatedPostAllocationOptimizationManifest,
-};
-pub use assignment::recovery::{
-};
-pub(crate) use assignment::recovery::{
-    stage_active_resident_register_allocation,
-    stage_leaf_local_fixed_view_register_allocation_composing,
-    stage_pre_allocation_register_allocation, stage_selected_lowering_register_allocation,
-    stage_shared_entry_fixed_view_register_allocation};
+    PostAllocationUnavailableData, ValidatedPostAllocationOptimizationManifest};
+
+
 pub(crate) use assignment::runtime_spill::RuntimeSpillAllocationError;
-pub use assignment::transformed::{
-};
+
 pub(crate) use assignment::transformed::{
     OptimizedPostPreAllocationHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
@@ -76,18 +67,15 @@ pub(crate) use assignment::transformed::{
     StagedOptimizedRegisterHomesAfterSelectedLowering};
 
 // Rematerialization staged by the active-resident recovery rule.
-pub use rewrites::{
-};
+
 pub(crate) use rewrites::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,
-    StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
     stage_optimized_active_resident_rematerialization_pressure};
 
 // Current allocation facts.
-pub use output::{ AllocationEvidence, AllocationOutput, RetainedAllocation,
-};
+pub use output::{ AllocationEvidence, AllocationOutput, RetainedAllocation};
 pub(crate) use output::{
     AllocationAdmissionError};
 
@@ -98,10 +86,8 @@ pub use preservation::{
     CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
     ValidatedAllocatedCalleeSavedRequirements,
     encode_callee_saved_modification_witness_identity, stage_allocated_callee_saved_requirements,
-    validate_allocated_callee_saved_requirements,
-};
-pub(crate) use preservation::{
-    AllocatedCalleeSavedRequirementReceipt, allocated_callee_saved_requirement_identity};
+    validate_allocated_callee_saved_requirements};
+
 
 // Validated spill boundaries not yet sequenced by `stage_register_allocation`.
 
@@ -109,5 +95,4 @@ pub(crate) use preservation::{
 // and legality; the post-allocation stages name these through this crate.
 pub use selected_instructions_to_selected_instructions::{
     MachineEffectStageError, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedPreAllocationMachineEffects, ValidatedSelectedAnalysis, analyze_machine_effects,
-};
+    ValidatedPreAllocationMachineEffects, ValidatedSelectedAnalysis, analyze_machine_effects};

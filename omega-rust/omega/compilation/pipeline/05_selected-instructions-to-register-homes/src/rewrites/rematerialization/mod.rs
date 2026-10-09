@@ -311,7 +311,7 @@ impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizedActiveResidentRematerializationError {
+pub enum OptimizedActiveResidentRematerializationError {
     UnsupportedPolicy,
     SpillChoice(SpillChoiceError),
     Classification(RecoveryClassificationError),

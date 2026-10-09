@@ -205,7 +205,7 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizedRegisterHomeCustodyError {
+pub enum OptimizedRegisterHomeCustodyError {
     Assignment(RegisterHomeError),
     Revalidation(RegisterHomeError),
     Manifest(PostAllocationOptimizationManifestError),
@@ -316,7 +316,7 @@ impl StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizedPostCopyRegisterHomeCustodyError {
+pub enum OptimizedPostCopyRegisterHomeCustodyError {
     UpstreamReanalysis(OptimizedSelectedReanalysisError),
     Assignment(RegisterHomeError),
     Revalidation(RegisterHomeError),

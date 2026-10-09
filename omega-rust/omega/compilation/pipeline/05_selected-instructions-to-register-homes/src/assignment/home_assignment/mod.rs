@@ -138,7 +138,7 @@ impl ValidatedRegisterHomes {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RegisterHomeError {
+pub enum RegisterHomeError {
     RootMismatch,
     FunctionMismatch {
         function: usize,
@@ -192,9 +192,6 @@ pub(crate) enum RegisterHomeError {
         function: usize,
         leader: u32,
         member_count: usize,
-    },
-    NonCanonicalAssignments {
-        function: usize,
     },
 }
 

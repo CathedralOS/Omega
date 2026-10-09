@@ -63,7 +63,7 @@ pub(crate) fn baseline_psi_cost_model_identity() -> TargetCostModelIdentity {
 }
 
 #[derive(Debug)]
-pub(crate) struct VerifiedPsiOptimizationSession {
+pub struct VerifiedPsiOptimizationSession {
     input: VerifiedPsiOptimizationInput,
     unit: PsiOptimizationUnit,
     /// Validated at construction in every build, so malformed cycle topology
@@ -344,7 +344,7 @@ pub enum OptimizationRunError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CandidateContractAxis {
+pub enum CandidateContractAxis {
     Input,
     Rule,
     RequiredAnalyses,
@@ -353,7 +353,7 @@ pub(crate) enum CandidateContractAxis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ExternalDecisionReplayError {
+pub enum ExternalDecisionReplayError {
     Schema(ExternalDecisionSchemaError),
     ContextMismatch(ExternalDecisionContextAxis),
     DuplicateDecision {
@@ -379,7 +379,7 @@ pub(crate) enum ExternalDecisionReplayError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ExternalDecisionContextAxis {
+pub enum ExternalDecisionContextAxis {
     Schema,
     Source,
     Selections,
