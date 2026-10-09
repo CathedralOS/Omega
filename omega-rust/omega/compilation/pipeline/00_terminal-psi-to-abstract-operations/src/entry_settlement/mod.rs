@@ -9,7 +9,7 @@ pub use model::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError, ValidatedNativeProgramEntrySettlement,
 };
 pub(crate) use model::{
-    ValidatedNativeProgramEntryCallingPlans};
+    };
 
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 

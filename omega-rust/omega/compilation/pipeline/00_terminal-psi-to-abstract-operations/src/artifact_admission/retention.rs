@@ -17,7 +17,7 @@ use abstract_operations::AbstractOperationPlan;
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct AdmittedOptimizationArtifact {
+pub struct AdmittedOptimizationArtifact {
     pub(super) input: VerifiedPsiOptimizationInput,
 }
 
@@ -28,20 +28,6 @@ impl AdmittedOptimizationArtifact {
 
     pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
         self.input.context()
-    }
-
-    pub fn placed_view_inputs(&self) -> &[terminal_psi::TerminalPlacedViewInput] {
-        &self.context().module().placed_view_inputs
-    }
-
-    /// The verified optimizer input with the complete roster still retained
-    /// inside the verifier context module. The handoff stays exact because
-    /// construction is private to artifact admission, so a stale or
-    /// substituted roster is unrepresentable here rather than merely
-    /// unchecked. The rows remain semantic custody only: they grant no
-    /// backing, range, access, or lifetime authority.
-    pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInput {
-        self.input
     }
 }
 
