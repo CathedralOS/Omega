@@ -18,6 +18,11 @@ use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
 
 use crate::machine_effects::aarch64_selected_abi;
+
+pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
+pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET: u16 = 0;
+pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET: u16 = 0;
+pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET: u16 = 0;
 pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH: u8 = 4;
 
 /// One register-destination materialization group: an `adrp`/`add` pair.
