@@ -8,7 +8,7 @@ use super::{
     ValidatedNonAuthoritativeCalleeSaveStorage, custody, replay,
 };
 
-pub fn validate_non_authoritative_callee_save_storage(
+pub(crate) fn validate_non_authoritative_callee_save_storage(
     source: &ValidatedAllocatedCalleeSavedRequirements,
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: NonAuthoritativeCalleeSaveStoragePlan,

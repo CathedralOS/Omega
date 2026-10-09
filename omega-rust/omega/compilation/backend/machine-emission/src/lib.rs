@@ -47,19 +47,16 @@ mod function_realization;
 
 pub use function_realization::{
     stage_fixed_frame_function_relative_realization,
-    validate_fixed_frame_function_relative_realization,
 };
 
 pub use function_realization::{
-    FunctionRelativeFrame, FunctionRelativeFrameDisposition,
-    FunctionRelativeOptimizationRealizationError, FunctionRelativeOptimizationRealizationManifest,
-    FunctionRelativeOptimizationRealizationManifestDecodeError,
-    FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
-    FunctionRelativeOptimizationRealizationStatistics, FunctionRelativeOptimizationUnavailableData,
-    StagedFixedFrameFunctionRelativeRealization,
-    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
-    ValidatedFunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeOptimizationRealizationError,
 };
+pub use function_realization::{
+    StagedFixedFrameFunctionRelativeRealization};
+pub use function_realization::{
+    ValidatedFunctionRelativeOptimizationRealizationManifest};
+pub use function_realization::{ FunctionRelativeOptimizationRealizationManifest};
 
 // Evidence the realization joins: frame geometry, frame bytes, exit contract.
 mod exit_contract;
@@ -67,68 +64,60 @@ pub mod frame_layout;
 mod frame_protocol;
 
 pub use frame_protocol::{
-    stage_target_frame_protocol_encoding, validate_target_frame_protocol_encoding,
 };
 
 pub use frame_protocol::{
-    FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingError,
+    FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
     TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingPlan,
-    TargetFrameProtocolEncodingPolicy, TargetFrameProtocolEncodingReceipt,
-    ValidatedTargetFrameProtocolEncoding, target_frame_protocol_encoding_identity,
+    TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
 };
 
 pub use exit_contract::{
-    stage_whole_function_exit_contract_after_x86_branch_relaxation,
-    stage_whole_function_exit_contract_for_layout, stage_whole_function_exit_contract_with_frame,
-    validate_whole_function_exit_contract_after_x86_branch_relaxation,
-    validate_whole_function_exit_contract_with_frame,
 };
 
-pub use exit_contract::{
-    ValidatedWholeFunctionExitContract, WholeFunctionEntryAssumption, WholeFunctionExitContract,
-    WholeFunctionExitContractError, WholeFunctionExitContractIdentity, WholeFunctionExitEvidence,
+pub use exit_contract::{ WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity, WholeFunctionExitEvidence,
     WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
     WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
     WholeFunctionReturnValueEvidence,
 };
+pub use exit_contract::{
+    ValidatedWholeFunctionExitContract};
 
 // 2. Fragment emission.
 mod fragment_emission;
 
 pub use fragment_emission::{
-    stage_optimized_function_fragment_emission, validate_optimized_function_fragment_emission,
+    stage_optimized_function_fragment_emission,
 };
 
-pub use fragment_emission::{
-    FunctionFragmentEmissionError, FunctionFragmentEmissionManifest,
+pub use fragment_emission::{ FunctionFragmentEmissionManifest,
     FunctionFragmentEmissionManifestDecodeError, FunctionFragmentEmissionStage,
     FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
-    StagedFunctionFragmentEmissionCustodyReceipt, StagedOptimizedFunctionFragmentEmission,
-    StagedOptimizedFunctionFragmentEmissionSource, ValidatedFunctionFragmentEmissionManifest,
+    StagedOptimizedFunctionFragmentEmissionSource,
 };
+pub use fragment_emission::{
+    FunctionFragmentEmissionError};
+pub use fragment_emission::{ StagedOptimizedFunctionFragmentEmission, ValidatedFunctionFragmentEmissionManifest};
 
 pub use fragment_emission::projection::{
-    FunctionFragmentStatisticsOverflow, ResolvedFragmentEmissionError,
-    emit_resolved_function_fragments, function_fragment_emission_statistics,
-    validate_resolved_function_fragments,
 };
 
 // 3. Frame application.
 mod frame_application;
 
 pub use frame_application::{
-    stage_function_fragment_frame_application, validate_function_fragment_frame_application,
+    stage_function_fragment_frame_application,
 };
 
 pub use frame_application::{
-    FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
-    FunctionFragmentFrameApplicationError, FunctionFragmentFrameApplicationIdentity,
-    FunctionFragmentFrameApplicationReceipt, StagedFunctionFragmentFrameApplication,
+    FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,
     function_fragment_frame_application_identity,
 };
+pub use frame_application::{
+    FunctionFragmentFrameApplicationError};
+pub use frame_application::{ StagedFunctionFragmentFrameApplication};
 
 pub use frame_application::insertion::{
-    FrameApplicationError, apply_frame_protocol_to_fragments, validate_frame_protocol_application,
 };
 
 // 4. Text placement.
@@ -141,14 +130,13 @@ pub use text_placement::{
 pub use text_placement::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
-    FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError,
-    StagedFixedFrameTextSectionCustodyReceipt, StagedOptimizedFixedFrameTextSection,
-    ValidatedFunctionFragmentTextSectionManifest,
+    FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError, StagedOptimizedFixedFrameTextSection,
 };
+pub use text_placement::{
+    StagedFixedFrameTextSectionCustodyReceipt,
+    ValidatedFunctionFragmentTextSectionManifest};
 
 pub use text_placement::placement::{
-    TextPlacementError, TextPlacementInput, place_fragment_text_section, text_section_statistics,
-    validate_fragment_text_section,
 };
 
 // Private callback records projected from placed text.
@@ -162,9 +150,6 @@ pub use private_callback::{
 mod code_layout;
 
 pub use code_layout::{
-    CodeLayoutAddress, CodeLayoutError, PlacedCodeRegion, SelectedApplicationCodeLayout,
-    describe_code_layouts, describe_selected_application_code_layout,
-    validate_selected_application_code_layout,
 };
 
 // Target-owned x86-64 byte recipes outside the route.
@@ -173,18 +158,6 @@ mod startup_trampoline;
 mod x86_fma;
 
 pub use entry_exit_stub::{
-    ValidatedX86_64DeriverStubEmission, ValidatedX86_64ResolvedDeriverStub,
-    X86_64DeriverStubEmission, X86_64DeriverStubEmissionError, X86_64DeriverStubEmissionFootprint,
-    X86_64DeriverStubMemberCall, X86_64DeriverStubRelocation, X86_64DeriverStubResolution,
-    X86_64DeriverStubResolutionError, emit_x86_64_deriver_entry_exit_stub,
-    resolve_x86_64_deriver_stub_member_call, validate_x86_64_deriver_entry_exit_stub,
-    validate_x86_64_resolved_deriver_stub,
 };
 pub use startup_trampoline::{
-    X86_64_STARTUP_TRAMPOLINE_BYTE_COUNT, X86_64ResolvedStartupTrampoline,
-    X86_64StartupTrampolineFields, X86_64StartupTrampolineFootprint,
-    X86_64StartupTrampolineResolution, X86_64StartupTrampolineResolutionError,
-    X86_64StartupTrampolineTemplate, emit_x86_64_startup_trampoline,
-    resolve_x86_64_startup_trampoline, validate_x86_64_startup_trampoline,
 };
-pub use x86_fma::{EmittedX86ScalarFmaFragment, emit_feature_required_x86_scalar_fma};

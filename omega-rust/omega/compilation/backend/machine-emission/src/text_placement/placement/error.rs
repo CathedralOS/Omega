@@ -1,7 +1,7 @@
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TextPlacementError {
+pub(crate) enum TextPlacementError {
     DuplicateFunction(MachineId),
     MissingSemanticEntry(MachineId),
     DuplicateSemanticEntry(MachineId),

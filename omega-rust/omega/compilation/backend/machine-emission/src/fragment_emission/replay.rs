@@ -5,7 +5,7 @@ use crate::function_realization::StagedFixedFrameFunctionRelativeRealization;
 #[derive(Debug)]
 /// Retained inputs for independently replaying the completed realization.
 /// These roles are replay inputs only. Current program data are retained separately.
-pub struct FunctionFragmentReplayInputs {
+pub(crate) struct FunctionFragmentReplayInputs {
     realization: StagedFixedFrameFunctionRelativeRealization,
 }
 
@@ -15,7 +15,7 @@ impl From<StagedFixedFrameFunctionRelativeRealization> for FunctionFragmentRepla
     }
 }
 impl FunctionFragmentReplayInputs {
-    pub fn fixed_frame(&self) -> &StagedFixedFrameFunctionRelativeRealization {
+    pub(crate) fn fixed_frame(&self) -> &StagedFixedFrameFunctionRelativeRealization {
         &self.realization
     }
 }
@@ -37,7 +37,7 @@ impl FunctionFragmentReplayInputs {
         self.layout_optimization().layout()
     }
 
-    pub fn layout_optimization(
+    pub(crate) fn layout_optimization(
         &self,
     ) -> &resolved_layout_to_resolved_layout::ResolvedLayoutOptimization {
         self.realization.layout_optimization()

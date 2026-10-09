@@ -18,18 +18,19 @@ mod stack_commit;
 mod unwind;
 mod validation;
 
-pub use error::TargetFrameLayoutError;
+pub(crate) use error::TargetFrameLayoutError;
 pub use machine_code::target_frame_layout_identity;
 pub use register_environment::FrameAbiPreservationConvention;
 pub use save_storage::{
     FunctionNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveSlot,
-    NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageError,
+    NonAuthoritativeCalleeSaveSlotId,
     NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
-    NonAuthoritativeCalleeSaveStoragePolicy, NonAuthoritativeCalleeSaveStorageReceipt,
-    ValidatedNonAuthoritativeCalleeSaveStorage, non_authoritative_callee_save_storage_identity,
-    stage_non_authoritative_callee_save_storage, validate_non_authoritative_callee_save_storage,
+    NonAuthoritativeCalleeSaveStoragePolicy,
 };
-pub use validation::validate_target_frame_layout;
+pub(crate) use save_storage::{ NonAuthoritativeCalleeSaveStorageError,
+    ValidatedNonAuthoritativeCalleeSaveStorage,
+    stage_non_authoritative_callee_save_storage, validate_non_authoritative_callee_save_storage};
+pub(crate) use validation::validate_target_frame_layout;
 
 pub(crate) use unwind::{FrameContinuationCustody, frame_unwind_policy};
 
@@ -51,9 +52,9 @@ use target::NativeTarget;
 /// them as `disp32`, and the shared frame-address resolution admits no wider
 /// one — so layout refuses a larger frame by name instead of leaving one of
 /// its accesses to fail at encoding.
-pub const MAX_FRAME_BYTES: u64 = i32::MAX as u64;
+pub(crate) const MAX_FRAME_BYTES: u64 = i32::MAX as u64;
 
-pub fn stage_target_frame_layout(
+pub(crate) fn stage_target_frame_layout(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
@@ -65,7 +66,7 @@ pub fn stage_target_frame_layout(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TargetFrameLayoutReceipt {
+pub(crate) struct TargetFrameLayoutReceipt {
     identity: TargetFrameLayoutIdentity,
     post_allocation_machine: PostAllocationMachineIdentity,
     callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
@@ -128,7 +129,7 @@ impl TargetFrameLayoutReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedTargetFrameLayout {
+pub(crate) struct ValidatedTargetFrameLayout {
     pub(in crate::frame_layout) plan: std::sync::Arc<TargetFrameLayoutPlan>,
     pub(in crate::frame_layout) receipt: TargetFrameLayoutReceipt,
 }

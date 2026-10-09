@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeOptimizationRealizationManifestDecodeError {
+pub(crate) enum FunctionRelativeOptimizationRealizationManifestDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

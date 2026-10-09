@@ -19,8 +19,8 @@ mod stage;
 mod validation;
 mod validation_rules;
 
-pub use error::WholeFunctionExitContractError;
-pub use layout_optimization::stage_whole_function_exit_contract_for_layout;
+pub(crate) use error::WholeFunctionExitContractError;
+pub(crate) use layout_optimization::stage_whole_function_exit_contract_for_layout;
 pub(crate) use layout_optimization::validate_exit_record_for_replayed_layout;
 pub use machine_code::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
@@ -29,11 +29,12 @@ pub use machine_code::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 pub use stage::{
+};
+pub(crate) use stage::{
     stage_whole_function_exit_contract_after_x86_branch_relaxation,
     stage_whole_function_exit_contract_with_frame,
     validate_whole_function_exit_contract_after_x86_branch_relaxation,
-    validate_whole_function_exit_contract_with_frame,
-};
+    validate_whole_function_exit_contract_with_frame};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedWholeFunctionExitContract {

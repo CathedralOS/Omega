@@ -32,7 +32,7 @@
 use calling_conventions::{MachineRegister, RegisterSet};
 
 /// Byte width of the emitted trampoline body (code, embedded GDT, gdtr).
-pub const X86_64_STARTUP_TRAMPOLINE_BYTE_COUNT: usize = 0x87;
+pub(crate) const X86_64_STARTUP_TRAMPOLINE_BYTE_COUNT: usize = 0x87;
 
 const PHASE_PROTECTED_OFFSET: usize = 0x22;
 const PHASE_LONG_OFFSET: usize = 0x53;
@@ -47,7 +47,7 @@ const GDT_LIMIT: u16 = 0x17;
 /// Every offset names a position within the template bytes; widths are the
 /// exact operand widths the surrounding instruction encodes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86_64StartupTrampolineFields {
+pub(crate) struct X86_64StartupTrampolineFields {
     /// `u32` field inside the embedded `gdtr` record: the linear base of the
     /// GDT, resolved as `placement_base + gdt_offset`.
     pub gdt_base_field: u16,
@@ -71,7 +71,7 @@ pub struct X86_64StartupTrampolineFields {
 /// masking disposition its `cli` realizes. Mode-transition register traffic
 /// (`cr0`/`cr3`/`cr4`/`EFER`) is the transition itself, not caller state.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64StartupTrampolineFootprint {
+pub(crate) struct X86_64StartupTrampolineFootprint {
     pub transient_writes: RegisterSet,
     pub writes_flags: bool,
     pub masks_maskable_interrupts: bool,
@@ -80,7 +80,7 @@ pub struct X86_64StartupTrampolineFootprint {
 /// One emitted startup-trampoline template: the byte body with all six
 /// sealed fields zeroed, the field map, and the derived footprint.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64StartupTrampolineTemplate {
+pub(crate) struct X86_64StartupTrampolineTemplate {
     pub bytes: Vec<u8>,
     pub fields: X86_64StartupTrampolineFields,
     pub footprint: X86_64StartupTrampolineFootprint,
@@ -90,7 +90,7 @@ pub struct X86_64StartupTrampolineTemplate {
 /// realized trampoline extent base (the startup-vector base); the remaining
 /// three are contract/supply-side values the install route delivers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86_64StartupTrampolineResolution {
+pub(crate) struct X86_64StartupTrampolineResolution {
     pub placement_base: u64,
     pub page_table_root: u64,
     pub stack_top: u64,
@@ -99,7 +99,7 @@ pub struct X86_64StartupTrampolineResolution {
 
 /// A trampoline template sealed by one resolution.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64ResolvedStartupTrampoline {
+pub(crate) struct X86_64ResolvedStartupTrampoline {
     bytes: Vec<u8>,
     resolution: X86_64StartupTrampolineResolution,
 }
@@ -115,7 +115,7 @@ impl X86_64ResolvedStartupTrampoline {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64StartupTrampolineResolutionError {
+pub(crate) enum X86_64StartupTrampolineResolutionError {
     /// A sealed field would leave the emitted body or its operand width.
     FieldOutsideBody,
     /// `placement_base` plus a sealed body offset leaves the 32-bit fields'
@@ -146,7 +146,7 @@ impl std::error::Error for X86_64StartupTrampolineResolutionError {}
 /// with all installation-sealed fields zeroed, plus its field map and the
 /// derived physical footprint. Emission is total — the recipe is fixed and
 /// every input-dependent byte is sealed by resolution.
-pub fn emit_x86_64_startup_trampoline() -> X86_64StartupTrampolineTemplate {
+pub(crate) fn emit_x86_64_startup_trampoline() -> X86_64StartupTrampolineTemplate {
     let mut bytes = Vec::with_capacity(X86_64_STARTUP_TRAMPOLINE_BYTE_COUNT);
 
     // Real mode: mask interrupts and normalize the data segments.
@@ -293,7 +293,7 @@ fn resolve_fields(
 /// The resolution is replayed by [`validate_x86_64_startup_trampoline`]
 /// before the sealed body is returned, so a drifted template or record
 /// refuses rather than installing wrong bytes.
-pub fn resolve_x86_64_startup_trampoline(
+pub(crate) fn resolve_x86_64_startup_trampoline(
     template: &X86_64StartupTrampolineTemplate,
     resolution: X86_64StartupTrampolineResolution,
 ) -> Result<X86_64ResolvedStartupTrampoline, X86_64StartupTrampolineResolutionError> {
@@ -319,7 +319,7 @@ pub fn resolve_x86_64_startup_trampoline(
 
 /// Independently replay sealed trampoline bytes against the exact template
 /// and resolution record they claim to encode.
-pub fn validate_x86_64_startup_trampoline(
+pub(crate) fn validate_x86_64_startup_trampoline(
     template: &X86_64StartupTrampolineTemplate,
     resolution: &X86_64StartupTrampolineResolution,
     bytes: &[u8],

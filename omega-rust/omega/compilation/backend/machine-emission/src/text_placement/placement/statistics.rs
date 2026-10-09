@@ -6,7 +6,7 @@ use machine_code::{
     RelocationFreeTextSectionPlacement,
 };
 
-pub fn text_section_statistics(
+pub(crate) fn text_section_statistics(
     section: &RelocationFreeTextSectionPlacement,
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<FunctionFragmentTextSectionStatistics, TextPlacementError> {

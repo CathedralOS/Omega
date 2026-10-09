@@ -5,7 +5,7 @@ use super::{
     ValidatedTargetFrameProtocolEncoding, replay, seal,
 };
 
-pub fn validate_target_frame_protocol_encoding(
+pub(crate) fn validate_target_frame_protocol_encoding(
     frame: &ValidatedTargetFrameLayout,
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: TargetFrameProtocolEncodingPlan,

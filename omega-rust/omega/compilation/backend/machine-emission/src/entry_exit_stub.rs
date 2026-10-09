@@ -48,7 +48,7 @@ use semantic_vocabulary::MachineId;
 /// data (for example the admitted acknowledgement token's carrier words); the
 /// stub materializes them as immediates and never interprets them.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64DeriverStubMemberCall {
+pub(crate) struct X86_64DeriverStubMemberCall {
     pub member: MachineId,
     pub parameter_operands: Vec<Vec<u8>>,
 }
@@ -56,7 +56,7 @@ pub struct X86_64DeriverStubMemberCall {
 /// The unresolved rel32 field the image binder seals to the member body's
 /// emitted entry. Offsets name positions inside the emitted stub bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86_64DeriverStubRelocation {
+pub(crate) struct X86_64DeriverStubRelocation {
     pub member: MachineId,
     pub opcode_byte_offset: u16,
     pub field_byte_offset: u16,
@@ -69,7 +69,7 @@ pub struct X86_64DeriverStubRelocation {
 /// the stub itself writes (restored before exit), the operand frame reserved
 /// below the save area, and the entry's masking disposition.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64DeriverStubEmissionFootprint {
+pub(crate) struct X86_64DeriverStubEmissionFootprint {
     pub saved_registers: RegisterSet,
     pub transient_writes: RegisterSet,
     pub writes_flags: bool,
@@ -81,7 +81,7 @@ pub struct X86_64DeriverStubEmissionFootprint {
 /// One emitted deriver-owned entry/exit stub: the byte body plus the sealed
 /// member target and the physical footprint the bytes were replayed against.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64DeriverStubEmission {
+pub(crate) struct X86_64DeriverStubEmission {
     pub identity: InstalledEntryFactIdentity,
     pub member: MachineId,
     pub bytes: Vec<u8>,
@@ -90,7 +90,7 @@ pub struct X86_64DeriverStubEmission {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedX86_64DeriverStubEmission {
+pub(crate) struct ValidatedX86_64DeriverStubEmission {
     emission: X86_64DeriverStubEmission,
     non_authoritative_report_fingerprint: u64,
 }
@@ -107,7 +107,7 @@ impl ValidatedX86_64DeriverStubEmission {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86_64DeriverStubResolution {
+pub(crate) struct X86_64DeriverStubResolution {
     pub member: MachineId,
     pub stub_section_offset: u64,
     pub member_section_offset: u64,
@@ -116,7 +116,7 @@ pub struct X86_64DeriverStubResolution {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedX86_64ResolvedDeriverStub {
+pub(crate) struct ValidatedX86_64ResolvedDeriverStub {
     bytes: Vec<u8>,
     resolution: X86_64DeriverStubResolution,
 }
@@ -132,7 +132,7 @@ impl ValidatedX86_64ResolvedDeriverStub {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum X86_64DeriverStubEmissionError {
+pub(crate) enum X86_64DeriverStubEmissionError {
     /// The supplied boundary plan is not the exact plan the installed facts
     /// (and therefore the derived stub) were admitted under.
     BoundaryPlanMismatch,
@@ -177,7 +177,7 @@ impl std::fmt::Display for X86_64DeriverStubEmissionError {
 impl std::error::Error for X86_64DeriverStubEmissionError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64DeriverStubResolutionError {
+pub(crate) enum X86_64DeriverStubResolutionError {
     RelocationMismatch,
     SectionCoordinateOverflow,
     RelativeDisplacementOutOfRange,
@@ -195,7 +195,7 @@ impl std::error::Error for X86_64DeriverStubResolutionError {}
 
 /// Emit the deriver-owned entry/exit stub for one installed x86-64 external
 /// root and independently replay the emitted bytes before returning them.
-pub fn emit_x86_64_deriver_entry_exit_stub(
+pub(crate) fn emit_x86_64_deriver_entry_exit_stub(
     stub: &ValidatedX86_64DeriverStub,
     boundary: &ValidatedBoundaryEntryPlan,
     member_call: &X86_64DeriverStubMemberCall,
@@ -221,7 +221,7 @@ pub fn emit_x86_64_deriver_entry_exit_stub(
 
 /// Independently replay an emitted stub against the exact contract, boundary
 /// plan, and member transfer it claims to encode.
-pub fn validate_x86_64_deriver_entry_exit_stub(
+pub(crate) fn validate_x86_64_deriver_entry_exit_stub(
     stub: &ValidatedX86_64DeriverStub,
     boundary: &ValidatedBoundaryEntryPlan,
     member_call: &X86_64DeriverStubMemberCall,
@@ -242,7 +242,7 @@ pub fn validate_x86_64_deriver_entry_exit_stub(
 
 /// Seal the member call's rel32 field once the stub body and the member's
 /// emitted entry both hold section coordinates.
-pub fn resolve_x86_64_deriver_stub_member_call(
+pub(crate) fn resolve_x86_64_deriver_stub_member_call(
     emission: &ValidatedX86_64DeriverStubEmission,
     stub_section_offset: u64,
     member_section_offset: u64,
@@ -271,7 +271,7 @@ pub fn resolve_x86_64_deriver_stub_member_call(
 }
 
 /// Replay a patched stub body against the exact resolution equation.
-pub fn validate_x86_64_resolved_deriver_stub(
+pub(crate) fn validate_x86_64_resolved_deriver_stub(
     emission: &ValidatedX86_64DeriverStubEmission,
     stub_section_offset: u64,
     member_section_offset: u64,

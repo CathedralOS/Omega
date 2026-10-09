@@ -105,7 +105,7 @@ pub fn stage_fixed_frame_function_relative_realization(
 /// The stage does not call this on what it just produced (verification
 /// placement in `omega-rust/pipeline.md`); retained-artifact readers and tests
 /// do.
-pub fn validate_fixed_frame_function_relative_realization(
+pub(crate) fn validate_fixed_frame_function_relative_realization(
     staged: &StagedFixedFrameFunctionRelativeRealization,
 ) -> Result<
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,

@@ -19,16 +19,19 @@ mod fixed_frame;
 mod frame;
 
 pub use carriers::{
-    StagedFixedFrameFunctionRelativeRealization,
-    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
 };
-pub use codec::FunctionRelativeOptimizationRealizationManifestDecodeError;
+pub(crate) use carriers::{
+    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt};
+pub use carriers::{
+    StagedFixedFrameFunctionRelativeRealization};
+pub(crate) use codec::FunctionRelativeOptimizationRealizationManifestDecodeError;
 pub use error::FunctionRelativeOptimizationRealizationError;
 pub use fixed_frame::{
     stage_fixed_frame_function_relative_realization,
-    validate_fixed_frame_function_relative_realization,
 };
-pub use frame::FunctionRelativeFrame;
+pub(crate) use fixed_frame::{
+    validate_fixed_frame_function_relative_realization};
+pub(crate) use frame::FunctionRelativeFrame;
 
 use machine_code::{
     ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy,
@@ -44,22 +47,22 @@ use selected_instructions::SelectedInstructionPlanIdentity;
 use target::NativeTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeOptimizationRealizationStage {
+pub(crate) enum FunctionRelativeOptimizationRealizationStage {
     ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeOptimizationRealizationScope {
+pub(crate) enum FunctionRelativeOptimizationRealizationScope {
     FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeOptimizationUnavailableData {
+pub(crate) enum FunctionRelativeOptimizationUnavailableData {
     Unavailable,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FunctionRelativeOptimizationRealizationStatistics {
+pub(crate) struct FunctionRelativeOptimizationRealizationStatistics {
     pub functions: u64,
     pub blocks: u64,
     pub instructions: u64,
@@ -69,7 +72,7 @@ pub struct FunctionRelativeOptimizationRealizationStatistics {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeFrameDisposition {
+pub(crate) enum FunctionRelativeFrameDisposition {
     Unavailable,
     CanonicalFixedFrameV1 {
         layout: TargetFrameLayoutIdentity,

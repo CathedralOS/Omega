@@ -7,7 +7,7 @@ use super::{
     TargetFrameLayoutError, TargetFrameLayoutPlan, ValidatedTargetFrameLayout, replay, seal,
 };
 
-pub fn validate_target_frame_layout(
+pub(crate) fn validate_target_frame_layout(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,

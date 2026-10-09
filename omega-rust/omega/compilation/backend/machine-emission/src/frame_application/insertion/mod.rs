@@ -23,7 +23,7 @@ mod validation;
 mod validation_branch;
 
 use crate::frame_protocol::TargetFrameProtocolEncodingPlan;
-pub use error::FrameApplicationError;
+pub(crate) use error::FrameApplicationError;
 use machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentEmissionPlan,
     FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,
@@ -31,7 +31,7 @@ use machine_code::{
 use optimization_core::FunctionFragmentEmissionManifestIdentity;
 use register_model::ValidatedPhysicalRegisterModel;
 
-pub fn apply_frame_protocol_to_fragments(
+pub(crate) fn apply_frame_protocol_to_fragments(
     source: &FunctionFragmentEmissionPlan,
     source_manifest: FunctionFragmentEmissionManifestIdentity,
     protocol: &TargetFrameProtocolEncodingPlan,
@@ -40,7 +40,7 @@ pub fn apply_frame_protocol_to_fragments(
     compute::apply(source, source_manifest, protocol, physical)
 }
 
-pub fn validate_frame_protocol_application(
+pub(crate) fn validate_frame_protocol_application(
     source: &FunctionFragmentEmissionPlan,
     source_manifest: FunctionFragmentEmissionManifestIdentity,
     protocol: &TargetFrameProtocolEncodingPlan,

@@ -22,7 +22,8 @@ mod replay;
 mod source;
 mod validation;
 
-pub use error::{FunctionFragmentEmissionError, FunctionFragmentEmissionManifestDecodeError};
+pub use error::{ FunctionFragmentEmissionManifestDecodeError};
+pub use error::{FunctionFragmentEmissionError};
 pub use source::StagedOptimizedFunctionFragmentEmissionSource;
 
 use crate::function_realization::ValidatedFunctionRelativeOptimizationRealizationManifest;
@@ -54,7 +55,7 @@ pub fn stage_optimized_function_fragment_emission(
     })
 }
 
-pub fn validate_optimized_function_fragment_emission(
+pub(crate) fn validate_optimized_function_fragment_emission(
     staged: &StagedOptimizedFunctionFragmentEmission,
 ) -> Result<StagedFunctionFragmentEmissionCustodyReceipt, FunctionFragmentEmissionError> {
     validate_source(&staged.source)?;
@@ -136,7 +137,7 @@ impl StagedOptimizedFunctionFragmentEmission {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedFunctionFragmentEmissionCustodyReceipt {
+pub(crate) struct StagedFunctionFragmentEmissionCustodyReceipt {
     source_realization: FunctionRelativeOptimizationRealizationManifestIdentity,
     fragments: FunctionFragmentEmissionIdentity,
     manifest: FunctionFragmentEmissionManifestIdentity,
