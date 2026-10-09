@@ -34,7 +34,7 @@ pub use attachment::{
     canonical_ownership_frontier_snapshot,
 };
 pub use construction::{
-    OptimizationUnitBuildError, reconstruct_psi_optimization_function_seed,
+    OptimizationUnitBuildError, operation_definition, reconstruct_psi_optimization_function_seed,
     reconstruct_psi_optimization_unit_seed,
 };
 pub use cycles::{

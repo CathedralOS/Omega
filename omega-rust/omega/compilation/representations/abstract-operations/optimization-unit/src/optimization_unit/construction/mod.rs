@@ -12,6 +12,7 @@ mod restamp;
 mod scalar_dataflow;
 mod structural_custody;
 pub use function::reconstruct_psi_optimization_function_seed;
+pub use scalar_dataflow::operation_definition;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitBuildError {

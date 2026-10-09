@@ -2,7 +2,7 @@ use super::super::{AbstractOperation, ScalarType, ValueId};
 use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::binding_arguments;
 
-pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarType)> {
+pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarType)> {
     use AbstractOperation as O;
     match operation {
         O::Call {

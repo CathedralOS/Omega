@@ -1,126 +1,14 @@
 //! Independently reconstructed scalar definitions and uses.
-use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::binding_arguments;
 use optimization_unit::{ValueDefinition, ValueDefinitionSite, ValueUse};
-use semantic_vocabulary::{BlockId, ScalarType};
+use semantic_vocabulary::BlockId;
 
 pub(crate) fn expected_definitions(
     operation: &abstract_operations::AbstractOperation,
     block: BlockId,
     node: u32,
 ) -> Vec<ValueDefinition> {
-    use abstract_operations::AbstractOperation as O;
-    let definition = match operation {
-        O::Call {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::IntegerConstant {
-            result,
-            scalar_type,
-            ..
-        } => Some((*result, *scalar_type)),
-        O::IeeeFloatConstant { result, value, .. } => {
-            Some((*result, ScalarType::IeeeFloat(value.format())))
-        }
-        O::NearestIeeeFloatFusedMultiplyAdd { result, format, .. }
-        | O::FloatResultPolicy { result, format, .. } => {
-            Some((*result, ScalarType::IeeeFloat(*format)))
-        }
-        O::CallStructural {
-            result: AbstractStructuralCallResult::Scalar(result),
-            ..
-        }
-        | O::PrimitiveScalarRead { result, .. }
-        | O::StructuralCaseMembership { result, .. }
-        | O::ByteSequenceRead { result, .. }
-        | O::ByteSequencePredicate { result, .. }
-        | O::ByteSequenceEqual { result, .. }
-        | O::ByteSequenceLength { result, .. }
-        | O::ElementViewLength { result, .. }
-        | O::ElementViewRead { result, .. }
-        | O::StructuralByteSequenceFieldLength { result, .. }
-        | O::StructuralByteSequenceFieldRead { result, .. }
-        | O::StructuralScalarFieldRead { result, .. } => Some((result.value, result.scalar_type)),
-        O::BoundaryCall {
-            result: abstract_operations::AbstractBoundaryResult::Scalar(result),
-            ..
-        } => Some((result.value, result.scalar_type)),
-        O::BooleanConstant { result, .. }
-        | O::BooleanNot { result, .. }
-        | O::BooleanEqual { result, .. }
-        | O::IeeeFloatCompare { result, .. }
-        | O::IntegerEqual { result, .. }
-        | O::IntegerLessThan { result, .. }
-        | O::IntegerLessOrEqual { result, .. } => Some((*result, ScalarType::Boolean)),
-        O::IntegerBitwiseNot {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::IntegerBitwiseAnd {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::IntegerBitwiseOr {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::IntegerBitwiseXor {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::IntegerArithmetic {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::TrappingInteger {
-            result,
-            scalar_type,
-            ..
-        } => Some((*result, ScalarType::Integer(*scalar_type))),
-        O::IntegerWiden {
-            result,
-            target_type,
-            ..
-        }
-        | O::IntegerExactCast {
-            result,
-            target_type,
-            ..
-        } => Some((*result, ScalarType::Integer(*target_type))),
-        O::IntegerShift {
-            result, value_type, ..
-        } => Some((*result, ScalarType::Integer(*value_type))),
-        O::ScalarRepresentationView {
-            result,
-            target_type,
-            ..
-        } => Some((*result, *target_type)),
-        O::AtomicEvent { event, .. } => {
-            use abstract_operations::AbstractAtomicEvent as E;
-            // A load defines its observed result; a read-modify-write,
-            // swap, or decisive compare-exchange defines the
-            // instruction-observed prior. Store and fence define no value,
-            // and a single-attempt event defines a structural outcome
-            // rather than a scalar.
-            match event {
-                E::Load { result, .. } => Some((result.value, result.scalar_type)),
-                E::ReadModifyWrite { prior, .. }
-                | E::Swap { prior, .. }
-                | E::CompareExchange {
-                    observed: prior, ..
-                } => Some((prior.value, prior.scalar_type)),
-                E::Store { .. } | E::CompareExchangeOnce { .. } | E::Fence { .. } => None,
-            }
-        }
-        _ => None,
-    };
+    let definition = optimization_unit::operation_definition(operation);
     definition
         .into_iter()
         .map(|(value, scalar_type)| ValueDefinition {
