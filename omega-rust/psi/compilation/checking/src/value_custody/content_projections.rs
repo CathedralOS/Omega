@@ -514,17 +514,16 @@ fn data_field<'program>(
         .type_reference_table
         .peeled_type_reference(receiver_type);
     let (symbol, fallback) = match program.type_reference_table.type_reference(receiver_type) {
-        TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str()),
+        TypeReferenceNode::Named { symbol, name } => (*symbol, name),
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
             ..
-        } => (*base_symbol, base_name.as_str()),
+        } => (*base_symbol, base_name),
         _ => return None,
     };
-    let definition = program.data_definitions().iter().find(|definition| {
-        (symbol.is_valid() && definition.symbol == symbol) || definition.name.as_str() == fallback
-    })?;
+    let definition =
+        crate::field_domains::data_definition_by_symbol_or_name(program, symbol, fallback)?;
     program
         .data_members(definition)
         .iter()

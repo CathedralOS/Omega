@@ -383,9 +383,11 @@ fn field_type_reference(
             arguments,
             ..
         } => {
-            let data = program.data_definitions().iter().find(|data| {
-                (base_symbol.is_valid() && data.symbol == *base_symbol) || data.name == *base_name
-            })?;
+            let data = crate::field_domains::data_definition_by_symbol_or_name(
+                program,
+                *base_symbol,
+                base_name,
+            )?;
             let field = data_field_type_reference(program, data, field_symbol, field_name)?;
             let parameters = program.data_type_parameters(data);
             let arguments = program

@@ -189,9 +189,7 @@ fn member_symbol_from_type_reference(
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => return None,
     };
-    let data = program.data_definitions().iter().find(|definition| {
-        (symbol.is_valid() && definition.symbol == symbol) || definition.name == *name
-    })?;
+    let data = validation::field_domains::data_definition_by_symbol_or_name(program, symbol, name)?;
     validation::data_member_symbol_by_name(program, data, member_name).or_else(|| {
         program
             .data_members(data)

@@ -116,9 +116,7 @@ pub(in super::super) fn constructor_literal_term(
     literal: &TableStructLiteral,
     mut supplied_term: impl FnMut(ExpressionHandle) -> Option<StructuralTerm>,
 ) -> Option<StructuralTerm> {
-    let definition = program.data_definitions().iter().find(|definition| {
-        literal.type_symbol.is_valid() && definition.symbol == literal.type_symbol
-    })?;
+    let definition = program.data_definition_by_symbol(literal.type_symbol)?;
     let variant = match literal.case_symbol {
         Some(symbol) => Some(program.data_members(definition).iter().find_map(
             |member| match member {

@@ -749,10 +749,11 @@ impl<'program> Evaluator<'program> {
                 .type_reference(type_reference)
             {
                 let program = self.program;
-                let definition = program.data_definitions().iter().find(|data| {
-                    (base_symbol.is_valid() && data.symbol == *base_symbol)
-                        || data.name.as_str() == base_name.as_str()
-                });
+                let definition = validation::field_domains::data_definition_by_symbol_or_name(
+                    program,
+                    *base_symbol,
+                    base_name,
+                );
                 if let Some(definition) = definition
                     && matches!(
                         DataDefinition::shape_kind_from_members(
