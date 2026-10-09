@@ -3777,10 +3777,16 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `python3 tools/corpus_gate.py --native --filter runtime_indexed_struct_field_rmw_exit,runtime_parameter_nested_literal_index_read_exit,runtime_double_indexed_rmw_exit,runtime_machine_owned_indexed_integer_write_exit,runtime_hoisted_index_write_exit`
   executes the fixtures above with their authored exits: `&write` and `&mut`
   calls modify the selected caller element and leave neighbors untouched. Add
-  fixtures for interleaved fields with nested indices, computed selectors,
-  field-held loop counters, leaf copies and shared receiver reads
-  (passing `cells[i]` by explicit shared borrow), and fail fixtures for invalid
-  indices. Use
+  fixtures for field-held loop counters and leaf copies. Complete the same
+  cross-host execution coverage for nested field/index call borrows in
+  [the selector regression family](tests/omega/pass/collections/runtime_computed_nested_borrow_call_exit/README.md):
+  shared reads, computed and signed indices, exact-once authored argument order,
+  later mutation, private joins and dynamic Unit calls retain the selected
+  caller cell and leave neighbors untouched. Keep the selected-extent and
+  shared-authority refusal controls. Runtime-indexed constrained shared field
+  reads remain open at `SourceCustodyMismatch` in
+  [the unchanged pending witness](tests/omega/pending/layouts/runtime_indexed_restricted_field_read/README.md).
+  Use
   **CANONICALIZE-SCALAR-RANGE-CONTRACTS** for bounds. **WRITE-ONLY-BORROW** and
   **STRUCTURAL-BORROW-IDENTITY** own general loan admission;
   **TERMINAL-SLICE-VIEW-VOCABULARY** owns view bounds; **PLAN-LAID-VIEWS** owns
