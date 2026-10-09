@@ -30,8 +30,6 @@ mod storage_fields;
 #[cfg(test)]
 mod tests;
 
-pub use linkage_fixups::{
-};
 pub(crate) use linkage_fixups::{
     ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageKind,
     ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,

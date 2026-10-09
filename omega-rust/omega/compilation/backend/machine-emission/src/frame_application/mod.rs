@@ -78,7 +78,7 @@ impl StagedFunctionFragmentFrameApplication {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FunctionFragmentFrameApplicationReceipt {
+pub struct FunctionFragmentFrameApplicationReceipt {
     identity: FunctionFragmentFrameApplicationIdentity,
     source_fragment_manifest: FunctionFragmentEmissionManifestIdentity,
     source_fragments: FunctionFragmentEmissionIdentity,

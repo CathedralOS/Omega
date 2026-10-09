@@ -70,7 +70,7 @@ impl ValidatedElfDynamicTablePayload {
 /// Rejected `.dynamic` serialization with exact semantic-plan custody.
 #[derive(Debug)]
 #[must_use = "ELF dynamic serialization rejection retains the semantic plan"]
-pub(crate) struct ElfDynamicTableSerializationError {
+pub struct ElfDynamicTableSerializationError {
     plan: ValidatedElfDynamicTagPlan,
     diagnostic: Diagnostic,
 }

@@ -122,7 +122,7 @@ impl NonAuthoritativeCalleeSaveStorageReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedNonAuthoritativeCalleeSaveStorage {
+pub struct ValidatedNonAuthoritativeCalleeSaveStorage {
     pub(in crate::frame_layout::save_storage) plan: NonAuthoritativeCalleeSaveStoragePlan,
     pub(in crate::frame_layout::save_storage) receipt: NonAuthoritativeCalleeSaveStorageReceipt,
 }

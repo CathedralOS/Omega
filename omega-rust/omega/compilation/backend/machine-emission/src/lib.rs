@@ -63,8 +63,6 @@ mod exit_contract;
 pub mod frame_layout;
 mod frame_protocol;
 
-pub use frame_protocol::{
-};
 
 pub use frame_protocol::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
@@ -72,8 +70,6 @@ pub use frame_protocol::{
     TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
 };
 
-pub use exit_contract::{
-};
 
 pub use exit_contract::{ WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity, WholeFunctionExitEvidence,
     WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
@@ -99,8 +95,6 @@ pub use fragment_emission::{
     FunctionFragmentEmissionError};
 pub use fragment_emission::{ StagedOptimizedFunctionFragmentEmission, ValidatedFunctionFragmentEmissionManifest};
 
-pub use fragment_emission::projection::{
-};
 
 // 3. Frame application.
 mod frame_application;
@@ -117,8 +111,6 @@ pub use frame_application::{
     FunctionFragmentFrameApplicationError};
 pub use frame_application::{ StagedFunctionFragmentFrameApplication};
 
-pub use frame_application::insertion::{
-};
 
 // 4. Text placement.
 mod text_placement;
@@ -136,8 +128,6 @@ pub use text_placement::{
     StagedFixedFrameTextSectionCustodyReceipt,
     ValidatedFunctionFragmentTextSectionManifest};
 
-pub use text_placement::placement::{
-};
 
 // Private callback records projected from placed text.
 mod private_callback;
@@ -149,15 +139,10 @@ pub use private_callback::{
 // `code_layout<Machine>()` descriptions projected from placed text.
 mod code_layout;
 
-pub use code_layout::{
-};
 
 // Target-owned x86-64 byte recipes outside the route.
 mod entry_exit_stub;
 mod startup_trampoline;
 mod x86_fma;
 
-pub use entry_exit_stub::{
-};
-pub use startup_trampoline::{
-};
+

@@ -97,7 +97,7 @@ impl ValidatedElfDynamicFileEnvelope {
 /// Rejected serialization retaining the exact resolved-dynamic owner.
 #[derive(Debug)]
 #[must_use = "dynamic ELF envelope rejection retains resolved-dynamic custody"]
-pub(crate) struct ElfDynamicFileEnvelopeSerializationError {
+pub struct ElfDynamicFileEnvelopeSerializationError {
     resolved_dynamic_table: ValidatedElfResolvedDynamicTable,
     diagnostic: Diagnostic,
 }

@@ -25,8 +25,6 @@ mod error;
 mod object;
 mod validation;
 
-pub use error::{
-};
 pub(crate) use error::{
     OptimizedProgramStorageSemanticWrapperObjectError};
 pub use validation::{ receiver_layout};

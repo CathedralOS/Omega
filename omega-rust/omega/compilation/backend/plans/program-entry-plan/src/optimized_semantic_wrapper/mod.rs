@@ -108,7 +108,7 @@ pub(crate) enum OptimizedProgramStorageSemanticWrapperRelocationKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperEncodingDisposition {
+pub enum OptimizedProgramStorageSemanticWrapperEncodingDisposition {
     /// A target realization must select, emit, and independently replay one
     /// concrete encoding before any byte or object custody exists.
     TargetEncodingRequiredV1,
@@ -117,7 +117,7 @@ pub(crate) enum OptimizedProgramStorageSemanticWrapperEncodingDisposition {
 /// One symbolic relocation requirement. The downstream object join must bind
 /// its target to the exact private Terminal entry symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct OptimizedProgramStorageSemanticWrapperRelocationRequirement {
+pub struct OptimizedProgramStorageSemanticWrapperRelocationRequirement {
     call_step_index: usize,
     byte_width: u8,
     addend: i64,
@@ -154,7 +154,7 @@ impl OptimizedProgramStorageSemanticWrapperRelocationRequirement {
 /// emitted semantic child; the slot is the 16-aligned zeroed region the
 /// wrapper provisions before binding its address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct OptimizedProgramStorageSemanticReceiverStorage {
+pub struct OptimizedProgramStorageSemanticReceiverStorage {
     byte_count: u32,
     alignment: u32,
     slot_byte_count: u32,
@@ -181,7 +181,7 @@ impl OptimizedProgramStorageSemanticReceiverStorage {
 
 /// One compiler-owned action in the exact semantic wrapper.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperStep {
+pub enum OptimizedProgramStorageSemanticWrapperStep {
     EnterFunction,
     ReserveOutgoingStackFrame {
         byte_count: u32,

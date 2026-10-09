@@ -31,8 +31,7 @@ pub use model::{
 };
 pub(crate) use model::{ TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,
     UnclassifiedTerminalMechanism};
-pub use normalized_foreign::{
-};
+
 pub(crate) use normalized_foreign::{
     normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations};

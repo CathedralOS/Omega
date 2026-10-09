@@ -139,7 +139,7 @@ impl std::error::Error for DynamicElfImageEmissionError {}
 /// observations of that custody, never substitutes for it.
 #[derive(Debug)]
 #[must_use = "dynamic ELF orchestration failure retains the exact failing owner"]
-pub(crate) enum DynamicElfOrchestrationError {
+pub enum DynamicElfOrchestrationError {
     /// The hosted-entry owner rejected the artifact before any ELF stage ran:
     /// an import-bearing object still carries its exact entry custody, so a
     /// receiver bridge cannot be dropped merely because imports selected the

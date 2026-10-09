@@ -169,7 +169,7 @@ impl ValidatedElfResolvedProcedureLinkage {
 /// Rejected fixup application retaining the exact file-envelope owner.
 #[derive(Debug)]
 #[must_use = "procedure-linkage rejection retains dynamic ELF envelope custody"]
-pub(crate) struct ElfProcedureLinkageApplicationError {
+pub struct ElfProcedureLinkageApplicationError {
     pub(crate) envelope: ValidatedElfDynamicFileEnvelope,
     pub(crate) diagnostic: Diagnostic,
 }

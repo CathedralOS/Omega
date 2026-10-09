@@ -81,7 +81,7 @@ impl ValidatedElfSectionNameTablePlan {
 /// custody.
 #[derive(Debug)]
 #[must_use = "ELF section-name-table rejection retains the dynamic descriptor owner"]
-pub(crate) struct ElfSectionNameTablePlanningError {
+pub struct ElfSectionNameTablePlanningError {
     dynamic_table: ValidatedElfDynamicTableSectionDescriptorPlan,
     diagnostic: Diagnostic,
 }

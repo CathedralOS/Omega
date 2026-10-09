@@ -84,7 +84,7 @@ impl ValidatedElfDynamicTableSectionDescriptorPlan {
 /// custody.
 #[derive(Debug)]
 #[must_use = "ELF dynamic-table descriptor rejection retains the serialized payload"]
-pub(crate) struct ElfDynamicTableSectionDescriptorPlanningError {
+pub struct ElfDynamicTableSectionDescriptorPlanningError {
     payload: ValidatedElfDynamicTablePayload,
     diagnostic: Diagnostic,
 }

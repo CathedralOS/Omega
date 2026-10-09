@@ -305,7 +305,7 @@ pub struct X86_64InstalledHardwareEntryFacts {
 /// Canonical, fail-closed installed facts accepted by the sealed x86-64
 /// hardware-arrival rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedX86_64InstalledHardwareEntryFacts {
+pub struct ValidatedX86_64InstalledHardwareEntryFacts {
     facts: X86_64InstalledHardwareEntryFacts,
     non_authoritative_report_fingerprint: u64,
 }

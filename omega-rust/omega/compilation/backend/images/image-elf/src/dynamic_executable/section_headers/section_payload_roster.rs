@@ -71,7 +71,7 @@ impl ValidatedElfIndexedSectionPayloadPlan {
 /// Rejected indexed-payload planning with exact header-template custody.
 #[derive(Debug)]
 #[must_use = "ELF indexed-payload rejection retains the section-header template"]
-pub(crate) struct ElfIndexedSectionPayloadPlanningError {
+pub struct ElfIndexedSectionPayloadPlanningError {
     section_headers: ValidatedElfSectionHeaderTableTemplate,
     diagnostic: Diagnostic,
 }

@@ -28,8 +28,7 @@ pub use machine_code::{
     WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence,
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
-pub use stage::{
-};
+
 pub(crate) use stage::{
     stage_whole_function_exit_contract_after_x86_branch_relaxation,
     stage_whole_function_exit_contract_with_frame,

@@ -8,7 +8,7 @@ use resolved_layout_to_resolved_layout::{
 use selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum WholeFunctionExitContractError {
+pub enum WholeFunctionExitContractError {
     Layout(OptimizedResolvedSelectedFormLayoutError),
     Relaxation(OptimizedX86BranchRelaxationError),
     LayoutOptimization(ResolvedLayoutOptimizationError),

@@ -99,7 +99,7 @@ impl ValidatedElfRelativeSectionPayloadLayout {
 /// Rejected relative layout with exact indexed-payload custody.
 #[derive(Debug)]
 #[must_use = "relative ELF layout rejection retains the indexed payload plan"]
-pub(crate) struct ElfRelativeSectionPayloadLayoutError {
+pub struct ElfRelativeSectionPayloadLayoutError {
     payloads: ValidatedElfIndexedSectionPayloadPlan,
     diagnostic: Diagnostic,
 }

@@ -89,7 +89,7 @@ pub(crate) enum X86_64SemanticUnitWrapperCleanupEffect {
 /// Physical effects retained beside the exact target bytes. This is target
 /// validation evidence, not permission to invoke the wrapper.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct X86_64SemanticUnitWrapperFootprint {
+pub struct X86_64SemanticUnitWrapperFootprint {
     pub root_reads: [X86_64SemanticUnitWrapperCopy; 4],
     pub caller_copy_writes: [X86_64SemanticUnitWrapperCopy; 4],
     /// Bytes the wrapper zero-fills inside its own frame to provision the

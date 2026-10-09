@@ -97,7 +97,7 @@ impl ValidatedElfDynamicSectionPayloads {
 /// Rejected ELF dynamic payload serialization with exact plan custody.
 #[derive(Debug)]
 #[must_use = "ELF payload serialization rejection retains the validated structural plan"]
-pub(crate) struct ElfDynamicSectionSerializationError {
+pub struct ElfDynamicSectionSerializationError {
     plan: ValidatedElfDynamicSectionPlan,
     diagnostic: Diagnostic,
 }
