@@ -58,9 +58,9 @@ checked cleanup planning. This receipt is checked-source correspondence, not a
 source-free proof, a storage grant, or Fused service establishment; native entry
 must still supply those independent obligations.
 
-The product keeps checked boundary-operator application scope and selected
-floating-point occurrences beside the canonical artifact. Callback custody is
-an opaque owned sidecar: carrying it does not interpret placement or grant
+Boundary application demands, checked body candidates and selected comparison
+demands live in the canonical artifact. Callback source-call custody remains
+an owned sidecar: carrying it does not interpret placement or grant
 registration, invocation, address, or lifetime authority. Native realization
 must rejoin the exact source/build receipts under its own authority.
 

@@ -155,6 +155,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                             },
                             requirement_symbol: operator.symbol,
                             arguments,
+                            body_candidates: Default::default(),
                         });
                     }
                 }
@@ -195,6 +196,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                         site: CheckedBoundaryOperatorApplicationUseSite::Statement(statement),
                         requirement_symbol: operator.symbol,
                         arguments,
+                        body_candidates: Default::default(),
                     });
                 }
             }
@@ -245,6 +247,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
             },
             requirement_symbol: requirement_use.requirement_symbol,
             arguments: Vec::new(),
+            body_candidates: Default::default(),
         });
     }
     if !diagnostics.is_empty() {
@@ -377,6 +380,7 @@ fn checked_boundary_application_from_bindings(
         site,
         requirement_symbol: operator.symbol,
         arguments,
+        body_candidates: Default::default(),
     }
 }
 

@@ -26,7 +26,7 @@ pub use checked_trees::{
     CheckedArrayConstructionSource, CheckedAtomicAccessPlan, CheckedAtomicEvent,
     CheckedAtomicReadModifyWrite, CheckedBooleanExpression, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedBoundaryAdapterDispatch,
-    CheckedBoundaryApplicationOperands, CheckedBoundaryMachinePlan,
+    CheckedBoundaryApplicationOperands, CheckedBoundaryBodyCandidate, CheckedBoundaryMachinePlan,
     CheckedBoundaryMachineResultPlan, CheckedBoundaryOperatorApplicationArgument,
     CheckedBoundaryOperatorApplicationDemand, CheckedBoundaryOperatorApplicationUseSite,
     CheckedBoundaryScalarGuarantee, CheckedByteSequenceCarrier, CheckedByteSequenceValue,

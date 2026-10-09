@@ -157,14 +157,15 @@ pub use flow::{
 };
 pub use operators::{
     CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,
-    CheckedBoundaryOperatorApplicationArgument, CheckedBoundaryOperatorApplicationDemand,
-    CheckedBoundaryOperatorApplicationUseSite, CheckedCrashQualifiedUse,
-    CheckedNamedOperatorUseFact, CheckedNamedRequirementUseFact, CheckedOperatorCandidateFact,
-    CheckedOperatorContractUse, CheckedOperatorCrashBucket, CheckedOperatorCrashContract,
-    CheckedOperatorFacts, CheckedOperatorOccurrence, CheckedOperatorRealizationContract,
-    CheckedOperatorResolutionIssue, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
-    CheckedOperatorUseHandle, CheckedProviderPlanCommitment,
-    CheckedSelectedFloatComparisonExecution, CheckedSymbolicBoundaryOperatorApplicationArgument,
+    CheckedBoundaryBodyCandidate, CheckedBoundaryOperatorApplicationArgument,
+    CheckedBoundaryOperatorApplicationDemand, CheckedBoundaryOperatorApplicationUseSite,
+    CheckedCrashQualifiedUse, CheckedNamedOperatorUseFact, CheckedNamedRequirementUseFact,
+    CheckedOperatorCandidateFact, CheckedOperatorContractUse, CheckedOperatorCrashBucket,
+    CheckedOperatorCrashContract, CheckedOperatorFacts, CheckedOperatorOccurrence,
+    CheckedOperatorRealizationContract, CheckedOperatorResolutionIssue,
+    CheckedOperatorResolutionStatus, CheckedOperatorUseFact, CheckedOperatorUseHandle,
+    CheckedProviderPlanCommitment, CheckedSelectedFloatComparisonExecution,
+    CheckedSymbolicBoundaryOperatorApplicationArgument,
     CheckedSymbolicBoundaryOperatorApplicationDemand,
 };
 pub use proof::{

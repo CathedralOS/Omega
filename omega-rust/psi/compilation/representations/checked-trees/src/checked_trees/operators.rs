@@ -222,6 +222,22 @@ pub struct CheckedBoundaryOperatorApplicationDemand {
     pub site: CheckedBoundaryOperatorApplicationUseSite,
     pub requirement_symbol: SymbolHandle,
     pub arguments: Vec<CheckedBoundaryOperatorApplicationArgument>,
+    /// Bodies checked for this exact application. Equal applications share a
+    /// span in `CheckedOperatorFacts::boundary_body_candidates`.
+    pub body_candidates: HandleSpan<CheckedBoundaryBodyCandidate>,
+}
+
+/// Checked conformance and specialization facts, before Terminal gives source
+/// declarations their portable identities. This is a candidate, not selection.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedBoundaryBodyCandidate {
+    pub selection: SymbolHandle,
+    pub selection_identity: String,
+    pub target: Option<String>,
+    pub machine: SymbolHandle,
+    pub entry: SymbolHandle,
+    pub contract: [u8; 32],
+    pub specialization: Option<(SymbolHandle, [u8; 32])>,
 }
 
 /// One checked open application exported by a generic machine. This is
@@ -576,6 +592,7 @@ pub struct CheckedOperatorFacts {
     /// D29 checked-use demands. Absence for a selected boundary use is not
     /// coverage; later authority-bearing consumers must fail closed.
     pub boundary_applications: Vec<CheckedBoundaryOperatorApplicationDemand>,
+    pub boundary_body_candidates: Arena<CheckedBoundaryBodyCandidate>,
     /// D29 open demands retained separately from closed applications so no
     /// downstream consumer can accidentally interpret them as coverage.
     pub symbolic_boundary_applications: Vec<CheckedSymbolicBoundaryOperatorApplicationDemand>,
@@ -757,6 +774,7 @@ impl CheckedOperatorFacts {
             operator_crash_contracts: Vec::new(),
             operator_realization_contracts: Vec::new(),
             boundary_applications: Vec::new(),
+            boundary_body_candidates: Arena::new(),
             symbolic_boundary_applications: Vec::new(),
             expression_uses: arena::OwnedIndex::default(),
         }

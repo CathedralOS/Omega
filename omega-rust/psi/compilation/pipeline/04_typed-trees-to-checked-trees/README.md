@@ -30,6 +30,11 @@ conclusion rewrites the typed program. No intervening check reads the commitment
 table, and the specialization roster cannot change meanwhile. This preserves
 diagnostic order while making the checking boundary readonly.
 
+Boundary applications retain spans of checked body candidates in the operator
+facts. Checking completes conformance and specialization discovery; equivalent
+applications share their candidate span. Lowering gives those rows portable
+identities, and Omega selects among them using Build's provider rows.
+
 Source obligations are specified by [state contracts](../../../../../wiki/spec/language/state_contracts.md)
 and [numeric values](../../../../../wiki/spec/language/numeric_values.md). Source
 recognition below is implementation coverage, not an additional language rule.

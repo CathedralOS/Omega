@@ -10,8 +10,10 @@ use checked_trees::{CheckedOperatorFacts, CheckedValueFacts};
 use typed_trees::expression::ExpressionNode;
 
 mod applications;
+mod body_candidates;
 
 pub(crate) use applications::bind_boundary_operator_application_demands;
+pub(crate) use body_candidates::retain_boundary_body_candidates;
 
 pub(crate) fn build_operator_facts(
     program: &dyn ::validation::CheckingInput,
@@ -33,7 +35,8 @@ pub(crate) fn derive_checked_operator_realization_contracts(
         }
         for conformance in program.machine_trait_conformances(machine) {
             if program
-                .trait_definition_by_symbol(conformance.symbol).is_some()
+                .trait_definition_by_symbol(conformance.symbol)
+                .is_some()
             {
                 continue;
             }

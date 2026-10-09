@@ -269,7 +269,9 @@ fn check_program(
         crate::facts::provider_closed_requirements::record_provider_closed_requirements(&finalized);
     drop(finalized);
 
-    let checked = CheckedTrees::with_roots(program, facts);
+    let mut checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;
+    crate::operators::retain_boundary_body_candidates(&mut checked)
+        .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
     Ok(checked)
 }

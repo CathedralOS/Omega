@@ -8,6 +8,10 @@ optimization and portable publication belong to the following stages.
 The checker's permission ledger is consumed as checked: lowering does not
 re-validate the checker's own fresh output.
 
+Boundary body candidates also arrive as checked operator facts. Publication
+assigns portable declaration identities to their retained rows; it does not
+search declarations for conformances or reconstruct specialization judgments.
+
 Place types, destination-independent expression results and shell-free type
 carriers come from `checked.facts.resolved_types`. Checking publishes the dense
 tables after specialization and authored-selection finalization freeze the

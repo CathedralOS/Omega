@@ -44,9 +44,9 @@ impl<'a> TerminalProductionRequest<'a> {
     ///
     /// Every product shares one instrumented body: checked-input lowering,
     /// selected optimization, the `ProgramEntry` receipt legs when an entry
-    /// identity is supplied, publication, and the checked boundary-operator
-    /// scope. The source-signature digest remains opaque; later Omega
-    /// settlement must independently compare it with the retained source
+    /// identity is supplied, and canonical publication including boundary
+    /// demands and checked body candidates. The source-signature digest remains
+    /// opaque; later Omega settlement must compare it with the retained source
     /// signature.
     pub fn produce(
         self,
