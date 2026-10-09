@@ -61,7 +61,7 @@ pub(super) fn check_view_return_escape(
                 };
 
                 // The carried leaves of the returned value: the value itself,
-                // plus every field/element value inside aggregate literals it
+                // plus every field/element value and control alternative it
                 // is built from. A direct `&mut local` resolves to a single
                 // place at the top level; a carrier such as
                 // `View { body: &mut local }` resolves to no place there, so
@@ -72,6 +72,16 @@ pub(super) fn check_view_return_escape(
                 let mut leaf_index = 0;
                 while leaf_index < leaves.len() {
                     match program.expression_table.expression(leaves[leaf_index]) {
+                        // Only arm values contribute to the returned carrier.
+                        // Inspecting the selector, patterns or call operands
+                        // would mistake temporary observations for escapes.
+                        ExpressionNode::Match(dispatch) => leaves.extend(
+                            program
+                                .expression_table
+                                .match_arms(dispatch.arms)
+                                .iter()
+                                .map(|arm| arm.value),
+                        ),
                         ExpressionNode::StructLiteral(literal) => leaves.extend(
                             program
                                 .expression_table

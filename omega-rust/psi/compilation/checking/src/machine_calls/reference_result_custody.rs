@@ -520,9 +520,11 @@ pub fn tail_return_expression(
     }
 }
 
-/// Source-only returned-origin reconstruction. Captured local custody comes
-/// from the borrow ledger, not this body's selected return relation.
-fn construction_sources_with_calls(
+/// Compose the origin relation of a value, independently of how it is returned
+/// or stored. Captured local custody comes from the borrow ledger, not this
+/// body's possible return relation. Control alternatives union origins at the
+/// same result path; aggregate children prefix that path instead.
+fn expression_sources_with_calls(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
@@ -543,6 +545,29 @@ fn construction_sources_with_calls(
         crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
     ) {
         return Some(Vec::new());
+    }
+    if let Some(dispatch) = program.expression_table.match_node(expression) {
+        let arms = program.expression_table.match_arms(dispatch.arms);
+        if arms.is_empty() {
+            return None;
+        }
+        let mut sources = Vec::new();
+        for arm in arms {
+            // Every alternative must supply its complete relation. Selecting
+            // an arm does not prove which input loan obligations can end;
+            // declaration-level lifetime candidates remain live separately.
+            for source in
+                expression_sources_with_calls(program, state, arm.value, reference, active_origins)?
+            {
+                if !sources.contains(&source) {
+                    sources.push(source);
+                    if sources.len() > MAX_REFERENCE_ORIGIN_LEAVES {
+                        return None;
+                    }
+                }
+            }
+        }
+        return Some(sources);
     }
     if matches!(
         program.expression_table.expression(expression),
@@ -575,7 +600,7 @@ fn construction_sources_with_calls(
                 return None;
             }
             active_origins.push(local.symbol);
-            let sources = construction_sources_with_calls(
+            let sources = expression_sources_with_calls(
                 program,
                 state,
                 local.initial_value,
@@ -772,7 +797,7 @@ fn projected_construction_sources(
     {
         return None;
     }
-    let sources = construction_sources_with_calls(
+    let sources = expression_sources_with_calls(
         program,
         state,
         projection.root,
@@ -839,7 +864,7 @@ fn call_sources_with_calls(
                     .is_none()
             })
             .nth(parameter_index as usize)?;
-        let actual_sources = construction_sources_with_calls(
+        let actual_sources = expression_sources_with_calls(
             program,
             state,
             *arguments.get(position)?,
@@ -1065,7 +1090,7 @@ fn returned_sources_with_calls(
             return None;
         }
         let returned = match program.statement_table.transition_target(transition.target) {
-            TransitionTargetNode::Value(expression) => construction_sources_with_calls(
+            TransitionTargetNode::Value(expression) => expression_sources_with_calls(
                 program,
                 state,
                 *expression,
@@ -1097,7 +1122,7 @@ fn returned_sources_with_calls(
         .statements(state.statement_nodes)
         .last()
     {
-        for source in construction_sources_with_calls(
+        for source in expression_sources_with_calls(
             program,
             state,
             *expression,
@@ -1326,7 +1351,7 @@ fn aggregate_construction_sources(
     let mut output = Vec::new();
     for (segment, expression, reference) in children {
         for mut source in
-            construction_sources_with_calls(program, state, expression, reference, active_origins)?
+            expression_sources_with_calls(program, state, expression, reference, active_origins)?
         {
             source.path.insert(0, segment.clone());
             output.push(source);

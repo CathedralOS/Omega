@@ -420,10 +420,17 @@ fail/borrows/same_initializer_reference_live_source_move rejected 538ms expected
 	statement 0 moves `main.inventory` while local borrow `bundle` is still active (borrowed at statement 0; its last use is at statement 1)
 fail/borrows/selected_reference_child_live_source_write rejected 359ms expected @2a4f3488664b+wt
 	statement 3 mutates `first.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/selected_reference_field_wrong_arm_carrier rejected 210ms expected @c6b53a9a7796+wt
+	construction of `Held` field `target` expects reference `&Cell`, but the source does not supply its carrier and access
+	match arms produce incompatible values
 fail/borrows/selected_reference_live_nested_parent_write rejected 393ms expected @c910d797b35a
 	statement 4 mutates `second_parent` while local borrow `nested` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/selected_reference_live_reborrow_parent_write rejected 391ms expected @c910d797b35a
 	statement 3 mutates `second_view` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/selected_reference_record_helper_live_source_write rejected 315ms expected @c6b53a9a7796+wt
+	statement 5 mutates `second.value` while local borrow `copied` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
+fail/borrows/selected_reference_record_helper_local_escape rejected 357ms expected @c6b53a9a7796+wt
+	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a borrow of an input parameter or `self` instead
 fail/borrows/shared_entry_jump_into_mutable_receiver_state rejected 799ms expected @c5d32a00863
 	argument `main` for state `next` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 	argument `main` for state `write` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
@@ -2519,6 +2526,7 @@ pass/borrows/runtime_returned_reference_array_restoration_exit checked 1330ms ch
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 1151ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_selected_reference_child_retirement_exit checked 1397ms check-target:macos_arm64 @2a4f3488664b+wt
 pass/borrows/runtime_selected_reference_nested_restoration_exit checked 1862ms check-target:macos_arm64 @c910d797b35a
+pass/borrows/runtime_selected_reference_record_helper_exit checked 1971ms check-target:macos_arm64 @c6b53a9a7796+wt
 pass/borrows/runtime_selected_shared_reference_cohort_exit checked 1730ms check-target:macos_arm64 @c514d22fd1cd+wt
 pass/borrows/runtime_shared_qualified_view_cycle_exit checked 1705ms check-target:macos_arm64 @954364ed064e
 pass/borrows/runtime_shared_qualified_view_scalar_choice_exit checked 2700ms check-target:macos_arm64 @fb52befd538a

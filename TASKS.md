@@ -2186,23 +2186,23 @@ crash and native exit behavior.
     complete immediate parents, with independent retirement. Selected owned
     parameters retain every incoming formation and backing origin; unrelated
     live custody agrees exactly across current post-transfer/post-cleanup edges.
-    Keep the public command in the
+    Keep the public commands in the
     [cohort fixture](tests/omega/pass/borrows/runtime_selected_shared_reference_cohort_exit/README.md)
+    and [selected helper fixture](tests/omega/pass/borrows/runtime_selected_reference_record_helper_exit/README.md)
     at 0 in both engines on macOS arm64 after ordinary package review: both
     selections and both descriptor retirement orders restore mutation only
     after the complete cohort ends. The live-copy write and only-one-arm
     transfer controls remain rejected. The encoded `IntegerAt` call ABI remains
-    in scope. Remaining: source-only returned-origin reconstruction in
-    `reference_result_custody::aggregate_construction_sources` still handles
-    record/array constructors but not `match` results. Carry every alternative's
-    complete source-to-result paths through helper return/call substitution.
-    Distinct arm-formed reborrows of different backing roots and parent sets
-    still need end-to-end checked correspondence through helper results and
-    state forwarding; copied descriptors from one common child do not prove
-    that capability. Retirement separately retains possible transfers and
+    in scope. Keep distinct shared input backings and parent sets through
+    returned record/field selection, helper substitution, named-state forwarding
+    and copied descriptors; reject a helper-local source in any result arm and
+    mutation of an unselected same-lifetime input while the result remains live.
+    Retirement separately retains possible transfers and
     proves which source paths transfer on every arm.
-    Calls and stores without a retained receiving-holder association still
-    require their checked correspondence before parent retirement can be proved.
+    Remaining: calls embedded in retained value graphs and stores without a
+    receiving-holder association still require their checked correspondence
+    before parent retirement can be proved. Flat call retirement must keep its
+    registered result's complete leaf group, not only root-reference releases.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

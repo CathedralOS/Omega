@@ -204,12 +204,9 @@ fn argument_matches_type_reference_using(
         required_substitutions,
     );
     if let Some(dispatch) = program.expression_table.match_node(argument) {
-        if matches!(
-            program.type_reference_table.type_reference(type_reference),
-            TypeReferenceNode::Reference { .. }
-        ) {
-            return false;
-        }
+        // Selection changes which value arrives, not its required carrier.
+        // Reference arms obey the same exact referent/access correspondence;
+        // independent access and loan checks still own their authority.
         return !program
             .expression_table
             .match_arms(dispatch.arms)

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.83, "load1_start": 3.83, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 3.47, "load1_start": 3.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -108,6 +108,7 @@ pass/borrows/runtime_returned_reference_array_restoration_exit built 1847ms exit
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit built 2365ms exit:70 interpreter-exit:70 interpreter:agrees @9660dd146223
 pass/borrows/runtime_selected_reference_child_retirement_exit built 1403ms exit:0 interpreter-exit:0 interpreter:agrees @2a4f3488664b+wt
 pass/borrows/runtime_selected_reference_nested_restoration_exit built 1881ms exit:0 interpreter-exit:0 interpreter:agrees @c910d797b35a
+pass/borrows/runtime_selected_reference_record_helper_exit built 2000ms exit:0 interpreter-exit:0 interpreter:agrees @c6b53a9a7796+wt
 pass/borrows/runtime_selected_shared_reference_cohort_exit built 1861ms exit:0 interpreter-exit:0 interpreter:agrees @c514d22fd1cd+wt
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit built 1586ms exit:70 interpreter-exit:70 interpreter:agrees @b5d8c6882a8b+wt
 pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit built 2333ms exit:70 interpreter-exit:70 interpreter:agrees @681c48c0cebc+wt

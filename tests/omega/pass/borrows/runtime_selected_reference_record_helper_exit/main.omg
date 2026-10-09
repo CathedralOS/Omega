@@ -1,0 +1,72 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { value: i32; }
+data Held<'storage> { target: &'storage Cell; stamp: i32; }
+data Main { console: Binding<Console>; first: Cell; second: Cell; }
+
+machine select<'storage>(first: &'storage Cell, second: &'storage Cell, selected: bool) -> Held<'storage> {
+    match selected {
+        true -> Held { target: first, stamp: 12 },
+        false -> Held { target: second, stamp: 13 }
+    }
+}
+
+machine select_field<'storage>(first: &'storage Cell, second: &'storage Cell, selected: bool) -> Held<'storage> {
+    Held {
+        target: match selected { true -> first, false -> second },
+        stamp: match selected { true -> 12, false -> 13 }
+    }
+}
+
+machine forward<'storage>(first: &'storage Cell, second: &'storage Cell, selected: bool) -> Held<'storage> {
+    transition { _ -> choose(first, second, selected) }
+    state choose(first: &'storage Cell, second: &'storage Cell, selected: bool) -> Held<'storage> {
+        select_field(first, second, selected)
+    }
+}
+
+machine verify(first: &mut Cell, second: &mut Cell, selected: bool) -> bool {
+    first.value = 41;
+    second.value = 73;
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let held: Held = select(&first_parent, &second_parent, selected);
+    let observed: i32 = held.target.value;
+    first.value = 51;
+    second.value = 83;
+    let stamp: i32 = held.stamp;
+    observed == (match selected { true -> 41, false -> 73 }) &&
+        stamp == (match selected { true -> 12, false -> 13 }) &&
+        first.value == 51 && second.value == 83
+}
+
+machine verify_forwarded(first: &mut Cell, second: &mut Cell, selected: bool) -> bool {
+    first.value = 41;
+    second.value = 73;
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let held: Held = forward(&first_parent, &second_parent, selected);
+    let copied: &Cell = held.target;
+    let original: i32 = held.target.value;
+    let observed: i32 = copied.value;
+    first.value = 51;
+    second.value = 83;
+    let stamp: i32 = held.stamp;
+    original == (match selected { true -> 41, false -> 73 }) && observed == original &&
+        stamp == (match selected { true -> 12, false -> 13 }) &&
+        first.value == 51 && second.value == 83
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: bool = verify(&mut main.first, &mut main.second, true);
+    let second: bool = verify(&mut main.first, &mut main.second, false);
+    let third: bool = verify_forwarded(&mut main.first, &mut main.second, true);
+    let fourth: bool = verify_forwarded(&mut main.first, &mut main.second, false);
+    transition first && second && third && fourth {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(0); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
+}

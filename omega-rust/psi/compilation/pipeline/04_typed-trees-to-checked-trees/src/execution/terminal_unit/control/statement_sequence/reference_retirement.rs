@@ -122,13 +122,20 @@ impl Retirement<'_> {
         let parent = self.facts.borrow.loans.get(parent);
         self.operations.iter().any(|operation| {
             if let Some(call) = operation.call() {
-                // The call's retained loan group names each captured source.
-                // This is a disposal dependency, not permission to skip an
-                // immediate parent in the source resource judgment.
-                return call.structural_custody().is_some_and(|custody| {
-                    self.facts
-                        .borrow
-                        .loans_contain(custody.reference_loans, child)
+                // Root-reference custody owns a whole descriptor release;
+                // record results instead retire their stored leaf groups.
+                // Both pin the actual source holder. Join the registered
+                // receiving binding, not the root-only call release roster.
+                // This is disposal order, not new reborrow authority.
+                return call.structural_result().is_some_and(|result| {
+                    local_carrier_loans(
+                        self.facts,
+                        self.machine,
+                        self.state.symbol,
+                        result,
+                        self.results,
+                    )
+                    .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
                         && self.facts.borrow.loans.get(child).source_owner_symbol
                             == parent.owner_symbol
                         && call
@@ -408,6 +415,24 @@ pub(super) fn local_reference_loans(
     result: &CheckedUnitStructuralResultBindingPlan,
     results: &Results,
 ) -> Option<arena::HandleSpan<BorrowLoanFact>> {
+    let loans = local_carrier_loans(facts, machine, state, result, results)?;
+    facts
+        .borrow
+        .loan_group(loans)?
+        .all(|(_, loan)| facts.borrow.loan_owner_path(loan).is_empty())
+        .then_some(loans)
+}
+
+/// Retained occurrences of this exact local establishment, whether stored
+/// at the root or beneath record/array paths. The path-specific retirement
+/// owner still decides how each descriptor ends.
+fn local_carrier_loans(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    results: &Results,
+) -> Option<arena::HandleSpan<BorrowLoanFact>> {
     let mut roots = results.iter().filter(|(binding, _)| binding == result);
     let (_, facts::PlaceRoot::Symbol(owner)) = roots.next()? else {
         return None;
@@ -428,10 +453,5 @@ pub(super) fn local_reference_loans(
     let loans = facts
         .borrow
         .local_loans(borrowing, *owner, result.statement_index as usize)?;
-    (!loans.is_empty()
-        && facts
-            .borrow
-            .loan_group(loans)?
-            .all(|(_, loan)| facts.borrow.loan_owner_path(loan).is_empty()))
-    .then_some(loans)
+    (!loans.is_empty()).then_some(loans)
 }
