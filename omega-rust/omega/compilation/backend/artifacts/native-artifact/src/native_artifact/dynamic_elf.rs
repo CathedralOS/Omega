@@ -4,6 +4,7 @@ use super::identity::{
     NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
     foreign_call_custody_digest,
 };
+use installation_evidence::ObjectEvidence;
 use super::{
     NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
     NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderClosureDigest,

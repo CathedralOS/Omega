@@ -40,9 +40,9 @@ pub(crate) use source_evaluated_bindings::{
 pub(crate) use source_evaluated_bindings::{
     PreparedSourceEvaluatedBindings};
 
-pub(crate) use request::{
+pub use request::{
     NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
-pub(crate) use request::{ NativeProviderSettlement,
+pub use request::{ NativeProviderSettlement,
     ProviderAdmissionRequest};
 pub use terminal_authority_permission_policy::{
     TerminalAuthorityPermissionPolicy,

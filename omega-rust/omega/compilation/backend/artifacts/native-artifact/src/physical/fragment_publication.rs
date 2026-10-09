@@ -1,6 +1,7 @@
 //! Exact publication custody over the shared, independently validated object route.
 
 use std::sync::Arc;
+use installation_evidence::ObjectEvidence;
 
 use image_emission::ObjectArtifact;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
