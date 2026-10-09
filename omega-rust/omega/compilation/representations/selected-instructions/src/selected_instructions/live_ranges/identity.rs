@@ -10,7 +10,7 @@ use crate::{
 /// digests of its functions (`live_range_function_digest`). Hashing per
 /// function lets a producer that carries a function over unchanged carry its
 /// digest too, which runtime-spill recovery does after every rewrite.
-pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
+pub(crate) fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
     let digests = plan
         .functions
         .iter()

@@ -55,16 +55,17 @@ mod ownership;
 mod values;
 
 pub use framing::{
-    decode_terminal_pre_allocation_machine_effect_plan,
-    encode_terminal_pre_allocation_machine_effect_plan,
 };
+pub(crate) use framing::{
+    decode_terminal_pre_allocation_machine_effect_plan,
+    encode_terminal_pre_allocation_machine_effect_plan};
 use instruction::decode_instruction;
 pub use instruction::{
     decode_alternative, decode_alternative_legacy, decode_alternative_without_jump,
     decode_alternative_without_scalar_call, decode_local_storage_slot, decode_provenance,
     saturating_kind,
 };
-pub use ownership::decode_effect_link;
+pub(crate) use ownership::decode_effect_link;
 pub use ownership::decode_ownership;
 use values::{
     decode_accepted_fact, decode_constraint_key, decode_ids, decode_machine, decode_obligation,
