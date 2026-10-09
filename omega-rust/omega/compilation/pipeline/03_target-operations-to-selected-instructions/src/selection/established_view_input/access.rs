@@ -149,7 +149,6 @@ fn view_access_with_budget(
             return None;
         }
         initial.get_or_insert(access);
-        copied_whole = false;
         match &row.kind {
             I::StructuralLeafCopy {
                 source,
@@ -224,20 +223,7 @@ fn projected_source_access(
     use optimization_unit_semantics::StructuralStorageProjection;
     let signature = function.structural.as_ref()?;
     let types = &signature.structural_types;
-    let mut current = crate::selection::reference_input::root_type(function, source.place)
-        .or_else(|| {
-            signature.structural_places.iter().find_map(|declaration| {
-                if declaration.id != source.place {
-                    return None;
-                }
-                match declaration.kind {
-                    StructuralPlaceKind::ByteSequenceLiteral {
-                        structural_type, ..
-                    } => Some(structural_type),
-                    _ => None,
-                }
-            })
-        })?;
+    let mut current = crate::selection::reference_input::root_type(function, source.place)?;
     let mut authority = if types.iter().any(|row| {
         row.id == current
             && (matches!(row.shape, StructuralTypeShape::ElementView { .. })

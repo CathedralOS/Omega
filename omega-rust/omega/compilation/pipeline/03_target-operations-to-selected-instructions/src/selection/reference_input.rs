@@ -236,7 +236,22 @@ pub(super) fn root_type(
     if let Some((_, result, _, _)) = super::primitive_local_input::local(function, place) {
         return Some(result.structural_type);
     }
-    super::aggregate_result_input::home(function, place).map(|(_, result)| result.structural_type)
+    super::aggregate_result_input::home(function, place)
+        .map(|(_, result)| result.structural_type)
+        // Literal descriptors use their authenticated immutable establishment,
+        // rather than an operation-result allocation declaration.
+        .or_else(|| {
+            let semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type,
+                ..
+            } = signature.structural_place(place)?.kind
+            else {
+                return None;
+            };
+            super::established_view_input::view_access(function, place)?;
+            (super::established_view_input::view_type(function, place) == Some(structural_type))
+                .then_some(structural_type)
+        })
 }
 
 /// Cross only the explicit referent boundary of an exact completed mutable

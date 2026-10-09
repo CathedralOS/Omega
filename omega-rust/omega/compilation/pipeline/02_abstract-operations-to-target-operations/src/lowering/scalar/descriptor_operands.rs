@@ -38,6 +38,20 @@ pub(in crate::lowering) fn descriptor_projection(
                 .get(&source.place)
                 .map(|home| (home.structural_type(), home.access()))
         })
+        .or_else(|| {
+            function.structural_places.iter().find_map(|declaration| {
+                if declaration.id != source.place {
+                    return None;
+                }
+                match declaration.kind {
+                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type,
+                        ..
+                    } => Some((structural_type, StructuralAccess::SharedBorrow)),
+                    _ => None,
+                }
+            })
+        })
         .ok_or_else(invalid)?;
     if !(access == source.access
         || access == StructuralAccess::Owned

@@ -1023,7 +1023,6 @@ fn view_access(
                 }
                 requested.get_or_insert(access);
                 required = access;
-                expected_type = Some(structural_type);
                 if !structural_access_can_supply(source.access, required) {
                     return None;
                 }

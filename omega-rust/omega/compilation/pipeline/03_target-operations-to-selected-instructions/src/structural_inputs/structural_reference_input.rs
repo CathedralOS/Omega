@@ -492,11 +492,8 @@ pub(crate) fn primitive_geometry(
         return None;
     }
     let bytes = scalar_shape(scalar)?.byte_size;
-    (u64::from(offset)
-        .checked_add(runtime_reach(&elements)?)?
-        .checked_add(u64::from(bytes))?
-        <= u64::from(shape(root, declarations)?.byte_size))
-    .then_some((offset, bytes, elements))
+    scalar_access_within_storage(root, offset, bytes, &elements, declarations)
+        .then_some((offset, bytes, elements))
 }
 
 /// Independently admit the complete primitive read before splitting its

@@ -125,47 +125,6 @@ pub(in crate::lowering) fn is_owned_byte_parameter(
     )
 }
 
-/// Whether a byte view reads the owner layout: an owned concatenation in this
-/// activation or a shared bounded owner loan, whose length word sits at
-/// offset 0 rather than after a descriptor's base pointer.
-fn reads_owner_layout(
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
-    view: &TargetByteView,
-) -> bool {
-    match view {
-        TargetByteView::Owned { .. } => true,
-        TargetByteView::Parameter { place, .. } | TargetByteView::BlockParameter { place, .. } => {
-            function.arrival_parameter(*place).is_some_and(|parameter| {
-                structural_types
-                    .get(&parameter.structural_type)
-                    .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
-            })
-        }
-        TargetByteView::Result { .. }
-        | TargetByteView::Literal { .. }
-        | TargetByteView::Subslice { .. } => false,
-    }
-}
-
-/// The declared capacity of a place whose parameter carries a bounded view —
-/// its extent is static, so a length observation lowers to a constant rather
-/// than a descriptor load.
-fn bounded_view_capacity(
-    function: &AbstractFunction,
-    structural_types: &StructuralTypeLookup<'_>,
-    place: PlaceId,
-) -> Option<u64> {
-    let structural_type = function.arrival_parameter(place)?.structural_type;
-    match &structural_types.get(&structural_type)?.shape {
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
-            capacity,
-            ..
-        }) => Some(*capacity),
-        _ => None,
-    }
-}
-
 /// Unit scalar homes retain residence, while this separate live roster retains
 /// which exact descriptor each already executed length observation measured.
 #[allow(clippy::too_many_arguments)]

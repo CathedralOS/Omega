@@ -41,6 +41,10 @@ pub(in crate::legalization) fn descriptor_geometry(
             super::structural_case::source_result(function, source.place)
                 .ok()
                 .map(|(_, result)| result.structural_type)
+        })
+        .or_else(|| {
+            super::literals::declaration_producer(function, source.place)
+                .map(|(_, identity)| identity)
         })?;
     crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
         root,
