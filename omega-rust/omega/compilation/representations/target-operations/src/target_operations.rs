@@ -58,9 +58,10 @@ pub use boundary::{
     MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
     NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
+    ProviderPlanReportIdentity, TargetIeeeFloatFmaOperand,
     conventional_float_class_layout,
 };
+pub(crate) use boundary::{ TargetX86ScalarFmaSettlement};
 pub mod operations;
 pub use operations::{
     NativeCallOrigin, TargetFloatResultPolicy, TargetStructuralRuntimeIndex, TargetUnitOperation,
