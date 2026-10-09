@@ -383,7 +383,7 @@ pub(crate) fn validate_import_thunk_footprints(
 /// slot inside the `.rdata` extent, and each thunk must pair with exactly one
 /// placed slot naming the same symbol — and vice versa. An import-directory
 /// RVA or an unrecorded slot cannot substitute for this placed custody.
-pub fn validate_pe_x86_64_import_binding_pairing(
+pub(crate) fn validate_pe_x86_64_import_binding_pairing(
     final_text_bytes: &[u8],
     executable_regions: &PlacedExecutableRegionInventory,
     import_data_regions: &PlacedDataRegionInventory,

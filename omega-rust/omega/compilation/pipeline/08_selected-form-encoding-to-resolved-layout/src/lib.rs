@@ -15,7 +15,8 @@ pub use resolved_selected_form_layout::{
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
     ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
     ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
-    StagedOptimizedResolvedSelectedFormLayout, admit_resolved_machine_layout,
+    StagedOptimizedResolvedSelectedFormLayout,
     stage_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout,
 };
+pub(crate) use resolved_selected_form_layout::{ admit_resolved_machine_layout};

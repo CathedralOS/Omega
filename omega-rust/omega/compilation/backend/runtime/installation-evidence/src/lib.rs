@@ -79,7 +79,7 @@ pub trait ProviderInstallationEvidence: std::fmt::Debug {
 /// acceptance. These compact identities enter the terminal installation
 /// record and artifact fingerprint, but never substitute for the retained
 /// acceptance value at publication.
-pub trait ComponentProgressAcceptanceEvidence: std::fmt::Debug {
+pub(crate) trait ComponentProgressAcceptanceEvidence: std::fmt::Debug {
     fn component_progress_manifest_identity(&self) -> u64;
     fn component_progress_acceptance_identity(&self) -> u64;
 }
