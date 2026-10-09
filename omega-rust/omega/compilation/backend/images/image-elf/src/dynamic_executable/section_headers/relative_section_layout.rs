@@ -42,7 +42,7 @@ pub(crate) enum ElfRelativeSectionPayloadRegion {
 /// authority.
 #[derive(Debug)]
 #[must_use = "validated relative ELF layout retains the indexed payload plan"]
-pub(crate) struct ValidatedElfRelativeSectionPayloadLayout {
+pub struct ValidatedElfRelativeSectionPayloadLayout {
     payloads: ValidatedElfIndexedSectionPayloadPlan,
     contents: ElfRelativeSectionPayloadLayoutContents,
     non_authoritative_layout_compatibility_fingerprint: u64,

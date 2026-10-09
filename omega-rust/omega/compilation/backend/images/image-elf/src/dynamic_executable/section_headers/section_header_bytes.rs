@@ -38,7 +38,7 @@ const SHF_ALLOC: u64 = 0x2;
 /// image mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF section-header bytes retain the numeric roster"]
-pub(crate) struct ValidatedElfSectionHeaderTableTemplate {
+pub struct ValidatedElfSectionHeaderTableTemplate {
     roster: ValidatedElfDynamicSectionRoster,
     contents: ElfSectionHeaderTableTemplateContents,
     non_authoritative_template_compatibility_fingerprint: u64,

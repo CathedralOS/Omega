@@ -32,7 +32,7 @@ const COMPLETE_SECTION_NAME_TABLE: &[u8] = b"\0.interp\0.dynstr\0.dynsym\0.hash\
 /// authority.
 #[derive(Debug)]
 #[must_use = "validated ELF section-name table retains the dynamic descriptor owner"]
-pub(crate) struct ValidatedElfSectionNameTablePlan {
+pub struct ValidatedElfSectionNameTablePlan {
     dynamic_table: ValidatedElfDynamicTableSectionDescriptorPlan,
     contents: ElfSectionNameTableContents,
     non_authoritative_table_compatibility_fingerprint: u64,

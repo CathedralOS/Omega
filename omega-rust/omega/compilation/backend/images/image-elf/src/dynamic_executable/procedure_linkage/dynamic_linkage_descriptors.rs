@@ -44,7 +44,7 @@ const PROCEDURE_LINKAGE_NAME_SUFFIX: &[u8] = b".plt\0.got.plt\0.rela.plt\0.rela.
 /// fixup application, image mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated linkage descriptors retain the exact template carrier"]
-pub(crate) struct ValidatedElfProcedureLinkageSectionDescriptorPlan {
+pub struct ValidatedElfProcedureLinkageSectionDescriptorPlan {
     templates: ValidatedElfProcedureLinkageTemplatePlan,
     contents: ElfProcedureLinkageSectionDescriptorContents,
     non_authoritative_descriptor_compatibility_fingerprint: u64,

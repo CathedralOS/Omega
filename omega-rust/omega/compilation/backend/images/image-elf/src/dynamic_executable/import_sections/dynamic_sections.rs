@@ -52,17 +52,8 @@ impl ValidatedElfDynamicSectionPlan {
         &self.inputs
     }
 
-    pub(crate) fn interpreter_byte_count(&self) -> usize {
-        self.contents.interpreter.len()
-    }
 
-    pub(crate) fn dynamic_string_byte_count(&self) -> usize {
-        self.contents.dynstr.len()
-    }
 
-    pub(crate) fn dynamic_symbol_count(&self) -> usize {
-        self.contents.dynsym.len()
-    }
 
     pub(crate) fn needed_object_count(&self) -> usize {
         self.contents.needed.len()

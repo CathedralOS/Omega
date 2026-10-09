@@ -35,7 +35,7 @@ const DYNAMIC_NAME_SUFFIX: &[u8] = b".dynamic\0";
 /// or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF dynamic-table descriptor retains the exact payload"]
-pub(crate) struct ValidatedElfDynamicTableSectionDescriptorPlan {
+pub struct ValidatedElfDynamicTableSectionDescriptorPlan {
     payload: ValidatedElfDynamicTablePayload,
     contents: ElfDynamicTableSectionDescriptorContents,
     non_authoritative_descriptor_compatibility_fingerprint: u64,

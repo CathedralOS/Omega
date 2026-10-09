@@ -30,7 +30,7 @@ const DYNAMIC_FIXUP_COUNT: usize = 9;
 /// publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated indexed ELF payloads retain the section-header template"]
-pub(crate) struct ValidatedElfIndexedSectionPayloadPlan {
+pub struct ValidatedElfIndexedSectionPayloadPlan {
     section_headers: ValidatedElfSectionHeaderTableTemplate,
     contents: ElfIndexedSectionPayloadContents,
     non_authoritative_payload_roster_compatibility_fingerprint: u64,

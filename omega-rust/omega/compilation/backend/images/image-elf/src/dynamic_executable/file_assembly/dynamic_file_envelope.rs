@@ -52,7 +52,7 @@ const PT_INTERP: u32 = 3;
 /// section payload, source byte, relocation obligation, and selected import.
 #[derive(Debug)]
 #[must_use = "dynamic ELF file envelope retains the complete pre-mutation custody chain"]
-pub(crate) struct ValidatedElfDynamicFileEnvelope {
+pub struct ValidatedElfDynamicFileEnvelope {
     resolved_dynamic_table: ValidatedElfResolvedDynamicTable,
     contents: ElfDynamicFileEnvelopeContents,
     non_authoritative_envelope_compatibility_fingerprint: u64,
