@@ -452,8 +452,8 @@ fn frame_identity(
         })?;
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x57);
-    hash.string(callable.as_str());
-    hash.string(entry.name.as_str());
+    hash.string_terminated(callable.as_str());
+    hash.string_terminated(entry.name.as_str());
     super::normalized_id(
         hash.finish_normalized(),
         TaskStackFrameId::from_normalized_identity,

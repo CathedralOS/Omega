@@ -228,14 +228,14 @@ fn live_place_identity(
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x4c);
-    hash.string(&program.typed.symbols.display_path(crossing.machine, "::"));
-    hash.string(&program.typed.symbols.display_path(crossing.state, "::"));
+    hash.string_terminated(&program.typed.symbols.display_path(crossing.machine, "::"));
+    hash.string_terminated(&program.typed.symbols.display_path(crossing.state, "::"));
     hash.usize(crossing.statement_index);
     hash.usize(crossing.call_ordinal);
     match live.origin {
         checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => {
             hash.byte(2);
-            hash.string(&program.typed.symbols.display_path(symbol, "::"));
+            hash.string_terminated(&program.typed.symbols.display_path(symbol, "::"));
             hash.usize(position);
         }
         checked_trees::SuspensionCrossingValueOrigin::Local {
@@ -244,7 +244,7 @@ fn live_place_identity(
             environment_position,
         } => {
             hash.byte(3);
-            hash.string(&program.typed.symbols.display_path(symbol, "::"));
+            hash.string_terminated(&program.typed.symbols.display_path(symbol, "::"));
             hash.usize(statement_index);
             hash.usize(environment_position);
         }
@@ -264,7 +264,7 @@ fn live_type_identity(
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x54);
-    hash.string(
+    hash.string_terminated(
         program
             .normalized_type_identity(live.type_reference)
             .as_str(),
@@ -293,8 +293,8 @@ fn live_claim_identity(
     };
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x43);
-    hash.string(&program.typed.symbols.display_path(machine_symbol, "::"));
-    hash.string(&program.typed.symbols.display_path(state_symbol, "::"));
+    hash.string_terminated(&program.typed.symbols.display_path(machine_symbol, "::"));
+    hash.string_terminated(&program.typed.symbols.display_path(state_symbol, "::"));
     match source {
         language_semantics::PermissionEventSource::StateEntry => hash.byte(1),
         language_semantics::PermissionEventSource::Statement { statement_index } => {
@@ -309,7 +309,7 @@ fn live_claim_identity(
             hash.byte(3);
             hash.usize(statement_index);
             hash.usize(call_ordinal);
-            hash.string(&program.typed.symbols.display_path(target_symbol, "::"));
+            hash.string_terminated(&program.typed.symbols.display_path(target_symbol, "::"));
         }
         language_semantics::PermissionEventSource::StateExit => hash.byte(4),
     }
