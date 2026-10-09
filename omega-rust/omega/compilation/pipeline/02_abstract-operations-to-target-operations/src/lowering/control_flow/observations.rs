@@ -83,8 +83,29 @@ pub(super) fn lower(
                 &mut provenance.operations,
             )?;
         }
-        AbstractOperation::ElementViewLength { source, .. }
-        | AbstractOperation::ElementViewRead { source, .. }
+        AbstractOperation::ElementViewLength { source, .. } => {
+            if super::references::check_projected_shared_access(
+                function,
+                live,
+                structural_types,
+                source.place,
+                &source.path,
+                None,
+            ) {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            element_views::lower_element_observation_with_lengths(
+                operation,
+                function,
+                structural_types,
+                &prepared.parameters,
+                live.element_view_backings(),
+                &mut values,
+                &live.lengths,
+                &mut provenance.operations,
+            )?;
+        }
+        AbstractOperation::ElementViewRead { source, .. }
         | AbstractOperation::ElementViewSubslice { source, .. } => {
             if !prepared.parameter(*source).is_some()
                 && !live.views.contains_key(source)
@@ -348,7 +369,11 @@ pub(super) fn lower(
             result,
             source,
         } => {
-            live.lengths.insert(result.value, *source);
+            // Whole-view reads use whole-descriptor lengths only. A sibling or
+            // projected descriptor cannot donate this observation's bound.
+            if source.path.is_empty() {
+                live.lengths.insert(result.value, source.place);
+            }
             let expression =
                 removed_scalar_expression(&mut values, function.machine, result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)

@@ -251,6 +251,40 @@ pub(super) fn read_geometry(
 )> {
     let scalar = row.result?.scalar_type;
     match &row.kind {
+        Instruction::ElementViewLength {
+            source: argument,
+            indices,
+            length_byte_offset,
+        } => {
+            if *length_byte_offset != 8 {
+                return None;
+            }
+            let signature = source.structural.as_ref()?;
+            let root = super::reference_input::root_type(source, argument.place)?;
+            let geometry =
+                crate::structural_inputs::structural_reference_input::element_view_length_geometry(
+                    root,
+                    &argument.path,
+                    &signature.structural_types,
+                )?;
+            let count = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .ok()?,
+            );
+            (scalar == count
+                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                    indices,
+                    &geometry.elements,
+                ))
+            .then_some((
+                argument.place,
+                geometry.byte_offset,
+                geometry.pointer_slots,
+            ))
+        }
         Instruction::StructuralByteSequenceFieldLength {
             source: argument,
             field,

@@ -118,9 +118,8 @@ pub(in crate::selection) fn read(
     // into the address first; every other read loads at its static offset.
     let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
         LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
-        | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { indices, .. } => {
-            indices
-        }
+        | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { indices, .. }
+        | LegalizedScalarInstructionKind::ElementViewLength { indices, .. } => indices,
         _ => &[],
     };
     if let Some((address, codec)) = super::runtime_address::scalar_reference(

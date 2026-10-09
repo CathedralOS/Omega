@@ -135,7 +135,9 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         // A leaf copy reads through its borrowed root; the root must
         // dominate the copy.
         O::StructuralLeafCopy { source, .. } => vec![*source],
-        O::EstablishReference { source, .. } | O::EstablishElementView { source, .. } => {
+        O::EstablishReference { source, .. }
+        | O::EstablishElementView { source, .. }
+        | O::ElementViewLength { source, .. } => {
             vec![source.place]
         }
         O::ReleaseReference { source, .. } => vec![*source],
@@ -156,7 +158,6 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
             ..
         }
         | O::ByteSequenceLength { source, .. }
-        | O::ElementViewLength { source, .. }
         | O::ElementViewRead { source, .. }
         | O::ElementViewSubslice { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)

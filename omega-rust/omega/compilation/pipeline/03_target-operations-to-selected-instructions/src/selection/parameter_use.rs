@@ -80,14 +80,14 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
                 | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
-                | LegalizedScalarInstructionKind::ElementViewLength { source, .. }
                 | LegalizedScalarInstructionKind::ElementViewRead { source, .. }
                 | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. } => {
                     *source == place
                 }
                 // `self.arr.as_slice()` roots a view in the parameter's
                 // fixed-array field, so the referent pointer must stay live.
-                LegalizedScalarInstructionKind::EstablishElementView { source, .. } => {
+                LegalizedScalarInstructionKind::EstablishElementView { source, .. }
+                | LegalizedScalarInstructionKind::ElementViewLength { source, .. } => {
                     source.place == place
                 }
                 LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(

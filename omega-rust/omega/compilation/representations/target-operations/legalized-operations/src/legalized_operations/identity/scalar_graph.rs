@@ -669,10 +669,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     encode_runtime_indices(bytes, indices);
                 }
                 LegalizedScalarInstructionKind::ElementViewLength {
-                    source,
+                    source, indices,
                     length_byte_offset} => {
                     bytes.push(43);
-                    crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    encode_runtime_indices(bytes, indices);
                     crate::codec_bytes::push_encoded(bytes, length_byte_offset.to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::BooleanNot { operand } => {

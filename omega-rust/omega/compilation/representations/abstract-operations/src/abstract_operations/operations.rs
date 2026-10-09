@@ -195,7 +195,7 @@ pub enum AbstractOperation {
     ElementViewLength {
         psi_operation: OperationId,
         result: AbstractResult,
-        source: PlaceId,
+        source: StructuralArgument,
     },
     /// Read a scalar leaf of one element with the verified same-view length
     /// and bounds obligation. An empty path reads a primitive element.
@@ -888,7 +888,9 @@ impl AbstractOperation {
             Self::StoreStructuralField { path, value, .. } => {
                 vec![path.as_slice(), value.path.as_slice()]
             }
-            Self::EstablishReference { source, .. } | Self::EstablishElementView { source, .. } => {
+            Self::EstablishReference { source, .. }
+            | Self::EstablishElementView { source, .. }
+            | Self::ElementViewLength { source, .. } => {
                 vec![source.path.as_slice()]
             }
             Self::EstablishStructuralArray {
@@ -1165,8 +1167,13 @@ macro_rules! return_structural_or_crash_pattern {
 #[macro_export]
 macro_rules! call_structural_or_boundary_call_pattern {
     ($structural_arguments:ident) => {
-        $crate::AbstractOperation::CallStructural { $structural_arguments, .. }
-            | $crate::AbstractOperation::BoundaryCall { $structural_arguments, .. }
+        $crate::AbstractOperation::CallStructural {
+            $structural_arguments,
+            ..
+        } | $crate::AbstractOperation::BoundaryCall {
+            $structural_arguments,
+            ..
+        }
     };
 }
 

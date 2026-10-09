@@ -170,7 +170,8 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::PrimitiveLocalStore { value, .. } => {
                 visit(value.value)
             }
-            LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
+            LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
+            | LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
                 indices, ..
             }
@@ -251,7 +252,6 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
             | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
             | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
-            | LegalizedScalarInstructionKind::ElementViewLength { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_) => {}
             LegalizedScalarInstructionKind::EstablishReference {
                 indices, storage, ..
@@ -709,7 +709,8 @@ pub enum LegalizedScalarInstructionKind {
         indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     ElementViewLength {
-        source: semantic_vocabulary::PlaceId,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         length_byte_offset: u32,
     },
     Constant(IntegerValue),

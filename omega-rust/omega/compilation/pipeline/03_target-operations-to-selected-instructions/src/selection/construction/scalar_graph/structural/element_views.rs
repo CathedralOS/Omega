@@ -46,25 +46,32 @@ pub(in crate::selection) fn element_observation(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let source = match row.kind {
-        LegalizedScalarInstructionKind::ElementViewRead { source, .. }
-        | LegalizedScalarInstructionKind::ElementViewLength { source, .. } => source,
-        _ => return Err(invalid()),
-    };
-    // An addressable record is not an element descriptor. Reconstruct the
-    // semantic view type before interpreting any pointer home as backing and
-    // element extent.
-    if crate::selection::established_view_input::element_view_type(function, source).is_none() {
-        return Err(invalid());
-    }
-    match row.kind {
-        LegalizedScalarInstructionKind::ElementViewRead { .. } => {
+    match &row.kind {
+        LegalizedScalarInstructionKind::ElementViewRead { source, .. } => {
+            if crate::selection::established_view_input::element_view_type(function, *source)
+                .is_none()
+            {
+                return Err(invalid());
+            }
             element_view_read(function, builder, row)
         }
         LegalizedScalarInstructionKind::ElementViewLength {
             source,
             length_byte_offset,
-        } => element_view_length(builder, row, source, length_byte_offset),
+            ..
+        } => {
+            if *length_byte_offset != 8 {
+                return Err(invalid());
+            }
+            // Derived whole descriptors already carry their exact extent in
+            // SSA. Projected descriptors are observations of existing storage,
+            // crossing stored references without extracting or copying a view.
+            if source.path.is_empty() && builder.transport.element_view(source.place).is_some() {
+                element_view_length(builder, row, source.place, *length_byte_offset)
+            } else {
+                super::primitive_locals::read(function, builder, row)
+            }
+        }
         _ => Err(invalid()),
     }
 }
@@ -257,42 +264,18 @@ fn element_view_length(
         definition.definition_site,
         definition.scalar_type,
     )?;
-    if let Some(view) = builder.transport.element_view(source).copied() {
-        builder.emit(
-            SelectedInstructionKind::CopyI64,
-            builder.constraints.keys.copy_i64,
-            &[view.element_length, output],
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![definition.value, view.root_length],
-                ..Default::default()
-            },
-        )?;
-        return Ok(output);
-    }
-    let descriptor = builder
+    let view = builder
         .transport
-        .pointers
-        .iter()
-        .find(|(place, _)| *place == source)
-        .map(|(_, register)| *register)
+        .element_view(source)
+        .copied()
         .ok_or_else(|| invalid())?;
-    memory(
-        builder,
-        row,
-        source,
-        8,
-        8,
-        SelectedMemoryAccessRole::ReadPlace,
-    )?;
     builder.emit(
-        SelectedInstructionKind::Load64 { byte_offset: 8 },
-        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-        &[descriptor, output],
+        SelectedInstructionKind::CopyI64,
+        builder.constraints.keys.copy_i64,
+        &[view.element_length, output],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
-            values: vec![definition.value],
-            fuel: row.fuel.clone(),
+            values: vec![definition.value, view.root_length],
             ..Default::default()
         },
     )?;

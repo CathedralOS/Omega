@@ -801,7 +801,7 @@ pub(super) fn validate(
                 result.scalar_type
             }
             AbstractOperation::ElementViewLength { source, .. } => {
-                if !super::byte_views::contains_view(optimized, *source, types) {
+                if super::element_views::length_geometry(optimized, source, types).is_none() {
                     return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(u64_type())

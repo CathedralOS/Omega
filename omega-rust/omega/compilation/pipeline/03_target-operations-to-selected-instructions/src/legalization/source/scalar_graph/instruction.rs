@@ -425,8 +425,20 @@ pub(super) fn project(
             }
         }
         AbstractOperation::ElementViewLength { source, .. } => {
+            let geometry = crate::legalization::scalar_graph_input::element_views::length_geometry(
+                optimized,
+                source,
+                &unit.structural_types,
+            )
+            .ok_or(LegalizationError::custody())?;
             LegalizedScalarInstructionKind::ElementViewLength {
-                source: *source,
+                source: source.clone(),
+                indices: crate::legalization::runtime_indices::operands(
+                    optimized,
+                    unit,
+                    node.psi_operation().ok_or(LegalizationError::custody())?,
+                    &geometry.elements,
+                )?,
                 length_byte_offset: 8,
             }
         }

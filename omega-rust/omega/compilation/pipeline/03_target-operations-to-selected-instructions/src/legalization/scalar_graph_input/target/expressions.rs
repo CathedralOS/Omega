@@ -125,9 +125,11 @@ impl Checker<'_> {
                             .is_some_and(|(offset, _, _)| offset == *element_byte_offset)
                         && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
             }
-            Expression::ElementViewLength { psi_operation, source_value, source, view, length_byte_offset } => {
+            Expression::ElementViewLength { psi_operation, source_value, source, indices, length_byte_offset } => {
                 *length_byte_offset == 8 && *source_value == resolved
-                    && self.element_view(view, *source, aliases)
+                    && super::super::element_views::length_geometry(self.optimized, source, self.types)
+                        .is_some_and(|geometry| super::unit::runtime_indices_rejoin(
+                            indices, &geometry.elements, self.available.unwrap_or(&[])))
                     && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                         AbstractOperation::ElementViewLength { psi_operation: operation, result, source: expected }
                         if operation == psi_operation && result.value == resolved && expected == source))

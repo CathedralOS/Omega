@@ -103,6 +103,9 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(result.place);
             places.insert(source.place);
         }
+        O::ElementViewLength { source, .. } => {
+            places.insert(source.place);
+        }
         O::ReleaseReference { source, .. } => {
             places.insert(*source);
         }
@@ -125,7 +128,6 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
         | O::StructuralCase { source, .. }
         | O::ByteSequenceLength { source, .. }
-        | O::ElementViewLength { source, .. }
         | O::ElementViewRead { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }

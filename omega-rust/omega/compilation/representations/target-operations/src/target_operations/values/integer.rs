@@ -47,11 +47,14 @@ pub enum TargetIntegerExpression {
         path: Vec<terminal_psi::StructuralPathSegment>,
         element_byte_offset: u32,
     },
+    /// Observe the selected descriptor's extent in elements. Its complete
+    /// coordinate and selector operands survive independently of any derived
+    /// view recipe; observation never establishes a replacement descriptor.
     ElementViewLength {
         psi_operation: OperationId,
         source_value: ValueId,
-        source: PlaceId,
-        view: Box<TargetElementView>,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         length_byte_offset: u32,
     },
     Immediate {

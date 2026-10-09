@@ -30,6 +30,7 @@ pub(super) mod call_origin;
 pub(in crate::legalization) mod call_signature;
 pub(in crate::legalization) mod cleanup_calls;
 mod control;
+pub(in crate::legalization) mod element_views;
 mod header;
 mod hosted_scalar;
 pub(in crate::legalization) mod ieee_float_arithmetic;

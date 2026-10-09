@@ -168,13 +168,55 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
         provenance.push(*psi_operation);
         return Ok(true);
     }
-    let (psi_operation, result, source) = match operation {
-        AbstractOperation::ElementViewLength {
-            psi_operation,
-            result,
-            source,
+    if let AbstractOperation::ElementViewLength {
+        psi_operation,
+        result,
+        source,
+    } = operation
+    {
+        let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+        let Some(scalar_type) = result.scalar_type.as_integer() else {
+            return Err(invalid());
+        };
+        if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+            return Err(invalid());
         }
-        | AbstractOperation::ElementViewRead {
+        let indices = if source.path.is_empty() {
+            // A derived descriptor retains its normal whole-view resolution,
+            // including completed call results and subslice coordinates.
+            element_view_for_place(
+                function,
+                structural_types,
+                parameters,
+                backings,
+                values,
+                lengths,
+                source.place,
+                &mut Vec::new(),
+            )?;
+            Vec::new()
+        } else {
+            descriptor_indices(function, structural_types, backings, source)?
+        };
+        insert_value(
+            values,
+            result.value,
+            KnownScalar::Integer {
+                scalar_type,
+                value: KnownInteger::Runtime(TargetIntegerExpression::ElementViewLength {
+                    psi_operation: *psi_operation,
+                    source_value: result.value,
+                    source: source.clone(),
+                    indices,
+                    length_byte_offset: 8,
+                }),
+            },
+        )?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
+    let (psi_operation, result, source) = match operation {
+        AbstractOperation::ElementViewRead {
             psi_operation,
             result,
             source,
@@ -194,24 +236,6 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
         &mut Vec::new(),
     )?;
     let known = match operation {
-        AbstractOperation::ElementViewLength { .. } => {
-            let Some(scalar_type) = result.scalar_type.as_integer() else {
-                return Err(invalid());
-            };
-            if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
-                return Err(invalid());
-            }
-            KnownScalar::Integer {
-                scalar_type,
-                value: KnownInteger::Runtime(TargetIntegerExpression::ElementViewLength {
-                    psi_operation,
-                    source_value: result.value,
-                    source,
-                    view: Box::new(view),
-                    length_byte_offset: 8,
-                }),
-            }
-        }
         AbstractOperation::ElementViewRead {
             index,
             length,
@@ -988,7 +1012,7 @@ fn observes_length(
             source: observed,
             source_value,
             ..
-        }) => *observed == source && *source_value == length,
+        }) => observed.place == source && observed.path.is_empty() && *source_value == length,
         KnownInteger::Runtime(TargetIntegerExpression::ScalarHome(home)) => {
             home.source_value == length
                 && home.scalar_type == ScalarType::Integer(*scalar_type)
@@ -996,4 +1020,67 @@ fn observes_length(
         }
         _ => false,
     }
+}
+
+/// A projected descriptor borrows its exact current carrier. Runtime selectors
+/// stay in operand custody on the side of each stored-reference crossing.
+fn descriptor_indices(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    backings: ElementViewBackings<'_>,
+    source: &StructuralArgument,
+) -> Result<Vec<target_operations::TargetStructuralRuntimeIndex>, LoweringError> {
+    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    if !matches!(
+        source.access,
+        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) {
+        return Err(invalid());
+    }
+    let (root, access) = function
+        .arrival_parameter(source.place)
+        .map(|parameter| (parameter.structural_type, parameter.access))
+        .or_else(|| {
+            backings
+                .homes
+                .get(&source.place)
+                .map(|home| (home.structural_type(), home.access()))
+        })
+        .ok_or_else(invalid)?;
+    if !(access == source.access
+        || access == StructuralAccess::Owned
+        || access == StructuralAccess::MutableBorrow
+            && source.access == StructuralAccess::SharedBorrow)
+    {
+        return Err(invalid());
+    }
+    let regions = crate::lowering::structural_layout::reference_projection_regions(
+        root,
+        &source.path,
+        structural_types,
+    )
+    .ok_or_else(invalid)?;
+    let (selected, _, _, leaf_indices) = runtime_projection(
+        regions.root,
+        regions.path,
+        structural_types,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    if !structural_types.get(&selected).is_some_and(|declaration| {
+        matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+    }) {
+        return Err(invalid());
+    }
+    let indices = regions
+        .pointer_slots
+        .into_iter()
+        .flat_map(|slot| slot.indices)
+        .chain(leaf_indices)
+        .collect();
+    crate::lowering::control_flow::scalar_sources::runtime_indices(
+        indices,
+        function,
+        &backings.selectors,
+    )
 }

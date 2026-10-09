@@ -136,6 +136,27 @@ pub(crate) struct ReferenceSourceGeometry {
     pub(crate) elements: Vec<RuntimeElement>,
 }
 
+/// The extent word of the selected element descriptor, in element units.
+/// Stored-reference crossings keep their own selector regions; selecting a
+/// sibling descriptor never replaces this operand's path or captured indices.
+pub(crate) fn element_view_length_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ReferenceSourceGeometry> {
+    let mut geometry = reference_source_geometry(root, path, declarations)?;
+    if !geometry.readable
+        || !matches!(
+            find_structural_type(declarations, geometry.selected)?.shape,
+            StructuralTypeShape::ElementView { .. }
+        )
+    {
+        return None;
+    }
+    geometry.byte_offset = geometry.byte_offset.checked_add(8)?;
+    Some(geometry)
+}
+
 pub(crate) fn reference_source_geometry(
     mut root: StructuralTypeId,
     path: &[StructuralPathSegment],

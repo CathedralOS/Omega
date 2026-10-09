@@ -346,7 +346,7 @@ pub(super) fn lower(
             Ok(AbstractOperation::ElementViewLength {
                 psi_operation: operation.id,
                 result: result.into(),
-                source: *source,
+                source: source.clone(),
             })
         }
         OperationKind::ElementViewRead {
