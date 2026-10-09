@@ -3,13 +3,7 @@
 //! parameters — the same precedence
 //! `structural_argument_sources::expected_sources` binds homes.
 
-use std::collections::BTreeMap;
 
-use abstract_operations::{
-    AbstractBoundaryResult, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
-};
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use terminal_psi::{StructuralAccess, StructuralArgument, StructuralParameterDeclaration};
 
 
 

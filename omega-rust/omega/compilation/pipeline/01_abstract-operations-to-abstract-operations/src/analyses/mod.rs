@@ -16,15 +16,10 @@ pub(crate) use control_flow::{
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use control_flow::{
     CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, CountedLoopAnalysisSnapshot,
-    UnsignedCountdownInvariantConstantPlacements};
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisSnapshot};
 pub(crate) use control_flow::{
     analyze_countdown_invariant_constant_placement,
     analyze_countdown_invariant_constants, analyze_counted_loops};
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use control_flow::{
-    };
 pub(crate) use manager::{AnalysisManager, AnalysisManagerError};
 #[cfg(any(test, feature = "test-support"))]
 pub use optimization_unit::{

@@ -5,13 +5,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use calling_conventions::{
     CallingPolicy, ConventionalSumLayout, SystemVEightbyteClass, ValueClass, ValueShape,
 };
-use semantic_vocabulary::{IeeeFloatFormat, OperationId, ScalarType, StructuralTypeId};
-use target_operations::{
-    TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
-};
+use semantic_vocabulary::{IeeeFloatFormat, ScalarType, StructuralTypeId};
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralOperationResult,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
+    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 #[derive(Debug, PartialEq, Eq)]

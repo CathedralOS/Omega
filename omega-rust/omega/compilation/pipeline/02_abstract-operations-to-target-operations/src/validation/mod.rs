@@ -18,9 +18,7 @@ mod structural_call_arguments;
 pub(crate) mod structural_shapes;
 pub(crate) mod whole_plan;
 
-use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
-use target::NativeTarget;
-use terminal_psi::TerminalPsiIdentity;
+use semantic_vocabulary::{MachineId, OperationId};
 
 
 
