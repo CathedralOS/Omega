@@ -324,6 +324,66 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)
     }
 
+    /// A descriptor observation borrows its exact carrier, without consuming
+    /// its home. Borrowed ingress bounds access; owned carrier storage must
+    /// retain the selected residual subtree. Unrestricted completed descriptors
+    /// may be read but never acquire exclusive authority from their contents.
+    pub(crate) fn validate_descriptor_borrow(
+        &self,
+        source: &StructuralArgument,
+        requested: StructuralAccess,
+    ) -> Result<(), TerminalInterpretError> {
+        if !matches!(
+            requested,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) || !access_covers(source.access, requested)
+        {
+            return Err(malformed());
+        }
+        let root = self
+            .structural_values
+            .get(&source.place)
+            .ok_or_else(malformed)?;
+        let machine = self.program.verified_machine(self.current_machine)?;
+        if let Some(parameter) = machine.signature_structural_parameter(source.place) {
+            if parameter.structural_type != root.structural_type {
+                return Err(malformed());
+            }
+            if parameter.access != StructuralAccess::Owned {
+                return (parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && access_covers(parameter.access, requested))
+                .then_some(())
+                .ok_or_else(malformed);
+            }
+            if parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && requested == StructuralAccess::SharedBorrow
+            {
+                return Ok(());
+            }
+        } else if requested == StructuralAccess::SharedBorrow {
+            let unrestricted =
+                machine
+                    .structural_place(source.place)
+                    .is_some_and(|place| match place.kind {
+                        terminal_psi::StructuralPlaceKind::ByteSequenceLiteral { .. } => true,
+                        terminal_psi::StructuralPlaceKind::OperationResult { producer, .. } => {
+                            machine
+                                .operation(producer)
+                                .and_then(|operation| operation.result.structural())
+                                .is_some_and(|result| {
+                                    result.multiplicity == StructuralMultiplicity::Unrestricted
+                                })
+                        }
+                        _ => false,
+                    });
+            if unrestricted {
+                return Ok(());
+            }
+        }
+        self.reference_carrier_access(source.place, root, &source.path)?;
+        Ok(())
+    }
+
     /// A byte selected inside a byte view or bounded owner has no catalog
     /// child of its own; it names the unique declared `u8` carrier, the same
     /// endpoint judgment primitive loans of inline bytes use.

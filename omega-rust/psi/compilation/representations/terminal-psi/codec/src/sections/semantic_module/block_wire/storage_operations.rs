@@ -202,14 +202,16 @@ pub(super) fn decode_structural_case_leaf_copy(
 
 pub(super) fn encode_byte_sequence_subslice(
     writer: &mut Writer,
-    source: PlaceId,
+    source: StructuralArgument,
     start: ValueId,
     end: ValueId,
     length: ValueId,
     obligation: ObligationId,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::BYTE_SEQUENCE_SUBSLICE);
-    writer.id(source);
+    writer.id(source.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, source.access);
+    encode_structural_path(writer, "descriptor source path", &source.path)?;
     writer.id(start);
     writer.id(end);
     writer.id(length);
@@ -221,7 +223,11 @@ pub(super) fn decode_byte_sequence_subslice(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::ByteSequenceSubslice {
-        source: reader.id("PlaceId")?,
+        source: StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
         start: reader.id("ValueId")?,
         end: reader.id("ValueId")?,
         length: reader.id("ValueId")?,
@@ -318,10 +324,12 @@ pub(super) fn decode_byte_sequence_read(
 
 pub(super) fn encode_byte_sequence_length(
     writer: &mut Writer,
-    source: PlaceId,
+    source: StructuralArgument,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::BYTE_SEQUENCE_LENGTH);
-    writer.id(source);
+    writer.id(source.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, source.access);
+    encode_structural_path(writer, "descriptor source path", &source.path)?;
     Ok(())
 }
 
@@ -329,7 +337,11 @@ pub(super) fn decode_byte_sequence_length(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::ByteSequenceLength {
-        source: reader.id("PlaceId")?,
+        source: StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
     })
 }
 
@@ -484,14 +496,16 @@ pub(super) fn decode_projected_element_view_read(
 
 pub(super) fn encode_element_view_subslice(
     writer: &mut Writer,
-    source: PlaceId,
+    source: StructuralArgument,
     start: ValueId,
     end: ValueId,
     length: ValueId,
     obligation: ObligationId,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ELEMENT_VIEW_SUBSLICE);
-    writer.id(source);
+    writer.id(source.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, source.access);
+    encode_structural_path(writer, "descriptor source path", &source.path)?;
     writer.id(start);
     writer.id(end);
     writer.id(length);
@@ -503,7 +517,11 @@ pub(super) fn decode_element_view_subslice(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::ElementViewSubslice {
-        source: reader.id("PlaceId")?,
+        source: StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
         start: reader.id("ValueId")?,
         end: reader.id("ValueId")?,
         length: reader.id("ValueId")?,

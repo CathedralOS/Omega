@@ -454,9 +454,9 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 46 | StructuralScalarFieldStore | destination place id + structural path + field id + value id; unchecked form |
 | 47 | ScalarStructuralField | source place id + scalar field carrier path + field id |
 | 50 | CallStructuralWithScalarArguments | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
-| 55 | ByteSequenceLength | source place id |
+| 55 | retired | whole-place ByteSequenceLength payload is rejected |
 | 56 | ByteSequenceRead | source place id + index value id + length value id + obligation id |
-| 57 | ByteSequenceSubslice | source place id + start value id + end value id + length value id + obligation id |
+| 57 | retired | whole-place ByteSequenceSubslice payload is rejected |
 | 58 | StructuralByteSequenceFieldStore | destination place id + structural path + field id + source place id + length value id + obligation id |
 | 59 | StructuralByteSequenceFieldLength | source place id + structural path + field id |
 | 60 | StructuralByteSequenceFieldByteStore | destination place id + structural path + field id + index value id + value id + length value id + obligation id |
@@ -476,7 +476,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 98 | EstablishMutableElementView | destination place id + source structural argument + element type id + element-view region |
 | 80 | retired | rejected; old whole-place element-length payload |
 | 81 | ElementViewRead | source place id + index value id + length value id + obligation id |
-| 82 | ElementViewSubslice | source place id + start value id + end value id + length value id + obligation id |
+| 82 | retired | whole-place ElementViewSubslice payload is rejected |
 | 83 | EstablishStructuralCase | structural case id + counted fields (field id + `u8` operand tag: 1 + value id + optional obligation id; 2 + structural argument) |
 | 84 | StructuralLeafCopy | source place id + structural path |
 | 85 | StructuralCaseLeafCopy | canonical structural field (source place id + canonical path whose `Case` steps name the case the authorizing edge selected) |
@@ -490,6 +490,9 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 105 | ByteSequenceEqual | left byte-sequence operand + right byte-sequence operand |
 | 106 | StructuralByteViewFieldStore | destination place id + structural path + field id (zero: the whole destination) + source place id + predicate obligation id |
 | 112 | ElementViewLength | source place id + structural access + structural path |
+| 113 | ByteSequenceSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
+| 114 | ElementViewSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
+| 115 | ByteSequenceLength | source place id + structural access + structural path |
 
 A byte-sequence operand is `u8` 0 + whole source place id + length value id,
 or `u8` 1 + source place id + structural access + structural path + field id

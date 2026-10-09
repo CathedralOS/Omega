@@ -88,6 +88,10 @@ pub(super) fn adapt(
                 }
             }
             match &operation.kind {
+                OperationKind::ByteSequenceLength { source }
+                | OperationKind::ElementViewLength { source } => {
+                    step.inputs = vec![location(source.place, &source.path, None)?];
+                }
                 OperationKind::EstablishZeroedStructural {} => {
                     let result = result?;
                     for slot in replay::descriptor_slots(
@@ -166,7 +170,8 @@ pub(super) fn adapt(
                 | OperationKind::ElementViewSubslice {
                     source, start, end, ..
                 } => {
-                    let source = DescriptorLocation::whole(*source);
+                    let source = location(source.place, &source.path, None)?;
+                    step.inputs = vec![source.clone()];
                     let destination = DescriptorLocation::whole(result?.place);
                     step.derivations.push((source.clone(), destination.clone()));
                     graph.projections.insert(

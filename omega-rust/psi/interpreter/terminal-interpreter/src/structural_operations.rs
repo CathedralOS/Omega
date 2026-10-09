@@ -1815,7 +1815,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::ByteSequenceLength { source } = operation.kind else {
+        let OperationKind::ByteSequenceLength { source } = &operation.kind else {
             unreachable!("dispatched execute_byte_sequence_length")
         };
         let result = operation.result.expect_scalar();
@@ -1824,7 +1824,14 @@ impl TerminalExecution<'_> {
         if result.scalar_type != ScalarType::Integer(integer_type) {
             return Err(malformed());
         }
-        let length = self.byte_sequence_length(source)?;
+        self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
+        let selected = self.resolve_live_projection(
+            source.place,
+            &source.path,
+            StructuralAccess::SharedBorrow,
+        )?;
+        let binding = self.byte_descriptor_binding(source, &selected)?;
+        let length = self.byte_descriptor_length(&binding, &selected)?;
         self.values.insert(
             result.id,
             TerminalScalarValue::Integer {

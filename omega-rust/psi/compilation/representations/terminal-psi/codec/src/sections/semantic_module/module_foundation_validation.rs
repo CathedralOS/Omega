@@ -569,7 +569,7 @@ fn validate_operation_foundation(
             storage_foundations::validate_byte_sequence_read(operation)?
         }
         OperationKind::ByteSequenceLength { .. } => {
-            storage_foundations::validate_byte_sequence_length(operation)?
+            storage_foundations::validate_byte_sequence_length(module, machine, operation)?
         }
         OperationKind::WriteOnlyPrimitiveStore { .. } => {
             storage_foundations::validate_write_only_primitive_store(module, machine, operation)?

@@ -73,6 +73,21 @@ impl ByteSequenceView {
             .map_or_else(|| value.path.is_empty(), |home| home == value)
     }
 
+    /// A home-less descriptor inherits only its keyed frame binding. Full
+    /// runtime identity, selected path and carrier must agree before reuse.
+    pub(crate) fn matches_bound_descriptor_home(
+        &self,
+        binding: &crate::values::TerminalStructuralValue,
+        selected: &crate::values::TerminalStructuralValue,
+    ) -> bool {
+        let same_home = |home: &crate::values::TerminalStructuralValue| {
+            home.opaque_identity == selected.opaque_identity
+                && home.path == selected.path
+                && home.structural_type == selected.structural_type
+        };
+        same_home(binding) && self.descriptor_home.as_ref().is_none_or(same_home)
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.window.end - self.window.start
     }

@@ -253,18 +253,18 @@ impl OperationKind {
             | Self::EstablishMutableElementView { source, .. } => {
                 source.place = map(source.place, source.access);
             }
-            Self::ElementViewLength { source } => {
+            Self::ElementViewLength { source } | Self::ByteSequenceLength { source } => {
                 source.place = map(source.place, StructuralAccess::SharedBorrow);
             }
             Self::ReleaseReference { source, .. } => {
                 *source = map(*source, StructuralAccess::Owned);
             }
-            Self::MoveStructuralField { source, .. }
-            // The result's carrier determines subview authority. Without its
-            // declaration this kind-only inventory retains exclusive demand.
-            | Self::ByteSequenceSubslice { source, .. }
-            | Self::ElementViewSubslice { source, .. } => {
+            Self::MoveStructuralField { source, .. } => {
                 *source = map(*source, StructuralAccess::MutableBorrow);
+            }
+            Self::ByteSequenceSubslice { source, .. }
+            | Self::ElementViewSubslice { source, .. } => {
+                source.place = map(source.place, source.access);
             }
             Self::PrimitiveScalarRead { source, .. }
             | Self::StructuralByteSequenceFieldLength { source, .. }
@@ -272,7 +272,6 @@ impl OperationKind {
             | Self::StructuralCaseMembership { source, .. }
             | Self::StructuralLeafCopy { source, .. }
             | Self::StructuralCaseLeafCopy { source, .. }
-            | Self::ByteSequenceLength { source }
             | Self::ByteSequenceRead { source, .. }
             | Self::ElementViewRead { source, .. }
             | Self::BooleanStructuralField { source, .. }
@@ -320,7 +319,9 @@ impl OperationKind {
                 map_byte_sequence_operand(operand, map);
             }
             Self::EstablishStructuralArray { elements } => {
-                for argument in elements { argument.place = map(argument.place, argument.access); }
+                for argument in elements {
+                    argument.place = map(argument.place, argument.access);
+                }
             }
             Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
                 for field in fields {
@@ -386,7 +387,10 @@ impl OperationKind {
             Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. }
-            | Self::ElementViewLength { source } => {
+            | Self::ElementViewLength { source }
+            | Self::ByteSequenceLength { source }
+            | Self::ByteSequenceSubslice { source, .. }
+            | Self::ElementViewSubslice { source, .. } => {
                 projections.push(argument_projection(source));
             }
             Self::PrimitiveScalarRead { source, path }
@@ -459,13 +463,10 @@ impl OperationKind {
             | Self::EstablishScalarCase { .. }
             | Self::StructuralCaseLeafCopy { .. }
             | Self::EstablishByteSequenceLiteral { .. }
-            | Self::ByteSequenceLength { .. }
             | Self::ByteSequenceRead { .. }
             | Self::ByteSequenceWrite { .. }
             | Self::ByteSequenceStore { .. }
-            | Self::ByteSequenceSubslice { .. }
             | Self::ElementViewWrite { .. }
-            | Self::ElementViewSubslice { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | call_and_scalar_constant_operations!()
             | Self::BooleanStructuralField { .. }
@@ -499,7 +500,10 @@ impl OperationKind {
             Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. }
-            | Self::ElementViewLength { source } => {
+            | Self::ElementViewLength { source }
+            | Self::ByteSequenceLength { source }
+            | Self::ByteSequenceSubslice { source, .. }
+            | Self::ElementViewSubslice { source, .. } => {
                 paths.push(&mut source.path);
             }
             Self::PrimitiveScalarRead { path, .. }

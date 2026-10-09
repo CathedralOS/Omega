@@ -22,7 +22,7 @@ pub fn literal_length_equation(
     else {
         return Ok(None);
     };
-    if source != destination {
+    if source.place != *destination || !source.path.is_empty() {
         return Ok(None);
     }
     // Reuse the leaf schema's result-shape check rather than accepting bytes
@@ -44,7 +44,7 @@ pub fn subslice_length_equation(
         producer,
         |observation| match observation {
             StructuralEffectObservation::ByteSequenceLengthRead { source, result } => {
-                Some((*source, *result))
+                Some((source, *result))
             }
             _ => None,
         },

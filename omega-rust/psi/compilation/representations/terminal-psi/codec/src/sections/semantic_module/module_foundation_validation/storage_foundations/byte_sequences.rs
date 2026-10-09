@@ -225,7 +225,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             _ => false,
         })
         || !machine.operations().any(|candidate| {
-            matches!(candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured == *source)
+            matches!(&candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured.place == *source && measured.path.is_empty())
                 && candidate.result.scalar_ref().is_some_and(|result| result.id == *length
                     && matches!(result.scalar_type, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64))
         })
@@ -278,7 +278,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let OperationKind::ByteSequenceSubslice { .. } = &operation.kind else {
+    let OperationKind::ByteSequenceSubslice { source, .. } = &operation.kind else {
         unreachable!("dispatched validate_byte_sequence_subslice")
     };
     let Some(result) = operation.result.structural() else {
@@ -304,6 +304,19 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 if producer == operation.id && structural_type == result.structural_type)
     }) {
         return malformed("byte-sequence subslice requires its exact borrowed result place");
+    }
+    validate_byte_descriptor_source(module, machine, source, true)?;
+    let root = place_structural_type(machine, source.place).expect("source checked above");
+    let selected = validate_structural_path(module, root, &source.path)?;
+    if selected != result.structural_type
+        || (result.multiplicity == StructuralMultiplicity::Affine
+            && !matches!(
+                source.access,
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            ))
+    {
+        return malformed("byte subslice must preserve its selected descriptor and access");
     }
     // Shape admission does not grant access. Independent module validation
     // reconstructs the source loan and forbids a shared-to-mutable result.
@@ -332,13 +345,41 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 }
 
 pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_byte_sequence_length(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let OperationKind::ByteSequenceLength { .. } = &operation.kind else {
+    let OperationKind::ByteSequenceLength { source } = &operation.kind else {
         unreachable!("dispatched validate_byte_sequence_length")
     };
     super::validate_u64_length_result(
         operation,
         "byte-sequence length requires an unsigned 64-bit scalar result",
-    )
+    )?;
+    validate_byte_descriptor_source(module, machine, source, false)?;
+    Ok(())
+}
+
+/// Validate declaration geometry only; live descriptor access and bounds are
+/// independently reconstructed at the Terminal trust boundary.
+fn validate_byte_descriptor_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: &terminal_psi::StructuralArgument,
+    borrowed_only: bool,
+) -> Result<(), CodecError> {
+    if source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+        return malformed("byte descriptor requires readable access");
+    }
+    let Some(root) = place_structural_type(machine, source.place) else {
+        return malformed("byte descriptor has no source declaration");
+    };
+    let selected = validate_structural_path(module, root, &source.path)?;
+    if !module.structural_type(selected).is_some_and(|declaration| {
+        declaration.shape.is_borrowed_byte_view()
+            || (!borrowed_only && declaration.shape.is_bounded_owned_byte_sequence())
+    }) {
+        return malformed("byte operation requires its exact selected byte descriptor");
+    }
+    Ok(())
 }

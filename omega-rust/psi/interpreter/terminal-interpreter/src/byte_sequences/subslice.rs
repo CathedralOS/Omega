@@ -35,18 +35,16 @@ impl TerminalExecution<'_> {
         let start = count(start)?;
         let end = count(end)?;
         let length = count(length)?;
-        let source_value =
-            crate::custody::verified_structural_place(&self.structural_values, *source)?;
-        let binding =
-            crate::custody::verified_structural_place(&self.byte_sequence_values, *source)?;
         let mutable = result.multiplicity == StructuralMultiplicity::Affine;
-        let source_mutable = matches!(
-            binding,
-            crate::byte_sequences::binding::ByteSequenceBinding::MutableArray { .. }
-                | crate::byte_sequences::binding::ByteSequenceBinding::MutableField { .. }
-                | crate::byte_sequences::binding::ByteSequenceBinding::MutableOwner { .. }
-        );
-        let source_length = self.byte_sequence_length(*source)?;
+        let access = if mutable {
+            StructuralAccess::MutableBorrow
+        } else {
+            StructuralAccess::SharedBorrow
+        };
+        self.validate_descriptor_borrow(source, access)?;
+        let source_value = self.resolve_live_projection(source.place, &source.path, access)?;
+        let binding = self.byte_descriptor_binding(source, &source_value)?;
+        let source_length = self.byte_descriptor_length(&binding, &source_value)?;
         let machine = self.program.verified_machine(self.current_machine)?;
         // Canonical verification owns unique producer/result IDs. Retain the
         // exact operation declaration here so reuse cannot overwrite a parameter
@@ -69,37 +67,46 @@ impl TerminalExecution<'_> {
             // could break a predicate the source still declares.
             || (mutable && !source_value.qualifications.is_empty())
             || !matches!(
-                result.multiplicity,terminal_psi::nonlinear_multiplicity_pair_pattern!())
-            || (mutable && !source_mutable)
+                result.multiplicity,
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
+            )
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
             || self
                 .live_claims
                 .values()
-                .any(|claim| claim.place == Some(*source) || claim.place == Some(result.place))
-            || self.live_affine_frontier.iter().any(|entry| {
-                (entry.place == *source && !source_mutable) || entry.place == result.place
-            })
+                .any(|claim| claim.place == Some(source.place) || claim.place == Some(result.place))
+            || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());
         }
-        let destination =
-            TerminalStructuralValue::minted(result.place.get(), result.structural_type, Vec::new());
         match (
             self.structural_values.get(&result.place),
             self.byte_sequence_values.get(&result.place),
         ) {
             (None, None) => {}
-            (
-                Some(previous),
-                Some(crate::byte_sequences::binding::ByteSequenceBinding::Immutable(_)),
-            ) if *previous == destination => {}
+            (Some(previous), Some(ByteSequenceBinding::Immutable(bytes)))
+                if *previous
+                    == TerminalStructuralValue::minted(
+                        previous.opaque_identity,
+                        result.structural_type,
+                        Vec::new(),
+                    )
+                    && bytes.matches_bound_descriptor_home(previous, previous) => {}
             _ => return Err(malformed()),
         }
+        let mut identity_cursor = self.local_structural_identities.cursor();
+        let destination = TerminalStructuralValue::minted(
+            self.local_structural_identities
+                .allocate_staged(&mut identity_cursor)?,
+            result.structural_type,
+            Vec::new(),
+        );
         let (destination, view) = self.narrow_byte_sequence_binding(
-            binding,
-            source_value,
+            &binding,
+            &source_value,
             start..end,
             if mutable {
                 StructuralAccess::MutableBorrow
@@ -108,6 +115,8 @@ impl TerminalExecution<'_> {
             },
             destination,
         )?;
+        self.local_structural_identities
+            .commit_cursor(identity_cursor);
         self.byte_sequence_values.insert(result.place, view);
         self.structural_values.insert(result.place, destination);
         if mutable {
@@ -147,6 +156,13 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
+        let shared;
+        let binding = if access == StructuralAccess::SharedBorrow {
+            shared = self.reborrow_byte_sequence_binding(binding, source, access)?;
+            &shared
+        } else {
+            binding
+        };
         let narrowed = match binding {
             ByteSequenceBinding::Immutable(bytes) if access == StructuralAccess::SharedBorrow => {
                 if !bytes.matches_descriptor_home(source) {

@@ -99,11 +99,13 @@ pub(super) const SCALAR_STRUCTURAL_FIELD: u8 = 47;
 /// `OperationKind::CallStructuralWithScalarArguments`.
 pub(super) const CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS: u8 = 50;
 /// `OperationKind::ByteSequenceLength`.
-pub(super) const BYTE_SEQUENCE_LENGTH: u8 = 55;
+// Tag 55 is retired: its whole-place payload must never be reinterpreted.
+pub(super) const BYTE_SEQUENCE_LENGTH: u8 = 115;
 /// `OperationKind::ByteSequenceRead`.
 pub(super) const BYTE_SEQUENCE_READ: u8 = 56;
 /// `OperationKind::ByteSequenceSubslice`.
-pub(super) const BYTE_SEQUENCE_SUBSLICE: u8 = 57;
+// Tag 57 is retired: its whole-place payload must never be reinterpreted.
+pub(super) const BYTE_SEQUENCE_SUBSLICE: u8 = 113;
 /// `OperationKind::StructuralByteSequenceFieldStore`.
 pub(super) const STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE: u8 = 58;
 /// `OperationKind::StructuralByteSequenceFieldLength`.
@@ -145,7 +147,8 @@ pub(super) const ESTABLISH_ELEMENT_VIEW: u8 = 79;
 /// `OperationKind::ElementViewRead`.
 pub(super) const ELEMENT_VIEW_READ: u8 = 81;
 /// `OperationKind::ElementViewSubslice`.
-pub(super) const ELEMENT_VIEW_SUBSLICE: u8 = 82;
+// Tag 82 is retired: its whole-place payload must never be reinterpreted.
+pub(super) const ELEMENT_VIEW_SUBSLICE: u8 = 114;
 /// `OperationKind::EstablishStructuralCase`.
 pub(super) const ESTABLISH_STRUCTURAL_CASE: u8 = 83;
 /// `OperationKind::StructuralLeafCopy`.

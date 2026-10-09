@@ -33,6 +33,14 @@ left by an earlier iteration does not authorize a use before its producer.
 | `ByteSequenceWrite { destination, index, value, length, obligation }` | Unit; replace one byte without changing extent. | Exclusive mutable view; exact `u8` value; `u64` index and current same-view length; checked `index < length`. |
 | `ByteSequenceSubslice { source, start, end, length, obligation }` | Shared or mutable view of `[start, end)` over the identical backing, without increasing access. | `u64` endpoints; dominating length observation of the identical view; ordered proof legs `start <= end` and `end <= length`. |
 
+Length and subslice sources retain a complete `StructuralArgument`: carrier
+place, selected descriptor path and requested access. Reference crossings and
+captured runtime selectors address the descriptor's own window. Count-to-range
+correspondence compares these coordinates; each operation separately owns its
+selector bounds evidence. A container or sibling descriptor supplies no count.
+Empty paths preserve ordinary whole-home observations. Byte counts and element
+counts remain distinct, and neither observation consumes its source.
+
 Sources may be readable machine/block structural parameters, established
 literals or collection views, or dominating subslice results. An arbitrary equal-valued length,
 other view, sibling branch, or future producer supplies no length custody.

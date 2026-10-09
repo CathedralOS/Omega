@@ -983,6 +983,7 @@ impl TerminalExecution<'_> {
         if source.access == StructuralAccess::WriteOnlyBorrow {
             return Err(malformed());
         }
+        self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
         // Read the selected descriptor through the shared live-path owner.
         // Reference crossings retain their captured backing; this observation
         // attenuates access without copying an exclusive descriptor.
@@ -1087,45 +1088,16 @@ impl TerminalExecution<'_> {
         let start = count(start, &self.values)?;
         let end = count(end, &self.values)?;
         let length = count(length, &self.values)?;
-        let source_value =
-            crate::custody::verified_structural_place(&self.structural_values, *source)?;
-        let view = crate::custody::verified_structural_place(&self.element_view_values, *source)?;
-        let machine = self.program.verified_machine(self.current_machine)?;
         let access = match result.multiplicity {
             StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
             StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
             StructuralMultiplicity::Linear => return Err(malformed()),
         };
-        // A call or edge may attenuate a descriptor while retaining the same
-        // physical backing. The receiving formal remains authoritative.
-        let mut parameters = machine
-            .structural_parameters
-            .iter()
-            .chain(machine.block_structural_parameters())
-            .filter(|parameter| parameter.place == *source);
-        if let Some(parameter) = parameters.next() {
-            if parameters.next().is_some()
-                || parameter.structural_type != source_value.structural_type
-                || !matches!(
-                    parameter.access,
-                    terminal_psi::reading_borrow_pair_pattern!()
-                )
-                || (access == StructuralAccess::MutableBorrow && parameter.access != access)
-            {
-                return Err(malformed());
-            }
-        } else if view.access == StructuralAccess::MutableBorrow
-            && !self
-                .live_affine_frontier
-                .contains(&terminal_psi::StructuralAffineDiscard {
-                    place: *source,
-                    path: Vec::new(),
-                    structural_type: source_value.structural_type,
-                })
-        {
-            return Err(malformed());
-        }
-        if result.place == *source
+        self.validate_descriptor_borrow(source, access)?;
+        let source_value = self.resolve_live_projection(source.place, &source.path, access)?;
+        let view = self.element_view_argument(source, &source_value)?.clone();
+        let machine = self.program.verified_machine(self.current_machine)?;
+        if result.place == source.place
             || !machine.structural_places.iter().any(|place| {
                 place.id == result.place
                     && place.kind
@@ -1136,7 +1108,7 @@ impl TerminalExecution<'_> {
             })
             || view.len() != length
             || source_value.structural_type != result.structural_type
-            || !view.matches_descriptor_home(source_value)
+            || !crate::reference::access_covers(view.access, access)
             || !source_value.qualifications.is_empty()
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
@@ -1150,7 +1122,7 @@ impl TerminalExecution<'_> {
             || self
                 .live_claims
                 .values()
-                .any(|claim| claim.place == Some(*source) || claim.place == Some(result.place))
+                .any(|claim| claim.place == Some(source.place) || claim.place == Some(result.place))
             || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());

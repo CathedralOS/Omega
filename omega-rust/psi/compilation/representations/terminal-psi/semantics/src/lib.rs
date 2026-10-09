@@ -16,7 +16,6 @@
 //! proof-bearing scalars, record fields, primitive places, scalar arrays and
 //! structural effects.
 
-mod digest_encoder;
 mod arrival_storage;
 pub mod borrowed_storage;
 mod byte_carriers;
@@ -27,6 +26,7 @@ pub mod closed_reach;
 mod collection_backing;
 pub mod control_graph;
 pub mod descriptor_results;
+mod digest_encoder;
 mod partial_affine;
 mod placed_view_referent;
 mod primitive_place;
@@ -147,9 +147,9 @@ pub use structural_effect::{
     StructuralEffectSemanticRow, byte_equal_equation, byte_predicate_equation,
     element_establishment_length_equation, element_subslice_length_equation,
     element_view_leaf_scalar, exact_structural_effect_semantic_row_in, literal_length_equation,
-    structural_effect_leaf_observation, structural_effect_leaf_observation_in,
-    structural_effect_semantic_row, subslice_length_equation,
-    validate_structural_effect_semantic_rows,
+    same_descriptor_coordinate, structural_effect_leaf_observation,
+    structural_effect_leaf_observation_in, structural_effect_semantic_row,
+    subslice_length_equation, validate_structural_effect_semantic_rows,
 };
 pub use structural_window::{
     StructuralWindowProjection, structural_window_parameter_origins, structural_window_projection,

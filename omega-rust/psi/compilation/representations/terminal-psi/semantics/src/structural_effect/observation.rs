@@ -1,4 +1,5 @@
 use super::*;
+use terminal_psi::StructuralArgument;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructuralEffectObservation {
@@ -104,7 +105,7 @@ pub enum StructuralEffectObservation {
         destination: PlaceId,
     },
     ByteSequenceLengthRead {
-        source: PlaceId,
+        source: StructuralArgument,
         result: ValueId,
     },
     /// Evaluate one declared predicate over the operand's exact live extent.
@@ -141,7 +142,7 @@ pub enum StructuralEffectObservation {
         obligation: ObligationId,
     },
     ByteSequenceSubslice {
-        source: PlaceId,
+        source: StructuralArgument,
         start: ValueId,
         end: ValueId,
         length: ValueId,
@@ -179,7 +180,7 @@ pub enum StructuralEffectObservation {
         obligation: ObligationId,
     },
     ElementViewSubslice {
-        source: PlaceId,
+        source: StructuralArgument,
         start: ValueId,
         end: ValueId,
         length: ValueId,
@@ -363,7 +364,7 @@ pub fn structural_effect_leaf_observation_in(
                 obligation,
             },
         ) => StructuralEffectObservation::ByteSequenceSubslice {
-            source: *source,
+            source: source.clone(),
             start: *start,
             end: *end,
             length: *length,
@@ -434,7 +435,7 @@ pub fn structural_effect_leaf_observation_in(
                 obligation,
             },
         ) => StructuralEffectObservation::ElementViewSubslice {
-            source: *source,
+            source: source.clone(),
             start: *start,
             end: *end,
             length: *length,
@@ -480,7 +481,7 @@ pub fn structural_effect_leaf_observation_in(
             StructuralEffectAction::ReadByteSequenceLength,
             OperationKind::ByteSequenceLength { source },
         ) => StructuralEffectObservation::ByteSequenceLengthRead {
-            source: *source,
+            source: source.clone(),
             result: operation.result.expect_scalar().id,
         },
         (
@@ -764,4 +765,29 @@ pub fn structural_effect_leaf_observation(
     operation: &Operation,
 ) -> Result<Option<StructuralEffectObservation>, OperationSemanticError> {
     structural_effect_leaf_observation_in(operation, &StructuralEffectSemanticRow::ALL)
+}
+
+/// The same captured descriptor coordinates across two observations. Each
+/// operation owns and independently validates its selector obligation; that
+/// evidence identity does not change the already evaluated index value.
+/// Access and all other path segments remain exact. This is correspondence,
+/// never liveness, bounds, loan or mutation authority.
+pub fn same_descriptor_coordinate(
+    left: &terminal_psi::StructuralArgument,
+    right: &terminal_psi::StructuralArgument,
+) -> bool {
+    left.place == right.place
+        && left.access == right.access
+        && left.path.len() == right.path.len()
+        && left
+            .path
+            .iter()
+            .zip(&right.path)
+            .all(|(left, right)| match (left, right) {
+                (
+                    terminal_psi::StructuralPathSegment::RuntimeIndex { index: left, .. },
+                    terminal_psi::StructuralPathSegment::RuntimeIndex { index: right, .. },
+                ) => left == right,
+                _ => left == right,
+            })
 }

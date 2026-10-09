@@ -86,7 +86,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let OperationKind::ElementViewSubslice { .. } = &operation.kind else {
+    let OperationKind::ElementViewSubslice { source, .. } = &operation.kind else {
         unreachable!("dispatched validate_element_view_subslice")
     };
     let Some(result) = operation.result.structural() else {
@@ -98,6 +98,23 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     ) || !element_view_result_place(module, machine, operation, result, result.multiplicity)
     {
         return malformed("element-view subslice requires its exact borrowed result place");
+    }
+    if source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+        return malformed("element subslice requires readable descriptor access");
+    }
+    let Some(root) = place_structural_type(machine, source.place) else {
+        return malformed("element subslice has no source declaration");
+    };
+    let selected = validate_structural_path(module, root, &source.path)?;
+    if selected != result.structural_type
+        || (result.multiplicity == StructuralMultiplicity::Affine
+            && !matches!(
+                source.access,
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            ))
+    {
+        return malformed("element subslice must preserve its selected descriptor and access");
     }
     // Mutable range holders are affine, as mutable whole views are. Their
     // source authority, bounds and lifetime remain independent verifier work.

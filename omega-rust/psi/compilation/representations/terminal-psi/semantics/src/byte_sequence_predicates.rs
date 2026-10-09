@@ -448,7 +448,7 @@ pub fn byte_copied_field_predicates_at_transfer(
                 | terminal_psi::element_view_establish_pair_pattern!(source: argument, ..)
                 if argument.place == source)
                     || matches!(&candidate.kind, OperationKind::ByteSequenceSubslice { source: viewed, .. }
-                        if *viewed == source))
+                        if viewed.place == source))
         })
     {
         return None;
@@ -616,7 +616,7 @@ pub fn byte_sequence_source_predicates(
                 }
                 if let OperationKind::ByteSequenceSubslice {
                     source: backing, ..
-                } = operation.kind
+                } = &operation.kind
                 {
                     if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                         || !result.qualifications.is_empty()
@@ -633,7 +633,22 @@ pub fn byte_sequence_source_predicates(
                     // Only the exact backing's invariant survives. Bounds,
                     // source access and dominance remain use-site obligations.
                     return Some(
-                        source_predicates(module, machine, backing, fuel, memo)?.subslice(),
+                        if backing.path.is_empty() {
+                            source_predicates(module, machine, backing.place, fuel, memo)?
+                        } else {
+                            let (root, access) = byte_field_root(machine, backing.place)?;
+                            if access == StructuralAccess::WriteOnlyBorrow
+                                || backing.access == StructuralAccess::WriteOnlyBorrow
+                            {
+                                return None;
+                            }
+                            shared_byte_field_copy_predicates(
+                                module.structural_types.iter(),
+                                root,
+                                &backing.path,
+                            )?
+                        }
+                        .subslice(),
                     );
                 }
                 let declared = byte_result_predicates(module, machine, source)?;

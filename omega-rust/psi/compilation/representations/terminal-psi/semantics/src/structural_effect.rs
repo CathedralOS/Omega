@@ -13,7 +13,7 @@ pub use byte_equal::byte_equal_equation;
 pub use byte_predicate::byte_predicate_equation;
 mod observation;
 pub use observation::{
-    StructuralEffectObservation, structural_effect_leaf_observation,
+    StructuralEffectObservation, same_descriptor_coordinate, structural_effect_leaf_observation,
     structural_effect_leaf_observation_in,
 };
 mod element_extent;
@@ -822,7 +822,7 @@ fn validate_structural_effect_result(
 pub(crate) fn subslice_extent_equation(
     observation: &StructuralEffectObservation,
     producer: &StructuralEffectObservation,
-    read: impl Fn(&StructuralEffectObservation) -> Option<(PlaceId, ValueId)>,
+    read: impl Fn(&StructuralEffectObservation) -> Option<(&terminal_psi::StructuralArgument, ValueId)>,
     subslice: impl Fn(&StructuralEffectObservation) -> Option<(PlaceId, ValueId, ValueId)>,
 ) -> Result<Option<Proposition>, OperationSemanticError> {
     let Some((source, result)) = read(observation) else {
@@ -831,7 +831,7 @@ pub(crate) fn subslice_extent_equation(
     let Some((destination, start, end)) = subslice(producer) else {
         return Ok(None);
     };
-    if source != destination {
+    if source.place != destination || !source.path.is_empty() {
         return Ok(None);
     }
     u64_extent_difference_proposition(result, end, start)

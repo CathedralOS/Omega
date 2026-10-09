@@ -178,6 +178,128 @@ impl ByteSequenceBinding {
 }
 
 impl TerminalExecution<'_> {
+    /// Rejoin an already resolved descriptor to its exact frame binding or
+    /// retained aggregate slot. Cloning a binding retains its backing/window;
+    /// it neither consumes the source nor copies mutable storage. A whole-home
+    /// descriptor with no explicit home is authoritative only at its keyed
+    /// structural binding, never because some other whole path is empty.
+    pub(crate) fn byte_descriptor_binding(
+        &self,
+        argument: &StructuralArgument,
+        selected: &TerminalStructuralValue,
+    ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
+        if argument.access == StructuralAccess::WriteOnlyBorrow
+            || !self
+                .program
+                .structural_types()
+                .get(&selected.structural_type)
+                .is_some_and(|row| {
+                    row.shape.is_borrowed_byte_view() || row.shape.is_bounded_owned_byte_sequence()
+                })
+        {
+            return Err(malformed());
+        }
+        let capture = |binding: &ByteSequenceBinding| match binding {
+            ByteSequenceBinding::Immutable(bytes) => {
+                ByteSequenceBinding::Immutable(bytes.clone().with_descriptor_home(selected.clone()))
+            }
+            binding => binding.clone(),
+        };
+        let matches = |binding: &ByteSequenceBinding, home: &TerminalStructuralValue| match binding
+        {
+            ByteSequenceBinding::Immutable(bytes) => {
+                bytes.matches_bound_descriptor_home(home, selected)
+            }
+            _ => {
+                home.opaque_identity == selected.opaque_identity
+                    && home.path == selected.path
+                    && home.structural_type == selected.structural_type
+                    && binding
+                        .validate_mutable_referent(&self.program.structural_types(), selected)
+                        .is_ok()
+            }
+        };
+        if argument.path.is_empty()
+            && let Some(binding) = self.byte_sequence_values.get(&argument.place)
+        {
+            return self
+                .structural_values
+                .get(&argument.place)
+                .filter(|home| matches(binding, home))
+                .map(|_| capture(binding))
+                .ok_or_else(malformed);
+        }
+        if let Some(bytes) = self
+            .structural_byte_storage
+            .get(&crate::values::StructuralRuntimePlace::from(selected))
+        {
+            return Ok(ByteSequenceBinding::Immutable(
+                bytes.clone().with_descriptor_home(selected.clone()),
+            ));
+        }
+        self.byte_sequence_values
+            .iter()
+            .find_map(|(place, binding)| {
+                self.structural_values
+                    .get(place)
+                    .filter(|home| matches(binding, home))
+                    .map(|_| capture(binding))
+            })
+            .or_else(|| {
+                self.call_stack.iter().find_map(|frame| {
+                    frame
+                        .byte_sequence_values
+                        .iter()
+                        .find_map(|(place, binding)| {
+                            frame
+                                .structural_values
+                                .get(place)
+                                .filter(|home| matches(binding, home))
+                                .map(|_| capture(binding))
+                        })
+                })
+            })
+            .ok_or_else(malformed)
+    }
+
+    /// Observe the live extent of the exact selected byte descriptor. Mutable
+    /// backing is read through its existing array/field/activation owner.
+    pub(crate) fn byte_descriptor_length(
+        &self,
+        binding: &ByteSequenceBinding,
+        selected: &TerminalStructuralValue,
+    ) -> Result<u64, TerminalInterpretError> {
+        let length = match binding {
+            ByteSequenceBinding::Immutable(bytes) => {
+                if !bytes.matches_descriptor_home(selected) {
+                    return Err(malformed());
+                }
+                return u64::try_from(bytes.len()).map_err(|_| malformed());
+            }
+            ByteSequenceBinding::MutableArray {
+                array,
+                offset,
+                length,
+                ..
+            } => {
+                binding.validate_mutable_referent(&self.program.structural_types(), selected)?;
+                let backing_length = self.stored_byte_array_length(array)?;
+                if offset
+                    .checked_add(*length)
+                    .is_none_or(|end| end as u128 > backing_length as u128)
+                {
+                    return Err(malformed());
+                }
+                return Ok(*length);
+            }
+            _ => {
+                binding.validate_mutable_referent(&self.program.structural_types(), selected)?;
+                self.exclusive_owner_bytes(binding)?.0.len()
+            }
+        };
+        u64::try_from(length).map_err(|_| malformed())
+    }
+
     /// Observe a shared descriptor at its exact current home, whether frame-local
     /// or relocated into an aggregate. The map supplies contents only; exact
     /// carrier type, immutable access and home correspondence remain mandatory.
@@ -185,7 +307,7 @@ impl TerminalExecution<'_> {
         &self,
         argument: &StructuralArgument,
         value: &TerminalStructuralValue,
-    ) -> Result<&ByteSequenceView, TerminalInterpretError> {
+    ) -> Result<ByteSequenceView, TerminalInterpretError> {
         if !matches!(
             argument.access,
             StructuralAccess::Owned | StructuralAccess::SharedBorrow
@@ -197,29 +319,20 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let root = self
-            .structural_values
-            .get(&argument.place)
-            .ok_or_else(malformed)?;
-        let selected = crate::custody::project_structural_value(
-            &self.program.structural_types(),
-            root,
+        self.validate_descriptor_borrow(argument, StructuralAccess::SharedBorrow)?;
+        let selected = self.resolve_live_projection(
+            argument.place,
             &argument.path,
+            StructuralAccess::SharedBorrow,
         )?;
         if selected != *value {
             return Err(malformed());
         }
-        if argument.path.is_empty()
-            && let Some(binding) = self.byte_sequence_values.get(&argument.place)
-        {
-            let view = binding.immutable()?;
-            return view
-                .matches_descriptor_home(value)
-                .then_some(view)
-                .ok_or_else(malformed);
-        }
-        self.structural_byte_storage
-            .get(&crate::values::StructuralRuntimePlace::from(value))
+        let binding = self.byte_descriptor_binding(argument, &selected)?;
+        let bytes = binding.immutable()?;
+        bytes
+            .matches_descriptor_home(&selected)
+            .then(|| bytes.clone())
             .ok_or_else(malformed)
     }
 
@@ -269,7 +382,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let bytes = self.shared_byte_descriptor(argument, &value)?.clone();
+        let bytes = self.shared_byte_descriptor(argument, &value)?;
         // A lent descriptor must satisfy every domain the formal names
         // (structural access, shared view fields). The checked call proved
         // that implication; execution fails closed on the actual bytes

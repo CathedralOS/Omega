@@ -46,7 +46,7 @@ pub fn byte_sequence_concatenation_length_equation(
             OperationSemanticTag::EstablishByteSequenceConcatenation,
         ));
     };
-    if produced.place != *source {
+    if produced.place != source.place || !source.path.is_empty() {
         return Ok(None);
     }
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");

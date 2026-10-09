@@ -23,7 +23,7 @@ pub fn element_subslice_length_equation(
         producer,
         |observation| match observation {
             StructuralEffectObservation::ElementViewLengthRead { source, result } => {
-                source.path.is_empty().then_some((source.place, *result))
+                Some((source, *result))
             }
             _ => None,
         },
@@ -56,8 +56,10 @@ pub fn element_establishment_length_equation(
         {
             (source.place, *result)
         }
-        StructuralEffectObservation::ByteSequenceLengthRead { source, result } => {
-            (*source, *result)
+        StructuralEffectObservation::ByteSequenceLengthRead { source, result }
+            if source.path.is_empty() =>
+        {
+            (source.place, *result)
         }
         _ => return Ok(None),
     };

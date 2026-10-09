@@ -512,8 +512,8 @@ pub enum OperationKind {
         bytes: Vec<u8>,
         qualifications: Vec<StructuralDomainId>,
     },
-    /// Observe the exact byte count of one whole borrowed view (shared or mutable).
-    /// The result is unsigned 64-bit; the source place and its custody remain unchanged.
+    /// Observe the exact byte count of a selected live descriptor or byte owner.
+    /// The result is unsigned 64-bit; full source geometry and custody remain unchanged.
     ByteSequenceLength {
         source: StructuralArgument,
     },
