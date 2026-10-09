@@ -770,7 +770,15 @@ fn binary_result(
             })
             .flatten(),
         Equal | NotEqual | Less | LessOrEqual | Greater | GreaterOrEqual => {
-            let compatible = if let Some(carrier) = operands.into_iter().flatten().next() {
+            // A selected builtin equality returns Bool for structural values
+            // as well as scalars. This supplies only the comparison's type;
+            // IEEE leaves and value identity retain their separate proof laws.
+            let equality = matches!(binary.operator, Equal | NotEqual)
+                && matches!(operands, [Some(left), Some(right)]
+                    if crate::declared_carriers_match(program, left, right));
+            let compatible = if equality {
+                true
+            } else if let Some(carrier) = operands.into_iter().flatten().next() {
                 let primitive = primitive(program, carrier)?;
                 let supported = integer(program, carrier)
                     || matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
