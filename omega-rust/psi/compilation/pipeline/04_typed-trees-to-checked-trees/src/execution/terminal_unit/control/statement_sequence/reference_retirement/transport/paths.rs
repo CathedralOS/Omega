@@ -1,4 +1,7 @@
 //! Translate nominal loan owner paths to the checked structural namespace.
+//! Prepared application fields retain their original member symbols, but their
+//! child types include the exact type and region operands. Following the raw
+//! generic declaration would lose those operands at the next nested field.
 
 use checked_trees::{BorrowLoanOwnerSegment, CheckedUnitStructuralPathSegment};
 use typed_trees::data::DataMember;
@@ -35,10 +38,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence::reference_r
                 reference = *element_type;
             }
             BorrowLoanOwnerSegment::Case(symbol) => {
-                let owner = program
-                    .type_reference_table
-                    .unparameterized_type_symbol(reference)?;
-                let data = program.data_definition_by_symbol(*owner)?;
+                let data = program.closed_data_definition(reference)?;
                 if payload.is_some() {
                     return None;
                 }
@@ -64,10 +64,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence::reference_r
                         .iter()
                         .find(|field| field.symbol == *symbol)?
                 } else {
-                    let owner = program
-                        .type_reference_table
-                        .unparameterized_type_symbol(reference)?;
-                    let data = program.data_definition_by_symbol(*owner)?;
+                    let data = program.closed_data_definition(reference)?;
                     program
                         .data_members(data)
                         .iter()
