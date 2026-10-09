@@ -172,19 +172,10 @@ pub(super) fn unit_key(
         if matches!(&call.arguments[*index], LegalizedScalarArgument::Structural { semantic, .. } if semantic.access == StructuralAccess::Owned)
         {
             for location in &placement.locations {
-                let register = match location {
-                    ValueLocation::Register { register, .. }
-                    | ValueLocation::Indirect {
-                        pointer: IndirectPointerLocation::Register(register),
-                        ..
-                    } => register,
-                    ValueLocation::Stack { .. }
-                    | ValueLocation::Indirect {
-                        pointer: IndirectPointerLocation::Stack { .. },
-                        ..
-                    } => continue,
+                let Some(register) = location.direct_register() else {
+                    continue;
                 };
-                views.push(environment.fixed_register_view(*register)?);
+                views.push(environment.fixed_register_view(register)?);
             }
         } else {
             views.push(environment.fixed_register_view(placement_register(placement)?)?);
@@ -346,18 +337,11 @@ pub(super) fn validate(
                 .filter(is_register_location)
                 .enumerate()
             {
-                let register = match location {
-                    ValueLocation::Register { register, .. }
-                    | ValueLocation::Indirect {
-                        pointer: IndirectPointerLocation::Register(register),
-                        ..
-                    } => register,
-                    _ => return Err(invalid()),
-                };
+                let register = location.direct_register().ok_or_else(invalid)?;
                 let operand = row.operands.get(start + fragment).ok_or_else(invalid)?;
                 if operand.access != RegisterOperandAccess::Use
                     || operand.fixed_view.is_none()
-                    || operand.fixed_view != environment.fixed_register_view(*register)
+                    || operand.fixed_view != environment.fixed_register_view(register)
                 {
                     return Err(invalid());
                 }

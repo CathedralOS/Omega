@@ -78,17 +78,8 @@ pub fn foreign_argument_registers(
             placement
                 .locations
                 .iter()
-                .filter_map(move |location| match location {
-                    ValueLocation::Register { register, .. }
-                    | ValueLocation::Indirect {
-                        pointer: IndirectPointerLocation::Register(register),
-                        ..
-                    } => Some((position, *register)),
-                    ValueLocation::Stack { .. }
-                    | ValueLocation::Indirect {
-                        pointer: IndirectPointerLocation::Stack { .. },
-                        ..
-                    } => None,
+                .filter_map(move |location| {
+                    location.direct_register().map(|register| (position, register))
                 })
         })
         .collect()

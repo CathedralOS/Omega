@@ -297,6 +297,26 @@ pub enum ValueLocation {
     },
 }
 
+impl ValueLocation {
+    /// The register this location resolves to directly: a `Register`
+    /// placement, or an `Indirect` whose pointer lives in a register. Stack
+    /// placements and stack-resident indirect pointers resolve to none.
+    pub fn direct_register(&self) -> Option<MachineRegister> {
+        match self {
+            Self::Register { register, .. }
+            | Self::Indirect {
+                pointer: IndirectPointerLocation::Register(register),
+                ..
+            } => Some(*register),
+            Self::Stack { .. }
+            | Self::Indirect {
+                pointer: IndirectPointerLocation::Stack { .. },
+                ..
+            } => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndirectPointerLocation {
     Register(MachineRegister),
