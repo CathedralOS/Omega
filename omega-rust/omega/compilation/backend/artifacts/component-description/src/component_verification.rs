@@ -57,19 +57,18 @@ impl ComponentVerificationRequest {
     /// Collision-resistant identity of this exact request, binding the
     /// verification result to the profile that admitted it.
     pub fn profile_identity(&self) -> [u8; 32] {
-        let mut digest = Sha256::new();
-        digest.update(VERIFICATION_PROFILE_DOMAIN);
-        digest.update(self.expected_subject.vocabulary_marker.get().to_le_bytes());
-        digest.update(self.expected_subject.program_fingerprint.as_bytes());
-        digest.update((self.accepted_schemas.len() as u64).to_le_bytes());
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(VERIFICATION_PROFILE_DOMAIN);
+        digest.raw(&self.expected_subject.vocabulary_marker.get().to_le_bytes());
+        digest.raw(self.expected_subject.program_fingerprint.as_bytes());
+        digest.u64(self.accepted_schemas.len() as u64);
         for schema in &self.accepted_schemas {
-            digest.update(schema.to_le_bytes());
+            digest.raw(&schema.to_le_bytes());
         }
-        digest.update((self.accepted_assumptions.len() as u64).to_le_bytes());
+        digest.u64(self.accepted_assumptions.len() as u64);
         for assumption in &self.accepted_assumptions {
-            digest.update(assumption);
+            digest.raw(assumption);
         }
-        digest.finalize().into()
+        digest.finish()
     }
 }
 
@@ -646,11 +645,10 @@ pub fn verify_component(
     check_obligations(&description, &inventory)?;
 
     let description_identity = component_description_identity(description_bytes);
-    let mut digest = Sha256::new();
-    digest.update(VERIFIED_COMPONENT_CLOSURE_DOMAIN);
-    digest.update(description_identity);
-    digest.update(request.profile_identity());
-    let closure = digest.finalize().into();
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(VERIFIED_COMPONENT_CLOSURE_DOMAIN);
+    digest.raw(&description_identity);
+    digest.raw(&request.profile_identity());
+    let closure = digest.finish();
 
     Ok(VerifiedComponent {
         description,

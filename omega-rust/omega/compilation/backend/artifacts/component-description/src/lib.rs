@@ -28,6 +28,7 @@
 //! real described-and-verified component.
 
 pub mod component_description;
+mod digest_encoder;
 pub(crate) mod component_verification;
 mod publication;
 pub use component_description::{

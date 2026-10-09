@@ -20,6 +20,7 @@ pub mod data_layout_queries;
 pub mod evaluated_via_bindings;
 mod fnv1a;
 mod intrinsic_requirements;
+mod digest_encoder;
 mod planning_context;
 pub mod program_entry;
 mod provider_declarations;

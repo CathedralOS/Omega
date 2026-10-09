@@ -545,28 +545,18 @@ impl std::error::Error for DescriptionDecodeRejection {}
 
 /// Collision-resistant identity of one exact encoded description.
 pub(crate) fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(DESCRIPTION_IDENTITY_DOMAIN);
-    digest.update(
-        u64::try_from(canonical_bytes.len())
-            .unwrap_or(0)
-            .to_le_bytes(),
-    );
-    digest.update(canonical_bytes);
-    digest.finalize().into()
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(DESCRIPTION_IDENTITY_DOMAIN);
+    digest.raw(&u64::try_from(canonical_bytes.len()) .unwrap_or(0) .to_le_bytes(),);
+    digest.raw(&canonical_bytes);
+    digest.finish()
 }
 
 /// Collision-resistant contract identity of one requirement spelling.
 pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(REQUIREMENT_CONTRACT_DOMAIN);
-    digest.update(
-        u64::try_from(requirement_identity.len())
-            .unwrap_or(0)
-            .to_le_bytes(),
-    );
-    digest.update(requirement_identity.as_bytes());
-    digest.finalize().into()
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(REQUIREMENT_CONTRACT_DOMAIN);
+    digest.raw(&u64::try_from(requirement_identity.len()) .unwrap_or(0) .to_le_bytes(),);
+    digest.raw(requirement_identity.as_bytes());
+    digest.finish()
 }
 
 /// Collision-resistant contract identity of the canonical entry export.
@@ -576,13 +566,13 @@ pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 
 /// domain and cannot collide with any [`requirement_contract_identity`]
 /// output.
 pub(crate) fn canonical_entry_contract_identity(entry: MachineId) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(CANONICAL_ENTRY_CONTRACT_DOMAIN);
-    digest.update(entry.get().to_le_bytes());
-    digest.finalize().into()
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(CANONICAL_ENTRY_CONTRACT_DOMAIN);
+    digest.raw(&entry.get().to_le_bytes());
+    digest.finish()
 }
 
 /// Derived assumption digest for one immediate port-space mechanism.
+<<<<<<< HEAD
 pub(crate) fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(PORT_MECHANISM_DOMAIN);
@@ -590,6 +580,22 @@ pub(crate) fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8
     digest.update(port.to_le_bytes());
     digest.update([value]);
     digest.finalize().into()
+||||||| parent of e5a0301c9f0 (omega: fold provider-planning + component-description domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
+pub fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(PORT_MECHANISM_DOMAIN);
+    digest.update(service.get().to_le_bytes());
+    digest.update(port.to_le_bytes());
+    digest.update([value]);
+    digest.finalize().into()
+=======
+pub fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(PORT_MECHANISM_DOMAIN);
+    digest.raw(&service.get().to_le_bytes());
+    digest.raw(&port.to_le_bytes());
+    digest.byte(value);
+    digest.finish()
+>>>>>>> e5a0301c9f0 (omega: fold provider-planning + component-description domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
 }
 
 pub(crate) fn hex(bytes: &[u8]) -> String {
