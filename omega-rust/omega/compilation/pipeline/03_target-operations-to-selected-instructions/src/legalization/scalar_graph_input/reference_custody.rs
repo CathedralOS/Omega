@@ -1316,8 +1316,7 @@ fn discard_residual(
     discard: &terminal_psi::StructuralAffineDiscard,
 ) -> Result<(), LegalizationError> {
     let root = source_contract(function, custody, discard.place).ok_or(invalid())?;
-    if discard.path.is_empty()
-        || leaf_type(types, root, &discard.path) != Some(discard.structural_type)
+    if leaf_type(types, root, &discard.path) != Some(discard.structural_type)
         || is_suspended_storage_region(function, custody, types, discard.place, &discard.path)
     {
         return Err(invalid());

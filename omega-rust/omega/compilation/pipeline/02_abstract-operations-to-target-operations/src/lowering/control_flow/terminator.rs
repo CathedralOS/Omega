@@ -121,11 +121,8 @@ fn residual_cleanup(
     structural_types: &StructuralTypeLookup<'_>,
     discard: &terminal_psi::StructuralAffineDiscard,
 ) -> bool {
-    // A residual is a strictly projected subtree of a live root; source checking
-    // names maximal complements of moved paths, never a whole root.
-    if discard.path.is_empty() {
-        return false;
-    }
+    // Region disposal does not retire its home. A selected no-code alternative
+    // can dispose the whole value while a later RetireHome ends the binding.
     // Type and backing checks locate the selected storage, not permission to
     // dispose it. No executable destructor is needed for this plain subtree.
     owned_root_type(live, function, discard.place).is_some_and(|root| {

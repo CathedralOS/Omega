@@ -13,7 +13,7 @@ omega update --project samples/cli/basics/borrowed_nested_sum_replacement
 omega run --both samples/cli/basics/borrowed_nested_sum_replacement/main.omg
 ```
 
-This is an unfinished valid program owned by
-**BORROWED-STORAGE-RESTORATION**, not an expected-rejection fixture. Keep the
+This program exercises **BORROWED-STORAGE-RESTORATION**, not an
+expected-rejection fixture. Keep the
 direct assignment: explicitly extracting the old value would bypass the
 runtime-selected cleanup capability being tested.

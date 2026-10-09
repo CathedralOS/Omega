@@ -258,7 +258,6 @@ fn validate_partial_affine_discards(
                 |parameter| parameter.multiplicity == StructuralMultiplicity::Affine,
             );
             if !supported_root
-                || discard.path.is_empty()
                 || actions.iter().any(|action| matches!(action, terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) if *place == discard.place))
                 || machine
                     .entry_claims
@@ -266,7 +265,7 @@ fn validate_partial_affine_discards(
                     .any(|claim| claim.input == discard.place)
             {
                 return malformed(
-                    "partial affine cleanup is not a distinct claim-free affine path",
+                    "affine region cleanup is not a distinct claim-free affine path",
                 );
             }
             let Some(root_type) = structural_place_type(machine, discard.place) else {

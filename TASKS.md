@@ -667,13 +667,14 @@ defines the complete product bar.
     view[a..b]`) still roots no window: stage 04 keys windows on parameters
     only, and scalar stores through that local already fail native
     legalization with `SourceCustodyMismatch`.
-    Direct implicit replacement remains red on macOS ARM64:
-    `omega run --both samples/cli/basics/borrowed_sum_population/main.omg`
-    declines `populate`'s statement cleanup actions. The stage-04 cleanup
-    action planner requires a statically selected case, but assignment's
-    old sum needs runtime-selected nominal payload cleanup before the store.
-    Publish that selection through the shared cleanup/control-flow owner;
-    do not rewrite the sample to explicitly detach and drop its old value.
+    Complete runtime-selected cleanup through the shared control-flow owner,
+    including normal returns and computed-call continuations. On macOS ARM64,
+    `omega run --both samples/cli/basics/sum_normal_cleanup/main.omg`
+    still declines `observe`'s cleanup control in stage 05. Preserve outgoing
+    capture, parent-before-child hook prerequisites and descendant custody
+    across the selected blocks. Keep `borrowed_sum_population` and
+    `borrowed_nested_sum_replacement` as direct-assignment execution controls;
+    do not rewrite them to explicitly detach and drop the old value.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the

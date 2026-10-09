@@ -12,10 +12,8 @@ omega update --project samples/cli/basics/borrowed_sum_population
 omega run --both samples/cli/basics/borrowed_sum_population/main.omg
 ```
 
-Current frontier: `populate` cannot publish its statement cleanup actions.
-The old sum's tag is unknown, so its payload's nominal cleanup must be selected
-at runtime. The cleanup action planner currently requires a statically selected
-case. **BORROWED-STORAGE-RESTORATION** owns this remaining replacement path.
-The sample is an unfinished valid program, not an expected-rejection fixture;
-keep the direct assignment rather than manually extracting and dropping its
-old value to bypass the missing operation.
+The old sum's tag is unknown, so assignment selects its nominal payload cleanup
+at runtime before storing the replacement. This exercises
+**BORROWED-STORAGE-RESTORATION**, not an expected-rejection fixture. Keep the
+direct assignment: manually extracting and dropping the old value would bypass
+the operation this program demonstrates.

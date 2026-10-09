@@ -178,6 +178,10 @@ checked dying-owner partition publishes `RetireHome` after its complete ordered
 region actions, including an empty complement; a last projected action alone
 does not identify a dying home. Whole-root discard and a single whole nominal
 leaf action consume their home intrinsically and need no second retirement.
+An affine region action may select the whole value with an empty path while
+retaining its binding for explicit retirement. This is distinct from
+`DiscardRoot`, which disposes and retires together; case selection does not
+change either action's claim or loan obligations.
 Retirement grants no claim discharge or loan restoration: linear claims must
 already be settled, and captured outgoing backing survives the frame binding.
 The reservation may include fields that never became values; only the checked

@@ -116,12 +116,11 @@ pub(crate) fn commit_cleanup_action(
         }
         TerminalAffineCleanupAction::DiscardResidual(discard) => {
             let root = crate::custody::verified_structural_place(structural_values, discard.place)?;
-            if discard.path.is_empty()
-                || resolve_structural_path_type(
-                    structural_types,
-                    root.structural_type,
-                    &discard.path,
-                )? != discard.structural_type
+            // Region disposal leaves its home binding available for the checked
+            // retirement action, including when the region is the whole value.
+            // DiscardRoot is the separate intrinsically retiring operation.
+            if resolve_structural_path_type(structural_types, root.structural_type, &discard.path)?
+                != discard.structural_type
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }

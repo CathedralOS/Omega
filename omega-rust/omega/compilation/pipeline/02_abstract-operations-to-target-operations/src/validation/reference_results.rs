@@ -1297,8 +1297,7 @@ fn discard_residual(
     discard: &terminal_psi::StructuralAffineDiscard,
 ) -> Option<()> {
     let (root, multiplicity) = source_contract(function, custody, discard.place)?;
-    if discard.path.is_empty()
-        || multiplicity != StructuralMultiplicity::Affine
+    if multiplicity != StructuralMultiplicity::Affine
         || leaf_type(declarations, root, &discard.path) != Some(discard.structural_type)
     {
         return None;

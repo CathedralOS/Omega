@@ -2,8 +2,9 @@ use crate::StructuralPathSegment;
 use semantic_vocabulary::{ClaimId, MachineId, ObligationId, PlaceId, StructuralTypeId};
 
 /// One exact claim-free affine structural place disposed on an ordinary edge.
-/// Unlike the root-only trivial discard vocabulary, this action retains the
-/// canonical path and independently checkable leaf type reached by that path.
+/// Unlike the intrinsically retiring root discard, this action retains the
+/// home binding. Its canonical path and exact leaf type select the disposed
+/// region; an empty path selects the whole value, not home retirement.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralAffineDiscard {
     pub place: PlaceId,

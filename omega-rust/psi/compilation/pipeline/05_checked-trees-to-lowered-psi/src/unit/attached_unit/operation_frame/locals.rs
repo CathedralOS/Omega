@@ -12,7 +12,6 @@ use super::{
 };
 use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
 use crate::emission::operation_emission::buffer::StructuralBinding;
-use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, Operation,
     OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralDomainId,
@@ -825,11 +824,6 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let mut actions = Vec::new();
         for action in cleanup_actions {
-            if !action.case_conditions().is_empty() {
-                return Err(LoweringError::Unsupported(
-                    "selected-case cleanup control has no executable edge yet",
-                ));
-            }
             let captured = match boundary {
                 checked_trees::CheckedUnitCleanupBoundary::Replacement {
                     statement_index,
@@ -850,7 +844,7 @@ impl OperationFrame<'_, '_> {
             let (place, path) = if let Some(captured) = captured {
                 captured
             } else {
-                let (place, _) = self.evaluation.cleanup_storage(
+                let (place, root_type) = self.evaluation.cleanup_storage(
                     action.source(),
                     self.parameters,
                     |binding_ordinal| {
@@ -863,14 +857,67 @@ impl OperationFrame<'_, '_> {
                         Ok((place, value.structural_type))
                     },
                 )?;
-                (place, lower_structural_path(action.path())?)
+                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                    action.path(), root_type, self.structural_types.declarations(),
+                    None, &mut std::iter::empty(), None,
+                )?;
+                (place, path)
             };
+            let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
+                &self
+                    .checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .cleanup_control,
+                action.case_conditions(),
+                self.structural_types.declarations(),
+                self.type_ids,
+                |condition_path| {
+                    if let checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                        statement_index,
+                        destination,
+                        old_value,
+                        ..
+                    } = boundary
+                        && destination.source == old_value.source
+                        && destination.path == old_value.path
+                        && let Some(captured) = self.windows.captured_assignment_place(
+                            *statement_index,
+                            action.source(),
+                            condition_path,
+                        )?
+                    {
+                        return Ok(captured);
+                    }
+                    let (place, root_type) = self.evaluation.cleanup_storage(
+                        action.source(),
+                        self.parameters,
+                        |binding_ordinal| {
+                            let place = self
+                                .results
+                                .continuation_place(binding_ordinal, self.operations)?;
+                            let value = self
+                                .results
+                                .repair_value(binding_ordinal, self.operations)?;
+                            Ok((place, value.structural_type))
+                        },
+                    )?;
+                    let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                        condition_path, root_type, self.structural_types.declarations(),
+                        None, &mut std::iter::empty(), None,
+                    )?;
+                    Ok((place, path))
+                },
+            )?;
             let structural_type = lookup_type_id(self.type_ids, action.type_identity())?;
-            actions.push(match action {
+            let lowered = match action {
                 checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
                     terminal_psi::TerminalAffineCleanupAction::RetireHome(place)
                 }
-                checked_trees::CheckedNormalCleanupAction::Discard(_) if path.is_empty() => {
+                checked_trees::CheckedNormalCleanupAction::Discard(_)
+                    if path.is_empty() && conditions.is_empty() =>
+                {
                     terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
                 }
                 checked_trees::CheckedNormalCleanupAction::Discard(_) => {
@@ -896,17 +943,19 @@ impl OperationFrame<'_, '_> {
                         )?,
                     )
                 }
+            };
+            actions.push(crate::unit::unit_cleanup::CleanupRegion {
+                conditions,
+                action: lowered,
             });
         }
-        self.evaluation
-            .continue_values(
-                actions,
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-            )
-            .map(|_| ())
+        self.evaluation.continue_cleanup_regions(
+            actions,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+        )
     }
 }

@@ -1,0 +1,16 @@
+data Token { value: u64; }
+machine Token::drop(token: &mut Token) {}
+data Choice { case Empty; case Value(token: Token); }
+
+machine observe(choice: Choice) -> u64 { 42 }
+
+machine main() crashes Trap {
+    let empty: u64 = observe(Choice::Empty {});
+    let populated: u64 = observe(Choice::Value { token: Token { value: 7 } });
+    transition empty == 42 && populated == 42 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

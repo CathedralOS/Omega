@@ -182,11 +182,9 @@ pub(super) fn cleanup(
             terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => owner(*place).is_some(),
             terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => discardable(*place),
             terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                // A residual is a strictly projected plain subtree of a still
-                // eligible root. Its source-selected position in the action
-                // stream owns when it dies.
-                !discard.path.is_empty()
-                    && discardable(discard.place)
+                // Disposal selects an exact region; home retirement is a
+                // separate action even when that region covers the root.
+                discardable(discard.place)
                     && owner(discard.place).and_then(|(root, _)| selected_type(root))
                         == Some(discard.structural_type)
             }

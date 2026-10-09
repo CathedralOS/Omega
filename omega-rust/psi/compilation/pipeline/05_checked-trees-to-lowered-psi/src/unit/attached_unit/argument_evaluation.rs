@@ -24,6 +24,7 @@ use checked_trees::CheckedCallScalarArgument;
 use state_emission::emit_state;
 
 mod qualification_edge;
+mod cleanup_control;
 mod record_captures;
 mod scalar_control;
 mod source_values;

@@ -24,6 +24,74 @@ mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
 
+/// Emission scratch for one checked region. Conditions remain control, not a
+/// property of the cleanup callable or authority to discharge its contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CleanupCaseCondition {
+    pub(crate) place: PlaceId,
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
+    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) case: semantic_vocabulary::StructuralCaseId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CleanupRegion {
+    pub(crate) conditions: Vec<CleanupCaseCondition>,
+    pub(crate) action: terminal_psi::TerminalAffineCleanupAction,
+}
+
+pub(crate) fn lower_cleanup_conditions(
+    control: &checked_trees::CheckedCleanupControlPlans,
+    selected: arena::HandleSpan<checked_trees::CheckedCleanupCaseCondition>,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    type_ids: &[(String, StructuralTypeId)],
+    mut storage: impl FnMut(
+        &[checked_trees::CheckedUnitStructuralPathSegment],
+    ) -> Result<
+        (PlaceId, Vec<terminal_psi::StructuralPathSegment>),
+        LoweringError,
+    >,
+) -> Result<Vec<CleanupCaseCondition>, LoweringError> {
+    if selected.is_empty() {
+        return Ok(Vec::new());
+    }
+    let conditions = control
+        .conditions
+        .span(selected)
+        .ok_or(LoweringError::Unsupported(
+            "cleanup conditions lost their owning catalog",
+        ))?;
+    conditions
+        .iter()
+        .map(|condition| {
+            let path = if condition.path.is_empty() {
+                &[][..]
+            } else {
+                control
+                    .paths
+                    .span(condition.path)
+                    .ok_or(LoweringError::Unsupported(
+                        "cleanup condition lost its retained path",
+                    ))?
+            };
+            let (place, path) = storage(path)?;
+            let structural_type = lookup_type_id(type_ids, &condition.type_identity)?;
+            let (_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
+                types,
+                structural_type,
+                &[],
+                &condition.case_identity,
+            )?;
+            Ok(CleanupCaseCondition {
+                place,
+                path,
+                structural_type,
+                case,
+            })
+        })
+        .collect()
+}
+
 /// Lower a nominal affine Unit cleanup machine. One route serves any number
 /// of structural parameters: each root owns exactly one cleanup action, and
 /// the actions run in reverse declaration order (`ordered`).
@@ -215,9 +283,6 @@ fn materialize_nominal_cleanup_action(
     requirement_count: usize,
     allocate_requirement: &mut impl FnMut() -> Result<semantic_vocabulary::ObligationId, LoweringError>,
 ) -> Result<NominalAffineCleanup, LoweringError> {
-    if !cleanup.case_conditions.is_empty() {
-        return unsupported("selected-case cleanup control has no executable edge yet");
-    }
     Ok(NominalAffineCleanup {
         place,
         path,
