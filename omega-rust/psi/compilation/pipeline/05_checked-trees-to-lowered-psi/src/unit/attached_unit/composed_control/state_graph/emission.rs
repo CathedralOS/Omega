@@ -724,11 +724,15 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     )?;
     loan_chains.finish(&mut machine, &state_ids, &live_states)?;
     // Authored entry/local cleanup already belongs to the composed emitter.
-    // Complete only unscheduled carrier results after private loans and their
-    // continuations have reached their final emitted graph.
+    // Complete checked no-code carrier frontiers after private loans and their
+    // continuations have reached their final emitted graph. Plain owned type
+    // capability is independent of scheduled source death rows; descriptors
+    // keep their existing loan-continuation custody.
     crate::emission::affine_cleanup::complete(
         &[],
         &machine.structural_parameters,
+        &crate::emission::affine_cleanup::no_code_type_ids(checked, &catalogs.type_ids),
+        &machine.structural_places,
         machine.entry,
         &mut machine.blocks,
         &catalogs.structural_types,

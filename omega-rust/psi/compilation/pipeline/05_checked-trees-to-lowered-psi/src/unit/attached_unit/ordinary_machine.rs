@@ -900,12 +900,14 @@ pub(super) fn emit(
             },
         });
         evaluation.blocks.sort_by_key(|block| block.id);
-        // Local/result cleanup retains its established schedule. Parameter cleanup
-        // uses its authenticated completion rows exactly once through the emitted
-        // frontier, after every selected scalar operand and call has run.
+        // The emitted frontier completes checked no-code local/result custody
+        // and delegated parameter cleanup after selected operands and calls run.
+        // Nominal actions and loan continuations retain their ordered schedule.
         crate::emission::affine_cleanup::complete(
             &parameter_cleanup,
             parameters,
+            &crate::emission::affine_cleanup::no_code_type_ids(checked, type_ids),
+            &local_places,
             evaluation.entry,
             &mut evaluation.blocks,
             structural_types,

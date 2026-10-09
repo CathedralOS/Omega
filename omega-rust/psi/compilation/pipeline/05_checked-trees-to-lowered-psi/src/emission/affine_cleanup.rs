@@ -1,9 +1,10 @@
 //! Complete no-code affine carrier custody after a body's operation graph exists.
 //!
-//! Callers supply only entry owners whose cleanup they delegate here. Existing
-//! statement cleanup supplies no-code disposal authority. Whole transfers join
-//! that disposal with the actual path frontier; otherwise unhandled view and
-//! reference carriers enter at their result birth and die before their owners.
+//! Callers supply source-checked no-code disposal capability independently of
+//! any scheduled death. The actual operation graph supplies births and selected
+//! transfers; their finite frontier equations settle every normal predecessor
+//! before a join. View and reference carriers retain their separate loan cleanup
+//! authority and die before their backing owners.
 //! Carrier disposal grants no ownership of borrowed backing storage. Borrowing
 //! a carrier across an edge retains its original disposal debt until exit.
 //! Cycles preserve the same finite carrier frontier; nominal cleanup remains
@@ -12,35 +13,66 @@ use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::BlockId;
 use terminal_psi::{
     Block, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    TerminalAffineCleanupAction, Terminator,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction, Terminator,
 };
 
 mod custody_flow;
 mod projected_transfers;
 
-/// No-code eligibility belongs to the plan the caller lowers: stage 04 admits
-/// owned graph formals only with plain contents (no `::drop` hook) and checks
-/// their transfers and state-exit drops against the ownership facts before it
-/// publishes the graph (`finalize_checked_scalar_graph_plans`). Terminal
-/// multiplicity alone does not establish eligibility.
-/// Pass an empty delegated roster when another emitter owns entry cleanup.
-/// `entry_parameters` always retains the complete machine roster for exact
-/// root types and declaration-ordered residual cleanup.
-/// This pass completes the delegated custody through calls and continuations;
-/// the independent verifier checks types, reads, and disposal completeness.
+/// Join source-authorized no-code type capability to this closure's existing
+/// normalized type identities. Terminal storage geometry alone cannot authorize
+/// disposal, and a final death row cannot describe a skipped earlier transfer.
+pub(crate) fn no_code_type_ids(
+    checked: &checked_trees::CheckedTrees,
+    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
+) -> Vec<semantic_vocabulary::StructuralTypeId> {
+    type_ids
+        .iter()
+        .filter_map(|(identity, id)| {
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .structural_types
+                .iter()
+                .any(|declaration| {
+                    declaration.identity == *identity && declaration.no_code_affine_cleanup
+                })
+                .then_some(*id)
+        })
+        .collect()
+}
+
+/// Complete source-checked no-code custody in the emitted operation graph.
+/// `parameters` delegates entry cleanup; the complete entry roster supplies
+/// residual geometry. Only the checked capability roster authorizes additional
+/// plain owned local/result and receiving-block homes. Actual affine access,
+/// qualifications and claims remain properties of each occurrence, independently
+/// of its type. Nominal cleanup retains its selected ordered action stream.
 pub(crate) fn complete(
     parameters: &[StructuralParameterDeclaration],
     entry_parameters: &[StructuralParameterDeclaration],
+    no_code_types: &[semantic_vocabulary::StructuralTypeId],
+    local_places: &[StructuralPlaceDeclaration],
     entry: BlockId,
     blocks: &mut [Block],
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
-    complete_carriers(parameters, entry, blocks, types)?;
+    complete_carriers(
+        parameters,
+        no_code_types,
+        local_places,
+        entry,
+        blocks,
+        types,
+    )?;
     projected_transfers::complete(entry_parameters, entry, blocks, types)
 }
 
 fn complete_carriers(
     parameters: &[StructuralParameterDeclaration],
+    no_code_types: &[semantic_vocabulary::StructuralTypeId],
+    local_places: &[StructuralPlaceDeclaration],
     entry: BlockId,
     blocks: &mut [Block],
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -54,15 +86,14 @@ fn complete_carriers(
                 .then_some(parameter.place)
         })
         .collect::<Vec<_>>();
-    // An existing no-code disposal authorizes cleanup, but does not prove that
-    // its source remains live after a selected expression transfers it. Join
-    // those exact whole-owner transfers with the existing carrier flow. Partial
-    // transfers retain their separate residual-disposal owner below.
+    // Descriptor cleanup remains owned by its loan continuation. Plain owned
+    // type capability is independent of this already scheduled death roster.
     let scheduled = blocks
         .iter()
         .flat_map(|block| scheduled_discards(&block.terminator))
         .collect::<Vec<_>>();
-    let mut whole_transfers = Vec::new();
+    // A partial transfer retains root storage and its independently selected
+    // residual disposal. The whole-home solver must not replace that schedule.
     let mut partial_transfers = Vec::new();
     for block in blocks.iter() {
         let operands = block
@@ -89,24 +120,17 @@ fn complete_carriers(
             if argument.access != StructuralAccess::Owned {
                 continue;
             }
-            if argument.path.is_empty() {
-                whole_transfers.push(argument.place);
-            } else {
+            if !argument.path.is_empty() {
                 partial_transfers.push(argument.place);
             }
         }
         for operation in &block.operations {
             if let terminal_psi::OperationKind::ReleaseReference { source, path } = &operation.kind
             {
-                if path.is_empty() {
-                    whole_transfers.push(*source);
-                } else {
+                if !path.is_empty() {
                     partial_transfers.push(*source);
                 }
             }
-        }
-        if let Terminator::ReturnStructural { source, .. } = &block.terminator {
-            whole_transfers.push(*source);
         }
     }
     let births = blocks
@@ -114,15 +138,19 @@ fn complete_carriers(
         .flat_map(|block| &block.operations)
         .filter_map(|operation| {
             let place = established_place(operation)?;
-            let scheduled_transfer = scheduled.contains(&place)
-                && whole_transfers.contains(&place)
-                && !partial_transfers.contains(&place);
+            if partial_transfers.contains(&place) {
+                return None;
+            }
             let Some(result) = operation.result.structural() else {
-                // An explicit no-code local establishment has a Unit result.
-                // Its scheduled disposal supplies the same eligibility as a
-                // structural result; retain its actual birth for selected
-                // transfers and reverse declaration-order cleanup.
-                return scheduled_transfer.then_some((place, operation.id));
+                // In-place establishment owns a declared local home, not an
+                // operation result. Rejoin its exact checked type capability.
+                return local_places.iter().find_map(|local| {
+                    (local.id == place
+                        && matches!(local.kind,
+                            StructuralPlaceKind::TrivialAffineLocal { structural_type, .. }
+                                if no_code_types.contains(&structural_type)))
+                    .then_some((place, operation.id))
+                });
             };
             if !result.is_affine_plain() || !result.qualification_establishments.is_empty() {
                 return None;
@@ -137,7 +165,9 @@ fn complete_carriers(
                     terminal_psi::StructuralTypeShape::ElementView { .. }
                         | terminal_psi::StructuralTypeShape::Reference { .. }
                 ) || declaration.shape.is_borrowed_byte_view());
-            if declarations.next().is_some() || !(scheduled_transfer || unscheduled_carrier) {
+            if declarations.next().is_some()
+                || !(no_code_types.contains(&result.structural_type) || unscheduled_carrier)
+            {
                 return None;
             }
             Some((result.place, operation.id))
@@ -155,8 +185,7 @@ fn complete_carriers(
             .filter(|parameter| {
                 parameter.is_unqualified_owned_affine()
                     && !affine.contains(&parameter.place)
-                    && scheduled.contains(&parameter.place)
-                    && whole_transfers.contains(&parameter.place)
+                    && no_code_types.contains(&parameter.structural_type)
                     && !partial_transfers.contains(&parameter.place)
             })
             .map(|parameter| parameter.place),
