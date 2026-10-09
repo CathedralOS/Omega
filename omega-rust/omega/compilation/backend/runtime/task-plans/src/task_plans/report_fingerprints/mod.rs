@@ -1,9 +1,9 @@
 //! Compact, non-authoritative report fingerprints over validated plans,
 //! selections, claims and receipts.
 
+use crate::fnv1a::Fnv1a as Fingerprint;
 use crate::task_plans::stack_composition::WcsuStackPlanProjection;
-use crate::{
-    ActivationPlanCandidate, LiveCarryStorage};
+use crate::{ActivationPlanCandidate, LiveCarryStorage};
 use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
 pub(crate) fn activation_plan_report_fingerprint(
@@ -39,7 +39,8 @@ pub(crate) fn activation_plan_report_fingerprint(
                 LiveCarryStorage::Persistent => 1,
                 LiveCarryStorage::Parameter => 2,
                 LiveCarryStorage::Local => 3,
-                LiveCarryStorage::CallArgument => 4});
+                LiveCarryStorage::CallArgument => 4,
+            });
             fingerprint.word(live.claims.len() as u64);
             for claim in &live.claims {
                 fingerprint.word(claim.get());
@@ -49,44 +50,12 @@ pub(crate) fn activation_plan_report_fingerprint(
             fingerprint.flag(live.effective.host_thread == CarryHostThread::Origin);
             fingerprint.byte(match live.effective.address {
                 CarryAddress::Movable => 1,
-                CarryAddress::Stable => 2});
+                CarryAddress::Stable => 2,
+            });
         }
     }
     fingerprint.flag(plan.carry_obligations.preserve_cpu);
     fingerprint.flag(plan.carry_obligations.preserve_host_thread);
     fingerprint.flag(plan.cancellation_required);
     fingerprint.finish()
-}
-
-struct Fingerprint(u64);
-
-impl Fingerprint {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-
-    const fn new() -> Self {
-        Self(Self::OFFSET)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(Self::PRIME);
-    }
-
-    fn flag(&mut self, value: bool) {
-        self.byte(u8::from(value));
-    }
-
-    fn word(&mut self, value: u64) {
-        for byte in value.to_le_bytes() {
-            self.byte(byte);
-        }
-    }
-
-    fn finish(self) -> u64 {
-        // Normalized IDs reserve zero as the invalid sentinel. FNV-1a
-        // reaching zero is extraordinarily unlikely, but the representation
-        // must remain total rather than manufacturing an invalid ID.
-        if self.0 == 0 { Self::OFFSET } else { self.0 }
-    }
 }

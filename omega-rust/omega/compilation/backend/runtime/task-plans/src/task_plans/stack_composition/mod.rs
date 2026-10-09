@@ -21,6 +21,7 @@
 //! Projections spelled `wcsu` carry the worst-case stack usage (WCSU) that the
 //! storage contract defines.
 
+use crate::fnv1a::Fnv1a;
 use crate::task_plans::identities::commitment_digest;
 
 use crate::{
@@ -896,37 +897,4 @@ fn stack_plan_projection_report_fingerprint(
     hash_unresolved_calls(&mut hash, unresolved_calls.iter());
     hash.word(representation.normalized_identity());
     hash.finish()
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-
-    const fn new() -> Self {
-        Self(Self::OFFSET)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(Self::PRIME);
-    }
-
-    fn word(&mut self, value: u64) {
-        for byte in value.to_le_bytes() {
-            self.byte(byte);
-        }
-    }
-
-    fn string(&mut self, value: &str) {
-        self.word(value.len() as u64);
-        for byte in value.bytes() {
-            self.byte(byte);
-        }
-    }
-
-    fn finish(self) -> u64 {
-        if self.0 == 0 { Self::OFFSET } else { self.0 }
-    }
 }
