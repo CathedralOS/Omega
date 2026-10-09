@@ -41,7 +41,6 @@ impl Aarch64MovnSeed {
     pub const fn halfword(&self) -> u8 {
         self.halfword
     }
-
 }
 
 /// One canonical 64-bit `MOVK` patch following a complement-seeded `MOVN`.
@@ -51,12 +50,7 @@ pub(crate) struct Aarch64MovkPatch {
     pub(crate) immediate: u16,
 }
 
-impl Aarch64MovkPatch {
-
-    pub const fn immediate(&self) -> u16 {
-        self.immediate
-    }
-}
+impl Aarch64MovkPatch {}
 
 /// The unique shortest `MOVN`-seeded recipe that is strictly smaller than the
 /// baseline zero-seeded `MOVZ`/`MOVK` materialization.
