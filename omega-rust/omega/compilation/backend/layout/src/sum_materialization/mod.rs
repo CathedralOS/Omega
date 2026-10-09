@@ -35,7 +35,7 @@ use crate::{DataShape, ENUM_TAG_BYTES, LayoutPlan, TypeLayoutDescriptor};
 /// its outer field name and stable member identity in authored runtime field
 /// order, so repeated uses of the same sum type remain distinguishable.
 /// Arrays of sums, recursively nested sums, and mixed data shapes reject.
-pub fn project_conventional_record_with_sum_materialization_layout(
+pub(crate) fn project_conventional_record_with_sum_materialization_layout(
     program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
@@ -806,7 +806,7 @@ fn project_record_array_row(
 /// closed `[copy]` record type contains a nonempty direct pure-sum set. Both
 /// record layouts and all child rows come from `plan`; no path flattening or
 /// independently supplied nested plan is accepted.
-pub fn project_conventional_record_with_nested_sum_record_materialization_layout(
+pub(crate) fn project_conventional_record_with_nested_sum_record_materialization_layout(
     program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
@@ -835,7 +835,7 @@ pub fn project_conventional_record_with_nested_sum_record_materialization_layout
 /// Project the complete nonempty authored-order set of bounded one-record
 /// paths to direct conventional sum fields. The outer layout is retained once;
 /// each occurrence owns one exact inner layout and complete child rows.
-pub fn project_conventional_record_with_nested_sum_records_materialization_layout(
+pub(crate) fn project_conventional_record_with_nested_sum_records_materialization_layout(
     program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
@@ -1023,7 +1023,7 @@ fn project_conventional_record_with_nested_sum_records_materialization_layout_wi
 }
 
 /// Project exact conventional record paths without encoding depth in the API.
-pub fn project_conventional_record_with_recursive_nested_sums_materialization_layout(
+pub(crate) fn project_conventional_record_with_recursive_nested_sums_materialization_layout(
     program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
@@ -1533,7 +1533,7 @@ fn usize_to_u64(value: usize, role: &str) -> Result<u64, Diagnostic> {
 /// sum. The complete sum layout is retained once with exact count/stride;
 /// value-sensitive materialization retains the selected case separately for
 /// each literal index.
-pub fn project_conventional_record_with_sum_array_materialization_layout(
+pub(crate) fn project_conventional_record_with_sum_array_materialization_layout(
     program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
@@ -1555,7 +1555,7 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
 /// Project the complete authored-order set of direct nonzero literal
 /// fixed-array-of-conventional-sum fields while retaining each complete sum
 /// layout only once per outer field occurrence.
-pub fn project_conventional_record_with_sum_arrays_materialization_layout(
+pub(crate) fn project_conventional_record_with_sum_arrays_materialization_layout(
     program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
@@ -1665,7 +1665,7 @@ fn exact_named_data(
 /// the case-bearing overlay either shape shares; a mixed shape additionally
 /// retains its leading common fields, packed between the tag and the shared
 /// payload base, in authored order.
-pub fn project_conventional_sum_materialization_layout(
+pub(crate) fn project_conventional_sum_materialization_layout(
     program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
