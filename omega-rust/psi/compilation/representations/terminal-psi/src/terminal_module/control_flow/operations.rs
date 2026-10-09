@@ -515,7 +515,7 @@ pub enum OperationKind {
     /// Observe the exact byte count of one whole borrowed view (shared or mutable).
     /// The result is unsigned 64-bit; the source place and its custody remain unchanged.
     ByteSequenceLength {
-        source: PlaceId,
+        source: StructuralArgument,
     },
     /// Read one byte using the exact source's dominating length observation.
     /// The independent verifier reconstructs and checks index < length.
