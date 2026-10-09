@@ -115,6 +115,28 @@ impl IeeeFloatComparisonKind {
 
 /// One nonempty canonical path to a relevant IEEE floating-point field below
 /// a Terminal structural root.
+macro_rules! canonical_field_accessors {
+    () => {
+        /// The place this field path is rooted at.
+        pub const fn root(&self) -> PlaceId {
+            self.root
+        }
+
+        /// The canonical path below the root.
+        pub fn path(&self) -> &[CanonicalStructuralPathSegment] {
+            &self.path
+        }
+
+        /// Re-roots this field path at `root`, prepending `prefix`.
+        pub fn rebase(&self, root: PlaceId, prefix: &[CanonicalStructuralPathSegment]) -> Self {
+            let mut path = Vec::with_capacity(prefix.len() + self.path.len());
+            path.extend_from_slice(prefix);
+            path.extend_from_slice(&self.path);
+            Self { root, path }
+        }
+    };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IeeeFloatStructuralField {
     pub(crate) root: PlaceId,
@@ -132,20 +154,7 @@ impl IeeeFloatStructuralField {
         Ok(Self { root, path })
     }
 
-    pub const fn root(&self) -> PlaceId {
-        self.root
-    }
-
-    pub fn path(&self) -> &[CanonicalStructuralPathSegment] {
-        &self.path
-    }
-
-    pub fn rebase(&self, root: PlaceId, prefix: &[CanonicalStructuralPathSegment]) -> Self {
-        let mut path = Vec::with_capacity(prefix.len() + self.path.len());
-        path.extend_from_slice(prefix);
-        path.extend_from_slice(&self.path);
-        Self { root, path }
-    }
+    canonical_field_accessors!();
 }
 
 /// One nonempty canonical path to a byte-sequence field below a Terminal
@@ -170,20 +179,7 @@ impl StructuralCaseSubject {
         Self { root, path }
     }
 
-    pub const fn root(&self) -> PlaceId {
-        self.root
-    }
-
-    pub fn path(&self) -> &[CanonicalStructuralPathSegment] {
-        &self.path
-    }
-
-    pub fn rebase(&self, root: PlaceId, prefix: &[CanonicalStructuralPathSegment]) -> Self {
-        let mut path = Vec::with_capacity(prefix.len() + self.path.len());
-        path.extend_from_slice(prefix);
-        path.extend_from_slice(&self.path);
-        Self { root, path }
-    }
+    canonical_field_accessors!();
 }
 
 impl ByteSequenceStructuralField {
@@ -197,20 +193,7 @@ impl ByteSequenceStructuralField {
         Ok(Self { root, path })
     }
 
-    pub const fn root(&self) -> PlaceId {
-        self.root
-    }
-
-    pub fn path(&self) -> &[CanonicalStructuralPathSegment] {
-        &self.path
-    }
-
-    pub fn rebase(&self, root: PlaceId, prefix: &[CanonicalStructuralPathSegment]) -> Self {
-        let mut path = Vec::with_capacity(prefix.len() + self.path.len());
-        path.extend_from_slice(prefix);
-        path.extend_from_slice(&self.path);
-        Self { root, path }
-    }
+    canonical_field_accessors!();
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
