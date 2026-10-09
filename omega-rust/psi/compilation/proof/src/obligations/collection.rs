@@ -818,12 +818,9 @@ fn variant_payload_field_type_reference(
     member_symbol: SymbolHandle,
     member_name: &Identifier,
 ) -> Option<TypeReferenceHandle> {
-    program.data_definitions().iter().find_map(|definition| {
-        program.data_members(definition).iter().find_map(|member| {
-            let variant = member.as_variant()?;
-            if variant.symbol != variant_symbol {
-                return None;
-            }
+    program
+        .variant_owner(variant_symbol)
+        .and_then(|(_, variant)| {
             program
                 .data_payload_fields(variant)
                 .iter()
@@ -833,7 +830,6 @@ fn variant_payload_field_type_reference(
                         .then_some(field.type_reference)
                 })
         })
-    })
 }
 
 /// One call a statement evaluates: the statement call itself, or a call

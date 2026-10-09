@@ -248,12 +248,9 @@ fn claim_place_name(
     for segment in path {
         match segment {
             facts::PlaceSegment::Case { variant } => {
-                let case = program.data_definitions().iter().find_map(|definition| {
-                    program.data_members(definition).iter().find_map(|member| {
-                        let candidate = member.as_variant()?;
-                        (candidate.symbol == *variant).then_some(candidate.name.as_str())
-                    })
-                });
+                let case = program
+                    .variant_owner(*variant)
+                    .map(|(_, candidate)| candidate.name.as_str());
                 name.push_str("::");
                 name.push_str(case.unwrap_or("<case>"));
             }

@@ -1162,14 +1162,9 @@ fn case_payload_transfer(
     }
     // The selected case's declared payload field owns the transferred
     // subtree's identity and type.
-    let field = program.data_definitions().iter().find_map(|data| {
-        program.data_members(data).iter().find_map(|member| {
-            let variant = member.as_variant()?;
-            (variant.symbol == selected_case)
-                .then(|| program.data_payload_field_by_symbol(variant, *field_symbol))
-                .flatten()
-        })
-    })?;
+    let field = program
+        .variant_owner(selected_case)
+        .and_then(|(_, variant)| program.data_payload_field_by_symbol(variant, *field_symbol))?;
     // Copying the payload out of the borrowed subject must not disturb
     // the subject's custody. Two admitted shapes, each exact on declared
     // type and multiplicity: an unrestricted `Owned` target copies a plain-contents
@@ -1288,12 +1283,9 @@ fn case_payload_transfer(
                 .map(CheckedUnitStructuralPathSegment::Field)
         })
         .collect::<Option<Vec<_>>>()?;
-    let variant = program.data_definitions().iter().find_map(|data| {
-        program.data_members(data).iter().find_map(|member| {
-            let variant = member.as_variant()?;
-            (variant.symbol == selected_case).then_some(variant)
-        })
-    })?;
+    let variant = program
+        .variant_owner(selected_case)
+        .map(|(_, variant)| variant)?;
     // The recorded subject identity must spell the resolved structural
     // type the emitted declaration catalog uses. A bare subject's checked
     // parameter already carries that identity — attached `self` names the

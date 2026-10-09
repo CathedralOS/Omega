@@ -34,19 +34,7 @@ fn entry_place_at_write_boundary(
                 if facts::payload_variant_for_field(program, symbol) != selected_case {
                     return None;
                 }
-                let field = program.data_definitions().iter().find_map(|data| {
-                    program
-                        .data_members(data)
-                        .iter()
-                        .find_map(|member| match member {
-                            typed_trees::data::DataMember::Field(field) => {
-                                (field.symbol == symbol).then_some(field)
-                            }
-                            typed_trees::data::DataMember::Variant(variant) => {
-                                program.data_payload_field_by_symbol(variant, symbol)
-                            }
-                        })
-                })?;
+                let field = program.any_field_owner(symbol).map(|(_, field)| field)?;
                 projection.push(PlaceSegment::Field(symbol));
                 members.push(Projection::Member(field_entry_name(
                     program,

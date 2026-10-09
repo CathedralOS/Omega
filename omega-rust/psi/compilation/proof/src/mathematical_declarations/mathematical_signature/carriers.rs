@@ -148,21 +148,10 @@ impl<'a> Elaborator<'a> {
     /// field name selects within it.
     pub(super) fn member_carrier(&self, member: &TableMemberExpression) -> Option<ScalarCarrier> {
         if member.member_symbol.is_valid() {
-            let field_type = self.program.data_definitions().iter().find_map(|data| {
-                self.program
-                    .data_members(data)
-                    .iter()
-                    .find_map(|member_decl| match member_decl {
-                        DataMember::Field(field) if field.symbol == member.member_symbol => {
-                            Some(field.type_reference)
-                        }
-                        DataMember::Variant(variant) => self
-                            .program
-                            .data_payload_field_by_symbol(variant, member.member_symbol)
-                            .map(|field| field.type_reference),
-                        _ => None,
-                    })
-            })?;
+            let field_type = self
+                .program
+                .any_field_owner(member.member_symbol)
+                .map(|(_, field)| field.type_reference)?;
             return self.scalar_carrier_of_type_reference(field_type);
         }
         let ScalarCarrier::Carrier(position) = self.operand_carrier(member.receiver)? else {

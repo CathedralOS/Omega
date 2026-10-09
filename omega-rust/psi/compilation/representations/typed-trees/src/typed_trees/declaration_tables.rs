@@ -272,6 +272,18 @@ impl TypedTrees {
         })
     }
 
+    /// The `Variant` member declared as `symbol` by any of the program's data
+    /// definitions, with its owning definition.
+    pub fn variant_owner(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(&data::DataDefinition, &data::DataVariant)> {
+        self.data_definitions().iter().find_map(|definition| {
+            self.data_variant(definition, symbol)
+                .map(|variant| (definition, variant))
+        })
+    }
+
     pub fn push_data_payload_field(
         &mut self,
         variant: &mut data::DataVariant,

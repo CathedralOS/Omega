@@ -113,11 +113,10 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     }
                     continue;
                 };
-                let Some(result_data) = program.data_definitions().iter().find_map(|definition| {
-                    program.data_members(definition).iter().any(|member| {
-                        matches!(member, typed_trees::data::DataMember::Variant(variant) if variant.symbol == result_case)
-                    }).then_some(definition.symbol)
-                }) else {
+                let Some(result_data) = program
+                    .variant_owner(result_case)
+                    .map(|(definition, _)| definition.symbol)
+                else {
                     if !selectors.is_empty() {
                         diagnostics.push(diagnostics::Diagnostic::error(
                             "outcome proof selector case does not resolve to a declared nominal sum case",
