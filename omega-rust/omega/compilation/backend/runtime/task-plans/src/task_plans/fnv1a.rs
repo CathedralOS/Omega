@@ -2,48 +2,41 @@
 //! `finish` normalizes a zero digest back to the offset basis: normalized IDs
 //! reserve zero as the invalid sentinel, so the representation stays total.
 
-pub(crate) struct Fnv1a(u64);
+pub(crate) struct Fnv1a(semantic_vocabulary::Fnv1a);
 
 impl Fnv1a {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-
     pub(crate) const fn new() -> Self {
-        Self(Self::OFFSET)
+        Self(semantic_vocabulary::Fnv1a::new())
     }
 
     pub(crate) fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(Self::PRIME);
+        self.0.byte(byte);
     }
 
     pub(crate) fn flag(&mut self, value: bool) {
-        self.byte(u8::from(value));
+        self.0.flag(value);
     }
 
     pub(crate) fn word(&mut self, value: u64) {
-        for byte in value.to_le_bytes() {
-            self.byte(byte);
-        }
+        self.0.u64(value);
     }
 
     /// Length-framed string feed: a u64 word prefix then the raw bytes.
     pub(crate) fn string_framed(&mut self, value: &str) {
-        self.word(value.len() as u64);
-        for byte in value.bytes() {
-            self.byte(byte);
-        }
+        self.0.string_framed(value);
     }
 
     /// NUL-terminated string feed.
     pub(crate) fn string_terminated(&mut self, value: &str) {
-        for byte in value.as_bytes() {
-            self.byte(*byte);
-        }
-        self.byte(0);
+        self.0.string_terminated(value);
     }
 
     pub(crate) fn finish(self) -> u64 {
-        if self.0 == 0 { Self::OFFSET } else { self.0 }
+        let digest = self.0.finish();
+        if digest == 0 {
+            semantic_vocabulary::Fnv1a::OFFSET_BASIS
+        } else {
+            digest
+        }
     }
 }
