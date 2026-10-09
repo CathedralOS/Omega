@@ -273,21 +273,6 @@ pub struct BoundaryServiceOwners {
 /// `,` escaped. The last `::` separates the requirement member from its
 /// owner, which may itself be qualified (`a::b::Owner`). `None` outside
 /// this canonical form.
-fn canonical_requirement_owner(identity: &str) -> Option<String> {
-    let path = identity.strip_prefix("named-callable(path(")?;
-    let mut unescaped = String::with_capacity(path.len());
-    let mut characters = path.chars();
-    loop {
-        match characters.next()? {
-            ')' => break,
-            '\\' => unescaped.push(characters.next()?),
-            character => unescaped.push(character),
-        }
-    }
-    let (owner, requirement) = unescaped.rsplit_once("::")?;
-    (!owner.is_empty() && !requirement.is_empty()).then(|| owner.to_owned())
-}
-
 impl BoundaryServiceOwners {
     /// Join each boundary declaration to its owning service:
     /// `owning_service_identity` maps a boundary's canonical identity to the
@@ -323,11 +308,7 @@ impl BoundaryServiceOwners {
     /// unrelated service `Endpoint` counts that service — conservative in
     /// the direction incomplete evidence already takes, rejecting the
     /// composition rather than dropping a possible invocation.
-    pub(crate) fn from_module_identities(module: &TerminalModule) -> Self {
-        Self::from_module(module, &canonical_requirement_owner)
-    }
-
-    pub fn insert(&mut self, boundary: BoundaryMachineId, service: ServiceId) {
+        pub fn insert(&mut self, boundary: BoundaryMachineId, service: ServiceId) {
         self.owners.insert(boundary, service);
     }
 
@@ -384,21 +365,6 @@ impl BehaviorExclusionReport {
 /// Boundary-to-service ownership is reconstructed from the module's canonical
 /// requirement identities so a source-free consumer replays the identical
 /// accounting.
-pub(crate) fn establish_behavior_exclusions(
-    module: &TerminalModule,
-    entries: &[MachineId],
-    exclusions: &BehaviorExclusions,
-    selected_provider_plans: &crate::SelectedProviderPlanFacts,
-) -> BehaviorExclusionReport {
-    establish_behavior_exclusions_with_owners(
-        module,
-        entries,
-        exclusions,
-        selected_provider_plans,
-        &BoundaryServiceOwners::from_module_identities(module),
-    )
-}
-
 /// [`establish_behavior_exclusions`] with the boundary-to-service ownership
 /// the join reconstructed: a boundary call then counts as an invocation of
 /// its owning service and that service's parents, beside the fixed reach
@@ -698,4 +664,3 @@ pub use authored::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
     authored_behavior_exclusion_set_in,
 };
-pub(crate) use authored::{ authored_behavior_exclusion_set};

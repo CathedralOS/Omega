@@ -3,9 +3,6 @@
 //! judged against, selected-composition behavior exclusions, and process-wide
 //! service registrations.
 
-pub(crate) mod behavior_exclusions;
-pub(crate) mod coexisting_executable_eras;
 pub(crate) mod executable_tcb_manifest;
-pub(crate) mod executable_tcb_profile;
-pub(crate) mod isolated_executable_scopes;
-pub(crate) mod process_static_services;
+
+pub(crate) mod behavior_exclusions;

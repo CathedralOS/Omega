@@ -19,7 +19,7 @@ pub use provider_evidence::executable_scopes::behavior_exclusions::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
     BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, BoundaryServiceOwners, authored_behavior_exclusion_set_in, boundary_trait_identity, establish_behavior_exclusions_with_owners,
 };
-pub use provider_evidence::executable_scopes::behavior_exclusions::{ BehaviorExclusion, EvidenceGapKind, ProhibitedSite};
+pub use provider_evidence::executable_scopes::behavior_exclusions::{BehaviorExclusion, EvidenceGapKind, ProhibitedSite};
 pub use provider_evidence::executable_scopes::behavior_exclusions::{
     EvidenceGap, ProhibitedBehavior};
 
@@ -39,25 +39,21 @@ pub use provider_evidence::authority::terminal_authority::{
 };
 pub use provider_evidence::authority::terminal_authority::{
     TerminalAuthorityClosureReviewBuildError};
-pub use provider_evidence::component_eras::component_era_entry_ledger::{ EraEntryError, EraQuiescenceError, EraRetirementError,
+pub use provider_evidence::component_eras::component_era_entry_ledger::{EraEntryError, EraQuiescenceError, EraRetirementError,
 };
 pub use provider_evidence::component_eras::component_progress_manifest::{
     CheckedComponentProgressDemand, ComponentProgressManifest,
 };
-pub use provider_evidence::component_eras::component_progress_manifest::{ ComponentBuildBoundProgressDemand};
+pub use provider_evidence::component_eras::component_progress_manifest::{ComponentBuildBoundProgressDemand};
 
-pub(crate) use provider_evidence::executable_scopes::coexisting_executable_eras::{ CoexistingExecutableTcbSet};
+
+
+
 
 pub(crate) use provider_evidence::executable_scopes::executable_tcb_manifest::{
-    ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,
-    ExecutableTcbEntry, ExecutableTcbManifest, ExecutionScope, ImplementationEvidence,
-    IncompleteCause, OpaqueExecutableAdmissionCandidate, OpaqueInProcessBinding,
-    ProviderIdentity, ScopeCompleteness,
-    SelectedProviderRequirement, ValidatedOpaqueExecutableAdmission};
-
-pub(crate) use provider_evidence::executable_scopes::executable_tcb_profile::{ ExecutableTcbProfileAcceptance};
-
-
+    ExecutionScope, ContainmentGuarantee, OpaqueInProcessBinding,
+    OpaqueExecutableAdmissionCandidate, ValidatedOpaqueExecutableAdmission,
+};
 pub use provider_evidence::providers::foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
     NormalizedForeignLocator, normalize_foreign_locator,
@@ -67,4 +63,4 @@ pub use provider_evidence::{
     InstallationReachResolution, SelectedProviderPlanFacts,
     SelectedRequirementSpecialization,
 };
-pub use provider_evidence::{ SelectedProviderClosureDigest};
+pub use provider_evidence::{SelectedProviderClosureDigest};

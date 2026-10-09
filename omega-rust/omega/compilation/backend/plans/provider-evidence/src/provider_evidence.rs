@@ -297,9 +297,6 @@ impl SelectedProviderPlanFacts {
     }
 
 
-    pub(crate) fn opaque_executable_admissions(&self) -> &[crate::ValidatedOpaqueExecutableAdmission] {
-        &self.opaque_executable_admissions
-    }
 
     /// Attach checked realization reach to provider-selected bounded
     /// requirements. The requirement ceiling stays in the provider schema;
@@ -618,16 +615,6 @@ impl SelectedProviderPlanFacts {
         Ok(resolved)
     }
 
-    /// Derive caller-address-space TCB facts from the selected closure, never
-    /// from source service reach or the unselected candidate set.
-    pub(crate) fn executable_tcb_manifest(&self) -> crate::ExecutableTcbManifest {
-        crate::provider_evidence::executable_scopes::executable_tcb_manifest::derive_static_manifest(
-            &self.plans,
-            self.report_fingerprint,
-            self.execution_scope,
-            &self.opaque_executable_admissions,
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -834,12 +821,12 @@ impl SelectedProviderClosureDigestEncoder {
                 match locator.locator() {
                     crate::ForeignLocatorCandidate::PeByName { library, export } => {
                         self.byte(0);
-                        self.bytes(library);
-                        self.bytes(export);
+                        self.bytes(&library);
+                        self.bytes(&export);
                     }
                     crate::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
                         self.byte(1);
-                        self.bytes(library);
+                        self.bytes(&library);
                         self.0.update(ordinal.to_le_bytes());
                     }
                     crate::ForeignLocatorCandidate::ElfVersioned {
@@ -848,9 +835,9 @@ impl SelectedProviderClosureDigestEncoder {
                         version,
                     } => {
                         self.byte(2);
-                        self.bytes(object);
-                        self.bytes(symbol);
-                        self.bytes(version);
+                        self.bytes(&object);
+                        self.bytes(&symbol);
+                        self.bytes(&version);
                     }
                     crate::ForeignLocatorCandidate::MachODylibSymbol {
                         install_name,
@@ -858,7 +845,7 @@ impl SelectedProviderClosureDigestEncoder {
                     } => {
                         self.byte(3);
                         self.bytes(install_name);
-                        self.bytes(symbol);
+                        self.bytes(&symbol);
                     }
                 }
                 self.bytes(&evaluated.receipt().identity_digest());
