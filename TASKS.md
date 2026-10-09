@@ -5961,9 +5961,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   parameters and statements, 8,192 states and transition arms and 131,072
   expressions, over a 65,536-token unit; edges one unit cannot reach run in
   the resolver gate's source sets.
-  Next: the library's missing `algebra` and `nat` imports, `where machine`
-  contracts and builtin functions (`embed`, `clamp`), which the library's
-  remaining files stop at; typing's declared
+  Next: `where machine` contracts and the proof-only `embed`
+  ([contracts](wiki/spec/proofs/contracts.md)), which the library's remaining
+  files stop at; `clamp` waits on
+  **Q4: executable-numeric-builtins** in `OWNER_QUESTIONS.md`; typing's declared
   equality, which needs
   `Equatable` named conformances
   ([core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition));
