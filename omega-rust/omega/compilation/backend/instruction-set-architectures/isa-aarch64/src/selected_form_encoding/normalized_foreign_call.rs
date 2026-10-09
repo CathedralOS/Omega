@@ -19,16 +19,16 @@ use target::NativeTarget;
 
 use crate::machine_effects::aarch64_selected_abi;
 
-pub const AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
-pub const AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET: u16 = 0;
-pub const AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET: u16 = 0;
-pub const AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET: u16 = 0;
-pub const AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH: u8 = 4;
+pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
+pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET: u16 = 0;
+pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET: u16 = 0;
+pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET: u16 = 0;
+pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH: u8 = 4;
 
 /// One register-destination materialization group: an `adrp`/`add` pair.
 /// A record-field destination adds the scratch store word after its pair.
-pub const AARCH64_CALLBACK_MATERIALIZATION_BYTE_COUNT: u16 = 8;
-pub const AARCH64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT: u16 = 12;
+pub(crate) const AARCH64_CALLBACK_MATERIALIZATION_BYTE_COUNT: u16 = 8;
+pub(crate) const AARCH64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT: u16 = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aarch64NormalizedForeignCallFixupKind {
@@ -85,7 +85,7 @@ pub struct Aarch64NormalizedForeignCallFixup {
 /// Exact selected inputs and canonical bytes for one unresolved normalized
 /// foreign call.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedAarch64SelectedNormalizedForeignCallTemplate {
+pub(crate) struct ValidatedAarch64SelectedNormalizedForeignCallTemplate {
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operand_views: Vec<RegisterViewId>,

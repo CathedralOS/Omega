@@ -149,12 +149,12 @@ pub const AARCH64_BITS_TO_FLOAT64: RegisterConstraintKey = RegisterConstraintKey
     variant: 713,
 };
 
-pub const AARCH64_LINUX_SYSTEM_CALL: RegisterConstraintKey = RegisterConstraintKey {
+pub(crate) const AARCH64_LINUX_SYSTEM_CALL: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::SystemCall,
     variant: 0,
 };
 
-pub const AARCH64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey = RegisterConstraintKey {
+pub(crate) const AARCH64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::InlineAssembly,
     variant: 0,
 };
@@ -430,7 +430,7 @@ pub const AARCH64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey = RegisterCo
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 113] = [
+pub(crate) const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 113] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,

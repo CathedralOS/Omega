@@ -20,7 +20,7 @@ pub use system_calls::aarch64_linux_system_call_keys;
 mod tests;
 
 pub use call_keys::{
-    AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN,
+    AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_RETURN,
     AARCH64_AAPCS64_RETURN_UNIT, AARCH64_DARWIN_CALL, AARCH64_DARWIN_RETURN,
     AARCH64_DARWIN_RETURN_UNIT, aarch64_aapcs64_normalized_foreign_call_keys,
     aarch64_aapcs64_register_call_keys, aarch64_aapcs64_register_unit_call_keys,
@@ -28,10 +28,12 @@ pub use call_keys::{
     aarch64_darwin_register_unit_call_keys, aarch64_preservation_convention_for_target,
     aarch64_register_aggregate_call_keys, aarch64_register_aggregate_return_keys,
 };
+pub(crate) use call_keys::{ AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64};
 pub use constraint_catalog::{
-    Aarch64RegisterConstraintCatalogValidationError, aarch64_register_constraint_catalog,
-    aarch64_register_constraint_catalog_for, validate_aarch64_register_constraint_catalog,
+    Aarch64RegisterConstraintCatalogValidationError, aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
 };
+pub(crate) use constraint_catalog::{
+    aarch64_register_constraint_catalog_for};
 pub use float_scalar_calls::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};
 pub use indirect_results::aarch64_indirect_aggregate_call_keys;
 pub use mixed_calls::{
@@ -49,12 +51,10 @@ pub use operation_keys::{
     AARCH64_DIVIDE_U64, AARCH64_FLOAT_RESULT_SATURATING, AARCH64_FLOAT_RESULT_TRAPPING,
     AARCH64_FLOAT32_TO_BITS, AARCH64_FLOAT64_TO_BITS, AARCH64_FRAME_ADDRESS,
     AARCH64_HOSTED_EXIT_PROCESS_I32, AARCH64_HOSTED_READ_BYTE, AARCH64_HOSTED_WRITE_BYTE_I32,
-    AARCH64_IEEE_FLOAT_ARITHMETIC, AARCH64_IEEE_FLOAT_TERNARY, AARCH64_IEEE_FLOAT_UNARY,
-    AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_JUMP, AARCH64_LINUX_SYSTEM_CALL,
+    AARCH64_IEEE_FLOAT_ARITHMETIC, AARCH64_IEEE_FLOAT_TERNARY, AARCH64_IEEE_FLOAT_UNARY, AARCH64_JUMP,
     AARCH64_LOAD_ENCODED_SCALAR, AARCH64_LOAD_PACKED, AARCH64_LOAD8, AARCH64_LOAD8_INDEXED,
     AARCH64_LOAD16, AARCH64_LOAD32, AARCH64_LOAD64, AARCH64_MATERIALIZE_BOOLEAN,
-    AARCH64_MATERIALIZE_I64, AARCH64_MULTIPLY_I64, AARCH64_REMAINDER_I64, AARCH64_REMAINDER_U64,
-    AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_RESTORE_FLOATING_CONTROL,
+    AARCH64_MATERIALIZE_I64, AARCH64_MULTIPLY_I64, AARCH64_REMAINDER_I64, AARCH64_REMAINDER_U64, AARCH64_RESTORE_FLOATING_CONTROL,
     AARCH64_SATURATING_ADD_CLAMPED, AARCH64_SATURATING_ADD_U64, AARCH64_SATURATING_DIVIDE_SIGNED,
     AARCH64_SATURATING_MULTIPLY_CLAMPED, AARCH64_SATURATING_MULTIPLY_U64,
     AARCH64_SATURATING_SUBTRACT_CLAMPED, AARCH64_SATURATING_SUBTRACT_UNSIGNED,
@@ -63,8 +63,12 @@ pub use operation_keys::{
     AARCH64_SUBTRACT_I64_IMMEDIATE, AARCH64_TRAPPING_BINARY, AARCH64_TRAPPING_CONVERT,
     AARCH64_TRAPPING_FIXED_PAIR, AARCH64_TRAPPING_SHIFT, AARCH64_ZERO_BYTES,
 };
+pub(crate) use operation_keys::{
+    AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_LINUX_SYSTEM_CALL,
+    AARCH64_REQUIRED_REGISTER_CONSTRAINTS};
 pub use physical_model::{
     aarch64_fixed_register_view, aarch64_physical_register_model,
-    aarch64_physical_register_model_ref, canonical_aarch64_physical_register_model_identity,
     validated_aarch64_physical_register_model,
 };
+pub(crate) use physical_model::{
+    aarch64_physical_register_model_ref, canonical_aarch64_physical_register_model_identity};

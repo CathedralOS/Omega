@@ -24,8 +24,9 @@ mod scan_byte_sequence;
 pub(crate) mod trapping_forms;
 mod zero_bytes;
 pub use floating_control::{
-    encode_aarch64_selected_floating_control_form, validate_aarch64_selected_floating_control_form,
+    encode_aarch64_selected_floating_control_form,
 };
+pub(crate) use floating_control::{ validate_aarch64_selected_floating_control_form};
 pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_read_byte;
 pub(crate) mod hosted_write_byte;
@@ -59,11 +60,12 @@ pub use branch_forms::{
     validate_aarch64_selected_u64_less_than_branch_form,
     validate_aarch64_selected_u64_less_than_widened_branch_form,
 };
-pub use encoding_types::{
-    Aarch64MovkPatch, Aarch64MovnSeed, Aarch64SelectedFormEncodingError,
-    Aarch64SelectedFormFootprint, Aarch64ShortestMovnMaterializationRecipe,
+pub use encoding_types::{ Aarch64SelectedFormEncodingError,
     ValidatedAarch64SelectedFormEncoding,
 };
+pub(crate) use encoding_types::{
+    Aarch64MovkPatch, Aarch64MovnSeed,
+    Aarch64SelectedFormFootprint, Aarch64ShortestMovnMaterializationRecipe};
 pub use hosted_write_byte::{
     encode_aarch64_selected_hosted_write_byte_form,
     validate_aarch64_selected_hosted_write_byte_form,
@@ -71,28 +73,31 @@ pub use hosted_write_byte::{
 pub use jump::{encode_aarch64_selected_jump_form, validate_aarch64_selected_jump_form};
 pub use memory::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
 pub use movn_materialization::{
-    aarch64_shortest_movn_materialization_recipe, encode_aarch64_shortest_movn_materialization,
-    validate_aarch64_shortest_movn_materialization,
 };
-pub use normalized_foreign_call::{
-    AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
-    AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
-    AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, Aarch64CallbackAddressMaterialization,
+pub(crate) use movn_materialization::{
+    aarch64_shortest_movn_materialization_recipe, encode_aarch64_shortest_movn_materialization,
+    validate_aarch64_shortest_movn_materialization};
+pub use normalized_foreign_call::{ Aarch64CallbackAddressMaterialization,
     Aarch64CallbackMaterializationDestination, Aarch64NormalizedForeignCallFixup,
     Aarch64NormalizedForeignCallFixupKind, Aarch64NormalizedForeignCallFixupState,
     Aarch64NormalizedForeignCallTemplateError,
-    ValidatedAarch64SelectedNormalizedForeignCallTemplate,
     encode_aarch64_selected_normalized_foreign_call_template,
     validate_aarch64_selected_normalized_foreign_call_template,
 };
-pub use scalar_call::{
-    AARCH64_SCALAR_CALL_OPCODE_OFFSET, AARCH64_SCALAR_CALL_PATCH_OFFSET,
-    AARCH64_SCALAR_CALL_PATCH_WIDTH, AARCH64_SCALAR_CALL_REFERENCE_OFFSET,
-    AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT, Aarch64ScalarCallFixup, Aarch64ScalarCallFixupKind,
-    Aarch64ScalarCallFixupState, Aarch64ScalarCallTemplateError,
-    ValidatedAarch64SelectedScalarCallTemplate, encode_aarch64_selected_dynamic_call_template,
+pub(crate) use normalized_foreign_call::{
+    AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
+    AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
+    AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT,
+    ValidatedAarch64SelectedNormalizedForeignCallTemplate};
+pub use scalar_call::{ Aarch64ScalarCallFixup, Aarch64ScalarCallFixupKind,
+    Aarch64ScalarCallFixupState, Aarch64ScalarCallTemplateError, encode_aarch64_selected_dynamic_call_template,
     encode_aarch64_selected_scalar_call_template, validate_aarch64_selected_scalar_call_template,
 };
+pub(crate) use scalar_call::{
+    AARCH64_SCALAR_CALL_OPCODE_OFFSET, AARCH64_SCALAR_CALL_PATCH_OFFSET,
+    AARCH64_SCALAR_CALL_PATCH_WIDTH, AARCH64_SCALAR_CALL_REFERENCE_OFFSET,
+    AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
+    ValidatedAarch64SelectedScalarCallTemplate};
 pub use selected_forms::{
     AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
     AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, encode_aarch64_selected_form,

@@ -127,7 +127,7 @@ impl ModelBuilder {
 /// a fixed table; building it formats every register name and fills two
 /// name maps, and encoders and effect declarations asked for it per
 /// instruction form.
-pub fn aarch64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
+pub(crate) fn aarch64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
     static MODEL: std::sync::OnceLock<PhysicalRegisterModel> = std::sync::OnceLock::new();
     MODEL.get_or_init(build_aarch64_physical_register_model)
 }
@@ -412,6 +412,6 @@ pub fn validated_aarch64_physical_register_model() -> &'static ValidatedPhysical
 }
 
 /// The content identity of the canonical AArch64 physical register model.
-pub fn canonical_aarch64_physical_register_model_identity() -> PhysicalRegisterModelIdentity {
+pub(crate) fn canonical_aarch64_physical_register_model_identity() -> PhysicalRegisterModelIdentity {
     validated_aarch64_physical_register_model().identity()
 }
