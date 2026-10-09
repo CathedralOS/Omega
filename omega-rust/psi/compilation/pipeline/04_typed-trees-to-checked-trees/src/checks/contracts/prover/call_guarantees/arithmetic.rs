@@ -326,7 +326,7 @@ fn bind_occurrences(
             .primitive_type_reference(reference)
             .filter(|primitive| primitive.is_fixed_integer())?;
         let binder = match program.expression_table.expression(occurrence) {
-            ExpressionNode::Member(_) => ScopedArithmeticBinder::Projection(occurrence),
+            ExpressionNode::Member(_) => ScopedArithmeticBinder::Occurrence(occurrence),
             ExpressionNode::Name(path)
                 if validation::is_single_segment_name_path(program, path) =>
             {
@@ -424,19 +424,20 @@ fn term(
             value_preserving_integer_coercion(program, callable, cast)
                 && term(program, operators, callable, cast.value)
         }
-        ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
-            .is_some_and(|(primitive, source)| {
-                primitive.is_fixed_integer()
-                    && matches!(
-                        program.expression_table.expression(source),
-                        ExpressionNode::Name(_)
-                            | ExpressionNode::Member(_)
-                            | ExpressionNode::Integer(_)
-                    )
-                    && term(program, operators, callable, source)
-            }),
-        // Casts, indexing, computed actuals and selected calls need their own
-        // meaning/capture evidence; no syntax-only polynomial interpretation.
+        ExpressionNode::Call(_) => {
+            if let Some((primitive, source)) =
+                validation::integer_embedding_argument(program, expression)
+            {
+                return primitive.is_fixed_integer() && term(program, operators, callable, source);
+            }
+            // The shared scoped judgment transports the selected declaration's
+            // result and published guarantees under this call's actual roster.
+            // Formation/effects remain independent checking obligations.
+            callable
+                .scalar_reference(program, expression)
+                .and_then(|reference| program.primitive_type_reference(reference))
+                .is_some_and(|primitive| primitive.is_fixed_integer())
+        }
         _ => false,
     }
 }

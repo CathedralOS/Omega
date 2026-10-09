@@ -254,7 +254,7 @@ pub(super) struct Engine<'program> {
     strict_result_binding: Option<Polynomial>,
     /// Exact numeric projections and quotient occurrences installed by the
     /// owning strict query after checking builtin meaning and source custody.
-    strict_projections: Vec<(ExpressionHandle, Polynomial)>,
+    strict_occurrences: Vec<(ExpressionHandle, Polynomial)>,
     /// A formation query has exact symbol bindings and admits only total
     /// mathematical arithmetic. It must not inherit the legacy proof
     /// machine adapter's interpretation of arbitrary executable operators.
@@ -320,7 +320,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings: None,
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
-            strict_projections: Vec::new(),
+            strict_occurrences: Vec::new(),
             proof_integer_formation: false,
             integer_embedding_policy:
                 crate::proof_contracts::proof_embeddings::machine_contains_integer_embedding(
@@ -518,7 +518,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings: Some(bindings),
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
-            strict_projections: Vec::new(),
+            strict_occurrences: Vec::new(),
             proof_integer_formation: true,
             integer_embedding_policy: true,
             unsigned_atoms: Vec::new(),
@@ -927,7 +927,7 @@ impl<'program> Engine<'program> {
             return Some(Polynomial::constant(value));
         }
         if let Some((_, value)) = self
-            .strict_projections
+            .strict_occurrences
             .iter()
             .find(|(candidate, _)| *candidate == expression)
         {

@@ -5,16 +5,18 @@
 //! source spells an invocation formal and its current header binding with one
 //! parameter symbol, so a proposition relating the two cannot be a single
 //! expression read under one symbol table. This adapter lets each hypothesis
-//! and the goal carry its own roster: a parameter symbol, an exact field
-//! projection, or the synthetic guarantee
+//! and the goal carry its own roster: a parameter symbol, an exact value
+//! occurrence, or the synthetic guarantee
 //! `result`, denotes a
 //! private atom or a term that is itself read under a nested roster. Atoms are
 //! shared by identity across the rosters of one implication, so the same
 //! formal named in two propositions is one
 //! mathematical value. Like the strict adapter this is authority-bearing:
-//! every name and projection must resolve through its roster, and only
-//! `Proven` succeeds. Projection meaning is established by the caller; this
-//! adapter never equates member occurrences by their spelling or receiver.
+//! every name and occurrence must resolve through its roster, and only
+//! `Proven` succeeds. Occurrence meaning is established by the caller; this
+//! adapter never equates value occurrences by their spelling or operands.
+
+mod calls;
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 
@@ -23,12 +25,12 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
 /// What one scoped binding stands for: a resolved binder symbol, an exact
-/// member occurrence, or the synthetic `result` name for the returned value.
+/// value occurrence, or the synthetic `result` name for the returned value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopedArithmeticBinder {
     Symbol(symbols::SymbolHandle),
-    /// One exact member-expression occurrence, not an arbitrary term rewrite.
-    Projection(ExpressionHandle),
+    /// One exact value occurrence whose denotation the binding owner supplies.
+    Occurrence(ExpressionHandle),
     Result,
 }
 
@@ -37,6 +39,13 @@ pub enum ScopedArithmeticValue {
     /// A private mathematical unknown. The identity is shared across every
     /// proposition of one implication; an unsigned atom carries `>= 0`.
     Atom { identity: String, unsigned: bool },
+    /// Independently established bounds for a value, retained while its scoped
+    /// identity is transported. These bounds do not form the source operand.
+    BoundedInteger {
+        value: Box<Self>,
+        minimum: Option<numerics::bignum::BigInt>,
+        maximum: Option<numerics::bignum::BigInt>,
+    },
     /// An exact mathematical integer supplied by the binding's owner, such as
     /// a checked closed domain index. This does not establish executable
     /// carrier landing or the constant's source custody.
@@ -65,7 +74,7 @@ pub struct ScopedArithmeticBinding {
 }
 
 /// One authored expression together with the simultaneous substitution it is
-/// read under. A name or projection the roster does not bind is outside the
+/// read under. A name or occurrence the roster does not bind is outside the
 /// language.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopedArithmeticExpression {
@@ -102,6 +111,7 @@ pub fn scoped_arithmetic_comparisons_unsatisfiable(
     context_machine: &Machine,
     comparisons: &[ScopedArithmeticComparison],
 ) -> bool {
+    let mut calls = calls::ScopedCalls::new(program, context_machine);
     let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, &[]);
     let mut normalized = Vec::with_capacity(comparisons.len());
     for comparison in comparisons {
@@ -116,13 +126,25 @@ pub fn scoped_arithmetic_comparisons_unsatisfiable(
         ) {
             return false;
         }
-        let Some(left) = engine.normalize_scoped_value(&comparison.left) else {
+        let Some(left) = calls
+            .value(&comparison.left)
+            .and_then(|value| engine.normalize_scoped_value(&value))
+        else {
             return false;
         };
-        let Some(right) = engine.normalize_scoped_value(&comparison.right) else {
+        let Some(right) = calls
+            .value(&comparison.right)
+            .and_then(|value| engine.normalize_scoped_value(&value))
+        else {
             return false;
         };
         normalized.push((comparison.operator, left, right));
+    }
+    let Some(hypotheses) = calls.hypotheses(&[]) else {
+        return false;
+    };
+    if !install_hypotheses(program, &mut engine, &hypotheses) {
+        return false;
     }
     engine.integer_comparisons_unsatisfiable(normalized)
 }
@@ -136,13 +158,20 @@ pub fn scoped_arithmetic_implication(
     hypotheses: &[ScopedArithmeticHypothesis],
     goal: &ScopedArithmeticExpression,
 ) -> StrictArithmeticImplicationJudgment {
+    let mut calls = calls::ScopedCalls::new(program, context_machine);
+    let Some(goal) = calls.expression(goal) else {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    };
+    let Some(hypotheses) = calls.hypotheses(hypotheses) else {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    };
     let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, &[]);
     // Declare the goal's atoms first so their sign facts seed with the
     // hypotheses; the goal roster is installed again before judging.
     if !engine.install_scoped_bindings(&goal.bindings) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
-    if !install_hypotheses(program, &mut engine, hypotheses) {
+    if !install_hypotheses(program, &mut engine, &hypotheses) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
     if engine.requires_unsatisfiable {
@@ -249,14 +278,21 @@ pub fn scoped_arithmetic_values_relation(
     ) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
+    let mut calls = calls::ScopedCalls::new(program, context_machine);
+    let (Some(left), Some(right)) = (calls.value(left), calls.value(right)) else {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    };
+    let Some(hypotheses) = calls.hypotheses(hypotheses) else {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    };
     let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, &[]);
-    let Some(left) = engine.normalize_scoped_value(left) else {
+    let Some(left) = engine.normalize_scoped_value(&left) else {
         return StrictArithmeticImplicationJudgment::Unknown;
     };
-    let Some(right) = engine.normalize_scoped_value(right) else {
+    let Some(right) = engine.normalize_scoped_value(&right) else {
         return StrictArithmeticImplicationJudgment::Unknown;
     };
-    if !install_hypotheses(program, &mut engine, hypotheses) {
+    if !install_hypotheses(program, &mut engine, &hypotheses) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
     let left = engine.substituted(&left);

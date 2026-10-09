@@ -79,6 +79,20 @@ impl<'program> Engine<'program> {
                 self.declare_atom(identity, *unsigned);
                 Polynomial::atom(identity.clone())
             }
+            ScopedArithmeticValue::BoundedInteger {
+                value,
+                minimum,
+                maximum,
+            } => {
+                let polynomial = self.normalize_scoped_value(value)?;
+                if let Some(minimum) = minimum {
+                    self.bounds.push((polynomial.clone(), minimum.clone()));
+                }
+                if let Some(maximum) = maximum {
+                    self.bounds.push((polynomial.neg(), maximum.negate()));
+                }
+                polynomial
+            }
             ScopedArithmeticValue::Integer(value) => Polynomial::constant(value.clone()),
             ScopedArithmeticValue::IntegerOperation {
                 operator,
@@ -116,7 +130,7 @@ impl<'program> Engine<'program> {
         })
     }
 
-    /// Replace the strict symbol, result and projection tables with one scoped
+    /// Replace the strict symbol, result and occurrence tables with one scoped
     /// roster. Every bound term is read under its own nested roster, so
     /// no term can see the roster it is bound into. Declared atoms, installed
     /// hypotheses and bounds persist: the rosters of one implication share
@@ -130,9 +144,9 @@ impl<'program> Engine<'program> {
         if !self.strict_symbol_bindings_valid {
             return false;
         }
-        self.strict_projections.clear();
+        self.strict_occurrences.clear();
         let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
-        let mut projections = Vec::new();
+        let mut occurrences = Vec::new();
         let mut result = None;
         for binding in bindings {
             let Some(polynomial) = self.normalize_scoped_value(&binding.value) else {
@@ -162,8 +176,8 @@ impl<'program> Engine<'program> {
                     }
                     result = Some(polynomial);
                 }
-                ScopedArithmeticBinder::Projection(expression) => {
-                    projections.push((expression, polynomial));
+                ScopedArithmeticBinder::Occurrence(expression) => {
+                    occurrences.push((expression, polynomial));
                 }
             }
         }
@@ -171,27 +185,26 @@ impl<'program> Engine<'program> {
         self.strict_result_binding = result;
         // Nested terms installed their own occurrence tables. Publish only
         // this roster, including when it has no occurrence bindings at all.
-        self.strict_projections.clear();
-        for (expression, polynomial) in projections {
-            if !self.bind_strict_projection(expression, polynomial) {
+        self.strict_occurrences.clear();
+        for (expression, polynomial) in occurrences {
+            if !self.bind_strict_occurrence(expression, polynomial) {
                 return false;
             }
         }
         true
     }
 
+    /// The ranking owner binds a checked member projection. Keep its narrower
+    /// boundary while scoped owners may transport other exact value occurrences.
     pub(in crate::proof_contracts::contract_entailment) fn bind_strict_projection(
         &mut self,
         expression: ExpressionHandle,
         value: Polynomial,
     ) -> bool {
-        if !matches!(
+        matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Member(_)
-        ) {
-            return false;
-        }
-        self.bind_strict_occurrence(expression, value)
+        ) && self.bind_strict_occurrence(expression, value)
     }
 
     /// The rank-range owner has checked selected Exact integer meaning; the
@@ -282,13 +295,13 @@ impl<'program> Engine<'program> {
             return false;
         }
         if let Some((_, existing)) = self
-            .strict_projections
+            .strict_occurrences
             .iter()
             .find(|(candidate, _)| *candidate == expression)
         {
             return *existing == value;
         }
-        self.strict_projections.push((expression, value));
+        self.strict_occurrences.push((expression, value));
         true
     }
 

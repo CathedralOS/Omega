@@ -658,7 +658,7 @@ fn scoped(
             ExpressionNode::Member(_) => {
                 let length = length_occurrence(program, expression, lengths)?;
                 projections.push(ScopedArithmeticBinding {
-                    binder: ScopedArithmeticBinder::Projection(expression),
+                    binder: ScopedArithmeticBinder::Occurrence(expression),
                     value: length.value.clone(),
                 });
             }
@@ -699,6 +699,9 @@ fn charge(value: &ScopedArithmeticValue, budget: &mut usize, depth: usize) -> Op
             for binding in &term.bindings {
                 charge(&binding.value, budget, depth + 1)?;
             }
+        }
+        ScopedArithmeticValue::BoundedInteger { value, .. } => {
+            charge(value, budget, depth + 1)?;
         }
         ScopedArithmeticValue::IntegerOperation { left, right, .. } => {
             charge(left, budget, depth + 1)?;

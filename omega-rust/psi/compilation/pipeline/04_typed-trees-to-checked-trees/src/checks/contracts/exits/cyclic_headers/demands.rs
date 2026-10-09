@@ -77,6 +77,20 @@ fn value(
     }
     Some(match source {
         ScopedArithmeticValue::Atom { .. } | ScopedArithmeticValue::Integer(_) => source.clone(),
+        ScopedArithmeticValue::BoundedInteger {
+            value: inner,
+            minimum,
+            maximum,
+        } => ScopedArithmeticValue::BoundedInteger {
+            value: Box::new(value(
+                inner,
+                substitutions,
+                remaining,
+                depth.checked_sub(1)?,
+            )?),
+            minimum: minimum.clone(),
+            maximum: maximum.clone(),
+        },
         ScopedArithmeticValue::IntegerOperation {
             operator,
             left,

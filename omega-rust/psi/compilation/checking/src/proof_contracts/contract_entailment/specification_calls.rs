@@ -87,7 +87,7 @@ fn validate_expression(
     // identity beside the rewritten realization target, and a direct
     // `Trait::requirement` citation resolves to the signature symbol itself.
     // Both enforce the requirement's own contract under the call's subjects.
-    let Some(contract_owner) = requirement_owner(program, call) else {
+    let Some(contract_owner) = selected_call_contract(program, call) else {
         return;
     };
     let requirements = applicable_requirements_of(program, &contract_owner);
@@ -134,7 +134,7 @@ fn validate_expression(
     // call form that binder handles, with a complete nonempty lane; ordinary
     // requirements below still need independent prior facts.
     let named_evidence_count = requirements.iter().filter(|(_, named)| *named).count();
-    let has_named_evidence_lane = matches!(contract_owner, RequirementOwner::Concrete(..))
+    let has_named_evidence_lane = matches!(contract_owner, SelectedCallContract::Concrete(..))
         && call.static_requirement_dispatch.is_none()
         && call.quotient_operation.is_none()
         && call.machine_arguments.is_empty()
@@ -152,7 +152,7 @@ fn validate_expression(
         // dispatch record does not disqualify it; a concrete call keeps the
         // static-selection gate that requires the same shape.
         let arguments_select_plainly = call.machine_arguments.is_empty()
-            && (matches!(contract_owner, RequirementOwner::Signature(..))
+            && (matches!(contract_owner, SelectedCallContract::Signature(..))
                 || call.static_requirement_dispatch.is_none());
         let proven = if let Some(required) = requirement.as_expression()
             && arguments_select_plainly
@@ -199,31 +199,32 @@ fn validate_expression(
     }
 }
 
-/// The selected contract owner a call's requires obligations are read from.
+/// The selected public contract owner of a call's obligations and guarantees.
 /// A concrete machine state owns its machine/state contracts; a trait
 /// requirement signature owns the public contract a conformance satisfies,
 /// reached either by `static_requirement_dispatch` (the realization target is
 /// the private rewrite, not the contract owner) or by direct signature-symbol
 /// citation in a proof term.
-enum RequirementOwner<'program> {
+#[derive(Clone, Copy)]
+pub(super) enum SelectedCallContract<'program> {
     Concrete(&'program Machine, &'program State),
     Signature(&'program StateSignature),
 }
 
-fn requirement_owner<'program>(
+pub(super) fn selected_call_contract<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
-) -> Option<RequirementOwner<'program>> {
+) -> Option<SelectedCallContract<'program>> {
     if let Some(dispatch) = &call.static_requirement_dispatch {
         let definition = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
         return program
             .trait_machine_signature_by_symbol(definition, dispatch.requirement)
-            .map(RequirementOwner::Signature);
+            .map(SelectedCallContract::Signature);
     }
     selected_machine(program, call.target_symbol)
-        .map(|(machine, state)| RequirementOwner::Concrete(machine, state))
+        .map(|(machine, state)| SelectedCallContract::Concrete(machine, state))
         .or_else(|| {
-            signature_by_symbol(program, call.target_symbol).map(RequirementOwner::Signature)
+            signature_by_symbol(program, call.target_symbol).map(SelectedCallContract::Signature)
         })
 }
 
@@ -236,69 +237,61 @@ fn signature_by_symbol(
         .map(|(_, signature)| signature)
 }
 
-fn owner_symbol(owner: &RequirementOwner<'_>) -> SymbolHandle {
+pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {
     match owner {
-        RequirementOwner::Concrete(_, state) => state.symbol,
-        RequirementOwner::Signature(signature) => signature.symbol,
+        SelectedCallContract::Concrete(_, state) => state.symbol,
+        SelectedCallContract::Signature(signature) => signature.symbol,
     }
 }
 
 fn owner_name<'program>(
-    owner: &RequirementOwner<'program>,
+    owner: &SelectedCallContract<'program>,
 ) -> &'program typed_trees::name::Identifier {
     match owner {
-        RequirementOwner::Concrete(machine, _) => &machine.name,
-        RequirementOwner::Signature(signature) => &signature.name,
+        SelectedCallContract::Concrete(machine, _) => &machine.name,
+        SelectedCallContract::Signature(signature) => &signature.name,
     }
 }
 
-fn owner_parameters<'program>(
+pub(super) fn owner_parameters<'program>(
     program: &'program dyn crate::CheckingInput,
-    owner: &RequirementOwner<'program>,
+    owner: &SelectedCallContract<'program>,
 ) -> &'program [StateParameter] {
     match owner {
-        RequirementOwner::Concrete(_, state) => program.state_parameters(state),
-        RequirementOwner::Signature(signature) => program.state_signature_parameters(signature),
+        SelectedCallContract::Concrete(_, state) => program.state_parameters(state),
+        SelectedCallContract::Signature(signature) => program.state_signature_parameters(signature),
     }
+}
+
+pub(super) fn owner_contracts<'program>(
+    program: &'program dyn crate::CheckingInput,
+    owner: &SelectedCallContract<'program>,
+) -> impl Iterator<Item = &'program typed_trees::signature::SignatureContract> {
+    let (first, second): (&[_], &[_]) = match owner {
+        SelectedCallContract::Concrete(machine, state) => (
+            if program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == state.symbol)
+            {
+                program.machine_contracts(machine)
+            } else {
+                &[]
+            },
+            program.state_contracts(state),
+        ),
+        SelectedCallContract::Signature(signature) => {
+            (program.state_signature_contracts(signature), &[])
+        }
+    };
+    first.iter().chain(second)
 }
 
 fn applicable_requirements_of<'program>(
     program: &'program dyn crate::CheckingInput,
-    owner: &RequirementOwner<'program>,
+    owner: &SelectedCallContract<'program>,
 ) -> Vec<(&'program ProofFact, bool)> {
-    match owner {
-        RequirementOwner::Concrete(machine, state) => {
-            applicable_requirements(program, machine, state).collect()
-        }
-        RequirementOwner::Signature(signature) => program
-            .state_signature_contracts(signature)
-            .iter()
-            .filter(|contract| contract.kind == SignatureContractKind::Requires)
-            .flat_map(|contract| {
-                program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .iter()
-                    .map(|fact| (fact, contract.binding.is_some()))
-            })
-            .collect(),
-    }
-}
-
-fn applicable_requirements<'program>(
-    program: &'program dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-) -> impl Iterator<Item = (&'program ProofFact, bool)> {
-    let is_entry = program
-        .machine_states(machine)
-        .first()
-        .is_some_and(|entry| entry.symbol == state.symbol);
-    program
-        .machine_contracts(machine)
-        .iter()
-        .filter(move |_| is_entry)
-        .chain(program.state_contracts(state))
+    owner_contracts(program, owner)
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
         .flat_map(|contract| {
             program
@@ -307,6 +300,7 @@ fn applicable_requirements<'program>(
                 .iter()
                 .map(|fact| (fact, contract.binding.is_some()))
         })
+        .collect()
 }
 
 fn structurally_substitutable_fact(
@@ -473,7 +467,7 @@ fn constructor_fields_are_complete(
             .all(|name| fields.iter().filter(|(field, _)| field == name).count() == 1)
 }
 
-fn fact_roots(
+pub(super) fn fact_roots(
     program: &dyn crate::CheckingInput,
     fact: &ProofFact,
     roots: &mut Vec<ExpressionHandle>,
@@ -494,7 +488,7 @@ fn fact_roots(
 /// dependencies, not body recursion (whose well-foundedness has another owner).
 fn requirements_are_acyclic(
     program: &dyn crate::CheckingInput,
-    owner: &RequirementOwner<'_>,
+    owner: &SelectedCallContract<'_>,
     active: &mut Vec<SymbolHandle>,
     complete: &mut Vec<SymbolHandle>,
 ) -> bool {
@@ -518,7 +512,7 @@ fn requirements_are_acyclic(
         visited.push(expression);
         let node = program.expression_table.expression(expression);
         if let ExpressionNode::Call(call) = node
-            && let Some(nested) = requirement_owner(program, call)
+            && let Some(nested) = selected_call_contract(program, call)
             && !requirements_are_acyclic(program, &nested, active, complete)
         {
             return false;
