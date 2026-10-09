@@ -374,7 +374,11 @@ pub data MetadataResult {
 // constants it applies (staged in fields). `stat_buf` is scratch sized for the
 // largest selected `struct stat` carrier; the target `StatLayout` supplies the
 // live extent and field encodings.
-pub data Filesystem {
+pub data Filesystem
+where open_writable >= 0 && open_writable <= 1,
+    open_readable >= 0 && open_readable <= 1,
+    open_creating >= 0 && open_creating <= 1
+{
     host: Binding<FilesystemHost>;
     create_mode: i32;
     dir_mode: i32;
@@ -390,12 +394,12 @@ pub data Filesystem {
     // value-call receiver rule; no foreign bit position escapes this package.
     open_options: OpenOptions;
     // The three composed access/creation words are 0-or-1 flag carriers:
-    // each stores a `bool as i32` conversion or the OR of two. Declaring the
-    // range enforces it at every store and lets readers prove the composed
-    // `open_flags` shifts stay in i32.
-    open_writable: i32 [0..=1];
-    open_readable: i32 [0..=1];
-    open_creating: i32 [0..=1];
+    // each stores a `bool as i32` conversion or the OR of two. The data
+    // `where` facts enforce that at every store and let readers prove the
+    // composed `open_flags` shifts stay in i32.
+    open_writable: i32;
+    open_readable: i32;
+    open_creating: i32;
     // Scratch for a by-value File param's fd: a host-call arg must be a
     // simple storage place, and a param MEMBER (`file.fd`) is not one (a let
     // folds back to the member) -- the field capture is (try_exists' idiom).
