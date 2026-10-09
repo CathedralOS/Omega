@@ -9,5 +9,5 @@ pub mod allocations;
 mod artifact_writer;
 pub mod compile_timings;
 
-pub use artifact_writer::ArtifactWriter;
+pub(crate) use artifact_writer::ArtifactWriter;
 pub use compile_timings::PhaseTiming;

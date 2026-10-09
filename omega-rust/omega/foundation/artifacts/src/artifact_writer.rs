@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use diagnostics::Diagnostic;
 
-pub struct ArtifactWriter {
+pub(crate) struct ArtifactWriter {
     root: PathBuf,
 }
 

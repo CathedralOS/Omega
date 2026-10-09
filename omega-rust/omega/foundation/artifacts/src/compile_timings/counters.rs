@@ -68,7 +68,7 @@ pub fn preliminary_check_totals() -> (u64, u64) {
 }
 
 /// Account one pre-build declaration-authority check's wall time.
-pub fn record_preliminary_check(elapsed: std::time::Duration) {
+pub(crate) fn record_preliminary_check(elapsed: std::time::Duration) {
     PRELIMINARY_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     PRELIMINARY_CHECK_MICROS.fetch_add(
         u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),

@@ -40,7 +40,7 @@ static ALLOCATED_BYTES: AtomicU64 = AtomicU64::new(0);
 static DEALLOCATED_BYTES: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct AllocationSnapshot {
+pub(crate) struct AllocationSnapshot {
     pub allocation_calls: u64,
     pub deallocation_calls: u64,
     pub allocated_bytes: u64,
@@ -56,7 +56,7 @@ pub struct AllocationDelta {
 }
 
 impl AllocationSnapshot {
-    pub fn delta_since(self, earlier: Self) -> AllocationDelta {
+    pub(crate) fn delta_since(self, earlier: Self) -> AllocationDelta {
         AllocationDelta {
             allocation_calls: self
                 .allocation_calls
@@ -73,7 +73,7 @@ impl AllocationSnapshot {
 }
 
 impl AllocationDelta {
-    pub fn net_live_bytes(self) -> i128 {
+    pub(crate) fn net_live_bytes(self) -> i128 {
         i128::from(self.allocated_bytes) - i128::from(self.deallocated_bytes)
     }
 }
@@ -87,7 +87,7 @@ pub fn snapshot() -> AllocationSnapshot {
     }
 }
 
-pub struct CountingAllocator<A = System> {
+pub(crate) struct CountingAllocator<A = System> {
     inner: A,
 }
 
