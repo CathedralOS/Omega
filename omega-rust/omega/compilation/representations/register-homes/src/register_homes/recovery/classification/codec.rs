@@ -32,8 +32,11 @@ impl RecoveryClassificationPlan {
         let content = encode_terminal_recovery_classification_content(self);
         let identity = crate::recovery_classification_identity(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(RECOVERY_CLASSIFICATION_MAGIC);
-        encoded.extend_from_slice(&RECOVERY_CLASSIFICATION_VERSION.to_le_bytes());
+        crate::codec_bytes::encode_header(
+            &mut encoded,
+            RECOVERY_CLASSIFICATION_MAGIC,
+            RECOVERY_CLASSIFICATION_VERSION,
+        );
         encoded.extend_from_slice(&identity.bytes());
         encoded.extend_from_slice(&content);
         encoded
@@ -41,15 +44,13 @@ impl RecoveryClassificationPlan {
 
     pub fn decode(encoded: &[u8]) -> Result<Self, RecoveryClassificationDecodeError> {
         let mut cursor = RecoveryClassificationCursor::new(encoded);
-        if cursor.take(RECOVERY_CLASSIFICATION_MAGIC.len())? != RECOVERY_CLASSIFICATION_MAGIC {
-            return Err(RecoveryClassificationDecodeError::WrongMagic);
-        }
-        let version = cursor.u32()?;
-        if version != RECOVERY_CLASSIFICATION_VERSION {
-            return Err(RecoveryClassificationDecodeError::UnsupportedVersion(
-                version,
-            ));
-        }
+        crate::codec_bytes::decode_header(
+            cursor.inner(),
+            RECOVERY_CLASSIFICATION_MAGIC,
+            RECOVERY_CLASSIFICATION_VERSION,
+            || RecoveryClassificationDecodeError::WrongMagic,
+            RecoveryClassificationDecodeError::UnsupportedVersion,
+        )?;
         let identity = RecoveryClassificationIdentity::from_bytes(cursor.array()?);
         let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
         let spill_choices = SpillChoiceIdentity::from_bytes(cursor.array()?);
@@ -121,6 +122,10 @@ impl<'encoded> RecoveryClassificationCursor<'encoded> {
         Self {
             cursor: crate::cursor::Cursor::new(encoded),
         }
+    }
+
+    fn inner(&mut self) -> &mut crate::cursor::Cursor<'encoded> {
+        &mut self.cursor
     }
 
     fn take(&mut self, length: usize) -> Result<&'encoded [u8], RecoveryClassificationDecodeError> {

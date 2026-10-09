@@ -38,3 +38,32 @@ pub(crate) fn list<'a, T: 'a>(
         encode(bytes, value);
     }
 }
+
+/// Writes the shared artifact envelope header: `MAGIC[8] ++ VERSION_LE`.
+pub(crate) fn encode_header(bytes: &mut Vec<u8>, magic: &[u8; 8], version: u32) {
+    bytes.extend_from_slice(magic);
+    bytes.extend_from_slice(&version.to_le_bytes());
+}
+
+/// Reads the shared artifact envelope header from `cursor`: the magic must
+/// match exactly and the version must be the expected one, or the decoder's
+/// own wrong-magic / unsupported-version error is returned.
+pub(crate) fn decode_header<E>(
+    cursor: &mut crate::cursor::Cursor<'_>,
+    magic: &[u8; 8],
+    expected_version: u32,
+    wrong_magic: impl FnOnce() -> E,
+    unsupported_version: impl FnOnce(u32) -> E,
+) -> Result<(), E>
+where
+    E: From<crate::cursor::Truncated> + From<crate::cursor::TakeError>,
+{
+    if cursor.take(magic.len())? != magic.as_slice() {
+        return Err(wrong_magic());
+    }
+    let version = cursor.u32()?;
+    if version != expected_version {
+        return Err(unsupported_version(version));
+    }
+    Ok(())
+}

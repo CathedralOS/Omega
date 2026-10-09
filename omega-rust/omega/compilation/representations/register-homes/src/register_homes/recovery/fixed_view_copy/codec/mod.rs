@@ -28,8 +28,7 @@ impl FixedViewCopyPlan {
         let mut content = Vec::new();
         content::encode_v7(&mut content, self)?;
         let mut encoded = Vec::new();
-        encoded.extend_from_slice(MAGIC);
-        encoded.extend_from_slice(&VERSION.to_le_bytes());
+        crate::codec_bytes::encode_header(&mut encoded, MAGIC, VERSION);
         encoded.extend_from_slice(&v57_identity(self, &content));
         encoded.extend_from_slice(&content);
         Ok(encoded)

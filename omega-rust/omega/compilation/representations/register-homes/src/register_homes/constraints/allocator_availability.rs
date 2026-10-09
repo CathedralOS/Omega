@@ -52,24 +52,25 @@ impl AllocatorAvailabilityPlan {
         let content = encode_terminal_allocator_availability_content(self);
         let identity = crate::allocator_availability_identity(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(ALLOCATOR_AVAILABILITY_MAGIC);
-        encoded.extend_from_slice(&ALLOCATOR_AVAILABILITY_VERSION.to_le_bytes());
+        crate::codec_bytes::encode_header(
+            &mut encoded,
+            ALLOCATOR_AVAILABILITY_MAGIC,
+            ALLOCATOR_AVAILABILITY_VERSION,
+        );
         encoded.extend_from_slice(&identity.bytes());
         encoded.extend_from_slice(&content);
         encoded
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, AllocatorAvailabilityDecodeError> {
-        let mut cursor = AllocatorAvailabilityCursor::new(encoded);
-        if cursor.take(ALLOCATOR_AVAILABILITY_MAGIC.len())? != ALLOCATOR_AVAILABILITY_MAGIC {
-            return Err(AllocatorAvailabilityDecodeError::WrongMagic);
-        }
-        let version = u32::from_le_bytes(cursor.array()?);
-        if version != ALLOCATOR_AVAILABILITY_VERSION {
-            return Err(AllocatorAvailabilityDecodeError::UnsupportedVersion(
-                version,
-            ));
-        }
+        let mut cursor = crate::cursor::Cursor::new(encoded);
+        crate::codec_bytes::decode_header(
+            &mut cursor,
+            ALLOCATOR_AVAILABILITY_MAGIC,
+            ALLOCATOR_AVAILABILITY_VERSION,
+            || AllocatorAvailabilityDecodeError::WrongMagic,
+            AllocatorAvailabilityDecodeError::UnsupportedVersion,
+        )?;
         let identity = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
         let physical = PhysicalRegisterModelIdentity::from_bytes(cursor.array()?);
@@ -79,7 +80,7 @@ impl AllocatorAvailabilityPlan {
                 let count = cursor.length()?;
                 let mut views = Vec::with_capacity(count.min(cursor.remaining() / 2));
                 for _ in 0..count {
-                    views.push(RegisterViewId(u16::from_le_bytes(cursor.array()?)));
+                    views.push(RegisterViewId(cursor.u16()?));
                 }
                 AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views }
             }
@@ -88,12 +89,12 @@ impl AllocatorAvailabilityPlan {
         let class_count = cursor.length()?;
         let mut classes = Vec::with_capacity(class_count.min(cursor.remaining() / 2));
         for _ in 0..class_count {
-            let class = RegisterClassId(u16::from_le_bytes(cursor.array()?));
+            let class = RegisterClassId(cursor.u16()?);
             let view_count = cursor.length()?;
             let mut unconstrained_views =
                 Vec::with_capacity(view_count.min(cursor.remaining() / 2));
             for _ in 0..view_count {
-                unconstrained_views.push(RegisterViewId(u16::from_le_bytes(cursor.array()?)));
+                unconstrained_views.push(RegisterViewId(cursor.u16()?));
             }
             classes.push(RegisterClassAvailability {
                 class,
@@ -144,45 +145,17 @@ impl std::fmt::Display for AllocatorAvailabilityDecodeError {
 
 impl std::error::Error for AllocatorAvailabilityDecodeError {}
 
-struct AllocatorAvailabilityCursor<'a> {
-    bytes: &'a [u8],
-    offset: usize,
+impl From<crate::cursor::Truncated> for AllocatorAvailabilityDecodeError {
+    fn from(_: crate::cursor::Truncated) -> Self {
+        Self::Truncated
+    }
 }
 
-impl<'a> AllocatorAvailabilityCursor<'a> {
-    const fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, offset: 0 }
-    }
-
-    fn take(&mut self, count: usize) -> Result<&'a [u8], AllocatorAvailabilityDecodeError> {
-        let end = self
-            .offset
-            .checked_add(count)
-            .ok_or(AllocatorAvailabilityDecodeError::Truncated)?;
-        let value = self
-            .bytes
-            .get(self.offset..end)
-            .ok_or(AllocatorAvailabilityDecodeError::Truncated)?;
-        self.offset = end;
-        Ok(value)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], AllocatorAvailabilityDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| AllocatorAvailabilityDecodeError::Truncated)
-    }
-
-    fn byte(&mut self) -> Result<u8, AllocatorAvailabilityDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn length(&mut self) -> Result<usize, AllocatorAvailabilityDecodeError> {
-        usize::try_from(u64::from_le_bytes(self.array()?))
-            .map_err(|_| AllocatorAvailabilityDecodeError::LengthOverflow)
-    }
-
-    fn remaining(&self) -> usize {
-        self.bytes.len().saturating_sub(self.offset)
+impl From<crate::cursor::TakeError> for AllocatorAvailabilityDecodeError {
+    fn from(error: crate::cursor::TakeError) -> Self {
+        match error {
+            crate::cursor::TakeError::Truncated => Self::Truncated,
+            crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
+        }
     }
 }

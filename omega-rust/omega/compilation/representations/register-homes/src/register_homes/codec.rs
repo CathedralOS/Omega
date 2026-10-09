@@ -20,22 +20,21 @@ impl RegisterHomePlan {
         let content = encode_terminal_register_home_content(self);
         let identity = register_home_identity(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(REGISTER_HOME_MAGIC);
-        encoded.extend_from_slice(&REGISTER_HOME_VERSION.to_le_bytes());
+        crate::codec_bytes::encode_header(&mut encoded, REGISTER_HOME_MAGIC, REGISTER_HOME_VERSION);
         encoded.extend_from_slice(&identity.bytes());
         encoded.extend_from_slice(&content);
         encoded
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, RegisterHomeDecodeError> {
-        let mut cursor = RegisterHomeCursor::new(encoded);
-        if cursor.take(REGISTER_HOME_MAGIC.len())? != REGISTER_HOME_MAGIC {
-            return Err(RegisterHomeDecodeError::WrongMagic);
-        }
-        let version = u32::from_le_bytes(cursor.array()?);
-        if version != REGISTER_HOME_VERSION {
-            return Err(RegisterHomeDecodeError::UnsupportedVersion(version));
-        }
+        let mut cursor = crate::cursor::Cursor::new(encoded);
+        crate::codec_bytes::decode_header(
+            &mut cursor,
+            REGISTER_HOME_MAGIC,
+            REGISTER_HOME_VERSION,
+            || RegisterHomeDecodeError::WrongMagic,
+            RegisterHomeDecodeError::UnsupportedVersion,
+        )?;
         let identity = RegisterHomeIdentity::from_bytes(cursor.array()?);
         let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
         let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
@@ -44,16 +43,16 @@ impl RegisterHomePlan {
         let function_count = cursor.length()?;
         let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
         for _ in 0..function_count {
-            let raw_machine = u64::from_le_bytes(cursor.array()?);
+            let raw_machine = cursor.u64()?;
             let machine = MachineId::new(raw_machine)
                 .ok_or(RegisterHomeDecodeError::InvalidMachineId(raw_machine))?;
             let assignment_count = cursor.length()?;
             let mut assignments = Vec::with_capacity(assignment_count.min(cursor.remaining()));
             for _ in 0..assignment_count {
                 assignments.push(VirtualRegisterHome {
-                    virtual_register: VirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
-                    class: RegisterClassId(u16::from_le_bytes(cursor.array()?)),
-                    view: RegisterViewId(u16::from_le_bytes(cursor.array()?)),
+                    virtual_register: VirtualRegisterId(cursor.u32()?),
+                    class: RegisterClassId(cursor.u16()?),
+                    view: RegisterViewId(cursor.u16()?),
                 });
             }
             functions.push(FunctionRegisterHomes {
@@ -100,41 +99,17 @@ impl std::fmt::Display for RegisterHomeDecodeError {
 
 impl std::error::Error for RegisterHomeDecodeError {}
 
-struct RegisterHomeCursor<'encoded> {
-    encoded: &'encoded [u8],
-    offset: usize,
+impl From<crate::cursor::Truncated> for RegisterHomeDecodeError {
+    fn from(_: crate::cursor::Truncated) -> Self {
+        Self::Truncated
+    }
 }
 
-impl<'encoded> RegisterHomeCursor<'encoded> {
-    const fn new(encoded: &'encoded [u8]) -> Self {
-        Self { encoded, offset: 0 }
-    }
-
-    fn take(&mut self, length: usize) -> Result<&'encoded [u8], RegisterHomeDecodeError> {
-        let end = self
-            .offset
-            .checked_add(length)
-            .ok_or(RegisterHomeDecodeError::Truncated)?;
-        let value = self
-            .encoded
-            .get(self.offset..end)
-            .ok_or(RegisterHomeDecodeError::Truncated)?;
-        self.offset = end;
-        Ok(value)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], RegisterHomeDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| RegisterHomeDecodeError::Truncated)
-    }
-
-    fn length(&mut self) -> Result<usize, RegisterHomeDecodeError> {
-        usize::try_from(u64::from_le_bytes(self.array()?))
-            .map_err(|_| RegisterHomeDecodeError::LengthOverflow)
-    }
-
-    fn remaining(&self) -> usize {
-        self.encoded.len() - self.offset
+impl From<crate::cursor::TakeError> for RegisterHomeDecodeError {
+    fn from(error: crate::cursor::TakeError) -> Self {
+        match error {
+            crate::cursor::TakeError::Truncated => Self::Truncated,
+            crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
+        }
     }
 }

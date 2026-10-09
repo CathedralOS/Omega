@@ -20,8 +20,7 @@ impl SpillChoicePlan {
         let content = encode_terminal_spill_choice_content(self);
         let identity = crate::spill_choice_identity(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(SPILL_CHOICE_MAGIC);
-        encoded.extend_from_slice(&SPILL_CHOICE_VERSION.to_le_bytes());
+        crate::codec_bytes::encode_header(&mut encoded, SPILL_CHOICE_MAGIC, SPILL_CHOICE_VERSION);
         encoded.extend_from_slice(&identity.bytes());
         encoded.extend_from_slice(&content);
         encoded
@@ -29,13 +28,13 @@ impl SpillChoicePlan {
 
     pub fn decode(encoded: &[u8]) -> Result<Self, SpillChoiceDecodeError> {
         let mut cursor = crate::cursor::Cursor::new(encoded);
-        if cursor.take(SPILL_CHOICE_MAGIC.len())? != SPILL_CHOICE_MAGIC {
-            return Err(SpillChoiceDecodeError::WrongMagic);
-        }
-        let version = cursor.u32()?;
-        if version != SPILL_CHOICE_VERSION {
-            return Err(SpillChoiceDecodeError::UnsupportedVersion(version));
-        }
+        crate::codec_bytes::decode_header(
+            &mut cursor,
+            SPILL_CHOICE_MAGIC,
+            SPILL_CHOICE_VERSION,
+            || SpillChoiceDecodeError::WrongMagic,
+            SpillChoiceDecodeError::UnsupportedVersion,
+        )?;
         let identity = SpillChoiceIdentity::from_bytes(cursor.array()?);
         let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
         let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);

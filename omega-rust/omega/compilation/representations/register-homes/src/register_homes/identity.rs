@@ -32,10 +32,14 @@ pub(crate) fn encode_terminal_register_home_content(plan: &RegisterHomePlan) -> 
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    encode_len(&mut bytes, plan.functions.len());
+    crate::codec_bytes::length(&mut bytes, plan.functions.len(), "register-home identity");
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        encode_len(&mut bytes, function.assignments.len());
+        crate::codec_bytes::length(
+            &mut bytes,
+            function.assignments.len(),
+            "register-home identity",
+        );
         for assignment in &function.assignments {
             bytes.extend_from_slice(&assignment.virtual_register.0.to_le_bytes());
             bytes.extend_from_slice(&assignment.class.0.to_le_bytes());
@@ -43,14 +47,6 @@ pub(crate) fn encode_terminal_register_home_content(plan: &RegisterHomePlan) -> 
         }
     }
     bytes
-}
-
-fn encode_len(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("register-home identity length fits u64")
-            .to_le_bytes(),
-    );
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

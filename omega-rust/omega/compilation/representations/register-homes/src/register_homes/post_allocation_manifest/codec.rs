@@ -30,8 +30,11 @@ impl PostAllocationOptimizationManifest {
     pub fn encode(&self) -> Vec<u8> {
         let content = encode_manifest_content(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(POST_ALLOCATION_MANIFEST_MAGIC);
-        encoded.extend_from_slice(&POST_ALLOCATION_MANIFEST_VERSION.to_le_bytes());
+        crate::codec_bytes::encode_header(
+            &mut encoded,
+            POST_ALLOCATION_MANIFEST_MAGIC,
+            POST_ALLOCATION_MANIFEST_VERSION,
+        );
         encoded.extend_from_slice(&self.identity.bytes());
         encoded.extend_from_slice(&content);
         encoded
@@ -39,13 +42,13 @@ impl PostAllocationOptimizationManifest {
 
     pub fn decode(encoded: &[u8]) -> Result<Self, PostAllocationOptimizationManifestDecodeError> {
         let mut cursor = Cursor::new(encoded);
-        if cursor.take(POST_ALLOCATION_MANIFEST_MAGIC.len())? != POST_ALLOCATION_MANIFEST_MAGIC {
-            return Err(PostAllocationOptimizationManifestDecodeError::WrongMagic);
-        }
-        let version = u32::from_le_bytes(cursor.array()?);
-        if version != POST_ALLOCATION_MANIFEST_VERSION {
-            return Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(version));
-        }
+        crate::codec_bytes::decode_header(
+            &mut cursor,
+            POST_ALLOCATION_MANIFEST_MAGIC,
+            POST_ALLOCATION_MANIFEST_VERSION,
+            || PostAllocationOptimizationManifestDecodeError::WrongMagic,
+            PostAllocationOptimizationManifestDecodeError::UnsupportedVersion,
+        )?;
         let identity = PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let stage = match cursor.byte()? {
             1 => PostAllocationManifestStage::RegisterHomes,
@@ -382,4 +385,3 @@ fn decode_unavailable(
         tag => Err(PostAllocationOptimizationManifestDecodeError::UnknownUnavailableStatus(tag)),
     }
 }
-
