@@ -172,18 +172,14 @@ pub fn content_conservation_report_fingerprint(
     conservation: &ContentConservation,
     structural_places: &BTreeMap<PlaceId, StructuralPlaceKind>,
 ) -> Option<u64> {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"content-conservation-v1");
     encode_fingerprint_algebra(conservation.algebra(), &mut bytes);
     encode_fingerprint_term(conservation.left(), structural_places, &mut bytes)?;
     encode_fingerprint_term(conservation.right(), structural_places, &mut bytes)?;
-    Some(bytes.into_iter().fold(OFFSET, |mut hash, byte| {
-        hash ^= u64::from(byte);
-        hash.wrapping_mul(PRIME)
-    }))
+    let mut hash = crate::fnv1a::Fnv1a::new();
+    hash.bytes(&bytes);
+    Some(hash.finish())
 }
 
 fn encode_fingerprint_algebra(algebra: &ContentAlgebra, output: &mut Vec<u8>) {

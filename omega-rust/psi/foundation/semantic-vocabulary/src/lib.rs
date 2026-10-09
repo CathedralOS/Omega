@@ -24,6 +24,7 @@ mod authored_storage;
 mod bounded_integer_type;
 pub mod byte_predicates;
 mod content;
+pub mod fnv1a;
 mod identity;
 mod ieee_float_comparison_operation;
 mod proposition;
@@ -40,6 +41,7 @@ pub use authored_storage::{
 };
 pub use bounded_integer_type::BoundedIntegerType;
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
+pub use fnv1a::Fnv1a;
 pub use content::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
