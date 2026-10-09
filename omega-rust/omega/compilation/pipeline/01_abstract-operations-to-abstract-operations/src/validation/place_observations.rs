@@ -175,9 +175,7 @@ pub(super) fn component_preserves_place_observations_tolerating(
 /// calls, boundary calls, atomic events, descriptor stores — fails closed.
 fn node_preserves_place_observations(operation: &O) -> bool {
     match operation {
-        O::IntegerConstant { .. }
-        | O::IeeeFloatConstant { .. }
-        | O::BooleanConstant { .. }
+        abstract_operations::constant_value_triple_pattern!(..)
         | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | abstract_operations::bitwise_not_or_less_pair_pattern!(..)
@@ -494,9 +492,7 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => {
             references.insert(place.id);
         }
-        O::IntegerConstant { .. }
-        | O::IeeeFloatConstant { .. }
-        | O::BooleanConstant { .. }
+        abstract_operations::constant_value_triple_pattern!(..)
         | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }

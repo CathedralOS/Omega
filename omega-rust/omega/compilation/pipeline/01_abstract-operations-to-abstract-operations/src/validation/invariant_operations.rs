@@ -43,9 +43,7 @@ fn uses_index_length(node: &OptimizationNode, index: ValueId, length: ValueId) -
 /// the exact source node across the relocation.
 pub(crate) fn admissible_scalar_leaf_relocation(node: &OptimizationNode) -> bool {
     let psi_operation = match &node.operation {
-        O::IntegerConstant { psi_operation, .. }
-        | O::IeeeFloatConstant { psi_operation, .. }
-        | O::BooleanConstant { psi_operation, .. } => *psi_operation,
+        abstract_operations::constant_value_triple_pattern!(psi_operation, ..) => *psi_operation,
         _ => return false,
     };
     operation_shape_spine(node, psi_operation) && node.uses.is_empty()

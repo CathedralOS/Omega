@@ -1409,3 +1409,12 @@ macro_rules! integer_dispatch_triple_pattern {
             | $crate::AbstractOperation::TrappingInteger { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! constant_value_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::BooleanConstant { $($fields)* }
+            | $crate::AbstractOperation::IeeeFloatConstant { $($fields)* }
+            | $crate::AbstractOperation::IntegerConstant { $($fields)* }
+    };
+}

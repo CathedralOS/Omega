@@ -142,9 +142,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         abstract_operations::establish_byte_literal_triple_pattern!(..)
         | O::PortWrite { .. }
         | O::SelectImplementation { .. }
-        | O::IntegerConstant { .. }
-        | O::IeeeFloatConstant { .. }
-        | O::BooleanConstant { .. }
+        | abstract_operations::constant_value_triple_pattern!(..)
         | abstract_operations::scalar_read_or_membership_pattern!(..)
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceWrite { .. }

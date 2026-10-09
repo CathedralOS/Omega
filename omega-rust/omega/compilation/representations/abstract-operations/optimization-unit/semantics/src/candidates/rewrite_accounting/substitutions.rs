@@ -113,9 +113,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::EstablishStructuralLocal { .. }
         | O::PortWrite { .. }
         | O::SelectImplementation { .. }
-        | O::IntegerConstant { .. }
-        | O::IeeeFloatConstant { .. }
-        | O::BooleanConstant { .. }
+        | abstract_operations::constant_value_triple_pattern!(..)
         | abstract_operations::scalar_read_or_membership_pattern!(..)
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceWrite { .. }

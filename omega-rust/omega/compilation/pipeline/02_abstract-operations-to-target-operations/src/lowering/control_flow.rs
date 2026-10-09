@@ -257,9 +257,7 @@ pub(super) fn lower(
     transfers::validate_parameters(function, &mut definitions)?;
     for operation in &function.operations {
         let result = match operation {
-            AbstractOperation::IntegerConstant { result, .. }
-            | AbstractOperation::BooleanConstant { result, .. }
-            | AbstractOperation::IeeeFloatConstant { result, .. }
+            abstract_operations::constant_value_triple_pattern!(result, ..)
             | AbstractOperation::IeeeFloatCompare { result, .. }
             | AbstractOperation::FloatResultPolicy { result, .. }
             | abstract_operations::integer_widen_or_exact_cast_pattern!(result, ..)
