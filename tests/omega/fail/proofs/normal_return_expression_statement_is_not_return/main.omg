@@ -1,4 +1,4 @@
-// The first expression returns true, but the state's final value is false.
+// The earlier value binding is true, but the state's final value is false.
 machine identity(value: bool) -> bool
 ensures result == value { value }
 
@@ -6,7 +6,7 @@ machine invalid() -> bool
 ensures result == true {
     transition { _ -> finish() }
     state finish() -> bool {
-        identity(true) || identity(true);
+        let unused: bool = identity(true) || identity(true);
         false
     }
 }
