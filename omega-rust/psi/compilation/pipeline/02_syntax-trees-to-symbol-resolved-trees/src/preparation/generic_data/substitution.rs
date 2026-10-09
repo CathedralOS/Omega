@@ -394,31 +394,37 @@ fn substitute_case_fact_domain_argument(
 /// Whether an expression names any `const` binder. Conservative like
 /// `expression_mentions_parameter`: an unhandled shape counts as a mention so
 /// the caller copies rather than sharing a binder-bearing expression.
-fn expression_mentions_const(
+fn expression_mentions_in<V>(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
-    const_scalars: &HashMap<String, ConstScalarValue>,
+    members: &HashMap<String, V>,
 ) -> bool {
     match syntax.expressions.expression(expression) {
         ExpressionNode::Name(path) => {
             let [member] = syntax.expressions.identifier_path_members(*path) else {
                 return false;
             };
-            const_scalars.contains_key(member.as_str())
+            members.contains_key(member.as_str())
         }
         ExpressionNode::Binary(binary) => {
-            expression_mentions_const(syntax, binary.left, const_scalars)
-                || expression_mentions_const(syntax, binary.right, const_scalars)
+            expression_mentions_in(syntax, binary.left, members)
+                || expression_mentions_in(syntax, binary.right, members)
         }
-        ExpressionNode::Unary(unary) => {
-            expression_mentions_const(syntax, unary.operand, const_scalars)
-        }
+        ExpressionNode::Unary(unary) => expression_mentions_in(syntax, unary.operand, members),
         ExpressionNode::Integer(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::String(_) => false,
         _ => true,
     }
+}
+
+fn expression_mentions_const(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    const_scalars: &HashMap<String, ConstScalarValue>,
+) -> bool {
+    expression_mentions_in(syntax, expression, const_scalars)
 }
 
 fn flatten_case_fact_conjuncts(
@@ -920,26 +926,7 @@ fn expression_mentions_parameter(
     expression: ExpressionHandle,
     substitution: &HashMap<String, TypeReferenceHandle>,
 ) -> bool {
-    match syntax.expressions.expression(expression) {
-        ExpressionNode::Name(path) => {
-            let [member] = syntax.expressions.identifier_path_members(*path) else {
-                return false;
-            };
-            substitution.contains_key(member.as_str())
-        }
-        ExpressionNode::Binary(binary) => {
-            expression_mentions_parameter(syntax, binary.left, substitution)
-                || expression_mentions_parameter(syntax, binary.right, substitution)
-        }
-        ExpressionNode::Unary(unary) => {
-            expression_mentions_parameter(syntax, unary.operand, substitution)
-        }
-        ExpressionNode::Integer(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::String(_) => false,
-        _ => true,
-    }
+    expression_mentions_in(syntax, expression, substitution)
 }
 
 /// Whether a type reference mentions any of the substituted parameter names
