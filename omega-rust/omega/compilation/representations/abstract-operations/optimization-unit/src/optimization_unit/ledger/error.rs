@@ -23,7 +23,7 @@ impl std::fmt::Display for InvalidPsiTransformationLedger {
 impl std::error::Error for InvalidPsiTransformationLedger {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PsiTransformationLedgerDecodeError {
+pub(crate) enum PsiTransformationLedgerDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVocabulary(u16),
