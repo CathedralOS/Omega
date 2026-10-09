@@ -1,5 +1,6 @@
 data Selected<'storage> { reference: &'storage i32; }
 data Envelope<Value> { value: Value; }
+data Pair<First, Second> { first: First; second: Second; }
 
 trait Identity<Value> { machine forward(value: Value) -> Value; }
 trait Wrapped<Value>: Identity<Envelope<Value>> {}
@@ -23,10 +24,55 @@ machine run<'storage>(source: &'storage mut i32) -> i32 {
     observe<ForwardEnvelope<Selected<'storage>>>(source)
 }
 
+// Nested actuals capture independent regions; the generic head has no region
+// binders of its own. A specialization must retain the application owner's scope.
+machine observe_pair<'first, 'second,
+    Operations satisfies Wrapped<Pair<Selected<'first>, Selected<'second>>>>(
+    first: &'first mut i32, second: &'second mut i32
+) -> i64 {
+    let first_view: Selected<'first> = Selected { reference: first };
+    let second_view: Selected<'second> = Selected { reference: second };
+    let pair: Pair<Selected<'first>, Selected<'second>> = Pair {
+        first: first_view, second: second_view
+    };
+    let envelope: Envelope<Pair<Selected<'first>, Selected<'second>>> = Envelope { value: pair };
+    let forwarded: Envelope<Pair<Selected<'first>, Selected<'second>>> = Operations::forward(envelope);
+    let first_value: i32 = forwarded.value.first.reference;
+    let second_value: i32 = forwarded.value.second.reference;
+    first = 5;
+    second = 7;
+    (first_value as i64) + (second_value as i64)
+}
+
+machine run_pair<'first, 'second>(first: &'first mut i32, second: &'second mut i32) -> i64 {
+    observe_pair<ForwardEnvelope<Pair<Selected<'first>, Selected<'second>>>>(first, second)
+}
+
+machine observe_nested<'storage, Operations satisfies Wrapped<Envelope<Selected<'storage>>>>(
+    source: &'storage mut i32
+) -> i32 {
+    let selected: Selected<'storage> = Selected { reference: source };
+    let inner: Envelope<Selected<'storage>> = Envelope { value: selected };
+    let outer: Envelope<Envelope<Selected<'storage>>> = Envelope { value: inner };
+    let forwarded: Envelope<Envelope<Selected<'storage>>> =
+        Operations::forward(outer);
+    let observed: i32 = forwarded.value.value.reference;
+    source = 9;
+    observed
+}
+
+machine run_nested<'storage>(source: &'storage mut i32) -> i32 {
+    observe_nested<ForwardEnvelope<Envelope<Selected<'storage>>>>(source)
+}
+
 machine main() crashes Trap {
     let mut source: i32 = 17;
     let observed: i32 = run(&mut source);
-    transition observed == 17 && source == 7 {
+    let mut first: i32 = 17;
+    let mut second: i32 = 25;
+    let pair_observed: i64 = run_pair(&mut first, &mut second);
+    let nested_observed: i32 = run_nested(&mut source);
+    transition observed == 17 && source == 9 && pair_observed == 42 && first == 5 && second == 7 && nested_observed == 7 {
         true -> passed()
         false -> failed()
     }

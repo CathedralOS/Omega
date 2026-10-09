@@ -203,6 +203,9 @@ impl TypedTrees {
         if !self.type_reference_table.contains_type_reference(reference) {
             return None;
         }
+        if let Some(application) = self.data_application_definition(reference) {
+            return Some(application);
+        }
         let data = match self.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, .. } => {
                 self.unique_data_definition_by_symbol(*symbol)?

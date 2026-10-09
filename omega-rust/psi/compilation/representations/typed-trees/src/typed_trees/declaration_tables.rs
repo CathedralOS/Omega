@@ -65,6 +65,45 @@ impl TypedTrees {
         )
     }
 
+    /// Publish a derived application view without adding a nominal declaration.
+    /// The type row retains the caller's region arguments; substituted fields
+    /// keep the template's exact member symbols and source-selection custody.
+    pub fn retain_data_application_definition(
+        &mut self,
+        application: crate::types::TypeReferenceHandle,
+        definition: data::DataDefinition,
+    ) {
+        while self.tables.data_application_definitions.len()
+            < self.type_reference_table.type_reference_count()
+        {
+            self.tables
+                .data_application_definitions
+                .insert(Handle::invalid());
+        }
+        let row = Handle::from_parts(application.arena_index(), application.generation());
+        let definition = self.tables.data_definitions.insert(definition);
+        *self.tables.data_application_definitions.get_mut(row) = definition;
+    }
+
+    /// Read only a producer-retained view for this exact application occurrence.
+    pub fn data_application_definition(
+        &self,
+        application: crate::types::TypeReferenceHandle,
+    ) -> Option<&data::DataDefinition> {
+        if !self
+            .type_reference_table
+            .contains_type_reference(application)
+        {
+            return None;
+        }
+        let row = Handle::from_parts(application.arena_index(), application.generation());
+        let definition = *self.tables.data_application_definitions.get(row);
+        self.tables
+            .data_definitions
+            .is_valid(definition)
+            .then(|| self.tables.data_definitions.get(definition))
+    }
+
     /// The first data declaration `name` spells, if any.
     pub fn data_definition_by_name(
         &self,

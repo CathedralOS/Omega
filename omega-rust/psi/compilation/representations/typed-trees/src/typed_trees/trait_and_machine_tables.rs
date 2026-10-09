@@ -400,10 +400,12 @@ impl TypedTrees {
             .filter(|parameter| matches!(parameter.kind, data::TypeParameterKind::Machine { .. }))
     }
 
-    /// The machine's own parameters extended by its attached data
-    /// definition's, deduplicated under `same_type_parameter` — each
-    /// validation lane picks name or symbol identity.
-    pub fn machine_and_attached_data_parameters(
+    /// The declaration scope visible to types in a machine, including source
+    /// regions captured in a specialization's actual type operands. Captures
+    /// belong to the retained application's lexical owner, not new binders on
+    /// the private clone. This query admits their spelling during formation;
+    /// applied identity still resolves regions through that retained owner.
+    pub fn machine_type_reference_scope(
         &self,
         machine: &machine::Machine,
         same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
@@ -429,6 +431,50 @@ impl TypedTrees {
                     lifetime_parameters.push(parameter.clone());
                 }
             }
+        }
+        // A type operand can carry regions arbitrarily deep in its arguments.
+        // The nominal head's lifetime roster is not the operand's scope. Follow
+        // retained source ownership rather than collecting tags from type text
+        // (which would admit undeclared regions). The roster bounds traversal
+        // even when a recursive specialization refers to its own application.
+        let mut owner = machine.symbol;
+        for _ in 0..self.machine_specializations.len() {
+            let Some(specialization) = self
+                .machine_specializations
+                .iter()
+                .find(|specialization| specialization.instance == owner)
+            else {
+                break;
+            };
+            if !specialization.binding_application.is_valid() {
+                break;
+            }
+            let lexical_owner = self
+                .expression_table
+                .static_machine_application(specialization.binding_application)
+                .lexical_owner;
+            if lexical_owner == owner {
+                break;
+            }
+            let captured = self
+                .machine_by_symbol(lexical_owner)
+                .map(|machine| &machine.lifetime_parameters)
+                .or_else(|| {
+                    self.data_definition_by_symbol(lexical_owner)
+                        .map(|definition| &definition.lifetime_parameters)
+                })
+                .or_else(|| {
+                    self.conformance_by_symbol(lexical_owner)
+                        .map(|conformance| &conformance.lifetime_parameters)
+                });
+            if let Some(captured) = captured {
+                for parameter in captured {
+                    if !lifetime_parameters.contains(parameter) {
+                        lifetime_parameters.push(parameter.clone());
+                    }
+                }
+            }
+            owner = lexical_owner;
         }
         (type_parameters, lifetime_parameters)
     }

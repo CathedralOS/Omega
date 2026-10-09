@@ -25,7 +25,7 @@ pub(crate) fn validate_callable_state_signatures(
     for machine in program.machines() {
         value_scope::validate(program, machine, symbols, diagnostics);
         let (type_parameters, lifetime_parameters) = program
-            .machine_and_attached_data_parameters(machine, |existing, parameter| {
+            .machine_type_reference_scope(machine, |existing, parameter| {
                 existing.name == parameter.name
             });
         crate::value_custody::type_references::validate_const_binder_carriers(

@@ -48,6 +48,7 @@ fn tables_fingerprint(tables: &crate::typed_trees::TypedTreeTables) -> u64 {
         .const_declarations
         .revision()
         .wrapping_add(tables.data_definitions.revision())
+        .wrapping_add(tables.data_application_definitions.revision())
         .wrapping_add(tables.data_type_parameters.revision())
         .wrapping_add(tables.data_members.revision())
         .wrapping_add(tables.data_payload_fields.revision())

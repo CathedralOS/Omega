@@ -112,6 +112,15 @@ pub(super) fn borrowed_initializers(
             let Some(definition) = program.data_definition_by_symbol(*base_symbol) else {
                 return Vec::new();
             };
+            if let Some(application) = program.data_application_definition(type_reference) {
+                return borrowed_data_literal_initializers(
+                    program,
+                    application,
+                    expression,
+                    &[],
+                    owner_path,
+                );
+            }
             let arguments = program
                 .type_reference_table
                 .type_reference_handles(*arguments);
@@ -187,8 +196,12 @@ fn aggregate_value_initializer(
         ExpressionNode::Cast(cast) => !cast.form.is_recast(),
         _ => false,
     };
-    if !crate::borrow::view_link::substituted_returns_borrow(program, type_reference, substitutions)
-        || !is_direct_aggregate_value
+    if !crate::borrow::view_link::substituted_returns_borrow(
+        program,
+        type_reference,
+        substitutions,
+        &[0],
+    ) || !is_direct_aggregate_value
     {
         return None;
     }

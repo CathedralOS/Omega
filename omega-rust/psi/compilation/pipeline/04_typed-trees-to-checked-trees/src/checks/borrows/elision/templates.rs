@@ -152,6 +152,7 @@ fn closed_return_frontier(
             program,
             requirement.signature,
             &requirement.application.substitutions,
+            &requirement.application.substitution_scope_starts,
         );
     }
     let signature = program
@@ -173,18 +174,20 @@ fn closed_return_frontier(
     ) else {
         return false;
     };
-    complete_return_frontier(program, signature, &substitutions)
+    complete_return_frontier(program, signature, &substitutions, &[0])
 }
 
 fn complete_return_frontier(
     program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    scope_starts: &[usize],
 ) -> bool {
     if !crate::borrow::view_link::substituted_result_frontier_is_complete(
         program,
         signature.return_type,
         substitutions,
+        scope_starts,
     ) {
         return false;
     }
@@ -194,6 +197,7 @@ fn complete_return_frontier(
             program.state_signature_parameters(signature),
             signature.return_type,
             substitutions,
+            scope_starts,
         ),
         crate::borrow::view_link::ViewReturnSource::Ambiguous(_)
     )

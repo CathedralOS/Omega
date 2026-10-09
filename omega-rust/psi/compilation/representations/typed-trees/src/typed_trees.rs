@@ -274,6 +274,10 @@ pub struct TypedTreeTables {
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
     pub const_declarations: Arena<crate::constant::ConstDeclaration>,
     pub data_definitions: Arena<data::DataDefinition>,
+    /// Closed application views, indexed by the exact type-reference row.
+    /// Their definitions live in the declaration arena but not the authored
+    /// root roster: substitution creates no new nominal or field identity.
+    pub data_application_definitions: Arena<Handle<data::DataDefinition>>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,

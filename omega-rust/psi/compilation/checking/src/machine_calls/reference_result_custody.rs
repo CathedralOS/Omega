@@ -125,7 +125,7 @@ pub fn is_reference_record(
     fn visit(
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
-        seen: &mut Vec<SymbolHandle>,
+        seen: &mut Vec<TypeReferenceHandle>,
     ) -> Option<bool> {
         if stored_loan_parts(program, reference).is_some() {
             return Some(true);
@@ -144,7 +144,7 @@ pub fn is_reference_record(
         }
         let data = program.closed_data_definition(reference)?;
         let symbol = data.symbol;
-        if seen.contains(&symbol) {
+        if seen.contains(&reference) {
             return None;
         }
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
@@ -156,7 +156,7 @@ pub fn is_reference_record(
         {
             return None;
         }
-        seen.push(symbol);
+        seen.push(reference);
         let mut contains_reference = false;
         for member in program.data_members(data) {
             let field = member.as_field()?;
@@ -458,20 +458,8 @@ fn nominal_member_owner_type<'p>(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-            TypeReferenceNode::Named { symbol, .. } => {
-                return crate::declarations::data_queries::data_definition_by_symbol(
-                    program, *symbol,
-                );
-            }
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } if arguments.count() == 0 => {
-                return crate::declarations::data_queries::data_definition_by_symbol(
-                    program,
-                    *base_symbol,
-                );
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                return program.closed_data_definition(reference);
             }
             _ => return None,
         }
@@ -1297,10 +1285,7 @@ pub fn record_carrier_sources(
             }
             return Some(());
         }
-        let symbol = program
-            .type_reference_table
-            .unparameterized_type_symbol(reference)?;
-        let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
+        let data = program.closed_data_definition(reference)?;
         for member in program.data_members(data) {
             let field = member.as_field()?;
             path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
@@ -1366,14 +1351,11 @@ fn aggregate_construction_sources(
             ));
         }
     } else {
-        let symbol = program
-            .type_reference_table
-            .unparameterized_type_symbol(reference)?;
+        let data = program.closed_data_definition(reference)?;
         let literal = program.expression_table.struct_literal_node(expression)?;
-        if literal.type_symbol != *symbol || literal.case_symbol.is_some() {
+        if literal.type_symbol != data.symbol || literal.case_symbol.is_some() {
             return None;
         }
-        let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
         let initializers = program.expression_table.struct_fields(literal.fields);
         let fields = program.data_members(data);
         if initializers.len() != fields.len() {

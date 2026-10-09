@@ -31,7 +31,7 @@ pub(super) fn validate(
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
     let (type_parameters, lifetime_parameters) = program
-        .machine_and_attached_data_parameters(machine, |existing, parameter| {
+        .machine_type_reference_scope(machine, |existing, parameter| {
             existing.symbol == parameter.symbol
         });
     validate_type_reference_handle_with_type_parameters(

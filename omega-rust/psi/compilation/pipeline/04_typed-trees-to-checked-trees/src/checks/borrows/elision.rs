@@ -27,6 +27,14 @@ pub(super) fn check_view_return_elision(
 ) {
     let mut deferred = Vec::new();
     for machine in program.machines() {
+        let parameters = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter(|parameter| {
+                matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+            })
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
         for state in program.machine_states(machine) {
             if let Some(parameter_index) =
                 returned_body_source_mismatch(program, state, call_frames)
@@ -37,6 +45,20 @@ pub(super) fn check_view_return_elision(
                     super::escape::state_subject(machine, state),
                     parameter.name,
                 )));
+            }
+            if declaration_lifetime_frontier(program, state.return_type, &parameters)
+                == DeclarationLifetimeFrontier::TemplateDependent
+                && program.state_parameters(state).iter().all(|parameter| {
+                    declaration_lifetime_frontier(program, parameter.type_reference, &parameters)
+                        != DeclarationLifetimeFrontier::Incomplete
+                })
+            {
+                // Authored generic bodies and bodyless requirements obey the
+                // same frontier rule: no raw dependent signature is a closed
+                // loan contract. The call fence below admits only complete
+                // instantiated result-to-input relations.
+                deferred.push(state.symbol);
+                continue;
             }
             let ViewReturnSource::Ambiguous(ambiguity) = resolve_view_return_source(program, state)
             else {

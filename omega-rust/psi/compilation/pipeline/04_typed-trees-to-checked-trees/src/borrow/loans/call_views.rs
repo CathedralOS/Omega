@@ -105,6 +105,7 @@ pub(in crate::borrow) struct CallViewReturnContract<'program> {
     parameters: &'program [StateParameter],
     return_type: TypeReferenceHandle,
     pub(super) substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    substitution_scope_starts: Vec<usize>,
 }
 
 impl CallViewReturnContract<'_> {
@@ -120,6 +121,7 @@ impl CallViewReturnContract<'_> {
                 self.parameters,
                 self.return_type,
                 &self.substitutions,
+                &self.substitution_scope_starts,
             )
         }
     }
@@ -182,35 +184,38 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<CallViewReturnContract<'program>> {
     let (caller, state) = validation::find_state_with_machine(program, state_symbol)?;
-    let (parameters, return_type, substitutions) = if let Ok(Some(requirement)) =
-        validation::named_conformance_target_requirement(program, caller, call.target_symbol)
-    {
-        (
-            program.state_signature_parameters(requirement.signature),
-            requirement.signature.return_type,
-            requirement.application.substitutions,
-        )
-    } else {
-        let (parameters, return_type, signature) =
-            call_view_signature(program, call.target_symbol)?;
-        let substitutions = signature
-            .and_then(|signature| {
-                validation::closed_static_call_type_bindings(
-                    program,
-                    caller,
-                    state,
-                    signature,
-                    &call.machine_arguments,
-                    program.expression_table.expression_handles(call.arguments),
-                )
-            })
-            .unwrap_or_default();
-        (parameters, return_type, substitutions)
-    };
+    let (parameters, return_type, substitutions, substitution_scope_starts) =
+        if let Ok(Some(requirement)) =
+            validation::named_conformance_target_requirement(program, caller, call.target_symbol)
+        {
+            (
+                program.state_signature_parameters(requirement.signature),
+                requirement.signature.return_type,
+                requirement.application.substitutions,
+                requirement.application.substitution_scope_starts,
+            )
+        } else {
+            let (parameters, return_type, signature) =
+                call_view_signature(program, call.target_symbol)?;
+            let substitutions = signature
+                .and_then(|signature| {
+                    validation::closed_static_call_type_bindings(
+                        program,
+                        caller,
+                        state,
+                        signature,
+                        &call.machine_arguments,
+                        program.expression_table.expression_handles(call.arguments),
+                    )
+                })
+                .unwrap_or_default();
+            (parameters, return_type, substitutions, vec![0])
+        };
     Some(CallViewReturnContract {
         parameters,
         return_type,
         substitutions,
+        substitution_scope_starts,
     })
 }
 

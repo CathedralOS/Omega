@@ -102,6 +102,7 @@ impl TypedTreeTables {
         let Self {
             const_declarations,
             data_definitions,
+            data_application_definitions,
             data_type_parameters,
             data_members,
             data_payload_fields,
@@ -138,6 +139,10 @@ impl TypedTreeTables {
         } = base;
         arena_is_exact_prefix(const_declarations, &self.const_declarations)
             && arena_is_exact_prefix(data_definitions, &self.data_definitions)
+            && arena_is_exact_prefix(
+                data_application_definitions,
+                &self.data_application_definitions,
+            )
             && arena_is_exact_prefix(data_type_parameters, &self.data_type_parameters)
             && arena_is_exact_prefix(data_members, &self.data_members)
             && arena_is_exact_prefix(data_payload_fields, &self.data_payload_fields)

@@ -26,6 +26,21 @@ struct TemplateFrontier<'a> {
     dependent: bool,
 }
 
+/// Each generic telescope binds simultaneously. Its actual operands belong
+/// to the outer scope, even when another application uses the same declaration.
+#[derive(Clone, Copy, Default)]
+struct TypeScope<'scope> {
+    bindings: &'scope [(SymbolHandle, TypeReferenceHandle)],
+    starts: &'scope [usize],
+    outer: Option<&'scope TypeScope<'scope>>,
+    argument_lifetimes: &'scope [(String, String)],
+}
+
+struct DataVisit {
+    reference: TypeReferenceHandle,
+    cyclic: bool,
+}
+
 /// A declaration may describe a type parameter without knowing its carried
 /// references. This is not a complete frontier and never supplies a loan.
 pub(crate) fn declaration_lifetime_frontier(
@@ -41,7 +56,7 @@ pub(crate) fn declaration_lifetime_frontier(
         program,
         reference,
         &[],
-        &[],
+        TypeScope::default(),
         &[],
         &mut Vec::new(),
         &mut Vec::new(),
@@ -66,7 +81,7 @@ pub(super) fn carried_lifetimes(
         program,
         reference,
         &[],
-        &[],
+        TypeScope::default(),
         &[],
         &mut Vec::new(),
         &mut output,
@@ -75,10 +90,6 @@ pub(super) fn carried_lifetimes(
     )
     .then_some(output)
 }
-
-/// Exact call substitutions may prove that a formerly dependent result has
-/// no carried views. A closed nonempty frontier still requires per-call loan
-/// attribution and cannot use this deliberately narrower result.
 
 /// Every substitution maps to a valid, registered type reference.
 fn substitutions_are_registered(
@@ -93,6 +104,9 @@ fn substitutions_are_registered(
     })
 }
 
+/// Exact call substitutions may prove that a formerly dependent result has
+/// no carried views. A closed nonempty frontier still requires per-call loan
+/// attribution and cannot use this deliberately narrower result.
 pub(crate) fn substituted_result_is_view_free(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
@@ -106,7 +120,11 @@ pub(crate) fn substituted_result_is_view_free(
         program,
         reference,
         &[],
-        substitutions,
+        TypeScope {
+            bindings: substitutions,
+            starts: &[0],
+            ..TypeScope::default()
+        },
         &[],
         &mut Vec::new(),
         &mut output,
@@ -124,6 +142,7 @@ pub(crate) fn substituted_result_frontier_is_complete(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
 ) -> bool {
     if !substitutions_are_registered(program, substitutions) {
         return false;
@@ -132,7 +151,11 @@ pub(crate) fn substituted_result_frontier_is_complete(
         program,
         reference,
         &[],
-        substitutions,
+        TypeScope {
+            bindings: substitutions,
+            starts: scope_starts,
+            ..TypeScope::default()
+        },
         &[],
         &mut Vec::new(),
         &mut Vec::new(),
@@ -149,13 +172,18 @@ pub(super) fn substituted_carried_lifetimes(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
 ) -> Option<Vec<CarriedLifetime>> {
     let mut output = Vec::new();
     collect_type(
         program,
         reference,
         &[],
-        substitutions,
+        TypeScope {
+            bindings: substitutions,
+            starts: scope_starts,
+            ..TypeScope::default()
+        },
         &[],
         &mut Vec::new(),
         &mut output,
@@ -178,7 +206,7 @@ pub(super) fn whole_elided_result_accesses(
         program,
         reference,
         &[],
-        &[],
+        TypeScope::default(),
         &[],
         &mut Vec::new(),
         &mut output,
@@ -192,9 +220,9 @@ fn collect_type(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     lifetimes: &[(String, String)],
-    types: &[(SymbolHandle, TypeReferenceHandle)],
+    types: TypeScope<'_>,
     owner_path: &[BorrowOwnerSegment],
-    visiting: &mut Vec<SymbolHandle>,
+    visiting: &mut Vec<DataVisit>,
     output: &mut Vec<CarriedLifetime>,
     whole_elided_contract: bool,
     template: &mut TemplateFrontier<'_>,
@@ -298,6 +326,23 @@ fn collect_type(
             if whole_elided_contract {
                 return false;
             }
+            // Preparation owns closed field substitution. Read its exact view
+            // without replaying the declaration telescope or rebinding actual
+            // operands under another application of the same nominal head.
+            if let Some(definition) = program.data_application_definition(reference) {
+                return collect_data(
+                    program,
+                    reference,
+                    definition,
+                    lifetimes,
+                    TypeScope::default(),
+                    owner_path,
+                    visiting,
+                    output,
+                    whole_elided_contract,
+                    template,
+                );
+            }
             let Some(definition) = data_definition(program, *base_symbol) else {
                 return false;
             };
@@ -325,18 +370,22 @@ fn collect_type(
                     (parameter.as_str().to_owned(), argument)
                 })
                 .collect::<Vec<_>>();
-            let mut nested_types = types.to_vec();
-            nested_types.extend(
-                parameters
-                    .iter()
-                    .zip(arguments)
-                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
-            );
+            let nested_types = parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.symbol, *argument))
+                .collect::<Vec<_>>();
             collect_data(
                 program,
+                reference,
                 definition,
                 &nested_lifetimes,
-                &nested_types,
+                TypeScope {
+                    bindings: &nested_types,
+                    starts: &[0],
+                    outer: Some(&types),
+                    argument_lifetimes: lifetimes,
+                },
                 owner_path,
                 visiting,
                 output,
@@ -345,33 +394,54 @@ fn collect_type(
             )
         }
         TypeReferenceNode::Named { symbol, .. } => {
-            if let Some((_, concrete)) = types
-                .iter()
-                .rev()
-                .find(|(parameter, _)| parameter == symbol)
-            {
-                // An unresolved self-substitution is not a finite concrete type.
-                if *concrete == reference && template.parameters.contains(symbol) {
-                    template.dependent = true;
-                    return true;
+            let mut scope = Some(&types);
+            while let Some(frame) = scope {
+                if let Some((binding_ordinal, (_, concrete))) = frame
+                    .bindings
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find(|(_, (parameter, _))| parameter == symbol)
+                {
+                    // An unresolved self-substitution is not a finite concrete type.
+                    if *concrete == reference && template.parameters.contains(symbol) {
+                        template.dependent = true;
+                        return true;
+                    }
+                    if *concrete == reference {
+                        return false;
+                    }
+                    let Some((scope_ordinal, start)) = frame
+                        .starts
+                        .iter()
+                        .enumerate()
+                        .rev()
+                        .find(|(_, start)| **start <= binding_ordinal)
+                    else {
+                        return false;
+                    };
+                    let outer = if *start == 0 {
+                        frame.outer.copied().unwrap_or_default()
+                    } else {
+                        TypeScope {
+                            bindings: &frame.bindings[..*start],
+                            starts: &frame.starts[..scope_ordinal],
+                            ..*frame
+                        }
+                    };
+                    return collect_type(
+                        program,
+                        *concrete,
+                        frame.argument_lifetimes,
+                        outer,
+                        owner_path,
+                        visiting,
+                        output,
+                        whole_elided_contract,
+                        template,
+                    );
                 }
-                if *concrete == reference || visiting.contains(symbol) {
-                    return false;
-                }
-                visiting.push(*symbol);
-                let complete = collect_type(
-                    program,
-                    *concrete,
-                    lifetimes,
-                    types,
-                    owner_path,
-                    visiting,
-                    output,
-                    whole_elided_contract,
-                    template,
-                );
-                visiting.pop();
-                return complete;
+                scope = frame.outer;
             }
             let Some(definition) = data_definition(program, *symbol) else {
                 if template.parameters.contains(symbol) {
@@ -387,6 +457,7 @@ fn collect_type(
             }
             collect_data(
                 program,
+                reference,
                 definition,
                 lifetimes,
                 types,
@@ -406,19 +477,34 @@ fn collect_type(
 
 fn collect_data(
     program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
     definition: &typed_trees::data::DataDefinition,
     lifetimes: &[(String, String)],
-    types: &[(SymbolHandle, TypeReferenceHandle)],
+    types: TypeScope<'_>,
     owner_path: &[BorrowOwnerSegment],
-    visiting: &mut Vec<SymbolHandle>,
+    visiting: &mut Vec<DataVisit>,
     output: &mut Vec<CarriedLifetime>,
     whole_elided_contract: bool,
     template: &mut TemplateFrontier<'_>,
 ) -> bool {
-    if visiting.contains(&definition.symbol) {
-        return whole_elided_contract;
+    if let Some(ancestor) = visiting
+        .iter()
+        .position(|visit| visit.reference == reference)
+    {
+        // A cycle with no reference leaves is still borrow-free (for example
+        // Nat). A cycle carrying views has no finite projected frontier. Mark
+        // the participating frames, then decide only after all members have
+        // contributed their leaves; member order must not decide completeness.
+        for visit in &mut visiting[ancestor..] {
+            visit.cyclic = true;
+        }
+        return true;
     }
-    visiting.push(definition.symbol);
+    let first_leaf = output.len();
+    visiting.push(DataVisit {
+        reference,
+        cyclic: false,
+    });
     let complete = program
         .data_member_fields(program.data_members(definition))
         .all(|field| {
@@ -439,6 +525,6 @@ fn collect_data(
                 template,
             )
         });
-    visiting.pop();
-    complete
+    let cyclic = visiting.pop().is_some_and(|visit| visit.cyclic);
+    complete && (whole_elided_contract || !cyclic || output.len() == first_leaf)
 }

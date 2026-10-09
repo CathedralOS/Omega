@@ -620,14 +620,12 @@ fn candidate_conformance_fingerprint_arguments(candidate: &Candidate) -> Vec<Str
 /// membership facts. Declaration selection excludes unchanged graphs while
 /// retaining shared arenas for semantic lookup; it grants no checking authority.
 /// The authored normalization pass alone selects the whole program.
-pub(crate) fn finalize_domain_instance_identities(
+pub(crate) fn finalize_type_domain_instance_identities(
     program: &mut TypedTrees,
-    declarations: &typed_trees::references::DeclarationSelection,
+    references: impl IntoIterator<Item = TypeReferenceHandle>,
 ) -> Result<(), Diagnostic> {
-    let references =
-        typed_trees::references::collect_selected_program_references(program, declarations);
     let mut constraint_updates = Vec::new();
-    for reference in references.type_references {
+    for reference in references {
         let TypeReferenceNode::Constrained { constraints, .. } =
             program.type_reference_table.type_reference(reference)
         else {
@@ -673,7 +671,19 @@ pub(crate) fn finalize_domain_instance_identities(
             arithmetic_policy: roles.arithmetic_policy.map(|_| semantic_id),
         };
     }
+    Ok(())
+}
 
+/// Finalize one producer's complete declaration graphs. Applied field views
+/// use the same type operation without inventing declaration roots or replaying
+/// the unchanged authored graph.
+pub(crate) fn finalize_domain_instance_identities(
+    program: &mut TypedTrees,
+    declarations: &typed_trees::references::DeclarationSelection,
+) -> Result<(), Diagnostic> {
+    let references =
+        typed_trees::references::collect_selected_program_references(program, declarations);
+    finalize_type_domain_instance_identities(program, references.type_references)?;
     let mut expressions = references.expressions.into_iter().collect::<Vec<_>>();
     expressions.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     let cast_sites = expressions

@@ -3010,18 +3010,14 @@ of a check the same flow already performed, not the check itself.
   independent validation/proof owners; no checking-time mutation or typed
   commitment fallback is permitted.
 
-  Remaining: preserve exact erased
-  applications, clone correspondence and lexical owners through folding and
-  substitution, including lifetime scopes and inherited symbolic const
-  arguments. Complete lifetime-bearing data applications before freezing:
+  Remaining: qualify exact erased applications, clone correspondence and
+  lexical owners through folding and substitution against the full check
+  corpus and focused native cohort. Include prepared lifetime-bearing field
+  views, independent nested regions, repeated generic heads, inherited symbolic
+  const arguments and complete returned-loan frontiers. Keep
   `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
-  now clears inherited row signature matching but stops at `observe` statement
-  3's scalar read because `Envelope<Selected<'storage>>` has no closed data
-  declaration. Syntax-level generic materialization leaves that lifetime-bearing
-  argument open; retain its lexical region mapping through typed elaboration,
-  rather than repairing projections or manufacturing nodes during checking.
-  Complete the full frozen-boundary qualification below; the focused
-  operator, algebra-law and returned-loan cohort does not replace it.
+  and conflicting-mutation/distinct-region controls in that qualification;
+  the bounded operator, algebra-law and returned-loan cohort does not replace it.
   Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal
   template commitments use the retained authored graph, never a concrete

@@ -84,10 +84,6 @@ pub(crate) fn resolve_view_return_source(
     )
 }
 
-/// Resolve the same lifetime/source relation for a bodyless callable
-/// signature. Boundary-trait requirements and compile-time machine parameters
-/// have no `State`, but their returned views create the same caller-side loans.
-
 /// Map a declared return lifetime onto the reference inputs carrying it:
 /// no match is ambiguous, one match names the source parameter, several
 /// fold into the structural union; a lifetime-free return falls back to
@@ -128,6 +124,9 @@ fn lifetime_return_source(
     }
 }
 
+/// Resolve the same lifetime/source relation for a bodyless callable
+/// signature. Boundary-trait requirements and compile-time machine parameters
+/// have no `State`, but their returned views create the same caller-side loans.
 pub(crate) fn resolve_signature_view_return_source(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
@@ -161,13 +160,13 @@ pub(crate) fn resolve_signature_view_return_source(
         // A direct result can forward a reference carried by an owned input.
         // It has an empty output path but the same structural input lifetime
         // frontier as a reference returned inside another carrier.
-        return structural_view_return_source(program, parameters, return_type, &[]);
+        return structural_view_return_source(program, parameters, return_type, &[], &[]);
     }
 
     lifetime_return_source(
         &ref_parameters,
         reference_lifetime(program, return_type),
-        || structural_view_return_source(program, parameters, return_type, &[]),
+        || structural_view_return_source(program, parameters, return_type, &[], &[]),
     )
 }
 
@@ -184,20 +183,32 @@ pub(crate) fn resolve_substituted_view_return_source(
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
 ) -> ViewReturnSource {
-    if !substituted_returns_borrow(program, return_type, substitutions) {
+    if !substituted_returns_borrow(program, return_type, substitutions, scope_starts) {
         return ViewReturnSource::NotApplicable;
     }
     if !substituted_is_reference_type(program, return_type, substitutions)
         || parameters.iter().any(|parameter| {
             !substituted_is_reference_type(program, parameter.type_reference, substitutions)
-                && substituted_returns_borrow(program, parameter.type_reference, substitutions)
+                && substituted_returns_borrow(
+                    program,
+                    parameter.type_reference,
+                    substitutions,
+                    scope_starts,
+                )
         })
     {
         // Carrier results — and direct references possibly forwarded from an
         // owned borrow-carrying input — resolve leaf by leaf on the
         // instantiated frontier.
-        return structural_view_return_source(program, parameters, return_type, substitutions);
+        return structural_view_return_source(
+            program,
+            parameters,
+            return_type,
+            substitutions,
+            scope_starts,
+        );
     }
 
     let mut ref_parameters: Vec<(usize, &str, Option<&str>)> = Vec::new();
@@ -217,7 +228,15 @@ pub(crate) fn resolve_substituted_view_return_source(
     lifetime_return_source(
         &ref_parameters,
         substituted_reference_lifetime(program, return_type, substitutions),
-        || structural_view_return_source(program, parameters, return_type, substitutions),
+        || {
+            structural_view_return_source(
+                program,
+                parameters,
+                return_type,
+                substitutions,
+                scope_starts,
+            )
+        },
     )
 }
 
@@ -246,15 +265,10 @@ pub(in crate::borrow) fn substituted_returns_borrow(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
 ) -> bool {
-    substituted_is_reference_type(program, type_reference, substitutions)
-        || type_structurally_carries_borrow(
-            program,
-            type_reference,
-            substitutions,
-            &mut Vec::new(),
-            false,
-        )
+    substituted_carried_lifetimes(program, type_reference, substitutions, scope_starts)
+        .is_none_or(|leaves| !leaves.is_empty())
 }
 
 fn substituted_reference_lifetime<'p>(
@@ -309,8 +323,11 @@ fn structural_view_return_source(
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
 ) -> ViewReturnSource {
-    let Some(outputs) = substituted_carried_lifetimes(program, return_type, substitutions) else {
+    let Some(outputs) =
+        substituted_carried_lifetimes(program, return_type, substitutions, scope_starts)
+    else {
         if substitutions.is_empty()
             && let Some(source) = whole_elided_result_source(program, parameters, return_type)
         {
@@ -325,12 +342,20 @@ fn structural_view_return_source(
     }
     let mut inputs = Vec::new();
     for (index, parameter) in parameters.iter().enumerate() {
-        if !substituted_returns_borrow(program, parameter.type_reference, substitutions) {
+        if !substituted_returns_borrow(
+            program,
+            parameter.type_reference,
+            substitutions,
+            scope_starts,
+        ) {
             continue;
         }
-        let Some(leaves) =
-            substituted_carried_lifetimes(program, parameter.type_reference, substitutions)
-        else {
+        let Some(leaves) = substituted_carried_lifetimes(
+            program,
+            parameter.type_reference,
+            substitutions,
+            scope_starts,
+        ) else {
             return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompleteStructure {
                 subject: format!("input `{}`", parameter.name),
             });
@@ -471,334 +496,40 @@ pub(crate) fn returns_borrow(
 /// borrowed leaves were established by separate field writes.
 ///
 /// `None` means the frontier cannot be enumerated completely (currently an
-/// unresolved fixed-array length or a recursive by-value data cycle), so callers
+/// unresolved fixed-array length or a view-bearing recursive cycle), so callers
 /// must fail closed unless the whole source place already has static provenance.
 pub(crate) fn borrow_carrying_owner_paths(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<Vec<Vec<BorrowOwnerSegment>>> {
-    let mut output = Vec::new();
-    collect_borrow_carrying_owner_paths(
-        program,
-        type_reference,
-        &[],
-        &[],
-        &mut Vec::new(),
-        &mut output,
-    )
-    .then_some(output)
+    carried_lifetimes(program, type_reference)
+        .map(|leaves| leaves.into_iter().map(|leaf| leaf.owner_path).collect())
 }
 
-fn collect_borrow_carrying_owner_paths(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    owner_path: &[BorrowOwnerSegment],
-    visiting: &mut Vec<SymbolHandle>,
-    output: &mut Vec<Vec<BorrowOwnerSegment>>,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } => {
-            output.push(owner_path.to_vec());
-            true
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => collect_borrow_carrying_owner_paths(
-            program,
-            *base_type,
-            substitutions,
-            owner_path,
-            visiting,
-            output,
-        ),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-        } => {
-            let typed_trees::types::FixedArrayLength::Literal(length) = length else {
-                return false;
-            };
-            for index in 0..*length {
-                let mut element_path = owner_path.to_vec();
-                element_path.push(BorrowOwnerSegment::FixedIndex(index));
-                if !collect_borrow_carrying_owner_paths(
-                    program,
-                    *element_type,
-                    substitutions,
-                    &element_path,
-                    visiting,
-                    output,
-                ) {
-                    return false;
-                }
-            }
-            true
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } => {
-            let Some(definition) = data_definition(program, *base_symbol) else {
-                return true;
-            };
-            let arguments = program
-                .type_reference_table
-                .type_reference_handles(*arguments);
-            let mut nested_substitutions = substitutions.to_vec();
-            nested_substitutions.extend(
-                program
-                    .data_type_parameters(definition)
-                    .iter()
-                    .zip(arguments.iter())
-                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
-            );
-            collect_data_borrow_carrying_owner_paths(
-                program,
-                definition,
-                &nested_substitutions,
-                owner_path,
-                visiting,
-                output,
-            )
-        }
-        TypeReferenceNode::Named { symbol, .. } => {
-            if let Some((_, concrete)) = substitutions
-                .iter()
-                .rev()
-                .find(|(parameter, _)| parameter == symbol)
-            {
-                return collect_borrow_carrying_owner_paths(
-                    program,
-                    *concrete,
-                    substitutions,
-                    owner_path,
-                    visiting,
-                    output,
-                );
-            }
-            let Some(definition) = data_definition(program, *symbol) else {
-                return true;
-            };
-            collect_data_borrow_carrying_owner_paths(
-                program,
-                definition,
-                substitutions,
-                owner_path,
-                visiting,
-                output,
-            )
-        }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => true,
-    }
-}
-
-fn collect_data_borrow_carrying_owner_paths(
-    program: &dyn ::validation::CheckingInput,
-    definition: &typed_trees::data::DataDefinition,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    owner_path: &[BorrowOwnerSegment],
-    visiting: &mut Vec<SymbolHandle>,
-    output: &mut Vec<Vec<BorrowOwnerSegment>>,
-) -> bool {
-    if visiting.contains(&definition.symbol) {
-        return false;
-    }
-    visiting.push(definition.symbol);
-    for member in program.data_members(definition) {
-        match member {
-            typed_trees::data::DataMember::Field(field) => {
-                let mut field_path = owner_path.to_vec();
-                field_path.push(BorrowOwnerSegment::Field(field.symbol));
-                if !collect_borrow_carrying_owner_paths(
-                    program,
-                    field.type_reference,
-                    substitutions,
-                    &field_path,
-                    visiting,
-                    output,
-                ) {
-                    visiting.pop();
-                    return false;
-                }
-            }
-            typed_trees::data::DataMember::Variant(variant) => {
-                for field in program.data_payload_fields(variant) {
-                    let mut field_path = owner_path.to_vec();
-                    field_path.push(BorrowOwnerSegment::Case(variant.symbol));
-                    field_path.push(BorrowOwnerSegment::Field(field.symbol));
-                    if !collect_borrow_carrying_owner_paths(
-                        program,
-                        field.type_reference,
-                        substitutions,
-                        &field_path,
-                        visiting,
-                        output,
-                    ) {
-                        visiting.pop();
-                        return false;
-                    }
-                }
-            }
-        }
-    }
-    visiting.pop();
-    true
-}
-
-/// Whether a type reference names a `data` definition that structurally carries
-/// at least one reference. The walk follows nested records, live sum payloads,
-/// fixed arrays, constraints, and concrete generic arguments. Recursive data
-/// definitions terminate through a symbol stack.
+/// Borrow classification and projected paths share the complete frontier.
+/// An unresolved structure is not evidence of absent loans. Consumers must
+/// retain the obligation until admission supplies its complete instantiated
+/// frontier; a second symbol-only walk previously lost finite nested heads.
 pub(crate) fn is_borrow_carrying_data(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    type_structurally_carries_borrow(program, type_reference, &[], &mut Vec::new(), false)
+    carried_lifetimes(program, type_reference).is_none_or(|leaves| !leaves.is_empty())
 }
 
-/// Whether a data value structurally carries at least one mutable borrow.
-///
-/// A call-produced borrow-carrying aggregate has no literal initializer to
-/// inspect field by field, so its returned loan polarity comes from the
-/// declared aggregate shape instead.
+/// Whether a data value carries an exclusive leaf, conservatively retaining
+/// that obligation when its complete structural frontier is not available.
 pub(crate) fn is_mutably_borrow_carrying_data(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    type_structurally_carries_borrow(program, type_reference, &[], &mut Vec::new(), true)
-}
-
-fn type_structurally_carries_borrow(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    visiting: &mut Vec<SymbolHandle>,
-    require_mutable: bool,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { access, .. } => !require_mutable || access.is_exclusive(),
-        TypeReferenceNode::Constrained { base_type, .. } => type_structurally_carries_borrow(
-            program,
-            *base_type,
-            substitutions,
-            visiting,
-            require_mutable,
-        ),
-        TypeReferenceNode::FixedArray { element_type, .. } => type_structurally_carries_borrow(
-            program,
-            *element_type,
-            substitutions,
-            visiting,
-            require_mutable,
-        ),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } => {
-            let Some(definition) = data_definition(program, *base_symbol) else {
-                return false;
-            };
-            let arguments = program
-                .type_reference_table
-                .type_reference_handles(*arguments);
-            let mut nested_substitutions = substitutions.to_vec();
-            nested_substitutions.extend(
-                program
-                    .data_type_parameters(definition)
-                    .iter()
-                    .zip(arguments.iter())
-                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
-            );
-            data_definition_carries_borrow(
-                program,
-                definition,
-                &nested_substitutions,
-                visiting,
-                require_mutable,
-            )
-        }
-        TypeReferenceNode::Named { symbol, .. } => {
-            if let Some((_, concrete)) = substitutions
-                .iter()
-                .rev()
-                .find(|(parameter, _)| parameter == symbol)
-            {
-                return type_structurally_carries_borrow(
-                    program,
-                    *concrete,
-                    substitutions,
-                    visiting,
-                    require_mutable,
-                );
-            }
-            let Some(definition) = data_definition(program, *symbol) else {
-                return false;
-            };
-            data_definition_carries_borrow(
-                program,
-                definition,
-                substitutions,
-                visiting,
-                require_mutable,
-            )
-        }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => false,
-    }
+    carried_lifetimes(program, type_reference)
+        .is_none_or(|leaves| leaves.iter().any(|leaf| leaf.access.is_exclusive()))
 }
 
 fn data_definition(
     program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    // The shared symbol index answers valid symbols with the scan's first
-    // match; an invalid handle keeps the scan it would otherwise skip.
-    if symbol.is_valid() {
-        return program.data_definition_by_symbol(symbol);
-    }
     program.data_definition_by_symbol(symbol)
-}
-
-fn data_definition_carries_borrow(
-    program: &dyn ::validation::CheckingInput,
-    definition: &typed_trees::data::DataDefinition,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    visiting: &mut Vec<SymbolHandle>,
-    require_mutable: bool,
-) -> bool {
-    if visiting.contains(&definition.symbol) {
-        return false;
-    }
-    visiting.push(definition.symbol);
-    let carries = program
-        .data_members(definition)
-        .iter()
-        .any(|member| match member {
-            typed_trees::data::DataMember::Field(field) => type_structurally_carries_borrow(
-                program,
-                field.type_reference,
-                substitutions,
-                visiting,
-                require_mutable,
-            ),
-            typed_trees::data::DataMember::Variant(variant) => {
-                program.data_payload_fields(variant).iter().any(|field| {
-                    type_structurally_carries_borrow(
-                        program,
-                        field.type_reference,
-                        substitutions,
-                        visiting,
-                        require_mutable,
-                    )
-                })
-            }
-        });
-    visiting.pop();
-    carries
 }
