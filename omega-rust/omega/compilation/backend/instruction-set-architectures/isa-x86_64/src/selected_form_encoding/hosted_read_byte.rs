@@ -186,21 +186,21 @@ fn decode_linux_read_byte(bytes: &[u8]) -> Option<u32> {
     if bytes.len() != 62 {
         return None;
     }
-    let home = u32::from_le_bytes(bytes[5..9].try_into().ok()?);
+    let home = crate::codec_bytes::u32_at(bytes, 5)?;
     let payload = home.checked_add(4)?;
     if !home.is_multiple_of(4)
         || home > 2147483640
         || bytes[..5] != [0x31, 0xc0, 0x89, 0x84, 0x24]
         || bytes[9..12] != [0x89, 0x84, 0x24]
-        || u32::from_le_bytes(bytes[12..16].try_into().ok()?) != payload
+        || crate::codec_bytes::u32_at(bytes, 12)? != payload
         || bytes[16..22] != [0x31, 0xff, 0x48, 0x8d, 0xb4, 0x24]
-        || u32::from_le_bytes(bytes[22..26].try_into().ok()?) != payload
+        || crate::codec_bytes::u32_at(bytes, 22)? != payload
         || bytes[26..50]
             != [
                 0xba, 1, 0, 0, 0, 0x31, 0xc0, 0x0f, 0x05, 0x48, 0x83, 0xf8, 0, 0x74, 21, 0x48,
                 0x83, 0xf8, 1, 0x75, 13, 0xc7, 0x84, 0x24,
             ]
-        || u32::from_le_bytes(bytes[50..54].try_into().ok()?) != home
+        || crate::codec_bytes::u32_at(bytes, 50)? != home
         || bytes[54..] != [1, 0, 0, 0, 0xeb, 2, 0x0f, 0x0b]
     {
         return None;

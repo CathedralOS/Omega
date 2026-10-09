@@ -17,3 +17,21 @@ pub(crate) fn push_bytes(buffer: &mut Vec<u8>, bytes: &[u8]) {
     push_u64(buffer, bytes.len() as u64);
     buffer.extend_from_slice(bytes);
 }
+
+/// Read a u16 little-endian value at `offset`, or None when out of range.
+pub(crate) fn u16_at(bytes: &[u8], offset: usize) -> Option<u16> {
+    let end = offset.checked_add(2)?;
+    Some(u16::from_le_bytes(bytes.get(offset..end)?.try_into().ok()?))
+}
+
+/// Read a u32 little-endian value at `offset`, or None when out of range.
+pub(crate) fn u32_at(bytes: &[u8], offset: usize) -> Option<u32> {
+    let end = offset.checked_add(4)?;
+    Some(u32::from_le_bytes(bytes.get(offset..end)?.try_into().ok()?))
+}
+
+/// Read a u64 little-endian value at `offset`, or None when out of range.
+pub(crate) fn u64_at(bytes: &[u8], offset: usize) -> Option<u64> {
+    let end = offset.checked_add(8)?;
+    Some(u64::from_le_bytes(bytes.get(offset..end)?.try_into().ok()?))
+}

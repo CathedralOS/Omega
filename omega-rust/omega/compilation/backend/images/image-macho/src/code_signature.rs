@@ -169,9 +169,7 @@ fn code_slot_count(code_limit: usize, isa: MachoIsa) -> usize {
 /// one big-endian structure in the file. Malformed input returns `None`.
 pub fn code_signature_identifier(bytes: &[u8]) -> Option<String> {
     fn little(bytes: &[u8], offset: usize) -> Option<u32> {
-        Some(u32::from_le_bytes(
-            bytes.get(offset..offset + 4)?.try_into().ok()?,
-        ))
+        crate::codec_bytes::u32_at(bytes, offset)
     }
     fn big(bytes: &[u8], offset: usize) -> Option<u32> {
         Some(u32::from_be_bytes(

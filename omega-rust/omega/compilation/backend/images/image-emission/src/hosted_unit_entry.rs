@@ -297,7 +297,7 @@ fn decode_aarch64_call_exit(bytes: &[u8], offset: usize, exit_tail: &[u8]) -> Op
     if bytes.len() != 4 + exit_tail.len() || !offset.is_multiple_of(4) {
         return None;
     }
-    let word = u32::from_le_bytes(bytes[..4].try_into().ok()?);
+    let word = crate::codec_bytes::u32_at(bytes, 0)?;
     if word & 0xfc00_0000 != 0x9400_0000 || bytes[4..] != *exit_tail {
         return None;
     }
@@ -583,14 +583,10 @@ pub(super) fn validate_linux_arm64(
 /// select the shim inside `.text`, and the raw section bytes must carry it.
 pub(super) fn pe_entry_points_to(bytes: &[u8], shim_offset: usize, expected_shim: &[u8]) -> bool {
     fn word16(bytes: &[u8], offset: usize) -> Option<u16> {
-        Some(u16::from_le_bytes(
-            bytes.get(offset..offset.checked_add(2)?)?.try_into().ok()?,
-        ))
+        crate::codec_bytes::u16_at(bytes, offset)
     }
     fn word32(bytes: &[u8], offset: usize) -> Option<u32> {
-        Some(u32::from_le_bytes(
-            bytes.get(offset..offset.checked_add(4)?)?.try_into().ok()?,
-        ))
+        crate::codec_bytes::u32_at(bytes, offset)
     }
     if bytes.get(0..2) != Some(b"MZ") {
         return false;
@@ -679,14 +675,10 @@ pub(super) fn elf_entry_points_to(
     expected_shim: &[u8],
 ) -> bool {
     fn word16(bytes: &[u8], offset: usize) -> Option<u16> {
-        Some(u16::from_le_bytes(
-            bytes.get(offset..offset.checked_add(2)?)?.try_into().ok()?,
-        ))
+        crate::codec_bytes::u16_at(bytes, offset)
     }
     fn word64(bytes: &[u8], offset: usize) -> Option<u64> {
-        Some(u64::from_le_bytes(
-            bytes.get(offset..offset.checked_add(8)?)?.try_into().ok()?,
-        ))
+        crate::codec_bytes::u64_at(bytes, offset)
     }
     if bytes.get(0..4) != Some(&[0x7f, b'E', b'L', b'F'])
         || bytes.get(4) != Some(&2)
@@ -748,14 +740,10 @@ pub(super) fn main_points_to(
     target: target::NativeTarget,
 ) -> bool {
     fn word(bytes: &[u8], offset: usize) -> Option<u32> {
-        Some(u32::from_le_bytes(
-            bytes.get(offset..offset.checked_add(4)?)?.try_into().ok()?,
-        ))
+        crate::codec_bytes::u32_at(bytes, offset)
     }
     fn wide(bytes: &[u8], offset: usize) -> Option<u64> {
-        Some(u64::from_le_bytes(
-            bytes.get(offset..offset.checked_add(8)?)?.try_into().ok()?,
-        ))
+        crate::codec_bytes::u64_at(bytes, offset)
     }
     // CPU_TYPE_ARM64 or CPU_TYPE_X86_64, each with the ABI64 flag: the header
     // must name the exact target the adapter was emitted for.

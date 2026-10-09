@@ -145,9 +145,7 @@ pub(crate) fn decode_darwin_read_byte(bytes: &[u8]) -> Option<u32> {
         return None;
     }
     let word = |start: usize| -> Option<u32> {
-        Some(u32::from_le_bytes(
-            bytes.get(start..start + 4)?.try_into().ok()?,
-        ))
+        crate::codec_bytes::u32_at(bytes, start)
     };
     let home = word(5)?;
     let payload = home.checked_add(4)?;

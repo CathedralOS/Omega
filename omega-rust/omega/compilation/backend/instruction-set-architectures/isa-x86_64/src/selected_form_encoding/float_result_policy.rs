@@ -316,9 +316,7 @@ fn encode_instruction(instruction: Instruction, bytes: &mut Vec<u8>) {
 /// requested policy nor the producer's instruction plan is consulted.
 fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
     let immediate = |offset| {
-        Some(u32::from_le_bytes(
-            bytes.get(offset..offset + 4)?.try_into().ok()?,
-        ))
+        crate::codec_bytes::u32_at(bytes, offset)
     };
     match bytes {
         [0x0f, 0x0b, tail @ ..] => Some((Instruction::Crash, tail)),

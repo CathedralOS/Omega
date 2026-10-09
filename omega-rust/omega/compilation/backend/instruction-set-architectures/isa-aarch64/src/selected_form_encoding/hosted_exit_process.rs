@@ -167,10 +167,10 @@ fn decode(target: NativeTarget, bytes: &[u8]) -> Option<u8> {
         return None;
     }
     let words = [
-        u32::from_le_bytes(bytes[0..4].try_into().ok()?),
-        u32::from_le_bytes(bytes[4..8].try_into().ok()?),
-        u32::from_le_bytes(bytes[8..12].try_into().ok()?),
-        u32::from_le_bytes(bytes[12..16].try_into().ok()?),
+        crate::codec_bytes::u32_at(bytes, 0)?,
+        crate::codec_bytes::u32_at(bytes, 4)?,
+        crate::codec_bytes::u32_at(bytes, 8)?,
+        crate::codec_bytes::u32_at(bytes, 12)?,
     ];
     let register = ((words[0] >> 16) & 31) as u8;
     if words[0] & !0x001f_0000 != 0x2a00_03e0
