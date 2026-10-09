@@ -213,6 +213,11 @@ fn float_result_policy_decoded_semantics_preserve_payloads_and_aliases() {
                     raw,
                 ]
             };
+            // Boolean custody defines its low byte independently of raw format.
+            // Both true and false must ignore every unrelated upper bit.
+            if !form.can_trap() {
+                inputs[0] |= 0xa5a5_5a5a_dead_be00;
+            }
             // A binary32 payload's unrelated upper half must not affect any predicate.
             if !wide {
                 for input in &mut inputs {

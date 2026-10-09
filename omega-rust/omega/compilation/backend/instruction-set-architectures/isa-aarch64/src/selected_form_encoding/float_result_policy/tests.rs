@@ -177,7 +177,7 @@ fn decoded_policy_matches_ieee_semantics_with_aliased_outputs() {
                     raw
                 })
             };
-            let inputs = if form.can_trap() {
+            let mut inputs = if form.can_trap() {
                 vec![raw]
             } else {
                 vec![
@@ -185,6 +185,10 @@ fn decoded_policy_matches_ieee_semantics_with_aliased_outputs() {
                     raw,
                 ]
             };
+            // Boolean custody defines only its low byte, for either raw format.
+            if !form.can_trap() {
+                inputs[0] |= 0xa5a5_5a5a_dead_be00;
+            }
             for output in 1..=inputs.len() as u8 + 1 {
                 let mut registers = (1..=inputs.len() as u8).collect::<Vec<_>>();
                 registers.push(output);

@@ -184,7 +184,7 @@ fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Word> {
         return words;
     }
     let mut retain_raw_branches = Vec::new();
-    words.extend([restore(16), compare(0)]);
+    words.extend([restore(16), extract(0, 8), compare(0)]);
     retain_raw_branches.push(words.len());
     words.push(Word::Conditional {
         equal: true,

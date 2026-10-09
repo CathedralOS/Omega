@@ -2,7 +2,7 @@
 //!
 //! MOVD/Q saves all inputs into volatile xmm3..4 before the output becomes
 //! scratch, so the output can alias any input. Integer shifts expose exponent,
-//! fraction and signed-zero predicates without quieting NaNs or repeating the
+//! fraction and Boolean-byte predicates without quieting NaNs or repeating the
 //! provider's arithmetic. A finite overflow's infinity encoding minus one is
 //! its signed maximum finite neighbor. Trapping uses an operation-owned UD2.
 //! RFLAGS and the vector scratch are explicit clobbers; no memory is touched.
@@ -206,7 +206,12 @@ fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Instruction> {
         return instructions;
     }
     let mut retain_raw_branches = Vec::new();
-    instructions.extend([restore(3), compare(0)]);
+    instructions.extend([
+        restore(3),
+        shift(true, if wide { 56 } else { 24 }),
+        shift(false, if wide { 56 } else { 24 }),
+        compare(0),
+    ]);
     retain_raw_branches.push(instructions.len());
     instructions.push(Instruction::Conditional {
         equal: true,
@@ -507,6 +512,18 @@ fn validate_program(
             wide,
             vector: 3,
             general,
+        })?;
+        replay.require(Instruction::Shift {
+            left: true,
+            wide,
+            general,
+            count: if wide { 56 } else { 24 },
+        })?;
+        replay.require(Instruction::Shift {
+            left: false,
+            wide,
+            general,
+            count: if wide { 56 } else { 24 },
         })?;
         replay.require(Instruction::Compare {
             wide,
