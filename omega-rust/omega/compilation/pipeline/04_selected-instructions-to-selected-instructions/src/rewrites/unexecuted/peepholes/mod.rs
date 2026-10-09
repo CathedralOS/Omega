@@ -64,4 +64,3 @@
 //!   retires. Its `Store` consumer is also the first declared pair whose
 //!   consumer writes memory (`WritePointerV1`).
 //!
-mod projected_access;

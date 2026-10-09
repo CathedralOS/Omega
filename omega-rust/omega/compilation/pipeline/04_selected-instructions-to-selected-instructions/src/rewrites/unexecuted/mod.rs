@@ -79,16 +79,4 @@
 //! staged families read; `super::place_storage` also serves executed forwarding; `super::block_edges`,
 //! `super::condition_state` and `super::window_hazards` are shared with the
 //! executed set.
-
-mod arm_relocation;
-mod boundary_boolean;
-mod boundary_branch;
-mod commuting_relocation;
-mod confluence_relocation;
-mod dead_store;
-mod inflow_relocation;
-mod interchange;
 pub(crate) mod peepholes;
-mod relocation;
-mod scheduled_relocation;
-mod store_motion;
