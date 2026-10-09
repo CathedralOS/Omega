@@ -70,12 +70,9 @@ pub(in crate::legalization) fn sum_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
-    // Claims and multiplicity remain in the retained home origin; they do not
-    // change tag or payload bytes. Layout reconstructs physical geometry,
-    // never another permission to copy or dispose the sum.
-    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
-        return Err(LegalizationError::custody());
-    }
+    // Claims, qualifications and multiplicity remain in the retained home
+    // origin; they do not change tag or payload bytes. Layout reconstructs
+    // geometry, never another permission to copy or dispose the sum.
     sum_type_layout(result.structural_type, plan)
 }
 
@@ -130,7 +127,8 @@ pub(super) fn cleanup(
 ) -> bool {
     // This reconstructs the retained owner declaration, not permission to
     // dispose it. Source checking selects the exact claim dispositions and
-    // nominal hook; claims do not change the retained storage declaration.
+    // nominal hook; claims and qualifications do not change the retained
+    // storage declaration or grant disposal authority.
     let owner = |place: semantic_vocabulary::PlaceId| {
         if let Some((_, structural_type, _)) =
             owned_arguments::trivial_affine_local(function, place)
@@ -145,23 +143,18 @@ pub(super) fn cleanup(
             return None;
         }
         if let Some(parameter) = function.structural_parameter(place) {
-            return (parameter.access == terminal_psi::StructuralAccess::Owned
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty())
-            .then_some((parameter.structural_type, parameter.multiplicity));
+            return (parameter.access == terminal_psi::StructuralAccess::Owned)
+                .then_some((parameter.structural_type, parameter.multiplicity));
         }
         match super::structural_case::source_owner(function, place).ok()? {
             legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 result, ..
-            } => (result.qualifications.is_empty() && result.projected_qualifications.is_empty())
-                .then_some((result.structural_type, result.multiplicity)),
+            } => Some((result.structural_type, result.multiplicity)),
             legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                 declaration,
                 ..
-            } => (declaration.access == terminal_psi::StructuralAccess::Owned
-                && declaration.qualifications.is_empty()
-                && declaration.projected_qualifications.is_empty())
-            .then_some((declaration.structural_type, declaration.multiplicity)),
+            } => (declaration.access == terminal_psi::StructuralAccess::Owned)
+                .then_some((declaration.structural_type, declaration.multiplicity)),
             legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
             | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => None,
         }
@@ -281,16 +274,8 @@ pub(super) fn header(
                 )?
                 .shape()
             } else {
-                // A linear result's claim is custody, not storage: it
-                // returns the same bytes an affine one does.
-                if !result.qualifications.is_empty()
-                    && !plan.structural_types.iter().any(|declaration| {
-                        declaration.id == result.structural_type
-                            && declaration.shape.supports_result_qualifications()
-                    })
-                {
-                    return Err(LegalizationError::custody());
-                }
+                // Claims and qualifications are semantic custody, not
+                // storage: they do not change this carrier's return bytes.
                 crate::structural_inputs::structural_reference_input::shape(
                     result.structural_type,
                     &plan.structural_types,
@@ -406,15 +391,7 @@ pub(in crate::legalization) fn block_home_layout(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
-    let owned_bounded_bytes =
-        abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
-            parameter,
-            &plan.structural_types,
-        );
-    if !(parameter.access == terminal_psi::StructuralAccess::Owned
-        && (parameter.qualifications.is_empty() || owned_bounded_bytes)
-        && parameter.projected_qualifications.is_empty())
-    {
+    if parameter.access != terminal_psi::StructuralAccess::Owned {
         return Err(LegalizationError::custody());
     }
     // Arrival changes the owning declaration, not the stored value's geometry.

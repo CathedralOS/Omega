@@ -48,7 +48,11 @@ fn owned_arrival(function: &AbstractFunction, place: PlaceId) -> bool {
         .structural_parameters
         .iter()
         .chain(function.block_structural_parameters())
-        .any(|parameter| parameter.place == place && parameter.is_unqualified_owned_affine())
+        .any(|parameter| {
+            parameter.place == place
+                && parameter.access == StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Affine
+        })
 }
 
 fn owned_root_type(
@@ -63,10 +67,8 @@ fn owned_root_type(
     }
     if let Some(home) = live.structural_homes.get(&place) {
         return (home.multiplicity() == StructuralMultiplicity::Affine
-            && home.access() == StructuralAccess::Owned
-            && home.qualifications().is_empty()
-            && home.projected_qualifications().is_empty())
-        .then_some(home.structural_type());
+            && home.access() == StructuralAccess::Owned)
+            .then_some(home.structural_type());
     }
     if owned_arrival(function, place) {
         return function
@@ -85,24 +87,19 @@ fn owned_root_type(
 /// A nominal disposition uses the exact established owner's storage. Unlike
 /// a no-code affine discard, its claim authority remains on the cleanup action
 /// and was selected by source checking; geometry grants no consumption rights.
+/// Qualifications stay on the exact owner declaration, but do not select its
+/// storage or change an already admitted disposition.
 fn nominal_owner_type(
     live: &LiveDefinitions,
     function: &AbstractFunction,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
     if let Some(home) = live.structural_homes.get(&place) {
-        return (home.access() == StructuralAccess::Owned
-            && home.qualifications().is_empty()
-            && home.projected_qualifications().is_empty())
-        .then(|| home.structural_type());
+        return (home.access() == StructuralAccess::Owned).then(|| home.structural_type());
     }
     function
         .arrival_parameter(place)
-        .filter(|parameter| {
-            parameter.access == StructuralAccess::Owned
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
-        })
+        .filter(|parameter| parameter.access == StructuralAccess::Owned)
         .map(|parameter| parameter.structural_type)
         .or_else(|| owned_root_type(live, function, place))
 }
@@ -447,10 +444,6 @@ pub(super) fn lower_terminator(
                     });
                 if source_type != Some(result.structural_type)
                     || result.multiplicity != StructuralMultiplicity::Unrestricted
-                    || (!result.qualifications.is_empty()
-                        && !structural_types.get(&result.structural_type).is_some_and(
-                            |declaration| declaration.shape.supports_result_qualifications(),
-                        ))
                     || !result.projected_qualifications.is_empty()
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()

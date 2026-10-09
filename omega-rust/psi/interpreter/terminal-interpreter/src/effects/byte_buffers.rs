@@ -733,7 +733,7 @@ impl TerminalExecution<'_> {
             .field_type
             .byte_sequence_carrier()
             .ok_or_else(malformed)?;
-        if !carrier.supports_result_qualifications() {
+        if !carrier.is_owned_or_shared_byte_carrier() {
             return Err(malformed());
         }
         let source = StructuralByteSequenceRuntimeField {

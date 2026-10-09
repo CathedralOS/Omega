@@ -618,7 +618,7 @@ where
                 || !result.claims.is_empty()
                 || !catalogs.types.clone().any(|declaration| {
                     declaration.id == structural_type
-                        && declaration.shape.supports_result_qualifications()
+                        && declaration.shape.is_owned_or_shared_byte_carrier()
                 })
             {
                 return None;

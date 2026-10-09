@@ -1,0 +1,14 @@
+// Removing the native byte-carrier whitelist must not grant result membership.
+// The returned owner is linear, but its source has no Issued qualification.
+use omega::language::core::drop;
+
+data Receipt [linear] { code: i32; }
+domain Receipt::Issued;
+machine Receipt::drop(receipt: &mut Receipt) {}
+
+machine missing(receipt: Receipt) -> Receipt in Issued { receipt }
+
+machine main() {
+    let receipt: Receipt in Issued = missing(Receipt { code: 1 });
+    drop(receipt);
+}

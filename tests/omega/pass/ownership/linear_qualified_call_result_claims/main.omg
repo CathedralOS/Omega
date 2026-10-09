@@ -3,10 +3,9 @@
 // natively. `pass` returns its qualified input, so the caller's result
 // continues that input's claim; `issue`'s fresh claim continues into a
 // record field when the result initializes it and again when it reseats the
-// vacated field by assignment. Omega stages 02/03 admit result
-// qualifications only on byte carriers, so this program has no native build
-// yet; the unqualified shapes are `linear_call_result_claims_exit` and
-// `linear_call_result_place_assignment_exit`.
+// vacated field by assignment. The executable root-result and disposal
+// control is `linear_call_result_claims_exit`; this fixture additionally
+// requires boundary-call realization and reseated-field claim transport.
 data Receipt [linear] { code: i32; }
 
 domain Receipt::Issued;

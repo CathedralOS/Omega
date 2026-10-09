@@ -290,7 +290,7 @@ fn byte_result_predicates(
         .then_some(result)?
     };
     if !module.structural_types.iter().any(|declaration| {
-        declaration.id == structural_type && declaration.shape.supports_result_qualifications()
+        declaration.id == structural_type && declaration.shape.is_owned_or_shared_byte_carrier()
     }) {
         return None;
     }

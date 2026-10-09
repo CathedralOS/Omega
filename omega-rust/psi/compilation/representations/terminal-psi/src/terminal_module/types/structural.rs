@@ -224,15 +224,15 @@ impl StructuralTypeShape {
         )
     }
 
-    /// Root qualifications travel on a byte carrier — a bounded owner or a
-    /// shared view. The view's access binds on the field, parameter, or
-    /// result that declares it, so the type-registered shape carries none
-    /// and counts the same as an explicitly shared one; the declaring
-    /// member's own access check decides mutability.
-    pub const fn supports_result_qualifications(&self) -> bool {
+    /// Byte-predicate observations use bounded owners or shared-readable views.
+    /// This is not a qualification whitelist: other carriers can retain their
+    /// checked domains without participating in byte-predicate evaluation.
+    /// An unbound view shape binds access on its field, parameter or result;
+    /// that declaration's access judgment still decides mutability.
+    pub const fn is_owned_or_shared_byte_carrier(&self) -> bool {
         matches!(
             self,
-            Self::ByteSequence(carrier) if carrier.supports_result_qualifications()
+            Self::ByteSequence(carrier) if carrier.is_owned_or_shared_byte_carrier()
         )
     }
 }
@@ -266,9 +266,9 @@ impl ByteSequenceCarrier {
         )
     }
 
-    /// Whether root qualifications may travel on this carrier — a bounded
-    /// owner or a shared-readable view, as on the shape predicate.
-    pub const fn supports_result_qualifications(&self) -> bool {
+    /// A bounded owner or shared-readable view supports immutable byte
+    /// observations; this says nothing about other carriers' qualifications.
+    pub const fn is_owned_or_shared_byte_carrier(&self) -> bool {
         matches!(
             self,
             Self::BoundedOwned { .. }

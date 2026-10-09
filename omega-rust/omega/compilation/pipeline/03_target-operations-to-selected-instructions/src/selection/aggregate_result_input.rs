@@ -406,10 +406,6 @@ pub(super) fn returned_descriptor<'a>(
     let placement = source.call_plan.result.as_ref()?;
     if identity != declared.structural_type
         || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || (!declared.qualifications.is_empty()
-            && !signature.structural_types.iter().any(|row| {
-                row.id == declared.structural_type && row.shape.supports_result_qualifications()
-            }))
         || !declared.projected_qualifications.is_empty()
         || !terminal_semantics::descriptor_results::is_shared_descriptor(
             signature.structural_types.iter(),
@@ -902,15 +898,7 @@ pub(super) fn block_parameter_shape(
             &signature.structural_types,
         );
     }
-    let owned_bounded_bytes =
-        abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
-            parameter,
-            &signature.structural_types,
-        );
-    if parameter.access != terminal_psi::StructuralAccess::Owned
-        || (!owned_bounded_bytes && !parameter.qualifications.is_empty())
-        || !parameter.projected_qualifications.is_empty()
-    {
+    if parameter.access != terminal_psi::StructuralAccess::Owned {
         return None;
     }
     // A successor carries the complete owned payload, including a transferred
@@ -1159,15 +1147,8 @@ pub(super) fn block_home(
     });
     let (block, parameter) = matching.next()?;
     let signature = source.structural.as_ref()?;
-    let owned_bounded_bytes =
-        abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
-            parameter,
-            &signature.structural_types,
-        );
     if matching.next().is_some()
         || parameter.access != StructuralAccess::Owned
-        || (!owned_bounded_bytes && !parameter.qualifications.is_empty())
-        || !parameter.projected_qualifications.is_empty()
         || !signature.structural_places.iter().any(|declaration| {
             declaration.id == place
                 && declaration.kind

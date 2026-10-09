@@ -4,9 +4,12 @@
 // the identity the call transferred in. Each result binds the claim the
 // callee's returning edge holds at the result's root, and `consume` retires
 // the receipt through its owner's cleanup plan. Both engines run it.
+// Qualified results use the same owner and ABI: Issued continues across a
+// produced result, an owned-parameter return and the nominal disposal hook.
 use omega::language::core::drop;
 
 data Receipt [linear] { code: i32; }
+domain Receipt::Issued;
 
 machine Receipt::drop(receipt: &mut Receipt) {}
 
@@ -25,8 +28,39 @@ machine consume(receipt: Receipt) -> i32 {
     observed
 }
 
-machine main() {
+machine issue(code: i32) -> Receipt in Issued {
+    let issued: Receipt in Issued = Receipt { code: code };
+    issued
+}
+
+machine forward_issued(receipt: Receipt in Issued) -> Receipt in Issued {
+    transition { _ -> returning(receipt) }
+    state returning(held: Receipt in Issued) -> Receipt in Issued {
+        held
+    }
+}
+
+machine consume_issued(receipt: Receipt in Issued) -> i32 {
+    let observed: i32 = receipt.code;
+    drop(receipt);
+    observed
+}
+
+machine verify(correct: bool) crashes Trap {
+    transition correct {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
     let made: Receipt = make(7);
     let passed: Receipt = pass(made);
-    _ = consume(passed);
+    let plain: i32 = consume(passed);
+    let issued: Receipt in Issued = issue(11);
+    let forwarded: Receipt in Issued = forward_issued(issued);
+    let qualified: i32 = consume_issued(forwarded);
+    verify(plain == 7 && qualified == 11);
 }

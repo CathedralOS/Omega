@@ -39,6 +39,12 @@ places remain distinct through lowering, assignment, emission, and installation.
 A result's qualifications and claims are semantic metadata, not additional ABI
 words.
 
+Physical return, arrival and disposal transport use the complete carrier's
+layout without a byte-only qualification whitelist. Psi establishes the result
+membership; retaining a domain label does not mint a proof or disposal right.
+Byte-predicate evaluation separately requires owned or shared-readable byte
+storage and does not decide whether other structural carriers retain domains.
+
 ### Scalar qualifications
 
 A scalar declaration retains both its payload carrier and its normalized

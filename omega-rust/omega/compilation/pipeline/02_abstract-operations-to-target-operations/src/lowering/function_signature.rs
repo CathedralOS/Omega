@@ -92,15 +92,6 @@ pub(super) fn prepare_function_signature(
                 // not change the carrier's return registers or home layout.
                 // Claims are custody, not storage either: a linear result or
                 // an affine owner of linear members returns the same bytes.
-                if !result.qualifications.is_empty()
-                    && !structural_types
-                        .get(&result.structural_type)
-                        .is_some_and(|declaration| {
-                            declaration.shape.supports_result_qualifications()
-                        })
-                {
-                    return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
-                }
                 if matches!(
                     structural_types
                         .get(&result.structural_type)

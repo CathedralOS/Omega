@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.58, "load1_start": 2.58, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.84, "load1_start": 2.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1765,6 +1765,8 @@ fail/ownership/linear_live_overwrite rejected 572ms expected @2d8ed253669f
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/ownership/linear_mixed_branch_treatment rejected 633ms expected @2d8ed253669f
 	linear value `receipt` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation
+fail/ownership/linear_qualified_result_requires_membership rejected 370ms expected @d2a4bcea8c9a+wt
+	cannot prove default-domain field requirement for return from missing at statement 0: receipt requires Receipt::Issued
 fail/ownership/linear_result_member_argument_scope_loss rejected 668ms expected @9c376f77b213+wt
 	linear value `second.right` reaches scope exit without being consumed or transferred
 fail/ownership/linear_result_member_argument_second_use rejected 487ms expected @9c376f77b213+wt

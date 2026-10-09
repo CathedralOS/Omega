@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.58, "load1_start": 2.58, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.84, "load1_start": 2.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -473,6 +473,7 @@ pass/locals/runtime_local_record_array_element_field_reads_exit built 1979ms exi
 pass/operators/crash_routes built 640ms exit:0 interpreter-exit:0 interpreter:agrees @5ed90973d982+wt
 pass/operators/division_value_entry_selection built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/operators/runtime_constructed_operand_result_exit built 12708ms exit:0 interpreter-exit:0 interpreter:agrees @dfece6e7f6a1+wt
+pass/ownership/linear_call_result_claims_exit built 2591ms exit:0 interpreter-exit:0 interpreter:agrees @d2a4bcea8c9a+wt
 pass/ownership/linear_call_result_members_fused_owner_exit built 3570ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
 pass/ownership/linear_computed_call_claim_transfers_exit built 2392ms exit:0 interpreter-exit:0 interpreter:agrees @7a112c8923bd+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit built 2757ms exit:0 interpreter-exit:0 interpreter:agrees @7a112c8923bd+wt

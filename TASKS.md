@@ -547,11 +547,13 @@ defines the complete product bar.
     that join needs by-path binding like a call result's. Passing a projection
     of a linear field reseated by `pair.left = make(5)` fails Terminal
     foundation validation ("claim action does not match a declared structural
-    claim path"); consuming the reseated owner whole runs. Qualified record
-    results (`-> Receipt in Issued`) stop in Omega stages 02/03, whose
-    `supports_result_qualifications` admits byte carriers only:
-    `pass/ownership/linear_qualified_call_result_claims` checks but has no
-    native build. Wider/nested
+    claim path"); consuming the reseated owner whole runs. The qualified-result
+    boundary/reseated-field combination in
+    `pass/ownership/linear_qualified_call_result_claims` still needs boundary
+    realization and projected replacement-claim transport. Preserve ordinary
+    qualified result, state-return and disposal custody in
+    `pass/ownership/linear_call_result_claims_exit`; missing result membership
+    and reuse of the transferred original must reject. Wider/nested
     structural results (indirect/stack ABI slots such as Windows x64's
     12-byte Msg) do not reach target lowering.
     `pass/effects/structural_callback_reach/projected.omg` is only a control.

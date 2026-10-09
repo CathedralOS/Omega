@@ -518,9 +518,8 @@ fn ordinary_contract(
 /// The structural result retains its exact declared type and home layout.
 /// Its path-bound claims are custody, not storage; outcome-specific evidence
 /// still needs separate transport.
-/// Byte carriers — bounded owners and shared views alike — may carry
-/// qualifications; the caller may add only domains this call's own
-/// establishment rows mint.
+/// Qualifications do not restrict physical carrier families; the caller may
+/// add only domains this call's own establishment rows mint.
 fn structural_result_home(
     call: &Invocation<'_>,
     callee_function: &AbstractFunction,
@@ -543,10 +542,6 @@ fn structural_result_home(
         || callee_result.multiplicity != result.multiplicity
         || !result_qualifications_match(callee_result, result)
         || callee_result.projected_qualifications != result.projected_qualifications
-        || (!callee_result.qualifications.is_empty()
-            && !types
-                .get(&result.structural_type)
-                .is_some_and(|declaration| declaration.shape.supports_result_qualifications()))
         || !selected_evidence.is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

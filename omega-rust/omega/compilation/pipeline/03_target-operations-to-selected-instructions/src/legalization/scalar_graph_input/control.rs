@@ -76,11 +76,6 @@ pub(super) fn validate(
                 };
             if structural_type != declared.structural_type
                 || multiplicity != declared.multiplicity
-                || (!declared.qualifications.is_empty()
-                    && !structural_types.iter().any(|declaration| {
-                        declaration.id == declared.structural_type
-                            && declaration.shape.supports_result_qualifications()
-                    }))
                 || !trivial_affine_locals.is_empty()
                 || !super::aggregate_results::cleanup(function, &cleanup_actions, structural_types)
             {
