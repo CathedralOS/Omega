@@ -38,8 +38,10 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
             if fused_target_index(program, &fused, target_symbol).is_some() {
                 continue;
             }
-            let Some((target_owner, _)) =
-                validation::find_machine_by_entry_state(program, target_symbol)
+            // Free transitions name a machine; attached transitions name its
+            // entry state. Discovery must use the same exact head resolution
+            // as successor lookup or the free form loses its recursive owner.
+            let Some((target_owner, _)) = validation::find_machine_head(program, target_symbol)
             else {
                 continue;
             };
