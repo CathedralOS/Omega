@@ -26,16 +26,16 @@ mod object;
 mod validation;
 
 pub use error::{
-    InstalledProgramStorageContinuationEvidenceError,
-    OptimizedProgramStorageSemanticWrapperObjectError,
 };
-pub use validation::validate_installed_program_storage_continuation_evidence;
-pub use validation::{bind_semantic_contract, receiver_layout};
+pub(crate) use error::{
+    OptimizedProgramStorageSemanticWrapperObjectError};
+pub use validation::{ receiver_layout};
+pub(crate) use validation::{bind_semantic_contract};
 
 use object::construct_object;
 use validation::validate_entry_shape;
 
-pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
+pub(crate) fn stage_validated_optimized_program_storage_semantic_wrapper_object(
     settlement: ValidatedNativeProgramEntrySettlement,
     source: StagedValidatedOptimizedObjectArtifact,
     encoding: StagedOptimizedProgramStorageSemanticWrapperEncoding,
@@ -71,7 +71,7 @@ pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
 
 #[derive(Debug)]
 #[must_use = "semantic-wrapper object custody retains settlement, encoding, and Omega object sources"]
-pub struct StagedValidatedOptimizedProgramStorageSemanticWrapperObject {
+pub(crate) struct StagedValidatedOptimizedProgramStorageSemanticWrapperObject {
     settlement: ValidatedNativeProgramEntrySettlement,
     source: StagedValidatedOptimizedObjectArtifact,
     encoding: StagedOptimizedProgramStorageSemanticWrapperEncoding,

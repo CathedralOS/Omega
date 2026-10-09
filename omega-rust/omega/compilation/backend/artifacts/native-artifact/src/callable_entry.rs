@@ -56,7 +56,7 @@ use reconstruction::{manifest, receipt, reconstruct};
 /// Stage the entry over an object artifact staged in this compile. The
 /// source is consumed as produced; `validate_optimized_ordinary_callable_entry`
 /// replays it for retained readers.
-pub fn stage_validated_optimized_ordinary_callable_entry(
+pub(crate) fn stage_validated_optimized_ordinary_callable_entry(
     source: StagedValidatedOptimizedObjectArtifact,
 ) -> Result<StagedValidatedOptimizedOrdinaryCallableEntry, OptimizedOrdinaryCallableEntryError> {
     let entry = reconstruct(&source)?;
@@ -71,22 +71,22 @@ pub fn stage_validated_optimized_ordinary_callable_entry(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedOrdinaryCallableEntryStage {
+pub(crate) enum OptimizedOrdinaryCallableEntryStage {
     ValidatedOptimizedTerminalOrdinaryCallableEntryV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedOrdinaryCallableEntryDisposition {
+pub(crate) enum OptimizedOrdinaryCallableEntryDisposition {
     ExternalProcessEntryBridgeRequiredV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedOrdinaryCallableEntryUnavailableData {
+pub(crate) enum OptimizedOrdinaryCallableEntryUnavailableData {
     Unavailable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizedOrdinaryCallableParameter {
+pub(crate) struct OptimizedOrdinaryCallableParameter {
     pub ordinal: u64,
     pub value: ValueId,
     pub scalar_type: ScalarType,
@@ -100,7 +100,7 @@ pub struct OptimizedOrdinaryCallableParameter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizedOrdinaryCallableResult {
+pub(crate) struct OptimizedOrdinaryCallableResult {
     pub declaration: ValueDeclaration,
     pub shape: ValueShape,
     pub abi_register: MachineRegister,
@@ -109,7 +109,7 @@ pub struct OptimizedOrdinaryCallableResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizedOrdinaryCallableReturn {
+pub(crate) struct OptimizedOrdinaryCallableReturn {
     pub edge: EdgeId,
     pub value: ValueId,
     pub selected_instruction: SelectedInstructionId,
@@ -119,7 +119,7 @@ pub struct OptimizedOrdinaryCallableReturn {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizedOrdinaryCallableEntryRecord {
+pub(crate) struct OptimizedOrdinaryCallableEntryRecord {
     pub identity: OptimizedTerminalOrdinaryCallableEntryIdentity,
     pub source_artifact: OptimizedObjectArtifactIdentity,
     pub source_manifest: OptimizedObjectArtifactManifestIdentity,
@@ -195,7 +195,7 @@ impl OptimizedOrdinaryCallableEntryRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizedOrdinaryCallableEntryManifest {
+pub(crate) struct OptimizedOrdinaryCallableEntryManifest {
     pub identity: OptimizedOrdinaryCallableEntryManifestIdentity,
     pub stage: OptimizedOrdinaryCallableEntryStage,
     pub entry: OptimizedTerminalOrdinaryCallableEntryIdentity,
@@ -308,7 +308,7 @@ impl OptimizedOrdinaryCallableEntryManifest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedOptimizedOrdinaryCallableEntryManifest {
+pub(crate) struct ValidatedOptimizedOrdinaryCallableEntryManifest {
     record: OptimizedOrdinaryCallableEntryManifest,
 }
 impl ValidatedOptimizedOrdinaryCallableEntryManifest {
@@ -319,7 +319,7 @@ impl ValidatedOptimizedOrdinaryCallableEntryManifest {
 
 #[derive(Debug)]
 #[must_use = "ordinary-callable entry custody retains its complete optimized Omega object source"]
-pub struct StagedValidatedOptimizedOrdinaryCallableEntry {
+pub(crate) struct StagedValidatedOptimizedOrdinaryCallableEntry {
     source: StagedValidatedOptimizedObjectArtifact,
     entry: OptimizedOrdinaryCallableEntryRecord,
     manifest: ValidatedOptimizedOrdinaryCallableEntryManifest,
@@ -341,7 +341,7 @@ impl StagedValidatedOptimizedOrdinaryCallableEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptimizedOrdinaryCallableEntryCustodyReceipt {
+pub(crate) struct OptimizedOrdinaryCallableEntryCustodyReceipt {
     source_artifact: OptimizedObjectArtifactIdentity,
     entry: OptimizedTerminalOrdinaryCallableEntryIdentity,
     manifest: OptimizedOrdinaryCallableEntryManifestIdentity,
@@ -359,7 +359,7 @@ impl OptimizedOrdinaryCallableEntryCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedOrdinaryCallableEntryError {
+pub(crate) enum OptimizedOrdinaryCallableEntryError {
     Source(OptimizedObjectArtifactError),
     UnsupportedSignature,
     AbiPlan,
@@ -386,7 +386,7 @@ impl std::fmt::Display for OptimizedOrdinaryCallableEntryError {
 impl std::error::Error for OptimizedOrdinaryCallableEntryError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedOrdinaryCallableEntryDecodeError {
+pub(crate) enum OptimizedOrdinaryCallableEntryDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),
@@ -408,7 +408,7 @@ pub enum OptimizedOrdinaryCallableEntryDecodeError {
     TrailingBytes,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedOrdinaryCallableEntryManifestDecodeError {
+pub(crate) enum OptimizedOrdinaryCallableEntryManifestDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

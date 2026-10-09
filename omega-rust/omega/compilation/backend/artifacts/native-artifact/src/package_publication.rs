@@ -183,7 +183,7 @@ impl NativePackagePublicationReceipt {
 
     /// The inner executable's recorded component: `Contents/MacOS/<name>`
     /// must be present exactly once for the receipt to describe a package.
-    pub fn executable_component(&self) -> Option<&PackagePublicationComponent> {
+    pub(crate) fn executable_component(&self) -> Option<&PackagePublicationComponent> {
         let expected = Path::new("Contents")
             .join("MacOS")
             .join(&self.application_name);
@@ -208,7 +208,7 @@ impl NativePackagePublicationReceipt {
     /// set, order, or per-member data — stops the receipt from replaying.
     /// The executable component must also sit exactly at
     /// `Contents/MacOS/<name>` and carry the retained byte count.
-    pub fn has_consistent_package_identity(&self) -> bool {
+    pub(crate) fn has_consistent_package_identity(&self) -> bool {
         self.package_evidence_digest
             == native_package_evidence_digest(
                 &self.package_root,

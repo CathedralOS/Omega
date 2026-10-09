@@ -17,7 +17,7 @@ pub(crate) use terminal_semantics::zero_valid_record_storage;
 /// Derive the semantic entry contract from the settlement's admitted plan and
 /// exact calling application. Settlement owns their identity join; the wrapper
 /// consumes that result without running calling-plan admission again.
-pub fn bind_semantic_contract(
+pub(crate) fn bind_semantic_contract(
     settlement: &ValidatedNativeProgramEntrySettlement,
 ) -> Result<
     OptimizedProgramStorageSemanticEntryContract,
@@ -298,7 +298,7 @@ fn zero_valid_field(
         }
 }
 
-pub fn validate_entry_shape(
+pub(crate) fn validate_entry_shape(
     source: &StagedValidatedOptimizedObjectArtifact,
     settlement: &ValidatedNativeProgramEntrySettlement,
     contract: &OptimizedProgramStorageSemanticEntryContract,

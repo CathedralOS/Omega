@@ -5,7 +5,7 @@ use program_entry_plan::OptimizedProgramStorageSemanticWrapperEncodingError;
 use terminal_psi_to_abstract_operations::NativeProgramEntrySettlementError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperObjectError {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectError {
     Settlement(NativeProgramEntrySettlementError),
     Source(OptimizedObjectArtifactError),
     Encoding(OptimizedProgramStorageSemanticWrapperEncodingError),
@@ -57,7 +57,7 @@ impl From<OptimizedProgramStorageSemanticWrapperObjectRecordError>
 /// or wrapper authority; the owning wrapper stage reruns this same check over
 /// its retained opaque installation and selected-plan custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InstalledProgramStorageContinuationEvidenceError {
+pub(crate) enum InstalledProgramStorageContinuationEvidenceError {
     RootMismatch,
     FunctionRosterMismatch,
     EntryCallMissing,

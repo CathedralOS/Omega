@@ -33,7 +33,7 @@ use semantic_vocabulary::MachineId;
 use target::{NativeTarget, ObjectFormat};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-pub fn encode_optimized_program_storage_semantic_wrapper_object(
+pub(crate) fn encode_optimized_program_storage_semantic_wrapper_object(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
     wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
 ) -> Result<
@@ -49,7 +49,7 @@ pub fn encode_optimized_program_storage_semantic_wrapper_object(
 /// value, so the digest conjunct cannot differ and is not reserialized;
 /// every other shape and template check still runs. The standalone encode
 /// above keeps the full recompute for caller-supplied objects.
-pub fn encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
+pub(crate) fn encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
     wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
 ) -> Result<
@@ -92,7 +92,7 @@ fn encode_validated_container(
     })
 }
 
-pub fn decode_optimized_program_storage_semantic_wrapper_object(
+pub(crate) fn decode_optimized_program_storage_semantic_wrapper_object(
     bytes: &[u8],
 ) -> Result<
     OptimizedProgramStorageSemanticWrapperObjectPlan,
