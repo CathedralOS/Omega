@@ -245,38 +245,46 @@ fn result_type(
                     // not the operand's range or refinement predicates.
                     join_result_type_references(program, &references, &anonymous)
                 })
+                .and_then(|result| {
+                    // Spelled boundary machines are rewritten to calls naming
+                    // their entry state. That state belongs to the same exact
+                    // callable contract as the original operator declaration;
+                    // its bare signature result is not an adapted result type.
+                    let Some(operator) =
+                        typed_trees::operator::resolve_named_expression_call(program, call)
+                            .or_else(|| {
+                                crate::machine_calls::calls::callee_entry_contract(
+                                    program,
+                                    call.target_symbol,
+                                )
+                                .and_then(|contract| {
+                                    typed_trees::operator::declaration_by_symbol(
+                                        program,
+                                        contract.callable,
+                                    )
+                                })
+                            })
+                    else {
+                        return Some(result);
+                    };
+                    let operands: Vec<_> = program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| result_type(program, owner, *argument, active))
+                        .collect();
+                    selected_operator_result_type_reference(
+                        program,
+                        operator.symbol,
+                        result,
+                        &operands,
+                    )
+                })
         }
         ExpressionNode::StructLiteral(literal) => program
             .type_reference_table
             .find_named_type_reference(literal.type_symbol),
-        ExpressionNode::Cast(cast) => {
-            // Cast policy and semantic-domain suffixes live outside target_type.
-            // Returning that bare target would erase the result qualification
-            // before a surrounding operator selects its meaning.
-            if program
-                .type_reference_table
-                .contains_type_reference(cast.result_type)
-            {
-                Some(cast.result_type)
-            } else if !cast.semantic_domain.is_empty() {
-                None
-            } else if cast.domain == ArithmeticDomain::Exact {
-                Some(cast.target_type)
-            } else if let TypeReferenceNode::Named { symbol, .. } = program
-                .type_reference_table
-                .type_reference(cast.target_type)
-            {
-                program.symbols.builtin_type_atom(*symbol).and_then(|_| {
-                    program
-                        .type_reference_table
-                        .find_arithmetic_result_type_reference(*symbol, cast.domain)
-                })
-            } else {
-                program
-                    .type_reference_table
-                    .find_policy_qualified_type_reference(cast.target_type, cast.domain)
-            }
-        }
+        ExpressionNode::Cast(cast) => cast_result_type_reference(program, cast),
         ExpressionNode::Indexed(indexed)
             if matches!(
                 program.expression_table.expression(indexed.index),
@@ -696,7 +704,12 @@ fn binary_result(
                 return Some(bound);
             }
             qualified_builtin_carrier(program, result, false)?;
-            return Some(result);
+            return selected_operator_result_type_reference(
+                program,
+                selected.operator.symbol,
+                result,
+                &operands,
+            );
         }
     }
     match binary.operator {
@@ -1034,4 +1047,79 @@ pub fn arithmetic_result_type_reference(
     program
         .type_reference_table
         .find_arithmetic_result_type_reference(carrier, policy)
+}
+
+/// Cast results retain the normalized policy and semantic-domain qualification;
+/// the authored membership target alone does not describe the resulting value.
+pub(crate) fn cast_result_type_reference(
+    program: &dyn crate::CheckingInput,
+    cast: &typed_trees::expression::TableCastExpression,
+) -> Option<TypeReferenceHandle> {
+    // Cast policy and semantic-domain suffixes live outside target_type.
+    // Returning that bare target would erase the result qualification
+    // before a surrounding operator selects its meaning.
+    if program
+        .type_reference_table
+        .contains_type_reference(cast.result_type)
+    {
+        Some(cast.result_type)
+    } else if !cast.semantic_domain.is_empty() {
+        None
+    } else if cast.domain == ArithmeticDomain::Exact {
+        Some(cast.target_type)
+    } else if let TypeReferenceNode::Named { symbol, .. } = program
+        .type_reference_table
+        .type_reference(cast.target_type)
+    {
+        program.symbols.builtin_type_atom(*symbol).and_then(|_| {
+            program
+                .type_reference_table
+                .find_arithmetic_result_type_reference(*symbol, cast.domain)
+        })
+    } else {
+        program
+            .type_reference_table
+            .find_policy_qualified_type_reference(cast.target_type, cast.domain)
+    }
+}
+
+/// Exact operands contribute no policy. Distinct explicit policies have no
+/// common selected adapter; validation diagnoses the incompatible operands.
+pub(crate) fn operand_arithmetic_domain(
+    program: &dyn crate::CheckingInput,
+    operands: &[Option<TypeReferenceHandle>],
+) -> Option<ArithmeticDomain> {
+    let mut selected = ArithmeticDomain::Exact;
+    for reference in operands.iter().flatten() {
+        let domain = program.type_reference_table.arithmetic_domain(*reference);
+        if domain == ArithmeticDomain::Exact {
+            continue;
+        }
+        if selected != ArithmeticDomain::Exact && selected != domain {
+            return None;
+        }
+        selected = domain;
+    }
+    Some(selected)
+}
+
+/// A selected sealed float operation owns its raw result and adapter. Ordinary
+/// declarations retain their own result, including Boolean queries and records.
+/// Operand refinements are never copied into a computed result.
+pub(crate) fn selected_operator_result_type_reference(
+    program: &dyn crate::CheckingInput,
+    operator: symbols::SymbolHandle,
+    declared_result: TypeReferenceHandle,
+    operands: &[Option<TypeReferenceHandle>],
+) -> Option<TypeReferenceHandle> {
+    if !crate::machine_calls::calls::selected_float_operation_retains_argument_policy(
+        program, operator,
+    ) {
+        return Some(declared_result);
+    }
+    let domain = operand_arithmetic_domain(program, operands)?;
+    let (carrier, _) = arithmetic_carrier(program, declared_result)?;
+    program
+        .type_reference_table
+        .find_arithmetic_result_type_reference(carrier, domain)
 }

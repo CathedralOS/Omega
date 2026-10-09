@@ -2,8 +2,9 @@
 //!
 //! Recover already-typed operands without borrowing an arithmetic destination:
 //! wholly anonymous trees keep exact meaning until their completed value lands.
-//! Explicit catalog calls, first-derivable match arms and direct cast targets
-//! have their own selection rules; general result typing cannot replace them.
+//! Statement-local places and explicit catalog landing supply candidate shells.
+//! Computed cast and selected operator policy belong to the shared result-type
+//! owner; candidate lookup never manufactures an adapted result from a peer.
 
 use checked_trees::CheckedValueOrigin;
 use numerics::literals::FloatFormat;
@@ -92,7 +93,9 @@ fn expression_type_reference_in_state(
             indexed.collection,
         )
         .and_then(|collection| indexed_element_type_reference(program, collection)),
-        ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::Cast(cast) => {
+            crate::value_custody::expression_types::cast_result_type_reference(program, cast)
+        }
         ExpressionNode::Call(call) => program
             .machine_holding_state(state_symbol)
             .zip(program.state_by_symbol(state_symbol))
@@ -126,11 +129,15 @@ fn expression_type_reference_in_state(
                                 *argument,
                             )
                         })
+                        .or_else(|| {
+                            contextual_type_reference_in_state(
+                                program,
+                                state_symbol,
+                                statement_index,
+                            )
+                        })
                 })
                 .flatten()
-                .or_else(|| {
-                    contextual_type_reference_in_state(program, state_symbol, statement_index)
-                })
             }),
         ExpressionNode::Binary(binary) => {
             let operands = [
@@ -159,41 +166,9 @@ fn expression_type_reference_in_state(
                 );
                 if let [candidate] = candidates.as_slice() {
                     if candidate.domain.is_none() {
-                        // Float arithmetic retains its selected operand policy for
-                        // enclosing operations; comparisons retain the declaration's
-                        // Boolean result instead of borrowing an operand carrier.
-                        if typed_trees::operator::primitive_float_binary_semantics(
-                            program,
-                            candidate.operator,
-                        )
-                        .is_some()
-                        {
-                            use checked_trees::CheckedArithmeticPolicyAdapter;
-                            use numerics::arithmetic::ArithmeticDomain;
-                            let domain = match super::uses::arithmetic_policy_adapter(
-                                program, spelling, &operands,
-                            ) {
-                                CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
-                                    ..
-                                } => ArithmeticDomain::Saturating,
-                                CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
-                                    ..
-                                } => ArithmeticDomain::Trapping,
-                                _ => ArithmeticDomain::Exact,
-                            };
-                            let TypeReferenceNode::Named {
-                                symbol: carrier, ..
-                            } = program
-                                .type_reference_table
-                                .type_reference(candidate.operator.return_type)
-                            else {
-                                return None;
-                            };
-                            return program
-                                .type_reference_table
-                                .find_arithmetic_result_type_reference(*carrier, domain);
-                        }
-                        return Some(candidate.operator.return_type);
+                        return crate::value_custody::expression_types::selected_operator_result_type_reference(
+                            program, candidate.operator.symbol, candidate.operator.return_type, &operands,
+                        );
                     }
                     return None;
                 } else if !candidates.is_empty() {
@@ -300,7 +275,7 @@ fn symbol_type_reference_in_state(
         .iter()
         .find(|parameter| {
             (symbol.is_valid() && parameter.symbol == symbol)
-                || name.is_some_and(|name| parameter.name.as_str() == name)
+                || (!symbol.is_valid() && name.is_some_and(|name| parameter.name.as_str() == name))
         })
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
@@ -323,7 +298,7 @@ fn local_type_reference_before_statement(
         .find_map(|statement| {
             let local = statement.as_local_data()?;
             ((symbol.is_valid() && local.symbol == symbol)
-                || name.is_some_and(|name| local.name.as_str() == name))
+                || (!symbol.is_valid() && name.is_some_and(|name| local.name.as_str() == name)))
             .then_some(local.type_reference)
         })
 }

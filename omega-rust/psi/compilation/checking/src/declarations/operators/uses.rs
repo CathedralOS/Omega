@@ -642,26 +642,16 @@ pub(super) fn named_float_policy_adapter(
     origin: CheckedValueOrigin,
     format: FloatFormat,
 ) -> CheckedArithmeticPolicyAdapter {
-    let mut selected_domain = ArithmeticDomain::Exact;
-    for argument in program.expression_table.expression_handles(call.arguments) {
-        let Some(type_reference) = expression_type_reference_for_origin(program, *argument, origin)
-        else {
-            continue;
-        };
-        let domain = program
-            .type_reference_table
-            .arithmetic_domain(type_reference);
-        if domain == ArithmeticDomain::Exact {
-            continue;
-        }
-        if selected_domain != ArithmeticDomain::Exact && selected_domain != domain {
-            // Validation rejects mixed explicit arithmetic policies. Checked
-            // evidence fails closed if lowering is invoked without that gate.
-            return CheckedArithmeticPolicyAdapter::None;
-        }
-        selected_domain = domain;
-    }
-    float_policy_adapter(format, selected_domain)
+    let operands: Vec<_> = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .iter()
+        .map(|argument| expression_type_reference_for_origin(program, *argument, origin))
+        .collect();
+    crate::value_custody::expression_types::operand_arithmetic_domain(program, &operands)
+        .map_or(CheckedArithmeticPolicyAdapter::None, |domain| {
+            float_policy_adapter(format, domain)
+        })
 }
 
 /// Records a spelled binary use when spelled candidates match the left
@@ -1010,7 +1000,6 @@ pub(super) fn arithmetic_policy_adapter(
     }
 
     let mut format = None;
-    let mut selected_domain = ArithmeticDomain::Exact;
     for type_reference in operand_types.iter().flatten().copied() {
         let candidate_format = match program.primitive_type_reference(type_reference) {
             Some(PrimitiveType::F32) => Some(FloatFormat::BINARY32),
@@ -1023,22 +1012,14 @@ pub(super) fn arithmetic_policy_adapter(
             }
             format = Some(candidate_format);
         }
-
-        let candidate_domain = program
-            .type_reference_table
-            .arithmetic_domain(type_reference);
-        if candidate_domain == ArithmeticDomain::Exact {
-            continue;
-        }
-        if selected_domain != ArithmeticDomain::Exact && selected_domain != candidate_domain {
-            return CheckedArithmeticPolicyAdapter::None;
-        }
-        selected_domain = candidate_domain;
     }
     let Some(format) = format else {
         return CheckedArithmeticPolicyAdapter::None;
     };
-    float_policy_adapter(format, selected_domain)
+    crate::value_custody::expression_types::operand_arithmetic_domain(program, operand_types)
+        .map_or(CheckedArithmeticPolicyAdapter::None, |domain| {
+            float_policy_adapter(format, domain)
+        })
 }
 
 fn float_policy_adapter(
