@@ -43,7 +43,7 @@ pub fn stage_allocated_callee_saved_requirements(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AllocatedCalleeSavedRequirementReceipt {
+pub struct AllocatedCalleeSavedRequirementReceipt {
     pub(in crate::preservation) identity: AllocatedCalleeSavedRequirementIdentity,
     pub(in crate::preservation) selected: SelectedInstructionPlanIdentity,
     pub(in crate::preservation) homes: RegisterHomeIdentity,

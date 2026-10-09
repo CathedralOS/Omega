@@ -71,7 +71,7 @@ pub(crate) fn assign_register_homes_reusing(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RegisterHomeValidationReceipt {
+pub struct RegisterHomeValidationReceipt {
     pub(crate) identity: RegisterHomeIdentity,
     pub(crate) legality: AllocationLegalityIdentity,
     pub(crate) ranges: LiveRangeIdentity,

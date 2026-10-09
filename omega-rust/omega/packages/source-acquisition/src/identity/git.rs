@@ -93,7 +93,7 @@ impl SourceLineage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct GitHubRepositoryLineage {
+pub struct GitHubRepositoryLineage {
     owner: String,
     repository: String,
 }
@@ -146,7 +146,7 @@ impl GitHubRepositoryLineage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct GitLabRepositoryLineage {
+pub struct GitLabRepositoryLineage {
     repository_path: String,
 }
 
@@ -184,7 +184,7 @@ impl GitLabRepositoryLineage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct GenericGitLineage {
+pub struct GenericGitLineage {
     transport: GitTransport,
     user: Option<String>,
     host: String,

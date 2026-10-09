@@ -10,7 +10,7 @@ use target::NativeTarget;
 use crate::register_model::aarch64_preservation_convention_for_target;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Aarch64PreservationStorageCatalogError {
+pub enum Aarch64PreservationStorageCatalogError {
     UnsupportedTarget,
     PhysicalRegisterModelMismatch,
     InvalidCatalog(PreservationStorageCatalogValidationError),

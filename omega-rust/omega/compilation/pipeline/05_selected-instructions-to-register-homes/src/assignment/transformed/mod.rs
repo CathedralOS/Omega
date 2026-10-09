@@ -142,7 +142,7 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
+pub struct StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
     source: StagedOptimizedLiteralFoldCustodyReceipt,
     homes: RegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
@@ -255,7 +255,7 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
+pub struct StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
     source: StagedSelectedLoweringOptimizationCustodyReceipt,
     homes: RegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
@@ -374,7 +374,7 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedPostPreAllocationHomeCustodyReceipt {
+pub struct StagedOptimizedPostPreAllocationHomeCustodyReceipt {
     source: StagedPreAllocationOptimizationCustodyReceipt,
     homes: RegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,

@@ -150,7 +150,7 @@ impl StagedOptimizedActiveResidentRematerialization {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     source: StagedOptimizedAllocationLegalityCustodyReceipt,
     choices: SpillChoiceIdentity,
     choice_policy: SpillChoicePolicy,

@@ -8,7 +8,7 @@ use std::sync::Arc;
 /// never permission to reopen the checkout after acquisition. Persistence is
 /// a separate operation for transaction and review custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CapturedLocalSource {
+pub struct CapturedLocalSource {
     pub(super) requested_root: PathBuf,
     pub(super) normalized: ResolvedSourceTree,
     pub(super) tree: Arc<source::CapturedSourceTree>,
