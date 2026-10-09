@@ -23,8 +23,7 @@ pub(crate) use filesystem::{  filesystem_mechanism_row };
 pub use filesystem::{ UnsettledFilesystemRequirement};
 pub use model::{
     TerminalAuthorityPolicy};
-pub(crate) use model::{ TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,
-    UnclassifiedTerminalMechanism};
+pub(crate) use model::{ TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow};
 
 pub(crate) use normalized_foreign::{
     normalized_foreign_terminal_mechanism,

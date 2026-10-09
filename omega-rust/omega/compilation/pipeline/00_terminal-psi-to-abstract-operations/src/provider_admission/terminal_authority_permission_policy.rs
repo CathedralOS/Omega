@@ -3,8 +3,7 @@
 pub use effects::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
 use effects::{
     TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
-    provider_plan::ServiceSchemaDigest,
-};
+    provider_plan::ServiceSchemaDigest};
 use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 
