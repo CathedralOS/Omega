@@ -18,6 +18,7 @@
 //! `semantic_wrapper_object.rs` for the optimized ProgramStorage
 //! semantic-wrapper object records and codec that native realization stages.
 
+mod codec_bytes;
 mod cursor;
 mod digest_encoder;
 mod entry_receiver;

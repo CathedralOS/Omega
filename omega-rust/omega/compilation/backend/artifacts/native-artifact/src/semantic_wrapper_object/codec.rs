@@ -80,7 +80,7 @@ fn encode_validated_container(
 > {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(CONTAINER_MAGIC);
-    bytes.extend_from_slice(&CODEC_VERSION.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, CODEC_VERSION.to_le_bytes());
     bytes.extend_from_slice(&object.identity.bytes());
     bytes.extend_from_slice(&encode_plan_content(object)?);
     Ok(OptimizedProgramStorageSemanticWrapperObjectContainer {
@@ -135,7 +135,7 @@ pub(super) fn encode_plan_content(
     encode_psi(&mut bytes, object.psi);
     encode_target(&mut bytes, object.target);
     encode_string(&mut bytes, &object.text_section_name)?;
-    bytes.extend_from_slice(&object.text_section_alignment.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, object.text_section_alignment.to_le_bytes());
     encode_bytes(&mut bytes, &object.text_bytes)?;
     bytes.extend_from_slice(
         &u64::try_from(object.symbols.len())
@@ -143,35 +143,35 @@ pub(super) fn encode_plan_content(
             .to_le_bytes(),
     );
     for symbol in &object.symbols {
-        bytes.extend_from_slice(&symbol.symbol.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, symbol.symbol.get().to_le_bytes());
         match symbol.source_function_index {
             Some(index) => {
                 bytes.push(1);
-                bytes.extend_from_slice(&index.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, index.to_le_bytes());
             }
             None => bytes.push(0),
         }
         match symbol.machine {
             Some(machine) => {
                 bytes.push(1);
-                bytes.extend_from_slice(&machine.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, machine.get().to_le_bytes());
             }
             None => bytes.push(0),
         }
         encode_string(&mut bytes, &symbol.name)?;
-        bytes.extend_from_slice(&symbol.section_offset.to_le_bytes());
-        bytes.extend_from_slice(&symbol.byte_count.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, symbol.section_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, symbol.byte_count.to_le_bytes());
         bytes.push(match symbol.role {
             OptimizedProgramStorageSemanticWrapperObjectSymbolRole::SemanticWrapperV1 => 1,
             OptimizedProgramStorageSemanticWrapperObjectSymbolRole::PrivateTerminalContinuationV1 => 2,
             OptimizedProgramStorageSemanticWrapperObjectSymbolRole::PrivateTerminalFunctionV1 => 3,
         });
     }
-    bytes.extend_from_slice(&object.wrapper_symbol.get().to_le_bytes());
-    bytes.extend_from_slice(&object.continuation_symbol.get().to_le_bytes());
-    bytes.extend_from_slice(&object.wrapper_byte_count.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, object.wrapper_symbol.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, object.continuation_symbol.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, object.wrapper_byte_count.to_le_bytes());
     bytes.push(1);
-    bytes.extend_from_slice(&object.call_resolution.wrapper_section_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, object.call_resolution.wrapper_section_offset.to_le_bytes());
     bytes.extend_from_slice(
         &object
             .call_resolution
@@ -184,8 +184,8 @@ pub(super) fn encode_plan_content(
             .next_instruction_section_offset
             .to_le_bytes(),
     );
-    bytes.extend_from_slice(&object.call_resolution.displacement.to_le_bytes());
-    bytes.extend_from_slice(&object.relocation_record_count.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, object.call_resolution.displacement.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, object.relocation_record_count.to_le_bytes());
     Ok(bytes)
 }
 
@@ -302,11 +302,11 @@ pub(super) fn encode_manifest_content(
     bytes.extend_from_slice(&manifest.source_signature);
     encode_psi(bytes, manifest.psi);
     encode_target(bytes, manifest.target);
-    bytes.extend_from_slice(&manifest.wrapper_symbol.get().to_le_bytes());
-    bytes.extend_from_slice(&manifest.continuation_symbol.get().to_le_bytes());
-    bytes.extend_from_slice(&manifest.text_byte_count.to_le_bytes());
-    bytes.extend_from_slice(&manifest.symbol_count.to_le_bytes());
-    bytes.extend_from_slice(&manifest.relocation_record_count.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, manifest.wrapper_symbol.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, manifest.continuation_symbol.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, manifest.text_byte_count.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, manifest.symbol_count.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, manifest.relocation_record_count.to_le_bytes());
     bytes.extend_from_slice(&[1, 1, 1, 1]);
 }
 
@@ -315,7 +315,7 @@ pub(super) fn encode_manifest(
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(MANIFEST_MAGIC);
-    bytes.extend_from_slice(&CODEC_VERSION.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, CODEC_VERSION.to_le_bytes());
     bytes.extend_from_slice(&manifest.identity.bytes());
     encode_manifest_content(&mut bytes, manifest);
     bytes
@@ -398,7 +398,7 @@ pub(super) fn decode_manifest(
 }
 
 fn encode_psi(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
-    bytes.extend_from_slice(&identity.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, identity.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(identity.program_fingerprint.as_bytes());
 }
 
