@@ -10,14 +10,14 @@
 //! headers; resolve payload-internal dynamic/procedure/source relocations;
 //! mutate the retained `FinalImage`; or claim a runnable image.
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_u32, read_u64, require,
 };
 use crate::dynamic_executable::load_placement::load_layout::{
-    ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind, ValidatedElfDynamicLoadLayout,
-    public_section_kind,
+    ElfResolvedSectionHeaderPlacement, ElfSectionPlacementResolutionKind,
+    ValidatedElfDynamicLoadLayout, public_section_kind,
 };
 use crate::dynamic_executable::section_headers::section_header_bytes::ElfSectionHeaderPlacementFixupKind;
 use crate::dynamic_executable::section_headers::section_roster::ElfNumericSectionDescriptor;
@@ -32,42 +32,9 @@ const FILE_OFFSET_PLACEMENT_COUNT: usize = 13;
 const VIRTUAL_ADDRESS_PLACEMENT_COUNT: usize = 12;
 const PLACEMENT_COUNT: usize = 25;
 const SECTION_NAME_TABLE_INDEX: usize = 13;
-/// One placement application retained beside the resulting bytes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ElfAppliedSectionHeaderPlacement {
-    row_index: u32,
-    section_kind: ElfPlacedDynamicSectionKind,
-    byte_offset: usize,
-    byte_width: u8,
-    kind: ElfSectionPlacementResolutionKind,
-    value: u64,
-}
-
-impl ElfAppliedSectionHeaderPlacement {
-    pub const fn row_index(&self) -> u32 {
-        self.row_index
-    }
-
-    pub const fn section_kind(&self) -> ElfPlacedDynamicSectionKind {
-        self.section_kind
-    }
-
-    pub const fn byte_offset(&self) -> usize {
-        self.byte_offset
-    }
-
-    pub const fn byte_width(&self) -> u8 {
-        self.byte_width
-    }
-
-    pub const fn kind(&self) -> ElfSectionPlacementResolutionKind {
-        self.kind
-    }
-
-    pub const fn value(&self) -> u64 {
-        self.value
-    }
-}
+/// One placement application retained beside the resulting bytes — the
+/// resolved placement itself, verbatim.
+pub type ElfAppliedSectionHeaderPlacement = ElfResolvedSectionHeaderPlacement;
 
 /// Independently decoded section-header bytes retaining exact load-layout
 /// custody.
@@ -248,14 +215,7 @@ fn derive_contents(
             "ELF section-header placement input is not an exact zero placeholder",
         )?;
         field.copy_from_slice(&resolution.value().to_le_bytes());
-        applications.push(ElfAppliedSectionHeaderPlacement {
-            row_index: resolution.row_index(),
-            section_kind: resolution.section_kind(),
-            byte_offset: resolution.byte_offset(),
-            byte_width: resolution.byte_width(),
-            kind: resolution.kind(),
-            value: resolution.value(),
-        });
+        applications.push(*resolution);
     }
     Ok(ElfPlacedSectionHeaderContents {
         bytes,

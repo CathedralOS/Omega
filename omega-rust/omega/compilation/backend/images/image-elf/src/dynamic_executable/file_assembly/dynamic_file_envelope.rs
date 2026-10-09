@@ -11,7 +11,7 @@
 //! copy any dynamic payload into a file image, mutate the retained `FinalImage`,
 //! grant loader, publication, or runnable-image authority.
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::dynamic_executable::checked::{

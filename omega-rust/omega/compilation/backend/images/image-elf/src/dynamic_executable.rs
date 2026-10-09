@@ -32,7 +32,6 @@
 //! that needs to hold an intermediate.
 
 mod checked;
-mod compatibility_hash;
 pub(crate) mod dynamic_table;
 pub(crate) mod file_assembly;
 pub(crate) mod import_sections;

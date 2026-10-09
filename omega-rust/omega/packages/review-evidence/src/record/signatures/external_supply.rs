@@ -87,61 +87,8 @@ impl PackageReviewForeignLocator {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewEvaluatedBindingUsage {
-    pub(crate) usage_schema_version: u32,
-    pub(crate) step_schedule_marker: u32,
-    pub(crate) fuel_units: u64,
-    pub(crate) fuel_ceiling: u64,
-    pub(crate) build_log_bytes: u64,
-    pub(crate) filesystem_operation_attempts: u64,
-    pub(crate) peak_live_cells: u64,
-    pub(crate) peak_live_text_bytes: u64,
-    pub(crate) result_cells: u64,
-    pub(crate) result_text_bytes: u64,
-}
-
-impl PackageReviewEvaluatedBindingUsage {
-    pub const fn usage_schema_version(self) -> u32 {
-        self.usage_schema_version
-    }
-
-    pub const fn step_schedule_marker(self) -> u32 {
-        self.step_schedule_marker
-    }
-
-    pub const fn fuel_units(self) -> u64 {
-        self.fuel_units
-    }
-
-    pub const fn fuel_ceiling(self) -> u64 {
-        self.fuel_ceiling
-    }
-
-    pub const fn build_log_bytes(self) -> u64 {
-        self.build_log_bytes
-    }
-
-    pub const fn filesystem_operation_attempts(self) -> u64 {
-        self.filesystem_operation_attempts
-    }
-
-    pub const fn peak_live_cells(self) -> u64 {
-        self.peak_live_cells
-    }
-
-    pub const fn peak_live_text_bytes(self) -> u64 {
-        self.peak_live_text_bytes
-    }
-
-    pub const fn result_cells(self) -> u64 {
-        self.result_cells
-    }
-
-    pub const fn result_text_bytes(self) -> u64 {
-        self.result_text_bytes
-    }
-}
+/// The review record retains the provider's evaluated-usage carrier verbatim.
+pub type PackageReviewEvaluatedBindingUsage = effects::provider_plan::EvaluatedBindingUsage;
 
 /// Stable, source-handle-free review identity for one evaluated import.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

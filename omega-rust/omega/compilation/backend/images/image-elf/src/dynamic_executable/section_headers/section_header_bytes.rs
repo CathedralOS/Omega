@@ -9,7 +9,7 @@
 //! [`Elf64_Shdr`]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::bytes::{write_u32, write_u64};
 use crate::dynamic_executable::checked::{

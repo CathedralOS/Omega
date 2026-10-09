@@ -13,7 +13,7 @@
 //! [`DT_GNU_HASH` implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 //! [symbol versioning]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::dynamic_executable::checked::require;

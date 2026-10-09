@@ -35,7 +35,7 @@ evaluated_binding_digest!(EvaluatedBindingMaterializationDigest);
 /// Complete deterministic evaluator usage retained by one successful foreign
 /// binding materialization. The evaluator owns these values; this carrier only
 /// preserves them in provider identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EvaluatedBindingUsage {
     usage_schema_version: u32,
     step_schedule_marker: u32,

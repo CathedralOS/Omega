@@ -46,10 +46,7 @@ pub(super) fn validate(
     if predecessor_index + 1 != predecessor.nodes.len() {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let predecessor_node = predecessor
-        .nodes
-        .get(predecessor_index)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let predecessor_node = crate::candidates::candidate_node(predecessor, patch.predecessor.node)?;
     let O::Jump {
         structural_bindings: _,
         psi_edge,

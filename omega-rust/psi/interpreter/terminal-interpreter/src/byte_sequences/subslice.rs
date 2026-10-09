@@ -35,12 +35,10 @@ impl TerminalExecution<'_> {
         let start = count(start)?;
         let end = count(end)?;
         let length = count(length)?;
-        let source_value = self.structural_values.get(source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
-        )?;
-        let binding = self.byte_sequence_values.get(source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
-        )?;
+        let source_value =
+            crate::custody::verified_structural_place(&self.structural_values, *source)?;
+        let binding =
+            crate::custody::verified_structural_place(&self.byte_sequence_values, *source)?;
         let mutable = result.multiplicity == StructuralMultiplicity::Affine;
         let source_mutable = matches!(
             binding,

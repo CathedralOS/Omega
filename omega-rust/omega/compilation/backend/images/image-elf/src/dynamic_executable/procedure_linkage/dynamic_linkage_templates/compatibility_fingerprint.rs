@@ -1,6 +1,6 @@
 //! The report-only template compatibility fingerprint.
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::ValidatedElfProcedureLinkageRelocationPlan;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_plans::{

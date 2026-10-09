@@ -11,7 +11,7 @@
 //! the retained `FinalImage`, publish bytes, or grant loader or
 //! runnable-image authority.
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
     ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,

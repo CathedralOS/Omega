@@ -945,9 +945,7 @@ impl TerminalExecution<'_> {
         if result.scalar_type != ScalarType::Integer(integer_type) {
             return Err(malformed());
         }
-        let view = self.element_view_values.get(source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
-        )?;
+        let view = crate::custody::verified_structural_place(&self.element_view_values, *source)?;
         self.values.insert(
             result.id,
             TerminalScalarValue::Integer {
@@ -979,9 +977,7 @@ impl TerminalExecution<'_> {
         let result = operation.result.scalar().ok_or_else(malformed)?;
         let index = count(index, &self.values)?;
         let length = count(length, &self.values)?;
-        let view = self.element_view_values.get(source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
-        )?;
+        let view = crate::custody::verified_structural_place(&self.element_view_values, *source)?;
         if view.len() != length || index >= length {
             return Err(malformed());
         }
@@ -1035,12 +1031,9 @@ impl TerminalExecution<'_> {
         let start = count(start, &self.values)?;
         let end = count(end, &self.values)?;
         let length = count(length, &self.values)?;
-        let source_value = self.structural_values.get(source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
-        )?;
-        let view = self.element_view_values.get(source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
-        )?;
+        let source_value =
+            crate::custody::verified_structural_place(&self.structural_values, *source)?;
+        let view = crate::custody::verified_structural_place(&self.element_view_values, *source)?;
         let machine = self.program.verified_machine(self.current_machine)?;
         let access = match result.multiplicity {
             StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,

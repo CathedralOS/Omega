@@ -16,7 +16,7 @@
 //! [x86-64 psABI]: https://gitlab.com/x86-psABIs/x86-64-ABI
 //! [AArch64 ELF ABI]: https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ValidatedElfDynamicSectionDescriptorPlan;

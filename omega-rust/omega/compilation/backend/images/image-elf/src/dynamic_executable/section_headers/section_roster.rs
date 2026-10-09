@@ -10,7 +10,7 @@
 //! [section header]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [`e_shstrndx`]: https://gabi.xinuos.com/elf/02-eheader.html#elf-header
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;

@@ -203,9 +203,8 @@ impl TerminalExecution<'_> {
         source: PlaceId,
         path: &[CanonicalStructuralPathSegment],
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        let mut leaf = self.structural_values.get(&source).cloned().ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )?;
+        let mut leaf =
+            crate::custody::verified_structural_place(&self.structural_values, source).cloned()?;
         let mut case_fields = None;
         let mut saw_case = false;
         for segment in path {
@@ -409,12 +408,7 @@ pub(crate) fn case_projection_is_active(
     if selected.peek().is_none() {
         return Ok(true);
     }
-    let root =
-        values
-            .get(&source)
-            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                source,
-            ))?;
+    let root = crate::custody::verified_structural_place(values, source)?;
     // Field events carry their final leaf separately. Their last Case selects
     // its payload namespace rather than a structural child; still validate
     // that exact discriminator below, without inventing a payload record.

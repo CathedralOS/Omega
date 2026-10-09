@@ -13,7 +13,7 @@
 //! [GNU section types]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html
 //! [original GNU implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;

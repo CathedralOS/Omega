@@ -92,9 +92,9 @@ impl TerminalExecution<'_> {
                 TerminalScalarArrayResult { value },
             ))
         } else {
-            let mut value = self.structural_values.get(source).cloned().ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
-            )?;
+            let mut value =
+                crate::custody::verified_structural_place(&self.structural_values, *source)
+                    .cloned()?;
             let byte_sequence = self.byte_sequence_values.get(source).cloned();
             let element_view = self.element_view_values.get(source).cloned();
             if matches!(&byte_sequence, Some(ByteSequenceBinding::Immutable(view)) if !view.matches_descriptor_home(&value))

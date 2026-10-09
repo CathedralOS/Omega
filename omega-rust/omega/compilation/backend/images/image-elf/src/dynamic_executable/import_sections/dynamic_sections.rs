@@ -16,7 +16,7 @@
 //! [`DT_GNU_HASH` implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 //! [LSB symbol versioning]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::checked::checked_u32;
 use crate::dynamic_executable::import_sections::dynamic_link::PlannedElfDynamicLinkInputs;

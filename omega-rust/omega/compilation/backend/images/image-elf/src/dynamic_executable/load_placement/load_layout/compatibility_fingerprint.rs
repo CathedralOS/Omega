@@ -1,6 +1,6 @@
 //! The report-only layout compatibility fingerprint and checked arithmetic.
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::load_placement::load_layout::{
     DYNAMIC_LOAD_POLICY_TAG, ElfLoadImageMemoryPlacement, ElfLoadProgramHeader,

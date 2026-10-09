@@ -151,13 +151,11 @@ impl BlockBindings {
             discarded.insert(place);
             match action {
                 TerminalAffineCleanupAction::DiscardRoot(_) => {
-                    let structural_type = execution
-                        .structural_values
-                        .get(&place)
-                        .map(|value| value.structural_type)
-                        .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                            place,
-                        ))?;
+                    let structural_type = crate::custody::verified_structural_place(
+                        &execution.structural_values,
+                        place,
+                    )
+                    .map(|value| value.structural_type)?;
                     if claims.values().any(|claim| claim.place == Some(place))
                         || frontier
                             .iter()

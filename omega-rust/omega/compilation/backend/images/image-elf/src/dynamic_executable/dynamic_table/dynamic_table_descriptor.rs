@@ -10,7 +10,7 @@
 //! [System V ABI section header]: https://gabi.xinuos.com/elf/03-sheader.html
 //! [dynamic section]: https://gabi.xinuos.com/elf/08-dynamic.html#dynamic-section
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::ValidatedElfDynamicTablePayload;

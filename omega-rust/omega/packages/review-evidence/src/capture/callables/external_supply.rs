@@ -1,8 +1,8 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{
-    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
-    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding, PackageReviewForeignLocator,
+    PackageReviewEvaluatedImport, PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
+    PackageReviewForeignLocator,
 };
 use diagnostics::Diagnostic;
 
@@ -39,18 +39,7 @@ fn project_evaluated_import(
             producer_callable_identity: receipt.producer_callable_identity().to_owned(),
             producer_closure_digest: receipt.producer_closure_digest().as_bytes(),
             evaluator_semantics_marker: receipt.evaluator_semantics_marker(),
-            evaluation_usage: PackageReviewEvaluatedBindingUsage {
-                usage_schema_version: usage.usage_schema_version(),
-                step_schedule_marker: usage.step_schedule_marker(),
-                fuel_units: usage.fuel_units(),
-                fuel_ceiling: usage.fuel_ceiling(),
-                build_log_bytes: usage.build_log_bytes(),
-                filesystem_operation_attempts: usage.filesystem_operation_attempts(),
-                peak_live_cells: usage.peak_live_cells(),
-                peak_live_text_bytes: usage.peak_live_text_bytes(),
-                result_cells: usage.result_cells(),
-                result_text_bytes: usage.result_text_bytes(),
-            },
+            evaluation_usage: usage,
             evaluation_digest: receipt.evaluation_digest().as_bytes(),
             materializer_schema_version: receipt.materializer_schema_version(),
             materialization_digest: receipt.materialization_digest().as_bytes(),
@@ -77,18 +66,7 @@ fn project_evaluated_syscall(
             producer_callable_identity: receipt.producer_callable_identity().to_owned(),
             producer_closure_digest: receipt.producer_closure_digest().as_bytes(),
             evaluator_semantics_marker: receipt.evaluator_semantics_marker(),
-            evaluation_usage: PackageReviewEvaluatedBindingUsage {
-                usage_schema_version: usage.usage_schema_version(),
-                step_schedule_marker: usage.step_schedule_marker(),
-                fuel_units: usage.fuel_units(),
-                fuel_ceiling: usage.fuel_ceiling(),
-                build_log_bytes: usage.build_log_bytes(),
-                filesystem_operation_attempts: usage.filesystem_operation_attempts(),
-                peak_live_cells: usage.peak_live_cells(),
-                peak_live_text_bytes: usage.peak_live_text_bytes(),
-                result_cells: usage.result_cells(),
-                result_text_bytes: usage.result_text_bytes(),
-            },
+            evaluation_usage: usage,
             evaluation_digest: receipt.evaluation_digest().as_bytes(),
             materializer_schema_version: receipt.materializer_schema_version(),
             materialization_digest: receipt.materialization_digest().as_bytes(),
@@ -133,7 +111,8 @@ pub(super) fn project_external_binding(
             if !machine.attached_data_symbol.is_valid()
                 || machine.attached_data.is_none()
                 || !compilation
-                    .data_definition_by_symbol(machine.attached_data_symbol).is_some() =>
+                    .data_definition_by_symbol(machine.attached_data_symbol)
+                    .is_some() =>
         {
             rejected("has table-field supply without one exact attached provider data declaration")
         }

@@ -92,7 +92,8 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
     if patch.leader.machine != patch.redundant.machine {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input.function(patch.leader.machine)
+    let function = input
+        .function(patch.leader.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let leader_block = function
         .block(patch.leader.block)
@@ -109,10 +110,7 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let redundant_index = usize::try_from(patch.redundant.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let redundant = redundant_block
-        .nodes
-        .get(redundant_index)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let redundant = crate::candidates::candidate_node(redundant_block, patch.redundant.node)?;
     if redundant_block.nodes.get(redundant_index + 1).is_none() {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }

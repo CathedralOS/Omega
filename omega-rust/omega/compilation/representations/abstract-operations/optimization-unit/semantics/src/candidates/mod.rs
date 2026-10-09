@@ -156,7 +156,8 @@ pub(crate) fn candidate_function(
     input: &PsiOptimizationUnit,
     machine: semantic_vocabulary::MachineId,
 ) -> Result<&PsiOptimizationFunction, OptimizationUnitValidationError> {
-    input.function(machine)
+    input
+        .function(machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
 }
 
@@ -169,8 +170,11 @@ pub(crate) fn rebuild_node_metadata(
 ) -> Result<(), OptimizationUnitValidationError> {
     let node_index = u32::try_from(node_index)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    node.definitions =
-        crate::unit_validation::derived_metadata::expected_definitions(&node.operation, block, node_index);
+    node.definitions = crate::unit_validation::derived_metadata::expected_definitions(
+        &node.operation,
+        block,
+        node_index,
+    );
     node.uses =
         crate::unit_validation::derived_metadata::expected_uses(&node.operation, block, node_index);
     node.successors = rewrite_accounting::preserve_edge_custody(node);
@@ -193,11 +197,25 @@ pub(crate) fn set_node_effect_link(
     Ok(output)
 }
 
+/// The block's node at `node`, or CandidateLocationMissing.
+pub(crate) fn candidate_node(
+    block: &optimization_unit::OptimizationBlock,
+    node: u32,
+) -> Result<&optimization_unit::OptimizationNode, OptimizationUnitValidationError> {
+    let index = usize::try_from(node)
+        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+    block
+        .nodes
+        .get(index)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
+}
+
 /// The function's block at `block`, or CandidateLocationMissing.
 pub(crate) fn candidate_block(
     function: &PsiOptimizationFunction,
     block: semantic_vocabulary::BlockId,
 ) -> Result<&optimization_unit::OptimizationBlock, OptimizationUnitValidationError> {
-    function.block(block)
+    function
+        .block(block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
 }

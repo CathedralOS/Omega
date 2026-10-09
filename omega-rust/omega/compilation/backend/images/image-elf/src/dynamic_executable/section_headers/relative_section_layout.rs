@@ -7,7 +7,7 @@
 //! absolute file offset or virtual address, resolve a section-header fixup,
 //! emit a program header, or mutate an image.
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::dynamic_table::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;

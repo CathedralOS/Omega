@@ -356,13 +356,11 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .ok_or(TerminalInterpretError::ZeroInitializedArgumentInvalid {
                     argument_index: *argument_index,
                 })?;
-            let value = execution
-                .structural_values
-                .get(&parameter.place)
-                .cloned()
-                .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    parameter.place,
-                ))?;
+            let value = crate::custody::verified_structural_place(
+                &execution.structural_values,
+                parameter.place,
+            )
+            .cloned()?;
             let established_fields = established_erased_fields
                 .iter()
                 .filter(|field| field.argument_index == *argument_index)

@@ -875,9 +875,8 @@ impl TerminalExecution<'_> {
         self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)?;
         let claims =
             self.stage_window_store_claims(destination, path, &hole, value.place, &mut frontier)?;
-        let child = self.structural_values.get(&value.place).cloned().ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(value.place),
-        )?;
+        let child = crate::custody::verified_structural_place(&self.structural_values, value.place)
+            .cloned()?;
         if child.structural_type != field_type || !child.qualifications.is_empty() {
             return Err(malformed());
         }

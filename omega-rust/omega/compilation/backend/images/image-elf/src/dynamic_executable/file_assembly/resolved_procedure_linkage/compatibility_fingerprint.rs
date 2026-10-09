@@ -1,6 +1,6 @@
 //! The report-only resolved linkage compatibility fingerprint.
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::ElfAppliedProcedureLinkageTarget;

@@ -67,17 +67,15 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     if candidate.node_decision_point() != Some(patch.redundant) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input.function(patch.redundant.machine)
+    let function = input
+        .function(patch.redundant.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let join = function
         .block(patch.redundant.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let redundant_index = usize::try_from(patch.redundant.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let redundant = join
-        .nodes
-        .get(redundant_index)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let redundant = crate::candidates::candidate_node(join, patch.redundant.node)?;
     if function.entry == join.id
         || join.nodes.get(redundant_index + 1).is_none()
         || usize::try_from(patch.parameter_position).ok() != Some(join.parameters.len())
@@ -341,9 +339,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
                     .any(|edge| edge.psi_edge == incoming.edge)
             })
             .expect("incoming edge exists");
-        let edge = node
-            .edge(incoming.edge)
-            .expect("incoming edge exists");
+        let edge = node.edge(incoming.edge).expect("incoming edge exists");
         let mut bindings = edge.bindings.clone();
         bindings.push(abstract_operations::ValueBinding {
             parameter: patch.redundant_result,

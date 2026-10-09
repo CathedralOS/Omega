@@ -5,7 +5,7 @@
 //! fixups. It does not place bytes, resolve a fixup, emit program headers, or
 //! mutate the image.
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::dynamic_table::dynamic_tag_bytes::{

@@ -84,9 +84,7 @@ impl TerminalExecution<'_> {
                     // live window the root's place carries, the same bound
                     // an element-view write's `length` operand names.
                     StructuralTypeShape::ElementView { .. } if position == 0 => u64::try_from(
-                        self.element_view_values
-                            .get(&root)
-                            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(root))?
+                        crate::custody::verified_structural_place(&self.element_view_values, root)?
                             .len(),
                     )
                     .map_err(|_| malformed())?,

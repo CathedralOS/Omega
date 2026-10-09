@@ -14,7 +14,7 @@
 //! [x86-64 psABI]: https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/dl.tex
 //! [AArch64 System V ABI]: https://github.com/ARM-software/abi-aa/blob/main/sysvabi64/sysvabi64.rst#procedure-linkage-table
 
-use crate::dynamic_executable::compatibility_hash::Fnv1a;
+use target::compatibility_fingerprint::Fnv1a;
 
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ValidatedElfProcedureLinkageTemplatePlan;

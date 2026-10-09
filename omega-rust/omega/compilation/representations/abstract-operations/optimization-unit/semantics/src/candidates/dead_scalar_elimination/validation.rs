@@ -30,10 +30,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
     let block = candidate_block(function, patch.location.block)?;
     let node_index = usize::try_from(patch.location.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let node = block
-        .nodes
-        .get(node_index)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = crate::candidates::candidate_node(block, patch.location.node)?;
     let (source_operation, result, scalar_type, obligation) =
         independently_validated_dead_scalar_shape(candidate.rule(), &node.operation)
             .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
