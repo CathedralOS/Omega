@@ -8,8 +8,10 @@ mod cache;
 mod dependencies;
 mod errors;
 mod external_local;
+mod git;
 mod git_pins;
 mod locked;
+mod workspace;
 
 pub(crate) use errors::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError};
