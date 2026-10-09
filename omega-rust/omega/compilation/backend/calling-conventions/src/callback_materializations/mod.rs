@@ -74,24 +74,6 @@ pub fn callback_requirement_id(canonical_requirement: &str) -> CallbackRequireme
     ))
     .expect("callback requirement identity is nonzero")
 }
-
-/// Compiler-issued identity of one runtime parameter in an exact boundary
-/// requirement. The source parameter ordinal is an input to this constructor,
-/// never itself a native-place identity.
-pub(crate) fn callback_native_parameter_id(
-    canonical_requirement: &str,
-    parameter_ordinal: u32,
-) -> NativeParameterId {
-    NativeParameterId::new(callback_nominal_report_fingerprint(
-        b"omega.callback-native-parameter.v1",
-        &[
-            canonical_requirement.as_bytes(),
-            &parameter_ordinal.to_le_bytes(),
-        ],
-    ))
-    .expect("callback native-parameter identity is nonzero")
-}
-
 /// Compiler-issued nominal identity for a declared native-parameter name.
 ///
 /// This v2 domain deliberately replaces the earlier ordinal-derived report
@@ -362,7 +344,7 @@ mod tests {
         CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
         CallbackRequirementId, LayoutPlanId, LayoutSlotId, NativeCallbackDemand, NativeParameterId,
         NativePlace, StaticMachineBinderId, callback_layout_field_slot_id, callback_layout_plan_id,
-        callback_layout_slot_id, callback_native_parameter_id, callback_plan_laid_layout_id,
+        callback_layout_slot_id, callback_plan_laid_layout_id,
         callback_requirement_id, nominal_callback_native_parameter_id,
     };
     use crate::{
@@ -370,73 +352,6 @@ mod tests {
         validate_boundary_entry_plan, validate_boundary_entry_plan_with_callback_materializations,
     };
 
-    #[test]
-    fn target_closed_nominal_identities_are_domain_separated_and_mutation_sensitive() {
-        let first_layout = callback_layout_plan_id(0x101, 8, 8);
-        assert_eq!(first_layout, callback_layout_plan_id(0x101, 8, 8));
-        assert_ne!(first_layout, callback_layout_plan_id(0x102, 8, 8));
-        assert_ne!(first_layout, callback_layout_plan_id(0x101, 4, 4));
-        let first_nominal =
-            callback_plan_laid_layout_id(0x101, "package::Data", "package::First", 8, 8);
-        assert_eq!(
-            first_nominal,
-            callback_plan_laid_layout_id(0x101, "package::Data", "package::First", 8, 8)
-        );
-        assert_ne!(
-            first_nominal,
-            callback_plan_laid_layout_id(0x101, "package::Data", "package::Second", 8, 8)
-        );
-        assert_ne!(
-            first_nominal,
-            callback_plan_laid_layout_id(0x101, "package::OtherData", "package::First", 8, 8)
-        );
-        assert_ne!(first_nominal, first_layout);
-
-        let first_slot = callback_layout_slot_id(first_layout, "package::WindowSlot");
-        assert_ne!(
-            first_slot,
-            callback_layout_field_slot_id(first_layout, "package::WindowSlot")
-        );
-        assert_eq!(
-            first_slot,
-            callback_layout_slot_id(first_layout, "package::WindowSlot")
-        );
-        assert_ne!(
-            first_slot,
-            callback_layout_slot_id(first_layout, "package::OtherSlot")
-        );
-        assert_ne!(
-            first_slot,
-            callback_layout_slot_id(callback_layout_plan_id(0x102, 8, 8), "package::WindowSlot")
-        );
-
-        let requirement = callback_requirement_id("package::WindowProcedure::call#exact");
-        assert_eq!(
-            requirement,
-            callback_requirement_id("package::WindowProcedure::call#exact")
-        );
-        assert_ne!(
-            requirement,
-            callback_requirement_id("package::WindowProcedure::call#other")
-        );
-        assert_ne!(requirement.get(), first_layout.get());
-        assert_ne!(requirement.get(), first_slot.get());
-
-        let parameter = callback_native_parameter_id("package::Registrar::register#exact", 0);
-        assert_eq!(
-            parameter,
-            callback_native_parameter_id("package::Registrar::register#exact", 0)
-        );
-        assert_ne!(
-            parameter,
-            callback_native_parameter_id("package::Registrar::register#exact", 1)
-        );
-        assert_ne!(
-            parameter,
-            callback_native_parameter_id("package::Registrar::other#exact", 0)
-        );
-        assert_ne!(parameter.get(), requirement.get());
-    }
 
     #[test]
     fn nominal_native_parameter_identity_is_name_owned_and_order_independent() {
@@ -454,7 +369,6 @@ mod tests {
             callback,
             nominal_callback_native_parameter_id("package::Other::install#exact", "procedure")
         );
-        assert_ne!(callback, callback_native_parameter_id(requirement, 1));
     }
 
     #[test]

@@ -96,25 +96,6 @@ pub struct X86_64DeriverStub {
 }
 
 impl X86_64DeriverStub {
-    /// Worst-case stack bytes the emitted stub adds below the delivered
-    /// hardware frame before the member body's own stack demand begins:
-    /// per-context error-code normalization and register save area, at most
-    /// 15 bytes the `and rsp, -16` normalization can drop below the pushed
-    /// save area, the anchored member-call frame reservation, and the member
-    /// call's 8-byte pushed return address. This is the deriver-owned term a
-    /// dedicated critical stack must carry in addition to the architectural
-    /// arrival frame and the member's own terminal demand.
-    pub(crate) fn peak_entry_overhead_bytes(&self) -> u64 {
-        let context_peak = self
-            .contexts
-            .iter()
-            .map(|context| context.normalizing_bytes + context.saved_area_bytes)
-            .max()
-            .unwrap_or(0);
-        // 15 bytes of worst-case alignment normalization plus the call's
-        // pushed return address are recipe constants of the emitted shape.
-        context_peak + 15 + self.member_call_frame.reserved_bytes + 8
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

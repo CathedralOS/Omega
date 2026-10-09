@@ -3,7 +3,7 @@
 //! syscall forms, and the placement arithmetic they share.
 
 use crate::plans::{
-    CallPlan, CallSignature, CallingPolicy, ConcreteVariadicCallSignature, EntryControl,
+    CallPlan, CallSignature, CallingPolicy, EntryControl,
     IndirectPointerLocation, MachineRegister, PlanDiagnostic, RegisterSet, SystemVEightbyteClass,
     ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
@@ -666,43 +666,6 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
 /// The first consumer is Darwin `open(path, flags, mode)`. Aggregate variadic
 /// values remain fail-closed until an actual native binding needs their Apple
 /// ABI classification.
-pub(crate) fn evaluate_darwin_aapcs64_variadic_call_plan(
-    signature: &ConcreteVariadicCallSignature,
-) -> Result<CallPlan, PlanDiagnostic> {
-    if signature.variadic_parameters.is_empty() {
-        return Err(PlanDiagnostic(
-            "a concrete variadic call must supply at least one anonymous parameter".into(),
-        ));
-    }
-    let fixed_signature = CallSignature {
-        parameters: signature.fixed_parameters.clone(),
-        result: signature.result,
-    };
-    validate_signature_shapes(CallingPolicy::Aapcs64, &signature.flattened())?;
-    let mut plan = evaluate_aapcs64(&fixed_signature)?;
-    let mut stack_offset = call_plan_stack_extent(&plan)?;
-    for (index, shape) in signature.variadic_parameters.iter().copied().enumerate() {
-        if !matches!(shape.class, ValueClass::Integer | ValueClass::Float) || shape.byte_size > 8 {
-            return Err(PlanDiagnostic(format!(
-                "Darwin AAPCS64 anonymous parameter {index} is not a promoted scalar"
-            )));
-        }
-        let alignment = shape.alignment.clamp(8, 16);
-        stack_offset = align_up(stack_offset, u32::from(alignment))?;
-        plan.parameters.push(ValuePlacement {
-            shape,
-            locations: vec![ValueLocation::Stack {
-                stack_byte_offset: stack_offset,
-                value_byte_offset: 0,
-                byte_size: shape.byte_size,
-                alignment,
-            }],
-        });
-        stack_offset = stack_end(stack_offset, shape.byte_size.max(8))?;
-    }
-    validate_call_plan(&plan, &signature.flattened())?;
-    Ok(plan)
-}
 
 fn call_plan_stack_extent(plan: &CallPlan) -> Result<u32, PlanDiagnostic> {
     plan.parameters
