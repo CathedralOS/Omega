@@ -53,15 +53,6 @@ pub(crate) struct PackagePolicyServiceProgressRoute {
 }
 
 impl PackagePolicyServiceProgressRoute {
-    pub fn kind(&self) -> ServiceProgressEstablishmentRouteKind {
-        self.kind
-    }
-    pub fn requirement_owner(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement_owner
-    }
-    pub fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
-    }
 }
 
 impl super::PackagePolicyServiceMethod {

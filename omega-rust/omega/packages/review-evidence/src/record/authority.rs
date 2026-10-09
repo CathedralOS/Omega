@@ -131,19 +131,7 @@ pub(crate) enum PackageReviewProgressSubject {
 }
 
 impl PackageReviewProgressSubject {
-    pub const fn declaration(&self) -> Option<&PackageReviewNominalIdentity> {
-        match self {
-            Self::Declaration(identity) => Some(identity),
-            Self::Parameter(_) => None,
-        }
-    }
 
-    pub const fn parameter(&self) -> Option<u32> {
-        match self {
-            Self::Parameter(position) => Some(*position),
-            Self::Declaration(_) => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

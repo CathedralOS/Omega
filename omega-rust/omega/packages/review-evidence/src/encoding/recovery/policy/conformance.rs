@@ -1,14 +1,11 @@
 //! Bounded recovery of the complete inert conformance application component.
 
 use super::{
-    Error, PackagePolicyRecoveryLimits,
-    identity::{nominal, type_identity},
-    reader::Reader,
-};
+    Error, identity::{nominal, type_identity},
+    reader::Reader};
 use crate::record::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
-    PackagePolicyConformanceRow,
-};
+    PackagePolicyConformanceRow};
 
 
 pub(in crate::encoding::recovery) fn application(
@@ -28,10 +25,8 @@ pub(in crate::encoding::recovery) fn application(
                 declaring_trait: nominal(reader)?,
                 requirement: nominal(reader)?,
                 realization_machine: nominal(reader)?,
-                realization_state: nominal(reader)?,
-            })
-        })?,
-    })
+                realization_state: nominal(reader)?})
+        })?})
 }
 
 pub(in crate::encoding::recovery) fn const_argument(
@@ -41,12 +36,9 @@ pub(in crate::encoding::recovery) fn const_argument(
         0 => PackagePolicyConformanceConstArgument::Evaluated {
             parameter_carrier: type_identity(reader)?,
             declared_carrier: type_identity(reader)?,
-            canonical_value_encoding: reader.string()?,
-        },
+            canonical_value_encoding: reader.string()?},
         1 => PackagePolicyConformanceConstArgument::CallerBinder {
             parameter_carrier: type_identity(reader)?,
             binder: nominal(reader)?,
-            binder_carrier: type_identity(reader)?,
-        },
-    }))
+            binder_carrier: type_identity(reader)?}}))
 }

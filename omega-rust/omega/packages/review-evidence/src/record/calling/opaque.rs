@@ -26,7 +26,4 @@ pub(crate) struct PackagePolicyCallingOpaqueUse {
 impl PackagePolicyCallingOpaqueUse {
     crate::record::accessors::opaque_representation_selection_accessors!();
 
-    pub fn occurrences(&self) -> &[PackageReviewOpaqueRepresentationOccurrence] {
-        &self.occurrences
-    }
 }

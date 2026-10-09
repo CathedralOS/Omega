@@ -95,9 +95,6 @@ impl PackagePolicyCallingPlan {
     pub const fn shape_graph(&self) -> &PackageReviewBoundaryShapeGraph {
         &self.shape_graph
     }
-    pub(crate) fn semantic_parameters(&self) -> &[PackagePolicyCallingParameter] {
-        &self.semantic_parameters
-    }
     pub const fn semantic_result(&self) -> Option<&PackageReviewTypeIdentity> {
         self.semantic_result.as_ref()
     }
@@ -116,28 +113,7 @@ impl PackagePolicyCallingPlan {
 }
 
 impl PackagePolicyCallingParameter {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub const fn value_type(&self) -> &PackageReviewTypeIdentity {
-        &self.value_type
-    }
-    pub const fn is_mutable(&self) -> bool {
-        self.is_mutable
-    }
-    pub const fn is_const(&self) -> bool {
-        self.is_const
-    }
-    pub const fn shape_root(&self) -> u16 {
-        self.shape_root
-    }
 }
 
 impl PackagePolicyNativeParameter {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub const fn origin(&self) -> &PackagePolicyNativeParameterOrigin {
-        &self.origin
-    }
 }

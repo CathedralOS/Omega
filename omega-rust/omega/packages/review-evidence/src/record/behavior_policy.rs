@@ -110,18 +110,6 @@ pub(crate) struct PackagePolicyProgressPremise {
     pub(crate) establishment_routes: Vec<PackagePolicyServiceProgressRoute>,
 }
 impl PackagePolicyProgressPremise {
-    pub fn profile(&self) -> &PackageReviewNominalIdentity {
-        &self.profile
-    }
-    pub fn subject(&self) -> &PackageReviewProgressSubject {
-        &self.subject
-    }
-    pub fn projections(&self) -> &[PackageReviewNominalIdentity] {
-        &self.projections
-    }
-    pub fn establishment_routes(&self) -> &[PackagePolicyServiceProgressRoute] {
-        &self.establishment_routes
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

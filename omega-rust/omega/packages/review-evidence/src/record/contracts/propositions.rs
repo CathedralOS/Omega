@@ -62,13 +62,7 @@ fn package_review_data_properties_key(
 }
 
 impl PackageReviewPropositionBinder {
-    pub const fn kind(&self) -> &PackageReviewPropositionBinderKind {
-        &self.kind
-    }
 
-    pub const fn bounds(&self) -> PackageReviewDataProperties {
-        self.bounds
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -100,13 +94,7 @@ pub(crate) struct PackageReviewPropositionBinderArgument {
 }
 
 impl PackageReviewPropositionBinderArgument {
-    pub const fn kind(&self) -> PackageReviewPropositionBinderArgumentKind {
-        self.kind
-    }
 
-    pub const fn value(&self) -> &PackageReviewPropositionBinderValue {
-        &self.value
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -118,21 +106,9 @@ pub(crate) struct PackageReviewEvidenceRequirement {
 }
 
 impl PackageReviewEvidenceRequirement {
-    pub const fn declaring_trait(&self) -> &PackageReviewNominalIdentity {
-        &self.declaring_trait
-    }
 
-    pub(crate) fn declaring_trait_lifetime_arguments(&self) -> &[u32] {
-        &self.declaring_trait_lifetime_arguments
-    }
 
-    pub fn declaring_trait_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.declaring_trait_arguments
-    }
 
-    pub const fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -144,21 +120,9 @@ pub(crate) struct PackageReviewEvidenceInterface {
 }
 
 impl PackageReviewEvidenceInterface {
-    pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.trait_identity
-    }
 
-    pub fn lifetime_arguments(&self) -> &[u32] {
-        &self.lifetime_arguments
-    }
 
-    pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.arguments
-    }
 
-    pub fn requirements(&self) -> &[PackageReviewEvidenceRequirement] {
-        &self.requirements
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -211,29 +175,11 @@ pub(crate) struct PackageReviewPropositionApplication {
 }
 
 impl PackageReviewPropositionApplication {
-    pub const fn declaration(&self) -> &PackageReviewNominalIdentity {
-        &self.declaration
-    }
 
-    pub fn binders(&self) -> &[PackageReviewPropositionBinder] {
-        &self.binders
-    }
 
-    pub fn parameter_types(&self) -> &[PackageReviewTypeIdentity] {
-        &self.parameter_types
-    }
 
-    pub fn binder_arguments(&self) -> &[PackageReviewPropositionBinderArgument] {
-        &self.binder_arguments
-    }
 
-    pub fn arguments(&self) -> &[PackageReviewContractExpression] {
-        &self.arguments
-    }
 
-    pub const fn evidence(&self) -> &PackageReviewPropositionEvidence {
-        &self.evidence
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -243,11 +189,5 @@ pub(crate) struct PackageReviewPropositionParameterApplication {
 }
 
 impl PackageReviewPropositionParameterApplication {
-    pub const fn binder_ordinal(&self) -> u32 {
-        self.binder_ordinal
-    }
 
-    pub fn arguments(&self) -> &[PackageReviewContractExpression] {
-        &self.arguments
-    }
 }

@@ -49,9 +49,6 @@ impl PackagePolicyProviderPlan {
         &self.plan_name
     }
 
-    pub(crate) fn realizing_package(&self) -> Option<PackageKeyIdentity> {
-        self.realizing_package
-    }
 
     pub fn schema_declaration(&self) -> &PackageReviewNominalIdentity {
         &self.schema_declaration

@@ -40,47 +40,6 @@ pub(crate) struct PackagePolicyConformanceRow {
     pub(crate) realization_state: PackageReviewNominalIdentity,
 }
 
-impl PackagePolicyClosedConformanceApplication {
-    pub const fn declaration(&self) -> &PackageReviewNominalIdentity {
-        &self.declaration
-    }
-    pub fn lifetime_arguments(&self) -> &[u32] {
-        &self.lifetime_arguments
-    }
-    pub fn type_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.type_arguments
-    }
-    pub fn const_arguments(&self) -> &[PackagePolicyConformanceConstArgument] {
-        &self.const_arguments
-    }
-    pub fn machine_arguments(&self) -> &[PackageReviewNominalIdentity] {
-        &self.machine_arguments
-    }
-    pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.trait_identity
-    }
-    pub fn trait_lifetime_arguments(&self) -> &[u32] {
-        &self.trait_lifetime_arguments
-    }
-    pub fn trait_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.trait_arguments
-    }
-    pub fn rows(&self) -> &[PackagePolicyConformanceRow] {
-        &self.rows
-    }
-}
 
 impl PackagePolicyConformanceRow {
-    pub const fn declaring_trait(&self) -> &PackageReviewNominalIdentity {
-        &self.declaring_trait
-    }
-    pub const fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
-    }
-    pub const fn realization_machine(&self) -> &PackageReviewNominalIdentity {
-        &self.realization_machine
-    }
-    pub const fn realization_state(&self) -> &PackageReviewNominalIdentity {
-        &self.realization_state
-    }
 }

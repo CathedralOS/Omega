@@ -24,21 +24,9 @@ pub(crate) struct PackageReviewTraitParent {
 }
 
 impl PackageReviewTraitParent {
-    pub const fn kind(&self) -> PackageReviewTraitCompositionKind {
-        self.kind
-    }
 
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
 
-    pub fn lifetime_arguments(&self) -> &[u32] {
-        &self.lifetime_arguments
-    }
 
-    pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.arguments
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

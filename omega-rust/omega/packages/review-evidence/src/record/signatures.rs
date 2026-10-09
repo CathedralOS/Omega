@@ -18,7 +18,7 @@ pub(crate) use external_policy::{
     PackagePolicyExternalRequirement};
 
 pub(crate) use external_supply::{
-    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
+    PackageReviewEvaluatedImport,
     PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
     PackageReviewExternalCallableParameter, PackageReviewForeignLocator};
 
