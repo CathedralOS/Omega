@@ -280,11 +280,49 @@ identities are:
 - ARM64 ELF: `56eeea4219b5ba25eb180843b48f77deb4daf9e03470266fddc4931ccbebf09a`.
 - x86-64 ELF: `adf25ac6371725bdcee65aee0509d5e21989ae83366a7ad9f7779a9259652aa9`.
 
-This qualifies the listed ordinary restoration and replacement programs only.
+The 15-program run qualifies the listed ordinary restoration and replacement
+programs only.
 It does not qualify open windows across recoverable failure, suspension,
 resume or cancellation, or all referent shapes. Windows x86-64 and matching-host
 Linux x86-64 observations remain missing. Both Linux release rows remain open:
 neither run is the unfiltered RC-NATIVE-MATRIX gate.
+
+The follow-on run on 2026-10-08 used clean, published producer
+`ab493ee76345e9f4dd0e10eebfe64d81a7e2ff5c`, the same pinned toolchain and
+host/guest versions, and `CARGO_PROFILE_DEV_OPT_LEVEL=1`. Building the CLI took
+2 minutes 46 seconds. Each of these unchanged programs returned its authored
+exit 0 directly on Linux ARM64 and under Linux x86-64 QEMU: eight observations,
+no skips or mismatches.
+
+The repository's subsequent history rewrite renamed that producer to
+`6d55b46b0d694b8f2170ce4ca960fddc1e6de790`; their Git trees are identical.
+
+- `ownership/runtime_borrowed_case_result_restore_exit`.
+- `ownership/runtime_linear_case_payload_forward_exit`.
+- `ownership/runtime_borrowed_projected_linear_return_exit`.
+- `ownership/runtime_nested_projected_claim_return_exit`.
+
+The same package-preparation, separate target-emission and guest assertion
+commands above were used, substituting each fixture path. The Case restoration
+program exercises both recoverable outcomes, restores the exact borrowed field
+and retains its sibling. The forwarding program also transports an unexamined
+sum and a sum projected from an aggregate. Its companion
+`fail/ownership/linear_case_result_second_transfer` still rejects repeated
+consumption. On this producer, three focused Case programs returned exit 0 in
+both macOS native and Terminal execution, and 16 invalid controls rejected with
+their expected diagnostic fragments. The VM returned to its initial stopped
+state after qualification.
+
+The Case restoration program's SHA-256 identities are:
+
+- `main.omg`: `69eebd06b13ed7fcf3fb26a8789330abbfdc346699cf558e08ad6b35eb182ae7`.
+- ARM64 ELF: `810f3fe5e36bfd37e6cabb38fb178e052dee820a7583fba512f3c148ead0070d`.
+- x86-64 ELF: `b1fddf0bbaf7bf9acc3ecb832e861137f7cddb3699d235bd76ba57715a12afab`.
+
+This follow-on run covers recoverable Case results, not suspension, resume,
+cancellation or every referent shape. Windows x86-64 and matching-host Linux
+x86-64 remain unqualified for these four programs; the emulated observations
+do not close either release row.
 
 ## Closure rule
 

@@ -654,15 +654,16 @@ defines the complete product bar.
     returning sibling that still owes restoration despite a later crash.
     Keep `pass/ownership/runtime_borrowed_projected_linear_return_exit` (0)
     and `runtime_nested_projected_claim_return_exit` (0) for selected-claim
-    relocation, retained siblings and by-path call binding; qualify these on
-    the remaining native hosts. Keep
+    relocation, retained siblings and by-path call binding. Keep
     `runtime_borrowed_case_result_restore_exit` (0) for ordinary success/failure
     sums restoring a detached linear token on both arms through selected
     control-flow cleanup, and `runtime_linear_case_payload_forward_exit` (0)
     for unexamined sums and projected aggregate arguments. Keep
     `fail/ownership/linear_case_result_second_transfer` for exact-once returned
-    payload custody. Qualify these on the remaining native hosts; inactive
-    cases owe no fabricated claims.
+    payload custody. These four result programs still need Windows x86-64 and
+    matching-host Linux x86-64 execution; inactive cases owe no fabricated
+    claims. Suspension/resume/cancellation qualification depends on the
+    selected runtime's **TR3-TR8** execution and retained-frontier joins.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the
