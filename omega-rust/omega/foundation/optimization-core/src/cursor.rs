@@ -35,20 +35,8 @@ impl<'a> Cursor<'a> {
         Ok(self.array::<1>()?[0])
     }
 
-    pub(crate) fn u16(&mut self) -> Result<u16, Truncated> {
-        Ok(u16::from_le_bytes(self.array()?))
-    }
-
     pub(crate) fn u32(&mut self) -> Result<u32, Truncated> {
         Ok(u32::from_le_bytes(self.array()?))
-    }
-
-    pub(crate) fn u64(&mut self) -> Result<u64, Truncated> {
-        Ok(u64::from_le_bytes(self.array()?))
-    }
-
-    pub(crate) fn u128(&mut self) -> Result<u128, Truncated> {
-        Ok(u128::from_le_bytes(self.array()?))
     }
 
     pub(crate) fn i64(&mut self) -> Result<i64, Truncated> {
