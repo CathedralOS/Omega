@@ -74,9 +74,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                 2,
             ),
         ] {
-            let declaration = catalog
-                .catalog().declaration_by_semantic(semantic)
-                .unwrap();
+            let declaration = catalog.catalog().declaration_by_semantic(semantic).unwrap();
             let mut selected = SelectedInstruction {
                 id: SelectedInstructionId(1),
                 kind,

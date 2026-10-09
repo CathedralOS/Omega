@@ -476,13 +476,7 @@ fn decoded_footprint(
     machine: &PostAllocationMachineInstruction,
     effects: &selected_instructions::MachineEncodedEffects,
 ) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
-    let resolve = |operand: u16| {
-        machine
-            .operands
-            .iter()
-            .find(|row| row.operand == operand)
-            .map(|row| row.view)
-    };
+    let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
     let register_reads = effects
         .external_operand_reads
         .iter()
@@ -511,13 +505,7 @@ fn validate_operand_footprint(
     reads: &[RegisterViewId],
     writes: &[RegisterViewId],
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let resolve = |operand: u16| {
-        machine
-            .operands
-            .iter()
-            .find(|row| row.operand == operand)
-            .map(|row| row.view)
-    };
+    let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
     let expected_reads = encoded
         .external_operand_reads
         .iter()

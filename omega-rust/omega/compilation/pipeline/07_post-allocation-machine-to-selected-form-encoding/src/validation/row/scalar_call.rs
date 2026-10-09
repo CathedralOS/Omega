@@ -170,9 +170,7 @@ fn views_for_effects(
         .iter()
         .map(|operand| {
             machine
-                .operands
-                .iter()
-                .find(|row| row.operand == *operand)
+                .operand_footprint(*operand)
                 .map(|row| row.view)
                 .ok_or(
                     OptimizedSelectedFormEncodingError::OperandFootprintMismatch(

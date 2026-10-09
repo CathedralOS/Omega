@@ -400,13 +400,7 @@ fn validate_external_operands(
     machine: &PostAllocationMachineInstruction,
     decoded: &SelectedFormDecodedFootprint,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let resolve = |operand: u16| {
-        machine
-            .operands
-            .iter()
-            .find(|row| row.operand == operand)
-            .map(|row| row.view)
-    };
+    let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
     let expected_reads = decoded
         .encoded
         .external_operand_reads

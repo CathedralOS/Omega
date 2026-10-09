@@ -324,13 +324,7 @@ fn views_for_effects(
     effects: &selected_instructions::MachineEncodedEffects,
     reads: bool,
 ) -> Result<Vec<register_model::RegisterViewId>, OptimizedSelectedFormEncodingError> {
-    let resolve = |operand: u16| {
-        machine
-            .operands
-            .iter()
-            .find(|row| row.operand == operand)
-            .map(|row| row.view)
-    };
+    let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
     let operands = if reads {
         &effects.external_operand_reads
     } else {

@@ -26,6 +26,13 @@ pub struct PostAllocationMachineInstruction {
     pub unit_clobbers: Vec<RegisterUnitId>,
 }
 
+impl PostAllocationMachineInstruction {
+    /// The physical footprint of `operand`, when declared.
+    pub fn operand_footprint(&self, operand: u16) -> Option<&PhysicalOperandFootprint> {
+        self.operands.iter().find(|row| row.operand == operand)
+    }
+}
+
 /// Address semantics remain symbolic until a validated frame is supplied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalAddressOperation {
