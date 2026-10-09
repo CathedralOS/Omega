@@ -1291,8 +1291,6 @@ fail/float/closed_integer_conversion_requires_exact_cast rejected 559ms expected
 	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
 fail/float/closed_integer_conversion_requires_exact_format rejected 564ms expected @d0e40a213f35
 	machine `main` state `entry` cannot prove Exact float-to-`f32` cast operand `from_i32(16777217) as f64` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
-fail/float/closed_integer_conversion_trapping_source_no_normal_result rejected 1351ms expected @d0e40a213f35
-	cannot prove requires contract for call finite_value from main: F32.is_finite((from_u8((250 as u8 ) + (10 as u8 )) as f32)) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/closed_integer_conversion_trapping_zero_divisor rejected 556ms expected @d0e40a213f35
 	division by zero in integer-to-float coercion source: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 	division by zero in machine `main` state `entry` local `observed`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
@@ -1420,6 +1418,18 @@ fail/float/same_carrier_cast_cannot_mint_finite rejected 1195ms expected @4f5905
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
 fail/float/suffix_format_disagrees_rejected rejected 260ms expected @2d8ed253669f
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+fail/float/symbolic_integer_conversion_requires_preserves_exact_cast rejected 2011ms expected @95f5c1baea71
+	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
+fail/float/symbolic_integer_conversion_requires_preserves_preconditions rejected 4915ms expected @95f5c1baea71
+	cannot prove requires contract for call source from converted: value > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/float/symbolic_integer_conversion_requires_preserves_trapping_failure rejected 1923ms expected @95f5c1baea71
+	uncovered Trap crash in machine `converted` state `entry` local `__hoist_34`: Trapping `+` of `value` and `10 as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/float/symbolic_integer_conversion_requires_rejects_lookalike rejected 4826ms expected @95f5c1baea71
+	cannot prove requires contract for call finite_value from converted: F32.is_finite(from_i32(value, other)) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/float/symbolic_integer_conversion_requires_retains_actual rejected 4986ms expected @95f5c1baea71
+	cannot prove requires contract for call finite_value from converted: F32.is_finite(other) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/float/symbolic_integer_conversion_requires_retains_classification rejected 4863ms expected @95f5c1baea71
+	cannot prove requires contract for call infinite_value from converted: F32.is_infinite(F32.from_i32(value)) (needs fact `F32.is_infinite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/total_order_wrong_carrier rejected 412ms expected @d83ae44b78cd
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `left`: expected `f64`, got `f32`
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `right`: expected `f64`, got `f32`
@@ -3302,6 +3312,7 @@ pass/float/build_runtime_semantics_twins_windows_x64 checked 250765ms check-targ
 pass/float/build_runtime_semantics_twins_x86_baseline checked 262632ms check-target:linux_x86_64 @d537c1f08618
 pass/float/builtin_extrema_field_store_exit checked 5149ms check-target:macos_arm64 @2d8ed253669f
 pass/float/closed_integer_conversion_predicate_proof_exit checked 6380ms check-target:macos_arm64 @d0e40a213f35
+pass/float/closed_integer_conversion_trapping_source_no_normal_result checked 21530ms check-target:macos_arm64 @95f5c1baea71
 pass/float/computed_comparison_literal_landing_exit checked 5759ms check-target:macos_arm64 @7a3fe5365463
 pass/float/computed_float_bare_literal_comparison checked 3981ms check-target:macos_arm64 @042fba1c8b0d+wt
 pass/float/data_where_float_field_restored_exit checked 2202ms check-target:macos_arm64 @8cb8c462809d+wt
@@ -3357,6 +3368,7 @@ pass/float/runtime_total_order_satisfiers_exit checked 33742ms check-target:maco
 pass/float/saturating_named_operations_retain_ordered_inputs checked 6492ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/float/scalar_helper_boundary_sequence_exit checked 4671ms check-target:macos_arm64 @2d8ed253669f
 pass/float/state_loop_field_refinement_restoration_exit checked 1625ms check-target:macos_arm64 @163770eba39c
+pass/float/symbolic_integer_conversion_finite_requires_exit checked 21860ms check-target:macos_arm64 @95f5c1baea71
 pass/float/trapping_float_sites_share_nonentry_guard_coverage checked 6273ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/float/trapping_raw_finite_operand_capture_proof checked 1478ms @cba4ef8c9ab1
 pass/float/trapping_raw_finite_semantic_result_proof checked 6319ms check-target:macos_arm64 @cba4ef8c9ab1

@@ -5312,14 +5312,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/`,
     proving requires before substituting captured actuals and each result
     occurrence. Preserve public contract selection, result policy and path scope.
-  - An open integer input to `F32::from_i32` cannot establish a finite-result
-    precondition, although closed inputs work. Extend the shared selected
-    semantic kernel reasoning with exact integer carrier bounds and caller
-    snapshots; Boolean, classification and integer results retain their own
-    typed source carriers. Proof transport follows [PCC removal](#pcc-removal).
+    Boolean, classification and integer results retain their own typed source
+    carriers; follow [PCC removal](#pcc-removal).
   - Preserve closed integer-source behavior with
     `python3 tools/corpus_gate.py --both --filter
-    closed_integer_conversion_predicate_proof_exit,qualified_integer_source_exact_float_coercion_exit`.
+    closed_integer_conversion_predicate_proof_exit,qualified_integer_source_exact_float_coercion_exit,symbolic_integer_conversion_finite_requires_exit`.
   Acceptance: corpus fixtures where slot contracts and imported
   call/operator results discharge those obligations; false claims, lookalike
   declarations and changed operands/formats/results reject. IEEE Boolean

@@ -376,6 +376,7 @@ pass/float/admitted_float_conversion_crash built 5538ms exit:signal signal:5 std
 pass/float/admitted_float_lower_boundary_crash built 5631ms exit:signal signal:5 stdout:match interpreter:trapped interpreter-stdout:match @bbd81a11e6f3+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 8261ms exit:70 interpreter-exit:70 interpreter:agrees @bbd81a11e6f3+wt
 pass/float/closed_integer_conversion_predicate_proof_exit built 6882ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
+pass/float/closed_integer_conversion_trapping_source_no_normal_result built 21167ms exit:signal signal:5 interpreter:trapped @95f5c1baea71
 pass/float/computed_comparison_literal_landing_exit built 10426ms exit:0 interpreter-exit:0 interpreter:agrees @6ef30fb818e6
 pass/float/float_saturating_arithmetic_exit built 9107ms exit:77 interpreter-exit:77 interpreter:agrees @cba4ef8c9ab1
 pass/float/float_to_int_trapping_nan_traps built 9106ms exit:signal signal:5 interpreter:trapped @cba4ef8c9ab1
@@ -396,6 +397,7 @@ pass/float/runtime_named_policy_result_exit built 8979ms exit:70 interpreter-exi
 pass/float/runtime_qualified_carrier_conversion_exit built 4391ms exit:0 interpreter-exit:0 interpreter:agrees @f66070cc72a5+wt
 pass/float/runtime_total_order_satisfiers_exit built 19626ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/float/saturating_named_operations_retain_ordered_inputs built 8797ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
+pass/float/symbolic_integer_conversion_finite_requires_exit built 21063ms exit:0 interpreter-exit:0 interpreter:agrees @95f5c1baea71
 pass/float/trapping_float_sites_share_nonentry_guard_coverage built 8770ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
 pass/float/trapping_raw_finite_semantic_result_proof built 8851ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
 pass/generics/closed_generic_local_field_observation_exit built 3226ms exit:0 interpreter-exit:0 interpreter:agrees @c9b4ecc7551a
