@@ -275,16 +275,8 @@ impl<'u> FunctionContext<'u> {
                         result,
                         source,
                         ..
-                    ) => {
-                        aliases.insert(
-                            result.place,
-                            AliasTarget::View {
-                                target: *source,
-                                prefix: Vec::new(),
-                            },
-                        );
-                    }
-                    O::EstablishElementView { result, source, .. } => {
+                    )
+                    | O::EstablishElementView { result, source, .. } => {
                         aliases.insert(
                             result.place,
                             AliasTarget::View {
