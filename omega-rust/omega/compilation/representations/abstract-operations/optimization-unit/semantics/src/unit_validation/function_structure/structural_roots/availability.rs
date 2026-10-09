@@ -29,8 +29,7 @@ pub(crate) fn validate_structural_place_availability(
                 .or(match &node.operation {
                     // These establishments publish a declaration directly,
                     // rather than a StructuralOperationResult contract.
-                    O::EstablishByteSequenceLiteral { place, .. }
-                    | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
+                    abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => Some(place.id),
                     _ => None,
                 });
             if let Some(place) = place {

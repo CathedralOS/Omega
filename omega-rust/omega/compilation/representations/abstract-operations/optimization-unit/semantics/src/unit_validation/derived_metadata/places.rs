@@ -45,8 +45,7 @@ pub(crate) fn reconstruct_declared_places(
         .collect::<BTreeSet<_>>();
     for node in function.block_nodes() {
         match &node.operation {
-            O::EstablishByteSequenceLiteral { place, .. }
-            | O::EstablishTrivialAffineLocal { place, .. } => {
+            abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => {
                 known_places.insert(place.id);
             }
             O::EstablishByteSequenceConcatenation { result, .. }
@@ -161,7 +160,7 @@ pub(crate) fn validate_operation_places(
                 require(binding.argument.place, known)?;
             }
         }
-        O::EstablishByteSequenceLiteral { .. } | O::EstablishTrivialAffineLocal { .. } => {}
+        abstract_operations::byte_literal_establish_pair_pattern!(..) => {}
         O::PrimitiveLocalStore { destination, .. } => require(*destination, known)?,
         O::EstablishReference { source, .. } => require(source.place, known)?,
         O::ReleaseReference { source, .. } => require(*source, known)?,

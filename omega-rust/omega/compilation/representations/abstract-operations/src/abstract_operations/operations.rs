@@ -1366,3 +1366,11 @@ macro_rules! bitwise_and_or_view_pair_pattern {
             | $crate::AbstractOperation::ScalarRepresentationView { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! byte_literal_establish_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::EstablishByteSequenceLiteral { $($fields)* }
+            | $crate::AbstractOperation::EstablishTrivialAffineLocal { $($fields)* }
+    };
+}

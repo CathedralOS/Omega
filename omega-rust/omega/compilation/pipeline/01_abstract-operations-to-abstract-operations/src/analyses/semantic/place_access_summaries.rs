@@ -837,8 +837,7 @@ fn scan_operation(
         | O::EstablishReference { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishPrimitiveLocal { .. }
-        | O::EstablishByteSequenceLiteral { .. }
-        | O::EstablishTrivialAffineLocal { .. }
+        | abstract_operations::byte_literal_establish_pair_pattern!(..)
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::PortWrite { .. }

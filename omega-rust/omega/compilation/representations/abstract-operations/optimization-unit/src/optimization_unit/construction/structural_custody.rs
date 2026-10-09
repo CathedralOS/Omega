@@ -78,8 +78,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::StructuralScalarFieldStore { destination, .. } => {
             places.insert(destination.place());
         }
-        O::EstablishByteSequenceLiteral { place, .. }
-        | O::EstablishTrivialAffineLocal { place, .. } => {
+        abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => {
             places.insert(place.id);
         }
         O::EstablishPrimitiveLocal { result, .. }
@@ -228,8 +227,7 @@ pub(super) fn collect_operation_structural_places(
                 structural_type: result.structural_type,
             },
         }),
-        AbstractOperation::EstablishByteSequenceLiteral { place, .. }
-        | AbstractOperation::EstablishTrivialAffineLocal { place, .. } => {
+        abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => {
             structural_places.push(*place);
         }
         AbstractOperation::AtomicEvent {

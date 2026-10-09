@@ -495,8 +495,7 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
                 }
             }
         }
-        O::EstablishByteSequenceLiteral { place, .. }
-        | O::EstablishTrivialAffineLocal { place, .. } => {
+        abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => {
             references.insert(place.id);
         }
         O::IntegerConstant { .. }
@@ -598,8 +597,7 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
         } => Some(result.place),
-        O::EstablishByteSequenceLiteral { place, .. }
-        | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
+        abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => Some(place.id),
         O::AtomicEvent {
             event: abstract_operations::AbstractAtomicEvent::CompareExchangeOnce { outcome, .. },
             ..

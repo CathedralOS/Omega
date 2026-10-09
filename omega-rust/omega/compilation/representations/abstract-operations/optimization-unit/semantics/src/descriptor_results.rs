@@ -192,16 +192,7 @@ fn adapt(
             });
         }
         for node in &block.nodes {
-            if let O::EstablishByteSequenceLiteral {
-                place,
-                structural_type,
-                ..
-            }
-            | O::EstablishTrivialAffineLocal {
-                place,
-                structural_type,
-                ..
-            } = &node.operation
+            if let abstract_operations::byte_literal_establish_pair_pattern!(place,structural_type, ..) = &node.operation
             {
                 if declaration(place.id)? != place
                     || graph

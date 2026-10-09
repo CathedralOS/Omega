@@ -303,12 +303,7 @@ pub(super) fn match_input(
     // Ordered source calls execute even when their result is not returned.
     // Target expression trees witness referenced values, not execution order.
     for node in optimized.block_nodes() {
-        if let AbstractOperation::EstablishByteSequenceLiteral {
-            structural_type, ..
-        }
-        | AbstractOperation::EstablishTrivialAffineLocal {
-            structural_type, ..
-        } = &node.operation
+        if let abstract_operations::byte_literal_establish_pair_pattern!(structural_type, ..) = &node.operation
             && (!plan.structural_types.contains(structural_type)
                 || !unit.structural_types.contains(structural_type))
         {

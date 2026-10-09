@@ -127,8 +127,7 @@ pub(crate) fn operation_scalar_types_match(
         }
         O::PrimitiveScalarRead { .. }
         | O::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
-        | O::EstablishByteSequenceLiteral { .. }
-        | O::EstablishTrivialAffineLocal { .. }
+        | abstract_operations::byte_literal_establish_pair_pattern!(..)
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::ReleaseReference { .. }
