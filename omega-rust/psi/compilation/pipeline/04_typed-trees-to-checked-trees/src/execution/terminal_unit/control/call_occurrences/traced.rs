@@ -1,6 +1,9 @@
-//! The traced outer-call walk: statements are visited in authored order,
-//! calls collected from each expression and recorded against the traced
-//! predecessor a later consumer replays.
+//! Discover each statement's call owners before composing its operation sequence.
+//! Flow inventory is in completion order, while occurrence ordinals identify
+//! source preorder. Discovery follows the latter so enclosing operand roots can
+//! claim nested producers; retained operand plans still own execution order.
+//! Exact call sites, not destination types or statement-family recognizers,
+//! supply argument ownership. Selected exits keep their own control authority.
 
 use super::super::{CheckFacts, CheckedScalarExpressionRole, StatementNode, SymbolHandle};
 use super::collecting::{
@@ -15,10 +18,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 
 /// Sequence only the common body. Selected exit operands retain their own
 /// computation/value roots and must not consume the body's call roster.
-/// Sequence only the common body, tracing the call statement and the admission step
-/// (statement window, duplicate call, structural operands, ordered statement
-/// call, statement shape, target agreement, argument calls, unconsumed
-/// nested calls) where it declined the body.
+/// Trace the exact admission step and statement when occurrence custody fails.
 pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,

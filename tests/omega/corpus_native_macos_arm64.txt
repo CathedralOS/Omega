@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 4.47, "load1_start": 3.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.29, "load1_start": 2.29, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1317,6 +1317,7 @@ pass/providers/generic_provider_structural_result_composition_exit built 1765ms 
 pass/providers/kernel_import_result_chain_exit built 1378ms @65fd4c9d99fc
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 626ms exit:41
 pass/providers/local_record_foreign_borrow_exit built 1903ms exit:70 @59d57ace39f0+wt
+pass/providers/owned_array_operand_epochs_exit built 1562ms exit:0 @c27519066a03+wt
 pass/providers/provider_type_target_default_override built 257ms
 pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
 pass/providers/runtime_boundary_array_construction_exit built 2510ms exit:70 @b6846d69ce88+wt

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 5.23, "load1_start": 3.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.47, "load1_start": 2.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -416,6 +416,7 @@ pass/providers/checked_boundary_operator_const_application_alternate_exit built 
 pass/providers/checked_boundary_requirement_dispatch_exit built 2255ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
 pass/providers/direct_boundary_array_snapshot_exit built 4962ms exit:70 interpreter-exit:70 interpreter:agrees @36ad3370c97a
 pass/providers/foreign_out_parameter_write_observed_exit built 8787ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
+pass/providers/owned_array_operand_epochs_exit built 1550ms exit:0 interpreter-exit:0 interpreter:agrees @c27519066a03+wt
 pass/providers/runtime_boundary_array_construction_exit built 4358ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_result_exit built 1834ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
 pass/providers/selected_const_provider_call_identity_exit built 2803ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b

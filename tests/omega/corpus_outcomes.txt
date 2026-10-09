@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 5.23, "load1_start": 3.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.4, "load1_start": 2.35, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -3522,6 +3522,7 @@ pass/providers/generic_provider_structural_result_composition_exit checked 3447m
 pass/providers/kernel_import_result_chain_exit checked 654ms check-target:linux_x86_64 @ee08fad015b6+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1238ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/local_record_foreign_borrow_exit checked 2194ms check-target:macos_arm64 @59d57ace39f0+wt
+pass/providers/owned_array_operand_epochs_exit checked 1500ms check-target:macos_arm64 @c27519066a03+wt
 pass/providers/provider_type_target_default_override checked 653ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/runtime_adapter_dispatch_exit checked 1254ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/runtime_boundary_array_construction_exit checked 2148ms check-target:macos_arm64 @b6846d69ce88+wt
