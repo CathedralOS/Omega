@@ -908,6 +908,9 @@ dependencies = [
 [[package]]
 name = "layout-plans"
 version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+]
 
 [[package]]
 name = "lazy_static"

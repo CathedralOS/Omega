@@ -309,47 +309,44 @@ pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u
             })
     });
 
-    let mut hash = 0xcbf29ce484222325u64;
-    hash_fingerprint_bytes(&mut hash, b"omega.layout-plan.v3");
-    hash_fingerprint_u64(&mut hash, layout.schema_report_fingerprint);
-    hash_fingerprint_byte(&mut hash, u8::from(layout.size.is_some()));
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(b"omega.layout-plan.v3");
+    hash.u64(layout.schema_report_fingerprint);
+    hash.byte(u8::from(layout.size.is_some()));
     if let Some(size) = layout.size {
-        hash_fingerprint_u64(&mut hash, size);
+        hash.u64(size);
     }
-    hash_fingerprint_u64(&mut hash, layout.align);
-    hash_fingerprint_u64(&mut hash, entries.len() as u64);
+    hash.u64(layout.align);
+    hash.u64(entries.len() as u64);
     for entry in entries {
         match entry.member_identity {
             Some(identity) => {
-                hash_fingerprint_byte(&mut hash, 1);
-                hash_fingerprint_u64(&mut hash, identity);
+                hash.byte(1);
+                hash.u64(identity);
             }
             None => {
-                hash_fingerprint_byte(&mut hash, 0);
-                hash_fingerprint_u64(&mut hash, entry.field.len() as u64);
-                hash_fingerprint_bytes(&mut hash, entry.field.as_bytes());
+                hash.byte(0);
+                hash.u64(entry.field.len() as u64);
+                hash.bytes(entry.field.as_bytes());
             }
         }
         match entry.placement {
             LayoutPlacementReport::At { offset } => {
-                hash_fingerprint_byte(&mut hash, 0);
-                hash_fingerprint_u64(&mut hash, offset);
+                hash.byte(0);
+                hash.u64(offset);
             }
             LayoutPlacementReport::IntegerAt {
                 offset,
                 stored_width,
                 interpretation,
             } => {
-                hash_fingerprint_byte(&mut hash, 2);
-                hash_fingerprint_u64(&mut hash, offset);
-                hash_fingerprint_u64(&mut hash, stored_width);
-                hash_fingerprint_byte(
-                    &mut hash,
-                    match interpretation {
-                        IntegerInterpretation::Signed => 0,
-                        IntegerInterpretation::Unsigned => 1,
-                    },
-                );
+                hash.byte(2);
+                hash.u64(offset);
+                hash.u64(stored_width);
+                hash.byte(match interpretation {
+                    IntegerInterpretation::Signed => 0,
+                    IntegerInterpretation::Unsigned => 1,
+                });
             }
             LayoutPlacementReport::Bits {
                 container,
@@ -358,7 +355,7 @@ pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u
                 source_lsb,
                 width,
             } => {
-                hash_fingerprint_byte(&mut hash, 1);
+                hash.byte(1);
                 for value in [
                     container,
                     container_width,
@@ -366,12 +363,12 @@ pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u
                     source_lsb,
                     width,
                 ] {
-                    hash_fingerprint_u64(&mut hash, value);
+                    hash.u64(value);
                 }
             }
         }
     }
-    if hash == 0 { 1 } else { hash }
+    hash.finish().max(1)
 }
 
 /// Deterministic compact report coordinate for an exact conventional sum report.
@@ -380,8 +377,8 @@ pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u
 pub fn normalized_conventional_sum_layout_report_fingerprint(
     layout: &ConventionalSumLayoutReport,
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
-    hash_fingerprint_bytes(&mut hash, b"omega.conventional-sum-layout.v1");
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(b"omega.conventional-sum-layout.v1");
     for value in [
         layout.schema_report_fingerprint,
         layout.tag_offset,
@@ -391,32 +388,32 @@ pub fn normalized_conventional_sum_layout_report_fingerprint(
         layout.align,
         layout.cases.len() as u64,
     ] {
-        hash_fingerprint_u64(&mut hash, value);
+        hash.u64(value);
     }
     // A pure sum's empty common-field list contributes nothing, so an
     // existing pure-sum report keeps its fingerprint byte for byte; a mixed
     // report's common rows hash in between the case count and the case rows.
     if !layout.common_fields.is_empty() {
-        hash_fingerprint_u64(&mut hash, layout.common_fields.len() as u64);
+        hash.u64(layout.common_fields.len() as u64);
         for field in &layout.common_fields {
             hash_optional_member_identity(&mut hash, field.member_identity, &field.field);
             for value in [field.offset, field.size, field.align] {
-                hash_fingerprint_u64(&mut hash, value);
+                hash.u64(value);
             }
         }
     }
     for case in &layout.cases {
-        hash_fingerprint_u64(&mut hash, u64::from(case.ordinal));
+        hash.u64(u64::from(case.ordinal));
         hash_optional_member_identity(&mut hash, case.member_identity, &case.case);
-        hash_fingerprint_u64(&mut hash, case.payload_fields.len() as u64);
+        hash.u64(case.payload_fields.len() as u64);
         for field in &case.payload_fields {
             hash_optional_member_identity(&mut hash, field.member_identity, &field.field);
             for value in [field.offset, field.size, field.align] {
-                hash_fingerprint_u64(&mut hash, value);
+                hash.u64(value);
             }
         }
     }
-    if hash == 0 { 1 } else { hash }
+    hash.finish().max(1)
 }
 
 /// Exact, hash-free equality for replaying one retained conventional sum
@@ -520,16 +517,20 @@ fn conventional_sum_member_identities_are_unambiguous(
     true
 }
 
-fn hash_optional_member_identity(hash: &mut u64, identity: Option<u64>, name: &str) {
+fn hash_optional_member_identity(
+    hash: &mut semantic_vocabulary::Fnv1a,
+    identity: Option<u64>,
+    name: &str,
+) {
     match identity {
         Some(identity) => {
-            hash_fingerprint_byte(hash, 1);
-            hash_fingerprint_u64(hash, identity);
+            hash.byte(1);
+            hash.u64(identity);
         }
         None => {
-            hash_fingerprint_byte(hash, 0);
-            hash_fingerprint_u64(hash, name.len() as u64);
-            hash_fingerprint_bytes(hash, name.as_bytes());
+            hash.byte(0);
+            hash.u64(name.len() as u64);
+            hash.bytes(name.as_bytes());
         }
     }
 }
@@ -552,25 +553,22 @@ pub fn normalized_native_layout_plan_report_fingerprint<SlotApplication>(
             })
             .then_with(|| left.offset.cmp(&right.offset))
     });
-    let mut hash = 0xcbf29ce484222325u64;
-    hash_fingerprint_bytes(&mut hash, b"omega.native-layout-plan.v1");
-    hash_fingerprint_u64(
-        &mut hash,
-        normalized_layout_plan_report_fingerprint(&layout.layout),
-    );
-    hash_fingerprint_u64(&mut hash, demands.len() as u64);
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(b"omega.native-layout-plan.v1");
+    hash.u64(normalized_layout_plan_report_fingerprint(&layout.layout));
+    hash.u64(demands.len() as u64);
     for demand in demands {
         for identity in [
             demand.slot_identity.as_bytes(),
             demand.layout_subject_identity.as_bytes(),
             demand.callback_requirement_identity.as_bytes(),
         ] {
-            hash_fingerprint_u64(&mut hash, identity.len() as u64);
-            hash_fingerprint_bytes(&mut hash, identity);
+            hash.u64(identity.len() as u64);
+            hash.bytes(identity);
         }
-        hash_fingerprint_u64(&mut hash, demand.offset);
+        hash.u64(demand.offset);
     }
-    if hash == 0 { 1 } else { hash }
+    hash.finish().max(1)
 }
 
 /// Exact, hash-free equality for replaying one retained validated layout.
@@ -661,19 +659,4 @@ fn placement_sort_key(placement: &LayoutPlacementReport) -> (u8, u64, u64, u64, 
             width,
         ),
     }
-}
-
-pub(crate) fn hash_fingerprint_u64(hash: &mut u64, value: u64) {
-    hash_fingerprint_bytes(hash, &value.to_le_bytes());
-}
-
-pub(crate) fn hash_fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        hash_fingerprint_byte(hash, *byte);
-    }
-}
-
-pub(crate) fn hash_fingerprint_byte(hash: &mut u64, byte: u8) {
-    *hash ^= u64::from(byte);
-    *hash = hash.wrapping_mul(0x100000001b3);
 }

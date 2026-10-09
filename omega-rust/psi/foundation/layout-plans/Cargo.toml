@@ -10,3 +10,6 @@ path = "src/lib.rs"
 
 [features]
 test-support = []
+
+[dependencies]
+semantic-vocabulary = { path = "../semantic-vocabulary" }
