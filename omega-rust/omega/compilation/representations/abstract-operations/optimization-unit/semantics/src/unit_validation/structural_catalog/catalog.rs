@@ -45,6 +45,27 @@ pub(super) fn index_structural_types(
             .iter()
             .filter_map(|function| function.attachment),
     );
+    let mut referent_ids = BTreeSet::new();
+    for referent in unit.structural_types.referents() {
+        if types.contains_key(&referent.id) || !referent_ids.insert(referent.id) {
+            return Err(OptimizationUnitValidationError::DuplicateStructuralType(
+                referent.id,
+            ));
+        }
+        if referent.identity.is_empty() || !type_names.insert(referent.identity.as_str()) {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralTypeIdentity(referent.id),
+            );
+        }
+    }
+    if unit
+        .structural_types
+        .referents()
+        .windows(2)
+        .any(|pair| pair[0].id >= pair[1].id)
+    {
+        return Err(OptimizationUnitValidationError::NonCanonicalStructuralTypeOrder);
+    }
     for declaration in &unit.structural_types {
         // Attachment names a declaration, not a storage-establishment operation.
         // Incoming receivers retain the same field invariants as named inputs;
@@ -85,7 +106,7 @@ pub(super) fn index_structural_types(
     }
     for declaration in &unit.structural_types {
         let referenced = match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference { referent, .. } => vec![*referent],
+            terminal_psi::StructuralTypeShape::Reference { .. } => Vec::new(),
             terminal_psi::StructuralTypeShape::BindingCarrier
             | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_) => Vec::new(),
@@ -136,12 +157,13 @@ pub(super) fn index_structural_types(
             let admissible = match access {
                 terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::SharedBorrow => {
-                    types.get(referent).is_some_and(|referent| {
-                        !matches!(
-                            referent.shape,
-                            terminal_psi::StructuralTypeShape::Reference { .. }
-                        )
-                    })
+                    referent_ids.contains(referent)
+                        || types.get(referent).is_some_and(|referent| {
+                            !matches!(
+                                referent.shape,
+                                terminal_psi::StructuralTypeShape::Reference { .. }
+                            )
+                        })
                 }
                 terminal_psi::StructuralAccess::WriteOnlyBorrow => matches!(
                     types.get(referent).map(|referent| &referent.shape),

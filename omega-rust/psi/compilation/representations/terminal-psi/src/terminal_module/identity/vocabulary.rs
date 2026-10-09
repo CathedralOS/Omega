@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Closed boundary application demands are part of the portable program.
-        122
+        // Reference identity edges are independent of demanded storage shapes.
+        123
     }
 }

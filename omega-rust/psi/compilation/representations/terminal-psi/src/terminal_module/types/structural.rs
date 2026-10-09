@@ -10,6 +10,18 @@ pub struct StructuralTypeDeclaration {
     pub shape: StructuralTypeShape,
 }
 
+/// A closed referent identity with no demanded storage definition. This is not
+/// a shape: it cannot establish owned storage, fields, or dereference access.
+/// Reference transport needs exact identity, not the transitive storage catalog
+/// of every type that could be reached by following a pointer.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralReferentIdentity {
+    pub id: StructuralTypeId,
+    /// Canonical closed-type export payload. Runtime relationships use `id`,
+    /// never a spelling comparison or a reconstructed source application.
+    pub identity: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralTypeShape {
     /// A logical routed binding, independent of its provider's storage mode.
@@ -20,6 +32,8 @@ pub enum StructuralTypeShape {
     /// A permission carrier retaining the original referent, not an owned copy
     /// of its storage. Owning or moving this value transfers the loan only;
     /// projection through `Referent` must independently respect borrowed access.
+    /// The target may name an identity-only referent until an operation demands
+    /// its storage definition. Pointer transport never supplies that definition.
     Reference {
         referent: StructuralTypeId,
         access: crate::StructuralAccess,
@@ -134,8 +148,7 @@ impl StructuralTypeShape {
     pub fn is_composite_shape(&self) -> bool {
         matches!(
             self,
-            crate::record_or_fixed_array_shape_pattern!()
-                | crate::sum_or_mixed_shape_pattern!()
+            crate::record_or_fixed_array_shape_pattern!() | crate::sum_or_mixed_shape_pattern!()
         )
     }
 
@@ -216,9 +229,7 @@ impl StructuralTypeShape {
     pub const fn is_borrowed_byte_carrier(&self) -> bool {
         matches!(
             self,
-            Self::ByteSequence(
-                crate::byte_sequence_view_carrier_pattern!()
-            )
+            Self::ByteSequence(crate::byte_sequence_view_carrier_pattern!())
         )
     }
 
@@ -680,8 +691,13 @@ mod tests {
 #[macro_export]
 macro_rules! record_or_mixed_shape_pattern {
     ($fields:ident) => {
-        $crate::StructuralTypeShape::Record { fields: $fields, .. }
-            | $crate::StructuralTypeShape::Mixed { fields: $fields, .. }
+        $crate::StructuralTypeShape::Record {
+            fields: $fields,
+            ..
+        } | $crate::StructuralTypeShape::Mixed {
+            fields: $fields,
+            ..
+        }
     };
 }
 
@@ -690,8 +706,7 @@ macro_rules! record_or_mixed_shape_pattern {
 #[macro_export]
 macro_rules! record_or_fixed_array_shape_pattern {
     () => {
-        $crate::StructuralTypeShape::Record { .. }
-            | $crate::StructuralTypeShape::FixedArray { .. }
+        $crate::StructuralTypeShape::Record { .. } | $crate::StructuralTypeShape::FixedArray { .. }
     };
 }
 

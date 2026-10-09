@@ -592,8 +592,8 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 132 + `u16` vocabulary
-marker 122 + the entry machine id, followed by the module's counted tables in
+Module bytes are `PSITERM\0` + `u16` format marker 133 + `u16` vocabulary
+marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
 <!-- module-table-order -->
@@ -601,33 +601,34 @@ the declaration order below and ending with boundary-application candidates.
 | --- | --- | --- |
 | 1 | scalar qualification catalog | the five counted catalog tables above |
 | 2 | structural types | counted structural type declarations |
-| 3 | structural domains | counted structural domain declarations |
-| 4 | services | counted service declarations |
-| 5 | concrete root service reach | counted service ids |
-| 6 | installation reach dependencies | counted installation reach rows |
-| 7 | placed-view inputs | counted placed-view input rows |
-| 8 | reborrow root handoffs | counted reborrow handoff rows |
-| 9 | reborrow restored call uses | counted restored-use rows |
-| 10 | boundary machines | counted boundary machine declarations |
-| 11 | provider candidates | counted provider candidate rows |
-| 12 | dynamic dispatch | counted interfaces and implementation tables |
-| 13 | float-meaning projections | counted projection rows |
-| 14 | float-meaning equalities | counted equality rows |
-| 15 | proposition declarations | counted proposition declaration rows |
-| 16 | proposition applications | counted proposition application rows |
-| 17 | evidence terms | counted evidence term rows |
-| 18 | evidence contract lanes | counted evidence lane rows |
-| 19 | proof-output invocations | counted proof-output call rows |
-| 20 | proof recursive components | counted recursive component rows |
-| 21 | closed conformance applications | counted conformance application rows |
-| 22 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 23 | scalar block invariants | the counted invariant rows above |
-| 24 | operation crash contracts | counted operation crash contract rows |
-| 25 | machines | counted machine rows |
-| 26 | target-machine families | counted family rows |
-| 27 | boundary application demands | counted exact requirement/application rows |
-| 28 | callback applications | counted checked registrar occurrences |
-| 29 | boundary application candidates | counted checked bodies for closed applications |
+| 3 | structural referent identities | counted identity-only pointer targets |
+| 4 | structural domains | counted structural domain declarations |
+| 5 | services | counted service declarations |
+| 6 | concrete root service reach | counted service ids |
+| 7 | installation reach dependencies | counted installation reach rows |
+| 8 | placed-view inputs | counted placed-view input rows |
+| 9 | reborrow root handoffs | counted reborrow handoff rows |
+| 10 | reborrow restored call uses | counted restored-use rows |
+| 11 | boundary machines | counted boundary machine declarations |
+| 12 | provider candidates | counted provider candidate rows |
+| 13 | dynamic dispatch | counted interfaces and implementation tables |
+| 14 | float-meaning projections | counted projection rows |
+| 15 | float-meaning equalities | counted equality rows |
+| 16 | proposition declarations | counted proposition declaration rows |
+| 17 | proposition applications | counted proposition application rows |
+| 18 | evidence terms | counted evidence term rows |
+| 19 | evidence contract lanes | counted evidence lane rows |
+| 20 | proof-output invocations | counted proof-output call rows |
+| 21 | proof recursive components | counted recursive component rows |
+| 22 | closed conformance applications | counted conformance application rows |
+| 23 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 24 | scalar block invariants | the counted invariant rows above |
+| 25 | operation crash contracts | counted operation crash contract rows |
+| 26 | machines | counted machine rows |
+| 27 | target-machine families | counted family rows |
+| 28 | boundary application demands | counted exact requirement/application rows |
+| 29 | callback applications | counted checked registrar occurrences |
+| 30 | boundary application candidates | counted checked bodies for closed applications |
 
 A boundary-application row carries its nonzero operation id, counted UTF-8
 exact-owner declaration identity, counted overload identity, optional package
@@ -827,6 +828,7 @@ producer state and rederives every ordering rule.
 | Row | Fields |
 | --- | --- |
 | structural type declaration | structural type id + identity string + structural type shape |
+| structural referent identity | structural type id + canonical closed-type identity string; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |
 | structural domain declaration | domain id + semantic domain id + identity string + carrier structural type id + optional content projection + counted establishment routes |
@@ -835,6 +837,15 @@ producer state and rederives every ordering rule.
 | service declaration | service id + identity string + counted parent service ids |
 | concrete root service reach | counted service ids |
 | installation reach dependency | requirement identity string + counted service-id upper bound |
+
+Storage declarations and identity-only referents share one type-id namespace.
+Their ids and canonical identities are disjoint, and each roster is strictly
+ordered by type id. Every identity-only row is the target of a reference
+carrier. A pointer edge may name either roster; by-value fields, array elements,
+owned storage and dereference projections require concrete declarations.
+Naming a pointer target supplies no layout or access authority. This keeps
+`Nest<T>` containing `&Nest<[T; 2]>` finite without truncating type identity or
+manufacturing a placeholder shape. Zero array extent does not erase its element.
 
 Structural type declarations are strictly ordered by structural type id; a
 declaration's record and mixed fields are strictly ordered by structural field

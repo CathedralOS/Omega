@@ -20,6 +20,11 @@ pub(super) fn encode_structural_contract(
     for declaration in &function.structural_types {
         encode_structural_type(bytes, declaration);
     }
+    encode_len(bytes, function.structural_types.referents().len());
+    for referent in function.structural_types.referents() {
+        bytes.extend_from_slice(&referent.id.get().to_le_bytes());
+        super::structural_types::encode_string(bytes, &referent.identity);
+    }
     encode_len(bytes, function.parameters.len());
     for parameter in &function.parameters {
         encode_structural_parameter(bytes, &parameter.semantic);

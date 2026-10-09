@@ -203,7 +203,7 @@ pub(crate) fn lower_unit_closure(
 
     // Shared namespaces: every emitted machine resolves types, domains, and
     // services against these one catalogs.
-    let (mut structural_types, type_ids) =
+    let (mut structural_types, type_ids, structural_referents) =
         catalog::lower_unit_structural_types(checked, plans, &closure, &boundaries)?;
     // Callable composed bodies borrow a complete shared catalog. Retain the
     // generated immutable carrier before cloning it into any callee emitter.
@@ -491,6 +491,7 @@ pub(crate) fn lower_unit_closure(
             // its helpers. Preserve the selected source owner, not roster order.
             entry: lookup_machine_id(&machine_ids, entry)?,
             structural_types,
+            structural_referents,
             structural_domains,
             services,
             root_service_reach,

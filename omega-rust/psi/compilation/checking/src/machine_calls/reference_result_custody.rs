@@ -2213,7 +2213,7 @@ fn stored_mutable_parts(
     mutable_borrowed_parts(program, reference).filter(|(referee, _)| {
         matches!(
             program.type_reference_table.type_reference(*referee),
-            TypeReferenceNode::Named { .. }
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
         )
     })
 }
@@ -2247,10 +2247,11 @@ pub fn mutable_borrowed_parts(
         .map(|shell| (shell.referee, CheckedStructuralAccess::MutableBorrow))
 }
 
-/// The named referee beneath a `&'a V` shared-borrowed view, with constraint
+/// The nominal referee beneath a `&'a V` shared-borrowed view, with constraint
 /// shells peeled. The referent's storage lives in the caller's frame like
-/// `parts`' loan — it just cannot be written through. The referee must be
-/// spelled as a `Named` type: this is the shared reference-result shape.
+/// `parts`' loan — it just cannot be written through. The referee must
+/// be a nominal type or application: choosing a generic application does not
+/// change the carrier's loan semantics or demand transitive pointee storage.
 pub fn shared_borrowed_parts(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -2260,7 +2261,7 @@ pub fn shared_borrowed_parts(
             shell.access == language_semantics::ReferenceAccess::Shared
                 && matches!(
                     program.type_reference_table.type_reference(shell.referee),
-                    TypeReferenceNode::Named { .. }
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
                 )
         })
         .map(|shell| (shell.referee, CheckedStructuralAccess::SharedBorrow))

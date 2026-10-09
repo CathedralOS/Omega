@@ -100,9 +100,9 @@ pub use types::{
     ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
     StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
     StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape, field_by_identity,
-    find_structural_case, find_structural_type, live_field, live_field_by_id,
-    live_field_by_identity, live_field_entry, structural_case_by_identity,
+    StructuralPathQualification, StructuralReferentIdentity, StructuralTypeDeclaration,
+    StructuralTypeShape, field_by_identity, find_structural_case, find_structural_type, live_field,
+    live_field_by_id, live_field_by_identity, live_field_entry, structural_case_by_identity,
     structural_case_position, structural_children, structural_type_by_identity,
     structural_type_contains_reference, structural_type_contains_reference_by,
     unique_structural_declaration,
@@ -126,6 +126,10 @@ pub struct TerminalModule {
     /// Concrete target-neutral instantiated type shapes, ordered by `id`.
     /// Native layout is deliberately absent and is selected by Omega.
     pub structural_types: Vec<StructuralTypeDeclaration>,
+    /// Closed identities reached only through reference edges, ordered by id.
+    /// Disjoint from storage definitions; actual dereferences demand their
+    /// own definition. Growing generic reference chains therefore stay finite.
+    pub structural_referents: Vec<types::StructuralReferentIdentity>,
     /// Structural qualification domains, ordered by `id`.
     pub structural_domains: Vec<StructuralDomainDeclaration>,
     /// Boundary-service declarations and their normalized parent closure.
@@ -274,6 +278,7 @@ impl TerminalModule {
             entry,
             scalar_qualifications: Default::default(),
             structural_types: Vec::new(),
+            structural_referents: Vec::new(),
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),

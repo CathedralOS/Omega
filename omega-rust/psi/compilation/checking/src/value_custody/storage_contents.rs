@@ -289,7 +289,9 @@ fn owned_or_shared_view_fields(
             program
                 .type_reference_table
                 .type_reference(crate::peel_declared_constraints(program, *referee)),
-            TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
+            TypeReferenceNode::Slice { .. }
+                | TypeReferenceNode::Named { .. }
+                | TypeReferenceNode::Generic { .. }
         )
     };
     let mut has_view = false;
@@ -515,7 +517,7 @@ fn resolve(
                 requirement,
             )?)))
         }
-        // A shared view of slice or named shape is a member's terminal
+        // A shared view of a slice or nominal application is a member's terminal
         // descriptor leaf — the same shape [`has_owned_or_shared_view_fields`]
         // admits one record deep. The referee's declared storage stays its
         // owner's custody, so it is never resolved here; the loan's custody
@@ -534,7 +536,9 @@ fn resolve(
             program
                 .type_reference_table
                 .type_reference(crate::peel_declared_constraints(program, *referee)),
-            TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
+            TypeReferenceNode::Slice { .. }
+                | TypeReferenceNode::Named { .. }
+                | TypeReferenceNode::Generic { .. }
         ) =>
         {
             Some(ContentType::View)

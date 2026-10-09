@@ -292,20 +292,6 @@ impl TypedTrees {
         member_name: &str,
     ) -> Option<&crate::data::DataField> {
         let instance = self.closed_data_definition(reference)?;
-        let origin = instance.generic_instance?;
-        if !self.type_reference_table.contains_type_reference(origin) {
-            return None;
-        }
-        let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
-            self.type_reference_table.type_reference(origin)
-        else {
-            return None;
-        };
-        // A Named instance must also rejoin its unique retained application.
-        if self.closed_data_definition(origin)?.symbol != instance.symbol {
-            return None;
-        }
-        let template = self.unique_data_definition_by_symbol(*base_symbol)?;
         let mut fields =
             self.data_members(instance)
                 .iter()
@@ -320,6 +306,34 @@ impl TypedTrees {
         if fields.next().is_some() {
             return None;
         }
+        if !field.symbol.is_valid()
+            || !self
+                .type_reference_table
+                .contains_type_reference(field.type_reference)
+            || self.symbols.get(field.symbol).parent != instance.symbol
+        {
+            return None;
+        }
+        // An already resolved instance field needs no template translation.
+        // Reopening an erased layout origin here loses region-bearing views
+        // and rejects finite recursive applications. Only translating a
+        // different retained selector owes the origin/member correspondence.
+        if retained == field.symbol {
+            return Some(field);
+        }
+        let origin = instance.generic_instance?;
+        if !self.type_reference_table.contains_type_reference(origin) {
+            return None;
+        }
+        let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
+            self.type_reference_table.type_reference(origin)
+        else {
+            return None;
+        };
+        if self.closed_data_definition(origin)?.symbol != instance.symbol {
+            return None;
+        }
+        let template = self.unique_data_definition_by_symbol(*base_symbol)?;
         let crate::data::DataMember::Field(original) = self.data_members(template).get(ordinal)?
         else {
             return None;
@@ -327,12 +341,7 @@ impl TypedTrees {
         (field.name == original.name
             && field.identity == original.identity
             && field.relevance == original.relevance
-            && field.symbol.is_valid()
             && original.symbol.is_valid()
-            && self
-                .type_reference_table
-                .contains_type_reference(field.type_reference)
-            && self.symbols.get(field.symbol).parent == instance.symbol
             && self.symbols.get(original.symbol).parent == template.symbol
             && (!retained.is_valid() || retained == field.symbol || retained == original.symbol))
             .then_some(field)

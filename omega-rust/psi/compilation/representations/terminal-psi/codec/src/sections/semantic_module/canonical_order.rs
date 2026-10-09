@@ -20,6 +20,16 @@ use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALA
 pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     if !strictly_increasing(
         module
+            .structural_referents
+            .iter()
+            .map(|referent| referent.id),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "structural referent identities",
+        ));
+    }
+    if !strictly_increasing(
+        module
             .callback_applications
             .iter()
             .map(|row| row.application_index),

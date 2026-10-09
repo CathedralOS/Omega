@@ -23,6 +23,7 @@ use crate::terminal_identities::{
     StructuralDomainBinding, lookup_domain_id_for_carrier, structural_domain_identity,
 };
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
+use terminal_psi::StructuralReferentIdentity;
 
 mod operation_types;
 pub(super) use operation_types::collect_operation_type_roots;
@@ -304,6 +305,7 @@ pub(super) fn lower_unit_structural_types(
     (
         Vec<StructuralTypeDeclaration>,
         Vec<(String, StructuralTypeId)>,
+        Vec<StructuralReferentIdentity>,
     ),
     LoweringError,
 > {
@@ -320,6 +322,7 @@ pub(super) fn lower_unit_structural_types_including(
     (
         Vec<StructuralTypeDeclaration>,
         Vec<(String, StructuralTypeId)>,
+        Vec<StructuralReferentIdentity>,
     ),
     LoweringError,
 > {
@@ -401,7 +404,7 @@ pub(super) fn lower_unit_structural_types_including(
         );
         roots.extend(boundary.result.structural_identity().map(str::to_owned));
     }
-    let (mut declarations, mut identities) =
+    let (mut declarations, mut identities, referents) =
         lower_unit_structural_type_roots(checked, plans, &roots)?;
     // A captured coordinate is compiler-owned primitive storage, even when
     // its source is an inline field and no authored signature roots u64.
@@ -440,7 +443,7 @@ pub(super) fn lower_unit_structural_types_including(
                     "record coordinate carrier conflicts with its catalog identity",
                 );
             }
-            let id = structural_type_id(dense_identity(declarations.len())?);
+            let id = structural_type_id(dense_identity(identities.len())?);
             identities.push((identity.clone(), id));
             declarations.push(StructuralTypeDeclaration {
                 id,
@@ -449,7 +452,7 @@ pub(super) fn lower_unit_structural_types_including(
             });
         }
     }
-    Ok((declarations, identities))
+    Ok((declarations, identities, referents))
 }
 
 fn select_from<'a>(
@@ -494,6 +497,7 @@ pub(crate) fn lower_unit_structural_type_roots(
     (
         Vec<StructuralTypeDeclaration>,
         Vec<(String, StructuralTypeId)>,
+        Vec<StructuralReferentIdentity>,
     ),
     LoweringError,
 > {
@@ -516,11 +520,11 @@ pub(crate) fn lower_unit_structural_type_roots(
         let plan = selected_declaration(plans, identity)?;
         active.push(identity.to_owned());
         match &plan.shape {
-            CheckedUnitStructuralTypeShape::Reference {
-                referent_identity, ..
-            } => {
-                collect(checked, plans, referent_identity, active, selected)?;
-            }
+            // Pointer transport names a closed referent, not its storage.
+            // Actual backing and dereference operations root concrete shapes
+            // independently. Following this edge enumerates an infinite set
+            // for otherwise finite values such as Chain<T> -> &Chain<[T; 2]>.
+            CheckedUnitStructuralTypeShape::Reference { .. } => {}
             // Bounded byte backing has an implicit u8 element, owned or
             // viewed. Preserve that declared dependency just like a fixed
             // array's explicit element; range establishment uses the same
@@ -591,14 +595,36 @@ pub(crate) fn lower_unit_structural_type_roots(
         collect(checked, plans, identity, &mut active, &mut selected)?;
     }
     selected.sort_by(|left, right| left.identity.cmp(&right.identity));
-    let type_ids = selected
+    let referent_names = selected
         .iter()
+        .filter_map(|plan| match &plan.shape {
+            CheckedUnitStructuralTypeShape::Reference {
+                referent_identity, ..
+            } if !selected
+                .iter()
+                .any(|definition| definition.identity == *referent_identity) =>
+            {
+                Some(referent_identity.clone())
+            }
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    // Identity-only leaves precede definitions in the shared namespace. Later
+    // generated carriers allocate after the largest definition id, so they
+    // cannot collide with a referent that owns no storage row.
+    let type_ids = referent_names
+        .iter()
+        .chain(selected.iter().map(|plan| &plan.identity))
         .enumerate()
-        .map(|(index, plan)| {
-            Ok((
-                plan.identity.clone(),
-                structural_type_id(dense_identity(index)?),
-            ))
+        .map(|(index, identity)| Ok((identity.clone(), structural_type_id(dense_identity(index)?))))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let referents = referent_names
+        .into_iter()
+        .map(|identity| {
+            Ok(StructuralReferentIdentity {
+                id: lookup_type_id(&type_ids, &identity)?,
+                identity,
+            })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_field = 1_u64;
@@ -752,7 +778,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             shape,
         });
     }
-    Ok((declarations, type_ids))
+    Ok((declarations, type_ids, referents))
 }
 
 pub(super) fn lower_unit_structural_domains(

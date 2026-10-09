@@ -5,8 +5,8 @@ use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::{
     decode_entry_claim, decode_multiplicity, decode_parameter, decode_path, decode_place,
-    decode_semantic_argument, decode_type, encode_entry_claim, encode_multiplicity,
-    encode_parameter, encode_place, encode_semantic_argument, encode_type,
+    decode_semantic_argument, decode_string, decode_type, encode_entry_claim, encode_multiplicity,
+    encode_parameter, encode_place, encode_semantic_argument, encode_string, encode_type,
 };
 use legalized_operations::LegalizedStructuralContract;
 use selected_instructions::effects::program::identity::encode_path;
@@ -18,6 +18,11 @@ pub(super) fn encode_signature(
     length(bytes, value.structural_types.len());
     for row in &value.structural_types {
         encode_type(bytes, row)?;
+    }
+    length(bytes, value.structural_types.referents().len());
+    for referent in value.structural_types.referents() {
+        crate::codec_bytes::push_encoded(bytes, referent.id.get().to_le_bytes());
+        encode_string(bytes, &referent.identity);
     }
     length(bytes, value.parameters.len());
     for row in &value.parameters {
@@ -72,6 +77,14 @@ pub(super) fn decode_signature(
         structural_types.push(decode_type(cursor)?);
     }
     let count = cursor.length()?;
+    let mut referents = Vec::with_capacity(count);
+    for _ in 0..count {
+        referents.push(terminal_psi::StructuralReferentIdentity {
+            id: decode_id(cursor, StructuralTypeId::new)?,
+            identity: decode_string(cursor)?,
+        });
+    }
+    let count = cursor.length()?;
     let mut parameters = Vec::new();
     for _ in 0..count {
         parameters.push(decode_parameter(cursor, true)?);
@@ -120,7 +133,10 @@ pub(super) fn decode_signature(
         entry_claims.push(decode_entry_claim(cursor)?);
     }
     Ok(LegalizedStructuralContract {
-        structural_types: structural_types.into(),
+        structural_types: abstract_operations::StructuralTypeCatalog::new(
+            structural_types,
+            referents,
+        ),
         parameters,
         result,
         structural_places,
@@ -134,11 +150,11 @@ mod tests {
     use super::{Cursor, LegalizedStructuralContract, decode_signature, encode_signature};
 
     #[test]
-    fn reference_signature_round_trip_retains_every_origin_candidate() {
+    fn reference_signature_round_trip_retains_origins_and_referent_identity() {
         let signature = LegalizedStructuralContract {
             result: Some(terminal_psi::StructuralResultDeclaration {
                 place: semantic_vocabulary::PlaceId::new(1).unwrap(),
-                structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                structural_type: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
@@ -154,7 +170,20 @@ mod tests {
                         .collect(),
                 }],
             }),
-            structural_types: Vec::new().into(),
+            structural_types: abstract_operations::StructuralTypeCatalog::new(
+                vec![terminal_psi::StructuralTypeDeclaration {
+                    id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
+                    identity: "reference(closed-target)".into(),
+                    shape: terminal_psi::StructuralTypeShape::Reference {
+                        referent: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                        access: terminal_psi::StructuralAccess::MutableBorrow,
+                    },
+                }],
+                vec![terminal_psi::StructuralReferentIdentity {
+                    id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                    identity: "closed-target".into(),
+                }],
+            ),
             parameters: Vec::new(),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -165,11 +194,22 @@ mod tests {
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(decode_signature(&mut cursor).unwrap(), signature);
         assert_eq!(cursor.remaining(), 0);
+        let mut renamed = signature.clone();
+        renamed.structural_types = abstract_operations::StructuralTypeCatalog::new(
+            signature.structural_types.to_vec(),
+            vec![terminal_psi::StructuralReferentIdentity {
+                id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                identity: "different-closed-target".into(),
+            }],
+        );
+        let mut changed = Vec::new();
+        encode_signature(&mut changed, &renamed).unwrap();
+        assert_ne!(bytes, changed);
         let mut reordered = signature.clone();
         reordered.result.as_mut().unwrap().reference_sources[0]
             .sources
             .swap(0, 1);
-        let mut changed = Vec::new();
+        changed.clear();
         encode_signature(&mut changed, &reordered).unwrap();
         assert_ne!(bytes, changed);
         reordered.result.as_mut().unwrap().reference_sources[0]

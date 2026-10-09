@@ -23,8 +23,7 @@ pub(crate) fn lower_decoded_module(
     // them; the realized provider body or builtin settlement commits the trap
     // natively, so no abstract operation needs a separate continuation lane.
     block_bindings::validate_structural_block_bindings(module)?;
-    if !module.machine(module.entry).is_some()
-    {
+    if !module.machine(module.entry).is_some() {
         return Err(LoweringError::VerifiedEntryMachineMissing(module.entry));
     }
     let functions = module
@@ -35,7 +34,10 @@ pub(crate) fn lower_decoded_module(
     Ok(AbstractOperationPlan {
         psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,
         entry: module.entry,
-        structural_types: module.structural_types.clone().into(),
+        structural_types: abstract_operations::StructuralTypeCatalog::new(
+            module.structural_types.clone(),
+            module.structural_referents.clone(),
+        ),
         boundary_machines: module.boundary_machines.clone(),
         provider_candidates: module.provider_candidates.clone(),
         dynamic_dispatch: module.dynamic_dispatch.clone(),

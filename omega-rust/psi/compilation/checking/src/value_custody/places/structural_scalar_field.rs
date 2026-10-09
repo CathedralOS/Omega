@@ -138,7 +138,7 @@ pub fn structural_scalar_field(
             }
         };
         let record = program.closed_data_definition(carrier)?;
-        let field = selected_member_field(program, record, member, &mut path)?;
+        let field = selected_member_field(program, carrier, record, member, &mut path)?;
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
             field.path_identity(),
         ));
@@ -146,7 +146,7 @@ pub fn structural_scalar_field(
     }
     carrier = readable_projection_carrier(program, carrier, &mut path)?;
     let record = program.closed_data_definition(carrier)?;
-    let field = selected_member_field(program, record, leaf, &mut path)?;
+    let field = selected_member_field(program, carrier, record, leaf, &mut path)?;
     let primitive_type = realized_scalar_carrier(program, field.type_reference)?;
     if !matches!(
         primitive_type,
@@ -216,17 +216,16 @@ fn readable_projection_carrier(
 /// synthetic record type; execution still needs its established case.
 fn selected_member_field<'program>(
     program: &'program dyn crate::CheckingInput,
+    carrier: TypeReferenceHandle,
     record: &'program typed_trees::data::DataDefinition,
     member: &typed_trees::expression::TableMemberExpression,
     path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let field = if let Some(origin) = record.generic_instance
-        && member.case_variant.is_none()
-    {
+    let field = if record.generic_instance.is_some() && member.case_variant.is_none() {
         // Normalization may retain a template field selection. Translate it
         // only through this receiver's exact instance/member correspondence;
         // a sibling instance's field cannot be selected by equal spelling.
-        program.closed_data_member_field(origin, member.member_symbol, member.member.as_str())?
+        program.closed_data_member_field(carrier, member.member_symbol, member.member.as_str())?
     } else {
         super::exact_data_member_field(
             program,

@@ -1,10 +1,13 @@
 //! Shared module declarations; function views retain this catalog, not copies.
+//! Reference targets without demanded storage remain exact identity rows,
+//! disjoint from concrete definitions. Every later IR retains both rosters;
+//! only actual owned storage or projection asks for a concrete declaration.
 
 use std::ops::Deref;
 use std::sync::Arc;
 
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::{StructuralReferentIdentity, StructuralTypeDeclaration};
 
 /// Immutable shared structural declarations at native compilation boundaries.
 ///
@@ -13,9 +16,26 @@ use terminal_psi::StructuralTypeDeclaration;
 /// remains content-based, with a shared-allocation fast path, and is not evidence
 /// of semantic admission.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct StructuralTypeCatalog(Arc<Vec<StructuralTypeDeclaration>>);
+pub struct StructuralTypeCatalog(
+    Arc<Vec<StructuralTypeDeclaration>>,
+    Arc<Vec<StructuralReferentIdentity>>,
+);
 
 impl StructuralTypeCatalog {
+    /// Retain storage definitions and identity-only referents in one shared
+    /// namespace. Neither copying a pointer nor naming its target creates a
+    /// storage definition; projections still require the concrete declaration.
+    pub fn new(
+        declarations: Vec<StructuralTypeDeclaration>,
+        referents: Vec<StructuralReferentIdentity>,
+    ) -> Self {
+        Self(Arc::new(declarations), Arc::new(referents))
+    }
+
+    pub fn referents(&self) -> &[StructuralReferentIdentity] {
+        self.1.as_slice()
+    }
+
     pub fn as_slice(&self) -> &[StructuralTypeDeclaration] {
         self.0.as_slice()
     }
@@ -28,7 +48,7 @@ impl StructuralTypeCatalog {
 
 impl From<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
     fn from(declarations: Vec<StructuralTypeDeclaration>) -> Self {
-        Self(Arc::new(declarations))
+        Self::new(declarations, Vec::new())
     }
 }
 
@@ -57,13 +77,13 @@ impl<'a> IntoIterator for &'a StructuralTypeCatalog {
 
 impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
     fn eq(&self, other: &Vec<StructuralTypeDeclaration>) -> bool {
-        self.as_slice() == other.as_slice()
+        self.referents().is_empty() && self.as_slice() == other.as_slice()
     }
 }
 
 impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
     fn eq(&self, other: &StructuralTypeCatalog) -> bool {
-        self.as_slice() == other.as_slice()
+        other.referents().is_empty() && self.as_slice() == other.as_slice()
     }
 }
 

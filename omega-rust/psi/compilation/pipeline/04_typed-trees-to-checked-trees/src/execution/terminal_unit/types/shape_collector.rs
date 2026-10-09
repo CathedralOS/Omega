@@ -12,6 +12,11 @@
 //! skipped alternative still owns the value; the graph's existing custody
 //! solver needs this independent authority to settle that live complement.
 //! Nominal hooks, linear descendants and stored loans never gain this capability.
+//!
+//! A stored reference owns its pointer carrier, not its referent's storage.
+//! Record its exact type edge without collecting the target's fields. Root
+//! storage demands collect their own shapes; otherwise `Nest<T>` containing
+//! `&Nest<[T; 2]>` would require an infinite catalog for one finite pointer.
 
 use super::*;
 
@@ -344,7 +349,13 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         access: language_semantics::ReferenceAccess,
     ) -> Option<String> {
-        self.add_view_type_with_substitutions(reference, binders, &[], access)
+        let identity = self.add_view_type_with_substitutions(reference, binders, &[], access)?;
+        // A root view lends actual backing storage. Its independently demanded
+        // shape is distinct from the pointer carrier recorded above; stored
+        // reference fields do not recursively demand their targets' storage.
+        let shell = validation::reference_shell(self.program, reference)?;
+        self.add_type(shell.referee, binders, &[])?;
+        Some(identity)
     }
 
     fn add_view_type_with_substitutions(
@@ -367,7 +378,8 @@ impl<'program> ShapeCollector<'program> {
             }
             language_semantics::ReferenceAccess::WriteOnly => return None,
         };
-        let referent_identity = self.add_type(referee, binders, substitutions)?;
+        let referent_identity =
+            validation::structural_type_identity(self.program, referee, binders, substitutions);
         self.add_reference_shape(
             reference,
             binders,
@@ -399,9 +411,9 @@ impl<'program> ShapeCollector<'program> {
         )
     }
 
-    /// Register `reference` as a `Reference` shape over an already registered
-    /// referent. One identity names one shape: a conflicting earlier plan
-    /// under the same identity declines the registration.
+    /// Register the pointer carrier and its exact referent identity. The edge
+    /// does not demand a referent storage definition. One identity names one
+    /// shape: a conflicting earlier plan declines the registration.
     fn add_reference_shape(
         &mut self,
         reference: TypeReferenceHandle,
@@ -691,6 +703,12 @@ impl<'program> ShapeCollector<'program> {
             );
             self.in_progress.remove(&identity);
             return Some(identity);
+        }
+        // Preparation owns closed field substitution. A view may retain its
+        // template symbol, so nominal lookup would reopen those fields under
+        // a flattened telescope and capture a recursive application's binder.
+        if let Some(data) = self.program.closed_data_definition(type_reference) {
+            return self.add_data_shape(identity, data.clone(), binders, Vec::new());
         }
         let (data_symbol, arguments) = match self
             .program

@@ -59,7 +59,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Boundary requirements retain their exact nominal service owner.
 // Suspension storage operands retain the same access axis as ordinary calls.
 // Owned state arrivals can bind their live claims into block-local names.
-pub(crate) const FORMAT_MARKER: u16 = 132;
+// Stored references retain identity-only targets without demanding storage.
+pub(crate) const FORMAT_MARKER: u16 = 133;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

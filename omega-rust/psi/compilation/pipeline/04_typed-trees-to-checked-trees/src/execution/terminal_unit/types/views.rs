@@ -112,7 +112,9 @@ pub(crate) fn borrowed_view_referent(
             program.primitive_type_reference(shell.referee).is_none()
                 && matches!(
                     referee,
-                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Slice { .. }
+                    TypeReferenceNode::Named { .. }
+                        | TypeReferenceNode::Generic { .. }
+                        | TypeReferenceNode::Slice { .. }
                 )
         }
         language_semantics::ReferenceAccess::WriteOnly => false,

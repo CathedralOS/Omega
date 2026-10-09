@@ -64,6 +64,11 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for declaration in &module.structural_types {
         encode_structural_type(&mut writer, declaration)?;
     }
+    writer.len("structural referents", module.structural_referents.len())?;
+    for referent in &module.structural_referents {
+        writer.id(referent.id);
+        writer.string("structural referent identity", &referent.identity)?;
+    }
     writer.len("structural domains", module.structural_domains.len())?;
     for declaration in &module.structural_domains {
         declaration_wire::encode_structural_domain(&mut writer, declaration)?;
@@ -236,6 +241,12 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let entry = reader.id("MachineId")?;
     let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
+    let structural_referents = decode_counted(reader, |reader| {
+        Ok(terminal_psi::StructuralReferentIdentity {
+            id: reader.id("StructuralTypeId")?,
+            identity: reader.string("structural referent identity")?,
+        })
+    })?;
     let structural_domains = decode_counted(reader, declaration_wire::decode_structural_domain)?;
     let services = decode_counted(reader, declaration_wire::decode_service)?;
     let concrete_root_service_reach = decode_ids(reader, "ServiceId")?;
@@ -303,6 +314,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         vocabulary_marker,
         entry,
         structural_types,
+        structural_referents,
         structural_domains,
         services,
         root_service_reach: TerminalRootServiceReach {

@@ -3042,12 +3042,15 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
-  corpus and focused native cohort. A live `&Nest<u8>` parameter whose `next`
-  field is `&Nest<[T; 2]>` still overflows in stage 04's
-  `execution/terminal_unit/types/shape_collector.rs`: referent collection eagerly
-  expands applications under flattened self-rebinding substitutions. Retain
-  exact application scopes and finite reference edges rather than enumerating
-  their transitive catalogs. Include prepared lifetime-bearing field
+  corpus and focused native cohort. Stored references now retain finite closed
+  identity edges through Terminal and native catalogs; regular and growing
+  recursive applications no longer demand transitive pointee storage. The
+  remaining reference-bearing sum witness constructs `Chain::End { value: 17 }`
+  and passes its loan to a helper matching `End` and `More`, where `More` stores
+  `&Chain<[Element; 2]>`. It checks but reaches native `UnsupportedControlFlow` at stage 02
+  `lowering/control_flow/references.rs:2138`: generalize case-conditional loan
+  ingress and custody without assigning permissions to inactive payloads.
+  Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete
   returned-loan frontiers. Keep

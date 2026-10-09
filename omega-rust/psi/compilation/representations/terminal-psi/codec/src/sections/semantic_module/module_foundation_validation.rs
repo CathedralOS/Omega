@@ -42,9 +42,41 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         module
             .structural_types
             .iter()
-            .map(|declaration| declaration.identity.as_str()),
+            .map(|declaration| declaration.identity.as_str())
+            .chain(
+                module
+                    .structural_referents
+                    .iter()
+                    .map(|referent| referent.identity.as_str()),
+            ),
         "structural type identity",
     )?;
+    let mut type_ids = BTreeSet::new();
+    for id in module
+        .structural_types
+        .iter()
+        .map(|declaration| declaration.id)
+        .chain(
+            module
+                .structural_referents
+                .iter()
+                .map(|referent| referent.id),
+        )
+    {
+        if !type_ids.insert(id) {
+            return malformed("structural identity and storage catalogs overlap");
+        }
+    }
+    for referent in &module.structural_referents {
+        if !module.structural_types.iter().any(|declaration| {
+            matches!(
+                declaration.shape, StructuralTypeShape::Reference { referent: target, .. }
+                    if target == referent.id
+            )
+        }) {
+            return malformed("identity-only structural type is not a reference target");
+        }
+    }
     require_unique_nonempty_identities(
         module
             .structural_domains

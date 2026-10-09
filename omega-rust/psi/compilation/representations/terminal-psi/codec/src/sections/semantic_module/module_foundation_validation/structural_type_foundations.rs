@@ -1,5 +1,7 @@
 //! The shape of each structural type declaration: references, records,
-//! fixed arrays, sums and mixed payloads over known types.
+//! fixed arrays, sums and mixed payloads over known types. Pointer targets
+//! require closed identities; by-value children require concrete definitions.
+//! An identity-only target supplies no storage, field, or access authority.
 
 use super::{has_structural_type, require_unique_nonempty_identities};
 use crate::codec_error::{CodecError, malformed};
@@ -41,10 +43,16 @@ pub(super) fn validate_type_shape(
     validate_field_storage_envelope(&declaration.shape)?;
     match &declaration.shape {
         StructuralTypeShape::Reference { referent, access } => {
-            if !has_structural_type(module, *referent)
+            if !(has_structural_type(module, *referent)
+                || module
+                    .structural_referents
+                    .iter()
+                    .any(|identity| identity.id == *referent))
                 || *access == terminal_psi::StructuralAccess::Owned
             {
-                return malformed("reference type requires a known referent and borrowed access");
+                return malformed(
+                    "reference type requires a closed referent identity and borrowed access",
+                );
             }
         }
         StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::BindingCarrier => {}
