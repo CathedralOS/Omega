@@ -30,7 +30,6 @@ use crate::{
     StackRepresentationId, TaskPlanDiagnostic, TaskStackCompositionId, TaskStackFrameId,
     TaskStackFrameValidationId,
 };
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Untrusted inputs presented for one opaque same-stack contribution.
@@ -852,16 +851,16 @@ fn admitted_contribution_report_fingerprint(
 fn admitted_contribution_commitment(
     candidate: &SameStackContributionAdmissionCandidate,
 ) -> SameStackContributionCommitment {
-    let mut hash = Sha256::new();
-    hash.update(b"omega.task.same-stack-contribution.v1\0");
-    hash.update(candidate.provider_plan_report_identity.to_le_bytes());
-    hash.update(candidate.provider_plan_commitment.as_bytes());
-    hash.update((candidate.requirement_identity.len() as u64).to_le_bytes());
-    hash.update(candidate.requirement_identity.as_bytes());
-    hash.update(candidate.receipt.normalized_identity().to_le_bytes());
-    hash.update(candidate.bytes.to_le_bytes());
-    hash.update(candidate.alignment.to_le_bytes());
-    SameStackContributionCommitment(hash.finalize().into())
+    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.task.same-stack-contribution.v1\0",
+    );
+    hash.u64(candidate.provider_plan_report_identity);
+    hash.raw(&candidate.provider_plan_commitment.as_bytes());
+    hash.string(&candidate.requirement_identity);
+    hash.raw(&candidate.receipt.normalized_identity().to_le_bytes());
+    hash.u64(candidate.bytes);
+    hash.u64(candidate.alignment);
+    SameStackContributionCommitment(hash.finish().into())
 }
 
 fn stack_plan_projection_report_fingerprint(

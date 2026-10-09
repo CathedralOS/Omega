@@ -5,7 +5,6 @@
 //! used only after a target-authored bootstrap has established storage roots.
 
 use calling_conventions::BoundaryEntryPlan;
-use sha2::{Digest, Sha256};
 
 mod exact_linux_arm64;
 mod exact_linux_x86_64;
@@ -54,7 +53,7 @@ impl ProgramEntryPhysicalContractPackageSourceDigest {
         package: target::ProgramEntryPhysicalContractPackage,
         source: &[u8],
     ) -> Self {
-        let mut digest = Sha256::new();
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
         hash_digest_field(
             &mut digest,
             b"omega.program-entry-physical-contract-package-source.v1",
@@ -64,7 +63,7 @@ impl ProgramEntryPhysicalContractPackageSourceDigest {
         hash_digest_field(&mut digest, source);
         Self {
             package,
-            bytes: digest.finalize().into(),
+            bytes: digest.finish().into(),
         }
     }
 
@@ -290,7 +289,6 @@ impl ProgramEntryPhysicalContractPlan {
     }
 }
 
-fn hash_digest_field(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
+fn hash_digest_field(digest: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
+    digest.bytes(bytes);
 }

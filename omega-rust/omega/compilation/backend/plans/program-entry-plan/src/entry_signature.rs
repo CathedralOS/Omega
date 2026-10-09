@@ -7,7 +7,6 @@
 //! record graph needed to distinguish its fields from a size-only lookalike.
 
 use crate::ProgramStorageEntryRootRole;
-use sha2::{Digest, Sha256};
 
 const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v3\0";
 
@@ -352,7 +351,11 @@ impl SelectedProgramEntrySignature {
         canonical.push(match self.result {
             ProgramEntryResultSignature::Unit => 1,
         });
-        ProgramEntrySignatureIdentity(Sha256::digest(canonical).into())
+        {
+            let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+            digest.raw(&canonical);
+            ProgramEntrySignatureIdentity(digest.finish().into())
+        }
     }
 
     fn validate_capture(&self) -> Result<(), String> {

@@ -7,12 +7,10 @@ use crate::plans::{
     MachineRegister, Preemption, RegisterSet, StatePlan, ValueClass, ValueLocation, ValuePlacement,
     ValueShape,
 };
-use sha2::Digest;
-use sha2::Sha256;
 
 pub(crate) struct Fnv1a {
     compact: crate::fnv1a::Fnv1a,
-    strong: Option<Sha256>,
+    strong: Option<crate::digest_encoder::DomainDigestEncoder>,
 }
 
 impl Fnv1a {
@@ -24,9 +22,8 @@ impl Fnv1a {
     }
 
     pub(crate) fn with_strong_domain(domain: &[u8]) -> Self {
-        let mut strong = Sha256::new();
-        strong.update((domain.len() as u64).to_le_bytes());
-        strong.update(domain);
+        let mut strong = crate::digest_encoder::DomainDigestEncoder::new(b"");
+        strong.bytes(domain);
         Self {
             compact: crate::fnv1a::Fnv1a::new(),
             strong: Some(strong),
@@ -38,13 +35,13 @@ impl Fnv1a {
     }
 
     pub(crate) fn finish_strong(self) -> [u8; 32] {
-        self.strong.expect("strong plan hasher").finalize().into()
+        self.strong.expect("strong plan hasher").finish().into()
     }
 
     fn bytes(&mut self, bytes: &[u8]) {
         self.compact.bytes(bytes);
         if let Some(strong) = &mut self.strong {
-            strong.update(bytes);
+            strong.raw(bytes);
         }
     }
 
