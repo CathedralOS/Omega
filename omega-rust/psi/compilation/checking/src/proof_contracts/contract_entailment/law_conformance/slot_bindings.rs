@@ -83,7 +83,6 @@ pub(crate) fn carrier_slot_bindings(
             match unaliased.as_slice() {
                 [single] => Some((*single).clone()),
                 [] if candidates.len() == 1 => Some(candidates[0].clone()),
-                [] => None,
                 _ => None,
             }
         };
@@ -209,10 +208,8 @@ pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -
         StructuralTerm::Constructor { fields, .. } => fields
             .iter()
             .any(|(_, value)| term_mentions_variable(value, variable)),
-        StructuralTerm::Application { arguments, .. } => arguments
-            .iter()
-            .any(|argument| term_mentions_variable(argument, variable)),
-        StructuralTerm::CallProjection { arguments, .. } => arguments
+        StructuralTerm::Application { arguments, .. }
+        | StructuralTerm::CallProjection { arguments, .. } => arguments
             .iter()
             .any(|argument| term_mentions_variable(argument, variable)),
         StructuralTerm::Opaque(_)

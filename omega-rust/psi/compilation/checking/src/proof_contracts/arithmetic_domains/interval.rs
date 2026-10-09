@@ -314,8 +314,5 @@ impl Interval {
 }
 
 fn pair(left: Option<i64>, right: Option<i64>, op: fn(i64, i64) -> Option<i64>) -> Option<i64> {
-    match (left, right) {
-        (Some(a), Some(b)) => op(a, b),
-        _ => None,
-    }
+    left.zip(right).and_then(|(left, right)| op(left, right))
 }

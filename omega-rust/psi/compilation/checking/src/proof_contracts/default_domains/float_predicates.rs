@@ -287,9 +287,6 @@ fn declared_field<'program>(
     definition: &DataDefinition,
     expression: ExpressionHandle,
 ) -> Option<&'program DataField> {
-    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, expression)
-    else {
-        return None;
-    };
+    let symbol = crate::expression_traversal::single_segment_name_symbol(program, expression)?;
     program.data_field(definition, symbol)
 }

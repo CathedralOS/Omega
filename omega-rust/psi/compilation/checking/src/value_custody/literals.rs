@@ -204,8 +204,6 @@ pub(crate) fn validate_suffix_landing(
     }
     constant_arrays::validate_declared_array_destination(program, value, declared, diagnostics);
 
-    let landed_of_primitive = primitive_landing_type;
-
     let literal_landing =
         |expression: ExpressionHandle| -> Option<(ExpressionHandle, LandedIntegerType)> {
             let mut current = expression;
@@ -259,7 +257,7 @@ pub(crate) fn validate_suffix_landing(
     };
     float_landing::validate_numeric_tree_destination(program, value, primitive, diagnostics);
     if let Some((literal_handle, suffix_type)) = literal_landing(value) {
-        let Some(declared_type) = landed_of_primitive(primitive) else {
+        let Some(declared_type) = primitive_landing_type(primitive) else {
             return;
         };
         if declared_type != suffix_type {

@@ -34,10 +34,8 @@ pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) 
         StructuralTerm::Constructor { fields, .. } => {
             fields.iter().any(|(_, value)| term_contains(value, needle))
         }
-        StructuralTerm::Application { arguments, .. } => arguments
-            .iter()
-            .any(|argument| term_contains(argument, needle)),
-        StructuralTerm::CallProjection { arguments, .. } => arguments
+        StructuralTerm::Application { arguments, .. }
+        | StructuralTerm::CallProjection { arguments, .. } => arguments
             .iter()
             .any(|argument| term_contains(argument, needle)),
         _ => false,

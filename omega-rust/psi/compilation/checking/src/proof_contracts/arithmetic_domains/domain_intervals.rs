@@ -155,10 +155,9 @@ fn self_predicate_bounds(
     if !crate::has_builtin_domain_decomposed_guard_meaning(program, definition, expression) {
         return false;
     }
-    let Some(binary) = (match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::Binary(binary) => Some(binary),
-        _ => None,
-    }) else {
+    let typed_trees::expression::ExpressionNode::Binary(binary) =
+        program.expression_table.expression(expression)
+    else {
         return false;
     };
     if binary.operator == BinaryOperator::And {

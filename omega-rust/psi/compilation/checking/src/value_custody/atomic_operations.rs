@@ -217,7 +217,7 @@ fn atomic_write_operands(
         _ => None,
     };
     let prior = |expression| same_result_name(program, expression, atomic.result);
-    let (operation, operands) = match atomic.ordering {
+    Some(match atomic.ordering {
         AtomicOrderingPlan::Load(_) | AtomicOrderingPlan::CompareExchangeOnce { .. } => {
             return None;
         }
@@ -272,8 +272,7 @@ fn atomic_write_operands(
                 vec![equal.right, difference.left],
             )
         }
-    };
-    Some((operation, operands))
+    })
 }
 
 /// Whether `expression` is a one-member name spelling the same member as

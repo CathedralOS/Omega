@@ -49,10 +49,7 @@ pub(super) fn refine_dependent_subtract(
     let Some(floor) = left_bound.offset.checked_sub(right_offset) else {
         return naive;
     };
-    let refined_low = match naive.low {
-        Some(low) => Some(low.max(floor)),
-        None => Some(floor),
-    };
+    let refined_low = Some(naive.low.map_or(floor, |low| low.max(floor)));
     Interval {
         low: refined_low,
         high: naive.high,
