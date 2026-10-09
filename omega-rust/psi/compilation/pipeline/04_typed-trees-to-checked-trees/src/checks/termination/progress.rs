@@ -111,10 +111,17 @@ pub(crate) fn analyze_checked_progress_with_call_frames(
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     proof_components: &[validation::ValidatedProofRecursiveComponent],
+    self_call_descents: &[validation::ValidatedSelfCallDescent],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
-    let summaries =
-        components::derive_summaries(program, flow, semantic, proof_components, call_frames);
+    let summaries = components::derive_summaries(
+        program,
+        flow,
+        semantic,
+        proof_components,
+        self_call_descents,
+        call_frames,
+    );
 
     let mut diagnostics = Vec::new();
     for machine in program

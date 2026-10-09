@@ -14,6 +14,7 @@ pub(crate) fn build_termination_facts(
         flow,
         semantic,
         &validation.proof_recursive_components,
+        &validation.self_call_descents,
         call_frames,
     )?;
     Ok(checked_trees::TerminationFacts {

@@ -582,6 +582,9 @@ pub(crate) fn intake_citation_for_edge(
     ) else {
         return;
     };
+    if !judge.callee_is_independent(callee.symbol) {
+        return;
+    }
 
     let facts = |kind: typed_trees::signature::SignatureContractKind| {
         contract_expressions(program, callee, kind)
@@ -656,6 +659,9 @@ pub(crate) fn intake_statement_citation_for_edge(
     ) else {
         return;
     };
+    if !judge.callee_is_independent(callee.symbol) {
+        return;
+    }
     let Some(entry) = program.machine_states(callee).first() else {
         return;
     };

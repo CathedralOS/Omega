@@ -102,6 +102,9 @@ pub struct ProgramValidationFacts {
     /// Canonical proof-only call SCCs accepted by the structural-subterm
     /// validator. Every exact internal call site retains its own witness.
     pub proof_recursive_components: Vec<ValidatedProofRecursiveComponent>,
+    /// Independently judged exact self-call decreases for private progress;
+    /// semantic predecessors do not authorize structural induction hypotheses.
+    pub self_call_descents: Vec<crate::ValidatedSelfCallDescent>,
     /// For each checked-body machine whose contract entailment this pass
     /// judged, the postconditions it proved: what
     /// [`crate::proven_machine_contract_expressions`] would rejudge for the
@@ -255,6 +258,7 @@ fn validate(
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
     // Chapter 3 / MR4: runtime call cycles require the constant-stack tail
     // admission; erased proof-only SCCs instead require strict structural descent.
+    let mut self_call_descents = Vec::new();
     let proof_recursive_components =
         call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
     let (opaque_property_receipts, allow_pending_opaque_copy) = match opaque_properties {
@@ -599,13 +603,14 @@ fn validate(
                 // the measure itself: every self-call must structurally
                 // descend (N2d gateway).
                 if proof_only.is_proof_machine(program, machine) {
-                    validate_proof_machine_recursion(
+                    self_call_descents.extend(validate_proof_machine_recursion(
                         program,
                         machine,
                         state,
+                        statement_index,
                         statement,
                         &mut diagnostics,
-                    );
+                    ));
                 } else {
                     validate_self_recursive_call_positions(
                         program,
@@ -750,6 +755,7 @@ fn validate(
             specification_calls,
             integer_embedding_calls,
             proof_recursive_components,
+            self_call_descents,
             proven_machine_contracts,
         },
     })

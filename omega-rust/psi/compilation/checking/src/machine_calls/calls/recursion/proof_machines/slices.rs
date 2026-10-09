@@ -2,12 +2,14 @@ use crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
 
 use super::{
     ExpressionHandle, ExpressionNode, Machine, StatementNode, TransitionGuardNode,
-    TransitionTargetNode, collect_self_entry_call_arguments,
+    TransitionTargetNode,
 };
 pub(super) fn guarded_slice_tail_call<'a>(
     program: &'a dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
+    call_ordinal: usize,
     statement: &StatementNode,
     argument: ExpressionHandle,
     measure_position: usize,
@@ -62,38 +64,12 @@ pub(super) fn guarded_slice_tail_call<'a>(
     ) {
         return false;
     }
-    let entry_name = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or_default();
-    // A repeated argument handle is not call-site identity. In particular,
-    // a recursive guard call or false-arm call cannot borrow the true arm's
-    // nonempty premise even if its arguments are structurally interned.
-    let mut outside_calls = Vec::new();
-    collect_self_entry_call_arguments(program, entry_name, guard, &mut outside_calls);
-    match program
-        .statement_table
-        .transition_target(transition.continuation)
-    {
-        TransitionTargetNode::Value(value) => {
-            collect_self_entry_call_arguments(program, entry_name, *value, &mut outside_calls);
-        }
-        TransitionTargetNode::Named { .. } if transition.continuation.is_valid() => return false,
-        _ => {}
-    }
-    if !outside_calls.is_empty() {
-        return false;
-    }
-    let TransitionTargetNode::Value(value) =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return false;
-    };
-    let mut calls = Vec::new();
-    collect_self_entry_call_arguments(program, entry_name, *value, &mut calls);
-    calls
-        .iter()
-        .any(|arguments| arguments.get(measure_position) == Some(&argument))
+    // The exact taken occurrence owns this guard, including when expression
+    // handles are shared by the guard or another arm.
+    crate::transition_call_target(program, machine, state, statement_index, call_ordinal)
+        == Some(transition.target)
+        && matches!(
+            program.statement_table.transition_target(transition.target),
+            TransitionTargetNode::Value(_)
+        )
 }

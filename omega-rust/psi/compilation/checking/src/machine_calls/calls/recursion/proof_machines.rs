@@ -7,14 +7,27 @@
 //! matcher could borrow guarantees from a different declaration and bypass the
 //! judge's premise checks.
 
-use super::is_self_entry_call;
+use super::is_current_entry_call;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 mod slices;
+
+/// One independently checked recursive call, retained only for source progress
+/// closure. Computed strict descent is not a structural-subterm IH witness and
+/// supplies no exported proof-recursion certificate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedSelfCallDescent {
+    pub machine: symbols::SymbolHandle,
+    pub entry: symbols::SymbolHandle,
+    pub state: symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub rank_parameter: symbols::SymbolHandle,
+    pub rank_argument: ExpressionHandle,
+}
 
 /// The arithmetic predecessor bridge for proof recursion over an integer
 /// measure.  A call nested in the TAKEN value of `transition n > 0` may pass
@@ -24,94 +37,95 @@ mod slices;
 /// call.
 fn guarded_integer_predecessor_call(
     program: &dyn crate::CheckingInput,
+    machine: &Machine,
     state: &typed_trees::state::State,
-    entry_name: &str,
-    measure_position: usize,
+    statement_index: usize,
+    call_ordinal: usize,
+    statement: &StatementNode,
     argument: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
-    measure_name: Option<&typed_trees::name::Identifier>,
 ) -> bool {
+    let has_builtin_meaning = |expression, spelling, left, right| {
+        let operand_types = [left, right].map(|operand| {
+            crate::expression_result_type_reference(program, machine, state, operand)
+        });
+        typed_trees::operator::has_builtin_spelled_expression_meaning(
+            program,
+            state.symbol,
+            expression,
+            spelling,
+            &operand_types,
+        )
+    };
     let Some(predecessor) = program.expression_table.binary_node(argument) else {
         return false;
     };
     if predecessor.operator != typed_trees::expression::BinaryOperator::Subtract
-        || !expression_names_measure(program, predecessor.left, measure_symbol, measure_name)
-        || !matches!(
-            program.expression_table.expression(predecessor.right),
-            ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
+        || !has_builtin_meaning(
+            argument,
+            language_core::OperatorSpelling::Subtract,
+            predecessor.left,
+            predecessor.right,
         )
+        || !expression_names_measure(program, predecessor.left, measure_symbol)
+        || !matches!(program.expression_table.expression(predecessor.right),
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(1))
     {
         return false;
     }
-
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .any(|statement| {
-            let Some(transition) = statement.as_transition() else {
-                return false;
-            };
-            let TransitionGuardNode::When(guard) = transition.guard else {
-                return false;
-            };
-            let guard = match program.expression_table.expression(guard) {
-                ExpressionNode::Binary(wrapper)
-                    if wrapper.operator == typed_trees::expression::BinaryOperator::Equal
-                        && matches!(
-                            program.expression_table.expression(wrapper.right),
-                            ExpressionNode::Boolean(true)
-                        ) =>
-                {
-                    wrapper.left
-                }
-                _ => guard,
-            };
-            let Some(positive) = program.expression_table.binary_node(guard) else {
-                return false;
-            };
-            if positive.operator != typed_trees::expression::BinaryOperator::Greater
-                || !expression_names_measure(program, positive.left, measure_symbol, measure_name)
-                || !matches!(
-                    program.expression_table.expression(positive.right),
-                    ExpressionNode::Integer(literal) if literal.value_i64() == Some(0)
+    let Some(transition) = statement.as_transition() else {
+        return false;
+    };
+    if crate::transition_call_target(program, machine, state, statement_index, call_ordinal)
+        != Some(transition.target)
+    {
+        return false;
+    }
+    let TransitionGuardNode::When(guard) = transition.guard else {
+        return false;
+    };
+    let guard = match program.expression_table.expression(guard) {
+        ExpressionNode::Binary(wrapper)
+            if wrapper.operator == typed_trees::expression::BinaryOperator::Equal
+                && has_builtin_meaning(
+                    guard,
+                    language_core::OperatorSpelling::Equal,
+                    wrapper.left,
+                    wrapper.right,
                 )
-            {
-                return false;
-            }
-
-            let TransitionTargetNode::Value(value) =
-                program.statement_table.transition_target(transition.target)
-            else {
-                return false;
-            };
-            let mut calls = Vec::new();
-            collect_self_entry_call_arguments(program, entry_name, *value, &mut calls);
-            calls.into_iter().any(|arguments| {
-                arguments
-                    .get(measure_position)
-                    .is_some_and(|candidate| *candidate == argument)
-            })
-        })
+                && matches!(
+                    program.expression_table.expression(wrapper.right),
+                    ExpressionNode::Boolean(true)
+                ) =>
+        {
+            wrapper.left
+        }
+        _ => guard,
+    };
+    let Some(positive) = program.expression_table.binary_node(guard) else {
+        return false;
+    };
+    positive.operator == typed_trees::expression::BinaryOperator::Greater
+        && has_builtin_meaning(
+            guard,
+            language_core::OperatorSpelling::Greater,
+            positive.left,
+            positive.right,
+        )
+        && expression_names_measure(program, positive.left, measure_symbol)
+        && matches!(program.expression_table.expression(positive.right),
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(0))
 }
 
 fn expression_names_measure(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
-    measure_name: Option<&typed_trees::name::Identifier>,
 ) -> bool {
     let Some(path) = program.expression_table.name_path_node(expression) else {
         return false;
     };
-    path.symbol == measure_symbol
-        || measure_name.is_some_and(|name| {
-            program
-                .expression_table
-                .name_path_members(path.members)
-                .last()
-                .is_some_and(|member| member.as_str() == name.as_str())
-        })
+    path.symbol.is_valid() && measure_symbol.is_valid() && path.symbol == measure_symbol
 }
 
 /// A direct self-application whose ranked operand is a strict constructor
@@ -154,13 +168,13 @@ pub(crate) fn proof_call_has_structural_descent(
         return false;
     }
     arguments.get(position).is_some_and(|argument| {
-        strict_subterm_of_measure(program, *argument, measure.symbol, None)
+        strict_subterm_of_measure(program, *argument, measure.symbol)
             || matches!(program.expression_table.expression(*argument), ExpressionNode::Name(path)
                 if path.symbol.is_valid()
                     && program.machine_states(machine)[1..].iter().any(|state| {
                         program.state_parameter_by_symbol(state, path.symbol).is_some()
                     })
-                    && substate_parameter_descends(program, machine, *argument, measure.symbol, None))
+                    && substate_parameter_descends(program, machine, *argument, measure.symbol))
     })
 }
 
@@ -168,73 +182,40 @@ pub(crate) fn validate_proof_machine_recursion(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
     statement: &StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
-) {
-    let entry_name = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or(machine.name.as_str());
-    let mut self_calls: Vec<Vec<ExpressionHandle>> = Vec::new();
-    if let Some(call) = statement.as_call() {
-        let receiver = program.statement_table.name_path_members(call.receiver);
-        let entry_symbol = program
-            .machine_states(machine)
-            .first()
-            .map(|entry| entry.symbol)
-            .unwrap_or_else(symbols::SymbolHandle::invalid);
-        let selects_self_entry = (call.target_symbol.is_valid()
-            && call.target_symbol == entry_symbol)
-            || (!call.target_symbol.is_valid() && call.target.as_str() == entry_name);
-        if selects_self_entry
-            && (receiver.is_empty() || matches!(receiver, [only] if only.is_self_receiver()))
-        {
-            // A resultless citation and an explicitly discarded value call
-            // are both StatementNode::Call. The call itself is the induction
-            // edge; looking only through its argument expressions would let
-            // `theorem(n);` cite its own ensures without proving descent.
-            self_calls.push(
-                program
-                    .statement_table
-                    .expression_handles(call.arguments)
-                    .to_vec(),
-            );
-        }
-    }
-    // Runtime tail normalization changes an exact self call into an entry
-    // backedge. Proof-only classification happens later, so retain that edge
-    // in this same induction check: constant-stack execution is not descent.
-    if let Some(transition) = statement.as_transition() {
-        let entry_symbol = program
-            .machine_states(machine)
-            .first()
-            .map(|entry| entry.symbol);
-        for target in [transition.target, transition.continuation] {
-            if !target.is_valid() {
-                continue;
-            }
-            if let TransitionTargetNode::Named {
-                path, arguments, ..
-            } = program.statement_table.transition_target(target)
-                && path.symbol.is_valid()
-                && (path.symbol == machine.symbol || Some(path.symbol) == entry_symbol)
-            {
-                self_calls.push(
-                    program
-                        .statement_table
-                        .expression_handles(*arguments)
-                        .to_vec(),
-                );
-            }
-        }
-    }
-    for root in statement_expression_roots(program, statement) {
-        collect_self_entry_call_arguments(program, entry_name, root, &mut self_calls);
-    }
+) -> Vec<ValidatedSelfCallDescent> {
+    let Some(entry) = program.machine_states(machine).first() else {
+        return Vec::new();
+    };
+    let entry_name = machine.name.as_str();
+    let self_calls =
+        crate::collect_call_sites_in_statement(program, machine, state, statement_index)
+            .into_iter()
+            .enumerate()
+            .filter(|(_, site)| {
+                if site.static_requirement_dispatch().is_some() {
+                    return false;
+                }
+                match site {
+                    crate::CallSite::Expression { call, .. } => {
+                        is_current_entry_call(program, machine, call)
+                    }
+                    crate::CallSite::Statement(call) => {
+                        call.target_symbol.is_valid()
+                            && (call.target_symbol == machine.symbol
+                                || call.target_symbol == entry.symbol)
+                    }
+                    crate::CallSite::TransitionNamed { path, .. } => {
+                        path.symbol.is_valid()
+                            && (path.symbol == machine.symbol || path.symbol == entry.symbol)
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
     if self_calls.is_empty() {
-        return;
+        return Vec::new();
     }
 
     let Some(subjects) = typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
@@ -246,7 +227,7 @@ pub(crate) fn validate_proof_machine_recursion(
              recursion, both strata)",
             machine.name,
         )));
-        return;
+        return Vec::new();
     };
     let [subject] = subjects.as_slice() else {
         diagnostics.push(Diagnostic::error(format!(
@@ -256,7 +237,7 @@ pub(crate) fn validate_proof_machine_recursion(
              recursion, both strata)",
             machine.name,
         )));
-        return;
+        return Vec::new();
     };
     let Some(measure_path) = program.expression_table.name_path_node(*subject) else {
         diagnostics.push(Diagnostic::error(format!(
@@ -265,7 +246,7 @@ pub(crate) fn validate_proof_machine_recursion(
              proven yet",
             machine.name,
         )));
-        return;
+        return Vec::new();
     };
     let measure_symbol = measure_path.symbol;
     let measure_name = program
@@ -280,62 +261,77 @@ pub(crate) fn validate_proof_machine_recursion(
             .state_parameters(entry)
             .iter()
             .position(|parameter| {
-                (parameter.symbol.is_valid() && parameter.symbol == measure_symbol)
-                    || measure_name
-                        .as_ref()
-                        .is_some_and(|name| parameter.name.as_str() == name.as_str())
+                parameter.symbol.is_valid()
+                    && measure_symbol.is_valid()
+                    && parameter.symbol == measure_symbol
             })
     }) else {
         diagnostics.push(Diagnostic::error(format!(
             "recursive proof machine `{}`: the measure must name an entry parameter",
             machine.name,
         )));
-        return;
+        return Vec::new();
     };
 
     // The slice-tail decrease probe scans the whole program once for its
     // bound index; share that scan across every self-call argument here.
     let mut bound_lookup = None;
-    for arguments in self_calls {
+    let diagnostics_before = diagnostics.len();
+    let mut validated = Vec::new();
+    for (call_ordinal, site) in self_calls {
+        let arguments = crate::call_site_argument_expressions(program, &site);
         let argument = arguments.get(measure_position).copied();
         let descends = argument.is_some_and(|argument| {
-            strict_subterm_of_measure(program, argument, measure_symbol, measure_name.as_ref())
+            strict_subterm_of_measure(program, argument, measure_symbol)
                 || substate_parameter_descends(
                     program,
                     machine,
                     argument,
                     measure_symbol,
-                    measure_name.as_ref(),
                 )
                 || program.machine_states(machine).first().is_some_and(|entry| {
                     crate::proof_contracts::contract_entailment::proof_edge_strict_decrease_judged(
                         program,
                         machine,
                         state,
+                        statement_index,
                         argument,
                         &program.state_parameters(entry)[measure_position],
                     )
                 })
                 || guarded_integer_predecessor_call(
                     program,
+                    machine,
                     state,
-                    entry_name,
-                    measure_position,
+                    statement_index,
+                    call_ordinal,
+                    statement,
                     argument,
                     measure_symbol,
-                    measure_name.as_ref(),
                 )
                 || slices::guarded_slice_tail_call(
                     program,
                     machine,
                     state,
+                    statement_index,
+                    call_ordinal,
                     statement,
                     argument,
                     measure_position,
                     &mut bound_lookup,
                 )
         });
-        if !descends {
+        if let Some(argument) = argument.filter(|_| descends) {
+            validated.push(ValidatedSelfCallDescent {
+                machine: machine.symbol,
+                entry: entry.symbol,
+                state: state.symbol,
+                statement_index,
+                call_ordinal,
+                rank_parameter: program.state_parameters(entry)[measure_position].symbol,
+                rank_argument: argument,
+            });
+        } else {
             diagnostics.push(Diagnostic::error(format!(
                 "`{entry_name}(..)` cannot prove the measure `{}` structurally \
                  decreases at this self-call: the call does not prove a strict \
@@ -354,66 +350,15 @@ pub(crate) fn validate_proof_machine_recursion(
             )));
         }
     }
-}
-
-/// The root expression handles a statement can carry (guard subjects, arm
-/// arguments, terminal values, initializers, call arguments).
-fn statement_expression_roots(
-    program: &dyn crate::CheckingInput,
-    statement: &StatementNode,
-) -> Vec<ExpressionHandle> {
-    use typed_trees::statement::StatementRootRole as Role;
-    program
-        .statement_table
-        .expression_roots(statement)
-        .into_iter()
-        .filter(|(role, _)| {
-            !matches!(
-                role,
-                Role::BindingReceiver | Role::BindingImplementation | Role::AssemblyFact
-            )
-        })
-        .map(|(_, root)| root)
-        .collect()
-}
-
-/// Collect the ARGUMENT spans of every self-entry call in this tree.
-fn collect_self_entry_call_arguments(
-    program: &dyn crate::CheckingInput,
-    entry_name: &str,
-    expression: ExpressionHandle,
-    found: &mut Vec<Vec<ExpressionHandle>>,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-    let recurse = |handle: ExpressionHandle, found: &mut Vec<Vec<ExpressionHandle>>| {
-        collect_self_entry_call_arguments(program, entry_name, handle, found);
-    };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => recurse(atomic.value, found),
-        ExpressionNode::Call(call) => {
-            if is_self_entry_call(program, entry_name, call) {
-                found.push(
-                    program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .to_vec(),
-                );
-            }
-            recurse(call.receiver, found);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                recurse(*argument, found);
-            }
-        }
-        other => crate::expression_traversal::children(program, other, |child| {
-            recurse(child, found);
-        }),
+    if diagnostics.len() == diagnostics_before {
+        validated
+    } else {
+        Vec::new()
     }
 }
 
 /// A STRICT subterm of the measure: a Member chain of one or more hops whose
-/// root Name is the measure parameter (symbol match, name fallback). One hop
+/// root Name is the resolved measure parameter. One hop
 /// = one constructor consumed (`n.prev`); depth composes for free.
 /// N3 rung 2 -- descent THROUGH a sub-state parameter: a self-call inside a
 /// per-arm sub-proof passes the sub-state's own parameter (`step_case(prev,
@@ -427,63 +372,37 @@ fn collect_self_entry_call_arguments(
 /// still over ALL binding sites, so a single non-descending entry poisons the
 /// parameter and cycles without a direct strict-subterm seed prove nothing.
 ///
-/// Matching is symbol-first (precise); the name fallback additionally
-/// refuses when any local or assignment anywhere in the machine shares the
-/// name, so a shadowing binding cannot launder a non-descending value
-/// through a descending parameter's name.
+/// Only resolved parameter and transition identities carry provenance.
+/// A same-spelled local or parameter cannot stand in for the ranked binder.
 fn substate_parameter_descends(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     argument: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
-    measure_name: Option<&Identifier>,
 ) -> bool {
     let Some(path) = program.expression_table.name_path_node(argument) else {
         return false;
     };
-    let [name] = program.expression_table.name_path_members(path.members) else {
+    if !path.symbol.is_valid() {
         return false;
-    };
+    }
     let states = program.machine_states(machine);
-    if states.len() < 2 {
-        return false;
-    }
-    // Every sub-state parameter this name could denote (symbol-first).
-    let mut candidates: Vec<(&typed_trees::state::State, usize)> = Vec::new();
-    let mut symbol_matched = false;
-    for state in &states[1..] {
-        for (position, parameter) in program.state_parameters(state).iter().enumerate() {
-            let by_symbol = path.symbol.is_valid()
-                && parameter.symbol.is_valid()
-                && parameter.symbol == path.symbol;
-            let by_name = parameter.name.as_str() == name.as_str();
-            if by_symbol {
-                symbol_matched = true;
-                candidates.push((state, position));
-            } else if by_name {
-                candidates.push((state, position));
-            }
-        }
-    }
+    let candidates = states
+        .iter()
+        .skip(1)
+        .flat_map(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| {
+                    parameter.symbol.is_valid() && parameter.symbol == path.symbol
+                })
+                .map(move |(position, _)| (state, position))
+        })
+        .collect::<Vec<_>>();
     if candidates.is_empty() {
         return false;
-    }
-    if !symbol_matched {
-        // Name-only matching: refuse if anything else in the machine binds
-        // this name.
-        for state in states {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                match statement {
-                    StatementNode::LocalData(local_data)
-                        if local_data.name.as_str() == name.as_str() =>
-                    {
-                        return false;
-                    }
-                    StatementNode::Assignment(_) => return false,
-                    _ => {}
-                }
-            }
-        }
     }
     let parameters: Vec<(&typed_trees::state::State, usize, symbols::SymbolHandle)> = states[1..]
         .iter()
@@ -521,12 +440,7 @@ fn substate_parameter_descends(
                         else {
                             continue;
                         };
-                        let [target_name] = program.statement_table.name_path_members(path.members)
-                        else {
-                            all_descend = false;
-                            continue;
-                        };
-                        if target_name.as_str() != sub_state.name.as_str() {
+                        if !path.symbol.is_valid() || path.symbol != sub_state.symbol {
                             continue;
                         }
                         binding_sites += 1;
@@ -541,13 +455,7 @@ fn substate_parameter_descends(
                             }
                             _ => false,
                         };
-                        if !forwarded
-                            && !strict_subterm_of_measure(
-                                program,
-                                *bound,
-                                measure_symbol,
-                                measure_name,
-                            )
+                        if !forwarded && !strict_subterm_of_measure(program, *bound, measure_symbol)
                         {
                             all_descend = false;
                         }
@@ -577,7 +485,6 @@ fn strict_subterm_of_measure(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
-    measure_name: Option<&Identifier>,
 ) -> bool {
     let Some(member) = program.expression_table.member_node(expression) else {
         return false;
@@ -587,13 +494,9 @@ fn strict_subterm_of_measure(
         match program.expression_table.expression(root) {
             ExpressionNode::Member(inner) => root = inner.receiver,
             ExpressionNode::Name(path) => {
-                return (path.symbol.is_valid() && path.symbol == measure_symbol)
-                    || measure_name.is_some_and(|name| {
-                        matches!(
-                            program.expression_table.name_path_members(path.members),
-                            [only] if only.as_str() == name.as_str()
-                        )
-                    });
+                return path.symbol.is_valid()
+                    && measure_symbol.is_valid()
+                    && path.symbol == measure_symbol;
             }
             _ => return false,
         }

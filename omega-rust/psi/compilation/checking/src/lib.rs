@@ -157,7 +157,7 @@ pub use crate::machine_calls::call_cycles::{
 };
 pub use crate::machine_calls::calls::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
-    RecastSource, frame_paths_overlap, operand_call_plans,
+    RecastSource, ValidatedSelfCallDescent, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable,
 };
 pub use crate::machine_calls::denotational_calls::{

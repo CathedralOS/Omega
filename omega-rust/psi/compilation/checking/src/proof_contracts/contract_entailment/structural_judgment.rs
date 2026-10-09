@@ -341,6 +341,10 @@ impl<'program> StructuralJudge<'program> {
         )
     }
 
+    pub(super) fn callee_is_independent(&self, callee: SymbolHandle) -> bool {
+        selected_contracts::independent_callee(self.program, self.machine_symbol, callee)
+    }
+
     pub(super) fn declaration_expression_type(
         &self,
         expression: ExpressionHandle,

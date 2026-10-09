@@ -31,6 +31,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
     edge_argument: ExpressionHandle,
     measure: &typed_trees::signature::StateParameter,
 ) -> bool {
@@ -44,24 +45,34 @@ pub(crate) fn proof_edge_strict_decrease_judged(
     // Incoming-arm hypotheses -- SOUND only when this state has exactly ONE
     // incoming edge (otherwise a second path could reach it without the
     // arm's case holding; conservative: intake nothing).
-    let mut incoming = 0usize;
+    let targets_state = |symbol| {
+        crate::declarations::transitions::resolved_transition_target_state(program, symbol)
+            .is_some_and(|(owner, target)| {
+                owner.symbol == machine.symbol && target.symbol == state.symbol
+            })
+    };
+    // Entry activation is an arrival without any transition-arm hypothesis.
+    let mut incoming = usize::from(
+        program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == state.symbol),
+    );
     for other in program.machine_states(machine) {
         for statement in program.statement_table.statements(other.statement_nodes) {
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
-            if !transition.target.is_valid() {
-                continue;
-            }
-            if let TransitionTargetNode::Named { path, .. } =
-                program.statement_table.transition_target(transition.target)
-                && program
-                    .statement_table
-                    .name_path_members(path.members)
-                    .last()
-                    .is_some_and(|name| name.as_str() == state.name.as_str())
-            {
-                incoming += 1;
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                if let TransitionTargetNode::Named { path, .. } =
+                    program.statement_table.transition_target(target)
+                    && targets_state(path.symbol)
+                {
+                    incoming += 1;
+                }
             }
         }
     }
@@ -98,12 +109,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
             else {
                 continue;
             };
-            let targets_state = program
-                .statement_table
-                .name_path_members(path.members)
-                .last()
-                .is_some_and(|name| name.as_str() == state.name.as_str());
-            if !targets_state {
+            if !targets_state(path.symbol) {
                 continue;
             }
             // Materialize the payload alias for a tag-only case guard
@@ -220,8 +226,15 @@ pub(crate) fn proof_edge_strict_decrease_judged(
         }
     }
 
-    // Citations + local bindings, in statement order.
-    for statement in program.statement_table.statements(state.statement_nodes) {
+    // Only completed preceding statements can supply edge premises. The
+    // recursive call being judged, and any later citation, cannot license
+    // this edge with a guarantee whose own descent still depends on it.
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+    {
         match statement {
             StatementNode::LocalData(local) if local.initial_value.is_valid() => {
                 if let Some(call) = program.expression_table.call_node(local.initial_value) {

@@ -11,6 +11,7 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 mod proof_machines;
+pub use proof_machines::ValidatedSelfCallDescent;
 
 pub(crate) use proof_machines::proof_call_has_structural_descent;
 pub(crate) use proof_machines::validate_proof_machine_recursion;
@@ -119,24 +120,6 @@ fn is_current_entry_call(
                 .machine_states(machine)
                 .first()
                 .is_some_and(|entry| call.target_symbol == entry.symbol))
-}
-
-// The proof-machine subterm collector retains its existing authored-self
-// selection. Runtime position checks below use the exact resolved entry.
-fn is_self_entry_call(
-    program: &dyn crate::CheckingInput,
-    entry_name: &str,
-    call: &TableCallExpression,
-) -> bool {
-    if call.target.as_str() != entry_name {
-        return false;
-    }
-    !call.receiver.is_valid()
-        || matches!(
-            program.expression_table.expression(call.receiver),
-            ExpressionNode::Name(path)
-                if matches!(program.expression_table.name_path_members(path.members), [only] if only.is_self_receiver())
-        )
 }
 
 /// Reject every self-entry call in this expression tree: any hit here is

@@ -18,6 +18,7 @@ pub(super) fn derive_summaries(
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     proof_components: &[validation::ValidatedProofRecursiveComponent],
+    self_call_descents: &[validation::ValidatedSelfCallDescent],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<CheckedProgressSummary> {
     let mut components = validation::validated_runtime_recursive_components(program);
@@ -28,6 +29,16 @@ pub(super) fn derive_summaries(
             .map(|member| member.machine)
             .collect::<Vec<_>>()
     }));
+    // Only actual source-judged call descent closes a singleton assumption.
+    // A ranked state cycle alone says nothing about a separate self call.
+    for descent in self_call_descents {
+        if !components
+            .iter()
+            .any(|component| component.contains(&descent.machine))
+        {
+            components.push(vec![descent.machine]);
+        }
+    }
     let mut summaries = program
         .machines()
         .iter()
