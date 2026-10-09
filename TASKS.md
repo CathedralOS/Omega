@@ -2605,9 +2605,6 @@ crash and native exit behavior.
   - Read-selector capture (ebf381240e2) names `__hoist_14` instead of the
     authored index: `fail/collections/non_integer_index_rejected` loses its
     fragment.
-  - `fail/ports/asm_port_in_unsettled` pins the port-read lowering gap at
-    "call operation: target state"; since 8c8a83fc8e5 the gap is reported
-    earlier, at "outer calls: argument calls".
   - `pass/memory/bump_allocator_canary` (checked/built until 68cadd5a83a,
     **BORROWED-STORAGE-RESTORATION**'s claim transport): linear validation
     of `source/library/alloc/bump.omg` reports

@@ -471,6 +471,11 @@ pub(super) fn collect_argument_calls(
     calls: &[checked_trees::FlowCallFact],
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
+    // Register operands own no nested call. An argument call left unclaimed
+    // still refuses as an unconsumed nested call.
+    if structural_operands::has_register_operands_only(program, call.target_symbol) {
+        return Some(());
+    }
     let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let formals = parameters.iter().collect::<Vec<_>>();
     if arguments.len() != formals.len() {

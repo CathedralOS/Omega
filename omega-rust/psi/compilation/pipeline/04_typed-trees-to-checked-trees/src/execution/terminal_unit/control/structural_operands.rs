@@ -360,6 +360,20 @@ pub(in crate::execution::terminal_unit) fn establish_value(
     })
 }
 
+/// An asm intrinsic owns no authored parameter roster: its instruction
+/// contract fixes every operand as a register value. Its call therefore owns
+/// no structural operand and no argument call; call planning still decides
+/// whether the instruction itself lowers.
+pub(in crate::execution::terminal_unit) fn has_register_operands_only(
+    program: &dyn ::validation::CheckingInput,
+    target: SymbolHandle,
+) -> bool {
+    program
+        .symbols
+        .builtin_function_for_symbol(target)
+        .is_some_and(|function| function.is_asm_intrinsic())
+}
+
 pub(in crate::execution::terminal_unit) fn for_call<'a>(
     program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
@@ -420,6 +434,9 @@ fn collect<'a>(
         call.statement_index,
         call.call_ordinal,
     )?;
+    if has_register_operands_only(program, call.target_symbol) {
+        return Some(());
+    }
     let arguments = validation::call_site_argument_expressions(program, &site);
     let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let parameters = parameters.iter().enumerate().collect::<Vec<_>>();
