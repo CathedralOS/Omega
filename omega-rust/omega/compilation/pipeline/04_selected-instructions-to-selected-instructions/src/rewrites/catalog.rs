@@ -43,19 +43,6 @@ impl SelectedStageRuleRows {
                 .any(|entry| entry.optimization() == optimization),
         }
     }
-    /// The slice's rule count.
-    pub fn len(&self) -> usize {
-        match self {
-            Self::SelectedLowering(rows) => rows.len(),
-            Self::PreAllocation(rows) => rows.len(),
-            Self::AllocationRecovery(rows) => rows.len(),
-        }
-    }
-
-    /// Whether the slice admits no rules.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
 /// One phase's slice of the stage catalog: every selectable rule the stage

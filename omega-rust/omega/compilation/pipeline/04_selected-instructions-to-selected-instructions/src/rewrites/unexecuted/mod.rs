@@ -91,7 +91,6 @@ mod dead_store;
 mod inflow_relocation;
 mod interchange;
 pub(crate) mod peepholes;
-pub(super) use super::place_storage;
 mod relocation;
 mod scheduled_relocation;
 mod store_motion;

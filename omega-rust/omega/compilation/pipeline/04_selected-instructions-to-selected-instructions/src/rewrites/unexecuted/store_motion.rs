@@ -110,31 +110,3 @@ mod motion;
 mod rewrite;
 mod validation;
 
-use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::SelectedInstructionPlanIdentity;
-use semantic_vocabulary::FuelScheduleIdentity;
-
-receipt_selected_identities!(StoreMutationMotionReceipt);
-impl std::fmt::Display for StoreMutationMotionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid store mutation motion: {self:?}")
-    }
-}
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StoreMutationMotionReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StoreMutationMotionError {
-    SourceMismatch,
-    UnsupportedInstruction,
-    UnsupportedPair,
-    ConstraintMismatch,
-    WorkBudgetExceeded,
-    IdentityOverflow,
-    ReplayMismatch,
-}
