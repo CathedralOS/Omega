@@ -7,6 +7,8 @@
 //! rules as evaluation, and mixed policies never acquire a common implicit type.
 //! Exact integer casts retain the completed result carrier and policy after
 //! checking the unchanged closed value fits; they do not round or clamp it.
+//! Trapping arithmetic contributes only a representable normal result; failed
+//! arithmetic supplies no value and never supplies executable crash permission.
 //! Record projections are not numeric syntax: selecting their literal leaf
 //! would erase the field's declared carrier and the receiver's other evaluated
 //! fields. Custody-aware projection queries own that separate operation.
@@ -190,9 +192,6 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                     }
                     ExpressionNode::Integer(literal) if typed_owner.is_some() => {
                         let landing = literal.landing()?;
-                        if landing.domain == ArithmeticDomain::Trapping {
-                            return None;
-                        }
                         let (primitive, atom) = literal_carrier(landing.landed_type)?;
                         let symbol = program
                             .symbols
@@ -367,20 +366,23 @@ fn apply_numeric(
     let integer = integer_carrier(primitive)?;
     let left_value = land_integer(&left.value.to_integer_exact()?, primitive)?;
     let right_value = land_integer(&right.value.to_integer_exact()?, primitive)?;
+    // A closed Trapping operation has the same normal result as Exact. A
+    // failed carrier operation supplies no value; this query cannot discharge
+    // the executable crash permission or turn its failure into a proof fact.
     let result = match (policy, operator) {
-        (ArithmeticDomain::Exact, BinaryOperator::Add) => {
+        (ArithmeticDomain::Exact | ArithmeticDomain::Trapping, BinaryOperator::Add) => {
             integer.exact_add(left_value, right_value)
         }
-        (ArithmeticDomain::Exact, BinaryOperator::Subtract) => {
+        (ArithmeticDomain::Exact | ArithmeticDomain::Trapping, BinaryOperator::Subtract) => {
             integer.exact_sub(left_value, right_value)
         }
-        (ArithmeticDomain::Exact, BinaryOperator::Multiply) => {
+        (ArithmeticDomain::Exact | ArithmeticDomain::Trapping, BinaryOperator::Multiply) => {
             integer.exact_mul(left_value, right_value)
         }
-        (ArithmeticDomain::Exact, BinaryOperator::Divide) => {
+        (ArithmeticDomain::Exact | ArithmeticDomain::Trapping, BinaryOperator::Divide) => {
             integer.exact_div(left_value, right_value)
         }
-        (ArithmeticDomain::Exact, BinaryOperator::Modulo) => {
+        (ArithmeticDomain::Exact | ArithmeticDomain::Trapping, BinaryOperator::Modulo) => {
             integer.exact_rem(left_value, right_value)
         }
         (ArithmeticDomain::Wrapping, BinaryOperator::Add) => {
