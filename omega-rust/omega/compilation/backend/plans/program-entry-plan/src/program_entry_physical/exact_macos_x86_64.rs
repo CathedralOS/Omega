@@ -12,7 +12,7 @@ const MACOS_X86_64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
 ));
 
 /// Canonical checked-tree overload identity for `MacosX64PhysicalEntry::enter`.
-pub const MACOS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
+pub(crate) const MACOS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
     "named-callable(path(MacosX64PhysicalEntry::enter),parameters(",
     "parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,",
     "named\\(name\\(i32\\)\\)\\)\\,",

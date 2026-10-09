@@ -25,32 +25,34 @@ mod program_entry_physical;
 mod selected_entry;
 mod uefi;
 
-pub use entry_signature::{
-    ProgramEntryExtentFieldLayout, ProgramEntryExtentFieldRole, ProgramEntryExtentValueLayout,
-    ProgramEntryReceiverSignature, ProgramEntryResultSignature, ProgramEntrySignatureIdentity,
-    ProgramEntryVisibleParameterSignature, SelectedProgramEntrySignature,
+pub use entry_signature::{ ProgramEntryExtentValueLayout,
+    ProgramEntryReceiverSignature, SelectedProgramEntrySignature,
 };
+pub(crate) use entry_signature::{ ProgramEntryExtentFieldRole, ProgramEntryResultSignature};
+pub use entry_signature::{ ProgramEntrySignatureIdentity,
+    ProgramEntryVisibleParameterSignature};
 pub use optimized_semantic_entry::{
-    OptimizedProgramStoragePhysicalEntryDisposition,
     OptimizedProgramStorageSemanticCallingApplication,
-    OptimizedProgramStorageSemanticEntryContract, OptimizedProgramStorageSemanticRoot,
+    OptimizedProgramStorageSemanticEntryContract,
     bind_optimized_program_storage_semantic_entry_contract,
 };
+pub(crate) use optimized_semantic_entry::{
+    OptimizedProgramStoragePhysicalEntryDisposition};
+pub use optimized_semantic_entry::{ OptimizedProgramStorageSemanticRoot};
 pub use optimized_semantic_wrapper::{
-    OptimizedProgramStorageSemanticReceiverLayout, OptimizedProgramStorageSemanticReceiverStorage,
-    OptimizedProgramStorageSemanticWrapperContinuationDisposition,
-    OptimizedProgramStorageSemanticWrapperEncodingDisposition,
+    OptimizedProgramStorageSemanticReceiverLayout,
     OptimizedProgramStorageSemanticWrapperEncodingError,
-    OptimizedProgramStorageSemanticWrapperPlan,
-    OptimizedProgramStorageSemanticWrapperRelocationKind,
-    OptimizedProgramStorageSemanticWrapperRelocationRequirement,
-    OptimizedProgramStorageSemanticWrapperStep,
     StagedOptimizedProgramStorageSemanticWrapperEncoding,
     plan_optimized_program_storage_semantic_wrapper,
     select_optimized_program_storage_semantic_wrapper_encoding,
-    validate_optimized_program_storage_semantic_wrapper,
-    validate_optimized_program_storage_semantic_wrapper_encoding,
 };
+pub(crate) use optimized_semantic_wrapper::{
+    OptimizedProgramStorageSemanticWrapperContinuationDisposition,
+    OptimizedProgramStorageSemanticWrapperEncodingDisposition,
+    OptimizedProgramStorageSemanticWrapperRelocationKind,
+    OptimizedProgramStorageSemanticWrapperStep};
+pub use optimized_semantic_wrapper::{
+    OptimizedProgramStorageSemanticWrapperPlan};
 #[cfg(feature = "installed-writer")]
 pub use post_handoff_writer::{
     LoweredPostHandoffWriter, LoweredPostHandoffWriterFragment, PostHandoffEntryWriterBindingError,
@@ -63,11 +65,8 @@ pub use program_entry_physical::{
     LINUX_X86_64_I32_TYPE_IDENTITY, LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
     MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
     MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY, MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
-    MACOS_X86_64_I32_TYPE_IDENTITY, MACOS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
-    ProgramEntryPhysicalContractPackageSourceDigest, ProgramEntryPhysicalContractPlan,
-    UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY, UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT,
-    UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, UEFI_X64_STATUS_TYPE_IDENTITY,
-    UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY, WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+    MACOS_X86_64_I32_TYPE_IDENTITY,
+    ProgramEntryPhysicalContractPackageSourceDigest, ProgramEntryPhysicalContractPlan, WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
     WINDOWS_X86_64_U32_TYPE_IDENTITY, exact_linux_arm64_physical_boundary_entry_plan,
     exact_linux_arm64_physical_contract_package_source_digest,
     exact_linux_x86_64_physical_boundary_entry_plan,
@@ -76,34 +75,18 @@ pub use program_entry_physical::{
     exact_macos_arm64_physical_contract_package_source_digest,
     exact_macos_x86_64_physical_boundary_entry_plan,
     exact_macos_x86_64_physical_contract_package_source_digest,
-    exact_uefi_x64_physical_boundary_entry_plan,
     exact_uefi_x64_physical_contract_package_source_digest,
     exact_windows_x86_64_physical_boundary_entry_plan,
     exact_windows_x86_64_physical_contract_package_source_digest,
-    replayed_uefi_x64_physical_calling_plan,
 };
 pub use selected_entry::SelectedProgramStorageEntryPlan;
 pub use selected_entry::boundary_entry_storage::{
-    DerivedBoundaryEntryParameterStorage, DerivedBoundaryEntryStorage,
 };
 pub use selected_entry::diagnostic::ProgramStorageEntryDiagnostic;
 pub use selected_entry::root_role::ProgramStorageEntryRootRole;
 pub use selected_entry::service_establishment::ProgramEntryFusedServiceEstablishment;
 pub use uefi::uefi_handle_protocol::{
-    UEFI_HANDLE_PROTOCOL_GUID_POINTER_TYPE_IDENTITY, UEFI_HANDLE_PROTOCOL_HANDLE_TYPE_IDENTITY,
-    UEFI_HANDLE_PROTOCOL_INTERFACE_OUT_TYPE_IDENTITY, UEFI_HANDLE_PROTOCOL_SERVICE_IDENTITY,
-    UEFI_HANDLE_PROTOCOL_STATUS_TYPE_IDENTITY, UefiHandleProtocolInvocationPlan,
-    UefiHandleProtocolInvocationPlanError, UefiHandleProtocolStatus, UefiHandleProtocolStatusRow,
-    plan_uefi_handle_protocol_invocation,
 };
 pub use uefi::uefi_os_handoff::{
-    UEFI_EXIT_BOOT_SERVICES_SERVICE_IDENTITY, UEFI_GET_MEMORY_MAP_SERVICE_IDENTITY,
-    UEFI_OS_HANDOFF_DESCRIPTOR_SIZE_TYPE_IDENTITY,
-    UEFI_OS_HANDOFF_DESCRIPTOR_VERSION_TYPE_IDENTITY, UEFI_OS_HANDOFF_IMAGE_HANDLE_TYPE_IDENTITY,
-    UEFI_OS_HANDOFF_MAP_KEY_POINTER_TYPE_IDENTITY, UEFI_OS_HANDOFF_MAP_KEY_TYPE_IDENTITY,
-    UEFI_OS_HANDOFF_MEMORY_MAP_SIZE_TYPE_IDENTITY, UEFI_OS_HANDOFF_MEMORY_MAP_TYPE_IDENTITY,
-    UEFI_OS_HANDOFF_STATUS_TYPE_IDENTITY, UefiOsHandoffInvocationPlan,
-    UefiOsHandoffInvocationPlanError, UefiOsHandoffLegPlan, UefiOsHandoffStatusRole,
-    UefiOsHandoffStatusRow, plan_uefi_os_handoff_invocation,
     uefi_os_handoff_exhaustion_requires_error,
 };

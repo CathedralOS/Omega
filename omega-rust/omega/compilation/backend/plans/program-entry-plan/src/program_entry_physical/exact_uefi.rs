@@ -22,7 +22,7 @@ const UEFI_X64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
 ));
 
 /// Canonical checked-tree overload identity for `UefiPhysicalEntry::enter`.
-pub const UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
+pub(crate) const UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
     "named-callable(path(UefiPhysicalEntry::enter),parameters(",
     "parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,",
     "named\\(name\\(EfiImageHandle\\)\\)\\)\\,",
@@ -31,11 +31,11 @@ pub const UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
     "),result-dispatch())",
 );
 /// Canonical normalized type identity of the opaque image-handle input.
-pub const UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY: &str = "named(name(EfiImageHandle))";
+pub(crate) const UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY: &str = "named(name(EfiImageHandle))";
 /// Canonical normalized type identity of the shared system-table input.
-pub const UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY: &str = "ref(named(name(EfiSystemTable)))";
+pub(crate) const UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY: &str = "ref(named(name(EfiSystemTable)))";
 /// Canonical normalized type identity of the physical status result.
-pub const UEFI_X64_STATUS_TYPE_IDENTITY: &str = "named(name(EfiStatus))";
+pub(crate) const UEFI_X64_STATUS_TYPE_IDENTITY: &str = "named(name(EfiStatus))";
 
 /// Strong commitment to the exact closed UEFI target-package source compiled
 /// into this plan owner.
@@ -54,7 +54,7 @@ pub fn exact_uefi_x64_physical_contract_package_source_digest()
 /// Physical-entry replay checks the retained plan against this commitment.
 /// A change to that policy or the canonical
 /// calling-plan encoding requires recording its new commitment.
-pub const UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT: [u8; 32] = [
+pub(crate) const UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT: [u8; 32] = [
     93, 215, 198, 244, 134, 45, 215, 214, 168, 250, 172, 114, 227, 233, 145, 103, 20, 89, 121, 37,
     75, 65, 230, 111, 27, 124, 230, 128, 171, 181, 106, 135,
 ];
@@ -66,7 +66,7 @@ pub const UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT: [u8; 32] = [
 /// foreign plan fails closed here even when every other pinned identity
 /// matches. A source digest alone never establishes plan correctness — the
 /// retained plan itself must reproduce the recorded commitment.
-pub fn replayed_uefi_x64_physical_calling_plan(
+pub(crate) fn replayed_uefi_x64_physical_calling_plan(
     plan: &BoundaryEntryPlan,
 ) -> Option<ValidatedBoundaryEntryPlan> {
     let signature = CallSignature::of_placements(&plan.call.parameters, plan.call.result.as_ref());
@@ -86,7 +86,7 @@ pub fn replayed_uefi_x64_physical_calling_plan(
 /// Production verdicts never consult this materialization. It exists to
 /// construct contract fixtures below the build layer, where source
 /// evaluation is unavailable.
-pub fn exact_uefi_x64_physical_boundary_entry_plan() -> ValidatedBoundaryEntryPlan {
+pub(crate) fn exact_uefi_x64_physical_boundary_entry_plan() -> ValidatedBoundaryEntryPlan {
     let word = ValueShape::integer(8, 8);
     let signature = CallSignature {
         parameters: vec![word, word],

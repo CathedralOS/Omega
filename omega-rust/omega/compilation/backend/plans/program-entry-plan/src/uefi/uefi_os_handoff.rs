@@ -31,17 +31,17 @@ use target::{
     UefiBootServicesNativeFieldLayout, plan_uefi_boot_services_native_layout,
 };
 
-pub const UEFI_GET_MEMORY_MAP_SERVICE_IDENTITY: &str = "EFI_BOOT_SERVICES.GetMemoryMap";
-pub const UEFI_EXIT_BOOT_SERVICES_SERVICE_IDENTITY: &str = "EFI_BOOT_SERVICES.ExitBootServices";
+pub(crate) const UEFI_GET_MEMORY_MAP_SERVICE_IDENTITY: &str = "EFI_BOOT_SERVICES.GetMemoryMap";
+pub(crate) const UEFI_EXIT_BOOT_SERVICES_SERVICE_IDENTITY: &str = "EFI_BOOT_SERVICES.ExitBootServices";
 
-pub const UEFI_OS_HANDOFF_MEMORY_MAP_SIZE_TYPE_IDENTITY: &str = "*mut UINTN";
-pub const UEFI_OS_HANDOFF_MEMORY_MAP_TYPE_IDENTITY: &str = "*mut EFI_MEMORY_DESCRIPTOR";
-pub const UEFI_OS_HANDOFF_MAP_KEY_POINTER_TYPE_IDENTITY: &str = "*mut UINTN";
-pub const UEFI_OS_HANDOFF_DESCRIPTOR_SIZE_TYPE_IDENTITY: &str = "*mut UINTN";
-pub const UEFI_OS_HANDOFF_DESCRIPTOR_VERSION_TYPE_IDENTITY: &str = "*mut UINT32";
-pub const UEFI_OS_HANDOFF_IMAGE_HANDLE_TYPE_IDENTITY: &str = "EFI_HANDLE";
-pub const UEFI_OS_HANDOFF_MAP_KEY_TYPE_IDENTITY: &str = "UINTN";
-pub const UEFI_OS_HANDOFF_STATUS_TYPE_IDENTITY: &str = "EFI_STATUS";
+pub(crate) const UEFI_OS_HANDOFF_MEMORY_MAP_SIZE_TYPE_IDENTITY: &str = "*mut UINTN";
+pub(crate) const UEFI_OS_HANDOFF_MEMORY_MAP_TYPE_IDENTITY: &str = "*mut EFI_MEMORY_DESCRIPTOR";
+pub(crate) const UEFI_OS_HANDOFF_MAP_KEY_POINTER_TYPE_IDENTITY: &str = "*mut UINTN";
+pub(crate) const UEFI_OS_HANDOFF_DESCRIPTOR_SIZE_TYPE_IDENTITY: &str = "*mut UINTN";
+pub(crate) const UEFI_OS_HANDOFF_DESCRIPTOR_VERSION_TYPE_IDENTITY: &str = "*mut UINT32";
+pub(crate) const UEFI_OS_HANDOFF_IMAGE_HANDLE_TYPE_IDENTITY: &str = "EFI_HANDLE";
+pub(crate) const UEFI_OS_HANDOFF_MAP_KEY_TYPE_IDENTITY: &str = "UINTN";
+pub(crate) const UEFI_OS_HANDOFF_STATUS_TYPE_IDENTITY: &str = "EFI_STATUS";
 
 const GET_MEMORY_MAP_FIELD_ORDINAL: u8 = 9;
 const GET_MEMORY_MAP_FIELD_OFFSET: u32 = 56;
@@ -68,7 +68,7 @@ pub const fn uefi_os_handoff_exhaustion_requires_error(exhaustion_status: u64) -
 /// leg: the cycle rejects it and returns the custody live at that stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum UefiOsHandoffStatusRole {
+pub(crate) enum UefiOsHandoffStatusRole {
     /// `GetMemoryMap` sealed the freshest snapshot/key pair into acquisition
     /// evidence; the cycle binds the pending exit to that exact key.
     MapAcquired = 1,
@@ -92,7 +92,7 @@ pub enum UefiOsHandoffStatusRole {
 /// One closed status-catalog row for a handoff leg: the exact firmware code
 /// and the custody role it plays.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UefiOsHandoffStatusRow {
+pub(crate) struct UefiOsHandoffStatusRow {
     role: UefiOsHandoffStatusRole,
     code: u64,
 }
@@ -138,7 +138,7 @@ const EXIT_BOOT_SERVICES_STATUS_ROWS: [UefiOsHandoffStatusRow; 2] = [
 /// without re-deriving target knowledge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use = "UEFI OS-handoff leg plan retains the exact target provider schema"]
-pub struct UefiOsHandoffLegPlan {
+pub(crate) struct UefiOsHandoffLegPlan {
     service_identity: &'static str,
     service_field: UefiBootServicesNativeFieldLayout,
     parameter_type_identities: &'static [&'static str],
@@ -179,7 +179,7 @@ impl UefiOsHandoffLegPlan {
     /// `ExitBootServices` has no canonical counterpart and never replays; the
     /// runtime edge additionally checks that the row is the one its provider
     /// sealed, so an exact leg of the other row still rejects there.
-    pub fn matches_exact_uefi_x64_plan(&self) -> bool {
+    pub(crate) fn matches_exact_uefi_x64_plan(&self) -> bool {
         plan_uefi_os_handoff_invocation(TargetProfile::UefiX64).is_ok_and(|expected| {
             match self.service_field.field() {
                 UefiBootServicesNativeField::GetMemoryMap => self == &expected.get_memory_map,
@@ -201,7 +201,7 @@ impl UefiOsHandoffLegPlan {
 /// contract they constrain rather than their values.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use = "UEFI OS-handoff invocation plan retains the exact bounded transfer contract"]
-pub struct UefiOsHandoffInvocationPlan {
+pub(crate) struct UefiOsHandoffInvocationPlan {
     profile: TargetProfile,
     get_memory_map: UefiOsHandoffLegPlan,
     exit_boot_services: UefiOsHandoffLegPlan,
@@ -232,7 +232,7 @@ impl UefiOsHandoffInvocationPlan {
 
 #[derive(Debug)]
 #[must_use = "UEFI OS-handoff plan rejection retains the requested profile"]
-pub struct UefiOsHandoffInvocationPlanError {
+pub(crate) struct UefiOsHandoffInvocationPlanError {
     profile: TargetProfile,
     diagnostic: Diagnostic,
 }
@@ -257,7 +257,7 @@ impl std::error::Error for UefiOsHandoffInvocationPlanError {}
 /// Derive and validate the canonical bounded OS-handoff invocation plan for
 /// `profile`. The plan is exact for `TargetProfile::UefiX64` only; every other
 /// profile rejects before any service row is bound.
-pub fn plan_uefi_os_handoff_invocation(
+pub(crate) fn plan_uefi_os_handoff_invocation(
     profile: TargetProfile,
 ) -> Result<UefiOsHandoffInvocationPlan, Box<UefiOsHandoffInvocationPlanError>> {
     let candidate = derive_candidate(profile).map_err(|diagnostic| {
