@@ -112,17 +112,7 @@ impl PrimitiveAccessRequest<'_, '_> {
         &self.reach
     }
 
-    pub const fn resident_claim(&self) -> Option<ResidentClaimId> {
-        self.resident_claim
-    }
-
-    pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
-        self.placed_occurrence
-    }
-
-    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
-        self._authority.correspondence()
-    }
+    placed_authority_accessors!();
 
     pub(super) fn validate_effective_supply_binding(&self) -> Result<(), AccessPlanDiagnostic> {
         if self.effective_supply.key != self.key

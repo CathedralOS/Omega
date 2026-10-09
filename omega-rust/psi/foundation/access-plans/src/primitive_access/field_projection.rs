@@ -140,17 +140,7 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
         self.descriptor.observation()
     }
 
-    pub const fn resident_claim(&self) -> Option<ResidentClaimId> {
-        self.resident_claim
-    }
-
-    pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
-        self.placed_occurrence
-    }
-
-    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
-        self._authority.correspondence()
-    }
+    placed_authority_accessors!();
 
     pub fn read<'access>(
         &'access self,
@@ -389,17 +379,7 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
         self.primitive_address
     }
 
-    pub const fn resident_claim(&self) -> Option<ResidentClaimId> {
-        self.resident_claim
-    }
-
-    pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
-        self.placed_occurrence
-    }
-
-    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
-        self._authority.correspondence()
-    }
+    placed_authority_accessors!();
 
     /// Consume one authorized access event into the only request primitive
     /// lowering accepts.

@@ -127,6 +127,24 @@ macro_rules! corresponded_primitive_access {
     };
 }
 
+/// The placed-placement authority every access keeps: its resident claim,
+/// the placed occurrence it projects, and the retained correspondence.
+macro_rules! placed_authority_accessors {
+    () => {
+        pub const fn resident_claim(&self) -> Option<ResidentClaimId> {
+            self.resident_claim
+        }
+
+        pub const fn placed_occurrence(&self) -> Option<PlacedOccurrenceId> {
+            self.placed_occurrence
+        }
+
+        pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
+            self._authority.correspondence()
+        }
+    };
+}
+
 pub(crate) mod corresponded_atomic;
 pub(crate) mod corresponded_external;
 pub(crate) mod corresponded_stable;
