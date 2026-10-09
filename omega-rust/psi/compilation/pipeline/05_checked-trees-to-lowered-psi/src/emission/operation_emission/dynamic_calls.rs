@@ -84,7 +84,7 @@ pub(super) fn emit_dynamic_call_binding(
         )),
         operation,
         call.slot,
-        &[],
+        &lowered_psi::LoweredSourceFrontierBindings::default(),
     )?;
     operations.push(Operation {
         static_reach_binding: None,

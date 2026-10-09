@@ -153,6 +153,44 @@ pub struct LoweredSourceScalarBinding {
     pub value: ValueDeclaration,
 }
 
+/// Existing structural storage named by one checked source position. The path
+/// retains projected aliases; joining a local never creates another owner.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredSourceStructuralBinding {
+    pub source_position: usize,
+    pub argument: terminal_psi::StructuralArgument,
+    pub structural_type: semantic_vocabulary::StructuralTypeId,
+}
+
+/// The call emitter's source-to-Terminal namespaces at a checked crossing.
+/// Claims are mappings of established identities, not new establishments.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LoweredSourceFrontierBindings {
+    pub scalars: Vec<LoweredSourceScalarBinding>,
+    pub structural: Vec<LoweredSourceStructuralBinding>,
+    pub claims: Vec<(
+        language_semantics::PermissionClaimIdentity,
+        semantic_vocabulary::ClaimId,
+    )>,
+}
+
+impl LoweredSourceFrontierBindings {
+    /// Every scalar dependency of the emitted source join, including captured
+    /// runtime selectors in projected structural aliases.
+    pub fn visit_value_ids(&self, mut visit: impl FnMut(semantic_vocabulary::ValueId)) {
+        for binding in &self.scalars {
+            visit(binding.value.id);
+        }
+        for binding in &self.structural {
+            for segment in &binding.argument.path {
+                if let terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. } = segment {
+                    visit(*index);
+                }
+            }
+        }
+    }
+}
+
 /// One exact checked source call joined to its emitted Terminal control site.
 /// Source handles are deliberately confined to the producer result and never
 /// enter the canonical Terminal artifact.
@@ -164,9 +202,9 @@ pub struct LoweredSourceCallOccurrence {
     pub call_ordinal: usize,
     pub terminal_site: LoweredSourceCallSite,
     pub source_target: symbols::SymbolHandle,
-    /// Exact scalar bindings immediately before this call. A missing source
-    /// position has no scalar join, never a shifted or fabricated value.
-    pub source_values_before_call: Vec<LoweredSourceScalarBinding>,
+    /// Exact storage bindings and claim identities immediately before this call.
+    /// A missing source position has no storage join, never a shifted or fabricated value.
+    pub frontier_before_call: LoweredSourceFrontierBindings,
 }
 
 /// The header block one emitted state graph state took. Like a call

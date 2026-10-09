@@ -108,9 +108,9 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     for plan in &module.suspension_call_plans {
         evidence.operations.insert(plan.operation);
         for live in &plan.live_values {
-            if let terminal_psi::TerminalSuspensionPlace::Scalar(value) = live.place {
+            live.place.visit_value_ids(|value| {
                 evidence.values.insert(value);
-            }
+            });
         }
     }
     for call in &module.proof_output_calls {

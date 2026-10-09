@@ -62,9 +62,9 @@ pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationSt
     }
     for plan in &before.semantic_module.suspension_call_plans {
         for value in &plan.live_values {
-            if let terminal_psi::TerminalSuspensionPlace::Scalar(value) = value.place {
+            value.place.visit_value_ids(|value| {
                 retained_values.insert(value);
-            }
+            });
         }
     }
     for machine in &mut after.semantic_module.machines {

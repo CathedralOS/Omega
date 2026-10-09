@@ -1,18 +1,23 @@
 use omega::language::core::binding;
+use omega::language::core::drop;
 
 // A possibly-suspending requirement may complete inline. Its call still needs
 // an exact suspension crossing; this is not a park/resume runtime witness.
 pub boundary trait Scheduler {
-    machine advance(value: i32) -> i32 suspends;
+    machine advance(value: i32, inventory: Inventory) -> i32 suspends;
 }
 
 data InlineScheduler {}
-machine InlineScheduler::advance(value: i32) -> i32
+machine InlineScheduler::advance(value: i32, inventory: Inventory) -> i32
 satisfies Scheduler::advance
 {
+    drop(inventory);
     value
 }
 
+pub data Inventory [linear] { value: i32; }
+machine Inventory::drop(inventory: &mut Inventory) {}
+machine Inventory::forward(inventory: Inventory) -> Inventory { inventory }
 data Marker { value: i32; }
 data Main { scheduler: Binding<Scheduler>; }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
@@ -21,8 +26,13 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
         let marker: Marker = Marker { value: 19 };
         let alias: i32 = input;
         let preserved: i32 = marker.value;
-        let result: i32 = suspend main.scheduler.advance(input + 2);
-        transition result == 42 && input == 40 && alias == 40 && preserved == 19 {
+        let inventory: Inventory = Inventory { value: 19 };
+        let transferred: Inventory = Inventory::forward(inventory);
+        let retained: Inventory = Inventory { value: 23 };
+        let result: i32 = suspend main.scheduler.advance(input + 2, transferred);
+        let retained_value: i32 = retained.value;
+        drop(retained);
+        transition result == 42 && input == 40 && alias == 40 && preserved == 19 && marker.value == 19 && retained_value == 23 {
             true -> done()
             _ -> bad()
         }

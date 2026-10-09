@@ -130,40 +130,10 @@ pub(in crate::legalization) fn installed_operation(
             return Err(LegalizationError::custody());
         }
     }
-    if candidate.entry_claims.len() != completion_receipts.len() {
-        return Err(LegalizationError::custody());
-    }
-    for entry in &candidate.entry_claims {
-        let position = terminal_psi::structural_parameter_position(
-            &candidate.structural_parameters,
-            entry.input,
-        )
-        .ok_or_else(|| LegalizationError::custody())?;
-        let argument = structural_arguments
-            .get(position)
-            .ok_or_else(|| LegalizationError::custody())?;
-        let mut receipts = completion_receipts
-            .iter()
-            .filter(|receipt| usize::try_from(receipt.argument_index).ok() == Some(position));
-        let receipt = receipts
-            .next()
-            .ok_or_else(|| LegalizationError::custody())?;
-        if receipts.next().is_some() || !entry.path.is_empty() {
-            return Err(LegalizationError::custody());
-        }
-        let mut sources = completion_claim_sources
-            .iter()
-            .filter(|source| source.claim == receipt.claim);
-        let source = sources.next().ok_or_else(|| LegalizationError::custody())?;
-        if sources.next().is_some()
-            || source
-                .entry
-                .as_ref()
-                .is_none_or(|entry| entry.input != argument.place || entry.path != argument.path)
-        {
-            return Err(LegalizationError::custody());
-        }
-    }
+    // Installation already joined the candidate's entry claims to these exact
+    // canonical completion receipts. Retained origin equality above preserves
+    // that join. Requiring ingress metadata here would reject local producers
+    // and relocated owners; physical lowering does not repeat source custody.
     let transfers = completion_receipts
         .iter()
         .map(|receipt| terminal_psi::ClaimTransfer {

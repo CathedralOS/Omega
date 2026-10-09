@@ -121,7 +121,7 @@ pub(super) fn emit_boundary_call_binding(
         )),
         operation,
         call.target_machine,
-        &[],
+        &lowered_psi::LoweredSourceFrontierBindings::default(),
     )?;
     operations.push(Operation {
         static_reach_binding: None,

@@ -48,10 +48,9 @@ pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
     }
     for plan in &before.semantic_module.suspension_call_plans {
         for value in &plan.live_values {
-            match value.place {
-                terminal_psi::TerminalSuspensionPlace::Scalar(value) => retained_values.push(value),
-                terminal_psi::TerminalSuspensionPlace::Structural { .. } => {}
-            }
+            value
+                .place
+                .visit_value_ids(|value| retained_values.push(value));
         }
     }
     // Join predicates remain the same proof questions. A value explicitly

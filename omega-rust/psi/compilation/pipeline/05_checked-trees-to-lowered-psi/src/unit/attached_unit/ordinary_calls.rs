@@ -311,7 +311,7 @@ pub(super) fn emit_structural(
     // Graph evaluation attaches the source local and registers this value as
     // one operation; ordinary and nested operands register it here instead.
     register_binding: bool,
-    source_values_before_call: &[lowered_psi::LoweredSourceScalarBinding],
+    frontier_before_call: &lowered_psi::LoweredSourceFrontierBindings,
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
@@ -337,7 +337,7 @@ pub(super) fn emit_structural(
         call.source_site().flatten(),
         id,
         *target_state,
-        source_values_before_call,
+        frontier_before_call,
     )?;
     let mut returned = StructuralOperationResult {
         qualification_establishments: Vec::new(),

@@ -72,31 +72,19 @@ pub(super) fn validate(
                 .iter()
                 .map(|source| source.claim)
                 .collect::<std::collections::BTreeSet<_>>();
+            // Installation already joined these receipts to candidate entry claims.
+            // Caller entry provenance describes historical ingress, not current
+            // custody: a fresh local or transferred result need not have an entry row.
+            // Preserve the installed transfers and ownership event instead of
+            // reconstructing a second, narrower entry-only custody judgement.
             if unique_source_claims.len() != completion_claim_sources.len()
                 || transfers != call.claim_transfers
                 || completion_receipts
                     .windows(2)
                     .any(|pair| pair[0] >= pair[1])
-                || completion_receipts.iter().any(|receipt| {
-                    let Some((semantic, _)) =
-                        structural_arguments.get(receipt.argument_index as usize)
-                    else {
-                        return true;
-                    };
-                    let matching = completion_claim_sources
-                        .iter()
-                        .filter(|source| source.claim == receipt.claim)
-                        .collect::<Vec<_>>();
-                    let [source] = matching.as_slice() else {
-                        return true;
-                    };
-                    (source.entry.is_none() && source.content.is_none())
-                        || source.input() != semantic.place
-                        || source
-                            .entry
-                            .as_ref()
-                            .is_some_and(|entry| entry.path != semantic.path)
-                })
+                || completion_receipts
+                    .iter()
+                    .any(|receipt| receipt.argument_index as usize >= structural_arguments.len())
             {
                 return Err(LegalizedCallSourceError::CompletionEvidenceMismatch);
             }

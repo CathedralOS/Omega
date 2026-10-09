@@ -4,8 +4,8 @@ mod source_custody;
 pub use source_custody::{
     LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
     LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
-    LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceScalarBinding,
-    LoweredStateBlock,
+    LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
+    LoweredSourceScalarBinding, LoweredSourceStructuralBinding, LoweredStateBlock,
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 

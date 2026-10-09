@@ -967,6 +967,7 @@ name = "lowered-psi"
 version = "0.1.0"
 dependencies = [
  "checked-trees",
+ "language-semantics",
  "semantic-vocabulary",
  "symbols",
  "terminal-psi",

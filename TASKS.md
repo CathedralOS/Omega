@@ -223,29 +223,6 @@ helper that passes does not close an item.
   `CompilerIntrinsic` provider, while forged, unrelated, replayed and
   double-completion controls reject.
 
-- **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
-  Lower a call that consumes a linear input and returns an affine result
-  as an ordinary call.
-  - Customer: `tests/omega/pass/core/task_lifecycle_operations`. `omega
-    --check` accepts it; product realization refuses the
-    `suspend block Task::finish(task)` in `Task::settle_claim`'s
-    specialization at stage 05's suspension-frontier join
-    (`05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`,
-    "suspension frontier has live claims without an exact Terminal ClaimId
-    join"). Join checked claim identities to the operation's
-    exact Terminal claims; do not discard the claim roster or infer claims
-    from carrier types. Receiver and implicit persistent-field origins have
-    been removed from the crossing representation.
-  - Stage 04's
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/structural_result_call.rs`
-    and `omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs`
-    plan input transfers (`claim_transfers`) separately from path-bound
-    result claims (`result_claims`). The former Terminal-verifier copy is
-    gone; do not recreate it.
-  Acceptance: the unchanged customer checks and produces a terminal artifact
-  through `omega run`. Native execution additionally needs a selected
-  `Task::finish` provider; source declarations alone do not supply one.
-
 - **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION.** (split-of:STATIC-MACHINE-MIGRATION)
   Replace data-subject satisfaction with named implementations under
   [conformances](wiki/spec/language/conformances.md#data-and-code-are-independent).
@@ -423,7 +400,8 @@ helper that passes does not close an item.
     activation storage comes from explicit parameters, locals and call arguments.
     Carry no longer derives storage or reachability from namespace fields;
     activation planning combines direct envelopes over its checked call graph.
-    Structural suspension frontiers still need exact place and claim joins.
+    Suspension production still needs addressed scalar homes and checked
+    per-value loan carry evidence.
     Preserve independent rejection of malformed evidence while removing the
     obsolete representation; do not restore hidden argument insertion. Keep
     unrelated receiver-side artifact admission and mathematical subject
@@ -5169,6 +5147,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   park/resume, cancellation and settlement in the selected runtime/provider.
   `tests/omega/pass/tasks/task_runtime_machine_selection_compile`
   checks a probe beside an empty, unbound `Main::main`.
+  `pass/core/task_lifecycle_operations` produces Terminal; `omega run` refuses
+  missing `Task::finish` selection. Its manually constructed Task fields are
+  not activation custody; native execution needs a real selected runtime.
 
   - Stacks: join final physical frames/spills, alignment, entry overhead and
     live chains to the exact `StackPlan` and a real nonmoving backing.
@@ -5177,8 +5158,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     Keep unresolved-call refusal and same-stack/separately provisioned demand.
   - Suspension production in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`:
-    receiver, persistent/structural places, live claims, addressed scalar homes
-    and Unit-call scalar argument namespaces need exact joins. Keep
+    addressed scalar homes and retained reference/slice loans still need
+    exact storage and per-value carry evidence. Keep
     `pass/concurrency/boundary_suspension_inline_completion_exit` (0) as the
     inline boundary-completion control, not a park/resume witness.
     Keep storage lifetime, pinning, aliasing,

@@ -11,5 +11,6 @@ pub use lowered_psi::{
     LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
     LoweredSelectedIntegerComparisonOccurrence, LoweredSelectedIntegerComparisonOperandOrder,
     LoweredSelectedIntegerComparisonOperation, LoweredSourceCallOccurrence, LoweredSourceCallSite,
-    LoweredSourceCustody, LoweredSourceScalarBinding, LoweredStateBlock,
+    LoweredSourceCustody, LoweredSourceFrontierBindings, LoweredSourceScalarBinding,
+    LoweredSourceStructuralBinding, LoweredStateBlock,
 };

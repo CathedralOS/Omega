@@ -64,12 +64,9 @@ pub(super) fn deduplicate(
     }
     for occurrence in source_calls {
         if crate::retained_identities::contains_source_call(machine, occurrence) {
-            retained_values.extend(
-                occurrence
-                    .source_values_before_call
-                    .iter()
-                    .map(|binding| binding.value.id),
-            );
+            occurrence.frontier_before_call.visit_value_ids(|value| {
+                retained_values.insert(value);
+            });
         }
     }
     let order = reverse_postorder(machine);

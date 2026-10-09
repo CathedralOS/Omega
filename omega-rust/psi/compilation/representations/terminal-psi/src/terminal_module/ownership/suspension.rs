@@ -52,6 +52,23 @@ pub enum TerminalSuspensionPlace {
     },
 }
 
+impl TerminalSuspensionPlace {
+    /// Scalar identities are retained uses even when they occur only in a
+    /// projected storage coordinate rather than as a carried scalar value.
+    pub fn visit_value_ids(&self, mut visit: impl FnMut(ValueId)) {
+        match self {
+            Self::Scalar(value) => visit(*value),
+            Self::Structural { path, .. } => {
+                for segment in path {
+                    if let StructuralPathSegment::RuntimeIndex { index, .. } = segment {
+                        visit(*index);
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalSuspensionValueType {
     Scalar(ScalarType),

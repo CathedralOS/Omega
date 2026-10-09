@@ -54,9 +54,9 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
         }
         for plan in &after.semantic_module.suspension_call_plans {
             for value in &plan.live_values {
-                if let terminal_psi::TerminalSuspensionPlace::Scalar(value) = value.place {
+                value.place.visit_value_ids(|value| {
                     retained_values.insert(value);
-                }
+                });
             }
         }
         if !rewrite_invariants {

@@ -38,10 +38,11 @@ Each canonical crossing also retains its exact live frontier — one
 `LiveCarryDemand` row per live place naming the place, its checked type,
 the storage class whose lifetime and pinning the park relies on, the
 complete linear-claim identities attached to it, and the four-axis demand
-it contributes. That roster is the plan's suspension-safe-loan evidence:
-a row whose claims are nonempty is a loan the retained stack must keep
-alive and address-stable through the park, and `parked_frontier` hands a
-provider exactly that roster while the activation is suspended. Plan
+it contributes. Nonempty claim rows retain established ownership; they do
+not by themselves establish a loan or prove its backing is safe to retain.
+Loans also need the checked storage lifetime, pinning, aliasing and address
+stability obligations. `parked_frontier` hands a provider that exact roster
+while the activation is suspended. Plan
 validation binds the crossing's suspension permission and preservation
 bits exactly to the join of its frontier, so a candidate cannot publish
 a frontier that disagrees with the demand it declares, and a live place
@@ -52,9 +53,9 @@ Unresolved call sites remain explicit in the sealed stack demand until provider
 planning supplies exact target bindings and recomposes the WCSU projection.
 The selected runtime consumes the validated plan and invocation receipt, owns
 capacity and backing, and returns ordinary source-visible task outcomes. The
-bounded
-scalar suspension carrier likewise does not license receiver/structural/claim
-frontiers without their exact joins; the plan frontier records the claims
-the checked producer already established but cannot yet authorize forms
-the producer never emits; see the
+producer joins scalar values, structural homes and paths, and established
+machine-local claim identities through the ordinary call's exact argument
+lanes. Addressed scalar homes and retained reference/slice loans still need
+their own checked storage and carry evidence. None of those joins supplies
+runtime backing or licenses parking; see the
 [Terminal producer](../../../driver/terminal-production/README.md#structural-results-and-suspension).

@@ -1,11 +1,12 @@
-//! Installation composes a verified boundary call with its selected candidate.
+//! Installation composes a canonical boundary call with its selected candidate.
 //!
-//! Admission first verifies Terminal Psi and independently reconstructs the exact
-//! abstract plan. Terminal verification owns operand types, availability, paths,
-//! access, and candidate signature/refinement checks. Replaying a narrower source
-//! grammar here would reject valid local values and projected loans. Join the
-//! exact call occurrence, then substitute candidate completion/content claims;
-//! that cross-machine custody relationship is specific to installation.
+//! Psi owns operand types, availability, paths, access and source custody.
+//! Installation joins the exact retained call to its selected conformance and
+//! substitutes candidate completion/content claims across machine namespaces.
+//! Requiring the caller's consumed value to be an unchanged entry parameter
+//! would repeat a narrower ownership judgment and reject ordinary locals or
+//! relocated values. Historical content provenance remains a separate demand;
+//! this join neither creates a claim nor supplies a missing content contract.
 
 use super::AdmittedInstalledProviderCall;
 use super::error::ProviderInstallationError;
@@ -43,12 +44,9 @@ pub(super) fn replay_installed_provider_calls(
             let boundary_declaration =
                 terminal_psi::find_boundary_machine(&plan.boundary_machines, *boundary)
                     .ok_or_else(malformed)?;
-            let candidate = plan.function(provider.candidate)
-                .ok_or_else(malformed)?;
-            let terminal_candidate = module.machine(provider.candidate)
-                .ok_or_else(malformed)?;
-            let terminal_caller = module.machine(caller.machine)
-                .ok_or_else(malformed)?;
+            let candidate = plan.function(provider.candidate).ok_or_else(malformed)?;
+            let terminal_candidate = module.machine(provider.candidate).ok_or_else(malformed)?;
+            let terminal_caller = module.machine(caller.machine).ok_or_else(malformed)?;
             let terminal_operation = terminal_caller
                 .operation(*psi_operation)
                 .ok_or_else(malformed)?;
@@ -86,7 +84,7 @@ pub(super) fn replay_installed_provider_calls(
                 arguments: terminal_arguments,
                 structural_arguments: terminal_structural_arguments,
                 completion_receipts: terminal_completion_receipts,
-                // Discharged by Terminal verification against the declaration;
+                // Discharged by Psi checking against the declaration;
                 // the provider refinement check covers the candidate's own rows.
                 requirement_obligations: _,
             } = &terminal_operation.kind
@@ -106,8 +104,11 @@ pub(super) fn replay_installed_provider_calls(
                 if !claim.path.is_empty() {
                     return Err(malformed());
                 }
-                let argument_index = terminal_psi::structural_parameter_position(&terminal_candidate.structural_parameters, claim.input)
-                    .ok_or_else(malformed)? as u32;
+                let argument_index = terminal_psi::structural_parameter_position(
+                    &terminal_candidate.structural_parameters,
+                    claim.input,
+                )
+                .ok_or_else(malformed)? as u32;
                 expected_claims.push((argument_index, claim.claim));
             }
             if completion_receipts.len() != expected_claims.len() {
@@ -121,13 +122,14 @@ pub(super) fn replay_installed_provider_calls(
                     .ok_or_else(malformed)?;
                 let source = completion_claim_sources
                     .iter()
-                    .find(|source| source.claim == receipt.claim)
-                    .ok_or_else(malformed)?;
-                let entry = source.entry.as_ref().ok_or_else(malformed)?;
-                if receipt.argument_index != *argument_index
-                    || entry.input != argument.place
-                    || entry.path != argument.path
-                {
+                    .find(|source| source.claim == receipt.claim);
+                // The exact canonical call already supplies its owned operand
+                // and caller-local completion claim. Entry metadata describes
+                // historical ingress, not current custody: a local producer
+                // or a relocated value need not still occupy an entry home.
+                // Installation joins that receipt to the candidate's formal;
+                // it does not reconstruct the caller's ownership judgment.
+                if receipt.argument_index != *argument_index {
                     return Err(malformed());
                 }
                 if let Some(candidate_content) = terminal_candidate
@@ -138,14 +140,16 @@ pub(super) fn replay_installed_provider_calls(
                     if !argument.path.is_empty() {
                         return Err(malformed());
                     }
-                    let caller_content = source.content.as_ref().ok_or_else(malformed)?;
+                    let caller_content = source
+                        .and_then(|source| source.content.as_ref())
+                        .ok_or_else(malformed)?;
                     if caller_content.input.root != argument.place
                         || caller_content.input.segments != candidate_content.input.segments
                         || caller_content.projections != candidate_content.projections
                     {
                         return Err(malformed());
                     }
-                } else if source.content.is_some() {
+                } else if source.is_some_and(|source| source.content.is_some()) {
                     return Err(malformed());
                 }
             }

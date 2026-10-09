@@ -2,7 +2,10 @@
 
 use crate::lowering_error::LoweringError;
 use crate::terminal_identities::operation_id;
-use lowered_psi::{LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceScalarBinding};
+use lowered_psi::{
+    LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
+    LoweredSourceScalarBinding,
+};
 use semantic_vocabulary::{
     ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, ValueId,
 };
@@ -290,14 +293,14 @@ impl OperationBuffer {
         source_site: Option<checked_trees::NominalMachineUseSite>,
         operation: OperationId,
         target: symbols::SymbolHandle,
-        source_values_before_call: &[LoweredSourceScalarBinding],
+        frontier_before_call: &LoweredSourceFrontierBindings,
     ) -> Result<(), LoweringError> {
         self.record_source_call_site(
             coordinate,
             source_site,
             LoweredSourceCallSite::Operation(operation),
             target,
-            source_values_before_call,
+            frontier_before_call,
         )
     }
 
@@ -317,7 +320,16 @@ impl OperationBuffer {
                 value: *value,
             })
             .collect::<Vec<_>>();
-        self.record_source_call(coordinate, source_site, operation, target, &bindings)
+        self.record_source_call(
+            coordinate,
+            source_site,
+            operation,
+            target,
+            &LoweredSourceFrontierBindings {
+                scalars: bindings,
+                ..Default::default()
+            },
+        )
     }
 
     fn record_source_call_site(
@@ -326,7 +338,7 @@ impl OperationBuffer {
         source_site: Option<checked_trees::NominalMachineUseSite>,
         terminal_site: LoweredSourceCallSite,
         target: symbols::SymbolHandle,
-        source_values_before_call: &[LoweredSourceScalarBinding],
+        frontier_before_call: &LoweredSourceFrontierBindings,
     ) -> Result<(), LoweringError> {
         if self.source_calls.iter().any(|existing| {
             existing.source_state == coordinate.state
@@ -342,7 +354,7 @@ impl OperationBuffer {
             call_ordinal: coordinate.call_ordinal,
             terminal_site,
             source_target: target,
-            source_values_before_call: source_values_before_call.to_vec(),
+            frontier_before_call: frontier_before_call.clone(),
         });
         Ok(())
     }
@@ -365,7 +377,7 @@ impl OperationBuffer {
             completion.source_site,
             LoweredSourceCallSite::ExternalCompletion(edge),
             completion.target,
-            &[],
+            &LoweredSourceFrontierBindings::default(),
         )?;
         Ok(Some(terminal_psi::Terminator::ExternalCompletion {
             edge,
