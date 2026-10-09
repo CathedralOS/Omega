@@ -7,7 +7,7 @@ use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRoster
 /// Ordered program-header role closed by the dynamic load-layout carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElfLoadProgramHeaderKind {
+pub(crate) enum ElfLoadProgramHeaderKind {
     Interpreter = 1,
     LoadReadOnly = 2,
     LoadReadExecute = 3,
@@ -18,7 +18,7 @@ pub enum ElfLoadProgramHeaderKind {
 /// Public observation vocabulary for the closed placed section roster.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElfPlacedDynamicSectionKind {
+pub(crate) enum ElfPlacedDynamicSectionKind {
     Null = 0,
     Interpreter = 1,
     DynamicString = 2,
@@ -43,7 +43,7 @@ pub(crate) const fn public_section_kind(
 
 /// Absolute geometry for one future `Elf64_Phdr`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ElfLoadProgramHeader {
+pub(crate) struct ElfLoadProgramHeader {
     pub(crate) kind: ElfLoadProgramHeaderKind,
     pub(crate) flags: u32,
     pub(crate) file_offset: u64,
@@ -90,7 +90,7 @@ impl ElfLoadProgramHeader {
 
 /// Absolute placement of one row in the closed fourteen-section roster.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ElfPlacedDynamicSection {
+pub(crate) struct ElfPlacedDynamicSection {
     pub(crate) index: u32,
     pub(crate) kind: ElfPlacedDynamicSectionKind,
     pub(crate) region: Option<ElfRelativeSectionPayloadRegion>,
@@ -133,14 +133,14 @@ impl ElfPlacedDynamicSection {
 /// Meaning of a retained section-header placement resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElfSectionPlacementResolutionKind {
+pub(crate) enum ElfSectionPlacementResolutionKind {
     VirtualAddress = 1,
     FileOffset = 2,
 }
 
 /// One resolved value for an existing typed section-header fixup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ElfResolvedSectionHeaderPlacement {
+pub(crate) struct ElfResolvedSectionHeaderPlacement {
     pub(crate) row_index: u32,
     pub(crate) section_kind: ElfPlacedDynamicSectionKind,
     pub(crate) byte_offset: usize,
@@ -151,7 +151,7 @@ pub struct ElfResolvedSectionHeaderPlacement {
 
 /// Placement of the retained non-section `FinalImage` memory domains.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ElfLoadImageMemoryPlacement {
+pub(crate) struct ElfLoadImageMemoryPlacement {
     pub(crate) text_file_offset: u64,
     pub(crate) text_virtual_address: u64,
     pub(crate) text_size: u64,

@@ -33,7 +33,7 @@ const PLACEMENT_COUNT: usize = 25;
 const SECTION_NAME_TABLE_INDEX: usize = 13;
 /// One placement application retained beside the resulting bytes — the
 /// resolved placement itself, verbatim.
-pub type ElfAppliedSectionHeaderPlacement = ElfResolvedSectionHeaderPlacement;
+pub(crate) type ElfAppliedSectionHeaderPlacement = ElfResolvedSectionHeaderPlacement;
 
 /// Independently decoded section-header bytes retaining exact load-layout
 /// custody.
@@ -43,7 +43,7 @@ pub type ElfAppliedSectionHeaderPlacement = ElfResolvedSectionHeaderPlacement;
 /// file placement, mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "applied ELF section headers retain the absolute load layout"]
-pub struct ValidatedElfPlacedSectionHeaderTable {
+pub(crate) struct ValidatedElfPlacedSectionHeaderTable {
     load_layout: ValidatedElfDynamicLoadLayout,
     contents: ElfPlacedSectionHeaderContents,
     non_authoritative_placed_compatibility_fingerprint: u64,
@@ -58,7 +58,7 @@ impl ValidatedElfPlacedSectionHeaderTable {
         &self.contents.bytes
     }
 
-    pub fn applied_placements(&self) -> &[ElfAppliedSectionHeaderPlacement] {
+    pub(crate) fn applied_placements(&self) -> &[ElfAppliedSectionHeaderPlacement] {
         &self.contents.applications
     }
 
@@ -80,7 +80,7 @@ impl ValidatedElfPlacedSectionHeaderTable {
 /// Rejected application retaining exact absolute-load-layout custody.
 #[derive(Debug)]
 #[must_use = "section-header placement rejection retains the absolute load layout"]
-pub struct ElfSectionHeaderPlacementApplicationError {
+pub(crate) struct ElfSectionHeaderPlacementApplicationError {
     load_layout: ValidatedElfDynamicLoadLayout,
     diagnostic: Diagnostic,
 }
@@ -136,7 +136,7 @@ struct DecodedElf64SectionHeader {
 
 /// Copy the retained section-header template and apply its exact resolved
 /// address and file-offset values in little-endian form.
-pub fn apply_elf_section_header_placements(
+pub(crate) fn apply_elf_section_header_placements(
     load_layout: ValidatedElfDynamicLoadLayout,
 ) -> Result<ValidatedElfPlacedSectionHeaderTable, Box<ElfSectionHeaderPlacementApplicationError>> {
     let contents = match derive_contents(&load_layout) {

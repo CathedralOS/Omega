@@ -51,7 +51,7 @@ const CANONICAL_KINDS: [ElfDynamicRosterSectionKind; SECTION_COUNT] = [
 /// mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF section roster retains the complete name-table owner"]
-pub struct ValidatedElfDynamicSectionRoster {
+pub(crate) struct ValidatedElfDynamicSectionRoster {
     section_names: ValidatedElfSectionNameTablePlan,
     contents: ElfDynamicSectionRosterContents,
     non_authoritative_roster_compatibility_fingerprint: u64,
@@ -95,7 +95,7 @@ impl ValidatedElfDynamicSectionRoster {
 /// Rejected numeric-roster planning with exact section-name-table custody.
 #[derive(Debug)]
 #[must_use = "ELF section-roster rejection retains the section-name table"]
-pub struct ElfDynamicSectionRosterPlanningError {
+pub(crate) struct ElfDynamicSectionRosterPlanningError {
     section_names: ValidatedElfSectionNameTablePlan,
     diagnostic: Diagnostic,
 }
@@ -159,7 +159,7 @@ struct CandidateValidationError {
 /// This does not assign addresses or file offsets, serialize section/program
 /// headers, place payloads, resolve address fixups, mutate an image, or mint a
 /// runnable dynamic image.
-pub fn plan_elf_dynamic_section_roster(
+pub(crate) fn plan_elf_dynamic_section_roster(
     section_names: ValidatedElfSectionNameTablePlan,
 ) -> Result<ValidatedElfDynamicSectionRoster, Box<ElfDynamicSectionRosterPlanningError>> {
     let contents = match derive_contents(&section_names) {

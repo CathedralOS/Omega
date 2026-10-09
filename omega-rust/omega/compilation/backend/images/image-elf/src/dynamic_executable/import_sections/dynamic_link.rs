@@ -15,7 +15,7 @@ use target::{NormalizedElfInterpreterPlan, TargetProfile};
 /// no loader, publication, admission, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "planned ELF dynamic-link inputs retain the exact final image and interpreter"]
-pub struct PlannedElfDynamicLinkInputs {
+pub(crate) struct PlannedElfDynamicLinkInputs {
     image: FinalImage,
     interpreter: NormalizedElfInterpreterPlan,
     imports: Vec<ElfImportRequest>,
@@ -53,7 +53,7 @@ impl PlannedElfDynamicLinkInputs {
 /// Rejected dynamic-link input preflight with both original owned inputs.
 #[derive(Debug)]
 #[must_use = "ELF dynamic-link rejection retains the final image and interpreter input"]
-pub struct ElfDynamicLinkInputPlanningError {
+pub(crate) struct ElfDynamicLinkInputPlanningError {
     image: FinalImage,
     interpreter: NormalizedElfInterpreterPlan,
     diagnostic: Diagnostic,
@@ -83,7 +83,7 @@ impl std::error::Error for ElfDynamicLinkInputPlanningError {}
 /// Every rejection occurs before image mutation and returns both original
 /// inputs. Success remains a preflight carrier; the complete dynamic sections,
 /// relocation realization, layout, and final-byte replay remain later work.
-pub fn plan_elf_dynamic_link_inputs(
+pub(crate) fn plan_elf_dynamic_link_inputs(
     image: FinalImage,
     interpreter: NormalizedElfInterpreterPlan,
 ) -> Result<PlannedElfDynamicLinkInputs, Box<ElfDynamicLinkInputPlanningError>> {

@@ -38,7 +38,7 @@ const SHF_ALLOC: u64 = 0x2;
 /// image mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF section-header bytes retain the numeric roster"]
-pub struct ValidatedElfSectionHeaderTableTemplate {
+pub(crate) struct ValidatedElfSectionHeaderTableTemplate {
     roster: ValidatedElfDynamicSectionRoster,
     contents: ElfSectionHeaderTableTemplateContents,
     non_authoritative_template_compatibility_fingerprint: u64,
@@ -57,7 +57,7 @@ impl ValidatedElfSectionHeaderTableTemplate {
         self.contents.bytes.len()
     }
 
-    pub fn placement_fixup_count(&self) -> usize {
+    pub(crate) fn placement_fixup_count(&self) -> usize {
         self.contents.placement_fixups.len()
     }
 
@@ -87,7 +87,7 @@ impl ValidatedElfSectionHeaderTableTemplate {
 /// Rejected section-header serialization with exact numeric-roster custody.
 #[derive(Debug)]
 #[must_use = "ELF section-header serialization rejection retains the numeric roster"]
-pub struct ElfSectionHeaderTableSerializationError {
+pub(crate) struct ElfSectionHeaderTableSerializationError {
     roster: ValidatedElfDynamicSectionRoster,
     diagnostic: Diagnostic,
 }
@@ -158,7 +158,7 @@ struct CandidateValidationError {
 ///
 /// This does not resolve a fixup, choose `sh_addr`, `sh_offset`, or `e_shoff`,
 /// place the table or payloads, emit program headers, or mutate an image.
-pub fn serialize_elf_section_header_table(
+pub(crate) fn serialize_elf_section_header_table(
     roster: ValidatedElfDynamicSectionRoster,
 ) -> Result<ValidatedElfSectionHeaderTableTemplate, Box<ElfSectionHeaderTableSerializationError>> {
     let contents = match encode_contents(&roster) {

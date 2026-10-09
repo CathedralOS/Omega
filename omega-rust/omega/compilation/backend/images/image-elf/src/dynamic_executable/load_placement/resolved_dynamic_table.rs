@@ -49,14 +49,14 @@ const EXPECTED_TARGETS: [ElfDynamicAddressApplicationTarget; DYNAMIC_FIXUP_COUNT
 /// The only field encoding admitted by this `.dynamic` application rung.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElfDynamicAddressApplicationKind {
+pub(crate) enum ElfDynamicAddressApplicationKind {
     Elf64AbsoluteAddress = 1,
 }
 
 /// Semantic section target of one applied `.dynamic` address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElfDynamicAddressApplicationTarget {
+pub(crate) enum ElfDynamicAddressApplicationTarget {
     ProcedureGot = 1,
     SystemVHash = 2,
     DynamicString = 3,
@@ -71,7 +71,7 @@ pub enum ElfDynamicAddressApplicationTarget {
 /// One exact address application retained beside the resulting `.dynamic`
 /// bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ElfAppliedDynamicAddress {
+pub(crate) struct ElfAppliedDynamicAddress {
     row_ordinal: u32,
     storage_section_index: u32,
     byte_offset: usize,
@@ -129,7 +129,7 @@ impl ElfAppliedDynamicAddress {
 /// loader, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "resolved ELF dynamic bytes retain placed-section and load-layout custody"]
-pub struct ValidatedElfResolvedDynamicTable {
+pub(crate) struct ValidatedElfResolvedDynamicTable {
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
     contents: ElfResolvedDynamicTableContents,
     non_authoritative_resolved_compatibility_fingerprint: u64,
@@ -144,7 +144,7 @@ impl ValidatedElfResolvedDynamicTable {
         &self.contents.bytes
     }
 
-    pub fn applied_addresses(&self) -> &[ElfAppliedDynamicAddress] {
+    pub(crate) fn applied_addresses(&self) -> &[ElfAppliedDynamicAddress] {
         &self.contents.applications
     }
 
@@ -166,7 +166,7 @@ impl ValidatedElfResolvedDynamicTable {
 /// Rejected internal `.dynamic` resolution with exact upstream custody.
 #[derive(Debug)]
 #[must_use = "dynamic-address rejection retains the placed section-header owner"]
-pub struct ElfDynamicAddressApplicationError {
+pub(crate) struct ElfDynamicAddressApplicationError {
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
     diagnostic: Diagnostic,
 }
@@ -214,7 +214,7 @@ struct CandidateValidationError {
 
 /// Apply the exact eight indexed `.dynamic` address fixups from the retained
 /// absolute section layout.
-pub fn apply_elf_dynamic_address_fixups(
+pub(crate) fn apply_elf_dynamic_address_fixups(
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
 ) -> Result<ValidatedElfResolvedDynamicTable, Box<ElfDynamicAddressApplicationError>> {
     let contents = match derive_contents(&placed_section_headers) {

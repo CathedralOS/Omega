@@ -42,7 +42,7 @@ const GNU_HASH_WORD_BITS: u32 = u64::BITS;
 /// relocation milestones consume them.
 #[derive(Debug)]
 #[must_use = "validated ELF dynamic sections retain the exact preflight inputs"]
-pub struct ValidatedElfDynamicSectionPlan {
+pub(crate) struct ValidatedElfDynamicSectionPlan {
     inputs: PlannedElfDynamicLinkInputs,
     contents: ElfDynamicSectionContents,
 }
@@ -52,23 +52,23 @@ impl ValidatedElfDynamicSectionPlan {
         &self.inputs
     }
 
-    pub fn interpreter_byte_count(&self) -> usize {
+    pub(crate) fn interpreter_byte_count(&self) -> usize {
         self.contents.interpreter.len()
     }
 
-    pub fn dynamic_string_byte_count(&self) -> usize {
+    pub(crate) fn dynamic_string_byte_count(&self) -> usize {
         self.contents.dynstr.len()
     }
 
-    pub fn dynamic_symbol_count(&self) -> usize {
+    pub(crate) fn dynamic_symbol_count(&self) -> usize {
         self.contents.dynsym.len()
     }
 
-    pub fn needed_object_count(&self) -> usize {
+    pub(crate) fn needed_object_count(&self) -> usize {
         self.contents.needed.len()
     }
 
-    pub fn required_version_count(&self) -> usize {
+    pub(crate) fn required_version_count(&self) -> usize {
         self.contents
             .verneed
             .iter()
@@ -98,7 +98,7 @@ impl ValidatedElfDynamicSectionPlan {
 /// Rejected address-free dynamic-section planning with exact input custody.
 #[derive(Debug)]
 #[must_use = "ELF dynamic-section rejection retains the exact preflight inputs"]
-pub struct ElfDynamicSectionPlanningError {
+pub(crate) struct ElfDynamicSectionPlanningError {
     inputs: PlannedElfDynamicLinkInputs,
     diagnostic: Diagnostic,
 }
@@ -218,7 +218,7 @@ struct CandidateValidationError {
 /// `.dynamic`, integrate GNU hash into the semantic section roster, lower
 /// relocations, assign addresses, mutate image bytes, or
 /// grant publication, admission, or runnable-image authority.
-pub fn plan_elf_dynamic_sections(
+pub(crate) fn plan_elf_dynamic_sections(
     inputs: PlannedElfDynamicLinkInputs,
 ) -> Result<ValidatedElfDynamicSectionPlan, Box<ElfDynamicSectionPlanningError>> {
     let contents = match derive_contents(&inputs) {

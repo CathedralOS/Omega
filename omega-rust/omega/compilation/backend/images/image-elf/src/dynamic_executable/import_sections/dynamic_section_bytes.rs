@@ -33,7 +33,7 @@ const ELF64_VERSION_AUXILIARY_SIZE: usize = 16;
 /// effects, publication state, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF payloads retain the exact structural section plan"]
-pub struct ValidatedElfDynamicSectionPayloads {
+pub(crate) struct ValidatedElfDynamicSectionPayloads {
     plan: ValidatedElfDynamicSectionPlan,
     payloads: ElfDynamicSectionPayloadBytes,
     non_authoritative_payload_compatibility_fingerprint: u64,
@@ -52,23 +52,23 @@ impl ValidatedElfDynamicSectionPayloads {
         self.payloads.dynstr.len()
     }
 
-    pub fn dynamic_symbol_byte_count(&self) -> usize {
+    pub(crate) fn dynamic_symbol_byte_count(&self) -> usize {
         self.payloads.dynsym.len()
     }
 
-    pub fn system_v_hash_byte_count(&self) -> usize {
+    pub(crate) fn system_v_hash_byte_count(&self) -> usize {
         self.payloads.sysv_hash.len()
     }
 
-    pub fn gnu_hash_byte_count(&self) -> usize {
+    pub(crate) fn gnu_hash_byte_count(&self) -> usize {
         self.payloads.gnu_hash.len()
     }
 
-    pub fn symbol_version_byte_count(&self) -> usize {
+    pub(crate) fn symbol_version_byte_count(&self) -> usize {
         self.payloads.versym.len()
     }
 
-    pub fn version_requirement_byte_count(&self) -> usize {
+    pub(crate) fn version_requirement_byte_count(&self) -> usize {
         self.payloads.verneed.len()
     }
 
@@ -97,7 +97,7 @@ impl ValidatedElfDynamicSectionPayloads {
 /// Rejected ELF dynamic payload serialization with exact plan custody.
 #[derive(Debug)]
 #[must_use = "ELF payload serialization rejection retains the validated structural plan"]
-pub struct ElfDynamicSectionSerializationError {
+pub(crate) struct ElfDynamicSectionSerializationError {
     plan: ValidatedElfDynamicSectionPlan,
     diagnostic: Diagnostic,
 }
@@ -150,7 +150,7 @@ struct CandidateValidationError {
 /// structural plan. Its `Elf64_Dyn` encoding belongs to the later complete
 /// `.dynamic` plan alongside address-bearing tags. This function does not
 /// place sections, write headers, lower relocations, or mutate image bytes.
-pub fn serialize_elf_dynamic_sections(
+pub(crate) fn serialize_elf_dynamic_sections(
     plan: ValidatedElfDynamicSectionPlan,
 ) -> Result<ValidatedElfDynamicSectionPayloads, Box<ElfDynamicSectionSerializationError>> {
     let payloads = match encode_payloads(plan.contents()) {

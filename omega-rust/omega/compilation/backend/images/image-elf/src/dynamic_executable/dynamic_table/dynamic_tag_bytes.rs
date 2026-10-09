@@ -32,7 +32,7 @@ const ELF64_DYNAMIC_VALUE_SIZE: u8 = 8;
 /// authority.
 #[derive(Debug)]
 #[must_use = "validated ELF dynamic bytes retain the exact semantic tag plan"]
-pub struct ValidatedElfDynamicTablePayload {
+pub(crate) struct ValidatedElfDynamicTablePayload {
     plan: ValidatedElfDynamicTagPlan,
     contents: ElfDynamicTablePayloadContents,
     non_authoritative_payload_compatibility_fingerprint: u64,
@@ -70,7 +70,7 @@ impl ValidatedElfDynamicTablePayload {
 /// Rejected `.dynamic` serialization with exact semantic-plan custody.
 #[derive(Debug)]
 #[must_use = "ELF dynamic serialization rejection retains the semantic plan"]
-pub struct ElfDynamicTableSerializationError {
+pub(crate) struct ElfDynamicTableSerializationError {
     plan: ValidatedElfDynamicTagPlan,
     diagnostic: Diagnostic,
 }
@@ -137,7 +137,7 @@ struct CandidateValidationError {
 ///
 /// This does not append a `.dynamic` name, create its descriptor, assign a
 /// section index/address, resolve a pointer, place bytes, or mutate the image.
-pub fn serialize_elf_dynamic_table(
+pub(crate) fn serialize_elf_dynamic_table(
     plan: ValidatedElfDynamicTagPlan,
 ) -> Result<ValidatedElfDynamicTablePayload, Box<ElfDynamicTableSerializationError>> {
     let contents = match encode_contents(&plan) {

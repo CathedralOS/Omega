@@ -35,7 +35,7 @@ const DYNAMIC_NAME_SUFFIX: &[u8] = b".dynamic\0";
 /// or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF dynamic-table descriptor retains the exact payload"]
-pub struct ValidatedElfDynamicTableSectionDescriptorPlan {
+pub(crate) struct ValidatedElfDynamicTableSectionDescriptorPlan {
     payload: ValidatedElfDynamicTablePayload,
     contents: ElfDynamicTableSectionDescriptorContents,
     non_authoritative_descriptor_compatibility_fingerprint: u64,
@@ -84,7 +84,7 @@ impl ValidatedElfDynamicTableSectionDescriptorPlan {
 /// custody.
 #[derive(Debug)]
 #[must_use = "ELF dynamic-table descriptor rejection retains the serialized payload"]
-pub struct ElfDynamicTableSectionDescriptorPlanningError {
+pub(crate) struct ElfDynamicTableSectionDescriptorPlanningError {
     payload: ValidatedElfDynamicTablePayload,
     diagnostic: Diagnostic,
 }
@@ -157,7 +157,7 @@ struct CandidateValidationError {
 /// This does not complete `.shstrtab`, assign final numeric section indexes or
 /// addresses, resolve the semantic `.dynstr` link, place bytes, serialize
 /// headers, or mutate an image.
-pub fn plan_elf_dynamic_table_section_descriptor(
+pub(crate) fn plan_elf_dynamic_table_section_descriptor(
     payload: ValidatedElfDynamicTablePayload,
 ) -> Result<
     ValidatedElfDynamicTableSectionDescriptorPlan,

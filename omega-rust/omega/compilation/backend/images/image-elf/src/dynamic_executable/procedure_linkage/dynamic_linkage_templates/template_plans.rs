@@ -13,7 +13,7 @@ use image::FinalImageSection;
 /// placed byte, or image-mutation capability.
 #[derive(Debug)]
 #[must_use = "validated GOT/PLT templates retain the exact linkage plan"]
-pub struct ValidatedElfProcedureLinkageTemplatePlan {
+pub(crate) struct ValidatedElfProcedureLinkageTemplatePlan {
     pub(crate) linkage: ValidatedElfProcedureLinkageRelocationPlan,
     pub(crate) contents: ElfProcedureLinkageTemplateContents,
     pub(crate) non_authoritative_template_compatibility_fingerprint: u64,
@@ -24,27 +24,27 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
         &self.linkage
     }
 
-    pub fn procedure_linkage_byte_count(&self) -> usize {
+    pub(crate) fn procedure_linkage_byte_count(&self) -> usize {
         self.contents.bytes.plt.len()
     }
 
-    pub fn procedure_got_byte_count(&self) -> usize {
+    pub(crate) fn procedure_got_byte_count(&self) -> usize {
         self.contents.bytes.got_plt.len()
     }
 
-    pub fn procedure_relocation_byte_count(&self) -> usize {
+    pub(crate) fn procedure_relocation_byte_count(&self) -> usize {
         self.contents.bytes.rela_plt.len()
     }
 
-    pub fn general_relocation_byte_count(&self) -> usize {
+    pub(crate) fn general_relocation_byte_count(&self) -> usize {
         self.contents.bytes.rela_dyn.len()
     }
 
-    pub fn fixup_count(&self) -> usize {
+    pub(crate) fn fixup_count(&self) -> usize {
         self.contents.fixups.len()
     }
 
-    pub fn placement_constraint_count(&self) -> usize {
+    pub(crate) fn placement_constraint_count(&self) -> usize {
         self.contents.constraints.len()
     }
 
@@ -73,7 +73,7 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
 /// Rejected GOT/PLT template planning with exact upstream custody.
 #[derive(Debug)]
 #[must_use = "ELF GOT/PLT template rejection retains the procedure-linkage plan"]
-pub struct ElfProcedureLinkageTemplatePlanningError {
+pub(crate) struct ElfProcedureLinkageTemplatePlanningError {
     pub(crate) linkage: ValidatedElfProcedureLinkageRelocationPlan,
     pub(crate) diagnostic: Diagnostic,
 }

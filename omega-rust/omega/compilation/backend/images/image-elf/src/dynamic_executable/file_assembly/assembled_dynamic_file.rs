@@ -31,7 +31,7 @@ use target::TargetProfile;
 const SECTION_COUNT: usize = 14;
 /// Exact owner of one fragment copied into the assembled dynamic ELF file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ElfDynamicFileFragmentKind {
+pub(crate) enum ElfDynamicFileFragmentKind {
     HeaderPrefix,
     SourceText,
     SourceData,
@@ -44,7 +44,7 @@ pub enum ElfDynamicFileFragmentKind {
 
 /// One exact fragment placement in the assembled dynamic ELF file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ElfDynamicFileFragmentPlacement {
+pub(crate) struct ElfDynamicFileFragmentPlacement {
     ordinal: u32,
     kind: ElfDynamicFileFragmentKind,
     file_offset: u64,
@@ -72,7 +72,7 @@ impl ElfDynamicFileFragmentPlacement {
 /// Independently replayed, non-runnable dynamic ELF file bytes.
 #[derive(Debug)]
 #[must_use = "assembled dynamic ELF bytes retain complete non-runnable linkage custody"]
-pub struct ValidatedElfAssembledDynamicFile {
+pub(crate) struct ValidatedElfAssembledDynamicFile {
     resolved_linkage: ValidatedElfResolvedProcedureLinkage,
     contents: ElfAssembledDynamicFileContents,
     non_authoritative_assembled_file_compatibility_fingerprint: u64,
@@ -87,7 +87,7 @@ impl ValidatedElfAssembledDynamicFile {
         &self.contents.bytes
     }
 
-    pub fn fragment_placements(&self) -> &[ElfDynamicFileFragmentPlacement] {
+    pub(crate) fn fragment_placements(&self) -> &[ElfDynamicFileFragmentPlacement] {
         &self.contents.fragment_placements
     }
 
@@ -131,7 +131,7 @@ impl ValidatedElfDynamicExecutable {
 /// Rejected final-byte admission retaining the complete assembled-file owner.
 #[derive(Debug)]
 #[must_use = "dynamic ELF admission rejection retains assembled-file custody"]
-pub struct ElfDynamicExecutableAdmissionError {
+pub(crate) struct ElfDynamicExecutableAdmissionError {
     assembled: ValidatedElfAssembledDynamicFile,
     diagnostic: Diagnostic,
 }
@@ -157,7 +157,7 @@ impl std::error::Error for ElfDynamicExecutableAdmissionError {}
 /// Rejected file assembly retaining the exact resolved-linkage owner.
 #[derive(Debug)]
 #[must_use = "dynamic ELF assembly rejection retains resolved-linkage custody"]
-pub struct ElfDynamicFileAssemblyError {
+pub(crate) struct ElfDynamicFileAssemblyError {
     resolved_linkage: ValidatedElfResolvedProcedureLinkage,
     diagnostic: Diagnostic,
 }
@@ -206,7 +206,7 @@ struct CandidateValidationError {
 
 /// Assemble every exact file-backed dynamic ELF fragment at its validated
 /// absolute file offset without mutating the retained final image.
-pub fn assemble_elf_dynamic_file(
+pub(crate) fn assemble_elf_dynamic_file(
     resolved_linkage: ValidatedElfResolvedProcedureLinkage,
 ) -> Result<ValidatedElfAssembledDynamicFile, Box<ElfDynamicFileAssemblyError>> {
     let contents = match derive_contents(&resolved_linkage) {
@@ -237,7 +237,7 @@ pub fn assemble_elf_dynamic_file(
 /// resolved source text and data to the retained `FinalImage`, and admit the
 /// complete final byte image. This grants no publication receipt or execution
 /// event.
-pub fn admit_elf_dynamic_executable(
+pub(crate) fn admit_elf_dynamic_executable(
     assembled: ValidatedElfAssembledDynamicFile,
 ) -> Result<ValidatedElfDynamicExecutable, Box<ElfDynamicExecutableAdmissionError>> {
     let mut expected_image = load_layout(&assembled.resolved_linkage)
