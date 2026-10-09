@@ -84,6 +84,7 @@ pub(super) fn emit_dynamic_call_binding(
         )),
         operation,
         call.slot,
+        &[],
     )?;
     operations.push(Operation {
         static_reach_binding: None,

@@ -304,6 +304,7 @@ impl OperationFrame<'_, '_> {
         operation: semantic_vocabulary::OperationId,
         target: symbols::SymbolHandle,
     ) -> Result<(), LoweringError> {
+        let source_values = self.suspension_source_values(coordinate)?;
         self.operations.record_source_call(
             SourceCallCoordinate {
                 state: self.state,
@@ -317,7 +318,121 @@ impl OperationFrame<'_, '_> {
             source_site,
             operation,
             target,
+            &source_values,
         )
+    }
+
+    /// Join demanded source bindings through this state's authored namespace.
+    /// Checked coordinates count every parameter and local; Terminal's scalar
+    /// namespace counts only scalar bindings and may also hold private call
+    /// operands. Never equate those ordinals or retain a storage initializer as
+    /// its current contents. Non-suspending calls need no frontier companion.
+    fn suspension_source_values(
+        &self,
+        coordinate: checked_trees::CheckedUnitCallCoordinate,
+    ) -> Result<Vec<lowered_psi::LoweredSourceScalarBinding>, LoweringError> {
+        let Some(crossing) =
+            self.checked
+                .facts
+                .carry
+                .suspension_crossings
+                .iter()
+                .find(|crossing| {
+                    crossing.machine == self.machine
+                        && crossing.state == self.state
+                        && crossing.statement_index == coordinate.statement_index as usize
+                        && crossing.call_ordinal == coordinate.call_ordinal as usize
+                })
+        else {
+            return Ok(Vec::new());
+        };
+        let (_, state) = self
+            .checked
+            .state_flow_site(self.machine, self.state)
+            .ok_or(LoweringError::Unsupported(
+                "suspension call lost its checked source state",
+            ))?;
+        let parameters = self.checked.state_parameters(state);
+        let locals = self.checked.facts.state_locals.locals(self.state);
+        let mut bindings = Vec::new();
+        for live in &crossing.live_values {
+            let (source_position, authored_position) = match live.origin {
+                checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => {
+                    if !parameters.get(position).is_some_and(|parameter| {
+                        parameter.symbol == symbol
+                            && !parameter.is_mutable
+                            && !parameter.relevance.is_erased()
+                            && self
+                                .checked
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some()
+                    }) {
+                        continue;
+                    }
+                    let authored_position = parameters[..position]
+                        .iter()
+                        .filter(|parameter| {
+                            !parameter.relevance.is_erased()
+                                && self
+                                    .checked
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_some()
+                        })
+                        .count();
+                    (position, authored_position)
+                }
+                checked_trees::SuspensionCrossingValueOrigin::Local {
+                    symbol,
+                    statement_index,
+                    environment_position,
+                } => {
+                    let Some((local_position, local)) =
+                        locals.iter().enumerate().find(|(_, local)| {
+                            local.symbol == symbol
+                                && local.statement_index as usize == statement_index
+                                && local.statement_index < coordinate.statement_index
+                                && local.is_scalar_value
+                        })
+                    else {
+                        continue;
+                    };
+                    if parameters.len() + local_position != environment_position {
+                        return unsupported("suspension local changes its checked source position");
+                    }
+                    let authored_position = self.scalar_parameter_count
+                        + self
+                            .checked
+                            .facts
+                            .state_locals
+                            .scalar_locals_before(self.state, local.statement_index)
+                            as usize;
+                    (environment_position, authored_position)
+                }
+                checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
+            };
+            let Some((value_position, scalar_type)) = self
+                .evaluation
+                .scalar_bindings
+                .unaddressed_value(authored_position)
+            else {
+                continue;
+            };
+            let value =
+                self.values
+                    .get(value_position)
+                    .copied()
+                    .ok_or(LoweringError::Unsupported(
+                        "suspension scalar binding lost its emitted value",
+                    ))?;
+            if value.scalar_type != scalar_type {
+                return unsupported("suspension scalar binding changes its carrier");
+            }
+            bindings.push(lowered_psi::LoweredSourceScalarBinding {
+                source_position,
+                value,
+            });
+        }
+        Ok(bindings)
     }
 
     /// A call into a complete Unit body of the closure: operands, claims,
@@ -370,6 +485,7 @@ impl OperationFrame<'_, '_> {
             // The dense route registers the value as the call emits it; a
             // composed state registers it, with its local, when publishing.
             let register = matches!(self.results, StructuralResults::Dense(_));
+            let source_values = self.suspension_source_values(*coordinate)?;
             let declaration = ordinary_calls::emit_structural(
                 checked,
                 self.state,
@@ -381,6 +497,7 @@ impl OperationFrame<'_, '_> {
                 self.callees.domain_ids,
                 &mut self.calls.claims,
                 register,
+                &source_values,
                 self.next_place,
                 self.operations,
             )?;

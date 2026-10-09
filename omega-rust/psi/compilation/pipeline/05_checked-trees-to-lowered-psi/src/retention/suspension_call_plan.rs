@@ -97,33 +97,18 @@ pub(crate) fn retain_suspension_call_plans(
                 );
             }
             let value = match live.origin {
-                checked_trees::SuspensionCrossingValueOrigin::Parameter { position, .. } => {
-                    occurrence
-                        .source_values_before_call
-                        .get(position)
-                        .copied()
-                        .ok_or(LoweringError::Unsupported(
-                            "suspension frontier scalar environment position is unavailable",
-                        ))?
-                }
-                checked_trees::SuspensionCrossingValueOrigin::Local {
-                    environment_position,
+                checked_trees::SuspensionCrossingValueOrigin::Parameter { position, .. }
+                | checked_trees::SuspensionCrossingValueOrigin::Local {
+                    environment_position: position,
                     ..
-                } => {
-                    let value = occurrence
-                        .source_values_before_call
-                        .get(environment_position)
-                        .copied()
-                        .ok_or(LoweringError::Unsupported(
-                            "suspension frontier local environment position is unavailable",
-                        ))?;
-                    if !scalar_operation_result_before(module, terminal_operation, value.id) {
-                        return unsupported(
-                            "threaded local suspension frontier lacks exact source-storage provenance",
-                        );
-                    }
-                    value
-                }
+                } => occurrence
+                    .source_values_before_call
+                    .iter()
+                    .find(|binding| binding.source_position == position)
+                    .map(|binding| binding.value)
+                    .ok_or(LoweringError::Unsupported(
+                        "suspension frontier source position has no scalar binding",
+                    ))?,
                 checked_trees::SuspensionCrossingValueOrigin::CallArgument { position } => {
                     let id =
                         call_arguments
@@ -137,6 +122,9 @@ pub(crate) fn retain_suspension_call_plans(
                     ))?
                 }
             };
+            if !scalar_value_available_before(module, terminal_operation, value.id) {
+                return unsupported("suspension frontier value is unavailable at its call");
+            }
             let source_type = checked
                 .primitive_type_reference(live.type_reference)
                 .ok_or(LoweringError::Unsupported(
@@ -257,7 +245,10 @@ fn scalar_declaration(module: &TerminalModule, value: ValueId) -> Option<ValueDe
     })
 }
 
-fn scalar_operation_result_before(
+/// The checked binding supplies source provenance; SSA visibility supplies the
+/// emitted scope. A local can alias an ingress value or travel through a private
+/// join parameter without manufacturing a new operation result at every call.
+fn scalar_value_available_before(
     module: &TerminalModule,
     operation: OperationId,
     value: ValueId,
@@ -269,10 +260,16 @@ fn scalar_operation_result_before(
                 .iter()
                 .position(|candidate| candidate.id == operation)
                 .is_some_and(|operation_index| {
-                    block.operations[..operation_index]
+                    machine
+                        .parameters
                         .iter()
-                        .filter_map(|candidate| candidate.result.scalar_ref())
-                        .any(|result| result.id == value)
+                        .chain(block.parameters.iter())
+                        .chain(
+                            block.operations[..operation_index]
+                                .iter()
+                                .filter_map(|candidate| candidate.result.scalar_ref()),
+                        )
+                        .any(|declaration| declaration.id == value)
                 })
         })
     })

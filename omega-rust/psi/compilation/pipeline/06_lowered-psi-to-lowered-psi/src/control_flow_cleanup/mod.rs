@@ -63,8 +63,8 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
                 sidecar_edges.insert(edge);
             }
         }
-        for declaration in &occurrence.source_values_before_call {
-            sidecar_values.insert(declaration.id);
+        for binding in &occurrence.source_values_before_call {
+            sidecar_values.insert(binding.value.id);
         }
     }
     for occurrence in &before.selected_ieee_float_comparison_occurrences {

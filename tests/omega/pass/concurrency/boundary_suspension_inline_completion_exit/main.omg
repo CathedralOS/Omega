@@ -13,13 +13,19 @@ satisfies Scheduler::advance
     value
 }
 
+data Marker { value: i32; }
 data Main { scheduler: Binding<Scheduler>; }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
-    let input: i32 = 40;
-    let result: i32 = suspend main.scheduler.advance(input + 2);
-    transition result == 42 {
-        true -> done()
-        _ -> bad()
+    transition { _ -> work(main, 40) }
+    state work(main: &mut Main, input: i32) {
+        let marker: Marker = Marker { value: 19 };
+        let alias: i32 = input;
+        let preserved: i32 = marker.value;
+        let result: i32 = suspend main.scheduler.advance(input + 2);
+        transition result == 42 && input == 40 && alias == 40 && preserved == 19 {
+            true -> done()
+            _ -> bad()
+        }
     }
     state done() {}
     state bad() { crash Trap; }

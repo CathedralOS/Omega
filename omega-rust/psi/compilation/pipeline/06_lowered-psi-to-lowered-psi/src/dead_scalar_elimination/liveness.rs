@@ -90,7 +90,7 @@ pub(super) fn eliminate(
                 occurrence
                     .source_values_before_call
                     .iter()
-                    .map(|value| value.id),
+                    .map(|binding| binding.value.id),
             );
         }
     }

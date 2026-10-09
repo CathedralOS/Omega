@@ -68,7 +68,7 @@ pub(super) fn deduplicate(
                 occurrence
                     .source_values_before_call
                     .iter()
-                    .map(|value| value.id),
+                    .map(|binding| binding.value.id),
             );
         }
     }

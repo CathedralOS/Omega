@@ -5185,8 +5185,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     Keep unresolved-call refusal and same-stack/separately provisioned demand.
   - Suspension production in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`:
-    receiver, persistent/structural places, live claims and Unit-call scalar
-    environments need exact joins. Keep
+    receiver, persistent/structural places, live claims, addressed scalar homes
+    and Unit-call scalar argument namespaces need exact joins. Keep
     `pass/concurrency/boundary_suspension_inline_completion_exit` (0) as the
     inline boundary-completion control, not a park/resume witness.
     Keep storage lifetime, pinning, aliasing,

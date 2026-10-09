@@ -144,6 +144,15 @@ pub struct LoweredSelectedIntegerComparisonOccurrence {
     pub integer_type: semantic_vocabulary::IntegerType,
 }
 
+/// One scalar value in the checked source environment at a call. Source
+/// positions include structural formals and locals; the scalar lane is sparse
+/// and must not renumber those positions when it omits another storage kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoweredSourceScalarBinding {
+    pub source_position: usize,
+    pub value: ValueDeclaration,
+}
+
 /// One exact checked source call joined to its emitted Terminal control site.
 /// Source handles are deliberately confined to the producer result and never
 /// enter the canonical Terminal artifact.
@@ -155,10 +164,9 @@ pub struct LoweredSourceCallOccurrence {
     pub call_ordinal: usize,
     pub terminal_site: LoweredSourceCallSite,
     pub source_target: symbols::SymbolHandle,
-    /// Scalar environment immediately before this call, ordered as checked
-    /// state parameters followed by established local bindings. Empty means
-    /// this lowering route does not expose an exact scalar frontier mapping.
-    pub source_values_before_call: Vec<ValueDeclaration>,
+    /// Exact scalar bindings immediately before this call. A missing source
+    /// position has no scalar join, never a shifted or fabricated value.
+    pub source_values_before_call: Vec<LoweredSourceScalarBinding>,
 }
 
 /// The header block one emitted state graph state took. Like a call

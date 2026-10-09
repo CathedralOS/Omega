@@ -1227,6 +1227,14 @@ impl ScalarBindings {
         Ok(binding.value_position)
     }
 
+    /// An authored SSA binding's current value position and carrier. Addressed
+    /// storage requires its place join, not a snapshot of the initializer.
+    pub(crate) fn unaddressed_value(&self, position: usize) -> Option<(usize, ScalarType)> {
+        let binding = self.authored.get(position).copied().flatten()?;
+        (!binding.storage_symbol.is_valid())
+            .then_some((binding.value_position, binding.scalar_type))
+    }
+
     /// The dense value position of one binding-ordinal slot: the scalar
     /// formals, then each established scalar result in binding order.
     pub(crate) fn immutable_position(&self, position: usize) -> Result<usize, LoweringError> {
