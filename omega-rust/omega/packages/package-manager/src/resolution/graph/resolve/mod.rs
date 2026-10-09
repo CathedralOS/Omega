@@ -13,24 +13,10 @@ mod git_pins;
 mod locked;
 mod workspace;
 
-pub use errors::{
+pub(crate) use errors::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
-    ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError,
 };
-pub use external_local::{
-    resolve_external_local_package_closure, resolve_external_local_project_closure,
+pub(crate) use external_local::{
     resolve_staged_external_local_project_closure,
 };
-pub use git::{
-    resolve_git_package_closure, resolve_git_project_closure, resolve_selected_git_package_closure,
-    resolve_selected_git_project_closure,
-};
-pub use git_pins::{GitDependencyPins, GitDependencyPinsError, GitResolutionOptions};
-pub use locked::{
-    ResolveLockedPackageClosureError, resolve_locked_local_project_closure,
-    resolve_locked_package_source_closure,
-};
-pub use workspace::{
-    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
-    resolve_workspace_project_closure, resolve_workspace_project_closure_in_context,
-};
+pub(crate) use git_pins::{GitDependencyPins, GitDependencyPinsError, GitResolutionOptions};

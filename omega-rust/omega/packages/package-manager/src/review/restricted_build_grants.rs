@@ -15,11 +15,9 @@
 use std::collections::BTreeSet;
 
 use diagnostics::Diagnostic;
-use package_evidence::record::PackagePolicyRowKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
-use crate::declarations::DependencyPurpose;
-use crate::lock::{PackageCheckedContext, PackageLockTarget};
+use crate::lock::{PackageCheckedContext};
 use crate::resolution::graph::DependencyRequestPath;
 
 /// One normalized restricted build request a checked package occurrence
@@ -63,38 +61,15 @@ impl UngrantedRestrictedBuildRequest {
         })
     }
 
-    /// Canonical identity of the package whose occurrence asked for the
-    /// ungranted authority.
-    pub const fn package(&self) -> PackageKeyIdentity {
-        self.package
-    }
 
-    /// The complete checked context — purpose, selected target, and build
-    /// execution profile — whose request lacks retained accepted meaning.
-    /// Sibling occurrences of one package grant independently, so the
-    /// context is the attribution, not an optional refinement.
-    pub const fn context(&self) -> PackageCheckedContext {
-        self.context
-    }
 
-    /// The authorized context — product or build — the request belongs to.
-    pub const fn purpose(&self) -> DependencyPurpose {
-        self.context.purpose()
-    }
 
     /// The complete normalized request meaning the accepted policy did not
     /// grant, in the same canonical row form the decision document renders.
-    pub fn request_meaning(&self) -> &str {
+    pub(crate) fn request_meaning(&self) -> &str {
         &self.request_meaning
     }
 
-    /// The shortest root-to-package request path by which source resolution
-    /// reached the requesting occurrence, in the same root/alias/target form
-    /// the decision document's `path` lines render. `None` only when the
-    /// reviewed key holds no custody in the joining closure.
-    pub fn request_path(&self) -> Option<&DependencyRequestPath> {
-        self.request_path.as_ref()
-    }
 }
 
 impl std::fmt::Display for UngrantedRestrictedBuildRequest {
@@ -146,37 +121,11 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
 /// acceptance recorded for one purpose or target never authorizes a different
 /// occurrence's restricted action on the same package.
 #[derive(Debug, Clone)]
-pub struct RestrictedBuildCheckpoint {
+pub(crate) struct RestrictedBuildCheckpoint {
     grants: Vec<(PackageKeyIdentity, PackageCheckedContext, BTreeSet<String>)>,
 }
 
 impl RestrictedBuildCheckpoint {
-    /// Retain each accepted occurrence's granted restricted-request meanings
-    /// under its own checked context. Rows outside the restricted-request
-    /// kind never enter the grant view.
-    pub fn derive(accepted: &PackageLockTarget) -> Self {
-        Self {
-            grants: accepted
-                .occurrences()
-                .iter()
-                .map(|occurrence| {
-                    (
-                        occurrence.acceptance().package(),
-                        occurrence.context(),
-                        occurrence
-                            .acceptance()
-                            .rows()
-                            .iter()
-                            .filter(|row| {
-                                row.kind() == PackagePolicyRowKind::RestrictedBuildRequest
-                            })
-                            .map(|row| row.canonical_text().to_owned())
-                            .collect(),
-                    )
-                })
-                .collect(),
-        }
-    }
 
     /// Arm the checkpoint for one admitted activation: the returned binding
     /// crosses to the compile worker and joins each restricted request the
@@ -217,7 +166,7 @@ impl RestrictedBuildCheckpoint {
 /// A refusal fails the compile with the pending meaning attached. A review
 /// carried from the persisted cache ran no Build, so the candidate pass admits
 /// its retained requests through this same binding.
-pub struct CheckpointRestrictedBuildGrants {
+pub(crate) struct CheckpointRestrictedBuildGrants {
     package: PackageKeyIdentity,
     context: PackageCheckedContext,
     request_path: Option<DependencyRequestPath>,

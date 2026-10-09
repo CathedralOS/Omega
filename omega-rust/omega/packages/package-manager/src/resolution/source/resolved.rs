@@ -18,7 +18,7 @@ use std::path::PathBuf;
 /// project policy remain separate; source resolution requires no sealed or
 /// certified package instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedPackageSource<S> {
+pub(crate) struct ResolvedPackageSource<S> {
     key: PackageKey,
     role: BuildDeclarationKind,
     resolution: ImmutableSourceResolution,
@@ -73,7 +73,7 @@ impl<S> ResolvedPackageSource<S> {
     /// `PackageSourceCustody` has no public constructor: adapters obtain it
     /// only after source resolution, declaration extraction, and dependency
     /// projection have all succeeded.
-    pub fn into_custody(self) -> PackageSourceCustody {
+    pub(crate) fn into_custody(self) -> PackageSourceCustody {
         PackageSourceCustody::from_resolved_parts(
             self.key,
             self.role,

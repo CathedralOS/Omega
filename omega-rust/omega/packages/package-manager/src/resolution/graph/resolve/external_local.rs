@@ -4,7 +4,7 @@ use super::super::reconcile::{
     PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
 use super::cache::{
-    GitAcquisitionCache, SourceCacheLane, resolve_external_local_package_from_cache,
+    GitAcquisitionCache, SourceCacheLane,
 };
 use super::dependencies::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
@@ -12,64 +12,21 @@ use super::git_pins::GitResolutionOptions;
 use crate::declarations::PackageKey;
 use crate::resolution::source::{
     PackageSourceCustody, ResolvePackageSourceError, bind_staged_external_local_project_source,
-    capture_external_local_project_source,
 };
 use package_source::local::staging::StagedLocalSnapshot;
-use package_source::{ExternalSourceContext, SourceLineage};
+use package_source::{ExternalSourceContext};
 use package_source::{LocalSourceLimits, SourceResolver};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// Resolve an external-local package closure beneath private resolver storage.
-pub fn resolve_external_local_package_closure(
-    live_root: impl AsRef<Path>,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolver,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    resolve_external_local_declared_closure(
-        live_root.as_ref(),
-        source_context,
-        storage,
-        source_limits,
-        closure_limits,
-        false,
-        GitResolutionOptions::default(),
-    )
-}
 
-/// Resolve a local compilation root and its complete declared dependency
-/// closure. The root may be an application or a package; every dependency is
-/// still required to be a package. The Git policy in `options` applies to
-/// every dependency, including requests first discovered in transitive
-/// sources; accepted pins must belong to this exact root request.
-pub fn resolve_external_local_project_closure(
-    live_root: impl AsRef<Path>,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolver,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-    options: GitResolutionOptions<'_>,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    verify_pin_root(live_root.as_ref(), &source_context, options)?;
-    resolve_external_local_declared_closure(
-        live_root.as_ref(),
-        source_context,
-        storage,
-        source_limits,
-        closure_limits,
-        true,
-        options,
-    )
-}
 
 /// Resolve a proposed local project using its original live directory for Path
 /// dependencies. The caller retains the stage for the project-file transaction.
 /// `options` carries the invocation-wide Git selection policy; accepted pins
 /// (an install or selective update preserving unchanged accepted Git
 /// requests) must belong to the original live root request and context.
-pub fn resolve_staged_external_local_project_closure(
+pub(crate) fn resolve_staged_external_local_project_closure(
     stage: &StagedLocalSnapshot,
     source_context: ExternalSourceContext,
     storage: &SourceResolver,
@@ -147,98 +104,7 @@ fn resolve_staged_external_local_project(
     result
 }
 
-fn resolve_external_local_declared_closure(
-    live_root: &Path,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolver,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-    application_root_allowed: bool,
-    options: GitResolutionOptions<'_>,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    storage.verify_path_identity().map_err(|error| {
-        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    let result = resolve_external_local_declared_closure_from_lanes(
-        live_root,
-        source_context,
-        SourceCacheLane::Retained(storage.external_local_sources()),
-        SourceCacheLane::Retained(storage.workspace_members()),
-        SourceCacheLane::Retained(storage.git_sources()),
-        source_limits,
-        closure_limits,
-        application_root_allowed,
-        &mut GitAcquisitionCache::with_options(storage, options),
-    );
-    storage.verify_path_identity().map_err(|error| {
-        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    result
-}
 
-#[allow(clippy::too_many_arguments)]
-fn resolve_external_local_declared_closure_from_lanes(
-    live_root: &Path,
-    source_context: ExternalSourceContext,
-    local_cache: SourceCacheLane<'_>,
-    workspace_cache: SourceCacheLane<'_>,
-    git_cache: SourceCacheLane<'_>,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-    application_root_allowed: bool,
-    git_acquisitions: &mut GitAcquisitionCache<'_>,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    let requested_root = live_root.to_path_buf();
-    let (root, canonical_live_root) = if application_root_allowed {
-        let root = capture_external_local_project_source(
-            &requested_root,
-            source_limits,
-            source_context.clone(),
-        )
-        .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-        let canonical = root.snapshot_root().to_path_buf();
-        (root, canonical)
-    } else {
-        let root = resolve_external_local_package_from_cache(
-            &requested_root,
-            local_cache,
-            source_limits,
-            source_context.clone(),
-        )
-        .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-        if root.source().requested_root() != requested_root {
-            return Err(ResolveExternalLocalPackageClosureError::RootRequestMismatch);
-        }
-        let canonical = root.source().canonical_live_root().to_path_buf();
-        (root.into_custody(), canonical)
-    };
-    if !matches!(
-        root.key().source_lineage(),
-        SourceLineage::ExternalLocal(lineage)
-            if lineage.source_context() == &source_context
-    ) {
-        return Err(ResolveExternalLocalPackageClosureError::RootRequestMismatch);
-    }
-    let cache_dir = local_cache
-        .checked_source_cache_dir()
-        .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-    let review_cache_dir = local_cache
-        .compiled_review_cache_dir()
-        .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-    resolve_bound_external_local_closure(
-        &requested_root,
-        &canonical_live_root,
-        source_context,
-        root.with_checked_source_cache_dir(cache_dir)
-            .with_compiled_review_cache_dir(review_cache_dir),
-        local_cache,
-        workspace_cache,
-        git_cache,
-        source_limits,
-        closure_limits,
-        git_acquisitions,
-    )
-}
 
 #[allow(clippy::too_many_arguments)]
 fn resolve_bound_external_local_closure(

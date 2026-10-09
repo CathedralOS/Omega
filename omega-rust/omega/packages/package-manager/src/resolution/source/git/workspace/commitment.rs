@@ -4,7 +4,7 @@ const BUILD_DECLARATION_COMMITMENT_DOMAIN: &[u8] = b"omega-git-workspace-build-d
 
 /// SHA-256 commitment to the exact authenticated bytes of one `build.omg`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BuildDeclarationCommitment([u8; 32]);
+pub(crate) struct BuildDeclarationCommitment([u8; 32]);
 
 impl BuildDeclarationCommitment {
     pub fn derive(bytes: &[u8]) -> Self {
@@ -24,17 +24,5 @@ impl BuildDeclarationCommitment {
         Self(hasher.finalize().into())
     }
 
-    pub fn matches(&self, bytes: &[u8]) -> bool {
-        self == &Self::derive(bytes)
-    }
 
-    pub fn to_hex(&self) -> String {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let mut encoded = String::with_capacity(self.0.len() * 2);
-        for byte in self.0 {
-            encoded.push(HEX[(byte >> 4) as usize] as char);
-            encoded.push(HEX[(byte & 0x0f) as usize] as char);
-        }
-        encoded
-    }
 }

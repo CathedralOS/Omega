@@ -14,7 +14,7 @@ use super::semantic_bindings::SemanticBindingReviewCandidate;
 /// review projection are joined only by compiling resolver-owned custody in
 /// `compile_resolved_package_reviews`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompilerIssuedPackageReview {
+pub(crate) struct CompilerIssuedPackageReview {
     pub(super) key: PackageKey,
     pub(super) resolution: ImmutableSourceResolution,
     pub(super) source_consumption_commitment: PackageSourceConsumptionCommitment,
@@ -39,7 +39,7 @@ pub struct CompilerIssuedPackageReview {
 impl CompilerIssuedPackageReview {
     /// The checked activation that produced these findings. Equal package
     /// sources do not make build and product reviews interchangeable.
-    pub fn checked_context(&self) -> crate::lock::PackageCheckedContext {
+    pub(crate) fn checked_context(&self) -> crate::lock::PackageCheckedContext {
         crate::lock::PackageCheckedContext::new(
             self.generated_source_bundle.purpose(),
             self.generated_source_bundle.target(),
@@ -97,7 +97,7 @@ impl CompilerIssuedPackageReview {
     /// preliminary pass. Consumers may inspect their exact checked schemas to
     /// author policy for a final recompilation; the candidates themselves are
     /// neither accepted bindings nor permission grants.
-    pub fn semantic_binding_candidates(&self) -> &[SemanticBindingReviewCandidate] {
+    pub(crate) fn semantic_binding_candidates(&self) -> &[SemanticBindingReviewCandidate] {
         &self.semantic_binding_candidates
     }
 
@@ -115,9 +115,6 @@ impl CompilerIssuedPackageReview {
         &self.policy
     }
 
-    pub fn policy_rows(&self) -> &[PackagePolicyRow] {
-        &self.policy_rows
-    }
 
     pub const fn policy_commitment(&self) -> [u8; 32] {
         self.policy_commitment
@@ -142,7 +139,7 @@ pub(super) fn policy_rows_and_commitment(
 /// Rows are dependency-first and deterministic. This remains review material,
 /// not an accepted package instance, certificate, or lock payload.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompilerIssuedPackageReviewSet {
+pub(crate) struct CompilerIssuedPackageReviewSet {
     pub(super) reviews: Vec<CompilerIssuedPackageReview>,
 }
 
@@ -157,24 +154,9 @@ impl CompilerIssuedPackageReviewSet {
         &self.reviews
     }
 
-    /// Return the package's review only when it has one checked occurrence.
-    /// Callers handling both roles must select a purpose or visit every review.
-    pub fn review(&self, key: &PackageKey) -> Option<&CompilerIssuedPackageReview> {
-        let mut matching = self.reviews.iter().filter(|review| review.key() == key);
-        let review = matching.next()?;
-        matching.next().is_none().then_some(review)
-    }
 
-    pub fn reviews_for<'a>(
-        &'a self,
-        key: &'a PackageKey,
-    ) -> impl Iterator<Item = &'a CompilerIssuedPackageReview> {
-        self.reviews
-            .iter()
-            .filter(move |review| review.key() == key)
-    }
 
-    pub fn review_occurrence(
+    pub(crate) fn review_occurrence(
         &self,
         key: &PackageKey,
         purpose: crate::declarations::DependencyPurpose,

@@ -29,7 +29,7 @@ impl ProjectDirectories {
         Ok(result)
     }
 
-    pub fn state_path(&self) -> PathBuf {
+    pub(crate) fn state_path(&self) -> PathBuf {
         self.root_path.join("build").join(STATE_DIRECTORY)
     }
 

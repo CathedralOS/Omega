@@ -9,8 +9,8 @@ mod resolved_closure;
 
 pub(crate) use dependency_paths::DependencyRequestPaths;
 
-pub use super::root_request::PackageRootSourceRequest;
-pub use resolved_closure::{
+pub(crate) use super::root_request::PackageRootSourceRequest;
+pub(crate) use resolved_closure::{
     ExactTargetPackageSourceClosure, ResolvedDependencySourceRequest, ResolvedPackageSourceClosure,
     ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest,
 };
@@ -28,7 +28,7 @@ use std::fmt;
 
 /// One exact requester-local edge in a root-to-dependency path.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DependencyRequestPathStep {
+pub(crate) struct DependencyRequestPathStep {
     requester: PackageKey,
     purpose: DependencyPurpose,
     dependency_index: usize,
@@ -37,20 +37,8 @@ pub struct DependencyRequestPathStep {
 }
 
 impl DependencyRequestPathStep {
-    pub fn requester(&self) -> &PackageKey {
-        &self.requester
-    }
 
-    /// Which authorized context this edge belongs to.
-    pub const fn purpose(&self) -> DependencyPurpose {
-        self.purpose
-    }
 
-    /// Zero-based position in the requester's projected dependency rows for
-    /// this edge's purpose scope.
-    pub fn dependency_index(&self) -> usize {
-        self.dependency_index
-    }
 
     pub fn alias(&self) -> &AliasName {
         &self.alias
@@ -66,7 +54,7 @@ impl DependencyRequestPathStep {
 /// The root custody has an empty `steps` sequence. Dependency-row ordinals
 /// keep repeated otherwise-identical authored requests distinguishable.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DependencyRequestPath {
+pub(crate) struct DependencyRequestPath {
     root: PackageKey,
     steps: Vec<DependencyRequestPathStep>,
 }
@@ -84,41 +72,29 @@ impl DependencyRequestPath {
 /// One distinct custody observed for a conflicted `PackageKey`, together with
 /// every dependency path that produced that exact custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageSourceClosureConflictCandidate {
+pub(crate) struct PackageSourceClosureConflictCandidate {
     custody: PackageSourceCustody,
     requesting_paths: Vec<DependencyRequestPath>,
 }
 
 impl PackageSourceClosureConflictCandidate {
-    pub fn custody(&self) -> &PackageSourceCustody {
-        &self.custody
-    }
 
-    pub fn requesting_paths(&self) -> &[DependencyRequestPath] {
-        &self.requesting_paths
-    }
 }
 
 /// All distinct source custodies observed for one conflicting package key.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageSourceClosureConflict {
+pub(crate) struct PackageSourceClosureConflict {
     key: PackageKey,
     candidates: Vec<PackageSourceClosureConflictCandidate>,
 }
 
 impl PackageSourceClosureConflict {
-    pub fn key(&self) -> &PackageKey {
-        &self.key
-    }
 
-    pub fn candidates(&self) -> &[PackageSourceClosureConflictCandidate] {
-        &self.candidates
-    }
 }
 
 /// Resolver-work ceilings applied across one complete source closure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PackageSourceClosureLimits {
+pub(crate) struct PackageSourceClosureLimits {
     pub max_packages: usize,
     pub max_dependency_requests: usize,
     pub max_depth: usize,
@@ -135,14 +111,14 @@ impl Default for PackageSourceClosureLimits {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageSourceClosureLimitKind {
+pub(crate) enum PackageSourceClosureLimitKind {
     Packages,
     DependencyRequests,
     Depth,
 }
 
 #[derive(Debug)]
-pub enum PackageSourceClosureResolutionError<E> {
+pub(crate) enum PackageSourceClosureResolutionError<E> {
     /// The adapter could not resolve one projected dependency request.
     Adapter {
         requester: PackageKey,
@@ -182,16 +158,6 @@ pub enum PackageSourceClosureResolutionError<E> {
 }
 
 impl<E> PackageSourceClosureResolutionError<E> {
-    pub fn conflicts(&self) -> Option<&[PackageSourceClosureConflict]> {
-        match self {
-            Self::ConflictingCustody { conflicts } => Some(conflicts),
-            Self::Adapter { .. }
-            | Self::LimitExceeded { .. }
-            | Self::InvalidClosure { .. }
-            | Self::InvalidDependencyRole { .. }
-            | Self::InvalidAliases { .. } => None,
-        }
-    }
 }
 
 impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {
