@@ -178,7 +178,9 @@ impl InstallationRecord {
 
     /// The installed function for `machine`, when the record carries it.
     pub fn function(&self, machine: semantic_vocabulary::MachineId) -> Option<&InstalledFunction> {
-        self.function(machine)
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
     }
 
     /// Compiler-private functions remain a namespace disjoint from semantic
