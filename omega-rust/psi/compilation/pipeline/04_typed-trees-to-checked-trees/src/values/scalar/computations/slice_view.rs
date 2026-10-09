@@ -152,6 +152,23 @@ impl Builder<'_, '_> {
             self.statement_index,
             &place,
         )?;
+        // A slice descriptor already carries its backing. An array endpoint
+        // instead lends its referee's storage, including a borrowed array
+        // parameter or an array behind a stored reference. Reuse the common
+        // storage projection so only stored shells gain explicit crossings.
+        let (projected, path) =
+            if validation::slice_view_shell(self.program, projected, &[]).is_some() {
+                (projected, path)
+            } else {
+                crate::execution::terminal_unit::calls::projected_observed_path(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    self.statement_index,
+                    &place,
+                    &|_| None,
+                )?
+            };
         let (source, type_identity) =
             if validation::slice_view_shell(self.program, projected, &[]).is_some() {
                 // A whole view over a place that is itself a view (`let view:

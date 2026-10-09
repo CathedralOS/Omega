@@ -116,14 +116,29 @@ fn erased_alias_locals(
         super::super::receiver_aliases::restored_call_alias_locals(program, facts, machine, state)
             .unwrap_or_default(),
     );
-    // A checked capture that establishes a descriptor is an ordinary value
+    // A retained value or capture that establishes a descriptor is an ordinary value
     // binding, even when it also admits an alias of its backing. Erasing that
     // declaration leaves later descriptor transfers with no producer.
     erased.retain(|symbol| {
         let Some((statement_index, local)) = program.state_local_declaration(state, *symbol) else {
             return true;
         };
-        super::reference_captures::plan(program, facts, machine, state, statement_index, local)
+        let Ok(statement_ordinal) = u32::try_from(statement_index) else {
+            return false;
+        };
+        facts
+            .values
+            .structural_values
+            .root_for_expression(state.symbol, statement_ordinal, local.initial_value)
+            .is_none()
+            && super::reference_captures::plan(
+                program,
+                facts,
+                machine,
+                state,
+                statement_index,
+                local,
+            )
             .is_none()
     });
     erased

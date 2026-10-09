@@ -351,37 +351,29 @@ pub(super) fn account(
                 if consumed_case_subject(terminator) == Some(result.binding_ordinal) {
                     case_successors.iter().all(|edge| !transferred(edge))
                 } else {
-                    // Every reachable case must own this result on its own
-                    // edge. Looking only at successor cases makes an
-                    // all-return roster vacuously transferred; accepting any
-                    // one returning arm lets a mixed roster hide an uncovered
-                    // sibling. Reference returns use the same exact view root
-                    // and a descendant path. Their one loan release remains
-                    // the semantic owner counted below, so this complete
-                    // roster validates the partition without booking a second
-                    // consumption beside that release.
+                    // Each selected case owns a disposition, just as an
+                    // ordinary conditional does. A shared view can end on a
+                    // non-transferring edge through its local dominance
+                    // permit; it need not survive an unrelated sum dispatch.
+                    // Reference returns additionally admit an exact reborrow,
+                    // whose custody is counted below rather than booked twice
+                    // as a synthetic unrestricted disposition.
+                    let mut return_uses = return_construction_uses.iter();
                     let complete_partition = !cases.is_empty()
                         && cases.iter().all(|case| match &case.outcome {
                             checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(
                                 successor,
-                            ) => transferred(successor),
-                            checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
-                                checked_trees::CheckedConditionalReturnArm::Structural(returned),
-                            ) => match view_source {
-                                Some(_) => returned
-                                    .established_reference_source(&facts.values.structural_values)
-                                    .is_some_and(&exact_view_reborrow),
-                                None => {
-                                    let operation = returned;
-                                    operation.with_value_calls().skip(1).any(|operation| {
-                                        terminator_call_consumes_result(
-                                            operation,
-                                            result.binding_ordinal,
-                                        )
-                                    })
-                                }
-                            },
-                            _ => false,
+                            ) => transferred(successor) || permits_disposal(&[successor]),
+                            checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) => {
+                                let exact_reborrow = matches!(arm,
+                                    CheckedConditionalReturnArm::Structural(returned)
+                                        if returned
+                                            .established_reference_source(&facts.values.structural_values)
+                                            .is_some_and(&exact_view_reborrow));
+                                return_uses.next().is_some_and(|uses| {
+                                    exact_reborrow || return_arm_owns(arm, uses)
+                                })
+                            }
                         });
                     if view_source.is_some() {
                         if !complete_partition {
@@ -398,26 +390,11 @@ pub(super) fn account(
                                 .established_reference_source(&facts.values.structural_values)
                                 .is_some_and(&exact_view_reborrow)
                         });
-                        result.multiplicity == Multiplicity::Unrestricted
+                        has_normal_exit
+                            && result.multiplicity == Multiplicity::Unrestricted
                             && reference_reborrows == 0
                     } else {
-                        // Otherwise each case owns the result on its own
-                        // exit, as a guarded arm does: a successor moves it
-                        // or leaves it to that edge's cleanup, and a
-                        // returning arm consumes or retires it.
-                        let mut return_uses = return_construction_uses.iter();
-                        complete_partition
-                            || has_normal_exit
-                                && cases.iter().all(|case| match &case.outcome {
-                                    checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(
-                                        successor,
-                                    ) => transferred(successor) || permits_disposal(&[successor]),
-                                    checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) => {
-                                        return_uses
-                                            .next()
-                                            .is_some_and(|uses| return_arm_owns(arm, uses))
-                                    }
-                                })
+                        has_normal_exit && complete_partition
                     }
                 }
             }

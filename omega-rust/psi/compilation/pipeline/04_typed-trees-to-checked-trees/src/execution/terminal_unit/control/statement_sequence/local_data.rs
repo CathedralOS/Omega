@@ -155,7 +155,14 @@ pub(super) fn plan(
     }
     let reference_capture =
         super::super::reference_captures::plan(program, facts, machine, state, index, local);
-    if (reference_capture.is_none() && erased_locals.contains(&local.symbol))
+    let structural_root = facts.values.structural_values.root_for_expression(
+        state.symbol,
+        statement_index,
+        local.initial_value,
+    );
+    if (reference_capture.is_none()
+        && structural_root.is_none()
+        && erased_locals.contains(&local.symbol))
         || is_record_pattern_marker(local)
     {
         return Some(LocalPlan::Planned);
@@ -528,22 +535,17 @@ pub(super) fn plan(
     // A retained reference root establishes its carrier before later reads.
     // Borrowed aliases without such a value root retain their existing loan
     // route; they cannot invent a carrier by replaying an initializer at a use.
-    if !established_reference_borrow(
-        program,
-        facts,
-        machine.symbol,
-        state,
-        statement_index,
-        local,
-    ) && let Some(loan) = place_loan(
-        program,
-        machine,
-        state,
-        structural_parameters,
-        statement_index,
-        local,
-        CheckedStructuralAccess::SharedBorrow,
-    ) {
+    if structural_root.is_none()
+        && let Some(loan) = place_loan(
+            program,
+            machine,
+            state,
+            structural_parameters,
+            statement_index,
+            local,
+            CheckedStructuralAccess::SharedBorrow,
+        )
+    {
         if let PlaceLoan::Captured(loan) = loan {
             place_loans.push(loan);
         }
@@ -552,11 +554,7 @@ pub(super) fn plan(
     // An initializer call may establish structural argument values at this
     // same statement. Only the initializer's own occurrence can establish the
     // local directly; argument roots stay with the ordinary call planner.
-    if let Some(root) = facts.values.structural_values.root_for_expression(
-        state.symbol,
-        statement_index,
-        local.initial_value,
-    ) {
+    if let Some(root) = structural_root {
         local_phase("statement sequence: local data: structural value: reference record loans");
         if super::super::super::reference_results::local_owes_record_loans(
             program,
@@ -709,10 +707,6 @@ pub(super) fn plan(
         if let PlaceLoan::Captured(loan) = loan {
             place_loans.push(loan);
         }
-        return Some(LocalPlan::Planned);
-    }
-    local_phase("statement sequence: local data: view loan binding");
-    if is_call_view_loan_binding(program, facts, machine, state, statement_index, local) {
         return Some(LocalPlan::Planned);
     }
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference) {
@@ -976,111 +970,6 @@ fn place_loan(
         path,
         recast_source,
     }))
-}
-
-/// A retained borrow root names this initializer and its exact reference type.
-/// Primitive and record referents both have real carriers when a value root is
-/// present; their observations must keep that carrier's captured address.
-fn established_reference_borrow(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    local: &typed_trees::statement::TableLocalData,
-) -> bool {
-    super::super::super::reference_results::shared_place_borrowed_parts(
-        program,
-        local.type_reference,
-    )
-    .is_some()
-        && facts
-            .values
-            .structural_values
-            .root_for_expression(state.symbol, statement_index, local.initial_value)
-            .is_some_and(|root| {
-                root.machine == machine
-                    && root.expression == local.initial_value
-                    && root.type_reference == local.type_reference
-            })
-}
-
-/// A `let` binding a borrowed-view result of a call that left no flow call
-/// row: `let slots: &mut [Cell] = self.cells.as_mut_slice()` or
-/// `let view: &[u8] = self.buf.as_slice()`. Collection-view openers mint the
-/// binding's loan directly into the borrow ledger — the name then denotes
-/// that loaned place for its whole scope, the same compile-time carrier as a
-/// `&place`/`&mut place` borrow local, so the statement plans no operation.
-/// Calls that did leave a flow row are ordinary call results and still plan
-/// a call with a structural result.
-fn is_call_view_loan_binding(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    local: &typed_trees::statement::TableLocalData,
-) -> bool {
-    if local.is_mutable
-        || !matches!(
-            program.expression_table.expression(local.initial_value),
-            ExpressionNode::Call(_)
-        )
-    {
-        return false;
-    }
-    let expected_loan_kind = if super::super::super::reference_results::mutable_borrowed_parts(
-        program,
-        local.type_reference,
-    )
-    .is_some()
-    {
-        checked_trees::BorrowAccessKind::Mutable
-    } else if super::super::super::reference_results::shared_place_borrowed_parts(
-        program,
-        local.type_reference,
-    )
-    .is_some()
-    {
-        checked_trees::BorrowAccessKind::Read
-    } else {
-        return false;
-    };
-    let index = usize::try_from(statement_index).ok();
-    let Some(index) = index else { return false };
-    let flow =
-        crate::execution::terminal_unit::types::state_flow(facts, machine.symbol, state.symbol);
-    let has_call_row = flow.is_some_and(|flow| {
-        facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(flow.calls)
-            .iter()
-            .any(|call| call.statement_index == index && call.call_ordinal == 0)
-    });
-    if has_call_row {
-        return false;
-    }
-    let Some(borrow_state) = facts
-        .borrow
-        .states
-        .iter()
-        .map(|(_, candidate)| candidate)
-        .find(|candidate| {
-            candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
-        })
-    else {
-        return false;
-    };
-    let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
-        facts.borrow.state_owns_loan(borrow_state, *handle)
-            && loan.owner_symbol == local.symbol
-            && loan.statement_index == index
-            && loan.kind == expected_loan_kind
-            && facts.borrow.loan_owner_path(loan).is_empty()
-    });
-    loans.next().is_some() && loans.next().is_none()
 }
 
 /// Publish a declared local's home before any member or whole-slot store

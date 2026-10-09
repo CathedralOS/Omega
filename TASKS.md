@@ -2563,9 +2563,6 @@ crash and native exit behavior.
   - `interrupt_table_canary` and `secondary_processor_canary` now select
     providers but lack an executable intrinsic:
     **CHECKED-ASM-LABEL-CONTRACTS** owns that dependency.
-  - `pass/control_flow/indexed_record_state_argument_exit` (recorded built,
-    exit 70) is incomplete natively at stage 04's "state graph: result custody
-    accounting" (`state_graph/result_custody.rs`).
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded

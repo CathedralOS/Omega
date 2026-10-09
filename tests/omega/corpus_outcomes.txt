@@ -2804,7 +2804,7 @@ pass/control_flow/guarded_mid_arm_return checked 1679ms check-target:macos_arm64
 pass/control_flow/guarded_transition_dispatch_exit checked 1028ms check-target:macos_arm64 @765e6c51624f+wt
 pass/control_flow/guarded_unit_completion_exit checked 5306ms check-target:macos_arm64 @cfe60a3a242
 pass/control_flow/guarded_value_transition_roster checked 3735ms check-target:macos_arm64 @6a3968be50c
-pass/control_flow/indexed_record_state_argument_exit checked 4886ms check-target:macos_arm64 @cfe60a3a242
+pass/control_flow/indexed_record_state_argument_exit checked 4886ms check-target:macos_arm64 @a789a281bf39+wt
 pass/control_flow/nested_affine_record_state_cycle_exit checked 884ms check-target:macos_arm64 @fb3ce7840d9b
 pass/control_flow/nested_parameter_receiver_call checked 360ms @2d8ed253669f
 pass/control_flow/nested_structural_call_operand_exit checked 916ms check-target:macos_arm64 @ff183e7f95fb+wt
@@ -2867,6 +2867,7 @@ pass/control_flow/runtime_tuple_transition_exit checked 649ms check-target:macos
 pass/control_flow/scalar_loop_interior_header_exit checked 1748ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/self_case_payload_both_arms_exit checked 1397ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/shared_state_disjoint_receiver_store_exit checked 1312ms check-target:macos_arm64 @da17a13c769f
+pass/control_flow/shared_view_selected_disposition_exit checked 1541ms check-target:macos_arm64 @a789a281bf39+wt
 pass/control_flow/single_case_parameter_dispatch_exit checked 1896ms check-target:macos_arm64 @d1a90561f8aa+wt
 pass/control_flow/single_case_result_dispatch_exit checked 1896ms check-target:macos_arm64 @d1a90561f8aa+wt
 pass/control_flow/single_case_wildcard_dispatch_exit checked 1388ms check-target:macos_arm64 @78ffda488ec6+wt
