@@ -169,7 +169,7 @@ fn is_exact_toolchain_float_data_type(
 
 /// Classify one typed position of a sealed semantic declaration by exact
 /// toolchain identity (never by spelling).
-fn typed_value_kind(
+pub(crate) fn typed_value_kind(
     program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<FloatSemanticValueKind> {

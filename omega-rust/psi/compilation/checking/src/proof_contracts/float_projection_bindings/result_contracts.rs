@@ -214,7 +214,25 @@ pub fn float_boolean_semantic_contract(
     program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
 ) -> Option<ExpressionHandle> {
-    if program.primitive_type_reference(operator.return_type) != Some(PrimitiveType::Bool) {
+    (program.primitive_type_reference(operator.return_type) == Some(PrimitiveType::Bool))
+        .then(|| float_scalar_semantic_contract(program, operator))
+        .flatten()
+}
+
+/// Rejoin a selected scalar result equation to one closed semantic catalog
+/// row. Bool, class and integer results share exact source/result/formal
+/// custody; their carrier kind does not authorize another row's denotation.
+pub(crate) fn float_scalar_semantic_contract(
+    program: &dyn crate::CheckingInput,
+    operator: &OperatorDefinition,
+) -> Option<ExpressionHandle> {
+    let result_kind = super::semantic_operations::typed_value_kind(program, operator.return_type)?;
+    if !matches!(
+        result_kind,
+        FloatSemanticValueKind::Bool
+            | FloatSemanticValueKind::Class
+            | FloatSemanticValueKind::Integer(_)
+    ) {
         return None;
     }
     for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
@@ -247,17 +265,18 @@ pub fn float_boolean_semantic_contract(
             let Some(call) = program.expression_table.call_node(predicate) else {
                 continue;
             };
-            let Some((row, _)) =
-                resolve_named_expression_call(program, call).and_then(|selected| {
-                    super::semantic_operations::exact_toolchain_float_semantic_contract(
-                        program, selected,
-                    )
-                })
+            let Some((_, row, _)) =
+                super::semantic_operations::float_semantic_application_for_parameters(
+                    program,
+                    call,
+                    operator.symbol,
+                    program.operator_parameters(operator),
+                )
             else {
                 continue;
             };
             let mut remaining_work = 1024;
-            if row.result == FloatSemanticValueKind::Bool
+            if row.result == result_kind
                 && semantic_term_uses_only_inputs(program, operator, predicate, &mut remaining_work)
             {
                 return Some(predicate);

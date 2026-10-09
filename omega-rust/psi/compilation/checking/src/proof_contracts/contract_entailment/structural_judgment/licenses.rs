@@ -180,6 +180,7 @@ pub(super) fn polynomial_normal_form(
 ) -> Option<Vec<Vec<StructuralTerm>>> {
     const MONOMIAL_CAP: usize = 64;
     if let StructuralTerm::Application {
+        result_type: _,
         target,
         selections,
         machine: _,
@@ -234,6 +235,7 @@ pub(super) fn additive_addends(
     out: &mut Vec<StructuralTerm>,
 ) {
     if let StructuralTerm::Application {
+        result_type: _,
         target,
         selections,
         machine: _,
@@ -257,6 +259,7 @@ pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) ->
             term_uses_application(left, op) || term_uses_application(right, op)
         }
         StructuralTerm::Application {
+            result_type: _,
             target,
             selections,
             machine: _,
@@ -934,6 +937,7 @@ fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm
     ) -> bool {
         match term {
             StructuralTerm::Application {
+                result_type: _,
                 target,
                 selections,
                 machine,

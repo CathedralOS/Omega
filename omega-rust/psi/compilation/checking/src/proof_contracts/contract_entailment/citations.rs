@@ -110,6 +110,7 @@ fn citation_call_bindings<'program>(
         argument_terms.push(term);
     }
     let call_term = StructuralTerm::Application {
+        result_type: entry.return_type,
         target: target_symbol,
         selections: machine_arguments.to_vec(),
         machine: target_name.to_owned(),
@@ -810,6 +811,11 @@ pub(crate) fn instantiate_citation(
     map.push((
         RESULT_BINDER.to_owned(),
         StructuralTerm::Application {
+            result_type: program
+                .machine_states(callee)
+                .first()
+                .map(|entry| entry.return_type)
+                .unwrap_or_default(),
             target: target.symbol,
             selections: target.machine_arguments.clone(),
             machine: callee.name.as_str().to_owned(),

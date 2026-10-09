@@ -12,11 +12,13 @@ use super::{StructuralTerm, is_arm_pattern_marker};
 
 mod binary;
 mod constructors;
+mod equality;
 pub(super) use binary::binary_term_in_scope;
 pub(super) use constructors::{
     case_classifier, case_guard_classifier, case_value_term, constructor_literal_term,
     is_case_observation, zero_value_structural_term,
 };
+pub(super) use equality::has_identity_equality_meaning;
 
 /// Whether `haystack` contains `needle` as a subterm (occurs check for the
 /// rewrite orientation: a rewrite whose replacement contains its own pattern
@@ -50,6 +52,7 @@ pub(super) fn unfold_constant_applications(
 ) -> StructuralTerm {
     match term {
         StructuralTerm::Application {
+            result_type,
             target,
             selections,
             machine,
@@ -57,6 +60,7 @@ pub(super) fn unfold_constant_applications(
         } if arguments.is_empty() => match constant_machine_constructor(program, target) {
             Some(constructor) => constructor,
             None => StructuralTerm::Application {
+                result_type,
                 target,
                 selections,
                 machine,
@@ -64,11 +68,13 @@ pub(super) fn unfold_constant_applications(
             },
         },
         StructuralTerm::Application {
+            result_type,
             target,
             selections,
             machine,
             arguments,
         } => StructuralTerm::Application {
+            result_type,
             target,
             selections,
             machine,
@@ -307,7 +313,22 @@ fn structural_term_with_frame(
                     })
                     .collect();
                 if arguments.len() == handles.len() {
+                    let result_type = frame
+                        .and_then(|(owner, parameters)| {
+                            crate::parameter_expression_result_type_reference(
+                                program, owner, parameters, expression,
+                            )
+                        })
+                        .or_else(|| {
+                            scope.and_then(|(machine, state, _)| {
+                                crate::expression_result_type_reference(
+                                    program, machine, state, expression,
+                                )
+                            })
+                        })
+                        .unwrap_or_default();
                     return Some(StructuralTerm::Application {
+                        result_type,
                         target,
                         selections: call.machine_arguments.to_vec(),
                         machine: structural_call_machine_name(

@@ -222,16 +222,29 @@ pub(super) fn selected_call_contract<'program>(
             .trait_machine_signature_by_symbol(definition, dispatch.requirement)
             .map(SelectedCallContract::Signature);
     }
-    selected_machine(program, call.target_symbol)
+    selected_contract_by_symbol(program, call.target_symbol).or_else(|| {
+        typed_trees::operator::resolve_named_expression_call(program, call)
+            .map(SelectedCallContract::Operator)
+    })
+}
+/// Resolve an already retained public callable identity. No spelling or
+/// realization target substitutes for a missing exact contract owner.
+pub(super) fn selected_contract_by_symbol(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<SelectedCallContract<'_>> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    selected_machine(program, symbol)
         .map(|(machine, state)| SelectedCallContract::Concrete(machine, state))
+        .or_else(|| signature_by_symbol(program, symbol).map(SelectedCallContract::Signature))
         .or_else(|| {
-            signature_by_symbol(program, call.target_symbol).map(SelectedCallContract::Signature)
-        })
-        .or_else(|| {
-            typed_trees::operator::resolve_named_expression_call(program, call)
+            typed_trees::operator::declaration_by_symbol(program, symbol)
                 .map(SelectedCallContract::Operator)
         })
 }
+
 /// A proof application retains its own abstract operand telescope before
 /// actual substitution. Source semantic overloads select by these established
 /// references, sharing the same sealed declaration owner as result typing.

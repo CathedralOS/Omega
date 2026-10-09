@@ -256,6 +256,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
         return false;
     };
     let left = StructuralTerm::Application {
+        result_type: typed_trees::types::TypeReferenceHandle::invalid(),
         target: relation,
         selections: Vec::new(),
         machine: "saturating_sub".to_owned(),

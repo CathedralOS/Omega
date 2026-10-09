@@ -6,6 +6,7 @@
 
 mod conversion_contracts;
 mod result_contracts;
+pub(crate) use result_contracts::float_scalar_semantic_contract;
 pub use result_contracts::{
     float_boolean_semantic_contract, float_result_semantic_contract,
     float_saturation_divisor_parameter,

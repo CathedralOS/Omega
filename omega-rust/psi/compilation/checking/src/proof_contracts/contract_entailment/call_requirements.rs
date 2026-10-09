@@ -208,29 +208,12 @@ fn runtime_equality_fact(
                 && runtime_equality_fact(program, machine, state, binary.right)
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            let builtin_meaning = crate::has_builtin_binary_expression_meaning(
+            super::structural_terms::has_identity_equality_meaning(
                 program,
-                machine,
-                Some(state),
+                machine.symbol,
+                program.state_parameters(state),
                 expression,
-            );
-            [binary.left, binary.right].iter().all(|operand| {
-                (builtin_meaning
-                    && crate::expression_result_type_reference(
-                        program, machine, state, *operand,
-                    )
-                    .and_then(|reference| program.primitive_type_reference(reference))
-                    .is_some_and(|primitive| {
-                        primitive == typed_trees::types::PrimitiveType::Bool
-                            || primitive.accepts_integer_literal()
-                    }))
-                    // Compound equality operands are decidable through the
-                    // structural term walk (record constructors and constant
-                    // machine applications); the primitive channel only ever
-                    // saw scalar equalities before that walk existed.
-                    || super::structural_terms::structural_term(program, *operand)
-                        .is_some()
-            })
+            )
         }
         _ => false,
     }

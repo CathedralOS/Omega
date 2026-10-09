@@ -343,3 +343,49 @@ pub(crate) fn has_no_crash_routes(
         !program.machine_declares_crash(machine)
     })
 }
+
+/// Closed compiler catalogs independently establish a total value meaning.
+/// A selected runtime slot must retain its exact sealed declaration and a
+/// complete catalog result equation. Ordinary boundary admission or a matching
+/// function-shaped guarantee is not denotational authority.
+pub(crate) fn selected_operator_has_closed_value_denotation(
+    program: &dyn crate::CheckingInput,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> bool {
+    use crate::proof_contracts::float_projection_bindings;
+    if program
+        .operator_parameters(operator)
+        .iter()
+        .any(|parameter| {
+            parameter.is_mutable
+                || crate::reference_shell(program, parameter.type_reference).is_some()
+        })
+    {
+        return false;
+    }
+    if float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(
+        program, operator,
+    )
+    .is_some()
+    {
+        return true;
+    }
+    let path = program.operator_path_members(operator.name);
+    if let [namespace, name] = path
+        && let Some(projection) =
+            numerics::float_projection::FloatProjectionOperation::from_source_identity(
+                namespace.as_str(),
+                name.as_str(),
+            )
+        && float_projection_bindings::exact_toolchain_float_projection_primitive(
+            program, operator, projection,
+        )
+        .is_some()
+    {
+        return true;
+    }
+    float_projection_bindings::semantic_operations::is_sealed_toolchain_float_operator(
+        program, operator,
+    ) && (float_projection_bindings::float_result_semantic_contract(program, operator).is_some()
+        || float_projection_bindings::float_scalar_semantic_contract(program, operator).is_some())
+}

@@ -1,13 +1,14 @@
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER, StatementNode,
-    SymbolHandle, TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker,
-    structural_call_machine_name, structural_term, structural_term_pair, term_contains,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, StatementNode, SymbolHandle,
+    TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker, structural_call_machine_name,
+    structural_term, term_contains,
 };
 use language_semantics::const_value::boolean_literal_spelling;
 use typed_trees::types::TypeReferenceHandle;
 
 mod licenses;
 mod normal_returns;
+mod selected_contracts;
 
 pub(crate) use licenses::{EntryMachines, LicenseCandidates, declared_index_algebra_laws};
 use licenses::{
@@ -73,6 +74,9 @@ pub(super) enum StructuralTerm {
     /// machine of the case-arm shape and the matched argument resolves to
     /// a constructor -- the compute-mode of N3's operator routing.
     Application {
+        /// Effective caller-side result carrier and policy. Zero means that
+        /// this term lacks typed authority for selected contract expansion.
+        result_type: TypeReferenceHandle,
         target: SymbolHandle,
         selections: Vec<typed_trees::expression::StaticMachineArgument>,
         machine: String,
@@ -119,11 +123,13 @@ impl StructuralTerm {
     pub(super) fn map_argument_terms(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
             StructuralTerm::Application {
+                result_type,
                 target,
                 selections,
                 machine,
                 arguments,
             } => StructuralTerm::Application {
+                result_type,
                 target,
                 selections,
                 machine,
@@ -290,6 +296,32 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
+    fn declaration_term(&self, expression: ExpressionHandle) -> Option<StructuralTerm> {
+        let machine = self.program.machine(self.machine_symbol)?;
+        let state = self.program.machine_states(machine).first()?;
+        super::structural_terms::structural_term_for_parameters(
+            self.program,
+            machine.symbol,
+            self.program.state_parameters(state),
+            expression,
+        )
+    }
+
+    fn has_identity_equality_meaning(&self, expression: ExpressionHandle) -> bool {
+        let Some(machine) = self.program.machine(self.machine_symbol) else {
+            return false;
+        };
+        let Some(state) = self.program.machine_states(machine).first() else {
+            return false;
+        };
+        super::structural_terms::has_identity_equality_meaning(
+            self.program,
+            machine.symbol,
+            self.program.state_parameters(state),
+            expression,
+        )
+    }
+
     pub(super) fn intake(&mut self, program: &dyn crate::CheckingInput, fact: ExpressionHandle) {
         let Some(binary) = program.expression_table.binary_node(fact) else {
             return;
@@ -303,7 +335,7 @@ impl<'program> StructuralJudge<'program> {
             else {
                 return;
             };
-            if let Some(subject) = structural_term(program, binary.left) {
+            if let Some(subject) = self.declaration_term(binary.left) {
                 self.case_facts
                     .push((subject, definition.symbol, variant.symbol));
             }
@@ -324,8 +356,13 @@ impl<'program> StructuralJudge<'program> {
                 self.intake(program, binary.left);
                 self.intake(program, binary.right);
             }
-            BinaryOperator::Equal if !self.case_facts_only => {
-                let Some((left, right)) = structural_term_pair(program, binary) else {
+            BinaryOperator::Equal
+                if !self.case_facts_only && self.has_identity_equality_meaning(fact) =>
+            {
+                let Some((left, right)) = self
+                    .declaration_term(binary.left)
+                    .zip(self.declaration_term(binary.right))
+                else {
                     return;
                 };
                 self.intake_case_equation(left.clone(), right.clone(), 0);
@@ -448,6 +485,7 @@ impl<'program> StructuralJudge<'program> {
                     };
                 }
                 StructuralTerm::Application {
+                    result_type,
                     target,
                     selections,
                     machine,
@@ -458,6 +496,7 @@ impl<'program> StructuralJudge<'program> {
                         .map(|argument| self.resolve_at(argument, depth + 1))
                         .collect();
                     let resolved = StructuralTerm::Application {
+                        result_type,
                         target,
                         selections,
                         machine,
@@ -473,7 +512,14 @@ impl<'program> StructuralJudge<'program> {
                         term = replacement.clone();
                         continue;
                     }
+                    if let Some(normalized) =
+                        self.selected_contract_normal_form(&resolved, depth + 1)
+                    {
+                        term = normalized;
+                        continue;
+                    }
                     let StructuralTerm::Application {
+                        result_type: _,
                         target,
                         selections,
                         machine,
@@ -761,49 +807,6 @@ impl<'program> StructuralJudge<'program> {
         // enclosing unfold, which grows exponentially with the term's depth.
         let parameter_count = environment.len();
 
-        // CITE the callee's proven ensures first (extraction into consumer
-        // proofs): a lemma with a functional `ensures result == <term>`
-        // abstracts its body, so instantiating that ensures under the call
-        // environment yields the result directly -- and it is the ONLY route
-        // for an INDUCTIVE lemma whose body never finitely unfolds for a
-        // symbolic argument (`add_zero_right(a) == a`). Sound because the
-        // callee's ensures is proven in the same validation batch (a false
-        // one raises its own error, so no compiling program cites an
-        // unproven fact). Prefer it over body unfolding. REQUIRES-bearing
-        // callees are EXCLUDED: their ensures is conditional and this path
-        // has no site to discharge the condition at -- injecting it
-        // unconditioned would be unsound (probed 2026-07-16). Their BODY
-        // still unfolds below (computation is unconditional).
-        let requires_bearing = program.machine_contracts(machine).iter().any(|contract| {
-            matches!(
-                contract.kind,
-                typed_trees::signature::SignatureContractKind::Requires
-            ) && !program.proof_facts.span_or_empty(contract.facts).is_empty()
-        });
-        if !requires_bearing {
-            for contract in program.machine_contracts(machine) {
-                if !matches!(
-                    contract.kind,
-                    typed_trees::signature::SignatureContractKind::Ensures
-                ) {
-                    continue;
-                }
-                for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    let Some(expression) = fact.as_expression() else {
-                        continue;
-                    };
-                    if let Some(term) = self.functional_ensures_result(
-                        *expression,
-                        &environment,
-                        &machine_environment,
-                        depth + 1,
-                    ) {
-                        return Some(term);
-                    }
-                }
-            }
-        }
-
         let mut environment = environment;
         let statements = program.statement_table.statements(state.statement_nodes);
         for (index, statement) in statements.iter().enumerate() {
@@ -821,7 +824,7 @@ impl<'program> StructuralJudge<'program> {
                     local.initial_value,
                     &environment,
                     &machine_environment,
-                    None,
+                    Some((machine, state, state.return_type)),
                     depth + 1,
                 )?;
                 environment.push((local.name.as_str().to_owned(), term));
@@ -837,7 +840,7 @@ impl<'program> StructuralJudge<'program> {
                             *expression,
                             &environment,
                             &machine_environment,
-                            None,
+                            Some((machine, state, state.return_type)),
                             depth + 1,
                         )
                     })
@@ -904,55 +907,11 @@ impl<'program> StructuralJudge<'program> {
                 *value,
                 &environment,
                 &machine_environment,
-                None,
+                Some((machine, state, state.return_type)),
                 depth + 1,
             );
         }
         None
-    }
-
-    /// If `ensures_fact` is exactly `result == <term>` (either orientation),
-    /// convert `<term>` under the call environment -- the functional-result
-    /// abstraction of a lemma. `None` for any other ensures shape.
-    fn functional_ensures_result(
-        &self,
-        ensures_fact: ExpressionHandle,
-        environment: &[(String, StructuralTerm)],
-        machine_environment: &[(
-            SymbolHandle,
-            String,
-            typed_trees::expression::StaticMachineArgument,
-        )],
-        depth: usize,
-    ) -> Option<StructuralTerm> {
-        let program = self.program;
-        if super::structural_terms::is_case_observation(program, ensures_fact) {
-            return None;
-        }
-        let Some(binary) = program.expression_table.binary_node(ensures_fact) else {
-            return None;
-        };
-        if binary.operator != BinaryOperator::Equal {
-            return None;
-        }
-        let is_result = |handle: ExpressionHandle| {
-            matches!(
-                program.expression_table.expression(handle),
-                ExpressionNode::Name(path)
-                    if matches!(
-                        program.expression_table.name_path_members(path.members),
-                        [only] if only.as_str() == RESULT_BINDER
-                    )
-            )
-        };
-        let value = if is_result(binary.left) {
-            binary.right
-        } else if is_result(binary.right) {
-            binary.left
-        } else {
-            return None;
-        };
-        self.callee_term_with_machines(value, environment, machine_environment, None, depth)
     }
 
     /// Convert a callee-body expression to a term under the call
@@ -1174,7 +1133,13 @@ impl<'program> StructuralJudge<'program> {
                         depth + 1,
                     )?);
                 }
+                let result_type = scope
+                    .and_then(|(machine, state, _)| {
+                        crate::expression_result_type_reference(program, machine, state, expression)
+                    })
+                    .unwrap_or_default();
                 Some(StructuralTerm::Application {
+                    result_type,
                     target: selected_target.map_or_else(
                         || super::structural_terms::structural_call_target(program, call),
                         |selected| selected.symbol,
@@ -1361,6 +1326,7 @@ impl<'program> StructuralJudge<'program> {
                 Self::self_applications(right, selected_target, found);
             }
             StructuralTerm::Application {
+                result_type: _,
                 target,
                 selections: _,
                 machine: _,
@@ -1465,6 +1431,9 @@ impl<'program> StructuralJudge<'program> {
                     program, self.machine_symbol, fact,
                 ) {
                     return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
+                }
+                if !self.has_identity_equality_meaning(fact) {
+                    return StructuralJudgment::Unknown;
                 }
                 let pair = self
                     .program

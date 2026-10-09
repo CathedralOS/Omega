@@ -8,11 +8,10 @@
 
 use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_parameters, owner_symbol, selected_call_contract,
-    selected_call_contract_for_parameters,
 };
+use super::selected_contracts::{bound_term, capture_equations, independent_callee};
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
-use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::signature::SignatureContractKind;
@@ -406,14 +405,7 @@ impl<'program> StructuralJudge<'program> {
                     return;
                 };
                 let Some(required) = bound_term(
-                    program,
-                    *required,
-                    owner_symbol(&owner),
-                    parameters,
-                    callable,
-                    &bindings,
-                    None,
-                    0,
+                    program, *required, callable, parameters, callable, &bindings, None, 0,
                 ) else {
                     return;
                 };
@@ -449,7 +441,7 @@ impl<'program> StructuralJudge<'program> {
                 capture_equations(
                     program,
                     *guarantee,
-                    owner_symbol(&owner),
+                    callable,
                     parameters,
                     callable,
                     &bindings,
@@ -509,255 +501,4 @@ fn program_expression_is_live(
     expression: ExpressionHandle,
 ) -> bool {
     expression.is_valid() && program.expression_table.expression_is_valid(expression)
-}
-
-/// Contract dependency cycles need the independent induction owner. These
-/// ordinary value imports cannot prove a callee by citing this caller again.
-fn independent_callee(
-    program: &dyn crate::CheckingInput,
-    caller: SymbolHandle,
-    callee: SymbolHandle,
-) -> bool {
-    crate::machine_calls::effect_inference::with_operational_plan(program, |operational| {
-        let mut pending = vec![callee];
-        let mut visited = Vec::new();
-        while let Some(machine) = pending.pop() {
-            if machine == caller {
-                return false;
-            }
-            if visited.contains(&machine) {
-                continue;
-            }
-            visited.push(machine);
-            let Some(summary) = operational.machine_by_symbol(machine) else {
-                return false;
-            };
-            for state in operational.states.span_or_empty(summary.states) {
-                for call in operational.calls.span_or_empty(state.calls) {
-                    if call.target_machine_symbol.is_valid() {
-                        pending.push(call.target_machine_symbol);
-                    }
-                }
-            }
-        }
-        true
-    })
-}
-
-#[allow(clippy::too_many_arguments)]
-fn capture_equations(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    scope: SymbolHandle,
-    parameters: &[typed_trees::signature::StateParameter],
-    callable: SymbolHandle,
-    bindings: &[(SymbolHandle, StructuralTerm)],
-    result: &StructuralTerm,
-    equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
-    depth: usize,
-) {
-    if depth >= 64 {
-        return;
-    }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return;
-    };
-    if binary.operator == BinaryOperator::And {
-        if !crate::has_builtin_parameter_bound_expression_meaning(
-            program, scope, parameters, expression,
-        ) {
-            return;
-        }
-        capture_equations(
-            program,
-            binary.left,
-            scope,
-            parameters,
-            callable,
-            bindings,
-            result,
-            equations,
-            depth + 1,
-        );
-        capture_equations(
-            program,
-            binary.right,
-            scope,
-            parameters,
-            callable,
-            bindings,
-            result,
-            equations,
-            depth + 1,
-        );
-        return;
-    }
-    if binary.operator != BinaryOperator::Equal {
-        return;
-    }
-    let types = [binary.left, binary.right].map(|operand| {
-        crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
-    });
-    if types.iter().any(Option::is_none)
-        || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-            program,
-            scope,
-            expression,
-            language_core::OperatorSpelling::Equal,
-            &types,
-        )
-    {
-        return;
-    }
-    if let (Some(left), Some(right)) = (
-        bound_term(
-            program,
-            binary.left,
-            scope,
-            parameters,
-            callable,
-            bindings,
-            Some(result),
-            0,
-        ),
-        bound_term(
-            program,
-            binary.right,
-            scope,
-            parameters,
-            callable,
-            bindings,
-            Some(result),
-            0,
-        ),
-    ) {
-        equations.push((left, right));
-    }
-}
-
-/// Formal substitution uses selected symbols. Names are only the existing
-/// structural judge's diagnostic payload; no caller spelling chooses a formal.
-#[allow(clippy::too_many_arguments)]
-fn bound_term(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    scope: SymbolHandle,
-    parameters: &[typed_trees::signature::StateParameter],
-    callable: SymbolHandle,
-    bindings: &[(SymbolHandle, StructuralTerm)],
-    result: Option<&StructuralTerm>,
-    depth: usize,
-) -> Option<StructuralTerm> {
-    if depth >= 64 {
-        return None;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => {
-            if let Some((_, value)) = bindings
-                .iter()
-                .find(|(symbol, _)| symbol.is_valid() && *symbol == path.symbol)
-            {
-                return Some(value.clone());
-            }
-            if crate::reserved_result_owner(program, expression)
-                .is_some_and(|owner| owner.0 == callable)
-            {
-                return result.cloned();
-            }
-            if path.symbol.is_valid()
-                && program.symbols.get(path.symbol).kind != symbols::SymbolKind::Parameter
-            {
-                return Some(StructuralTerm::BoundValue(path.symbol));
-            }
-            None
-        }
-        ExpressionNode::Call(call) => {
-            let selected = selected_call_contract_for_parameters(program, call, scope, parameters)?;
-            let arguments = program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|argument| {
-                    bound_term(
-                        program,
-                        *argument,
-                        scope,
-                        parameters,
-                        callable,
-                        bindings,
-                        result,
-                        depth + 1,
-                    )
-                })
-                .collect::<Option<Vec<_>>>()?;
-            Some(StructuralTerm::Application {
-                target: owner_symbol(&selected),
-                selections: call.machine_arguments.to_vec(),
-                machine: super::super::structural_terms::structural_call_machine_name(
-                    call.target.as_str(),
-                    &call.machine_arguments,
-                    &[],
-                ),
-                arguments,
-            })
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            super::super::structural_terms::constructor_literal_term(program, literal, |field| {
-                bound_term(
-                    program,
-                    field.value,
-                    scope,
-                    parameters,
-                    callable,
-                    bindings,
-                    result,
-                    depth + 1,
-                )
-            })
-        }
-        ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
-            super::super::structural_terms::structural_term(program, expression)
-        }
-        ExpressionNode::Binary(binary) => {
-            if !crate::has_builtin_parameter_bound_expression_meaning(
-                program, scope, parameters, expression,
-            ) {
-                return None;
-            }
-            let meaning = [binary.left, binary.right].map(|operand| {
-                let reference = crate::parameter_expression_result_type_reference(
-                    program, scope, parameters, operand,
-                )?;
-                Some((
-                    program.primitive_type_reference(reference)?,
-                    program.arithmetic_domain_for_type_reference(reference),
-                ))
-            });
-            Some(StructuralTerm::ScalarBinary {
-                operator: binary.operator,
-                meaning: [meaning[0]?, meaning[1]?],
-                left: Box::new(bound_term(
-                    program,
-                    binary.left,
-                    scope,
-                    parameters,
-                    callable,
-                    bindings,
-                    result,
-                    depth + 1,
-                )?),
-                right: Box::new(bound_term(
-                    program,
-                    binary.right,
-                    scope,
-                    parameters,
-                    callable,
-                    bindings,
-                    result,
-                    depth + 1,
-                )?),
-            })
-        }
-        _ => None,
-    }
 }

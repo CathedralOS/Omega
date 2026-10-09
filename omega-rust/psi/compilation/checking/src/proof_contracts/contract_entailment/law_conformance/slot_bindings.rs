@@ -115,6 +115,7 @@ pub(crate) fn rewrite_slot_applications(
 ) -> StructuralTerm {
     match term {
         StructuralTerm::Application {
+            result_type,
             target,
             selections,
             machine,
@@ -142,6 +143,7 @@ pub(crate) fn rewrite_slot_applications(
                 (machine.clone(), *target)
             };
             StructuralTerm::Application {
+                result_type: *result_type,
                 target,
                 selections: selections.clone(),
                 machine,
