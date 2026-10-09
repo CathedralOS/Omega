@@ -82,7 +82,7 @@ pub use functions::{
     WholeFunctionReturnValueEvidence, exit_contract,
     whole_function_exit_contract_identity,
 };
-pub(crate) use functions::{ MachineCodePlanWithPrivateFunctions, exit_policy_tag};
+pub(crate) use functions::{ exit_policy_tag};
 pub use implementation_tables::{
     FunctionFragmentImplementationTableAddressFixup, ImplementationTableReference,
     PlacedImplementationTableAddress, SelectedFormImplementationTableAddressFixup,
@@ -139,7 +139,7 @@ pub use storage::{ CalleeSaveFrameSlot, FrameProtocolByteSpan, FrameUnwindPlan,
     target_frame_protocol_encoding_identity,
 };
 pub(crate) use storage::{
-    Aarch64ReturnLinkEvidence, FunctionSpillFrameRequirements, NonAuthoritativeSpillFrameRequirementIdentity,
+    Aarch64ReturnLinkEvidence, FunctionSpillFrameRequirements,
     NonAuthoritativeSpillFrameRequirementPlan, NonAuthoritativeSpillFrameRequirementPolicy};
 
 use semantic_vocabulary::MachineId;

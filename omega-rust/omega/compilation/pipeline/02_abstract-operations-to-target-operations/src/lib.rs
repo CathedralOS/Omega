@@ -28,7 +28,7 @@ pub use lowering::model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
     LoweringError,
 };
-pub(crate) use lowering::model::{ PlacedViewInputTranslationError, SelectedPlacedViewInputPlan};
+pub(crate) use lowering::model::PlacedViewInputTranslationError;
 pub use lowering::optimized::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
     lower_optimized_to_target_operations,

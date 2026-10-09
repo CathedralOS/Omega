@@ -73,8 +73,7 @@ use optimization::PsiOptimizationSelections;
 use optimization_core::OptimizationSelections;
 use optimization_core::{
     OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
-    OptimizationRuleSetIdentity,
-};
+    OptimizationRuleSetIdentity};
 
 use crate::{OrderedRuleRegistry, RuleRegistryError};
 
@@ -91,8 +90,7 @@ pub(crate) enum PsiPassStep {
     /// An ordered catalog rule registry iterating to a unit-local fixed point.
     RewriteRegistry(OrderedRuleRegistry),
     /// The unique-preheader loop-invariant scalar relocation boundary.
-    LoopInvariantScalarMotion,
-}
+    LoopInvariantScalarMotion}
 
 impl PsiPassStep {
     /// The named pass group this step publishes in the run manifest. An
@@ -104,8 +102,7 @@ impl PsiPassStep {
                 OptimizationPassIdentity::from_canonical_bytes(
                     crate::ranked_rewrites::loop_invariant_scalar_motion::LOOP_INVARIANT_SCALAR_MOTION_PASS_NAME,
                 ),
-            ),
-        }
+            )}
     }
 
     /// The ordered contract roster this step admits: the registry's rules, or
@@ -134,57 +131,11 @@ impl PsiPassStep {
             Self::LoopInvariantScalarMotion => OptimizationRuleSetIdentity::from_ordered_rules(&[
                 crate::ranked_rewrites::loop_invariant_scalar_motion::rule_identity(),
             ])
-            .expect("a single-rule schedule cannot duplicate"),
-        }
+            .expect("a single-rule schedule cannot duplicate")}
     }
 }
 #[cfg(any(test, feature = "test-support"))]
 pub use sparse_conditional_constant_propagation::WrappingIntegerAddConstantsRule;
-
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn built_in_psi_registry(
-    selections: &OptimizationSelections,
-) -> Result<OrderedRuleRegistry, RuleRegistryError> {
-    let projection = selections.project_psi();
-    built_in_psi_registry_for_selections(projection.selections())
-}
-
-/// Construct at most one Psi pass registry from Psi's own target-neutral
-/// selection vocabulary. The unified-build entrance above is a migration
-/// adapter and performs only the exhaustive structural projection.
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn built_in_psi_registry_for_selections(
-    selections: &PsiOptimizationSelections,
-) -> Result<OrderedRuleRegistry, RuleRegistryError> {
-    let mut registries = built_in_psi_registries_for_selections(selections)?;
-    if registries.len() > 1 {
-        return Err(RuleRegistryError::UnsupportedOptimizationCombination);
-    }
-    Ok(registries
-        .pop()
-        .unwrap_or_else(|| OrderedRuleRegistry::new(Vec::new()).expect("empty registry is valid")))
-}
-
-/// Resolve exact Psi-owned selections in canonical catalog order.
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn built_in_psi_registries_for_selections(
-    selections: &PsiOptimizationSelections,
-) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
-    if let Some(unsupported) = selections.as_slice().iter().find(|optimization| {
-        !PSI_PASS_CATALOG
-            .iter()
-            .any(|entry| entry.optimization() == **optimization)
-    }) {
-        return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
-    }
-
-    PSI_PASS_CATALOG
-        .iter()
-        .copied()
-        .filter(|entry| selections.contains(entry.optimization()))
-        .map(|entry| catalog::registry_for_optimization(entry.optimization()))
-        .collect()
-}
 
 /// Resolve exact Psi-owned selections to the ordered pass schedule: catalog
 /// rewrite registries plus session-level ranked-rewrite steps.

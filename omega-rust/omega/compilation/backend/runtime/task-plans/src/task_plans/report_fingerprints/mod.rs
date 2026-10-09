@@ -1,7 +1,6 @@
 //! Compact, non-authoritative report fingerprints over validated plans,
 //! selections, claims and receipts.
 
-use crate::task_plans::composition_model::CompositionActivation;
 use crate::task_plans::stack_composition::WcsuStackPlanProjection;
 use crate::{
     ActivationPlanCandidate, ExecutorPreservationAxis, ExecutorSelectionCandidate,
@@ -41,8 +40,7 @@ pub(crate) fn activation_plan_report_fingerprint(
                 LiveCarryStorage::Persistent => 1,
                 LiveCarryStorage::Parameter => 2,
                 LiveCarryStorage::Local => 3,
-                LiveCarryStorage::CallArgument => 4,
-            });
+                LiveCarryStorage::CallArgument => 4});
             fingerprint.word(live.claims.len() as u64);
             for claim in &live.claims {
                 fingerprint.word(claim.get());
@@ -52,8 +50,7 @@ pub(crate) fn activation_plan_report_fingerprint(
             fingerprint.flag(live.effective.host_thread == CarryHostThread::Origin);
             fingerprint.byte(match live.effective.address {
                 CarryAddress::Movable => 1,
-                CarryAddress::Stable => 2,
-            });
+                CarryAddress::Stable => 2});
         }
     }
     fingerprint.flag(plan.carry_obligations.preserve_cpu);
@@ -74,81 +71,9 @@ pub(crate) fn executor_selection_report_fingerprint(
     for evidence in &candidate.preservation {
         fingerprint.byte(match evidence.axis() {
             ExecutorPreservationAxis::Cpu => 1,
-            ExecutorPreservationAxis::HostThread => 2,
-        });
+            ExecutorPreservationAxis::HostThread => 2});
         fingerprint.word(evidence.identity().normalized_identity());
     }
-    fingerprint.finish()
-}
-
-/// Commit to every retained row and explicit-absence marker of a sealed
-/// whole-composition model. Row order is canonical (sorted by activation
-/// plan identity) before this runs, so the value depends on what was
-/// settled, not on elaboration order.
-pub(crate) fn composition_model_report_fingerprint(activations: &[CompositionActivation]) -> u64 {
-    let mut fingerprint = Fingerprint::new();
-    fingerprint.word(activations.len() as u64);
-    for activation in activations {
-        fingerprint.word(activation.plan.normalized_identity());
-        fingerprint.byte(match activation.creation.operation {
-            TaskStartOperation::Start => 1,
-            TaskStartOperation::TryStart => 2,
-        });
-        for handle in [
-            activation.creation.start_requirement,
-            activation.creation.target_machine,
-            activation.creation.target_entry,
-        ] {
-            fingerprint.word(u64::from(handle.arena_index()));
-            fingerprint.word(u64::from(handle.generation()));
-        }
-        for byte in activation.creation.specialization_commitment.as_bytes() {
-            fingerprint.byte(byte);
-        }
-        fingerprint.word(activation.creation.specialization_report_fingerprint);
-        fingerprint.word(activation.resources.machine_contract.normalized_identity());
-        fingerprint.word(activation.resources.entry.normalized_identity());
-        fingerprint.word(activation.resources.argument_layout.normalized_identity());
-        fingerprint.word(
-            activation
-                .resources
-                .terminal_outcome_layout
-                .normalized_identity(),
-        );
-        fingerprint.word(activation.resources.calling_plan.normalized_identity());
-        fingerprint.word(activation.resources.stack.bytes);
-        fingerprint.word(activation.resources.stack.alignment);
-        fingerprint.word(
-            activation
-                .resources
-                .stack
-                .representation
-                .normalized_identity(),
-        );
-        match activation.resources.wcsu_stack_projection {
-            Some(projection) => {
-                fingerprint.byte(1);
-                fingerprint.word(projection.normalized_identity());
-            }
-            None => fingerprint.byte(0),
-        }
-        fingerprint.word(activation.wait_wake_edges.len() as u64);
-        for edge in &activation.wait_wake_edges {
-            fingerprint.word(edge.crossing.get());
-            fingerprint.flag(edge.preserve_cpu);
-            fingerprint.flag(edge.preserve_host_thread);
-        }
-        fingerprint.flag(activation.cancellation_required);
-        fingerprint.flag(activation.placement.preserve_cpu);
-        fingerprint.flag(activation.placement.preserve_host_thread);
-        fingerprint.word(activation.provider_evidence.runtime.normalized_identity());
-        fingerprint.string(&activation.provider_evidence.provider_plan_name);
-        fingerprint.string(&activation.provider_evidence.requirement_identity);
-    }
-    // Both unretained dimensions contribute a fixed marker so a model that
-    // later retains them cannot collide with this shape.
-    fingerprint.byte(0);
-    fingerprint.byte(0);
     fingerprint.finish()
 }
 

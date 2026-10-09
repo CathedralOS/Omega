@@ -35,31 +35,26 @@ pub use publication::ValidatedOptimizedAbstractPlan;
 pub(crate) use analyses::{AnalysisManager, AnalysisProduct, compute_analysis};
 pub(crate) use analyses::{
     AnalysisManagerError, CallGraphAnalysis, EffectClass, EffectKnowledge, EffectSummaryAnalysis,
-    OwnershipFrontierAnalysis, ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
-};
+    OwnershipFrontierAnalysis, ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis};
 pub(crate) use analyses::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
     CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
-    analyze_counted_loops,
-};
+    analyze_counted_loops};
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use analyses::{
     CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
     CountdownInvariantIntegerConstant, CountedLoopAnalysisSnapshot,
-    UnsignedCountdownInvariantConstantPlacements, validate_countdown_invariant_constant_analysis,
-    validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
-};
+    UnsignedCountdownInvariantConstantPlacements};
 pub(crate) use optimization_unit::ScalarConstantValue;
 pub(crate) use pass_manager::PsiValidatedCandidateDeclaration;
 pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
 pub(crate) use pass_manager::{OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit};
 pub(crate) use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
-    RuleRegistryError,
-};
+    RuleRegistryError};
 
 /// The analyses, ranked rewrites, rule catalog, and pipeline runs exposed to
 /// harnesses outside the crate, such as the `psi_optimization_allocations`
@@ -71,8 +66,7 @@ pub mod test_support {
 
     pub use crate::analyses::{
         AnalysisRevision, ValueRangeFact, ValueRangeScope, ValueRangeSupport,
-        value_range_fact_identity,
-    };
+        value_range_fact_identity};
 
     pub use crate::pass_manager::{OptimizationRunUsage, PsiOptimizationCommit};
 

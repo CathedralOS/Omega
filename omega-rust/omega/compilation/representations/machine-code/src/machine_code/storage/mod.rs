@@ -27,7 +27,7 @@ pub use frame_layout::{
     StackProbePlan, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
 pub(crate) use frame_layout::{ FunctionSpillFrameRequirements,
-    NonAuthoritativeSpillFrameRequirementIdentity, NonAuthoritativeSpillFrameRequirementPlan,
+    NonAuthoritativeSpillFrameRequirementPlan,
     NonAuthoritativeSpillFrameRequirementPolicy};
 pub use frame_protocol::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,

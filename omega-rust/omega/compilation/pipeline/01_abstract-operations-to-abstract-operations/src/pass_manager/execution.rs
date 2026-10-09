@@ -2,23 +2,19 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use optimization::PsiOptimizationSelections;
 use optimization_core::{
-    BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionOutcome, ExternalDecisionLog,
-};
+    BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionOutcome, ExternalDecisionLog};
 use optimization_core::{
     Optimization, OptimizationCandidateVerdict, OptimizationDecisionRecord,
     OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationReasonCode,
     OptimizationRuleContract, OptimizationRuleSetIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationWorkBudget,
-};
+    OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{
-    PsiCandidateDeclaration, PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord,
-};
+    PsiCandidateDeclaration, PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord};
 use optimization_unit_semantics::{ValidatedPsiRewrite, validate_psi_rewrite_candidate};
 
 use crate::ranked_rewrites::loop_invariant_scalar_motion::{
     self, apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
-    validate_loop_invariant_scalar_motion,
-};
+    validate_loop_invariant_scalar_motion};
 use crate::rules::PsiPassStep;
 use crate::{AnalysisManager, OrderedRuleRegistry};
 
@@ -31,9 +27,7 @@ use super::{
     baseline_psi_cost_model_identity,
     external_policy::{
         ExternalDecisionReplayCursor, expected_context, external_points_from_manifest_decisions,
-        validated_candidate_features,
-    },
-};
+        validated_candidate_features}};
 
 pub(crate) fn run_registries(
     session: VerifiedPsiOptimizationSession,
@@ -49,25 +43,6 @@ pub(crate) fn run_registries(
         steps,
         budget_per_pass,
         None,
-    )
-}
-
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn run_registries_with_external_decisions(
-    session: VerifiedPsiOptimizationSession,
-    selections: &OptimizationSelections,
-    psi_selections: &PsiOptimizationSelections,
-    steps: &[PsiPassStep],
-    budget_per_pass: OptimizationWorkBudget,
-    external_decisions: ExternalDecisionLog,
-) -> Result<OptimizationRun, OptimizationRunError> {
-    run_registries_inner(
-        session,
-        selections,
-        psi_selections,
-        steps,
-        budget_per_pass,
-        Some(external_decisions),
     )
 }
 
@@ -182,8 +157,7 @@ fn run_registries_inner(
                 input: commit.input,
                 output: commit.output,
                 pruned_machines: commit.pruned_machines.clone(),
-                provenance: commit.provenance.clone(),
-            })
+                provenance: commit.provenance.clone()})
             .collect(),
     )
     .map_err(OptimizationRunError::InvalidTransformationLedger)?;
@@ -209,8 +183,7 @@ fn run_registries_inner(
         external_decisions,
         pass_manifests,
         transformation_ledger,
-        identity_bundle,
-    })
+        identity_bundle})
 }
 
 type OptimizationRunOutput = (
@@ -263,8 +236,7 @@ fn run_unit_inner_with_retention(
                 rule.propose(&unit, products)
                     .map_err(|error| OptimizationRunError::Proposal {
                         rule: contract.identity(),
-                        error,
-                    })?;
+                        error})?;
             for _ in &candidates {
                 charge(&mut usage.candidates, budget.candidates(), "candidates")?;
             }
@@ -285,16 +257,14 @@ fn run_unit_inner_with_retention(
                 let Some(candidate) = declaration.rewrite() else {
                     return Err(OptimizationRunError::CandidateContractMismatch {
                         candidate: declaration.identity(),
-                        axis: CandidateContractAxis::Rule,
-                    });
+                        axis: CandidateContractAxis::Rule});
                 };
                 let output = validate_psi_rewrite_candidate(&unit, candidate)
                     .map_err(OptimizationRunError::CandidateValidation)?;
                 validated_candidates.push(PsiValidatedCandidateDeclaration {
                     pass: contract.pass(),
                     declaration: declaration.clone(),
-                    validator: output.validator(),
-                });
+                    validator: output.validator()});
                 validated.push((declaration, output));
             }
             if validated.is_empty() {
@@ -357,8 +327,7 @@ fn run_unit_inner_with_retention(
                     chosen = Some(validated.swap_remove(index));
                     break;
                 }
-                BaselineDecisionOutcome::Skip(_) => continue,
-            }
+                BaselineDecisionOutcome::Skip(_) => continue}
         }
         let Some((candidate, validated)) = chosen else {
             if dispatched.len() != registry.len() {
@@ -387,8 +356,7 @@ fn run_unit_inner_with_retention(
                         input: commit.input,
                         output: commit.output,
                         pruned_machines: commit.pruned_machines.clone(),
-                        provenance: commit.provenance.clone(),
-                    })
+                        provenance: commit.provenance.clone()})
                     .collect(),
             )
             .map_err(OptimizationRunError::InvalidTransformationLedger)?;
@@ -415,8 +383,7 @@ fn run_unit_inner_with_retention(
         if current_measure >= previous_measure {
             return Err(OptimizationRunError::NonDecreasingConvergenceMeasure {
                 previous: previous_measure,
-                current: current_measure,
-            });
+                current: current_measure});
         }
         analyses
             .commit_revision(&next, invalidated_analyses, true)
@@ -431,8 +398,7 @@ fn run_unit_inner_with_retention(
             predicted_cost_delta,
             pruned_machines,
             provenance,
-            declaration: candidate,
-        });
+            declaration: candidate});
         unit = next;
     }
 }
@@ -493,8 +459,7 @@ fn run_loop_invariant_scalar_motion_step(
             validated_candidates.push(PsiValidatedCandidateDeclaration {
                 pass: contract.pass(),
                 declaration,
-                validator: accepted.validator(),
-            });
+                validator: accepted.validator()});
             validated.push(accepted);
         }
         if validated.is_empty() {
@@ -611,8 +576,7 @@ fn run_loop_invariant_scalar_motion_step(
         if current_measure >= previous_measure {
             return Err(OptimizationRunError::NonDecreasingConvergenceMeasure {
                 previous: previous_measure,
-                current: current_measure,
-            });
+                current: current_measure});
         }
         charge(&mut usage.commits, budget.commits(), "commits")?;
         commits.push(PsiOptimizationCommit {
@@ -624,8 +588,7 @@ fn run_loop_invariant_scalar_motion_step(
             predicted_cost_delta,
             pruned_machines: Vec::new(),
             provenance,
-            declaration,
-        });
+            declaration});
     }
 }
 
@@ -666,8 +629,7 @@ fn finish_loop_invariant_scalar_motion_step(
                 input: commit.input,
                 output: commit.output,
                 pruned_machines: commit.pruned_machines.clone(),
-                provenance: commit.provenance.clone(),
-            })
+                provenance: commit.provenance.clone()})
             .collect(),
     )
     .map_err(OptimizationRunError::InvalidTransformationLedger)?;
@@ -726,8 +688,7 @@ fn validate_candidate_contract(
     if let Some(axis) = axis {
         Err(OptimizationRunError::CandidateContractMismatch {
             candidate: candidate.identity(),
-            axis,
-        })
+            axis})
     } else {
         Ok(())
     }

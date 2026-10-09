@@ -14,15 +14,11 @@ pub(super) use components::block_components;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use countdown_induction::CountedLoopAnalysisSnapshot;
 pub(crate) use countdown_induction::analyze_counted_loops;
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_induction::validate_counted_loop_analysis;
 pub(crate) use countdown_induction::{
     CountedLoopAnalysisError, UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
 };
 
 pub(crate) use countdown_invariant_constant_placement::analyze_countdown_invariant_constant_placement;
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_invariant_constant_placement::validate_countdown_invariant_constant_placement_analysis;
 pub(crate) use countdown_invariant_constant_placement::{
     CountdownInvariantConstantPlacementAnalysisError,
     ValidatedCountdownInvariantConstantPlacementAnalysis,
@@ -35,8 +31,6 @@ pub(crate) use countdown_invariant_constant_placement::{
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use countdown_invariant_constants::CountdownInvariantConstantAnalysisSnapshot;
 pub(crate) use countdown_invariant_constants::analyze_countdown_invariant_constants;
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_invariant_constants::validate_countdown_invariant_constant_analysis;
 pub(crate) use countdown_invariant_constants::validate_moved_constant_locations;
 pub(crate) use countdown_invariant_constants::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantRole,

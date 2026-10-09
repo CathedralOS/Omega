@@ -4,14 +4,12 @@ use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{
     EffectLink, FuelSettlement, NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiProvenance, ValueDefinition, ValueDefinitionSite, recompute_psi_optimization_unit_identity,
-};
+    PsiProvenance, ValueDefinition, ValueDefinitionSite, recompute_psi_optimization_unit_identity};
 
 use crate::validation::ValidatedOptimizerCycleComponents;
 use optimization_unit::OptimizerUnsignedCountdownRankingCertificate;
 use semantic_vocabulary::{
-    BlockId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
-};
+    BlockId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
 
 use super::{CountedLoopAnalysisError, UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis};
 
@@ -28,23 +26,12 @@ pub(crate) fn analyze_countdown_invariant_constants(
     validate::accept(unit, custody, counted, &candidate)
 }
 
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn validate_countdown_invariant_constant_analysis(
-    unit: &PsiOptimizationUnit,
-    custody: &ValidatedOptimizerCycleComponents,
-    counted: &ValidatedCountedLoopAnalysis,
-    candidate: &CountdownInvariantConstantAnalysisSnapshot,
-) -> Result<ValidatedCountdownInvariantConstantAnalysis, CountdownInvariantConstantAnalysisError> {
-    validate::accept(unit, custody, counted, candidate)
-}
-
 /// Closed semantic role of an input-free integer constant retained by the
 /// exact unsigned-countdown ranking relation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum CountdownInvariantConstantRole {
     PositiveGuardZero,
-    BackedgeDecrementOne,
-}
+    BackedgeDecrementOne}
 
 /// One exact source node that is invariant across every iteration of its
 /// authenticated countdown component.
@@ -59,8 +46,7 @@ pub(crate) struct CountdownInvariantIntegerConstant {
     pub definition: ValueDefinition,
     pub provenance: Vec<PsiProvenance>,
     pub fuel: Vec<FuelSettlement>,
-    pub effect: EffectLink,
-}
+    pub effect: EffectLink}
 
 /// Exact invariant rows for one independently authenticated counted loop.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,21 +55,18 @@ pub(crate) struct UnsignedCountdownInvariantConstants {
     /// The only destination a future hoist may consider. This analysis does
     /// not authorize insertion there or mutation of the component.
     pub prospective_preheader: BlockId,
-    pub constants: Vec<CountdownInvariantIntegerConstant>,
-}
+    pub constants: Vec<CountdownInvariantIntegerConstant>}
 
 /// Replayable analysis facts without cyclic-rewrite or execution authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CountdownInvariantConstantAnalysisSnapshot {
     pub revision: OptimizationUnitIdentity,
     pub terminal_psi: terminal_psi::TerminalPsiIdentity,
-    pub loops: Vec<UnsignedCountdownInvariantConstants>,
-}
+    pub loops: Vec<UnsignedCountdownInvariantConstants>}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ValidatedCountdownInvariantConstantAnalysis {
-    snapshot: CountdownInvariantConstantAnalysisSnapshot,
-}
+    snapshot: CountdownInvariantConstantAnalysisSnapshot}
 
 impl ValidatedCountdownInvariantConstantAnalysis {
     const fn new(snapshot: CountdownInvariantConstantAnalysisSnapshot) -> Self {
@@ -104,17 +87,14 @@ pub enum CountdownInvariantConstantAnalysisError {
     CountedLoop(CountedLoopAnalysisError),
     StaleUnitIdentity {
         stored: OptimizationUnitIdentity,
-        recomputed: OptimizationUnitIdentity,
-    },
+        recomputed: OptimizationUnitIdentity},
     TerminalIdentityMismatch,
     CountedLoopRevisionMismatch,
     ComponentRosterMismatch,
     UnsupportedInvariantConstant {
         machine: MachineId,
-        operation: OperationId,
-    },
-    SnapshotMismatch,
-}
+        operation: OperationId},
+    SnapshotMismatch}
 
 impl std::fmt::Display for CountdownInvariantConstantAnalysisError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -125,8 +105,7 @@ impl std::fmt::Display for CountdownInvariantConstantAnalysisError {
     }
 }
 
-impl std::error::Error for CountdownInvariantConstantAnalysisError {}
-
+impl std::error::Error for CountdownInvariantConstantAnalysisError  {}
 fn validate_locations(
     function: &PsiOptimizationFunction,
     component: &optimization_unit::OptimizerCycleComponent,
