@@ -13,6 +13,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralPathSegment, Multiplicity, SignatureContractKind, StateParameter,
     StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
 };
+use typed_trees::expression::ExpressionHandle;
 
 pub(crate) fn checked_call_scalar_arguments(
     facts: &CheckFacts,
@@ -576,6 +577,62 @@ pub(crate) fn borrowed_index_segment(
     Some(CheckedUnitStructuralPathSegment::RuntimeIndex(
         runtime_index,
     ))
+}
+
+/// A value projection consumes the same checked scalar operands as other
+/// values, not an assignment destination's pre-RHS capture slot. Dense
+/// parameter/local positions and declared field observations already carry
+/// their scalar namespace; this conversion never replays an initializer or
+/// substitutes a storage name for its evaluated value.
+pub(crate) fn value_index_segment(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<CheckedUnitStructuralPathSegment> {
+    let reference = validation::expression_type_reference_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        expression,
+    )?;
+    let primitive = program.primitive_type_reference(reference)?;
+    if !primitive.is_fixed_integer() {
+        return None;
+    }
+    let operand = crate::values::lower_unit_scalar_argument(
+        program,
+        operators,
+        state,
+        statement_index,
+        expression,
+        primitive,
+    )?;
+    let runtime = match operand {
+        checked_trees::CheckedScalarExpression::Parameter { position, .. } => {
+            checked_trees::CheckedRuntimeIndex::Parameter {
+                position: u32::try_from(position).ok()?,
+            }
+        }
+        checked_trees::CheckedScalarExpression::Local { position, .. } => {
+            checked_trees::CheckedRuntimeIndex::Local {
+                position: u32::try_from(position).ok()?,
+            }
+        }
+        checked_trees::CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path,
+            ..
+        } => checked_trees::CheckedRuntimeIndex::StructuralField(
+            checked_trees::CheckedStructuralParameterField {
+                parameter_position,
+                path,
+            },
+        ),
+        _ => return None,
+    };
+    Some(CheckedUnitStructuralPathSegment::RuntimeIndex(runtime))
 }
 
 /// The literal index an immutable local scalar names: `let i: u64 = 2`

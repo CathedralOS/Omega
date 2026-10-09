@@ -2,9 +2,9 @@
 
 use validation::CanonicalPlace;
 
-use super::{place_spelling, resolve_storage_place, same_place_set};
+use super::{place_spelling, resolve_storage_place, same_place_set, same_storage_debt};
 
-use super::super::owned_selection::place_paths_overlap;
+use crate::checks::borrows::storage_path_compatibility;
 
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
@@ -218,7 +218,10 @@ impl ArmWindowPlan {
     /// chain (pre-order visits parents first); agreement runs innermost-first
     /// so each nested match contributes its agreed debt to the arm that
     /// evaluates it, and a nested disagreement poisons that arm.
-    pub(in crate::checks::multiplicity) fn seal(&mut self) {
+    pub(in crate::checks::multiplicity) fn seal(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+    ) {
         let count = self.frames.len();
         self.live = vec![false; count];
         for index in 0..count {
@@ -260,16 +263,24 @@ impl ArmWindowPlan {
             // A second extraction of the same resolved place inside one arm
             // is a repeated-extraction on that path, not a sibling debt.
             let mut rejected = arm_sets.iter().any(|debts| {
-                let mut unique = debts.clone();
-                unique.dedup();
-                unique.len() != debts.len()
+                debts.iter().enumerate().any(|(position, debt)| {
+                    debts[..position].iter().any(|prior| {
+                        same_storage_debt(program, (prior.0, &prior.1), (debt.0, &debt.1))
+                    })
+                })
             });
             if !rejected {
                 for (position, arm) in self.frames[index].reachable.iter().enumerate() {
                     match contributions.remove(&arm_key(*arm)) {
                         Some(Some(inner)) => {
                             for debt in inner {
-                                if !arm_sets[position].contains(&debt) {
+                                if !arm_sets[position].iter().any(|prior| {
+                                    same_storage_debt(
+                                        program,
+                                        (prior.0, &prior.1),
+                                        (debt.0, &debt.1),
+                                    )
+                                }) {
                                     arm_sets[position].push(debt);
                                 }
                             }
@@ -284,7 +295,9 @@ impl ArmWindowPlan {
             }
             if !rejected {
                 let first = arm_sets.first().map(Vec::as_slice).unwrap_or(&[]);
-                rejected = arm_sets.iter().any(|debts| !same_place_set(debts, first));
+                rejected = arm_sets
+                    .iter()
+                    .any(|debts| !same_place_set(program, debts, first));
                 if !rejected {
                     agreed_debts[index] = first.to_vec();
                 }
@@ -370,13 +383,13 @@ impl ArmWindowPlan {
         );
         self.edge_absent.push((arm, resolved.0, resolved.1.clone()));
         let root = self.root_frame(frame_index);
-        if self
-            .opened
-            .contains(&(frame_index, resolved.0, resolved.1.clone()))
-            || self.pending.iter().any(|(pending_root, _, proot, ppath)| {
-                *pending_root == root && *proot == resolved.0 && *ppath == resolved.1
-            })
-        {
+        if self.opened.iter().any(|(frame, root, path)| {
+            *frame == frame_index
+                && same_storage_debt(program, (*root, path), (resolved.0, &resolved.1))
+        }) || self.pending.iter().any(|(pending_root, _, proot, ppath)| {
+            *pending_root == root
+                && same_storage_debt(program, (*proot, ppath), (resolved.0, &resolved.1))
+        }) {
             return Some(ArmWindowVerdict::SiblingRoute);
         }
         self.opened
@@ -486,7 +499,7 @@ impl ArmWindowPlan {
         for (edge_arm, absent_root, absent_path) in &self.edge_absent {
             if !self.edge_covers(*edge_arm, arm)
                 || *absent_root != root
-                || !place_paths_overlap(&storage_path, absent_path)
+                || !storage_path_compatibility(program, &storage_path, absent_path).0
             {
                 continue;
             }

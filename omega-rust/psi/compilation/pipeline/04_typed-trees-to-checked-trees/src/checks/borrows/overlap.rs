@@ -12,6 +12,20 @@ pub(super) use self::premises::append_call_premises;
 pub(super) use self::premises::{StatedOrderingPremise, stated_ordering_premises};
 use self::segments::place_segments_compatibility;
 
+/// Compare captured storage paths without assuming that current mutable
+/// selector storage still holds an earlier value. Immutable values and exact
+/// constants retain identity across statements; mutable query coordinates
+/// cannot establish containment without version-pinned premises. Window debt
+/// uses this same spatial judgment as loans, but supplies no current premises
+/// as evidence about the opening occurrence.
+pub(crate) fn storage_path_compatibility(
+    program: &dyn ::validation::CheckingInput,
+    left: &[facts::PlaceSegment],
+    right: &[facts::PlaceSegment],
+) -> (bool, checked_trees::CapturedPlaceContainment) {
+    place_segments_compatibility(program, left, right, &[], &mut None)
+}
+
 pub(super) fn captured_place_compatibility<'p>(
     program: &'p dyn ::validation::CheckingInput,
     left: &checked_trees::CapturedPlace,

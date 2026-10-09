@@ -219,7 +219,7 @@ pub(super) fn prepare_storage_deaths(
                             path,
                         );
                     }
-                    arm_plan.seal();
+                    arm_plan.seal(program);
                 }
                 for step in crate::checks::ownership_occurrences::statement_steps(
                     program,

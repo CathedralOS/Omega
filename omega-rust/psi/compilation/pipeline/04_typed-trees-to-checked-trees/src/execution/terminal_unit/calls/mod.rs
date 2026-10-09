@@ -13,7 +13,7 @@
 
 mod affine_locals;
 mod argument_paths;
-pub(crate) use argument_paths::projected_evaluated_path;
+pub(crate) use argument_paths::{projected_evaluated_path, value_index_segment};
 pub(super) mod argument_presentation;
 mod boundary_admission;
 mod call_operations;

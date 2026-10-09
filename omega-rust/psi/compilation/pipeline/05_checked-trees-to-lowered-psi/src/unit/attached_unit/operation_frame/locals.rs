@@ -293,6 +293,7 @@ impl OperationFrame<'_, '_> {
         &mut self,
         statement_index: u32,
         destination: &CheckedUnitStructuralArgumentPlan,
+        opening: Option<PlaceId>,
         value: BorrowedWindowRepairValue,
     ) -> Result<(), LoweringError> {
         let mut evaluation = WindowEvaluation {
@@ -306,6 +307,7 @@ impl OperationFrame<'_, '_> {
         };
         self.windows.emit_store(
             destination,
+            opening,
             value,
             self.parameters,
             self.structural_types.declarations(),
@@ -698,11 +700,22 @@ impl OperationFrame<'_, '_> {
         &mut self,
         statement_index: u32,
         destination: &CheckedUnitStructuralArgumentPlan,
+        opening_binding: Option<u32>,
         value: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
         let repair = self.owned_structural_value(value)?;
+        // The result roster keeps the extraction's identity even if its
+        // detached value has already transferred or been disposed. This is
+        // a debt reference, not a second ownership use of that value.
+        let opening = opening_binding
+            .map(|binding| {
+                self.results
+                    .repair_value(binding, self.operations)
+                    .map(|value| value.place)
+            })
+            .transpose()?;
         require_parameter_window_root(self.parameters, destination, self.evaluation)?;
-        self.emit_window_store(statement_index, destination, repair)
+        self.emit_window_store(statement_index, destination, opening, repair)
     }
 
     /// Resolve the completed owned occurrence independently of whether its

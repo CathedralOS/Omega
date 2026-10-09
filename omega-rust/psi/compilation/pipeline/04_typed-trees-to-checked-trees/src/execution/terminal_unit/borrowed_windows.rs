@@ -15,6 +15,11 @@
 //! call, and already-owned replacement values. Cleanup still selects the
 //! original storage's death occurrence; capture changes when coordinates are
 //! read, not permission, restoration debt, or the old value's custody.
+//! Source admission and this planner share stable spatial comparison. The
+//! resulting store retains the opening extraction's result coordinate, so
+//! lowering never has to rediscover equality between value-read operands and
+//! pre-RHS assignment captures. Mutable selector spelling alone cannot prove
+//! agreement with an earlier captured selection.
 
 use validation::CanonicalPlace;
 
@@ -32,6 +37,19 @@ use crate::execution::terminal_unit::types::terminal_field_identity;
 use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::ExpressionHandle;
+
+/// The planning ledger and source admission must agree on the captured value
+/// selecting a hole. Re-spelled immutable aliases can denote one index;
+/// mutable storage spelling alone cannot identify an earlier selection.
+fn same_storage_place(
+    program: &dyn ::validation::CheckingInput,
+    left: &CanonicalPlace,
+    right: &CanonicalPlace,
+) -> bool {
+    left.root == right.root
+        && crate::checks::storage_path_compatibility(program, &left.segments, &right.segments).1
+            == checked_trees::CapturedPlaceContainment::Same
+}
 
 /// Assignment owns selector evaluation, even when the selector spells a
 /// parameter or field that ordinary call arguments can read directly. Its
@@ -114,16 +132,22 @@ pub(super) fn capture_assignment_destination(
             )?,
         )
     } else {
-        let place = window_place(
+        let selectors = TargetSelectors::resolve(
             program,
             facts,
             machine,
+            state,
+            statement_index,
+            assignment.target,
+        )?;
+        let place = window_place(
+            program,
             state,
             program.statement_table.statements(state.statement_nodes),
             ordinal,
             parameters,
             &access,
-            assignment.target,
+            &|expression| selectors.runtime_segment(expression),
         )?;
         (place.source, place.path)
     };
@@ -170,19 +194,17 @@ pub(in crate::execution::terminal_unit) struct WindowPlace {
 /// The place is first keyed on the resolved *storage* it names — the same
 /// rebase the checker performs: a route through a reference-typed local
 /// (`let r = &mut self; r.f`) names the same hole as the owner path
-/// (`self.f`), so both must land on one window. `target` is the authored
-/// expression the place canonicalized from: its retained `AssignmentIndex`
-/// scalars resolve a runtime segment's element coordinate.
+/// (`self.f`), so both must land on one window. The access's evaluation owner supplies
+/// runtime coordinates: value reads consume checked scalar operands, while
+/// assignment targets consume their retained pre-RHS selector slots.
 pub(in crate::execution::terminal_unit) fn window_place(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     place: &CanonicalPlace,
-    target: ExpressionHandle,
+    selector: &dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>,
 ) -> Option<WindowPlace> {
     let root_symbol = place.root.as_symbol()?;
     let (root, segments) = resolve_storage_place(
@@ -238,25 +260,6 @@ pub(in crate::execution::terminal_unit) fn window_place(
             storage.segments.as_slice(),
         )
     };
-    let selectors = path
-        .iter()
-        .any(|segment| {
-            matches!(
-                segment,
-                PlaceSegment::Index { .. } | PlaceSegment::FixedIndex { .. }
-            )
-        })
-        .then(|| {
-            TargetSelectors::resolve(
-                program,
-                facts,
-                machine,
-                state,
-                u32::try_from(statement_index).ok()?,
-                target,
-            )
-        })
-        .flatten();
     let lower_path = |segments: &[PlaceSegment]| {
         segments
             .iter()
@@ -266,9 +269,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
                 PlaceSegment::FixedIndex { index } => Some(
                     CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
                 ),
-                PlaceSegment::Index { expression } => selectors
-                    .as_ref()
-                    .and_then(|selectors| selectors.runtime_segment(*expression)),
+                PlaceSegment::Index { expression } => selector(*expression),
                 _ => None,
             })
             .collect::<Option<Vec<_>>>()
@@ -342,7 +343,12 @@ pub(super) struct OpenWindows {
     // Invocation scratch, keyed by the same canonical storage subject the
     // source checker uses. A dense parameter coordinate cannot name local
     // loans, and executable selector roles change at each statement.
-    open: Vec<CanonicalPlace>,
+    open: Vec<OpenWindow>,
+}
+
+struct OpenWindow {
+    storage: CanonicalPlace,
+    opening_binding: u32,
 }
 
 /// The exact storage place an immutable, non-reference, ownership-carrying
@@ -399,14 +405,20 @@ impl OpenWindows {
         let statements = program.statement_table.statements(state.statement_nodes);
         let place = window_place(
             program,
-            facts,
-            machine,
             state,
             statements,
             index,
             structural_parameters,
             &place,
-            local.initial_value,
+            &|expression| {
+                super::calls::value_index_segment(
+                    program,
+                    &facts.operators,
+                    state,
+                    index,
+                    expression,
+                )
+            },
         )?;
         let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
         let result = CheckedUnitStructuralResultBindingPlan {
@@ -421,11 +433,14 @@ impl OpenWindows {
         if self
             .open
             .iter()
-            .any(|open| crate::flow::canonical_places_agree(program, open, &place.storage))
+            .any(|open| same_storage_place(program, &open.storage, &place.storage))
         {
             return None;
         }
-        self.open.push(place.storage);
+        self.open.push(OpenWindow {
+            storage: place.storage,
+            opening_binding: binding_ordinal,
+        });
         Some((
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result: result.clone(),
@@ -538,76 +553,82 @@ impl OpenWindows {
                 .map(|_| symbol),
             _ => None,
         };
-        let (source, path, needs_displacement, needs_cleanup) = if let Some(symbol) = owned_local {
-            let path = assignment_path(
-                program,
-                facts,
-                machine,
-                state,
-                statement_index,
-                assignment.target,
-                &destination_place,
-            )?;
-            // The permission producer has already selected old-value death.
-            // An absent construction slot creates no displaced value. This
-            // query follows checked custody, not the initializer's spelling.
-            let occupied = facts
-                .contextual_cleanup
-                .dispositions
-                .iter()
-                .any(|(_, disposition)| {
-                    disposition.machine == machine.symbol
-                        && disposition.state == state.symbol
-                        && disposition.source
-                            == language_semantics::PermissionEventSource::Statement {
-                                statement_index: index,
-                            }
-                        && disposition.root == destination_place.root
-                        && facts
-                            .flow
-                            .ownership
-                            .segments
-                            .span_or_empty(disposition.path)
-                            .starts_with(&destination_place.segments)
-                });
-            (
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
-                path,
-                false,
-                occupied,
-            )
-        } else {
-            let place = window_place(
-                program,
-                facts,
-                machine,
-                state,
-                program.statement_table.statements(state.statement_nodes),
-                index,
-                structural_parameters,
-                &access_place,
-                assignment.target,
-            )?;
-            let needs_displacement = match self
-                .open
-                .iter()
-                .position(|open| {
-                    crate::flow::canonical_places_agree(program, open, &place.storage)
-                })
-            {
-                Some(position) => {
-                    self.open.remove(position);
-                    false
-                }
-                None => true,
+        let (source, path, opening_binding, needs_displacement, needs_cleanup) =
+            if let Some(symbol) = owned_local {
+                let path = assignment_path(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    statement_index,
+                    assignment.target,
+                    &destination_place,
+                )?;
+                // The permission producer has already selected old-value death.
+                // An absent construction slot creates no displaced value. This
+                // query follows checked custody, not the initializer's spelling.
+                let occupied =
+                    facts
+                        .contextual_cleanup
+                        .dispositions
+                        .iter()
+                        .any(|(_, disposition)| {
+                            disposition.machine == machine.symbol
+                                && disposition.state == state.symbol
+                                && disposition.source
+                                    == language_semantics::PermissionEventSource::Statement {
+                                        statement_index: index,
+                                    }
+                                && disposition.root == destination_place.root
+                                && facts
+                                    .flow
+                                    .ownership
+                                    .segments
+                                    .span_or_empty(disposition.path)
+                                    .starts_with(&destination_place.segments)
+                        });
+                (
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                    path,
+                    None,
+                    false,
+                    occupied,
+                )
+            } else {
+                let selectors = TargetSelectors::resolve(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    statement_index,
+                    assignment.target,
+                )?;
+                let place = window_place(
+                    program,
+                    state,
+                    program.statement_table.statements(state.statement_nodes),
+                    index,
+                    structural_parameters,
+                    &access_place,
+                    &|expression| selectors.runtime_segment(expression),
+                )?;
+                let opening_binding = match self
+                    .open
+                    .iter()
+                    .position(|open| same_storage_place(program, &open.storage, &place.storage))
+                {
+                    Some(position) => Some(self.open.remove(position).opening_binding),
+                    None => None,
+                };
+                let needs_displacement = opening_binding.is_none();
+                (
+                    place.source,
+                    place.path,
+                    Some(opening_binding.unwrap_or(displaced_ordinal)),
+                    needs_displacement,
+                    needs_displacement && produced.multiplicity == Multiplicity::Affine,
+                )
             };
-            (
-                place.source,
-                place.path,
-                needs_displacement,
-                needs_displacement && produced.multiplicity == Multiplicity::Affine,
-            )
-        };
         if produced.multiplicity == Multiplicity::Linear && (needs_displacement || needs_cleanup) {
             return None;
         }
@@ -645,7 +666,10 @@ impl OpenWindows {
         let leaf = if owned_local.is_some() && place.path.is_empty() {
             checked_trees::CheckedStoreLeaf::LocalRebind { type_identity }
         } else {
-            checked_trees::CheckedStoreLeaf::WindowRepair { type_identity }
+            checked_trees::CheckedStoreLeaf::WindowRepair {
+                type_identity,
+                opening_binding,
+            }
         };
         Some(FieldReplacement {
             move_out: needs_displacement.then(|| {

@@ -12,6 +12,14 @@
 //! caller's storage is never replaced by a staged copy: the hole stays in the
 //! borrowed root and the repair writes back into it.
 //!
+//! Checked stores name their opening extraction's result coordinate. The
+//! emitter resolves that coordinate to the stable extracted-place identity;
+//! it does not compare selector operand families to rediscover storage
+//! equality. A value read and a pre-RHS assignment capture can select the
+//! same element through different operands. The source checker owns that
+//! spatial judgment; the ledger owns sequencing and the emitted operation
+//! pair. Detached value custody remains independent of the debt reference.
+//!
 //! The ledger fails closed. Every shape the checked facts do not pin exactly
 //! — a root without owned or exclusive mutable custody, a whole-root route
 //! beneath anything but an exclusive parameter loan, an unsupported projection,
@@ -32,7 +40,7 @@
 //! root and selects the element with a `RuntimeIndex` (a literal selector
 //! included), owed against an `ElementViewLength` observation emitted directly
 //! before each move and store, as element-view scalar stores do. The ledger
-//! still keys the hole by its checked route.
+//! pairs the hole by its opening extraction, not by fresh selector ids.
 //!
 //! A whole-root route under an exclusive `&mut` parameter loan is a root
 //! window: `MoveStructuralField`/`StoreStructuralField` with no field and an
@@ -68,15 +76,16 @@ use terminal_psi::{StructuralArgument, StructuralOperationResult};
 /// storage root. The removed value retains separate ordinary result custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OpenBorrowedWindow {
+    /// Stable identity of the extraction, independent of the detached value's
+    /// subsequent transfer or disposal and of fresh selector evaluation ids.
+    opening: PlaceId,
     pub(crate) source: PlaceId,
     pub(crate) path: Vec<StructuralPathSegment>,
     /// A field extending `path`, or `None` when `path` names the whole hole.
     pub(crate) field: Option<StructuralFieldId>,
     pub(crate) hole_type: StructuralTypeId,
-    /// The checked route the authored statement spelled, leaf included: hole
-    /// identity is compared at this coordinate — Terminal runtime-element
-    /// segments evaluate fresh `ValueId`s per operation, so equal places
-    /// share the checked path, not the emitted one.
+    /// The checked route is retained for overlap diagnostics, not for pairing
+    /// a restoration: its selectors name evaluation roles, not storage ids.
     checked_path: Vec<CheckedUnitStructuralPathSegment>,
     spelling: String,
 }
@@ -112,7 +121,7 @@ struct CapturedAssignmentDestination {
 
 /// The resolved exact place a move or repair names beneath a window root:
 /// the root's declared type, the carrier's projection steps (a runtime element
-/// evaluates when the operation emits), the checked route as the hole's key,
+/// evaluates when the operation emits), the checked route for diagnostics,
 /// the leaf's field declaration id (`None` for a root window), and the hole's
 /// declared type.
 struct ResolvedWindowPlace {
@@ -334,6 +343,7 @@ impl BorrowedWindowLedger {
             },
         );
         self.open.push(OpenBorrowedWindow {
+            opening: moved_place,
             source,
             path,
             field: place.field,
@@ -351,6 +361,7 @@ impl BorrowedWindowLedger {
     pub(crate) fn emit_store(
         &mut self,
         destination: &CheckedUnitStructuralArgumentPlan,
+        opening: Option<PlaceId>,
         value: BorrowedWindowRepairValue,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
@@ -380,9 +391,29 @@ impl BorrowedWindowLedger {
             next_edge,
             operations,
         )?;
-        let index = self.open.iter().position(|absent| {
-            absent.source == source && absent.checked_path == place.checked_path
+        let index = opening.and_then(|opening| {
+            self.open
+                .iter()
+                .position(|absent| absent.opening == opening)
         });
+        if opening.is_some() && index.is_none() {
+            return Err(unpinned(
+                &place.spelling,
+                "the restoration names no open extraction",
+            ));
+        }
+        if let Some(index) = index {
+            let absent = &self.open[index];
+            if absent.source != source
+                || absent.field != place.field
+                || absent.hole_type != place.hole_type
+            {
+                return Err(unpinned(
+                    &place.spelling,
+                    "the restoration differs from its extraction's storage or type",
+                ));
+            }
+        }
         if index.is_none()
             && (place.restoration_required
                 || self.open.iter().any(|absent| {

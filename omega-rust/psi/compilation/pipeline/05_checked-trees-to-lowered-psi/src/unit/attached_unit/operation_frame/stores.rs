@@ -104,7 +104,7 @@ impl OperationFrame<'_, '_> {
                 self.byte_sequence_store(store)
             }
             CheckedStoreLeaf::SumField => self.sum_field_store(store),
-            CheckedStoreLeaf::WindowRepair { type_identity } => {
+            CheckedStoreLeaf::WindowRepair { type_identity, opening_binding } => {
                 let Some(value) = store.installed_value() else {
                     return unsupported("window repair installs no whole value");
                 };
@@ -119,7 +119,7 @@ impl OperationFrame<'_, '_> {
                     }
                 };
                 let place = window_place(source, &store.destination.path, type_identity.clone());
-                self.store_structural_field(store.statement_index, &place, value)
+                self.store_structural_field(store.statement_index, &place, *opening_binding, value)
             }
             CheckedStoreLeaf::LocalRebind { type_identity } => {
                 let (Some(value), checked_trees::CheckedStoreRoot::Local { symbol }) =
@@ -1002,6 +1002,7 @@ impl OperationFrame<'_, '_> {
         self.emit_window_store(
             store.statement_index,
             &hole,
+            Some(moved),
             BorrowedWindowRepairValue {
                 place: replacement,
                 structural_type: hole_type,

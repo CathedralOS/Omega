@@ -431,18 +431,9 @@ fn element_selection(
         CheckedUnitStructuralPathSegment::FixedIndex(index) => {
             ProjectionStep::Static(StructuralPathSegment::FixedIndex(*index))
         }
-        CheckedUnitStructuralPathSegment::RuntimeIndex(
-            checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
-        ) => ProjectionStep::AssignmentIndex { depth: *depth },
-        // A borrow-mirrored index names the calling state's own scalar
-        // parameter — `&mut cells[at]` injects the store coordinate `at` —
-        // which the scalar source frame reads directly rather than a bound
-        // selector row.
-        CheckedUnitStructuralPathSegment::RuntimeIndex(
-            checked_trees::CheckedRuntimeIndex::Parameter { position },
-        ) => ProjectionStep::RuntimeIndexParameter {
-            position: *position,
-        },
+        CheckedUnitStructuralPathSegment::RuntimeIndex(selector) => {
+            crate::emission::runtime_elements::selector_step(selector)
+        }
         _ => return unsupported("structural element selector is unsupported"),
     };
     Ok((step, element))

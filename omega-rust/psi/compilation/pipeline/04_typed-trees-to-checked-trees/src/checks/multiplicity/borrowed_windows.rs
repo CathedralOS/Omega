@@ -48,10 +48,26 @@ mod windows;
 /// The join-agreement comparison: two arms carry the same resolved debts,
 /// regardless of the order their moves recorded them in.
 fn same_place_set(
+    program: &dyn ::validation::CheckingInput,
     left: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
     right: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
 ) -> bool {
-    left.len() == right.len() && left.iter().all(|place| right.contains(place))
+    left.len() == right.len()
+        && left.iter().all(|place| {
+            right.iter().any(|candidate| {
+                same_storage_debt(program, (place.0, &place.1), (candidate.0, &candidate.1))
+            })
+        })
+}
+
+fn same_storage_debt(
+    program: &dyn ::validation::CheckingInput,
+    left: (facts::PlaceRoot, &[facts::PlaceSegment]),
+    right: (facts::PlaceRoot, &[facts::PlaceSegment]),
+) -> bool {
+    left.0 == right.0
+        && crate::checks::borrows::storage_path_compatibility(program, left.1, right.1).1
+            == checked_trees::CapturedPlaceContainment::Same
 }
 
 /// Rebase a place written through a `&mut`-typed local onto the referent

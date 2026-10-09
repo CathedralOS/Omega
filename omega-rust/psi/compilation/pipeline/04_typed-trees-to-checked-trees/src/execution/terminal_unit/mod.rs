@@ -565,6 +565,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                                 leaf:
                                                     checked_trees::CheckedStoreLeaf::WindowRepair {
                                                         type_identity,
+                                                        ..
                                                     },
                                                 ..
                                             },
@@ -649,7 +650,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
                 destination:
                     checked_trees::CheckedStoreDestination {
-                        leaf: checked_trees::CheckedStoreLeaf::WindowRepair { type_identity },
+                        leaf: checked_trees::CheckedStoreLeaf::WindowRepair { type_identity, .. },
                         ..
                     },
                 value: checked_trees::CheckedStoreValue::Place(value),

@@ -36,6 +36,7 @@
 
 // Call obligations: contract requirements and guarantees, and borrows.
 mod borrows;
+pub(crate) use borrows::storage_path_compatibility;
 pub(crate) use borrows::{LifecyclePhase, weakening_event_boundary};
 mod case_access;
 pub(crate) mod contracts;

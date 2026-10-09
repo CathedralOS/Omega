@@ -6,7 +6,7 @@ use super::{exclusive_storage_chain, place_spelling, resolve_storage_place};
 
 use super::boundary_checks::*;
 
-use super::super::owned_selection::place_paths_overlap;
+use crate::checks::borrows::storage_path_compatibility;
 
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
@@ -108,17 +108,17 @@ impl BorrowedStorageWindows {
             symbol,
             &target.segments,
         );
-        if self
-            .open
-            .iter()
-            .any(|absent| absent.root == root && path.starts_with(&absent.path))
-        {
+        if self.open.iter().any(|absent| {
+            absent.root == root && storage_path_contains(program, &absent.path, &path)
+        }) {
             return None;
         }
         let excluded = self
             .open
             .iter()
-            .filter(|absent| absent.root == root && absent.path.starts_with(&path))
+            .filter(|absent| {
+                absent.root == root && storage_path_contains(program, &path, &absent.path)
+            })
             .map(|absent| absent.path.clone())
             .collect();
         Some((
@@ -188,11 +188,10 @@ impl BorrowedStorageWindows {
             ));
         }
         let spelling = place_spelling(program, machine, state, root, &storage_path);
-        if let Some(absent) = self
-            .open
-            .iter()
-            .find(|absent| absent.root == root && place_paths_overlap(&storage_path, &absent.path))
-        {
+        if let Some(absent) = self.open.iter().find(|absent| {
+            absent.root == root
+                && storage_path_compatibility(program, &storage_path, &absent.path).0
+        }) {
             return Some(Diagnostic::error(format!(
                 "cannot transfer `{spelling}` out of borrowed storage while `{}` is absent: \
                  the value moved at statement {} has not been replaced",
@@ -257,11 +256,10 @@ impl BorrowedStorageWindows {
             root_symbol,
             path,
         );
-        let Some(absent) = self
-            .open
-            .iter()
-            .find(|absent| absent.root == root && place_paths_overlap(&storage_path, &absent.path))
-        else {
+        let Some(absent) = self.open.iter().find(|absent| {
+            absent.root == root
+                && storage_path_compatibility(program, &storage_path, &absent.path).0
+        }) else {
             return;
         };
         let spelling = place_spelling(program, machine, state, root, &storage_path);
@@ -324,11 +322,10 @@ impl BorrowedStorageWindows {
             root_symbol,
             &use_place.segments,
         );
-        let Some(absent) = self
-            .open
-            .iter()
-            .find(|absent| absent.root == root && place_paths_overlap(&storage_path, &absent.path))
-        else {
+        let Some(absent) = self.open.iter().find(|absent| {
+            absent.root == root
+                && storage_path_compatibility(program, &storage_path, &absent.path).0
+        }) else {
             return;
         };
         let spelling = place_spelling(program, machine, state, root, &storage_path);
@@ -374,10 +371,12 @@ impl BorrowedStorageWindows {
         );
         let mut repaired = Vec::new();
         for (index, absent) in self.open.iter().enumerate() {
-            if absent.root != root || !place_paths_overlap(&target_path, &absent.path) {
+            if absent.root != root
+                || !storage_path_compatibility(program, &target_path, &absent.path).0
+            {
                 continue;
             }
-            if absent.path.starts_with(target_path.as_slice()) {
+            if storage_path_contains(program, &target_path, &absent.path) {
                 repaired.push(index);
                 continue;
             }
@@ -443,4 +442,19 @@ impl BorrowedStorageWindows {
             )));
         }
     }
+}
+
+/// Restoration and old-value death select the same captured subtree. Raw
+/// expression-handle prefixes cannot recognize a re-spelled immutable index;
+/// structural spelling equality could instead conflate changed mutable values.
+fn storage_path_contains(
+    program: &dyn ::validation::CheckingInput,
+    container: &[facts::PlaceSegment],
+    contained: &[facts::PlaceSegment],
+) -> bool {
+    matches!(
+        storage_path_compatibility(program, container, contained).1,
+        checked_trees::CapturedPlaceContainment::Same
+            | checked_trees::CapturedPlaceContainment::LeftContainsRight
+    )
 }

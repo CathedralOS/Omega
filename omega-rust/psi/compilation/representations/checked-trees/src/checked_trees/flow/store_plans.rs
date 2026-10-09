@@ -71,7 +71,7 @@ impl CheckedStorePlan {
         &self,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
     ) -> Option<CheckedUnitStructuralArgumentPlan> {
-        let (CheckedStoreLeaf::WindowRepair { type_identity }
+        let (CheckedStoreLeaf::WindowRepair { type_identity, .. }
         | CheckedStoreLeaf::LocalRebind { type_identity }) = &self.destination.leaf
         else {
             return None;
@@ -168,7 +168,15 @@ pub enum CheckedStoreLeaf {
     /// local, `type_identity` its declared type, and the stored value is a
     /// whole owned binding of that type. The checked multiplicity gate
     /// proved the hole open; the repair closes the window's restoration debt.
-    WindowRepair { type_identity: String },
+    WindowRepair {
+        type_identity: String,
+        /// Result coordinate of the extraction that opened this hole. The
+        /// source checker establishes storage equality; lowering must not
+        /// infer it from selector evaluation coordinates. None denotes an
+        /// owned home with no extraction debt; its previous contents may
+        /// already have been retired in place by old-value cleanup.
+        opening_binding: Option<u32>,
+    },
     /// A whole owned local (an empty path) rebound to a whole owned value
     /// after its prior occurrence's disposal. Unlike a window repair, the
     /// local's value identity changes and no restoration debt opens at

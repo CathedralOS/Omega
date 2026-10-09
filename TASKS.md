@@ -665,10 +665,16 @@ defines the complete product bar.
     `fail/ownership/view_element_window_{unproven_index,live_borrow,missing_repair}`;
     qualify remaining hosts. Keep `runtime_local_subslice_element_window_exit`
     (0) for local and nested subslice offsets, field writes, computed copy
-    replacement and affine extraction/repair with untouched siblings; keep
+    replacement and runtime-indexed affine extraction/repair through an
+    immutable alias with untouched siblings; keep
     `fail/ownership/local_subslice_window_wrong_repair` for an index that
-    does not restore the hole. Qualify runtime-selected local indices and
-    cleanup prerequisites on narrowed receivers, plus remaining native hosts.
+    does not restore the hole. Keep `borrowed_window_changed_selector` and
+    `runtime_window_fixed_observation` for changed mutable selectors and
+    observing a fixed element that a runtime-selected hole may overlap.
+    Qualify computed-selector agreement (`chosen = at + 0` extracted through
+    `chosen` and repaired through `at` still rejects), mutable-selector version
+    pinning and cleanup prerequisites on narrowed receivers, plus remaining
+    native hosts.
     Qualify runtime-selected cleanup on the remaining native hosts. Keep
     `pass/drops/runtime_case_selected_cleanup_continuations_exit` (0) for
     captured scalar returns, computed temporaries, parent retention and
