@@ -761,6 +761,56 @@ impl AbstractOperation {
         )
     }
 
+    /// The block reached through `edge`, when `edge` is one of this
+    /// operation's block successors. `None` on terminator kinds with no
+    /// successor and on edges the operation does not carry.
+    pub fn successor_target(&self, edge: EdgeId) -> Option<BlockId> {
+        match self {
+            Self::Jump {
+                psi_edge, target, ..
+            } if *psi_edge == edge => Some(*target),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => [when_true, when_false]
+                .into_iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| successor.target),
+            Self::StructuralCase { cases, .. } => cases
+                .iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| successor.target),
+            _ => None,
+        }
+    }
+
+    /// The owned structural transfer through `edge`: the successor target
+    /// and its bound structural arguments. Case successors bind scalar
+    /// payloads only, so they transfer nothing owned through this query.
+    pub fn owned_transfer(
+        &self,
+        edge: EdgeId,
+    ) -> Option<(BlockId, &[crate::AbstractStructuralBinding])> {
+        match self {
+            Self::Jump {
+                psi_edge,
+                target,
+                structural_bindings,
+                ..
+            } if *psi_edge == edge => Some((*target, structural_bindings.as_slice())),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => [when_true, when_false]
+                .into_iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| (successor.target, successor.structural_bindings.as_slice())),
+            _ => None,
+        }
+    }
+
     /// The declared structural value produced by this operation, independent
     /// of its constructor or call origin. This is semantic custody, not an
     /// assertion that the value owns storage: views and primitive locals also

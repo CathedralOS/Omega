@@ -1639,38 +1639,8 @@ fn apply_terminator(
 ) -> Option<()> {
     let mut exits = Vec::new();
     for (edge, actions) in operation.cleanup_rosters() {
-        let owned_transfer = match operation {
-            AbstractOperation::Jump {
-                target,
-                structural_bindings,
-                ..
-            } => Some((*target, structural_bindings.as_slice())),
-            AbstractOperation::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => [when_true, when_false]
-                .into_iter()
-                .find(|successor| successor.psi_edge == edge)
-                .map(|successor| (successor.target, successor.structural_bindings.as_slice())),
-            _ => None,
-        };
-        let target = match operation {
-            AbstractOperation::Jump { target, .. } => Some(*target),
-            AbstractOperation::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => [when_true, when_false]
-                .into_iter()
-                .find(|successor| successor.psi_edge == edge)
-                .map(|successor| successor.target),
-            AbstractOperation::StructuralCase { cases, .. } => cases
-                .iter()
-                .find(|successor| successor.psi_edge == edge)
-                .map(|successor| successor.target),
-            _ => None,
-        };
+        let owned_transfer = operation.owned_transfer(edge);
+        let target = operation.successor_target(edge);
         if let Some(target) = target {
             let mut exit = custody.clone();
             if let Some((target, bindings)) = owned_transfer {
