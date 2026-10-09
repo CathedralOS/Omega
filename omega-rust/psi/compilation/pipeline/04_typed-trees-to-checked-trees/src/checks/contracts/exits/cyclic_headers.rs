@@ -37,6 +37,7 @@
 //! only between bare binders and literals. `Saturating` and `Trapping`
 //! stay outside the language.
 
+use crate::checks::unsigned;
 use arena::Handle;
 use checked_trees::{CheckFacts, ContractProofFactKind, FlowExitFact, FlowStateFact};
 use facts::{ContractFactKind, FactOrigin, FactPayload};
@@ -192,7 +193,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                         symbol: parameter.symbol,
                         type_reference: parameter.type_reference,
                         domain,
-                        unsigned: is_unsigned(primitive),
+                        unsigned: unsigned(primitive),
                     })
                 })
                 .collect::<Vec<_>>()
@@ -832,11 +833,4 @@ fn fixed_integer(
     let domain = program.arithmetic_domain_for_type_reference(type_reference);
     matches!(domain, ArithmeticDomain::Exact | ArithmeticDomain::Wrapping)
         .then_some((primitive, domain))
-}
-
-fn is_unsigned(primitive: PrimitiveType) -> bool {
-    matches!(
-        primitive,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
-    )
 }

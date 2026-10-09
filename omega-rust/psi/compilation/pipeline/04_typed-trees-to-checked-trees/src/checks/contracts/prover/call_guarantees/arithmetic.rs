@@ -20,6 +20,7 @@
 
 use super::callable::Callable;
 use super::{Invocation, actual_projection, bound_place, direct_place};
+use crate::checks::unsigned;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
 use numerics::arithmetic::ArithmeticDomain;
@@ -521,7 +522,7 @@ fn builtin_wrapping_unsigned_remainder(
         return false;
     };
     left_primitive == right_primitive
-        && fixed_unsigned_integer(left_primitive)
+        && unsigned(left_primitive)
         && program.arithmetic_domain_for_type_reference(left) == ArithmeticDomain::Wrapping
         && program.arithmetic_domain_for_type_reference(right) == ArithmeticDomain::Wrapping
 }
@@ -587,11 +588,4 @@ fn proof_integer_term(
         }
         _ => false,
     }
-}
-
-fn fixed_unsigned_integer(primitive: PrimitiveType) -> bool {
-    matches!(
-        primitive,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
-    )
 }

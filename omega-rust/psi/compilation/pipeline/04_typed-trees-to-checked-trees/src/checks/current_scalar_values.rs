@@ -14,6 +14,7 @@
 //! `requires index < bytes.len` and a guard over the same loan relate. A
 //! mutable loan of a qualified fixed byte array is a bounded owner whose live
 //! length moves with its stores, and has no such value.
+use crate::checks::unsigned;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -510,12 +511,6 @@ fn exact_integer(
         return None;
     }
     Some(primitive)
-}
-fn unsigned(primitive: PrimitiveType) -> bool {
-    matches!(
-        primitive,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
-    )
 }
 /// A collection type's length when no store or reseat can change it during
 /// the activation: a literal fixed array's own length, or one unsigned unknown.

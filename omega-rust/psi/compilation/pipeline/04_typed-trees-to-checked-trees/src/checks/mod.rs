@@ -64,6 +64,7 @@ pub(crate) mod termination;
 use diagnostics::Diagnostic;
 pub(crate) use operators::{named_operator_route_is_false, operator_route_is_false};
 use symbols::SymbolHandle;
+use typed_trees::types::PrimitiveType;
 
 pub(crate) use multiplicity::prepare_permission_events;
 pub(crate) use multiplicity::{
@@ -202,4 +203,12 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Whether `primitive` is a fixed-width unsigned integer type.
+pub(crate) fn unsigned(primitive: PrimitiveType) -> bool {
+    matches!(
+        primitive,
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+    )
 }
