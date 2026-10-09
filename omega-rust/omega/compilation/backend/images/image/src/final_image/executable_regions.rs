@@ -377,11 +377,7 @@ pub(crate) fn executable_inventory_digest(
     digest.raw(text_digest.as_bytes());
     digest.raw(&u64::try_from(regions.len()) .expect("placed executable region count fits u64") .to_le_bytes(),);
     for region in regions {
-        digest.byte(match region.origin {
-            FinalExecutableRegionOrigin::CompilerFunction => 1,
-            FinalExecutableRegionOrigin::ImportThunk => 2,
-            FinalExecutableRegionOrigin::CompilerReadOnlyData => 3,
-        });
+        digest.byte(executable_origin_tag(region.origin));
         digest.u64(region.section_offset as u64);
         digest.raw(&region.address.to_le_bytes());
         digest.u64(region.byte_count as u64);
@@ -447,11 +443,7 @@ pub(crate) fn executable_inventory_report_fingerprint(
     for region in regions {
         fingerprint_bytes(
             &mut hash,
-            &[match region.origin {
-                FinalExecutableRegionOrigin::CompilerFunction => 1,
-                FinalExecutableRegionOrigin::ImportThunk => 2,
-                FinalExecutableRegionOrigin::CompilerReadOnlyData => 3,
-            }],
+            &[executable_origin_tag(region.origin)],
         );
         fingerprint_bytes(&mut hash, &(region.section_offset as u64).to_le_bytes());
         fingerprint_bytes(&mut hash, &region.address.to_le_bytes());
@@ -485,4 +477,13 @@ pub(crate) fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
     let mut fingerprint = semantic_vocabulary::Fnv1a::resume(*hash);
     fingerprint.bytes(bytes);
     *hash = fingerprint.finish();
+}
+
+/// The canonical byte tag for a placed executable-region origin.
+fn executable_origin_tag(origin: FinalExecutableRegionOrigin) -> u8 {
+    match origin {
+        FinalExecutableRegionOrigin::CompilerFunction => 1,
+        FinalExecutableRegionOrigin::ImportThunk => 2,
+        FinalExecutableRegionOrigin::CompilerReadOnlyData => 3,
+    }
 }

@@ -396,11 +396,7 @@ fn data_inventory_digest(
     digest.raw(data_digest.as_bytes());
     digest.raw(&u64::try_from(regions.len()) .expect("placed initialized-data region count fits u64") .to_le_bytes(),);
     for region in regions {
-        digest.byte(match region.origin {
-            FinalDataRegionOrigin::CompilerData => 1,
-            FinalDataRegionOrigin::ImportBindingSlot => 2,
-            FinalDataRegionOrigin::AlignmentPadding => 3,
-        });
+        digest.byte(data_origin_tag(region.origin));
         digest.u64(region.section_offset as u64);
         digest.raw(&region.address.to_le_bytes());
         digest.u64(region.byte_count as u64);
@@ -432,11 +428,7 @@ fn data_inventory_report_fingerprint(
     for region in regions {
         fingerprint_bytes(
             &mut hash,
-            &[match region.origin {
-                FinalDataRegionOrigin::CompilerData => 1,
-                FinalDataRegionOrigin::ImportBindingSlot => 2,
-                FinalDataRegionOrigin::AlignmentPadding => 3,
-            }],
+            &[data_origin_tag(region.origin)],
         );
         fingerprint_bytes(&mut hash, &(region.section_offset as u64).to_le_bytes());
         fingerprint_bytes(&mut hash, &region.address.to_le_bytes());
@@ -1140,5 +1132,14 @@ mod tests {
         validate_placed_data_region_inventory(&empty, &[])
             .expect("the empty inventory replays over an empty extent");
         assert!(validate_placed_data_region_inventory(&empty, &rdata).is_err());
+    }
+}
+
+/// The canonical byte tag for a placed data-region origin.
+fn data_origin_tag(origin: FinalDataRegionOrigin) -> u8 {
+    match origin {
+        FinalDataRegionOrigin::CompilerData => 1,
+        FinalDataRegionOrigin::ImportBindingSlot => 2,
+        FinalDataRegionOrigin::AlignmentPadding => 3,
     }
 }
