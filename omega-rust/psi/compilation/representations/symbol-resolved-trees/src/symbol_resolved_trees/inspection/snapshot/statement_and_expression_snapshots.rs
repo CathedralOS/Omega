@@ -7,7 +7,7 @@ use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 use crate::symbol_resolved_trees::inspection::snapshot::TypeReferenceSnapshot;
 use crate::symbol_resolved_trees::inspection::snapshot::type_snapshots::{
-    reference_access_name, type_reference_snapshot, type_reference_snapshot_from_program,
+    type_reference_snapshot, type_reference_snapshot_from_program,
 };
 use serde::Serialize;
 
@@ -495,7 +495,7 @@ pub(crate) fn table_expression_snapshot(
             member: member.member.to_string(),
         },
         ExpressionNode::Borrow(value) => ExpressionSnapshot::Borrow {
-            access: reference_access_name(value.access),
+            access: value.access.name(),
             value: Box::new(table_expression_snapshot(program, value.target)),
         },
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {

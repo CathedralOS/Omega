@@ -285,6 +285,15 @@ impl ReferenceAccess {
             Self::Shared => "&",
         }
     }
+
+    /// Lowercase spelling used in inspection snapshots.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Shared => "shared",
+            Self::Mutable => "mutable",
+            Self::WriteOnly => "write_only",
+        }
+    }
 }
 
 /// One closed compiler-owned classification attached explicitly to a domain.

@@ -7,7 +7,7 @@ use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::typed_trees::inspection::snapshot::TypeReferenceSnapshot;
 use crate::typed_trees::inspection::snapshot::type_snapshots::{
-    path_snapshot, reference_access_name, type_reference_snapshot,
+    path_snapshot, type_reference_snapshot,
 };
 use serde::Serialize;
 
@@ -466,7 +466,7 @@ pub(crate) fn expression_snapshot(
             member: member.member.to_string(),
         },
         ExpressionNode::Borrow(value) => ExpressionSnapshot::Borrow {
-            access: reference_access_name(value.access),
+            access: value.access.name(),
             value: Box::new(expression_snapshot(program, value.target)),
         },
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {

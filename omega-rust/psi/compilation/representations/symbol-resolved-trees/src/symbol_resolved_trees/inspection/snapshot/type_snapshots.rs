@@ -141,14 +141,6 @@ fn wire_member_snapshots(
         .collect()
 }
 
-pub(crate) fn reference_access_name(access: language_core::ReferenceAccess) -> &'static str {
-    match access {
-        language_core::ReferenceAccess::Shared => "shared",
-        language_core::ReferenceAccess::Mutable => "mutable",
-        language_core::ReferenceAccess::WriteOnly => "write_only",
-    }
-}
-
 pub(crate) fn type_reference_snapshot_from_program(
     program: &SymbolResolvedTrees,
     type_reference: &TypeReference,
@@ -159,7 +151,7 @@ pub(crate) fn type_reference_snapshot_from_program(
                 program,
                 program.child_type_reference(reference.referee),
             )),
-            access: reference_access_name(reference.access),
+            access: reference.access.name(),
         },
         TypeReference::Constrained(constrained) => TypeReferenceSnapshot::Constrained {
             base_type: Box::new(type_reference_snapshot_from_program(
