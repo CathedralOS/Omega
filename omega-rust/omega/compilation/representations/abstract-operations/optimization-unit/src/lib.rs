@@ -31,6 +31,7 @@ use terminal_psi::{
     TerminalRootServiceReach,
 };
 
+mod cursor;
 mod optimization_unit;
 
 pub use optimization_unit::{

@@ -1,3 +1,4 @@
+use crate::cursor::Cursor;
 use super::{
     BaselineDecisionLog, FuelScheduleIdentity, OptimizationIdentityBundle,
     OptimizationManifestStage, OptimizationPassManifestRecord, OptimizationSelections,
@@ -21,11 +22,11 @@ impl PrePhysicalOptimizationManifest {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, PrePhysicalOptimizationManifestDecodeError> {
-        let mut cursor = ManifestCursor::new(encoded);
+        let mut cursor = Cursor::new(encoded);
         if cursor.take(8)? != PRE_PHYSICAL_MANIFEST_MAGIC {
             return Err(PrePhysicalOptimizationManifestDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != PRE_PHYSICAL_MANIFEST_VERSION {
             return Err(PrePhysicalOptimizationManifestDecodeError::UnsupportedVersion(version));
         }
@@ -44,11 +45,11 @@ impl PrePhysicalOptimizationManifest {
                 return Err(PrePhysicalOptimizationManifestDecodeError::UnknownPhysicalStatus(tag));
             }
         };
-        let vocabulary = u16::from_le_bytes(cursor.array()?);
+        let vocabulary = cursor.u16()?;
         let vocabulary_marker = terminal_psi::VocabularyMarker::new(vocabulary)
             .ok_or(PrePhysicalOptimizationManifestDecodeError::UnsupportedVocabulary(vocabulary))?;
         let program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes(cursor.array()?);
-        let fuel_schedule = FuelScheduleIdentity::new(u32::from_le_bytes(cursor.array()?))
+        let fuel_schedule = FuelScheduleIdentity::new(cursor.u32()?)
             .ok_or(PrePhysicalOptimizationManifestDecodeError::InvalidFuelSchedule)?;
         let initial_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let final_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
@@ -154,16 +155,16 @@ fn encode_statistics(bytes: &mut Vec<u8>, statistics: OptimizationStructuralStat
 }
 
 fn decode_statistics(
-    cursor: &mut ManifestCursor<'_>,
+    cursor: &mut Cursor<'_>,
 ) -> Result<OptimizationStructuralStatistics, PrePhysicalOptimizationManifestDecodeError> {
     Ok(OptimizationStructuralStatistics {
-        functions: u64::from_le_bytes(cursor.array()?),
-        blocks: u64::from_le_bytes(cursor.array()?),
-        nodes: u64::from_le_bytes(cursor.array()?),
-        scalar_definitions: u64::from_le_bytes(cursor.array()?),
-        scalar_uses: u64::from_le_bytes(cursor.array()?),
-        optimization_facts: u64::from_le_bytes(cursor.array()?),
-        ownership_frontier_facts: u64::from_le_bytes(cursor.array()?),
+        functions: cursor.u64()?,
+        blocks: cursor.u64()?,
+        nodes: cursor.u64()?,
+        scalar_definitions: cursor.u64()?,
+        scalar_uses: cursor.u64()?,
+        optimization_facts: cursor.u64()?,
+        ownership_frontier_facts: cursor.u64()?,
     })
 }
 
@@ -180,60 +181,6 @@ fn encode_len(bytes: &mut Vec<u8>, value: usize) {
     );
 }
 
-struct ManifestCursor<'encoded> {
-    encoded: &'encoded [u8],
-    offset: usize,
-}
-
-impl<'encoded> ManifestCursor<'encoded> {
-    const fn new(encoded: &'encoded [u8]) -> Self {
-        Self { encoded, offset: 0 }
-    }
-
-    fn take(
-        &mut self,
-        length: usize,
-    ) -> Result<&'encoded [u8], PrePhysicalOptimizationManifestDecodeError> {
-        let end = self
-            .offset
-            .checked_add(length)
-            .ok_or(PrePhysicalOptimizationManifestDecodeError::Truncated)?;
-        let value = self
-            .encoded
-            .get(self.offset..end)
-            .ok_or(PrePhysicalOptimizationManifestDecodeError::Truncated)?;
-        self.offset = end;
-        Ok(value)
-    }
-
-    fn array<const N: usize>(
-        &mut self,
-    ) -> Result<[u8; N], PrePhysicalOptimizationManifestDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| PrePhysicalOptimizationManifestDecodeError::Truncated)
-    }
-
-    fn byte(&mut self) -> Result<u8, PrePhysicalOptimizationManifestDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn length(&mut self) -> Result<usize, PrePhysicalOptimizationManifestDecodeError> {
-        usize::try_from(u64::from_le_bytes(self.array()?))
-            .map_err(|_| PrePhysicalOptimizationManifestDecodeError::LengthOverflow)
-    }
-
-    fn length_prefixed(
-        &mut self,
-    ) -> Result<&'encoded [u8], PrePhysicalOptimizationManifestDecodeError> {
-        let length = self.length()?;
-        self.take(length)
-    }
-
-    fn remaining(&self) -> usize {
-        self.encoded.len() - self.offset
-    }
-}
 
 /// The manifest-body bytes shared by content and artifact encodings: stage
 /// and physical-data tags, psi markers, unit/projection payloads, selection
