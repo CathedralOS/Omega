@@ -246,6 +246,7 @@ pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 170
 pass/control_flow/runtime_diamond_join_borrowed_record_exit built 2467ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt
 pass/control_flow/runtime_diamond_join_owned_record_exit built 2375ms exit:70 interpreter-exit:70 interpreter:agrees @64c766216f02+wt
 pass/control_flow/runtime_float_payload_snapshot_after_case_replacement_exit built 5407ms exit:70 interpreter-exit:70 interpreter:agrees @a800cc9ab970
+pass/control_flow/runtime_guard_case_survives_disjoint_conjunct_exit built 3216ms exit:70 interpreter-exit:70 interpreter:agrees @b4917edeec20+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit built 2367ms exit:2 interpreter-exit:2 interpreter:agrees @0c36a0fe0b35
 pass/control_flow/runtime_later_state_shared_array_loan built 857ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/control_flow/runtime_namespace_local_state_loan built 777ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt

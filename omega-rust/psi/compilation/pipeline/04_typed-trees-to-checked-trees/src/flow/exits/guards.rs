@@ -496,42 +496,54 @@ fn flatten_and_conjuncts(
     }
 }
 
-/// The final positive observation in evaluation order, not the last fact in a
-/// filtered logical conjunction. An opaque or false-comparison tail remains a
-/// barrier: its effects may have retired every earlier storage observation.
-fn final_true_guard_observation(
+/// The positive observations a true guard evaluated, in evaluation order:
+/// both operands of a conjunction and the operand of a builtin `== true`
+/// decomposition. A disjunction, a negation, or any other comparison is one
+/// opaque observation; a false comparison describes no positive operand.
+fn true_guard_observations(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    mut expression: ExpressionHandle,
-) -> ExpressionHandle {
-    loop {
-        let Some(binary) = program.expression_table.binary_node(expression) else {
-            return expression;
-        };
-        if binary.operator == typed_trees::expression::BinaryOperator::And {
-            expression = binary.right;
-            continue;
-        }
-        if binary.operator != typed_trees::expression::BinaryOperator::Equal
-            || !validation::has_builtin_decomposed_guard_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            )
-        {
-            return expression;
-        }
-        expression = match (
+    expression: ExpressionHandle,
+    observations: &mut Vec<ExpressionHandle>,
+) {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        observations.push(expression);
+        return;
+    };
+    if binary.operator == typed_trees::expression::BinaryOperator::And {
+        true_guard_observations(program, machine, state, binary.left, observations);
+        true_guard_observations(program, machine, state, binary.right, observations);
+        return;
+    }
+    if binary.operator == typed_trees::expression::BinaryOperator::Equal
+        && validation::has_builtin_decomposed_guard_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+        )
+    {
+        match (
             program.expression_table.expression(binary.left),
             program.expression_table.expression(binary.right),
         ) {
-            (_, ExpressionNode::Boolean(true)) => binary.left,
-            (ExpressionNode::Boolean(true), _) => binary.right,
-            _ => return expression,
-        };
+            (_, ExpressionNode::Boolean(true)) => {
+                return true_guard_observations(program, machine, state, binary.left, observations);
+            }
+            (ExpressionNode::Boolean(true), _) => {
+                return true_guard_observations(
+                    program,
+                    machine,
+                    state,
+                    binary.right,
+                    observations,
+                );
+            }
+            _ => {}
+        }
     }
+    observations.push(expression);
 }
 
 /// Recognize `subject == Type::Case` (or its commute), the tag compare a
@@ -624,22 +636,52 @@ pub(in crate::flow) fn append_predicate_context(
         {
             let machine = &program.machines()[machine_position];
             let state = &program.machine_states(machine)[state_position];
-            // Earlier conjuncts were established before evaluating their
-            // successors and may have been invalidated by those effects.
-            // Only the last observation can be seeded at guard completion.
-            // Surviving earlier tags already live in the short-circuit flow.
-            let observation = final_true_guard_observation(program, machine, state, expression);
-            if let Some(binary) = program.expression_table.binary_node(observation)
-                && validation::has_exact_case_membership_meaning(
+            // Each positive observation held when it was evaluated, and the
+            // last one still holds at guard completion. An earlier one was
+            // followed by its successors' effects, and the short-circuit meet
+            // with the skipped path has already dropped its tag. It survives
+            // exactly when no write of this guard can reach its subject; a
+            // later conjunct that replaces the sum, or an unknown write,
+            // retires it.
+            let mut observations = Vec::new();
+            true_guard_observations(program, machine, state, expression, &mut observations);
+            let last = observations.len().saturating_sub(1);
+            for (position, observation) in observations.into_iter().enumerate() {
+                let Some(binary) = program.expression_table.binary_node(observation) else {
+                    continue;
+                };
+                if !validation::has_exact_case_membership_meaning(
                     program,
                     machine,
                     Some(state),
                     observation,
                     binary,
-                )
-                && let ExpressionNode::Name(case) =
-                    program.expression_table.expression(binary.right)
-            {
+                ) {
+                    continue;
+                }
+                let ExpressionNode::Name(case) = program.expression_table.expression(binary.right)
+                else {
+                    continue;
+                };
+                if position != last
+                    && !validation::canonical_place_from_expression_in_state(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        binary.left,
+                    )
+                    .is_some_and(|subject| {
+                        crate::flow::entry_origin_is_stable(
+                            program,
+                            &build.control,
+                            entry_writes,
+                            entry_unknown_write,
+                            &subject,
+                        )
+                    })
+                {
+                    continue;
+                }
                 append_observation_context(
                     program,
                     semantic,
