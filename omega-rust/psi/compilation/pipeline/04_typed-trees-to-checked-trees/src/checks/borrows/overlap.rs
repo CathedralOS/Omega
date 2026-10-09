@@ -4,6 +4,7 @@
 //! unknown bounds remain conservative. No successful judgment is serialized
 //! for the checker to reconstruct later.
 
+mod captured_values;
 mod indexes;
 mod premises;
 mod segments;
@@ -12,18 +13,31 @@ pub(super) use self::premises::append_call_premises;
 pub(super) use self::premises::{StatedOrderingPremise, stated_ordering_premises};
 use self::segments::place_segments_compatibility;
 
+/// Produced evaluation facts shared by source debt and executable planning.
+/// Borrow only these fields so recording cleanup invocations stays independent.
+#[derive(Clone, Copy)]
+pub(crate) struct StorageSelectorFacts<'facts> {
+    pub flow: &'facts checked_trees::FlowFacts,
+    pub semantic: &'facts facts::FactPlan,
+}
+
 /// Compare captured storage paths without assuming that current mutable
 /// selector storage still holds an earlier value. Immutable values and exact
 /// constants retain identity across statements; mutable query coordinates
 /// cannot establish containment without version-pinned premises. Window debt
 /// uses this same spatial judgment as loans, but supplies no current premises
-/// as evidence about the opening occurrence.
+/// as evidence about the opening occurrence. Detached selector copies obtain
+/// equality only from their retained reaching values and write-prefix epochs;
+/// both source debt and executable planning consume that same relation.
 pub(crate) fn storage_path_compatibility(
     program: &dyn ::validation::CheckingInput,
+    captures: StorageSelectorFacts<'_>,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> (bool, checked_trees::CapturedPlaceContainment) {
-    place_segments_compatibility(program, left, right, &[], &mut None)
+    let lookup = validation::ImmutableBoundLookup::new(program);
+    let premises = captured_values::equalities(program, captures, left, right, &lookup);
+    place_segments_compatibility(program, left, right, &premises, &mut Some(lookup))
 }
 
 pub(super) fn captured_place_compatibility<'p>(

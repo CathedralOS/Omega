@@ -26,7 +26,7 @@ mod access_sources;
 mod aliases;
 mod details;
 mod overlap;
-pub(crate) use overlap::storage_path_compatibility;
+pub(crate) use overlap::{StorageSelectorFacts, storage_path_compatibility};
 mod simultaneous;
 
 use super::ranges::incoming_guards::IncomingGuardIndex;

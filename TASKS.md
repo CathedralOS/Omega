@@ -676,8 +676,12 @@ defines the complete product bar.
     after their mutable initializer changes; they are not aliases of that
     live storage. Keep `computed_window_selector_requires_builtin_meaning`
     for a selected authored operator whose result is not the builtin sum.
-    Qualify mutable-selector version pinning, cleanup
-    prerequisites on narrowed receivers and remaining native hosts.
+    Keep `runtime_mutable_selector_window_exit` (0) for unchanged mutable
+    selector captures, disjoint intervening writes and detached copies after
+    an alias write; keep `borrowed_window_selector_alias_write` and
+    `borrowed_window_mutable_selector_observes_hole` for changed versions and
+    observing an absent selected element. Qualify cleanup prerequisites on
+    narrowed receivers and remaining native hosts.
     Qualify runtime-selected cleanup on the remaining native hosts. Keep
     `pass/drops/runtime_case_selected_cleanup_continuations_exit` (0) for
     captured scalar returns, computed temporaries, parent retention and

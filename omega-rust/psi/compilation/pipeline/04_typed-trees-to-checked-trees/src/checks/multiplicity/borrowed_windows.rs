@@ -27,6 +27,7 @@
 //! distinguishes those cases without reclassifying ownership from syntax.
 //! A repair store runs only after its value and destination selectors finish.
 
+use crate::checks::borrows::StorageSelectorFacts;
 use validation::CanonicalPlace;
 
 use language_core::ReferenceAccess;
@@ -49,24 +50,31 @@ mod windows;
 /// regardless of the order their moves recorded them in.
 fn same_place_set(
     program: &dyn ::validation::CheckingInput,
+    captures: StorageSelectorFacts<'_>,
     left: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
     right: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
 ) -> bool {
     left.len() == right.len()
         && left.iter().all(|place| {
             right.iter().any(|candidate| {
-                same_storage_debt(program, (place.0, &place.1), (candidate.0, &candidate.1))
+                same_storage_debt(
+                    program,
+                    captures,
+                    (place.0, &place.1),
+                    (candidate.0, &candidate.1),
+                )
             })
         })
 }
 
 fn same_storage_debt(
     program: &dyn ::validation::CheckingInput,
+    captures: StorageSelectorFacts<'_>,
     left: (facts::PlaceRoot, &[facts::PlaceSegment]),
     right: (facts::PlaceRoot, &[facts::PlaceSegment]),
 ) -> bool {
     left.0 == right.0
-        && crate::checks::borrows::storage_path_compatibility(program, left.1, right.1).1
+        && crate::checks::borrows::storage_path_compatibility(program, captures, left.1, right.1).1
             == checked_trees::CapturedPlaceContainment::Same
 }
 

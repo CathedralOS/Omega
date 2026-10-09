@@ -6,7 +6,7 @@ use super::{exclusive_storage_chain, place_spelling, resolve_storage_place};
 
 use super::boundary_checks::*;
 
-use crate::checks::borrows::storage_path_compatibility;
+use crate::checks::borrows::{StorageSelectorFacts, storage_path_compatibility};
 
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
@@ -29,12 +29,19 @@ pub(super) struct OpenWindow {
     exit_reported: bool,
 }
 
-#[derive(Default)]
-pub(in crate::checks::multiplicity) struct BorrowedStorageWindows {
+pub(in crate::checks::multiplicity) struct BorrowedStorageWindows<'facts> {
     open: Vec<OpenWindow>,
+    captures: StorageSelectorFacts<'facts>,
 }
 
-impl BorrowedStorageWindows {
+impl<'facts> BorrowedStorageWindows<'facts> {
+    pub(in crate::checks::multiplicity) fn new(captures: StorageSelectorFacts<'facts>) -> Self {
+        Self {
+            open: Vec::new(),
+            captures,
+        }
+    }
+
     /// Select the still-present old referent after RHS evaluation. A repair
     /// into an exact hole creates no second death; replacing an enclosing
     /// value retains the absent children's exclusions. This is the same
@@ -109,7 +116,8 @@ impl BorrowedStorageWindows {
             &target.segments,
         );
         if self.open.iter().any(|absent| {
-            absent.root == root && storage_path_contains(program, &absent.path, &path)
+            absent.root == root
+                && storage_path_contains(program, self.captures, &absent.path, &path)
         }) {
             return None;
         }
@@ -117,7 +125,8 @@ impl BorrowedStorageWindows {
             .open
             .iter()
             .filter(|absent| {
-                absent.root == root && storage_path_contains(program, &path, &absent.path)
+                absent.root == root
+                    && storage_path_contains(program, self.captures, &path, &absent.path)
             })
             .map(|absent| absent.path.clone())
             .collect();
@@ -190,7 +199,7 @@ impl BorrowedStorageWindows {
         let spelling = place_spelling(program, machine, state, root, &storage_path);
         if let Some(absent) = self.open.iter().find(|absent| {
             absent.root == root
-                && storage_path_compatibility(program, &storage_path, &absent.path).0
+                && storage_path_compatibility(program, self.captures, &storage_path, &absent.path).0
         }) {
             return Some(Diagnostic::error(format!(
                 "cannot transfer `{spelling}` out of borrowed storage while `{}` is absent: \
@@ -258,7 +267,7 @@ impl BorrowedStorageWindows {
         );
         let Some(absent) = self.open.iter().find(|absent| {
             absent.root == root
-                && storage_path_compatibility(program, &storage_path, &absent.path).0
+                && storage_path_compatibility(program, self.captures, &storage_path, &absent.path).0
         }) else {
             return;
         };
@@ -324,7 +333,7 @@ impl BorrowedStorageWindows {
         );
         let Some(absent) = self.open.iter().find(|absent| {
             absent.root == root
-                && storage_path_compatibility(program, &storage_path, &absent.path).0
+                && storage_path_compatibility(program, self.captures, &storage_path, &absent.path).0
         }) else {
             return;
         };
@@ -372,11 +381,11 @@ impl BorrowedStorageWindows {
         let mut repaired = Vec::new();
         for (index, absent) in self.open.iter().enumerate() {
             if absent.root != root
-                || !storage_path_compatibility(program, &target_path, &absent.path).0
+                || !storage_path_compatibility(program, self.captures, &target_path, &absent.path).0
             {
                 continue;
             }
-            if storage_path_contains(program, &target_path, &absent.path) {
+            if storage_path_contains(program, self.captures, &target_path, &absent.path) {
                 repaired.push(index);
                 continue;
             }
@@ -449,11 +458,12 @@ impl BorrowedStorageWindows {
 /// structural spelling equality could instead conflate changed mutable values.
 fn storage_path_contains(
     program: &dyn ::validation::CheckingInput,
+    captures: StorageSelectorFacts<'_>,
     container: &[facts::PlaceSegment],
     contained: &[facts::PlaceSegment],
 ) -> bool {
     matches!(
-        storage_path_compatibility(program, container, contained).1,
+        storage_path_compatibility(program, captures, container, contained).1,
         checked_trees::CapturedPlaceContainment::Same
             | checked_trees::CapturedPlaceContainment::LeftContainsRight
     )

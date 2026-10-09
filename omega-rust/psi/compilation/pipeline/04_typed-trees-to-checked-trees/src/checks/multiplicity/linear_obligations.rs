@@ -180,7 +180,11 @@ pub(super) fn prepare_storage_deaths(
             // a guarded exit edge, and a missed arm continues to the next
             // statement. Every taken edge and the implicit return must see a
             // discharged window; the fall-through path may still repair it.
-            let mut windows = borrowed_windows::BorrowedStorageWindows::default();
+            let captures = crate::checks::StorageSelectorFacts {
+                flow: &facts.flow,
+                semantic: &facts.semantic,
+            };
+            let mut windows = borrowed_windows::BorrowedStorageWindows::new(captures);
             let mut consumed = ConsumedOwners::default();
             for (statement_index, statement) in statements.iter().enumerate() {
                 let is_transition = matches!(statement, StatementNode::Transition(_));
@@ -190,8 +194,12 @@ pub(super) fn prepare_storage_deaths(
                 // window is admitted only when every reachable arm agrees on
                 // the resolved places it extracts. Transition edges can never
                 // repair before leaving, so their moves skip the planner.
-                let mut arm_plan =
-                    borrowed_windows::ArmWindowPlan::new(program, statement, &facts.operators);
+                let mut arm_plan = borrowed_windows::ArmWindowPlan::new(
+                    program,
+                    statement,
+                    &facts.operators,
+                    captures,
+                );
                 if !is_transition && arm_plan.has_frames() {
                     for event in moves.iter().filter(|event| {
                         event_statement_index(event.source) == Some(statement_index)

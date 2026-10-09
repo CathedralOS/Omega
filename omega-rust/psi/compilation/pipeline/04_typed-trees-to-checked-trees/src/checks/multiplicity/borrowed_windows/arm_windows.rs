@@ -4,7 +4,7 @@ use validation::CanonicalPlace;
 
 use super::{place_spelling, resolve_storage_place, same_place_set, same_storage_debt};
 
-use crate::checks::borrows::storage_path_compatibility;
+use crate::checks::borrows::{StorageSelectorFacts, storage_path_compatibility};
 
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
@@ -71,7 +71,8 @@ pub(in crate::checks::multiplicity) enum ArmWindowVerdict {
 /// same absent storage places, including debts an agreeing nested match lifts
 /// into the arm that evaluates it. Disagreement keeps the plain rejection
 /// from the unconditional gate it replaces.
-pub(in crate::checks::multiplicity) struct ArmWindowPlan {
+pub(in crate::checks::multiplicity) struct ArmWindowPlan<'facts> {
+    captures: StorageSelectorFacts<'facts>,
     /// Every `match` in the statement, pre-order: an enclosing match's frame
     /// precedes the frames nested inside its arms.
     frames: Vec<MatchWindowFrame>,
@@ -118,7 +119,7 @@ pub(in crate::checks::multiplicity) struct ArmWindowPlan {
     edge_conditional: std::collections::BTreeSet<(u32, u32)>,
 }
 
-impl ArmWindowPlan {
+impl<'facts> ArmWindowPlan<'facts> {
     /// Collect the statement's `match` frames and the expression→arm map.
     /// The walk mirrors `statement_steps`: subjects and patterns evaluate in
     /// the enclosing context, arm values in their arm, and short-circuit
@@ -127,8 +128,10 @@ impl ArmWindowPlan {
         program: &dyn ::validation::CheckingInput,
         statement: &StatementNode,
         operators: &checked_trees::CheckedOperatorFacts,
+        captures: StorageSelectorFacts<'facts>,
     ) -> Self {
         let mut plan = Self {
+            captures,
             frames: Vec::new(),
             frame_by_arm: std::collections::BTreeMap::new(),
             arm_of_expression: std::collections::BTreeMap::new(),
@@ -265,7 +268,12 @@ impl ArmWindowPlan {
             let mut rejected = arm_sets.iter().any(|debts| {
                 debts.iter().enumerate().any(|(position, debt)| {
                     debts[..position].iter().any(|prior| {
-                        same_storage_debt(program, (prior.0, &prior.1), (debt.0, &debt.1))
+                        same_storage_debt(
+                            program,
+                            self.captures,
+                            (prior.0, &prior.1),
+                            (debt.0, &debt.1),
+                        )
                     })
                 })
             });
@@ -277,6 +285,7 @@ impl ArmWindowPlan {
                                 if !arm_sets[position].iter().any(|prior| {
                                     same_storage_debt(
                                         program,
+                                        self.captures,
                                         (prior.0, &prior.1),
                                         (debt.0, &debt.1),
                                     )
@@ -297,7 +306,7 @@ impl ArmWindowPlan {
                 let first = arm_sets.first().map(Vec::as_slice).unwrap_or(&[]);
                 rejected = arm_sets
                     .iter()
-                    .any(|debts| !same_place_set(program, debts, first));
+                    .any(|debts| !same_place_set(program, self.captures, debts, first));
                 if !rejected {
                     agreed_debts[index] = first.to_vec();
                 }
@@ -385,10 +394,20 @@ impl ArmWindowPlan {
         let root = self.root_frame(frame_index);
         if self.opened.iter().any(|(frame, root, path)| {
             *frame == frame_index
-                && same_storage_debt(program, (*root, path), (resolved.0, &resolved.1))
+                && same_storage_debt(
+                    program,
+                    self.captures,
+                    (*root, path),
+                    (resolved.0, &resolved.1),
+                )
         }) || self.pending.iter().any(|(pending_root, _, proot, ppath)| {
             *pending_root == root
-                && same_storage_debt(program, (*proot, ppath), (resolved.0, &resolved.1))
+                && same_storage_debt(
+                    program,
+                    self.captures,
+                    (*proot, ppath),
+                    (resolved.0, &resolved.1),
+                )
         }) {
             return Some(ArmWindowVerdict::SiblingRoute);
         }
@@ -499,7 +518,7 @@ impl ArmWindowPlan {
         for (edge_arm, absent_root, absent_path) in &self.edge_absent {
             if !self.edge_covers(*edge_arm, arm)
                 || *absent_root != root
-                || !storage_path_compatibility(program, &storage_path, absent_path).0
+                || !storage_path_compatibility(program, self.captures, &storage_path, absent_path).0
             {
                 continue;
             }

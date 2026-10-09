@@ -43,12 +43,21 @@ use typed_trees::expression::ExpressionHandle;
 /// mutable storage spelling alone cannot identify an earlier selection.
 fn same_storage_place(
     program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     left: &CanonicalPlace,
     right: &CanonicalPlace,
 ) -> bool {
     left.root == right.root
-        && crate::checks::storage_path_compatibility(program, &left.segments, &right.segments).1
-            == checked_trees::CapturedPlaceContainment::Same
+        && crate::checks::storage_path_compatibility(
+            program,
+            crate::checks::StorageSelectorFacts {
+                flow: &facts.flow,
+                semantic: &facts.semantic,
+            },
+            &left.segments,
+            &right.segments,
+        )
+        .1 == checked_trees::CapturedPlaceContainment::Same
 }
 
 /// Assignment owns selector evaluation, even when the selector spells a
@@ -433,7 +442,7 @@ impl OpenWindows {
         if self
             .open
             .iter()
-            .any(|open| same_storage_place(program, &open.storage, &place.storage))
+            .any(|open| same_storage_place(program, facts, &open.storage, &place.storage))
         {
             return None;
         }
@@ -612,11 +621,9 @@ impl OpenWindows {
                     &access_place,
                     &|expression| selectors.runtime_segment(expression),
                 )?;
-                let opening_binding = match self
-                    .open
-                    .iter()
-                    .position(|open| same_storage_place(program, &open.storage, &place.storage))
-                {
+                let opening_binding = match self.open.iter().position(|open| {
+                    same_storage_place(program, facts, &open.storage, &place.storage)
+                }) {
                     Some(position) => Some(self.open.remove(position).opening_binding),
                     None => None,
                 };

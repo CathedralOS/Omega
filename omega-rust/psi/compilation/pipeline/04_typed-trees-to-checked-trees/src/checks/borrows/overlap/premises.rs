@@ -330,6 +330,19 @@ pub struct StatedOrderingPremise {
     parameter_arguments: Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>>,
 }
 
+impl StatedOrderingPremise {
+    /// The caller has established equality of the detached values at their
+    /// actual evaluation epochs, not equality of current storage coordinates.
+    pub(super) fn captured_equality(left: NormalizedBound, right: NormalizedBound) -> Self {
+        Self {
+            relation: BorrowCompatibilityPremiseRelation::Equal,
+            left,
+            right,
+            parameter_arguments: None,
+        }
+    }
+}
+
 /// Collect the ordering premises available at one formation scope.
 ///
 /// Entry availability and incoming guards are shared with range checking.
