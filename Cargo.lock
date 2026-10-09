@@ -596,6 +596,7 @@ dependencies = [
  "layout-plans",
  "optimization-core",
  "post-handoff-writer-plan",
+ "semantic-vocabulary",
  "sha2",
  "target",
 ]
