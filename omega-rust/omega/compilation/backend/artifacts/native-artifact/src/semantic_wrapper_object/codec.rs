@@ -103,7 +103,7 @@ pub(crate) fn decode_optimized_program_storage_semantic_wrapper_object(
     if cursor.take(8)? != CONTAINER_MAGIC {
         return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::WrongMagic);
     }
-    let version = u32::from_le_bytes(cursor.array()?);
+    let version = cursor.u32()?;
     if version != CODEC_VERSION {
         return Err(
             OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnsupportedVersion(version),
@@ -206,7 +206,7 @@ fn decode_plan_content(
     let psi = decode_psi(cursor)?;
     let target = decode_target(cursor)?;
     let text_section_name = string(&mut *cursor)?;
-    let text_section_alignment = u64::from_le_bytes(cursor.array()?);
+    let text_section_alignment = cursor.u64()?;
     let text_bytes = cursor.length_prefixed()?.to_vec();
     let symbol_count = cursor.length()?;
     let mut symbols = Vec::with_capacity(symbol_count);
@@ -214,21 +214,21 @@ fn decode_plan_content(
         let symbol = decode_symbol_id(cursor)?;
         let source_function_index = match cursor.byte()? {
             0 => None,
-            1 => Some(u64::from_le_bytes(cursor.array()?)),
+            1 => Some(cursor.u64()?),
             _ => return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag),
         };
         let machine = match cursor.byte()? {
             0 => None,
             1 => {
-                Some(MachineId::new(u64::from_le_bytes(cursor.array()?)).ok_or(
+                Some(MachineId::new(cursor.u64()?).ok_or(
                     OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidMachine,
                 )?)
             }
             _ => return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag),
         };
         let name = string(&mut *cursor)?;
-        let section_offset = u64::from_le_bytes(cursor.array()?);
-        let byte_count = u64::from_le_bytes(cursor.array()?);
+        let section_offset = cursor.u64()?;
+        let byte_count = cursor.u64()?;
         let role = match cursor.byte()? {
             1 => OptimizedProgramStorageSemanticWrapperObjectSymbolRole::SemanticWrapperV1,
             2 => OptimizedProgramStorageSemanticWrapperObjectSymbolRole::PrivateTerminalContinuationV1,
@@ -247,18 +247,18 @@ fn decode_plan_content(
     }
     let wrapper_symbol = decode_symbol_id(cursor)?;
     let continuation_symbol = decode_symbol_id(cursor)?;
-    let wrapper_byte_count = u64::from_le_bytes(cursor.array()?);
+    let wrapper_byte_count = cursor.u64()?;
     if cursor.byte()? != 1 {
         return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag);
     }
     let call_resolution = OptimizedProgramStorageSemanticWrapperCallResolution {
         state: OptimizedProgramStorageSemanticWrapperCallResolutionState::ResolvedInCompositeTextSectionV1,
-        wrapper_section_offset: u64::from_le_bytes(cursor.array()?),
-        continuation_section_offset: u64::from_le_bytes(cursor.array()?),
-        next_instruction_section_offset: u64::from_le_bytes(cursor.array()?),
+        wrapper_section_offset: cursor.u64()?,
+        continuation_section_offset: cursor.u64()?,
+        next_instruction_section_offset: cursor.u64()?,
         displacement: i32::from_le_bytes(cursor.array()?),
     };
-    let relocation_record_count = u64::from_le_bytes(cursor.array()?);
+    let relocation_record_count = cursor.u64()?;
     let object = OptimizedProgramStorageSemanticWrapperObjectPlan {
         identity,
         source_artifact,
@@ -331,7 +331,7 @@ pub(super) fn decode_manifest(
     if cursor.take(8)? != MANIFEST_MAGIC {
         return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::WrongMagic);
     }
-    let version = u32::from_le_bytes(cursor.array()?);
+    let version = cursor.u32()?;
     if version != CODEC_VERSION {
         return Err(
             OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnsupportedVersion(version),
@@ -356,9 +356,9 @@ pub(super) fn decode_manifest(
     let target = decode_target(&mut cursor)?;
     let wrapper_symbol = decode_symbol_id(&mut cursor)?;
     let continuation_symbol = decode_symbol_id(&mut cursor)?;
-    let text_byte_count = u64::from_le_bytes(cursor.array()?);
-    let symbol_count = u64::from_le_bytes(cursor.array()?);
-    let relocation_record_count = u64::from_le_bytes(cursor.array()?);
+    let text_byte_count = cursor.u64()?;
+    let symbol_count = cursor.u64()?;
+    let relocation_record_count = cursor.u64()?;
     for _ in 0..4 {
         if cursor.byte()? != 1 {
             return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag);
@@ -405,7 +405,7 @@ fn encode_psi(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
 fn decode_psi(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalPsiIdentity, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
-    let marker = u16::from_le_bytes(cursor.array()?);
+    let marker = cursor.u16()?;
     Ok(TerminalPsiIdentity {
         vocabulary_marker: VocabularyMarker::new(marker)
             .ok_or(OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidVocabulary)?,
@@ -437,8 +437,8 @@ fn decode_target(
 ) -> Result<NativeTarget, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
     let architecture = cursor.byte()?;
     let object_format = cursor.byte()?;
-    let pointer_size = u64::from_le_bytes(cursor.array()?);
-    let pointer_alignment = u64::from_le_bytes(cursor.array()?);
+    let pointer_size = cursor.u64()?;
+    let pointer_alignment = cursor.u64()?;
     if architecture != 1 || object_format != 1 || pointer_size != 8 || pointer_alignment != 8 {
         return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidTarget);
     }
@@ -468,7 +468,7 @@ fn encode_bytes(
 fn decode_symbol_id(
     cursor: &mut Cursor<'_>,
 ) -> Result<ObjectLocalSymbolId, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
-    ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
+    ObjectLocalSymbolId::new(cursor.u64()?)
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidSymbol)
 }
 
