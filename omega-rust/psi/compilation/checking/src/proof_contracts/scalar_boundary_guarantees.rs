@@ -19,25 +19,29 @@ pub fn derive_scalar_boundary_guarantees(
     machine: &Machine,
     contract: &checked_trees::MachineContractPlan,
 ) -> Vec<Guarantee> {
-    contract
-        .closed_scalar_values
-        .ensures()
-        .iter()
-        .flatten()
-        .filter_map(|clause| {
-            match clause {
-                ClosedScalarContractValue::Predicate(predicate) => {
-                    Some(Guarantee::Predicate(predicate.clone()))
-                }
-                ClosedScalarContractValue::FloatMeaningEquality { expression, .. } => {
-                    meaning_consequence(program, facts, machine, *expression)
-                }
-                // Content and other proof-only contracts have separate owners. A
-                // consequence this runtime vocabulary cannot express grants no fact.
-                _ => None,
+    let mut guarantees = Vec::new();
+    for clause in contract.closed_scalar_values.ensures().iter().flatten() {
+        match clause {
+            ClosedScalarContractValue::Predicate(predicate) => {
+                guarantees.push(Guarantee::Predicate(predicate.clone()));
             }
-        })
-        .collect()
+            ClosedScalarContractValue::SourceCheckedGuarantee {
+                facts: source_facts,
+            } => {
+                for fact in program.proof_facts.span_or_empty(*source_facts) {
+                    if let Some(expression) = fact.as_expression()
+                        && let Some(guarantee) =
+                            meaning_consequence(program, facts, machine, *expression)
+                    {
+                        guarantees.push(guarantee);
+                    }
+                }
+            }
+            // A consequence this runtime vocabulary cannot express grants no fact.
+            _ => {}
+        }
+    }
+    guarantees
 }
 
 fn meaning_consequence(

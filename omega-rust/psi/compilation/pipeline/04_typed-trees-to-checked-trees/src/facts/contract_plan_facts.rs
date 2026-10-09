@@ -28,7 +28,6 @@ pub(crate) fn build_contract_plans(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     scalar_computations: &checked_trees::CheckedScalarComputationPlans,
-    float_meaning_equalities: &[checked_trees::CheckedFloatMeaningEqualityProposition],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
@@ -119,12 +118,8 @@ pub(crate) fn build_contract_plans(
             ),
         };
         let published_termination = declared_termination(program, &termination.interface, &binders);
-        let closed_scalar_values = build_closed_scalar_value_contract_plan(
-            program,
-            machine,
-            operators,
-            float_meaning_equalities,
-        );
+        let closed_scalar_values =
+            build_closed_scalar_value_contract_plan(program, machine, operators);
         let identity = checked_trees::contract_identity(
             machine.supply_mode,
             &published_service_names,
@@ -353,7 +348,6 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &checked_trees::CheckedOperatorFacts,
-    float_meaning_equalities: &[checked_trees::CheckedFloatMeaningEqualityProposition],
 ) -> checked_trees::ClosedScalarValueContractPlan {
     use typed_trees::{
         domain::ProofFact,
@@ -421,62 +415,62 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     };
 
     let lower_clause = |contract: &typed_trees::signature::SignatureContract| {
-        lower_closed_clause(contract).or_else(|| {
-            // Preserve legacy closed literal encoding, then read compositional
-            // scalar predicates in their exact entry or normal-result namespace.
-            let facts = program.proof_facts.span_or_empty(contract.facts);
-            // The float-meaning equality reading is a whole-clause shape, not
-            // a predicate, so it stays on the single-fact spelling.
-            if let [ProofFact::Expression(expression)] = facts
-                && contract.kind == SignatureContractKind::Ensures
-                && let Some(clause) = lower_float_meaning_equality_clause(
-                    program,
-                    *expression,
-                    float_meaning_equalities,
-                )
-            {
-                return Some(clause);
-            }
-            // One keyword is one clause however many facts it lists:
-            // `requires 1 <= value; value <= 7;` parses to ONE contract
-            // carrying TWO facts and means the conjunction that
-            // `requires 1 <= value && value <= 7;` spells as one. One clause
-            // per authored contract is load-bearing downstream --
-            // `runtime_requirements::source` counts authored CONTRACTS to
-            // find where the derived parameter-range tail begins, and reads
-            // an authored two-bound range back as a single `And` -- so the
-            // facts join here rather than becoming separate rows. Reading
-            // only the one-fact spelling left every multi-fact clause
-            // unlowered as `None`, so the clause could not be enforced. The
-            // facts share one predicate budget
-            // because they are one clause.
-            let mut remaining = 4096;
-            let mut conjunction: Option<checked_trees::CheckedBooleanExpression> = None;
-            for fact in facts {
-                // A membership or proposition fact has no scalar predicate
-                // reading, and a clause is all-or-nothing: the whole clause
-                // stays unlowered rather than shrinking to the facts that do
-                // read, which would drop an authored requirement silently.
-                let expression = fact.as_expression()?;
-                let predicate = crate::values::lower_scalar_contract_predicate(
-                    program,
-                    operators,
-                    machine,
-                    *expression,
-                    contract.kind == SignatureContractKind::Ensures,
-                    &mut remaining,
-                )?;
-                conjunction = Some(match conjunction {
-                    None => predicate,
-                    // Left-associated, as `a && b && c` reads.
-                    Some(left) => checked_trees::CheckedBooleanExpression::And {
-                        left: Box::new(left),
-                        right: Box::new(predicate),
+        lower_closed_clause(contract)
+            .or_else(|| {
+                // Preserve legacy closed literal encoding, then read compositional
+                // scalar predicates in their exact entry or normal-result namespace.
+                let facts = program.proof_facts.span_or_empty(contract.facts);
+                // One keyword is one clause however many facts it lists:
+                // `requires 1 <= value; value <= 7;` parses to ONE contract
+                // carrying TWO facts and means the conjunction that
+                // `requires 1 <= value && value <= 7;` spells as one. One clause
+                // per authored contract is load-bearing downstream --
+                // `runtime_requirements::source` counts authored CONTRACTS to
+                // find where the derived parameter-range tail begins, and reads
+                // an authored two-bound range back as a single `And` -- so the
+                // facts join here rather than becoming separate rows. Reading
+                // only the one-fact spelling left every multi-fact clause
+                // unlowered as `None`, so the clause could not be enforced. The
+                // facts share one predicate budget
+                // because they are one clause.
+                let mut remaining = 4096;
+                let mut conjunction: Option<checked_trees::CheckedBooleanExpression> = None;
+                for fact in facts {
+                    // A membership or proposition fact has no scalar predicate
+                    // reading, and a clause is all-or-nothing: the whole clause
+                    // stays unlowered rather than shrinking to the facts that do
+                    // read, which would drop an authored requirement silently.
+                    let expression = fact.as_expression()?;
+                    let predicate = crate::values::lower_scalar_contract_predicate(
+                        program,
+                        operators,
+                        machine,
+                        *expression,
+                        contract.kind == SignatureContractKind::Ensures,
+                        &mut remaining,
+                    )?;
+                    conjunction = Some(match conjunction {
+                        None => predicate,
+                        // Left-associated, as `a && b && c` reads.
+                        Some(left) => checked_trees::CheckedBooleanExpression::And {
+                            left: Box::new(left),
+                            right: Box::new(predicate),
+                        },
+                    });
+                }
+                conjunction.map(checked_trees::ClosedScalarContractValue::Predicate)
+            })
+            .or_else(|| {
+                // Requires remain obligations on each caller. An authored ensures
+                // has already been checked against normal-return paths: when this
+                // scalar vocabulary has no useful consequence, retain its source
+                // clause for checker consumers and erase it during publication.
+                (contract.kind == SignatureContractKind::Ensures).then_some(
+                    checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee {
+                        facts: contract.facts,
                     },
-                });
-            }
-            conjunction.map(checked_trees::ClosedScalarContractValue::Predicate)
-        })
+                )
+            })
     };
 
     let mut requires = Vec::new();
@@ -523,64 +517,6 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     .with_authored_requires_len(authored_requires_len)
     .with_float_entry_ranges(ranges.float_entry_ranges)
     .with_integer_entry_ranges(ranges.integer_entry_ranges)
-}
-
-/// Recognize one authored `FloatMeaning` equality clause: a `==` whose
-/// operands each resolve to a sealed float-semantics catalog declaration
-/// producing the proof-only `FloatMeaning` carrier — a `Float::meaning*`
-/// projection or a `FloatSemantics::*` application whose catalog row's
-/// result is `Meaning`. The clause keeps the authored expression verbatim
-/// and cites the checked float-meaning equality row the float-meaning binding
-/// minted for that exact `==` declaration occurrence, rather than
-/// approximating a scalar predicate. A clause without that row publishes no
-/// float-meaning shape.
-fn lower_float_meaning_equality_clause(
-    program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-    float_meaning_equalities: &[checked_trees::CheckedFloatMeaningEqualityProposition],
-) -> Option<checked_trees::ClosedScalarContractValue> {
-    use typed_trees::expression::BinaryOperator;
-
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
-    if binary.operator != BinaryOperator::Equal {
-        return None;
-    }
-    let operand_produces_meaning = |operand: typed_trees::expression::ExpressionHandle| {
-        let Some(call) = program.expression_table.call_node(operand) else {
-            return false;
-        };
-        let Some(operator) = typed_trees::operator::resolve_named_expression_call(program, call)
-        else {
-            return false;
-        };
-        let [namespace, name] = program.operator_path_members(operator.name) else {
-            return false;
-        };
-        numerics::float_projection::FloatProjectionOperation::from_source_identity(
-            namespace.as_str(),
-            name.as_str(),
-        )
-        .is_some()
-            || validation::exact_toolchain_float_semantic_contract(program, operator).is_some_and(
-                |(row, _)| {
-                    row.result == numerics::float_semantics_catalog::FloatSemanticValueKind::Meaning
-                },
-            )
-    };
-    if !(operand_produces_meaning(binary.left) && operand_produces_meaning(binary.right)) {
-        return None;
-    }
-    let equality = float_meaning_equalities
-        .iter()
-        .find(|row| row.use_site.is_none() && row.source_expression == expression)?;
-    Some(
-        checked_trees::ClosedScalarContractValue::FloatMeaningEquality {
-            expression,
-            equality: equality.id,
-        },
-    )
 }
 
 /// Body statements whose planned scalar value executes a Trapping primitive.

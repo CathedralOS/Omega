@@ -1,4 +1,10 @@
-//! Closed float/integer range requirements and closed scalar value contracts.
+//! Closed scalar requirements and optional consequences of source guarantees.
+//!
+//! Checking proves the complete authored normal-return contract. A guarantee
+//! outside the executable scalar vocabulary retains its source facts for
+//! checking-time consequence derivation, then erases before publication. It
+//! supplies neither an opaque certified atom nor a runtime tautology. Requires
+//! remain caller obligations and never acquire that erasure category.
 
 use numerics::literals::IntegerLiteral;
 
@@ -54,15 +60,12 @@ pub enum ClosedScalarContractValue {
     /// roster and its terminal catalog rows, not through `Predicate`
     /// propositions, so it may only appear in the requires tail.
     FloatRange(ClosedFloatRangeRequirement),
-    /// One authored `FloatMeaning` equality clause over float-semantics
-    /// catalog results. `expression` keeps the authored `==` contract node
-    /// verbatim; `equality` is the dense row of the checked float-meaning
-    /// equality roster the clause discharges through, which its terminal
-    /// proposition cites. A clause with no checked row is not published in
-    /// this shape. It may only appear in the ensures tail.
-    FloatMeaningEquality {
-        expression: typed_trees::expression::ExpressionHandle,
-        equality: crate::CheckedProofPropositionId,
+    /// Authored normal-return guarantee checked in its source namespace but
+    /// without a closed scalar consequence. Keep its source facts for optional
+    /// checking-time consequence derivation; lowering erases this category.
+    /// It is never a runtime requirement, tautology, or portable proof receipt.
+    SourceCheckedGuarantee {
+        facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     },
 }
 

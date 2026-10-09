@@ -167,15 +167,17 @@ pub fn contract_plan_by_machine<'plans>(
 pub struct MachineContractPlan {
     pub machine: SymbolHandle,
     /// Projection of unbound requires/ensures clauses into the closed
-    /// scalar vocabulary, free of source handles: reflexive `==` literal
+    /// scalar vocabulary: reflexive `==` literal
     /// values (`Boolean`/`Integer`), `Predicate`s over the entry scalar
     /// parameters (an ensures clause may also name the result),
     /// requires-tail `FloatRange` windows, and ensures-only
-    /// `FloatMeaningEquality` rows, which cite their checked float-meaning
-    /// equality row beside the typed `==` expression handle. A derived
+    /// `SourceCheckedGuarantee` clauses without runtime scalar consequences.
+    /// Those source facts remain available to checker consequence derivation
+    /// and erase before Terminal publication. A derived
     /// parameter-range tail follows the authored requires prefix.
-    /// An unbound clause outside the vocabulary keeps its row as `None`,
-    /// so consumers fail closed without reopening typed proof expressions.
+    /// An unsupported requires clause keeps its row as `None`; guarantees
+    /// without scalar consequences keep their exact source facts. Runtime
+    /// consumers never reopen those facts or treat them as requirements.
     /// Named-witness lanes produce no row at all — the evidence contract
     /// plan checks them — and crash or outcome-specific clauses only set
     /// the plan's `has_*` flags.

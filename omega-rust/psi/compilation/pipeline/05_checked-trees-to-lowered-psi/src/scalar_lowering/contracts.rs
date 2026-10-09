@@ -74,14 +74,10 @@ pub(crate) fn clauses(
             Some(ClosedScalarContractValue::FloatRange(_)) => {
                 return unsupported("scalar floating entry range is not a proposition clause");
             }
-            // A float-meaning equality clause cites its checked equality row
-            // as the vocabulary-level `Atom` the proof admission replays;
-            // the row's dense position derives that identity for producer
-            // and verifier alike.
-            Some(ClosedScalarContractValue::FloatMeaningEquality { equality, .. }) => {
-                Proposition::Atom(terminal_psi::float_meaning_equality_proposition_id(
-                    equality.0,
-                ))
+            Some(ClosedScalarContractValue::SourceCheckedGuarantee { .. }) => {
+                return unsupported(
+                    "source-checked guarantee has no runtime requirement projection",
+                );
             }
             None => return unsupported("scalar contract clause has no checked predicate"),
         };

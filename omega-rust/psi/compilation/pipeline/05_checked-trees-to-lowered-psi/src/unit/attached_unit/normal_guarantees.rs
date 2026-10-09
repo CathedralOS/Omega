@@ -46,13 +46,23 @@ pub(crate) fn lower(
     } else {
         contract.closed_scalar_values.ensures()
     };
+    // Source-checked clauses without a scalar projection erase here. They are
+    // neither asserted true nor exported as opaque atoms; upstream checking
+    // established the complete normal-return contract.
     // Returning execution restores the declared domain of every exclusive
     // loan: the declaration predicate roster's restored rows follow the
     // authored guarantees as the same kind of obligation, rederived from the
     // entry parameters' declared storage rather than read from a package.
     let mut guarantees = ensures
         .iter()
-        .filter(|row| row.is_some())
+        .filter(|row| {
+            !matches!(
+                row,
+                None | Some(
+                    checked_trees::ClosedScalarContractValue::SourceCheckedGuarantee { .. }
+                )
+            )
+        })
         .cloned()
         .collect::<Vec<_>>();
     guarantees.extend(
