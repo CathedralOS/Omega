@@ -263,14 +263,7 @@ fn incoming_location(
             },
         ] if *byte_size == placement.shape.byte_size
             && *alignment == placement.shape.alignment
-            && match pointer {
-                IndirectPointerLocation::Register(_) => true,
-                IndirectPointerLocation::Stack {
-                    stack_byte_offset,
-                    alignment: 8,
-                } => stack_byte_offset.is_multiple_of(8),
-                _ => false,
-            } =>
+            && indirect_pointer_supports_copy(pointer) =>
         {
             *pointer
         }
@@ -414,14 +407,9 @@ pub(super) fn populate(
         let span = rows
             .iter()
             .find(|row| {
-                row.site
-                    == match contract.owner {
-                        CallSiteOwner::Operation(operation) => {
-                            SemanticCodeSite::Operation(operation)
-                        }
-                        CallSiteOwner::ExternalCompletion(_) => return false,
-                        CallSiteOwner::CleanupAction { edge, .. } => SemanticCodeSite::Edge(edge),
-                    }
+                call_site_owner_semantic_site(&contract.owner)
+                        .map(|site| row.site == site)
+                        .unwrap_or(false)
             })
             .ok_or(Error::Mismatch("Unit call has no attributed span"))?;
         let call_span = fragment
@@ -659,4 +647,25 @@ pub(super) fn settlements(
         }
     }
     Ok(result)
+}
+
+/// Whether an indirect-pointer home admits an 8-byte-aligned stack copy slot.
+fn indirect_pointer_supports_copy(pointer: &IndirectPointerLocation) -> bool {
+    match pointer {
+        IndirectPointerLocation::Register(_) => true,
+        IndirectPointerLocation::Stack {
+            stack_byte_offset,
+            alignment: 8,
+        } => stack_byte_offset.is_multiple_of(8),
+        _ => false,
+    }
+}
+
+/// The attributed semantic site a call owner records, when it carries one.
+fn call_site_owner_semantic_site(owner: &CallSiteOwner) -> Option<SemanticCodeSite> {
+    match owner {
+        CallSiteOwner::Operation(operation) => Some(SemanticCodeSite::Operation(*operation)),
+        CallSiteOwner::ExternalCompletion(_) => None,
+        CallSiteOwner::CleanupAction { edge, .. } => Some(SemanticCodeSite::Edge(*edge)),
+    }
 }

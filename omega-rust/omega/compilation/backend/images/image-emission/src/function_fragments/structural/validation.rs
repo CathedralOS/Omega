@@ -102,14 +102,9 @@ pub(in crate::function_fragments) fn validate_function(
         let span = rows
             .iter()
             .find(|row| {
-                row.site
-                    == match contract.owner {
-                        CallSiteOwner::Operation(operation) => {
-                            SemanticCodeSite::Operation(operation)
-                        }
-                        CallSiteOwner::ExternalCompletion(_) => return false,
-                        CallSiteOwner::CleanupAction { edge, .. } => SemanticCodeSite::Edge(edge),
-                    }
+                super::call_site_owner_semantic_site(&contract.owner)
+                        .map(|site| row.site == site)
+                        .unwrap_or(false)
             })
             .ok_or_else(invalid)?;
         let call_span = fragment
@@ -408,14 +403,7 @@ fn validate_incoming_location(
         ) if *pointer == actual
             && *byte_size == placement.shape.byte_size
             && *alignment == placement.shape.alignment
-            && match pointer {
-                IndirectPointerLocation::Register(_) => true,
-                IndirectPointerLocation::Stack {
-                    stack_byte_offset,
-                    alignment: 8,
-                } => stack_byte_offset.is_multiple_of(8),
-                _ => false,
-            } =>
+            && super::indirect_pointer_supports_copy(pointer) =>
         {
             Ok(())
         }
