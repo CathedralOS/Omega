@@ -46,7 +46,9 @@ pub struct FunctionFragmentEmissionPlan {
 impl FunctionFragmentEmissionPlan {
     /// The fragment for `machine`, when the plan carries it.
     pub fn function(&self, machine: semantic_vocabulary::MachineId) -> Option<&FunctionFragment> {
-        self.function(machine)
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
     }
 
     /// Every fragment's block spans, in function order.
