@@ -39,7 +39,7 @@ mod zeroed_structural_input;
 pub use model::{ ValidatedSelectedInstructions,
 };
 pub(crate) use model::{
-    SelectedInstructionError, SelectedInstructionValidationReceipt};
+    SelectedInstructionError};
 pub use selected_instructions::selected_instruction_plan_identity;
 
 use selected_instructions::SelectedSelectionConstraints;

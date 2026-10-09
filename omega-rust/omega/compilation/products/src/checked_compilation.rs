@@ -22,7 +22,6 @@ mod report;
 mod terminal;
 
 pub use report::{CheckedProductReport};
-pub(crate) use report::{ CompileReportSettlement};
 
 /// Invocation-local language judgments retained for the next review pass of
 /// this occurrence. Build and Product are independent checked programs; neither

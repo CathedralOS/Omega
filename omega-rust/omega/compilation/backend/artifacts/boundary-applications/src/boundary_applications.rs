@@ -22,7 +22,6 @@ pub mod realization;
 mod comparison_tests;
 
 pub use coverage::{ OperatorApplicationCoverageRef};
-pub(crate) use coverage::{BoundaryApplicationCoverageIdentity};
 pub use demands::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryOperatorRequirement,
     BoundaryTypeIdentity, NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
@@ -36,8 +35,6 @@ pub use opaque_applications::{
 pub use realization::{
     BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion, TerminalBoundaryApplicationRealizations,
 };
-pub(crate) use realization::{
-    BoundaryApplicationRealizationRole};
 
 /// Complete reconstructible D29 semantic coverage retained beside one
 /// canonical Terminal product.

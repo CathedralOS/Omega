@@ -20,7 +20,6 @@ pub(crate) mod structural_shapes;
 mod structural_signatures;
 pub(crate) mod whole_plan;
 
-pub(crate) use whole_plan::validate_abstract_to_target_translation;
 
 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
 use target::NativeTarget;

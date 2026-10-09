@@ -41,8 +41,7 @@ pub use provenance_replay::{ ProviderPlanDerivation, ProviderSchemaDeclaration, 
 };
 pub(crate) use provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance,
-    SelectedTargetMachineOrigin,
-    replay_selected_provider_provenance};
+    SelectedTargetMachineOrigin};
 pub(crate) use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{
     ProviderSelectionProvenance,

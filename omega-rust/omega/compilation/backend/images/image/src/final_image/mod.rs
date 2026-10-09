@@ -26,8 +26,7 @@ pub use executable_regions::{
     validate_placed_executable_region_inventory,
 };
 pub(crate) use executable_regions::{
-    PlacedExecutableGap,
-    bind_compiler_entry_footprint, digest_bytes};
+    PlacedExecutableGap, digest_bytes};
 #[cfg(test)]
 pub(crate) use executable_regions::{
     executable_inventory_digest, executable_inventory_report_fingerprint,

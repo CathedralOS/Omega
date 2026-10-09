@@ -11,7 +11,6 @@ pub(crate) use catalog::{
     FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
     FunctionRelativeLayoutRuleCatalogEntry, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES};
 pub use error::{OptimizedX86BranchRelaxationError};
-pub(crate) use error::{ X86BranchRelaxationWorkAxis};
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::ValidatedPhysicalRegisterModel;

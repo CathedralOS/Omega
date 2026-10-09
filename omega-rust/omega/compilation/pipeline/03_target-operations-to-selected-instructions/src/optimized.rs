@@ -9,7 +9,6 @@ mod construction;
 mod custody;
 mod model;
 
-pub(crate) use constraints::selection_constraints;
 pub use model::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
     StagedOptimizedSelectionCustodyReceipt,
