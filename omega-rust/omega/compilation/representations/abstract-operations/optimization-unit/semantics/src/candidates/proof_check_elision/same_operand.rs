@@ -49,47 +49,39 @@ pub(crate) fn independent_same_operand_integer_constant(
     operation: &O,
     law: ProofCertifiedSameOperandIntegerConstantLaw,
 ) -> Option<IndependentSameOperandIntegerConstant> {
-    let O::IntegerArithmetic {
-        psi_operation,
-        result,
-        scalar_type,
-        arithmetic,
-        left,
-        right,
-    } = operation
-    else {
-        return None;
-    };
-    let obligation = arithmetic.obligation()?;
-    let admitted = match (law, arithmetic.operator()) {
-        (
-            ProofCertifiedSameOperandIntegerConstantLaw::ExactSubtractZero,
-            IntegerArithmeticOperator::Subtract,
-        ) => arithmetic.policy() == IntegerOverflowPolicy::Exact,
-        (
-            ProofCertifiedSameOperandIntegerConstantLaw::SelfRemainderZero,
-            IntegerArithmeticOperator::Remainder,
-        ) => true,
-        (
-            ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne,
-            IntegerArithmeticOperator::Divide,
-        ) => {
-            scalar_type.carrier() == IntegerCarrier::Fixed
-                && !(scalar_type.sign() == IntegerSign::Signed && scalar_type.bits() == 1)
+    let operator = match law {
+        ProofCertifiedSameOperandIntegerConstantLaw::ExactSubtractZero => {
+            IntegerArithmeticOperator::Subtract
         }
-        _ => false,
+        ProofCertifiedSameOperandIntegerConstantLaw::SelfRemainderZero => {
+            IntegerArithmeticOperator::Remainder
+        }
+        ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne => {
+            IntegerArithmeticOperator::Divide
+        }
+    };
+    let operands = operation.integer_arithmetic_operands(operator)?;
+    let obligation = operands.arithmetic.obligation()?;
+    let admitted = match law {
+        ProofCertifiedSameOperandIntegerConstantLaw::ExactSubtractZero => {
+            operands.arithmetic.policy() == IntegerOverflowPolicy::Exact
+        }
+        ProofCertifiedSameOperandIntegerConstantLaw::SelfRemainderZero => true,
+        ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne => {
+            operands.scalar_type.carrier() == IntegerCarrier::Fixed
+                && !(operands.scalar_type.sign() == IntegerSign::Signed
+                    && operands.scalar_type.bits() == 1)
+        }
     };
     if !admitted {
         return None;
     }
-    let (psi_operation, result, scalar_type, left, right) =
-        (*psi_operation, *result, *scalar_type, *left, *right);
-    (left == right).then_some(IndependentSameOperandIntegerConstant {
-        psi_operation,
+    (operands.left == operands.right).then_some(IndependentSameOperandIntegerConstant {
+        psi_operation: operands.psi_operation,
         obligation,
-        result,
-        scalar_type,
-        operand: left,
+        result: operands.result,
+        scalar_type: operands.scalar_type,
+        operand: operands.left,
     })
 }
 

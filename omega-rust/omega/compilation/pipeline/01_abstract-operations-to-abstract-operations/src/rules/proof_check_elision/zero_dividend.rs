@@ -21,35 +21,29 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 fn proof_certified_integer_zero_dividend_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
-    let (source_operation, result, scalar_type, left, identity) = match operation {
-        O::IntegerArithmetic {
-            psi_operation,
-            result,
-            scalar_type,
-            arithmetic,
-            left,
-            ..
-        } => {
-            use IntegerArithmeticOperator as Operator;
-            use IntegerOverflowPolicy as Policy;
-            use ProofCertifiedScalarIdentityKind as Kind;
-            let identity = match (arithmetic.policy(), arithmetic.operator()) {
-                (Policy::Exact, Operator::Divide) => Kind::ExactIntegerDivideZeroLeft,
-                (Policy::Wrapping, Operator::Divide) => Kind::WrappingIntegerDivideZeroLeft,
-                (Policy::Saturating, Operator::Divide) => Kind::SaturatingIntegerDivideZeroLeft,
-                (Policy::Exact, Operator::Remainder) => Kind::ExactIntegerRemainderZeroLeft,
-                (Policy::Wrapping, Operator::Remainder) => Kind::WrappingIntegerRemainderZeroLeft,
-                (Policy::Saturating, Operator::Remainder) => {
-                    Kind::SaturatingIntegerRemainderZeroLeft
-                }
-                (_, Operator::Add | Operator::Subtract | Operator::Multiply) => {
-                    return Vec::new();
-                }
-            };
-            (*psi_operation, *result, *scalar_type, *left, identity)
-        }
-        _ => return Vec::new(),
+    let Some(operands) = operation.integer_arithmetic() else {
+        return Vec::new();
     };
+    use IntegerArithmeticOperator as Operator;
+    use IntegerOverflowPolicy as Policy;
+    use ProofCertifiedScalarIdentityKind as Kind;
+    let identity = match (operands.arithmetic.policy(), operands.arithmetic.operator()) {
+        (Policy::Exact, Operator::Divide) => Kind::ExactIntegerDivideZeroLeft,
+        (Policy::Wrapping, Operator::Divide) => Kind::WrappingIntegerDivideZeroLeft,
+        (Policy::Saturating, Operator::Divide) => Kind::SaturatingIntegerDivideZeroLeft,
+        (Policy::Exact, Operator::Remainder) => Kind::ExactIntegerRemainderZeroLeft,
+        (Policy::Wrapping, Operator::Remainder) => Kind::WrappingIntegerRemainderZeroLeft,
+        (Policy::Saturating, Operator::Remainder) => Kind::SaturatingIntegerRemainderZeroLeft,
+        (_, Operator::Add | Operator::Subtract | Operator::Multiply) => {
+            return Vec::new();
+        }
+    };
+    let (source_operation, result, scalar_type, left) = (
+        operands.psi_operation,
+        operands.result,
+        operands.scalar_type,
+        operands.left,
+    );
     vec![(
         ProofCertifiedScalarIdentityShape {
             source_operation,

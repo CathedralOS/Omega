@@ -42,24 +42,17 @@ psi_optimization_rule_delegate!(
     IntegerType::one
 );
 
-fn classify(operation: &O) -> Option<(&OperationId, &ValueId, &IntegerType)> {
-    let O::IntegerArithmetic {
-        psi_operation,
-        result,
-        scalar_type,
-        arithmetic,
-        left,
-        right,
-    } = operation
-    else {
-        return None;
-    };
-    if arithmetic.operator() != IntegerArithmeticOperator::Divide
-        || left != right
-        || scalar_type.carrier() != IntegerCarrier::Fixed
-        || (scalar_type.sign() == IntegerSign::Signed && scalar_type.bits() == 1)
+fn classify(operation: &O) -> Option<(OperationId, ValueId, IntegerType)> {
+    let operands = operation.integer_arithmetic_operands(IntegerArithmeticOperator::Divide)?;
+    if operands.left != operands.right
+        || operands.scalar_type.carrier() != IntegerCarrier::Fixed
+        || (operands.scalar_type.sign() == IntegerSign::Signed && operands.scalar_type.bits() == 1)
     {
         return None;
     }
-    Some((psi_operation, result, scalar_type))
+    Some((
+        operands.psi_operation,
+        operands.result,
+        operands.scalar_type,
+    ))
 }

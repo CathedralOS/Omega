@@ -21,34 +21,28 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 fn proof_certified_integer_divide_by_one_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
-    let (source_operation, result, scalar_type, left, right, identity) = match operation {
-        O::IntegerArithmetic {
-            psi_operation,
-            result,
-            scalar_type,
-            arithmetic,
-            left,
-            right,
-        } if arithmetic.operator() == IntegerArithmeticOperator::Divide => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            *left,
-            *right,
-            match arithmetic.policy() {
-                IntegerOverflowPolicy::Exact => {
-                    ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight
-                }
-                IntegerOverflowPolicy::Wrapping => {
-                    ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight
-                }
-                IntegerOverflowPolicy::Saturating => {
-                    ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight
-                }
-            },
-        ),
-        _ => return Vec::new(),
+    let Some(operands) = operation.integer_arithmetic_operands(IntegerArithmeticOperator::Divide)
+    else {
+        return Vec::new();
     };
+    let (source_operation, result, scalar_type, left, right, identity) = (
+        operands.psi_operation,
+        operands.result,
+        operands.scalar_type,
+        operands.left,
+        operands.right,
+        match operands.arithmetic.policy() {
+            IntegerOverflowPolicy::Exact => {
+                ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight
+            }
+            IntegerOverflowPolicy::Wrapping => {
+                ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight
+            }
+            IntegerOverflowPolicy::Saturating => {
+                ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight
+            }
+        },
+    );
     vec![(
         ProofCertifiedScalarIdentityShape {
             source_operation,
