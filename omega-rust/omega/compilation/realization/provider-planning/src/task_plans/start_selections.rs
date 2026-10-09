@@ -195,8 +195,8 @@ fn append_task_start_selection(
         }
     };
     let mut hash = Fnv1a::new();
-    hash.string("task-runtime-requirement-specialization-v1");
-    hash.string(
+    hash.string_terminated("task-runtime-requirement-specialization-v1");
+    hash.string_terminated(
         program
             .trait_requirement_callable_identity_text(definition, signature)
             .as_str(),

@@ -222,7 +222,7 @@ pub fn elaborate_task_activation_plans(
 fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x53);
-    hash.string("fixed-nonmoving-stack-v1");
+    hash.string_terminated("fixed-nonmoving-stack-v1");
     hash.byte(match target.architecture {
         Architecture::Aarch64 => 1,
         Architecture::X86_64 => 2,
@@ -276,7 +276,7 @@ fn signature_layout_report_fingerprint(
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x51);
     for (type_reference, layout) in layouts {
-        hash.string(program.normalized_type_identity(*type_reference).as_str());
+        hash.string_terminated(program.normalized_type_identity(*type_reference).as_str());
         hash.usize(layout.size);
         hash.usize(layout.alignment);
         hash.byte(0xff);
@@ -291,18 +291,18 @@ fn entry_report_fingerprint(
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x45);
-    hash.string(machine.name.as_str());
-    hash.string(entry.name.as_str());
+    hash.string_terminated(machine.name.as_str());
+    hash.string_terminated(entry.name.as_str());
     for parameter in program.state_parameters(entry) {
         hash.byte(u8::from(parameter.is_mutable));
-        hash.string(
+        hash.string_terminated(
             program
                 .normalized_type_identity(parameter.type_reference)
                 .as_str(),
         );
     }
     hash.byte(0xfe);
-    hash.string(program.normalized_type_identity(entry.return_type).as_str());
+    hash.string_terminated(program.normalized_type_identity(entry.return_type).as_str());
     hash.finish_normalized()
 }
 
