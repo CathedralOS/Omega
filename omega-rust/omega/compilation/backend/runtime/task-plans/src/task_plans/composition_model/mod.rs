@@ -24,9 +24,8 @@ use crate::task_plans::report_fingerprints::composition_model_report_fingerprint
 use crate::{
     ActivationCarryObligations, ActivationPlanId, CallingPlanId, MachineContractId, MachineEntryId,
     SelectedTaskRuntimeProviderFact, StackPlan, StackPlanProjectionId, SuspensionCrossingId,
-    TaskActivationPlanSet, TaskPlanDiagnostic, TaskSpecializationCommitment, TaskStartOperation,
-    ValueLayoutId,
-};
+    TaskSpecializationCommitment, TaskStartOperation,
+    ValueLayoutId};
 use symbols::SymbolHandle;
 
 /// Activation-creation evidence: which checked start operation and exact

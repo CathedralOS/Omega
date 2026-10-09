@@ -7,11 +7,7 @@
 
 use crate::ProviderPlanningContext;
 use crate::provider_planning::provenance_replay::requirement_identities::{
-    external_provider_binding, inferred_compiler_leaf_binding, provider_boundary_arguments,
-};
+    provider_boundary_arguments};
 use crate::provider_planning::provenance_replay::{
-    DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
-    SelectedTargetMachineOrigin, exact_checked_adapter,
-};
-use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
+    SelectedTargetMachineOrigin, exact_checked_adapter};
 

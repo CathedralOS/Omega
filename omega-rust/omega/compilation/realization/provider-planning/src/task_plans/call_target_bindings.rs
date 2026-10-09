@@ -25,12 +25,10 @@
 //! lease.
 
 use crate::task_plans::carry_crossings::canonical_suspension_crossing;
-use crate::task_plans::stack_graphs::{exact_frame_target, task_call_graph};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use std::collections::BTreeMap;
 use symbols::SymbolHandle;
 use target::NativeTarget;
-use task_plans::{CallTargetBinding, TaskStackFrameId, ValidatedActivationPlan};
 
