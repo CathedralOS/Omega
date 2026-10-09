@@ -315,7 +315,7 @@ impl SelectedProgramEntrySignature {
                 ..
             } => {
                 canonical.push(2);
-                canonical.extend_from_slice(&source_position.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut canonical, source_position.to_le_bytes());
                 push_string(&mut canonical, normalized_type_identity);
             }
         }
@@ -344,7 +344,7 @@ impl SelectedProgramEntrySignature {
                     ProgramEntryExtentFieldRole::Base => 1,
                     ProgramEntryExtentFieldRole::Length => 2,
                 });
-                canonical.extend_from_slice(&field.byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut canonical, field.byte_offset.to_le_bytes());
                 push_shape(&mut canonical, field.shape);
             }
         }
@@ -448,6 +448,6 @@ fn push_shape(canonical: &mut Vec<u8>, shape: calling_conventions::ValueShape) {
         shape.class,
         calling_conventions::ValueClass::Integer
     ));
-    canonical.extend_from_slice(&shape.byte_size.to_le_bytes());
-    canonical.extend_from_slice(&shape.alignment.to_le_bytes());
+    crate::codec_bytes::push_encoded(canonical, shape.byte_size.to_le_bytes());
+    crate::codec_bytes::push_encoded(canonical, shape.alignment.to_le_bytes());
 }

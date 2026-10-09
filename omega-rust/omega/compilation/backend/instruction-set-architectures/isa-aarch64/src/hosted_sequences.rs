@@ -35,17 +35,17 @@ pub fn encode_hosted_exit_process_i32(
 /// low byte of the exact `i32` source in `w9`; this encoder owns the stack slot.
 pub fn encode_hosted_write_byte_i32_from_w9() -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&0xd100_43ff_u32.to_le_bytes());
-    bytes.extend_from_slice(&0x3900_03e9_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 0xd100_43ff_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 0x3900_03e9_u32.to_le_bytes());
     bytes.extend(encode_movz(0, 1));
-    bytes.extend_from_slice(&0x9100_03e1_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 0x9100_03e1_u32.to_le_bytes());
     bytes.extend(encode_movz(2, 1));
     bytes.extend(encode_movz(8, 64));
     bytes.extend(encode_svc(0));
     bytes.extend(encode_compare_x_immediate(0, 0)?);
-    bytes.extend_from_slice(&0x5400_006d_u32.to_le_bytes());
-    bytes.extend_from_slice(&0x9100_43ff_u32.to_le_bytes());
-    bytes.extend_from_slice(&0x1400_0002_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 0x5400_006d_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 0x9100_43ff_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 0x1400_0002_u32.to_le_bytes());
     bytes.extend(encode_brk(0));
     Ok(bytes)
 }

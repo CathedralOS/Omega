@@ -30,7 +30,7 @@ fn byte_literal_address_is_an_unresolved_page_pair_into_its_destination() {
     let encoded = encode_aarch64_selected_form(&physical, kind, key, &views[..1]).unwrap();
     // adrp x5, #0 ; add x5, x5, #0
     let mut expected = 0x9000_0005_u32.to_le_bytes().to_vec();
-    expected.extend_from_slice(&0x9100_00a5_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut expected, 0x9100_00a5_u32.to_le_bytes());
     assert_eq!(encoded.bytes(), expected);
     assert_eq!(AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET, 0);
     assert_eq!(AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, 4);

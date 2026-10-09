@@ -719,7 +719,7 @@ pub fn encode_aarch64_selected_dynamic_call_template(
         0xd420_0000,     // brk #0
         0xd63f_0220,     // blr x17
     ] {
-        bytes.extend_from_slice(&word.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, word.to_le_bytes());
     }
     Ok((bytes, expected))
 }

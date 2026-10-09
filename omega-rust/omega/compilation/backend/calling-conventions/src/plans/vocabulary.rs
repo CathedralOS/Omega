@@ -591,13 +591,13 @@ pub fn encode_state_plan_identity(bytes: &mut Vec<u8>, state: &StatePlan) {
         state.restored_state,
         state.permitted_transitive_use,
     ] {
-        bytes.extend_from_slice(&set.bits().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, set.bits().to_le_bytes());
     }
     match state.stack {
         EntryStack::Interrupted => bytes.push(1),
         EntryStack::Dedicated { class } => {
             bytes.push(2);
-            bytes.extend_from_slice(&class.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, class.to_le_bytes());
         }
         EntryStack::ProviderSelected => bytes.push(3),
     }
@@ -606,7 +606,7 @@ pub fn encode_state_plan_identity(bytes: &mut Vec<u8>, state: &StatePlan) {
         Preemption::Masked => bytes.push(2),
         Preemption::Nestable { maximum_depth } => {
             bytes.push(3);
-            bytes.extend_from_slice(&maximum_depth.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, maximum_depth.to_le_bytes());
         }
         Preemption::ProviderDefined => bytes.push(4),
     }

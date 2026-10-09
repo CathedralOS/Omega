@@ -301,8 +301,8 @@ fn encode_widened_branch(
     let skip = 0x5400_0000 | (2 << 5) | inverted_condition;
     let target = 0x1400_0000 | ((word_displacement as u32) & 0x03ff_ffff);
     let mut bytes = Vec::with_capacity(8);
-    bytes.extend_from_slice(&skip.to_le_bytes());
-    bytes.extend_from_slice(&target.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, skip.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, target.to_le_bytes());
     validate_widened_branch(
         physical,
         alternative,

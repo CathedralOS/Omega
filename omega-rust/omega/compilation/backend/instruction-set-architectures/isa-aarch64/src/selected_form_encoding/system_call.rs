@@ -37,9 +37,9 @@ pub fn encode_aarch64_selected_system_call_form(
             0xf280_0000
         };
         let word = opcode | (halfword << 21) | (immediate << 5) | 8;
-        bytes.extend_from_slice(&word.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, word.to_le_bytes());
     }
-    bytes.extend_from_slice(&0xd400_0001u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 0xd400_0001u32.to_le_bytes());
     validate_aarch64_selected_system_call_form(
         target,
         physical,

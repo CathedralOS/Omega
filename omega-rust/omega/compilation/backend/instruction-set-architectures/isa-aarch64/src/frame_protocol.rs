@@ -275,7 +275,7 @@ fn append_memory(
 }
 
 fn append_word(bytes: &mut Vec<u8>, word: u32) {
-    bytes.extend_from_slice(&word.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, word.to_le_bytes());
 }
 
 #[cfg(test)]

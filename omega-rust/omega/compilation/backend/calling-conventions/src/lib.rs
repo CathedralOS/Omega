@@ -14,6 +14,7 @@
 //! classes, `aggregate_layout` lays out aggregates, and `hosts` fixes each host's registers, syscall numbers and import
 //! libraries.
 
+mod codec_bytes;
 mod digest_encoder;
 mod aggregate_layout;
 mod fnv1a;

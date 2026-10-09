@@ -71,7 +71,7 @@ pub(super) fn encode(
     let (base, value, scratch) = (u32::from(base), u32::from(value), u32::from(scratch));
     let mut bytes = Vec::with_capacity(usize::from(width) * 8);
     if !load {
-        bytes.extend_from_slice(&(0xaa00_03e0 | (value << 16) | scratch).to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, (0xaa00_03e0 | (value << 16) | scratch).to_le_bytes());
     }
     for byte in 0..u32::from(width) {
         let offset = displacement + byte;
@@ -91,7 +91,7 @@ pub(super) fn encode(
                 &(0x3900_0000 | (offset << 10) | (base << 5) | scratch).to_le_bytes(),
             );
             if byte + 1 != u32::from(width) {
-                bytes.extend_from_slice(&(0xd348_fc00 | (scratch << 5) | scratch).to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, (0xd348_fc00 | (scratch << 5) | scratch).to_le_bytes());
             }
         }
     }

@@ -167,7 +167,7 @@ pub fn encode_aarch64_selected_normalized_foreign_call_template(
                 .ok_or(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch)?,
         );
     }
-    bytes.extend_from_slice(&0x9400_0000_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 0x9400_0000_u32.to_le_bytes());
     let fixup = callback_fixup(boundary, ordinal, callback_destinations)
         .ok_or(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch)?;
     validate_aarch64_selected_normalized_foreign_call_template(
@@ -276,7 +276,7 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
                 .ok_or(Aarch64NormalizedForeignCallTemplateError::MalformedTemplate)?,
         );
     }
-    expected_bytes.extend_from_slice(&0x9400_0000_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut expected_bytes, 0x9400_0000_u32.to_le_bytes());
     if bytes != expected_bytes.as_slice() {
         return Err(Aarch64NormalizedForeignCallTemplateError::MalformedTemplate);
     }
