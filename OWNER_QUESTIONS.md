@@ -403,3 +403,55 @@ The Rust reference compiler accepts the dot form by unwrapping a
    `Binding<Console>` field reachable from the entry context, chosen by the
    compiler; two candidates reject. No receiver is written, but selection
    depends on the context's shape rather than the call.
+
+### Q7 - What does `==` between data values mean in a proof fact?
+
+Named decision: `proof-fact-data-equality`.
+
+**Customer:** core's mathematics library, which the Omega-written compiler
+must type and check: `core/{nat,nat_metric,int,rat,real,seq,cauchy}.omg`
+and `core/content.omg` through `nat`. Their theorems state equalities of
+inductive or record values in `ensures` facts, for example
+`(add(a, Nat::Succ { prev: b })) == (Nat::Succ { prev: add(a, b) })`,
+`(length(Seq::Empty)) == Nat::Zero` and
+`(add_int(a, b)) == (add_int(b, a))` over `IntPair` records. With the
+library's silent citation discards fixed, product typing stops all eight
+files at their first such fact, because `Nat`, `Seq`, `IntPair` and `Real`
+declare no equality implementation.
+
+**Existing rules:** [core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition):
+"Records and payload-bearing sums require an explicit named conformance",
+and "Recursive structural synthesis rejects", so `Nat` (`case Succ(prev:
+Nat)`) cannot acquire `Equatable` at all. [Data and literals](wiki/spec/language/data_and_literals.md)
+repeats that structural equality of records and payload-bearing sums
+selects the declared conformance. [Proof foundation](wiki/spec/proofs/foundation.md):
+"General identity is selected to be intensional and proof-relevant, with
+reflexivity and dependent identity elimination", and "Systems type
+identity, IEEE comparisons, and mathematical identity retain their separate
+meanings". [Proof contracts](wiki/spec/proofs/contracts.md#total-arithmetic)
+fixes the meaning of fixed-integer `==` in facts and that formation is
+"checked per operation ... comparison, equality, classification", but
+names no meaning for `==` over data. No page says whether a fact's `==` is
+the executable `Equatable` operator or the foundation's identity. The Rust
+reference compiler accepts application-to-application equality as an
+identity judgement and routes a record-literal comparand through runtime
+`Equatable` synthesis; `core/int.omg` shapes its theorems around that
+distinction ("a record-LITERAL comparand routes through runtime Equatable
+synthesis, which recursive Nat cannot join").
+
+**Decision needed:**
+
+1. **Recommended: `==` in a fact over a non-primitive type is identity.**
+   Inside `requires`, `ensures`, `where` facts and propositions, `a == b`
+   between values of one record or sum type denotes the foundation's
+   intensional identity proposition, with no `Equatable` implementation;
+   executable `==` keeps its conformance rule, and a fact over a type whose
+   executable equality is declared still means identity. The eight files
+   type as written.
+2. **Facts use executable equality.** A fact's `==` selects the same
+   `Equatable` implementation as executable code. `Nat`, `Seq` and the
+   records need hand-written equality implementations with proofs that they
+   coincide with identity, since recursive synthesis rejects.
+3. **A distinct identity spelling.** Facts write identity explicitly (a
+   core `Identity(a, b)` proposition or another token), and `==` keeps one
+   meaning everywhere. The eight files' theorems are respelled.
