@@ -62,6 +62,8 @@ pub(super) fn resolve_path_members_from_head(
                 SymbolKind::State,
                 SymbolKind::Parameter,
                 SymbolKind::Variant,
+                SymbolKind::MathematicalDefinition,
+                SymbolKind::Const,
             ],
             member.as_str(),
         );
@@ -111,6 +113,8 @@ pub(super) fn resolve_state_scoped_members(
                 SymbolKind::State,
                 SymbolKind::Parameter,
                 SymbolKind::Variant,
+                SymbolKind::MathematicalDefinition,
+                SymbolKind::Const,
             ],
             member.as_str(),
         );
@@ -160,6 +164,8 @@ fn resolve_state_scoped_table_members(
                     SymbolKind::State,
                     SymbolKind::Parameter,
                     SymbolKind::Variant,
+                    SymbolKind::MathematicalDefinition,
+                    SymbolKind::Const,
                 ],
                 member.as_str(),
                 last_index,
@@ -173,6 +179,8 @@ fn resolve_state_scoped_table_members(
                     SymbolKind::State,
                     SymbolKind::Parameter,
                     SymbolKind::Variant,
+                    SymbolKind::MathematicalDefinition,
+                    SymbolKind::Const,
                 ],
                 member.as_str(),
             )

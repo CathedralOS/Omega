@@ -7,6 +7,9 @@ use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_struct_literal_symbols;
 use super::lookup::{child_symbol_by_kinds, top_level_symbol_for_source};
+use super::scoped_paths::{
+    resolve_state_scoped_table_path, resolve_state_scoped_table_path_member_symbols,
+};
 use super::targets::{
     assign_static_argument_symbols, resolve_free_machine_entry_state_symbol,
     unshadowed_builtin_function_symbol,
@@ -205,8 +208,8 @@ pub(super) fn assign_expression_symbols(
         ExpressionNode::Borrow(inner) => recurse!(inner.target),
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
-            let symbol = if let [name] = members {
-                child_symbol_by_kinds(
+            let (head_symbol, symbol) = if let [name] = members {
+                let symbol = child_symbol_by_kinds(
                     symbols,
                     owner_symbol,
                     &[
@@ -215,26 +218,45 @@ pub(super) fn assign_expression_symbols(
                         SymbolKind::PropositionMachineParameter,
                     ],
                     name.as_str(),
+                );
+                (symbol, symbol)
+            } else if let Some(symbol) =
+                symbols::FixedCoreDeclaration::from_name(&members.joined_path())
+                    .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
+            {
+                // The fixed core namespace has no runtime declaration head.
+                (SymbolHandle::invalid(), symbol)
+            } else {
+                // Proof terms share ordinary source-visible namespace/member
+                // resolution. Retain exact installed member handles rather
+                // than discarding qualified values and recovering by spelling
+                // in a later carrier or proof consumer.
+                resolve_state_scoped_table_path(
+                    symbols,
+                    owner_symbol,
+                    SymbolHandle::invalid(),
+                    expressions,
+                    &path,
+                )
+            };
+            let member_symbols = if head_symbol.is_valid() {
+                resolve_state_scoped_table_path_member_symbols(
+                    symbols,
+                    owner_symbol,
+                    SymbolHandle::invalid(),
+                    expressions,
+                    &path,
                 )
             } else {
-                // Multi-member paths carry no authored lookup here, but the
-                // fixed `core::*` spellings are compiler vocabulary, not
-                // module members: an exact `core::*` name binds its
-                // installed declaration, the same law call targets and type
-                // references apply — so a same-spelled authored declaration
-                // never claims it.
-                let name = members.joined_path();
-                symbols::FixedCoreDeclaration::from_name(&name)
-                    .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
-                    .unwrap_or_else(SymbolHandle::invalid)
+                Vec::new()
             };
-            let head_symbol = if members.len() == 1 {
-                symbol
-            } else {
-                // A `core::*` path's head is the vocabulary's fixed
-                // namespace — there is no `core` declaration to bind.
-                SymbolHandle::invalid()
-            };
+            for (offset, member_symbol) in (0u32..).zip(member_symbols) {
+                expressions.set_name_path_member_symbol_at_offset(
+                    path.member_symbols,
+                    offset,
+                    member_symbol,
+                );
+            }
             if let ExpressionNode::Name(path) = expressions.expression_mut(expression) {
                 path.head_symbol = head_symbol;
                 path.symbol = symbol;
