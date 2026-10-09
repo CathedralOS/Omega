@@ -24,15 +24,6 @@ pub(crate) struct X86_64DecodedMovR64Imm32SignExtendedI64Materialization {
 }
 
 impl X86_64DecodedMovR64Imm32SignExtendedI64Materialization {
-    pub const fn destination(&self) -> RegisterViewId {
-        self.destination
-    }
-    pub const fn encoded_write_view(&self) -> RegisterViewId {
-        self.destination
-    }
-    pub const fn value_bits(&self) -> u64 {
-        self.value_bits
-    }
     pub const fn footprint(&self) -> &X86_64MovR64Imm32SignExtendedI64MaterializationFootprint {
         &self.footprint
     }
@@ -50,15 +41,6 @@ impl ValidatedX86_64MovR64Imm32SignExtendedI64Materialization {
     }
     pub const fn decoded(&self) -> &X86_64DecodedMovR64Imm32SignExtendedI64Materialization {
         &self.decoded
-    }
-    pub const fn destination(&self) -> RegisterViewId {
-        self.decoded.destination()
-    }
-    pub const fn encoded_write_view(&self) -> RegisterViewId {
-        self.decoded.encoded_write_view()
-    }
-    pub const fn value_bits(&self) -> u64 {
-        self.decoded.value_bits()
     }
     pub const fn footprint(&self) -> &X86_64MovR64Imm32SignExtendedI64MaterializationFootprint {
         self.decoded.footprint()

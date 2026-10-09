@@ -11,12 +11,7 @@ use target::NativeTarget;
 
 use crate::X86_64ScalarCallFixupState;
 
-pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_CALL_BUNDLE_BYTE_COUNT: usize = 89;
 pub const X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT: usize = 90;
-pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_CALL_OPCODE_OFFSET: u16 = 80;
-pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_OFFSET: u16 = 81;
-pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_NEXT_INSTRUCTION_OFFSET: u16 = 85;
-pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_RETURN_OFFSET: u16 = 89;
 pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH: u8 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,17 +67,17 @@ pub struct X86_64SemanticUnitWrapperEncodingRequest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum X86_64SemanticUnitWrapperTrapBehavior {
+pub enum X86_64SemanticUnitWrapperTrapBehavior {
     MayArchitecturalFaultV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum X86_64SemanticUnitWrapperCallEffect {
+pub enum X86_64SemanticUnitWrapperCallEffect {
     DirectPrivateContinuationUnitV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum X86_64SemanticUnitWrapperCleanupEffect {
+pub enum X86_64SemanticUnitWrapperCleanupEffect {
     NoneV1,
 }
 

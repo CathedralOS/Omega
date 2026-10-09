@@ -30,7 +30,7 @@ mod scan_byte_sequence;
 mod zero_bytes;
 
 pub(crate) use floating_control::{
-    encode_x86_64_selected_floating_control_form, validate_x86_64_selected_floating_control_form};
+    validate_x86_64_selected_floating_control_form};
 pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_read_byte;
 pub(crate) mod hosted_write_byte;
@@ -70,10 +70,6 @@ pub use normalized_foreign_call::{ X86_64CallbackAddressMaterialization,
     encode_x86_64_selected_normalized_foreign_call_template,
     validate_x86_64_selected_normalized_foreign_call_template,
 };
-pub(crate) use normalized_foreign_call::{
-    X86_64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, X86_64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
-    X86_64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, X86_64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
-    X86_64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT};
 pub use normalized_foreign_call::{
     ValidatedX86_64SelectedNormalizedForeignCallTemplate};
 pub use scalar_call::{
@@ -81,9 +77,7 @@ pub use scalar_call::{
     X86_64ScalarCallTemplateError, encode_x86_64_selected_dynamic_call_template,
     encode_x86_64_selected_scalar_call_template, validate_x86_64_selected_scalar_call_template,
 };
-pub(crate) use scalar_call::{ X86_64_SCALAR_CALL_OPCODE_OFFSET,
-    X86_64_SCALAR_CALL_PATCH_OFFSET, X86_64_SCALAR_CALL_PATCH_WIDTH,
-    X86_64_SCALAR_CALL_REFERENCE_OFFSET, X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT};
+pub(crate) use scalar_call::{ X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT};
 pub use scalar_call::{
     ValidatedX86_64SelectedScalarCallTemplate};
 
