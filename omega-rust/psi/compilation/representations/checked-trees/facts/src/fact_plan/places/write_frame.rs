@@ -84,26 +84,15 @@ fn non_authoritative_write_frame_compatibility_fingerprint(
     completeness: WriteFrameCompleteness,
     normalized_paths: &[String],
 ) -> u64 {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-    let mut hash = OFFSET;
-    let mut fold = |byte: u8| {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(PRIME);
-    };
-    fold(match completeness {
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.byte(match completeness {
         WriteFrameCompleteness::Complete => 1,
         WriteFrameCompleteness::Opaque => 2,
     });
     for path in normalized_paths {
-        for byte in (path.len() as u64).to_le_bytes() {
-            fold(byte);
-        }
-        for byte in path.as_bytes() {
-            fold(*byte);
-        }
+        hash.bytes_framed(path.as_bytes());
     }
-    hash
+    hash.finish()
 }
 
 #[cfg(test)]

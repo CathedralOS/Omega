@@ -439,11 +439,11 @@ fn checked_resource_roster_report_fingerprint(
 }
 
 fn checked_resource_report_fingerprint(bytes: impl IntoIterator<Item = u8>) -> u64 {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-    bytes.into_iter().fold(OFFSET, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(PRIME)
-    })
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    for byte in bytes {
+        hash.byte(byte);
+    }
+    hash.finish()
 }
 
 /// Complete currently-checkable implementation envelope for one concrete

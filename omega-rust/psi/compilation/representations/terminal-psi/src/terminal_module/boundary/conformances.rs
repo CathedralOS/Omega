@@ -99,9 +99,6 @@ pub enum ClosedConformanceCallableResult {
 pub fn closed_conformance_application_report_fingerprint(
     application: &ClosedConformanceApplication,
 ) -> u64 {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-
     fn push(bytes: &mut Vec<u8>, value: &str) {
         bytes.extend((value.len() as u64).to_le_bytes());
         bytes.extend(value.as_bytes());
@@ -154,9 +151,9 @@ pub fn closed_conformance_application_report_fingerprint(
             push(&mut bytes, identity);
         }
     }
-    bytes.into_iter().fold(OFFSET, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(PRIME)
-    })
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(&bytes);
+    hash.finish()
 }
 
 /// Authority-bearing identity for a closed conformance application.
