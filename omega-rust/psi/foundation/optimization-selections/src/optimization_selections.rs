@@ -5,7 +5,6 @@
 //! remain Omega-owned. A build coordinator may project a larger source-visible
 //! selection into this closed set, but Psi never imports that larger catalog.
 
-use sha2::{Digest, Sha256};
 use std::fmt;
 
 pub mod catalog;
@@ -148,15 +147,9 @@ impl PsiOptimizationSelections {
 
     pub fn identity(&self) -> PsiOptimizationSelectionIdentity {
         let encoded = self.encode();
-        let mut digest = Sha256::new();
-        digest.update(IDENTITY_DOMAIN);
-        digest.update(
-            u64::try_from(encoded.len())
-                .expect("selection encoding length fits u64")
-                .to_le_bytes(),
-        );
-        digest.update(encoded);
-        PsiOptimizationSelectionIdentity(digest.finalize().into())
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(IDENTITY_DOMAIN);
+        digest.bytes(&encoded);
+        PsiOptimizationSelectionIdentity(digest.finish().into())
     }
 }
 

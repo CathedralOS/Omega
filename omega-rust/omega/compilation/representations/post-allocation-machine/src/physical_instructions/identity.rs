@@ -28,12 +28,9 @@ fn post_allocation_machine_identity_with_domain(
     plan: &PostAllocationMachinePlan,
     domain: &[u8],
 ) -> PostAllocationMachineIdentity {
-    use sha2::{Digest, Sha256};
-
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(domain);
-    bytes.extend_from_slice(&encode_terminal_post_allocation_machine_content(plan));
-    PostAllocationMachineIdentity::from_bytes(Sha256::digest(bytes).into())
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
+    digest.raw(&encode_terminal_post_allocation_machine_content(plan));
+    PostAllocationMachineIdentity::from_bytes(digest.finish().into())
 }
 
 pub(crate) fn encode_terminal_post_allocation_machine_content(

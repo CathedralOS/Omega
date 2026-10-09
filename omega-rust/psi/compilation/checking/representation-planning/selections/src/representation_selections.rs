@@ -8,7 +8,6 @@
 //! directly; replay recomputes the commitment from the retained fields rather
 //! than trusting the producer.
 
-use sha2::{Digest, Sha256};
 use source::SourceSpan;
 use symbols::SymbolHandle;
 use typed_trees::typed_trees::ClosedConformanceApplication;
@@ -157,21 +156,22 @@ pub fn selected_application_commitment(
     copy_disposition: OpaqueRepresentationCopyDisposition,
     origin: OpaqueRepresentationApplicationOrigin,
 ) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.opaque-representation-application.v1");
-    digest.update(OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION.to_le_bytes());
-    digest.update([match origin {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.opaque-representation-application.v1",
+    );
+    digest.u16(OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION);
+    digest.byte(match origin {
         OpaqueRepresentationApplicationOrigin::NamedConformance => 1,
-    }]);
-    digest.update([match lifecycle {
+    });
+    digest.byte(match lifecycle {
         OpaqueRepresentationLifecycleDisposition::Inert => 1,
-    }]);
-    digest.update([match copy_disposition {
+    });
+    digest.byte(match copy_disposition {
         OpaqueRepresentationCopyDisposition::PlacementOnly => 1,
         OpaqueRepresentationCopyDisposition::CheckedSemanticCopy => 2,
-    }]);
-    digest.update(conformance_application_commitment);
-    digest.finalize().into()
+    });
+    digest.raw(&conformance_application_commitment);
+    digest.finish().into()
 }
 
 pub fn selection_for_opaque(
