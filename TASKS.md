@@ -497,12 +497,9 @@ defines the complete product bar.
     `runtime_selected_local_owner_exit` (exit 0): completed owners must outlive
     their shared calls, copyable temporaries owe no affine disposal, and each
     selected completion owns its transfer/disposal partition. A producer's
-    return-discard flag is not liveness authority. A runtime-indexed read below
-    a case payload (`Reply::Values { items } -> (items[index])`, or
-    `first.values[index]` on a record payload) stops in Terminal production at
-    stage 05's
-    `expression_preparation/bindings/structural_fields/observation_paths.rs`:
-    "field observation has an incompatible declared projection".
+    return-discard flag is not liveness authority. Keep
+    `pass/calls/runtime_case_payload_scalar_array_read_exit` as the exact
+    selected collection and sibling-payload observation control.
     **CML4** owns remaining residual cleanup. Reference debt must
     follow ordinary disposal, not a trivial affine discard.
     Keep: `pass/expressions/runtime_temporary_record_field_call_exit` (a

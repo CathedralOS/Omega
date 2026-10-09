@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.48, "load1_start": 2.48, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.3, "load1_start": 2.15, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -337,6 +337,7 @@ pass/calls/runtime_boundary_loop_projected_subslice_exit built 1367ms exit:70 @6
 pass/calls/runtime_boundary_projected_mutable_subslice_exit built 957ms exit:70 @6197860b335c+wt
 pass/calls/runtime_call_statement_before_state_return_exit built 1440ms exit:42 @63377f7122bb+wt
 pass/calls/runtime_case_payload_indexed_calls_exit built 2820ms exit:70 @9beb2be72f2d+wt
+pass/calls/runtime_case_payload_scalar_array_read_exit built 1647ms exit:0 @a1228b9c89cd+wt
 pass/calls/runtime_case_record_return_exit built 1202ms exit:70
 pass/calls/runtime_case_terminal_payload_result_exit built 3721ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_computed_case_subject_affine_argument_exit built 3612ms exit:0 @9beb2be72f2d+wt

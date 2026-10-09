@@ -846,60 +846,49 @@ pub(super) fn structural_storage_place(
     Some((storage_root, path, type_reference))
 }
 
-/// The static field path inside one element of type `element`, spelled by
-/// each field's declared identity exactly as a parameter field path is: every
-/// segment is a non-erased field of the record the previous step reached.
-/// Source member access implicitly observes readable references. Keep the source
-/// field identities here; lowering reconstructs each explicit pointer crossing
-/// from the declarations, and Terminal checks the stored permission separately.
-/// Returns the path and the leaf's declared type.
-pub(super) fn element_field_path(
-    program: &dyn ::validation::CheckingInput,
+/// Resolve an indexed element's member under its exact current declaration.
+/// Normalized payload observations may not retain a member symbol: the selected
+/// element type supplies the declaration, while any retained symbol must agree.
+/// This is the same nominal selection for every indexed field, not permission
+/// to capture the containing row or copy its ownership-bearing siblings.
+pub(super) fn element_member_field<'program>(
+    program: &'program dyn ::validation::CheckingInput,
     element: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
-) -> Option<(
-    Vec<CheckedStructuralPredicatePathSegment>,
-    TypeReferenceHandle,
-)> {
+    member: &typed_trees::expression::TableMemberExpression,
+) -> Option<&'program typed_trees::data::DataField> {
     let mut current = element;
-    let mut path = Vec::with_capacity(segments.len());
-    for segment in segments {
-        let facts::PlaceSegment::Field { symbol } = segment else {
-            return None;
-        };
-        let owner = loop {
-            match program.type_reference_table.type_reference(current) {
-                TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
-                TypeReferenceNode::Reference {
-                    referee,
-                    access:
-                        language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
-                    ..
-                } => current = *referee,
-                TypeReferenceNode::Named { symbol, .. } => {
-                    break program.data_definition_by_symbol(*symbol)?;
-                }
-                _ => return None,
+    let owner = loop {
+        match program.type_reference_table.type_reference(current) {
+            TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
+            TypeReferenceNode::Reference {
+                referee,
+                access:
+                    language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
+                ..
+            } => current = *referee,
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                break structural_data(program, current)?;
             }
-        };
-        let field = program
-            .data_members(owner)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
-                    Some(field)
-                }
-                _ => None,
-            })?;
-        if field.relevance.is_erased() {
-            return None;
+            _ => return None,
         }
-        path.push(CheckedStructuralPredicatePathSegment::Field(
-            field.path_identity(),
-        ));
-        current = field.type_reference;
+    };
+    let field = if let Some(origin) = owner.generic_instance {
+        program.closed_data_member_field(origin, member.member_symbol, member.member.as_str())?
+    } else {
+        validation::exact_data_member_field(
+            program,
+            owner,
+            member.member_symbol,
+            member.member.as_str(),
+            None,
+        )?
+    };
+    if field.relevance.is_erased()
+        || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
+    {
+        return None;
     }
-    Some((path, current))
+    Some(field)
 }
 
 /// The `let` local `expression` names whole when that name is not a state

@@ -10,6 +10,9 @@
 //! crossing retains its carrier path and explicit `Referent` segment; it has no
 //! owned canonical path. Geometry never grants the live permission needed to
 //! follow that pointer. Consumers check custody separately from the leaf type.
+//! Selected payload reads use `primitive_read_projection_type` and retain the
+//! case namespace on the original backing. Storage/reference formation keeps
+//! the stricter primitive projection grammar; geometry grants no case evidence.
 //!
 //! # Scalar field observations without a canonical storage identity
 //!
@@ -42,8 +45,8 @@ pub fn primitive_place_type<'a>(
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<ScalarType> {
-    // Primitive reads/stores retain their own operation grammar. Case
-    // geometry for a borrowed argument does not authorize a direct payload read.
+    // This canonical storage query does not grant selected-case read authority.
+    // Observations use the read projection query and separate live case checks.
     if path
         .iter()
         .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
@@ -170,24 +173,22 @@ pub fn shared_primitive_projection_declaration<'a>(
 /// `primitive_projection_type` admits, plus a declared scalar field reached
 /// through a runtime selection or stored reference. Declaration invariants
 /// remain on that field and are independently transported to the observed SSA
-/// value. Stores resolve through `primitive_projection_type` alone. This grants
-/// no access authority.
+/// value. Selected cases retain their declared payload namespace on the same
+/// read path: observation does not copy or transfer the containing owner.
+/// Stores resolve through `primitive_projection_type` alone. This query grants
+/// neither active-case evidence nor access authority.
 pub fn primitive_read_projection_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<ScalarType> {
-    if path
-        .iter()
-        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
-    {
-        return None;
-    }
-    primitive_projection_type(declarations.clone(), root, path).or_else(|| {
-        primitive_read_field(declarations, root, path)?
-            .field_type
-            .scalar_type()
-    })
+    walk_primitive_projection(declarations.clone(), root, path, plain_scalar_field, |_| {})
+        .and_then(|tip| tip.primitive_scalar())
+        .or_else(|| {
+            primitive_read_field(declarations, root, path)?
+                .field_type
+                .scalar_type()
+        })
 }
 
 /// The exact scalar field observed by a noncanonical primitive read. The
@@ -204,12 +205,6 @@ pub fn primitive_read_field<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralFieldDeclaration> {
-    if path
-        .iter()
-        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
-    {
-        return None;
-    }
     let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
         return None;
     };
@@ -249,6 +244,18 @@ pub fn canonical_primitive_path<'a>(
     {
         return None;
     }
+    canonical_primitive_read_path(declarations, root, path)
+}
+
+/// Resolve fixed read coordinates, including selected payload namespaces, to
+/// declaration-local storage identities. This is observation geometry, not a
+/// store/reference-formation judgment or proof that a case is currently active.
+/// Execution checks the discriminator before using the selected backing.
+pub fn canonical_primitive_read_path<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<CanonicalStructuralPathSegment>> {
     let mut canonical = Some(Vec::with_capacity(path.len()));
     let tip =
         walk_primitive_projection(declarations, root, path, plain_scalar_field, |step| match (

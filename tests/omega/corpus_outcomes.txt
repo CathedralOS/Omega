@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.14, "load1_start": 3.48, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.5, "load1_start": 2.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2519,6 +2519,7 @@ pass/calls/runtime_boundary_loop_projected_subslice_exit checked 1148ms check-ta
 pass/calls/runtime_boundary_projected_mutable_subslice_exit checked 858ms check-target:macos_arm64 @6197860b335c+wt
 pass/calls/runtime_call_statement_before_state_return_exit checked 1322ms check-target:macos_arm64 @63377f7122bb+wt
 pass/calls/runtime_case_payload_indexed_calls_exit checked 2987ms check-target:macos_arm64 @faab7e6c1b7d+wt
+pass/calls/runtime_case_payload_scalar_array_read_exit checked 1738ms check-target:macos_arm64 @a1228b9c89cd+wt
 pass/calls/runtime_case_record_return_exit checked 1636ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_case_terminal_payload_result_exit checked 1182ms check-target:macos_arm64 @987a6f356be0
 pass/calls/runtime_computed_case_subject_affine_argument_exit checked 851ms check-target:macos_arm64 @92bbd31b7820

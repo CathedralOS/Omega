@@ -345,7 +345,12 @@ impl TerminalExecution<'_> {
             {
                 return Ok((storage, scalar_type, !writing));
             }
-            let scalar_type = terminal_semantics::primitive_projection_type(
+            let projection_type = if writing {
+                terminal_semantics::primitive_projection_type
+            } else {
+                terminal_semantics::primitive_read_projection_type
+            };
+            let scalar_type = projection_type(
                 self.program.structural_types().values(),
                 referent.structural_type,
                 suffix,
@@ -366,7 +371,12 @@ impl TerminalExecution<'_> {
                     return Ok((loan.storage.clone(), scalar_type, !writing));
                 }
             }
-            let canonical = terminal_semantics::canonical_primitive_path(
+            let canonical_path = if writing {
+                terminal_semantics::canonical_primitive_path
+            } else {
+                terminal_semantics::canonical_primitive_read_path
+            };
+            let canonical = canonical_path(
                 self.program.structural_types().values(),
                 referent.structural_type,
                 suffix,
@@ -674,19 +684,32 @@ impl TerminalExecution<'_> {
                 shared_view,
             ));
         }
-        let path = terminal_semantics::canonical_primitive_path(
+        // Read geometry can retain a selected payload without copying its
+        // owner. Writes keep the narrower storage-formation contract. The
+        // execution loop checks every case discriminator before this lookup.
+        let projection_type = if writing {
+            terminal_semantics::primitive_projection_type
+        } else {
+            terminal_semantics::primitive_read_projection_type
+        };
+        let scalar_type = projection_type(
+            self.program.structural_types().values(),
+            structural_type,
+            path,
+        )
+        .ok_or_else(malformed)?;
+        let canonical_path = if writing {
+            terminal_semantics::canonical_primitive_path
+        } else {
+            terminal_semantics::canonical_primitive_read_path
+        };
+        let path = canonical_path(
             self.program.structural_types().values(),
             structural_type,
             path,
         )
         .ok_or_else(malformed)?;
         let path = path.as_slice();
-        let scalar_type = terminal_semantics::primitive_place_type(
-            self.program.structural_types().values(),
-            structural_type,
-            path,
-        )
-        .ok_or_else(malformed)?;
         if let Some(array) = scalar_array_values.get(&place) {
             if array.structural_type != structural_type || structural_values.contains_key(&place) {
                 return Err(malformed());

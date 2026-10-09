@@ -110,7 +110,7 @@ pub(super) fn indexed_scalar_read(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     enum Projection {
-        Field(symbols::SymbolHandle),
+        Field(ExpressionHandle),
         Index {
             occurrence: ExpressionHandle,
             operand: ExpressionHandle,
@@ -143,10 +143,10 @@ pub(super) fn indexed_scalar_read(
                 cursor = indexed.collection;
             }
             ExpressionNode::Member(member) => {
-                if member.case_variant.is_some() || !member.member_symbol.is_valid() {
+                if member.case_variant.is_some() {
                     return None;
                 }
-                projections.push(Projection::Field(member.member_symbol));
+                projections.push(Projection::Field(cursor));
                 cursor = member.receiver;
             }
             _ => return None,
@@ -166,18 +166,16 @@ pub(super) fn indexed_scalar_read(
     let mut element_path = Vec::with_capacity(projections.len());
     for projection in projections.into_iter().rev() {
         match projection {
-            Projection::Field(symbol) => {
-                let (fields, leaf) = structural_fields::element_field_path(
+            Projection::Field(occurrence) => {
+                let field = structural_fields::element_member_field(
                     program,
                     element_type,
-                    &[facts::PlaceSegment::Field { symbol }],
+                    program.expression_table.member_node(occurrence)?,
                 )?;
-                element_path.extend(
-                    fields
-                        .into_iter()
-                        .map(checked_trees::CheckedScalarReadProjection::Static),
-                );
-                element_type = leaf;
+                element_path.push(checked_trees::CheckedScalarReadProjection::Static(
+                    CheckedStructuralPredicatePathSegment::Field(field.path_identity()),
+                ));
+                element_type = field.type_reference;
             }
             Projection::Index {
                 occurrence,

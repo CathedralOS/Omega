@@ -5,9 +5,9 @@
 //! complete canonical carrier path: a leaf declaration may occur below several
 //! siblings, and its identity alone cannot select the observed value. Case
 //! membership and ownership remain obligations of the selecting edge and replay.
-//! Primitive elements below a case use a checked carrier copy followed by the
-//! ordinary primitive read. This keeps case authority at the copy operation;
-//! the primitive path does not acquire an unchecked case projection grammar.
+//! Static payload snapshots retain their checked carrier-copy operation.
+//! Runtime element reads retain case selection on the original storage path;
+//! observing a scalar must not duplicate the collection's affine siblings.
 
 use super::super::{
     CheckedUnitStructuralPathSegment, StructuralFieldId, StructuralFieldType, StructuralTypeId,
@@ -868,21 +868,19 @@ pub(crate) fn resolve_indexed_element(
         &element_path,
         fields.declarations(),
     )?;
-    let path = path
-        .into_iter()
-        .map(|step| match step {
-            CheckedUnitStructuralPathSegment::Field(identity) => {
-                Ok(terminal_psi::StructuralPathSegment::Field(identity))
-            }
-            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                Ok(terminal_psi::StructuralPathSegment::FixedIndex(index))
-            }
-            CheckedUnitStructuralPathSegment::Referent => {
-                Ok(terminal_psi::StructuralPathSegment::Referent)
-            }
-            _ => unsupported("indexed collection prefix requires static projections"),
-        })
-        .collect::<Result<_, _>>()?;
+    let path = super::structural_paths::prepare_argument_path(
+        &path,
+        structural_type,
+        fields.declarations(),
+    )?
+    .into_iter()
+    .map(|step| match step {
+        super::structural_paths::PreparedStructuralPathSegment::Static(step) => Ok(step),
+        _ => unsupported("indexed collection prefix requires static projections"),
+    })
+    .collect::<Result<Vec<_>, _>>()?;
+    // Keep selected-case geometry on the original read. Copying the collection
+    // would duplicate affine element siblings just to observe a scalar leaf.
     Ok((source, path, element_path, scalar_type))
 }
 
