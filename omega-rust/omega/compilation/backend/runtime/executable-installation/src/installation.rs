@@ -309,7 +309,7 @@ fn installed_artifact_occurrence_digest(
     evidence: &InstalledCodeEvidence,
 ) -> InstalledArtifactOccurrenceDigest {
     fn bytes(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: &[u8]) {
-        digest.u64((value.len() as u64);
+        digest.u64(value.len() as u64);
         digest.raw(&value);
     }
 
@@ -367,7 +367,7 @@ fn installed_artifact_occurrence_digest(
     digest.raw(&validated.base.to_le_bytes());
     digest.raw(&validated.length.to_le_bytes());
     digest.raw(&validated.address_space.normalized_identity().to_le_bytes());
-    digest.u64((validated.rights.identities().count() as u64);
+    digest.u64(validated.rights.identities().count() as u64);
     for right in validated.rights.identities() {
         digest.raw(&right.normalized_identity().to_le_bytes());
     }
