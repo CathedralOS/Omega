@@ -120,11 +120,16 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &parameters,
         &catalogs.structural_types,
     )?;
-    // Fresh linear establishments mint their caller bindings while the graph
-    // publishes its claim roster: a composed state reads the machine-wide
-    // table and cannot mint while it emits, so every claim a local
-    // construction establishes joins here before any state runs. Only an
-    // authenticated birth may allocate: moved-local establishment rows retain
+    // A fused graph retains states authored by sibling machines. Its namespace
+    // reserves only those states' authenticated establishments and completions,
+    // under each declaration's owner. Reservation creates no live custody;
+    // the actual producer establishes it when the retained state executes.
+    let state_owners = plan
+        .states
+        .iter()
+        .map(|state| Ok((state.state, super::owner(checked, state.state)?)))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    // Every composed state borrows this fixed table. Moved-local rows retain
     // their source identity and resolve its existing binding during emission.
     let mut next_claim = u64::try_from(claims.entry_claims.len())
         .map_err(|_| LoweringError::Unsupported("Unit entry claim count exceeds u64"))?
@@ -147,9 +152,15 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             } => statement_index,
             _ => continue,
         };
+        let Some((state, machine)) = state_owners
+            .iter()
+            .find(|(state, _)| *state == event.state_symbol)
+        else {
+            continue;
+        };
         if !crate::unit::attached_unit::operation_frame::claim_established_here(
-            plan.machine,
-            event.state_symbol,
+            *machine,
+            *state,
             statement_index,
             event,
         ) || claims
