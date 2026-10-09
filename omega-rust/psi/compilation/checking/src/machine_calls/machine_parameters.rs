@@ -378,6 +378,19 @@ fn validate_call_selection(
         )
     }
 
+    // A selected mathematical declaration has a different generic telescope:
+    // its checked calculus instantiation owns type/level/value arguments and
+    // rejects machine/evidence payload. It supplies no executable callback
+    // selection for this pass to admit.
+    if target_symbol.is_valid()
+        && program
+            .mathematical_definitions()
+            .iter()
+            .any(|definition| definition.symbol == target_symbol)
+    {
+        return;
+    }
+
     // The build operations whose static operands name declarations, not
     // machine requirements, carry no requirement calls to validate.
     if !target_symbol.is_valid()
