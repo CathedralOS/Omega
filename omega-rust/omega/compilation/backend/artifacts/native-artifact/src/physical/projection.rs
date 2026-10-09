@@ -11,9 +11,9 @@ use semantic_vocabulary::OperationId;
 use terminal_psi::TerminalPsiIdentity;
 
 use super::{
-    ValidatedOptimizedNativePhysicalEvidenceScope, native_optimization_projection,
-    optimized_boundary_occurrence, optimized_operator_occurrence,
-    validated_optimized_native_physical_evidence_scope,
+    ValidatedOptimizedNativePhysicalEvidenceScope, canonical_usize,
+    native_optimization_projection, optimized_boundary_occurrence,
+    optimized_operator_occurrence, validated_optimized_native_physical_evidence_scope,
 };
 
 const OPTIMIZED_SCOPE_IDENTITY_DOMAIN: &[u8] =
@@ -274,12 +274,6 @@ fn terminal_identity_bytes(terminal: TerminalPsiIdentity) -> Vec<u8> {
     );
     canonical.extend_from_slice(terminal.program_fingerprint.as_bytes());
     canonical
-}
-
-fn canonical_usize(value: usize) -> [u8; 8] {
-    u64::try_from(value)
-        .expect("native optimized projection length fits u64")
-        .to_le_bytes()
 }
 
 #[cfg(test)]

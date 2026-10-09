@@ -4,8 +4,6 @@
 use crate::identity::digest::format_sha256;
 use crate::identity::{GitTransport, IdentityError, SourceLineage};
 use crate::limits::{GIT_LOCATOR_BYTE_LIMIT, GIT_REVISION_BYTE_LIMIT};
-#[cfg(any(test, feature = "test-fixtures"))]
-use sha2::{Digest, Sha256};
 use std::fmt;
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::path::Path;
