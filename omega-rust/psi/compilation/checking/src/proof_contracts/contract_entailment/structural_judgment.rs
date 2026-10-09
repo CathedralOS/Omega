@@ -317,20 +317,6 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
-    fn declaration_expression_type(
-        &self,
-        expression: ExpressionHandle,
-    ) -> Option<TypeReferenceHandle> {
-        let machine = self.program.machine(self.machine_symbol)?;
-        let state = self.program.machine_states(machine).first()?;
-        crate::parameter_expression_result_type_reference(
-            self.program,
-            self.machine_symbol,
-            self.program.state_parameters(state),
-            expression,
-        )
-    }
-
     fn declaration_term(&self, expression: ExpressionHandle) -> Option<StructuralTerm> {
         if let Some(definition) = self
             .program
