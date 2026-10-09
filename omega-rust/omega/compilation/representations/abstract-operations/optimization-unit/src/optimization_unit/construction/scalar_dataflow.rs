@@ -59,16 +59,8 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
             scalar_type,
             ..
         } => Some((*result, ScalarType::Integer(*scalar_type))),
-        O::IntegerWiden {
-            result,
-            target_type,
-            ..
-        }
-        | O::IntegerExactCast {
-            result,
-            target_type,
-            ..
-        } => Some((*result, ScalarType::Integer(*target_type))),
+        abstract_operations::integer_widen_or_exact_cast_pattern!(result,
+            target_type, ..) => Some((*result, ScalarType::Integer(*target_type))),
         O::IntegerShift {
             result, value_type, ..
         } => Some((*result, ScalarType::Integer(*value_type))),
@@ -168,8 +160,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         }
         O::BooleanNot { operand, .. }
         | O::IntegerBitwiseNot { operand, .. }
-        | O::IntegerWiden { operand, .. }
-        | O::IntegerExactCast { operand, .. }
+        | abstract_operations::integer_widen_or_exact_cast_pattern!(operand, ..)
         | O::ScalarRepresentationView { operand, .. } => vec![*operand],
         O::BooleanEqual { left, right, .. }
         | abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)

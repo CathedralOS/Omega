@@ -1273,3 +1273,11 @@ macro_rules! scalar_read_or_membership_pattern {
             | $crate::AbstractOperation::StructuralCaseMembership { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! integer_widen_or_exact_cast_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::IntegerWiden { $($fields)* }
+            | $crate::AbstractOperation::IntegerExactCast { $($fields)* }
+    };
+}

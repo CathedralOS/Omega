@@ -72,8 +72,7 @@ pub(crate) fn expected_uses(
         }
         O::BooleanNot { operand, .. }
         | O::IntegerBitwiseNot { operand, .. }
-        | O::IntegerWiden { operand, .. }
-        | O::IntegerExactCast { operand, .. }
+        | abstract_operations::integer_widen_or_exact_cast_pattern!(operand, ..)
         | O::ScalarRepresentationView { operand, .. } => vec![*operand],
         O::BooleanEqual { left, right, .. }
         | abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)

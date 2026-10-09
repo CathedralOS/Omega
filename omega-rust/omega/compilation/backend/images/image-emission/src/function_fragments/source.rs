@@ -469,8 +469,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | abstract_operations::integer_equal_less_pair_pattern!(..)
                 | AbstractOperation::IntegerLessOrEqual { .. }
                 | AbstractOperation::BooleanNot { .. }
-                | AbstractOperation::IntegerWiden { .. }
-                | AbstractOperation::IntegerExactCast { .. }
+                | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
                 | AbstractOperation::ScalarRepresentationView { .. }
                 | AbstractOperation::IntegerBitwiseAnd { .. }
                 | abstract_operations::bitwise_or_xor_pair_pattern!(..)

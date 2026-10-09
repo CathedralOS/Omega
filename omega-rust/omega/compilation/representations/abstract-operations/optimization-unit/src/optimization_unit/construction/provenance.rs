@@ -76,8 +76,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | abstract_operations::integer_equal_less_pair_pattern!(psi_operation, ..)
         | O::IntegerLessOrEqual { psi_operation, .. }
         | O::IntegerBitwiseNot { psi_operation, .. }
-        | O::IntegerWiden { psi_operation, .. }
-        | O::IntegerExactCast { psi_operation, .. }
+        | abstract_operations::integer_widen_or_exact_cast_pattern!(psi_operation, ..)
         | O::ScalarRepresentationView { psi_operation, .. }
         | O::IntegerBitwiseAnd { psi_operation, .. }
         | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation, ..)

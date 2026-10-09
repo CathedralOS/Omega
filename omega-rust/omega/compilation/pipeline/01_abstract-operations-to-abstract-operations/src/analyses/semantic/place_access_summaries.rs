@@ -854,8 +854,7 @@ fn scan_operation(
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
         | O::IntegerBitwiseNot { .. }
-        | O::IntegerWiden { .. }
-        | O::IntegerExactCast { .. }
+        | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
         | O::ScalarRepresentationView { .. }
         | O::IntegerBitwiseAnd { .. }
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)

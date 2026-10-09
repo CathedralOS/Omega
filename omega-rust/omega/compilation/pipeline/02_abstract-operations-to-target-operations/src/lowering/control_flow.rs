@@ -262,8 +262,7 @@ pub(super) fn lower(
             | AbstractOperation::IeeeFloatConstant { result, .. }
             | AbstractOperation::IeeeFloatCompare { result, .. }
             | AbstractOperation::FloatResultPolicy { result, .. }
-            | AbstractOperation::IntegerWiden { result, .. }
-            | AbstractOperation::IntegerExactCast { result, .. }
+            | abstract_operations::integer_widen_or_exact_cast_pattern!(result, ..)
             | AbstractOperation::ScalarRepresentationView { result, .. }
             | abstract_operations::integer_equal_less_pair_pattern!(result, ..)
             | AbstractOperation::IntegerLessOrEqual { result, .. }

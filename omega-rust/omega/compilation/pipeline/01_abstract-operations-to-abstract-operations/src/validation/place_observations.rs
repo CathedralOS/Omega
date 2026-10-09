@@ -182,8 +182,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
         | O::IntegerBitwiseNot { .. }
-        | O::IntegerWiden { .. }
-        | O::IntegerExactCast { .. }
+        | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
         | O::ScalarRepresentationView { .. }
         | O::IntegerBitwiseAnd { .. }
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
@@ -511,8 +510,7 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         | O::IntegerLessOrEqual { .. }
         | abstract_operations::bitwise_not_and_pair_pattern!(..)
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
-        | O::IntegerWiden { .. }
-        | O::IntegerExactCast { .. }
+        | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
         | O::ScalarRepresentationView { .. }
         | O::IntegerShift { .. }
         | O::IntegerArithmetic { .. }
