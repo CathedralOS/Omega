@@ -35,7 +35,7 @@ pub(crate) fn stage_target_frame_protocol_encoding(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TargetFrameProtocolEncodingReceipt {
+pub struct TargetFrameProtocolEncodingReceipt {
     identity: TargetFrameProtocolEncodingIdentity,
     frame_layout: TargetFrameLayoutIdentity,
     target: NativeTarget,
@@ -56,21 +56,11 @@ impl TargetFrameProtocolEncodingReceipt {
     pub const fn target(self) -> NativeTarget {
         self.target
     }
-    pub const fn policy(self) -> TargetFrameProtocolEncodingPolicy {
-        self.policy
-    }
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-    pub const fn byte_count(self) -> usize {
-        self.byte_count
-    }
-    pub const fn nonempty_prologue_count(self) -> usize {
-        self.nonempty_prologue_count
-    }
-    pub const fn nonempty_epilogue_count(self) -> usize {
-        self.nonempty_epilogue_count
-    }
+    
+    
+    
+    
+    
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

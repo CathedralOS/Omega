@@ -25,47 +25,6 @@ use super::{
     },
 };
 
-pub(super) fn compute<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    staged_machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &ResolvedMachineLayout,
-    layout_custody: WholeFunctionExitLayoutCustody,
-) -> Result<WholeFunctionExitContract, WholeFunctionExitContractError> {
-    compute_inner(
-        selected,
-        staged_machine,
-        physical,
-        encoding,
-        layout,
-        layout_custody,
-        None,
-    )
-}
-
-pub(super) fn compute_with_frame<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    staged_machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &ResolvedMachineLayout,
-    layout_custody: WholeFunctionExitLayoutCustody,
-    frame: &ValidatedTargetFrameLayout,
-    protocol: &ValidatedTargetFrameProtocolEncoding,
-) -> Result<WholeFunctionExitContract, WholeFunctionExitContractError> {
-    compute_inner(
-        selected,
-        staged_machine,
-        physical,
-        encoding,
-        layout,
-        layout_custody,
-        Some((frame, protocol)),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
 pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
     selected: &S,
     staged_machine: &StagedOptimizedPostAllocationMachinePlan,
