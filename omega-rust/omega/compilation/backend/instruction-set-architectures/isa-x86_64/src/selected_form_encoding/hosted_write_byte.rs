@@ -138,11 +138,11 @@ pub fn encode_x86_64_selected_hosted_write_byte_form(
         0x84 | ((register & 7) << 3),
         0x24,
     ];
-    bytes.extend_from_slice(&displacement.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, displacement.to_le_bytes());
     bytes.extend_from_slice(&[0xbf, 1, 0, 0, 0, 0x48, 0x8d, 0xb4, 0x24]);
-    bytes.extend_from_slice(&displacement.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, displacement.to_le_bytes());
     bytes.extend_from_slice(&[0xba, 1, 0, 0, 0, 0xb8]);
-    bytes.extend_from_slice(&kernel.write.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, kernel.write.to_le_bytes());
     bytes.extend_from_slice(&[0x0f, 0x05]);
     if kernel.carry_reports_failure {
         // jc ud2: Darwin's positive errno must not reach the count test.

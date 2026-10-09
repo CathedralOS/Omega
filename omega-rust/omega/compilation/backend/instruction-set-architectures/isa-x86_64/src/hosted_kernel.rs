@@ -76,9 +76,9 @@ pub fn encode_hosted_exit_process_i32_for_target(
     })?;
     let mut bytes = Vec::with_capacity(14);
     bytes.push(0xbf); // mov edi, imm32
-    bytes.extend_from_slice(&value.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, value.to_le_bytes());
     bytes.push(0xb8); // mov eax, imm32
-    bytes.extend_from_slice(&kernel.exit.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, kernel.exit.to_le_bytes());
     bytes.extend_from_slice(&[0x0f, 0x05]); // syscall
     bytes.extend_from_slice(&[0x0f, 0x0b]); // ud2 if exit returns
     Ok(bytes)
@@ -97,14 +97,14 @@ pub fn encode_darwin_read_byte_to_stack(
     bytes.extend_from_slice(&[0x31, 0xc0]); // xor eax, eax
     for offset in [home_byte_offset, payload_byte_offset] {
         bytes.extend_from_slice(&[0x89, 0x84, 0x24]); // mov [rsp+disp32], eax
-        bytes.extend_from_slice(&offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, offset.to_le_bytes());
     }
     bytes.extend_from_slice(&[0x31, 0xff]); // xor edi, edi (stdin)
     bytes.extend_from_slice(&[0x48, 0x8d, 0xb4, 0x24]); // lea rsi, [rsp+disp32]
-    bytes.extend_from_slice(&payload_byte_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, payload_byte_offset.to_le_bytes());
     bytes.extend_from_slice(&[0xba, 1, 0, 0, 0]); // mov edx, 1
     bytes.push(0xb8); // mov eax, SYS_read | Unix class
-    bytes.extend_from_slice(&DARWIN_READ.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, DARWIN_READ.to_le_bytes());
     bytes.extend_from_slice(&[0x0f, 0x05]); // syscall
     let carry_branch = bytes.len();
     bytes.extend_from_slice(&[0x72, 0]); // jc trap: consume carry before CMP
@@ -115,8 +115,8 @@ pub fn encode_darwin_read_byte_to_stack(
     let count_branch = bytes.len();
     bytes.extend_from_slice(&[0x75, 0]); // jne trap
     bytes.extend_from_slice(&[0xc7, 0x84, 0x24]); // mov dword [rsp+disp32], 1
-    bytes.extend_from_slice(&home_byte_offset.to_le_bytes());
-    bytes.extend_from_slice(&1_u32.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, home_byte_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, 1_u32.to_le_bytes());
     let done_branch = bytes.len();
     bytes.extend_from_slice(&[0xeb, 0]); // jmp done
     let trap = bytes.len();

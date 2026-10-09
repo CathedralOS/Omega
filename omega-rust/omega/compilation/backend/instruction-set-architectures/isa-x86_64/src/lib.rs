@@ -4,6 +4,7 @@
 //! installation facts. It does not depend on either legacy operation graph or
 //! any source-shaped Psi representation.
 
+mod codec_bytes;
 mod fma;
 mod frame_protocol;
 mod hosted_kernel;

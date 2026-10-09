@@ -16,7 +16,7 @@ pub fn encode_binary32_bits_to_xmm(
     let destination = xmm_index(destination)?;
     let mut bytes = Vec::with_capacity(if destination < 8 { 9 } else { 10 });
     bytes.push(0xb8); // mov eax, imm32
-    bytes.extend_from_slice(&bits.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, bits.to_le_bytes());
     bytes.push(0x66);
     if destination >= 8 {
         bytes.push(0x44); // REX.R
@@ -32,7 +32,7 @@ pub fn encode_binary64_bits_to_xmm(
     let destination = xmm_index(destination)?;
     let mut bytes = Vec::with_capacity(15);
     bytes.extend_from_slice(&[0x48, 0xb8]); // mov rax, imm64
-    bytes.extend_from_slice(&bits.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, bits.to_le_bytes());
     bytes.push(0x66);
     bytes.push(if destination < 8 { 0x48 } else { 0x4c }); // REX.W[+R]
     bytes.extend_from_slice(&[0x0f, 0x6e, 0xc0 | ((destination & 7) << 3)]); // movq xmm, rax
@@ -90,7 +90,7 @@ fn encode_rsp_displacement(
             })?;
             bytes.push(reg_field | 0x84); // mod=10, r/m=SIB
             bytes.push(0x24);
-            bytes.extend_from_slice(&displacement.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, displacement.to_le_bytes());
         }
     }
     bytes.extend_from_slice(suffix);
