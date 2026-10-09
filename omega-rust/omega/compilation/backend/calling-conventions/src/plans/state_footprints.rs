@@ -39,7 +39,7 @@ impl StateFootprintEvidence {
 /// externally entered boundary. This is implementation evidence, not part of
 /// the public `CallPlan + StatePlan` identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ProviderExitRealization {
+pub(crate) struct ProviderExitRealization {
     pub control: EntryControl,
     pub restored_state: MachineStateSet,
 }
@@ -50,7 +50,7 @@ pub struct ProviderExitRealization {
 /// through the wrong control mechanism or restore set. The plan's
 /// `initial_regime` is an entry fact, so this evidence deliberately does not
 /// invent a same-regime exit promise.
-pub fn validate_provider_exit_realization(
+pub(crate) fn validate_provider_exit_realization(
     plan: &BoundaryEntryPlan,
     realization: &ProviderExitRealization,
 ) -> Result<(), PlanDiagnostic> {
@@ -72,7 +72,7 @@ pub fn validate_provider_exit_realization(
 /// result is deterministic across fragment ordering and repeated evidence.
 /// This remains implementation evidence: it does not enter boundary contract
 /// identity and does not claim to be a final placed-artifact certificate.
-pub fn compose_state_footprints<'a>(
+pub(crate) fn compose_state_footprints<'a>(
     fragments: impl IntoIterator<Item = &'a StateFootprintEvidence>,
 ) -> StateFootprintEvidence {
     let mut registers = Vec::new();

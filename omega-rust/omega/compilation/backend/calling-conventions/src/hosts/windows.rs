@@ -1,6 +1,6 @@
 /// The Windows import catalog rows: (capability, operation, library, symbol).
 /// Single source of truth for the PE import table's symbol-to-library grouping.
-pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
+pub(crate) const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
     ("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
     ("Stdin", "read", "Kernel32.dll", "ReadFile"),

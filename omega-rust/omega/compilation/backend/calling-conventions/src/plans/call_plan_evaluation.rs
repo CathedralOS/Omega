@@ -157,7 +157,7 @@ fn validate_signature_shapes(
     Ok(())
 }
 
-pub fn validate_call_plan(
+pub(crate) fn validate_call_plan(
     plan: &CallPlan,
     signature: &CallSignature,
 ) -> Result<(), PlanDiagnostic> {
@@ -666,7 +666,7 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
 /// The first consumer is Darwin `open(path, flags, mode)`. Aggregate variadic
 /// values remain fail-closed until an actual native binding needs their Apple
 /// ABI classification.
-pub fn evaluate_darwin_aapcs64_variadic_call_plan(
+pub(crate) fn evaluate_darwin_aapcs64_variadic_call_plan(
     signature: &ConcreteVariadicCallSignature,
 ) -> Result<CallPlan, PlanDiagnostic> {
     if signature.variadic_parameters.is_empty() {
