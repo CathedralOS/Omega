@@ -1751,9 +1751,12 @@ impl<'program> StructuralJudge<'program> {
         }
         // Opaque text and legacy application unfolding are not exact subject
         // identity. Keep those outside this predicate route until repaired.
+        // A captured value is one numbered occurrence, so its tags are exact.
         if !matches!(
             subject,
-            StructuralTerm::Variable(_) | StructuralTerm::BoundValue(_)
+            StructuralTerm::Variable(_)
+                | StructuralTerm::BoundValue(_)
+                | StructuralTerm::CapturedValue { .. }
         ) {
             return StructuralJudgment::Unknown;
         }

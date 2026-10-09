@@ -201,7 +201,10 @@ impl<'program> StructuralJudge<'program> {
             let machine = program.machine(scope.0.symbol)?;
             let writes = crate::machine_calls::calls::CallFrameResolver::new(program)?
                 .expression_may_write_paths(machine, expression)?;
-            if !writes.is_empty() {
+            // Case-only judging starts after the caller proved its whole
+            // reachable body tag-preserving (scalar and atomic writes only),
+            // so a write cannot change a tag it reads. Value judges refuse.
+            if !writes.is_empty() && !self.case_facts_only {
                 return None;
             }
         }
@@ -273,8 +276,25 @@ impl<'program> StructuralJudge<'program> {
                             program, scope.0, scope.1, expression,
                         )?,
                     }
+                } else if let Some(value) =
+                    judge.callee_term_in_scope(Some(scope), expression, environment, 0)
+                {
+                    value
+                } else if judge.runtime_body_values && matches!(node, ExpressionNode::Call(_)) {
+                    // A completed call whose contract could not be imported
+                    // (reference or mutable operands, selected applications)
+                    // is still one observation: a fresh identity, no facts.
+                    judge.capture_sequence += 1;
+                    StructuralTerm::CapturedValue {
+                        expression,
+                        callable: SymbolHandle::invalid(),
+                        occurrence: judge.capture_sequence,
+                        result_type: crate::expression_result_type_reference(
+                            program, scope.0, scope.1, expression,
+                        )?,
+                    }
                 } else {
-                    judge.callee_term_in_scope(Some(scope), expression, environment, 0)?
+                    return None;
                 };
                 if let (StructuralTerm::Application { arguments, .. }, Some(inputs)) =
                     (&mut value, call_inputs)
@@ -436,6 +456,23 @@ impl<'program> StructuralJudge<'program> {
             result_type,
         };
         let mut equations = Vec::new();
+        // A saved local now resolves to this occurrence, so the callee's case
+        // tags must classify it here; the citation route's saved-binding tags
+        // never meet that environment term. Tags never become value equations.
+        let tag_callee = match owner {
+            SelectedCallContract::Concrete(machine, _) => Some(machine),
+            _ => None,
+        };
+        let tag_map = parameters
+            .iter()
+            .zip(actuals)
+            .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value.clone()))
+            .chain(std::iter::once((
+                crate::proof_contracts::contract_entailment::RESULT_BINDER.to_owned(),
+                captured.clone(),
+            )))
+            .collect::<Vec<_>>();
+        let mut case_guarantees = Vec::new();
         for contract in contracts
             .iter()
             .filter(|contract| contract.kind == SignatureContractKind::Ensures)
@@ -455,6 +492,14 @@ impl<'program> StructuralJudge<'program> {
                     &mut equations,
                     0,
                 );
+                if let Some(callee) = tag_callee {
+                    self.instantiated_case_guarantees(
+                        callee,
+                        *guarantee,
+                        &tag_map,
+                        &mut case_guarantees,
+                    );
+                }
             }
         }
         if super::super::struct_trace() {
@@ -467,6 +512,9 @@ impl<'program> StructuralJudge<'program> {
         for (left, right) in equations {
             self.normal_guarantees.push((left.clone(), right.clone()));
             self.intake_equation(left, right, 0);
+        }
+        for guarantee in &case_guarantees {
+            self.intake_case_guarantee(guarantee);
         }
     }
 }

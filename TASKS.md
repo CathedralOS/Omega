@@ -2687,7 +2687,12 @@ crash and native exit behavior.
     target-family contract ... unimplemented") until
     **PIPELINE-ARCHITECTURE-ENFORCEMENT** carries the common callable
     contract; native rows of console programs cannot be remeasured before
-    then.
+    then. At b7418d4022 the full macOS native leg builds 447 of 1825 rows;
+    995 of its 1035 lost successes stop at this refusal.
+  - `pass/proofs/case_call_premises` still cannot prove `preserve_empty`'s
+    `value in Tree::Empty` from `make_empty`'s guarantee at b7418d4022. Its
+    callees are `terminates` proof machines, judged as applications rather
+    than captured runtime occurrences; the cause is not bisected.
   - `interrupt_table_canary` and `secondary_processor_canary` select providers
     but lack an executable intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that
     dependency.

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 1.65, "load1_start": 1.65, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 10.38, "load1_start": 10.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -907,6 +907,8 @@ fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 808ms exp
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/contracts/proof_fact_indexed_domain_application_unevidenced rejected 850ms expected @2d8ed253669f
 	declared instance `Resident<SlotPlacement, Slot>` has no establishment: the call establishes no instance of domain family `Resident` -- neither its declared return type nor its `ensures` names one -- and a domain family with no predicate body has no predicate the write could prove; the value must already carry the instance, through the callee's `ensures result in Resident<SlotPlacement, Slot>`, a declared place of that type, or the family's authorized establishment route (at exercise_placed::entry:statement-0)
+fail/contracts/saved_call_case_guarantee_replaced_by_call rejected 420ms expected @903765547ffe
+	cannot prove requires contract for call observe from main: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/undischarged_contract_entailment rejected 77ms expected @43a77116e58+wt
 	checked machine `unchecked_claim` cannot establish proposition ensure `boolean:min(right, 0) >= 1` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/control_flow/arm_pattern_missing_field rejected 294ms expected @2d8ed253669f
@@ -2024,7 +2026,7 @@ fail/proofs/ring_law_unproven_rejected rejected 1082ms expected @c5d32a00863
 	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `Console`
 fail/proofs/ring_rearrange_unlicensed_rejected rejected 312ms expected @2d8ed253669f
 	machine `needs_rearrange` ensures contract proof fact `plus(b, plus(a, c)) == plus(a, plus(b, c))` speaks about proof-only `Peano`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-fail/proofs/runtime_case_atomic_observations_are_distinct rejected 3419ms expected @0919e048c9f8+wt
+fail/proofs/runtime_case_atomic_observations_are_distinct rejected 417ms expected @903765547ffe
 	cannot prove requires contract for call require_three from main: second == 3 (needs fact `observation == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/runtime_case_guarantee_replaced_subject rejected 4215ms expected @0919e048c9f8+wt
 	cannot prove requires contract for call observe from main: choice == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -2583,9 +2585,9 @@ pass/atomics/runtime_atomic_after_quoted_write_exit checked 2158ms check-target:
 pass/atomics/runtime_atomic_bitwise_widths_exit checked 3130ms check-target:macos_arm64 @8ed2986d3282
 pass/atomics/runtime_atomic_compare_exchange_exit checked 1305ms check-target:macos_arm64 @2d8ed253669f
 pass/atomics/runtime_atomic_fetch_add_exit checked 1275ms check-target:macos_arm64 @2d8ed253669f
-pass/atomics/runtime_case_payload_atomic_events_exit checked 15730ms check-target:macos_arm64 @0919e048c9f8+wt
+pass/atomics/runtime_case_payload_atomic_events_exit checked 2474ms check-target:macos_arm64 @903765547ffe
 pass/atomics/runtime_mixed_common_atomic_cell_exit checked 1510ms check-target:macos_arm64 @aea569c35b63
-pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 15659ms check-target:macos_arm64 @0919e048c9f8+wt
+pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 2472ms check-target:macos_arm64 @903765547ffe
 pass/atomics/runtime_shared_case_waived_atomic_exit checked 3505ms check-target:macos_arm64 @0c36a0fe0b35
 pass/atomics/shared_receiver_atomic_store checked 1429ms check-target:macos_arm64 @835baa6033eb
 pass/blockexec/blocking_executor_custody_claims_compile checked 693ms check-target:macos_arm64 @2d8ed253669f
@@ -3126,6 +3128,7 @@ pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 3054ms check-target:macos_arm64 @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 3035ms check-target:macos_arm64 @527c7c316c6f+wt
 pass/contracts/runtime_later_arm_call_requires_exit checked 2753ms check-target:macos_arm64 @53d5dde47ae5
+pass/contracts/saved_call_case_guarantee_requires_exit checked 2472ms check-target:macos_arm64 @903765547ffe
 pass/control_flow/affine_call_result_state_transfer_exit checked 1527ms check-target:macos_arm64 @e28fa01a1e73+wt
 pass/control_flow/affine_record_state_cycle_exit checked 704ms check-target:macos_arm64 @7f2bd2604102
 pass/control_flow/arm_pattern_rest_optout_exit checked 3464ms check-target:macos_arm64 @b5d8c6882a8

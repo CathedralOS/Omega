@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 14.86, "load1_start": 14.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 9.95, "load1_start": 10.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -71,9 +71,9 @@ pass/atomics/runtime_atomic_after_quoted_write_exit built 2094ms exit:70 @40568c
 pass/atomics/runtime_atomic_bitwise_widths_exit built 3371ms exit:70 @9beb2be72f2d+wt
 pass/atomics/runtime_atomic_compare_exchange_exit built 2351ms exit:70 @fb2178def922
 pass/atomics/runtime_atomic_fetch_add_exit built 2588ms exit:70 @fb2178def922
-pass/atomics/runtime_case_payload_atomic_events_exit built 15001ms exit:0 @0919e048c9f8+wt
+pass/atomics/runtime_case_payload_atomic_events_exit built 2692ms exit:0 @903765547ffe
 pass/atomics/runtime_mixed_common_atomic_cell_exit built 2188ms exit:0 @aea569c35b63
-pass/atomics/runtime_nested_case_payload_atomic_event_exit built 14918ms exit:0 @0919e048c9f8+wt
+pass/atomics/runtime_nested_case_payload_atomic_event_exit built 2690ms exit:0 @903765547ffe
 pass/atomics/runtime_shared_case_waived_atomic_exit built 3671ms exit:70 @0c36a0fe0b35
 pass/atomics/shared_receiver_atomic_store built 1028ms exit:70 @e7aa25bff706+wt
 pass/blockexec/blocking_executor_custody_claims_compile built 335ms
@@ -600,6 +600,7 @@ pass/contracts/proof_fact_indexed_domain_application checked 176ms
 pass/contracts/requires_narrow_ceiling_unproven built 2806ms exit:70 @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier built 2894ms exit:70 @527c7c316c6f+wt
 pass/contracts/runtime_later_arm_call_requires_exit built 3086ms exit:70 @53d5dde47ae5
+pass/contracts/saved_call_case_guarantee_requires_exit built 2689ms exit:0 @903765547ffe
 pass/control_flow/affine_call_result_state_transfer_exit built 1607ms exit:70 @e28fa01a1e73+wt
 pass/control_flow/affine_record_state_cycle_exit built 849ms exit:70 @7f2bd2604102+wt
 pass/control_flow/arm_pattern_rest_optout_exit built 723ms exit:70 @48008365d839
