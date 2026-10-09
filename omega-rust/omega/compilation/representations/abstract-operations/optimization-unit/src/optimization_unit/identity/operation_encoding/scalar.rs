@@ -192,7 +192,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(62);
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
-            bytes.id(*source);
+            encode_structural_argument(bytes, source);
         }
         O::ElementViewLength {
             psi_operation,

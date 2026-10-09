@@ -126,7 +126,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(64);
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
-            bytes.id(*source);
+            encode_structural_argument(bytes, source);
             bytes.id(*start);
             bytes.id(*end);
             bytes.id(*length);
@@ -144,7 +144,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(84);
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
-            bytes.id(*source);
+            encode_structural_argument(bytes, source);
             bytes.id(*start);
             bytes.id(*end);
             bytes.id(*length);
