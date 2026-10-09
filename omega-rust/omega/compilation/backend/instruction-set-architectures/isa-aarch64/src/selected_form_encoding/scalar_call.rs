@@ -12,11 +12,11 @@ use target::NativeTarget;
 use crate::machine_effects::{Aarch64SelectedAbi, aarch64_selected_abi};
 use crate::{aarch64_aapcs64_register_call_keys, aarch64_register_constraint_catalog_for};
 
-pub const AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
-pub const AARCH64_SCALAR_CALL_OPCODE_OFFSET: u16 = 0;
-pub const AARCH64_SCALAR_CALL_PATCH_OFFSET: u16 = 0;
-pub const AARCH64_SCALAR_CALL_REFERENCE_OFFSET: u16 = 0;
-pub const AARCH64_SCALAR_CALL_PATCH_WIDTH: u8 = 4;
+pub(crate) const AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
+pub(crate) const AARCH64_SCALAR_CALL_OPCODE_OFFSET: u16 = 0;
+pub(crate) const AARCH64_SCALAR_CALL_PATCH_OFFSET: u16 = 0;
+pub(crate) const AARCH64_SCALAR_CALL_REFERENCE_OFFSET: u16 = 0;
+pub(crate) const AARCH64_SCALAR_CALL_PATCH_WIDTH: u8 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aarch64ScalarCallFixupKind {
@@ -42,7 +42,7 @@ pub struct Aarch64ScalarCallFixup {
 
 /// Exact selected inputs and canonical bytes for one unresolved scalar call.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedAarch64SelectedScalarCallTemplate {
+pub(crate) struct ValidatedAarch64SelectedScalarCallTemplate {
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operand_views: Vec<RegisterViewId>,

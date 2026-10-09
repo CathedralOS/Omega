@@ -6,7 +6,7 @@ use register_model::RegisterViewId;
 use selected_instructions::MachineEncodedEffects;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Aarch64SelectedFormFootprint {
+pub(crate) struct Aarch64SelectedFormFootprint {
     pub register_reads: Vec<RegisterViewId>,
     pub register_writes: Vec<RegisterViewId>,
     pub writes_nzcv: bool,
@@ -32,7 +32,7 @@ impl ValidatedAarch64SelectedFormEncoding {
 /// Canonical 64-bit `MOVN` seed for a shortest complement-seeded immediate
 /// materialization. `halfword` is the architectural `hw` field, in `0..=3`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Aarch64MovnSeed {
+pub(crate) struct Aarch64MovnSeed {
     pub(crate) halfword: u8,
     pub(crate) immediate: u16,
 }
@@ -49,7 +49,7 @@ impl Aarch64MovnSeed {
 
 /// One canonical 64-bit `MOVK` patch following a complement-seeded `MOVN`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Aarch64MovkPatch {
+pub(crate) struct Aarch64MovkPatch {
     pub(crate) halfword: u8,
     pub(crate) immediate: u16,
 }
@@ -70,7 +70,7 @@ impl Aarch64MovkPatch {
 /// Equal-length recipes choose the lowest possible seed halfword. Patches are
 /// then ordered by strictly ascending halfword index.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Aarch64ShortestMovnMaterializationRecipe {
+pub(crate) struct Aarch64ShortestMovnMaterializationRecipe {
     pub(crate) seed: Aarch64MovnSeed,
     pub(crate) patches: Vec<Aarch64MovkPatch>,
     pub(crate) baseline_byte_count: usize,
@@ -89,7 +89,7 @@ impl Aarch64ShortestMovnMaterializationRecipe {
         self.baseline_byte_count
     }
 
-    pub fn encoded_byte_count(&self) -> usize {
+    pub(crate) fn encoded_byte_count(&self) -> usize {
         (1 + self.patches.len()) * 4
     }
 }

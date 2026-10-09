@@ -166,7 +166,7 @@ pub fn encode_aarch64_selected_floating_control_form(
     )
 }
 
-pub fn validate_aarch64_selected_floating_control_form(
+pub(crate) fn validate_aarch64_selected_floating_control_form(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,

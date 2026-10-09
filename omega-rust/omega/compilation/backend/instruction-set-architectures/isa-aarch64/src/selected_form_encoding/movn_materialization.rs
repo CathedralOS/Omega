@@ -15,7 +15,7 @@ use semantic_vocabulary::IntegerValue;
 /// Derive the unique shortest 64-bit `MOVN` seed plus ascending `MOVK`
 /// patches. The recipe is available only when it is strictly smaller than the
 /// existing zero-seeded selected-form materialization.
-pub fn aarch64_shortest_movn_materialization_recipe(
+pub(crate) fn aarch64_shortest_movn_materialization_recipe(
     value: IntegerValue,
 ) -> Result<Aarch64ShortestMovnMaterializationRecipe, Aarch64SelectedFormEncodingError> {
     shortest_movn_materialization_recipe(integer_bits(value)?)
@@ -24,7 +24,7 @@ pub fn aarch64_shortest_movn_materialization_recipe(
 /// Encode the ISA-owned shortest complement-seeded realization of one exact
 /// selected `i64` bit pattern. This does not change the baseline selected-form
 /// encoder, which remains zero-seeded.
-pub fn encode_aarch64_shortest_movn_materialization(
+pub(crate) fn encode_aarch64_shortest_movn_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     destination: RegisterViewId,
     value: IntegerValue,
@@ -39,7 +39,7 @@ pub fn encode_aarch64_shortest_movn_materialization(
 /// materialization. The decoder reconstructs both destination and full 64-bit
 /// value, then requires the canonical lowest seed, ascending patches, and a
 /// strict byte reduction against the unchanged baseline encoding.
-pub fn validate_aarch64_shortest_movn_materialization(
+pub(crate) fn validate_aarch64_shortest_movn_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     destination: RegisterViewId,
     value: IntegerValue,

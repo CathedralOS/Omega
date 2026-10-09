@@ -60,28 +60,30 @@ pub use post_handoff_writer::{
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width,
 };
-pub use preservation_storage::{
-    Aarch64PreservationStorageCatalogError, aarch64_preservation_storage_catalog,
+pub use preservation_storage::{ aarch64_preservation_storage_catalog,
 };
+pub(crate) use preservation_storage::{
+    Aarch64PreservationStorageCatalogError};
 pub use register_model::aarch64_aapcs64_normalized_foreign_call_keys;
 pub use register_model::aarch64_aapcs64_register_call_keys;
 pub use register_model::aarch64_darwin_normalized_foreign_call_keys;
 pub use register_model::aarch64_darwin_register_call_keys;
 pub use register_model::{
-    AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN,
+    AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_RETURN,
     AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE,
     AARCH64_COMPARE_BYTE_SEQUENCES, AARCH64_COMPARE_I64, AARCH64_COMPARE_I64_IMMEDIATE,
     AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_BYTES, AARCH64_COPY_I64,
-    AARCH64_DARWIN_CALL, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT,
-    AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_JUMP, AARCH64_LINUX_SYSTEM_CALL,
-    AARCH64_MATERIALIZE_I64, AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SCAN_BYTE_SEQUENCE,
+    AARCH64_DARWIN_CALL, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT, AARCH64_JUMP,
+    AARCH64_MATERIALIZE_I64, AARCH64_SCAN_BYTE_SEQUENCE,
     AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE, AARCH64_ZERO_BYTES,
     Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
-    aarch64_physical_register_model, aarch64_physical_register_model_ref,
+    aarch64_physical_register_model,
     aarch64_preservation_convention_for_target, aarch64_register_constraint_catalog,
-    aarch64_register_constraint_catalog_for, canonical_aarch64_physical_register_model_identity,
     validate_aarch64_register_constraint_catalog, validated_aarch64_physical_register_model,
 };
+pub(crate) use register_model::{ AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
+    AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_LINUX_SYSTEM_CALL, AARCH64_REQUIRED_REGISTER_CONSTRAINTS, aarch64_physical_register_model_ref,
+    aarch64_register_constraint_catalog_for, canonical_aarch64_physical_register_model_identity};
 pub use register_model::{
     AARCH64_ADDRESS_OFFSET, AARCH64_BYTE_LITERAL_IMAGE_ADDRESS,
     AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32, AARCH64_FRAME_ADDRESS, AARCH64_HOSTED_WRITE_BYTE_I32,
@@ -113,19 +115,11 @@ pub use selected_form_encoding::system_call::{
 pub use selected_form_encoding::{
     AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
     AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, AARCH64_CONDITIONAL_BRANCH_BYTE_REACH,
-    AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
-    AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
-    AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, AARCH64_SCALAR_CALL_OPCODE_OFFSET,
-    AARCH64_SCALAR_CALL_PATCH_OFFSET, AARCH64_SCALAR_CALL_PATCH_WIDTH,
-    AARCH64_SCALAR_CALL_REFERENCE_OFFSET, AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
-    Aarch64CallbackAddressMaterialization, Aarch64CallbackMaterializationDestination,
-    Aarch64MovkPatch, Aarch64MovnSeed, Aarch64NormalizedForeignCallFixup,
+    Aarch64CallbackAddressMaterialization, Aarch64CallbackMaterializationDestination, Aarch64NormalizedForeignCallFixup,
     Aarch64NormalizedForeignCallFixupKind, Aarch64NormalizedForeignCallFixupState,
     Aarch64NormalizedForeignCallTemplateError, Aarch64ScalarCallFixup, Aarch64ScalarCallFixupKind,
     Aarch64ScalarCallFixupState, Aarch64ScalarCallTemplateError, Aarch64SelectedFormEncodingError,
-    Aarch64SelectedFormFootprint, Aarch64ShortestMovnMaterializationRecipe,
-    ValidatedAarch64SelectedFormEncoding, ValidatedAarch64SelectedNormalizedForeignCallTemplate,
-    ValidatedAarch64SelectedScalarCallTemplate, aarch64_shortest_movn_materialization_recipe,
+    ValidatedAarch64SelectedFormEncoding,
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     encode_aarch64_selected_dynamic_call_template, encode_aarch64_selected_form,
     encode_aarch64_selected_i64_less_than_branch_form,
@@ -136,7 +130,6 @@ pub use selected_form_encoding::{
     encode_aarch64_selected_scalar_call_template,
     encode_aarch64_selected_u64_less_than_branch_form,
     encode_aarch64_selected_u64_less_than_widened_branch_form,
-    encode_aarch64_shortest_movn_materialization,
     validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     validate_aarch64_selected_form_encoding, validate_aarch64_selected_i64_less_than_branch_form,
     validate_aarch64_selected_i64_less_than_widened_branch_form,
@@ -146,11 +139,22 @@ pub use selected_form_encoding::{
     validate_aarch64_selected_scalar_call_template,
     validate_aarch64_selected_u64_less_than_branch_form,
     validate_aarch64_selected_u64_less_than_widened_branch_form,
-    validate_aarch64_shortest_movn_materialization,
 };
+pub(crate) use selected_form_encoding::{
+    AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
+    AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
+    AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, AARCH64_SCALAR_CALL_OPCODE_OFFSET,
+    AARCH64_SCALAR_CALL_PATCH_OFFSET, AARCH64_SCALAR_CALL_PATCH_WIDTH,
+    AARCH64_SCALAR_CALL_REFERENCE_OFFSET, AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
+    Aarch64MovkPatch, Aarch64MovnSeed,
+    Aarch64SelectedFormFootprint, Aarch64ShortestMovnMaterializationRecipe, ValidatedAarch64SelectedNormalizedForeignCallTemplate,
+    ValidatedAarch64SelectedScalarCallTemplate, aarch64_shortest_movn_materialization_recipe,
+    encode_aarch64_shortest_movn_materialization,
+    validate_aarch64_shortest_movn_materialization};
 pub use selected_form_encoding::{
-    encode_aarch64_selected_floating_control_form, validate_aarch64_selected_floating_control_form,
+    encode_aarch64_selected_floating_control_form,
 };
+pub(crate) use selected_form_encoding::{ validate_aarch64_selected_floating_control_form};
 pub use selected_form_encoding::{
     encode_aarch64_selected_hosted_write_byte_form,
     validate_aarch64_selected_hosted_write_byte_form,

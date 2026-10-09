@@ -114,7 +114,7 @@ pub fn aarch64_darwin_normalized_foreign_call_keys() -> Vec<RegisterConstraintKe
 }
 
 /// Exact Linux AAPCS64 scalar call with two U64 arguments and one U64 result.
-pub const AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64: RegisterConstraintKey = RegisterConstraintKey {
+pub(crate) const AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Call,
     variant: 2,
 };
