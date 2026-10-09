@@ -53,6 +53,9 @@ use symbols::SymbolHandle;
 /// borrowed views over existing custody, never synthetic expression nodes.
 #[derive(Clone, Copy)]
 pub enum IndexIdentityArgument<'argument> {
+    /// A type-role operand uses type identity, not the symbolic index-name
+    /// grammar. Bare nominal types must agree with their source static form.
+    TypeArgument(TypeReferenceHandle),
     TypeReference(TypeReferenceHandle),
     Expression(crate::expression::ExpressionHandle),
     Subject(SymbolHandle),

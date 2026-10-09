@@ -332,8 +332,10 @@ fn conformance_arguments_match(
             (
                 binding.parameter,
                 match &binding.value {
-                    StaticMachineBindingValue::Type(actual)
-                    | StaticMachineBindingValue::Const(actual) => {
+                    StaticMachineBindingValue::Type(actual) => {
+                        IndexIdentityArgument::TypeArgument(*actual)
+                    }
+                    StaticMachineBindingValue::Const(actual) => {
                         IndexIdentityArgument::TypeReference(*actual)
                     }
                     StaticMachineBindingValue::RuntimeValue { subject, .. } => {
@@ -430,13 +432,16 @@ fn conformance_arguments_match(
                 .data_type_parameters
                 .span_or_empty(refinement.type_parameters)
                 .iter()
-                .map(|parameter| parameter.symbol)
-                .zip(
-                    bound
-                        .arguments
-                        .iter()
-                        .map(|argument| IndexIdentityArgument::TypeReference(*argument)),
-                )
+                .zip(bound.arguments.iter())
+                .map(|(parameter, argument)| {
+                    let argument =
+                        if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
+                            IndexIdentityArgument::TypeArgument(*argument)
+                        } else {
+                            IndexIdentityArgument::TypeReference(*argument)
+                        };
+                    (parameter.symbol, argument)
+                })
                 .collect::<Vec<_>>();
             matches(
                 program

@@ -20,6 +20,15 @@ pub(super) fn index_argument(
     context: &TypeIdentityContext<'_>,
 ) -> String {
     match argument {
+        IndexIdentityArgument::TypeArgument(reference) => {
+            if !program
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return rejected(context);
+            }
+            normalize_type_reference(program, reference, context)
+        }
         IndexIdentityArgument::Expression(expression) => {
             if !program.expression_table.expression_is_valid(expression) {
                 return rejected(context);

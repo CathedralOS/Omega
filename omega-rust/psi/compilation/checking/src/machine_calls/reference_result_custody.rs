@@ -65,13 +65,12 @@ fn reference_origin_expansion_is_bounded(
         if *visits > MAX_REFERENCE_ORIGIN_VISITS || depth > MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
         }
-        let symbol = match program.type_reference_table.type_reference(reference) {
+        match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { .. } => {
                 *leaves = leaves.checked_add(1)?;
                 return (*leaves <= MAX_REFERENCE_ORIGIN_LEAVES).then_some(());
             }
-            TypeReferenceNode::Named { symbol, .. } => *symbol,
-            TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {}
             TypeReferenceNode::Constrained { base_type, .. } => {
                 return visit(program, *base_type, depth + 1, visits, leaves);
             }
@@ -97,10 +96,10 @@ fn reference_origin_expansion_is_bounded(
                 return visit(program, *element_type, depth + 1, visits, leaves);
             }
             _ => return Some(()),
-        };
-        if let Some(data) =
-            crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
-        {
+        }
+        // The closed receiver owns substituted children. Walking the generic
+        // head here would miss loans carried by its type arguments.
+        if let Some(data) = program.closed_data_definition(reference) {
             for member in program.data_members(data) {
                 if let Some(field) = member.as_field() {
                     visit(program, field.type_reference, depth + 1, visits, leaves)?;
@@ -143,23 +142,21 @@ pub fn is_reference_record(
         {
             return visit(program, *element_type, seen);
         }
-        let symbol = program
-            .type_reference_table
-            .unparameterized_type_symbol(reference)?;
-        if seen.contains(symbol) {
+        let data = program.closed_data_definition(reference)?;
+        let symbol = data.symbol;
+        if seen.contains(&symbol) {
             return None;
         }
-        let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || program.type_multiplicity(reference) != Multiplicity::Affine
             || !program.data_type_parameters(data).is_empty()
             || program.machines().iter().any(|machine| {
-                machine.attached_data_symbol == *symbol && machine.name.as_str().ends_with("::drop")
+                machine.attached_data_symbol == symbol && machine.name.as_str().ends_with("::drop")
             })
         {
             return None;
         }
-        seen.push(*symbol);
+        seen.push(symbol);
         let mut contains_reference = false;
         for member in program.data_members(data) {
             let field = member.as_field()?;
