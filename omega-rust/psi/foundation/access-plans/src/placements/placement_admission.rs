@@ -1,17 +1,19 @@
 use extents::{Extent, ExtentLoan};
 
 use crate::ResourceProfileReceiptId;
+use crate::normalized_identity;
 use crate::{
     AccessPlanDiagnostic, AdmittedResourceProfile, OwnedPlacementAdmission,
     OwnedPlacementRejection, PlacedView, PlacementResourceCompatibility, ValidatedPlacementPlan,
     validate_placement_resources,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PlacementAdmissionId(pub(crate) u64);
+normalized_identity!(PlacementAdmissionId, "placement-admission identity cannot be zero", pub(crate));
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PlacedOccurrenceId(u64);
+normalized_identity!(
+    PlacedOccurrenceId,
+    "placed-occurrence identity cannot be zero"
+);
 
 /// One accepted placement that owns the exact extent loan checked by the
 /// provider. It cannot be reused to admit another range or another loan.
@@ -37,36 +39,6 @@ pub struct PlacementRejection<'extent> {
 pub struct PlaceEstablishmentError<'extent> {
     admission: PlacementAdmission<'extent>,
     diagnostic: AccessPlanDiagnostic,
-}
-
-impl PlacementAdmissionId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
-        if identity == 0 {
-            return Err(AccessPlanDiagnostic(
-                "placement-admission identity cannot be zero".into(),
-            ));
-        }
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
-}
-
-impl PlacedOccurrenceId {
-    pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
-        if identity == 0 {
-            return Err(AccessPlanDiagnostic(
-                "placed-occurrence identity cannot be zero".into(),
-            ));
-        }
-        Ok(Self(identity))
-    }
-
-    pub const fn normalized_identity(self) -> u64 {
-        self.0
-    }
 }
 
 impl<'extent> PlacementAdmission<'extent> {

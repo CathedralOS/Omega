@@ -3,9 +3,9 @@
 //! constructor, and the value accessor.
 
 macro_rules! normalized_identity {
-    ($name:ident, $label:literal) => {
+    ($name:ident, $label:literal $(, $field_vis:vis)?) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name(u64);
+        pub struct $name($($field_vis)? u64);
 
         impl $name {
             pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
