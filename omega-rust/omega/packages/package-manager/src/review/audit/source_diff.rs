@@ -5,7 +5,7 @@ mod output;
 mod patch;
 mod snapshot;
 
-pub use patch::{
+pub(crate) use patch::{
     PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide,
     render_package_source_patch,
 };

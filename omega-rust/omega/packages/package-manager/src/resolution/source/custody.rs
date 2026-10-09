@@ -22,7 +22,7 @@ use std::sync::Arc;
 /// Immutable package source after acquisition, declaration extraction, and
 /// dependency projection have all succeeded.
 #[derive(Debug, Clone)]
-pub struct PackageSourceCustody {
+pub(crate) struct PackageSourceCustody {
     key: PackageKey,
     role: BuildDeclarationKind,
     resolution: ImmutableSourceResolution,
@@ -99,10 +99,6 @@ impl PackageSourceCustody {
         }
     }
 
-    pub(crate) fn with_captured_source(mut self, tree: Arc<source::CapturedSourceTree>) -> Self {
-        self.captured_source = Some(tree);
-        self
-    }
 
     pub fn captured_source(&self) -> Option<&Arc<source::CapturedSourceTree>> {
         self.captured_source.as_ref()
@@ -117,7 +113,7 @@ impl PackageSourceCustody {
 
     /// Retained directory offered to the checked source cache, when
     /// resolution supplied one.
-    pub fn checked_source_cache_dir(&self) -> Option<&Path> {
+    pub(crate) fn checked_source_cache_dir(&self) -> Option<&Path> {
         self.checked_source_cache_dir.as_deref()
     }
 
@@ -130,7 +126,7 @@ impl PackageSourceCustody {
 
     /// Retained directory offered to the compiled review cache, when
     /// resolution supplied one.
-    pub fn compiled_review_cache_dir(&self) -> Option<&Path> {
+    pub(crate) fn compiled_review_cache_dir(&self) -> Option<&Path> {
         self.compiled_review_cache_dir.as_deref()
     }
 

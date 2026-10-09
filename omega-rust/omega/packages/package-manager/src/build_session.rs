@@ -11,7 +11,7 @@ mod order;
 mod preparation;
 pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
 pub(crate) use order::{dependency_first_package_order, package_build_root};
-pub use preparation::PackageSourcePreparation;
+pub(crate) use preparation::PackageSourcePreparation;
 pub(crate) use preparation::PreparedPackageSource;
 
 use crate::review::CompileResolvedPackageReviewsError;

@@ -38,17 +38,4 @@ pub(super) struct GitRepositoryWorkspaceEvidence {
 }
 
 impl WorkspaceContext {
-    pub(in super::super) fn local(
-        root_source: SourceLineage,
-        root: PathBuf,
-        allows_external_paths: bool,
-    ) -> Self {
-        Self {
-            root_source,
-            kind: WorkspaceContextKind::Local {
-                root,
-                allows_external_paths,
-            },
-        }
-    }
 }

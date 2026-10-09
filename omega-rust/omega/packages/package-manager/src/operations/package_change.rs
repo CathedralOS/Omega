@@ -4,7 +4,7 @@ use crate::build_session::PackageBuildSession;
 use crate::review::SemanticBindingReview;
 
 mod error;
-pub use error::PackageChangeError;
+pub(crate) use error::PackageChangeError;
 
 use crate::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockTarget,
@@ -25,7 +25,7 @@ use target::TargetProfile;
 /// needed for review and lock construction, not a package certificate or file
 /// publication permission. No accepted project file is changed by this type.
 #[derive(Debug)]
-pub struct PackageChangeReview {
+pub(crate) struct PackageChangeReview {
     source_closure: ResolvedPackageSourceClosure,
     reviews: CompilerIssuedPackageReviewSet,
     changes: PackagePolicyChangeSet,
@@ -59,7 +59,7 @@ impl PackageChangeReview {
     /// immediate pre-publication source/build checks, and other selected targets.
     /// This function writes neither `build.omg` nor `omega.lock`, and emits no
     /// native artifact. A rejection leaves this review available for inspection.
-    pub fn propose_lock_target(
+    pub(crate) fn propose_lock_target(
         &self,
         resolution: &PackagePolicyResolution,
     ) -> Result<PackageLockTarget, PackageChangeError> {
@@ -115,32 +115,6 @@ impl PackageChangeReview {
     }
 }
 
-/// Check and compare a resolved install/update candidate for one exact target.
-/// The caller resolves the requested candidate before executing build code.
-/// Its session is the resource owner shared across all review targets and rounds.
-/// Only the compiler's existing scoped build evaluator is used; dependencies
-/// receive no resolver or host credential object through this interface.
-///
-/// Ordinary proof failures cannot be approved as capability changes. Explicit
-/// accepted assumptions remain policy findings and use the normal decisions.
-/// No old source, native emission, reconstruction question, or admission
-/// promotion is needed. Resume after a source edit by creating a new review and
-/// recovering saved decisions against its new comparison, not the old object.
-pub fn review_package_change(
-    source_closure: ResolvedPackageSourceClosure,
-    target: TargetProfile,
-    accepted: Option<&PackageLockTarget>,
-    session: &mut PackageBuildSession,
-) -> Result<PackageChangeReview, PackageChangeError> {
-    review_package_change_reusing(
-        source_closure,
-        target,
-        accepted,
-        session,
-        None,
-        &mut CandidateSourcePreparation::new(),
-    )
-}
 
 /// The same candidate review, retaining binding-independent source preparation
 /// in the caller's store. A command reviewing several targets of this resolved
@@ -150,7 +124,7 @@ pub fn review_package_change(
 /// A caller-selected snapshot applies only to the root and is rechecked in
 /// both discovery and final review. The command owner retains that selection
 /// across pending review; this operation grants no output publication authority.
-pub fn review_package_change_reusing(
+pub(crate) fn review_package_change_reusing(
     source_closure: ResolvedPackageSourceClosure,
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,

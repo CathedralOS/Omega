@@ -10,7 +10,7 @@ use std::fmt;
 /// A retained change coordinate. Complete-policy subjects do not index the
 /// candidate graph: removed packages and replaced roots need no invented owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum HistoricalPackagePolicyDecisionSubject {
+pub(crate) enum HistoricalPackagePolicyDecisionSubject {
     LegacyConflict {
         package_index: usize,
         conflict: [u8; 32],
@@ -22,15 +22,12 @@ pub enum HistoricalPackagePolicyDecisionSubject {
 
 /// One recorded project choice, not a fresh candidate-bound authorization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HistoricalPackagePolicyDecision {
+pub(crate) struct HistoricalPackagePolicyDecision {
     subject: HistoricalPackagePolicyDecisionSubject,
     disposition: ReviewOnlyRootPolicyDisposition,
 }
 
 impl HistoricalPackagePolicyDecision {
-    pub const fn subject(&self) -> HistoricalPackagePolicyDecisionSubject {
-        self.subject
-    }
 
     /// Version 1 document reference only, never an index for a modern change.
     pub const fn package_index(&self) -> Option<usize> {
@@ -52,9 +49,6 @@ impl HistoricalPackagePolicyDecision {
         }
     }
 
-    pub const fn disposition(&self) -> ReviewOnlyRootPolicyDisposition {
-        self.disposition
-    }
 }
 
 /// Inert policy history for one exact source subject, including its target.
@@ -64,7 +58,7 @@ impl HistoricalPackagePolicyDecision {
 /// deliberately no conversion to a fresh root-policy resolution. Rejections
 /// remain rejections; merely recording one cannot permit its publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HistoricalPackagePolicyDecisions {
+pub(crate) struct HistoricalPackagePolicyDecisions {
     source_subject: CanonicalSourceClosureSubjectFingerprint,
     baseline_source_subject: Option<[u8; 32]>,
     comparison: Option<[u8; 32]>,
@@ -80,24 +74,14 @@ impl HistoricalPackagePolicyDecisions {
         &self.decisions
     }
 
-    /// Exact full-policy comparison retained by version 2. Version 1 history
-    /// did not store this comparison and is never upgraded by inventing one.
-    pub const fn comparison(&self) -> Option<[u8; 32]> {
-        self.comparison
-    }
 
-    /// Prior source association, absent for fresh review and version 1 history.
-    /// Read this alongside `comparison` to distinguish those cases.
-    pub const fn baseline_source_subject(&self) -> Option<[u8; 32]> {
-        self.baseline_source_subject
-    }
 }
 
 /// Requested recovery storage and retained decision count for an enclosing
 /// lock budget. Version 1 also counts duplicate-fingerprint validation scratch;
 /// version 2 needs no scratch. Input text and the source subject remain borrowed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HistoricalPackagePolicyRecoveryUsage {
+pub(crate) struct HistoricalPackagePolicyRecoveryUsage {
     owned_bytes: usize,
     decisions: usize,
 }
@@ -143,7 +127,7 @@ impl HistoricalPackagePolicyRecoveryUsage {
 
 /// Callers may lower these ceilings but cannot raise the format's hard limits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HistoricalPackagePolicyLimits {
+pub(crate) struct HistoricalPackagePolicyLimits {
     maximum_bytes: usize,
     maximum_decisions: usize,
 }
@@ -172,7 +156,7 @@ impl Default for HistoricalPackagePolicyLimits {
 
 /// Fixed diagnostics never echo authored record text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HistoricalPackagePolicyError {
+pub(crate) enum HistoricalPackagePolicyError {
     ByteLimitExceeded,
     DecisionLimitExceeded,
     AllocationLimitExceeded,

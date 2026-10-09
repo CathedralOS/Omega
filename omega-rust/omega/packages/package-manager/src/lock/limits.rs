@@ -2,7 +2,7 @@
 /// Input remains borrowed; owned storage counts requested recovery allocations
 /// and verification scratch, not allocator overhead or already owned input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PackageLockRecoveryLimits {
+pub(crate) struct PackageLockRecoveryLimits {
     pub maximum_bytes: usize,
     pub maximum_owned_bytes: usize,
     pub maximum_targets: usize,

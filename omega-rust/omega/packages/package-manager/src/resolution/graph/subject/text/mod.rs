@@ -27,7 +27,6 @@ mod framing;
 mod record;
 mod requests;
 
-pub(super) use requests::into_authored;
 mod source;
 mod values;
 

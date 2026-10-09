@@ -11,7 +11,7 @@ pub(super) struct Output {
 }
 
 impl Output {
-    pub fn new(maximum_bytes: usize) -> Self {
+    pub(crate) fn new(maximum_bytes: usize) -> Self {
         Self {
             text: String::new(),
             subjects: Vec::new(),
@@ -20,7 +20,7 @@ impl Output {
         }
     }
 
-    pub fn finish(self, result: fmt::Result) -> Result<Self, PackagePolicyReviewError> {
+    pub(crate) fn finish(self, result: fmt::Result) -> Result<Self, PackagePolicyReviewError> {
         result.map_err(|_| {
             self.error
                 .unwrap_or(PackagePolicyReviewError::AllocationFailed)
@@ -28,7 +28,7 @@ impl Output {
         Ok(self)
     }
 
-    pub fn choice(&mut self, subject: PackagePolicyDecisionSubject) -> fmt::Result {
+    pub(crate) fn choice(&mut self, subject: PackagePolicyDecisionSubject) -> fmt::Result {
         use PackagePolicyDecisionSubject as Subject;
         match subject {
             Subject::RootRole => self.write_str("decision root-role pending\n")?,

@@ -13,7 +13,7 @@ use crate::review::timings;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackagePolicyReviewError {
+pub(crate) enum PackagePolicyReviewError {
     ByteLimit,
     AllocationFailed,
     ChangedFindings,
@@ -42,7 +42,7 @@ impl std::error::Error for PackagePolicyReviewError {}
 /// Render a restartable review input with `pending` beside every required
 /// change. Edit those tokens to `accept` or `reject`; there is no blanket choice.
 /// The caller owns file placement and any source-code audit workflow.
-pub fn render_package_policy_review(
+pub(crate) fn render_package_policy_review(
     changes: &PackagePolicyChangeSet,
     maximum_bytes: usize,
 ) -> Result<String, PackagePolicyReviewError> {
@@ -54,7 +54,7 @@ pub fn render_package_policy_review(
 /// decision tokens may differ from the generated document. This prevents an
 /// accidental resume against edited or stale displayed meaning; it does not
 /// authenticate the project author or establish whether anybody audited code.
-pub fn recover_package_policy_review(
+pub(crate) fn recover_package_policy_review(
     changes: &PackagePolicyChangeSet,
     text: &str,
     maximum_bytes: usize,
