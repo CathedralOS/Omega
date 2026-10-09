@@ -165,6 +165,21 @@ impl ElementView {
             .map_or_else(|| value.path.is_empty(), |home| home == value)
     }
 
+    /// A descriptor without an explicit home inherits only its keyed frame
+    /// binding. An empty selected path cannot identify some other whole view.
+    fn matches_bound_descriptor_home(
+        &self,
+        binding: &TerminalStructuralValue,
+        selected: &TerminalStructuralValue,
+    ) -> bool {
+        let same_home = |home: &TerminalStructuralValue| {
+            home.opaque_identity == selected.opaque_identity
+                && home.path == selected.path
+                && home.structural_type == selected.structural_type
+        };
+        same_home(binding) && self.descriptor_home.as_ref().is_none_or(same_home)
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.window.end - self.window.start
     }
@@ -283,7 +298,11 @@ impl TerminalExecution<'_> {
         if argument.path.is_empty()
             && let Some(view) = self.element_view_values.get(&argument.place)
         {
-            return if view.matches_descriptor_home(resolved) {
+            return if self
+                .structural_values
+                .get(&argument.place)
+                .is_some_and(|home| view.matches_bound_descriptor_home(home, resolved))
+            {
                 Ok(view)
             } else {
                 Err(malformed())
@@ -292,14 +311,23 @@ impl TerminalExecution<'_> {
         self.structural_element_view_fields
             .get(&crate::values::StructuralRuntimePlace::from(resolved))
             .or_else(|| {
-                self.element_view_values
-                    .values()
-                    .chain(
-                        self.call_stack
-                            .iter()
-                            .flat_map(|frame| frame.element_view_values.values()),
-                    )
-                    .find(|view| view.matches_descriptor_home(resolved))
+                self.element_view_values.iter().find_map(|(place, view)| {
+                    self.structural_values
+                        .get(place)
+                        .filter(|home| view.matches_bound_descriptor_home(home, resolved))
+                        .map(|_| view)
+                })
+            })
+            .or_else(|| {
+                self.call_stack.iter().find_map(|frame| {
+                    frame.element_view_values.iter().find_map(|(place, view)| {
+                        frame
+                            .structural_values
+                            .get(place)
+                            .filter(|home| view.matches_bound_descriptor_home(home, resolved))
+                            .map(|_| view)
+                    })
+                })
             })
             .ok_or_else(malformed)
     }
