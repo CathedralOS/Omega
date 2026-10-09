@@ -9,7 +9,6 @@ use crate::rewrites::unexecuted::{
     ValidatedArmRelocation, ValidatedBoundaryBoolean, ValidatedBoundaryBranch,
     ValidatedCommutingRelocation, ValidatedConfluenceRelocation, ValidatedInflowRelocation,
     ValidatedInterchange, ValidatedMemberRunRelocation, ValidatedScheduledRelocation,
-    ValidatedStoreMutationMotion,
 };
 use crate::{
     ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch,
@@ -99,8 +98,6 @@ impl ValidatedSelectedAnalysis for ValidatedPreAllocationTransformation {
 }
 
 validated_selected_analysis!(ValidatedStoredLoadForwarding);
-
-validated_selected_analysis!(ValidatedStoreMutationMotion);
 
 validated_selected_analysis!(ValidatedDeadCompare);
 

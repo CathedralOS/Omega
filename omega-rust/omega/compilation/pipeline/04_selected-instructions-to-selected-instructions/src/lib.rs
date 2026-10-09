@@ -60,7 +60,6 @@ pub(crate) use analyses::{
     ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
     analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
     assign_fixed_precolored_segment_homes, stage_optimized_live_ranges, stage_optimized_liveness,
-    validate_fixed_precolored_split_requirements,
 };
 // Selected-CFG rewrites: the executed catalog slices, the recovery rewrites
 // register assignment replays, and the unexecuted families.

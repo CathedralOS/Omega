@@ -66,7 +66,6 @@ pub(crate) use fixed_precolored_segment_homes::{
 pub(crate) use fixed_precolored_split_requirements::{
     FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
     ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_split_requirements,
-    validate_fixed_precolored_split_requirements,
 };
 pub(crate) use recovery_classification::RecoveryClassificationValidationReceipt;
 pub use recovery_classification::{

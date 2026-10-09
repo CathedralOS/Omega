@@ -151,9 +151,4 @@
 mod admission;
 mod rewrite;
 mod validation;
-
-use std::sync::Arc;
-
-use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
-use semantic_vocabulary::FuelScheduleIdentity;
+use selected_instructions::SelectedInstructionPlan;

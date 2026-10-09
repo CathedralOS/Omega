@@ -12,25 +12,5 @@
 //! roster rows must reproduce the complete source by content. A producer
 //! admission error therefore fails validation even when the proposal is
 //! exactly what that producer emitted.
-
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    FrameStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
-    SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    terminator_instruction,
-};
-use semantic_vocabulary::PlaceId;
-use terminal_psi::StructuralPlaceDeclaration;
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{member_position, terminator_successors};
-use crate::rewrites::sealed;
-use crate::rewrites::unexecuted::place_storage::{
-    SubjectStorage, constant_index, extent_intersects, extent_reached_by,
-    local_slot_is_place_storage, local_store_shape, slot_is_subject_storage, staging_slot,
-    structural_place_declarations, write_role_covers_subject,
-};
-use crate::rewrites::window_hazards::{UnrosteredReach, unrostered_reach};
+use crate::rewrites::block_edges::terminator_successors;
+use crate::rewrites::window_hazards::unrostered_reach;

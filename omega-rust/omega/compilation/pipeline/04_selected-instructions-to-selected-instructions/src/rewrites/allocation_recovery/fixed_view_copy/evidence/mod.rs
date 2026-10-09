@@ -7,7 +7,7 @@ pub(crate) use compute::derive as derive_positionally;
 use optimization_core::OptimizationWorkUsage;
 use register_homes::{FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId};
 use register_model::{RegisterClassId, RegisterViewId};
-pub(crate) use replay::reconstruct as reconstruct_by_key;
+
 use selected_instructions::{
     LiveRangeEdgeConnector, SelectedBlockId, VirtualFixedConstraintSite, VirtualRegisterId,
 };

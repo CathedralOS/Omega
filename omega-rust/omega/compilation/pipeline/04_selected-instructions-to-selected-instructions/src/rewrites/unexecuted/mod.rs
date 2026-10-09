@@ -105,4 +105,3 @@ pub(crate) use inflow_relocation::ValidatedInflowRelocation;
 pub(crate) use interchange::ValidatedInterchange;
 pub(crate) use relocation::ValidatedMemberRunRelocation;
 pub(crate) use scheduled_relocation::ValidatedScheduledRelocation;
-pub(crate) use store_motion::ValidatedStoreMutationMotion;

@@ -2,7 +2,7 @@
 use crate::ValidatedAllocationLegality;
 use crate::ValidatedFixedPrecoloredIntervals;
 use crate::ValidatedFixedPrecoloredSegmentHomes;
-use crate::ValidatedFixedPrecoloredSplitRequirements;
+
 use crate::ValidatedLiveRanges;
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
@@ -25,6 +25,7 @@ pub use register_homes::{
     FixedViewCopySourceEvidence, fixed_view_copy_identity,
 };
 
+use crate::ValidatedFixedPrecoloredSplitRequirements;
 use selected_instructions::{
     FixedViewCopyIdentity, LiveRangeIdentity, SelectedInstructionPlanIdentity,
 };

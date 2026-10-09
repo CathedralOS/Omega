@@ -20,7 +20,6 @@ use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::LiveRangeIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
-pub(crate) use validation::validate_fixed_precolored_split_requirements;
 
 pub(crate) fn analyze_fixed_precolored_split_requirements(
     ranges: &crate::ValidatedLiveRanges,
