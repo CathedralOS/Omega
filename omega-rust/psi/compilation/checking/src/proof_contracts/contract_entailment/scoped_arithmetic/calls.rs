@@ -162,6 +162,7 @@ impl<'program> ScopedCalls<'program> {
             let result_type = match owner {
                 SelectedCallContract::Concrete(_, state) => state.return_type,
                 SelectedCallContract::Signature(signature) => signature.return_type,
+                SelectedCallContract::Operator(operator) => operator.return_type,
             };
             let Some(primitive) = self
                 .program
@@ -275,6 +276,14 @@ impl<'program> ScopedCalls<'program> {
                             crate::has_builtin_parameter_bound_expression_meaning(
                                 self.program,
                                 signature.symbol,
+                                parameters,
+                                guarantee,
+                            )
+                        }
+                        SelectedCallContract::Operator(operator) => {
+                            crate::has_builtin_parameter_bound_expression_meaning(
+                                self.program,
+                                operator.symbol,
                                 parameters,
                                 guarantee,
                             )

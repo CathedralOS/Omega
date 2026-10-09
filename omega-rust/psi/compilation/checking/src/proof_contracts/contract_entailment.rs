@@ -227,9 +227,9 @@ pub(crate) fn validate_machine_contract_entailment(
     );
 }
 
-pub(crate) fn validate_machine_contract_entailment_with_outcomes(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
+pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
     diagnostics: &mut Vec<Diagnostic>,
     proven: &mut Vec<ExpressionHandle>,
 ) {
@@ -337,7 +337,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
     // folding into an environment over the lemma's own params, then exactly
     // one Always value arm. Params map to themselves (they are the fact's
     // vocabulary); locals map to their initializer terms.
-    let sole_arm_value = |judge: &StructuralJudge| -> Option<StructuralTerm> {
+    let sole_arm_value = |mut judge: StructuralJudge<'program>| {
         let [root] = program.machine_states(machine) else {
             return None;
         };
@@ -363,11 +363,19 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                 StatementNode::Call(call)
                     if is_citation_statement(program, &proof_only, machine, call) => {}
                 StatementNode::LocalData(local_data) => {
-                    let term = judge.callee_term(local_data.initial_value, &environment, 0)?;
+                    let term = judge.normal_return_term(
+                        local_data.initial_value,
+                        &environment,
+                        (machine, root, local_data.type_reference),
+                    )?;
                     environment.push((local_data.name.as_str().to_owned(), term));
                 }
                 StatementNode::Expression(value) => {
-                    result = Some(judge.callee_term(*value, &environment, 0)?);
+                    result = Some(judge.normal_return_term(
+                        *value,
+                        &environment,
+                        (machine, root, root.return_type),
+                    )?);
                 }
                 StatementNode::Transition(transition) => {
                     if !matches!(transition.guard, TransitionGuardNode::Always)
@@ -380,23 +388,28 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     else {
                         return None;
                     };
-                    result = Some(judge.callee_term(*value, &environment, 0)?);
+                    result = Some(judge.normal_return_term(
+                        *value,
+                        &environment,
+                        (machine, root, root.return_type),
+                    )?);
                 }
                 _ => return None,
             }
         }
-        result
+        result.map(|value| (value, judge))
     };
-    let sole_arm_result = sole_arm_value(&structural);
+    let sole_arm_result = sole_arm_value(structural.clone());
     // Result-to-parameter tag forwarding needs the actual returned subject,
     // before legacy unfolding can erase its origin. Reuse the same extraction
     // with the restricted subject resolver; a tag remains no field equation.
     let case_structural = StructuralJudge::from_case_requires(program, machine, &requires);
-    let sole_arm_case_result = sole_arm_value(&case_structural);
+    let sole_arm_case_result = sole_arm_value(case_structural.clone());
     if struct_trace() {
         eprintln!(
             "STRUCT machine={} sole_arm={:?}",
-            machine.name, sole_arm_result
+            machine.name,
+            sole_arm_result.as_ref().map(|(value, _)| value)
         );
     }
     // STRUCTURAL INDUCTION (the L7 protocol's structural twin): a bodied
@@ -447,7 +460,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
         });
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
         if structural_terms::is_case_observation(program, fact)
-            && let Some(term) = &sole_arm_case_result
+            && let Some((term, captured)) = &sole_arm_case_result
             && let ExpressionNode::Binary(comparison) = program.expression_table.expression(fact)
         {
             // A parameter named `result` is not the reserved returned value.
@@ -458,7 +471,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
             {
                 return structural.judge(program, fact);
             }
-            let mut bound = case_structural.clone();
+            let mut bound = captured.clone();
             bound.intake_case_equation(
                 StructuralTerm::Variable(RESULT_BINDER.to_owned()),
                 term.clone(),
@@ -481,8 +494,8 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                 StructuralJudgment::Unknown
             };
         }
-        if let Some(term) = &sole_arm_result {
-            let mut bound = structural.clone();
+        if let Some((term, captured)) = &sole_arm_result {
+            let mut bound = captured.clone();
             if !result_is_parameter {
                 bound
                     .substitutions

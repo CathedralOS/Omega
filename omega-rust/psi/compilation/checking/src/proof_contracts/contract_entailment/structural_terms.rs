@@ -228,6 +228,11 @@ pub(super) fn structural_term_in_scope(
                 [_, _, ..] if case_classifier(program, expression).is_some() => {
                     case_value_term(program, expression)
                 }
+                _ if path.symbol.is_valid()
+                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const =>
+                {
+                    Some(StructuralTerm::BoundValue(path.symbol))
+                }
                 _ => Some(StructuralTerm::Opaque(
                     program.expression_table.display_name(expression),
                 )),

@@ -97,7 +97,7 @@ fn validate_expression(
     if !requirements_are_acyclic(program, &contract_owner, &mut Vec::new(), &mut Vec::new()) {
         diagnostics.push(Diagnostic::error(format!(
             "cyclic requires formation for specification call `{}` in {owner}: an application cannot establish the contract needed to form itself",
-            owner_name(&contract_owner),
+            owner_name(program, &contract_owner),
         )));
         return;
     }
@@ -193,7 +193,7 @@ fn validate_expression(
         if !proven {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove requires contract for specification call `{}` in {owner}: establish its selected precondition in an independently formed prior requires fact",
-                owner_name(&contract_owner),
+                owner_name(program, &contract_owner),
             )));
         }
     }
@@ -209,6 +209,7 @@ fn validate_expression(
 pub(super) enum SelectedCallContract<'program> {
     Concrete(&'program Machine, &'program State),
     Signature(&'program StateSignature),
+    Operator(&'program typed_trees::operator::OperatorDefinition),
 }
 
 pub(super) fn selected_call_contract<'program>(
@@ -226,6 +227,10 @@ pub(super) fn selected_call_contract<'program>(
         .or_else(|| {
             signature_by_symbol(program, call.target_symbol).map(SelectedCallContract::Signature)
         })
+        .or_else(|| {
+            typed_trees::operator::resolve_named_expression_call(program, call)
+                .map(SelectedCallContract::Operator)
+        })
 }
 
 fn signature_by_symbol(
@@ -241,15 +246,17 @@ pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {
     match owner {
         SelectedCallContract::Concrete(_, state) => state.symbol,
         SelectedCallContract::Signature(signature) => signature.symbol,
+        SelectedCallContract::Operator(operator) => operator.symbol,
     }
 }
 
-fn owner_name<'program>(
-    owner: &SelectedCallContract<'program>,
-) -> &'program typed_trees::name::Identifier {
+fn owner_name(program: &dyn crate::CheckingInput, owner: &SelectedCallContract<'_>) -> String {
     match owner {
-        SelectedCallContract::Concrete(machine, _) => &machine.name,
-        SelectedCallContract::Signature(signature) => &signature.name,
+        SelectedCallContract::Concrete(machine, _) => machine.name.as_str().to_owned(),
+        SelectedCallContract::Signature(signature) => signature.name.as_str().to_owned(),
+        SelectedCallContract::Operator(operator) => {
+            program.symbols.name(operator.symbol).to_owned()
+        }
     }
 }
 
@@ -260,6 +267,7 @@ pub(super) fn owner_parameters<'program>(
     match owner {
         SelectedCallContract::Concrete(_, state) => program.state_parameters(state),
         SelectedCallContract::Signature(signature) => program.state_signature_parameters(signature),
+        SelectedCallContract::Operator(operator) => program.operator_parameters(operator),
     }
 }
 
@@ -283,6 +291,7 @@ pub(super) fn owner_contracts<'program>(
         SelectedCallContract::Signature(signature) => {
             (program.state_signature_contracts(signature), &[])
         }
+        SelectedCallContract::Operator(operator) => (program.operator_contracts(operator), &[]),
     };
     first.iter().chain(second)
 }
@@ -338,6 +347,7 @@ fn term_has_complete_substitution(
 ) -> bool {
     match term {
         StructuralTerm::BoundValue(_)
+        | StructuralTerm::CapturedCallResult { .. }
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::Projection { .. }
         | StructuralTerm::Opaque(_) => false,

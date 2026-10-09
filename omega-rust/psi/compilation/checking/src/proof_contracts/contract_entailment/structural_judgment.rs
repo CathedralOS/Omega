@@ -7,6 +7,7 @@ use language_semantics::const_value::boolean_literal_spelling;
 use typed_trees::types::TypeReferenceHandle;
 
 mod licenses;
+mod normal_returns;
 
 pub(crate) use licenses::{EntryMachines, LicenseCandidates, declared_index_algebra_laws};
 use licenses::{
@@ -33,6 +34,14 @@ pub(super) enum StructuralTerm {
     /// A completed call's exact local result. Its contract may classify this
     /// value, but neither its spelling nor its callee's body defines it here.
     BoundValue(SymbolHandle),
+    /// One completed value call in this normal-return proof path. The
+    /// selected public callable and exact result type are retained; another
+    /// invocation with identical operands remains a different observation.
+    CapturedCallResult {
+        expression: ExpressionHandle,
+        callable: SymbolHandle,
+        result_type: TypeReferenceHandle,
+    },
     /// A field path on the same completed value, never a callee-local spelling.
     BoundProjection {
         subject: SymbolHandle,
@@ -145,6 +154,7 @@ pub(super) struct StructuralJudge<'program> {
     program: &'program dyn crate::CheckingInput,
     entry_machines: std::sync::Arc<EntryMachines>,
     machine_symbol: SymbolHandle,
+    normal_results: Vec<(ExpressionHandle, StructuralTerm)>,
     resolve_applications: bool,
     runtime_body_values: bool,
     case_facts_only: bool,
@@ -174,6 +184,7 @@ impl Clone for StructuralJudge<'_> {
             program: self.program,
             entry_machines: std::sync::Arc::clone(&self.entry_machines),
             machine_symbol: self.machine_symbol,
+            normal_results: self.normal_results.clone(),
             resolve_applications: self.resolve_applications,
             runtime_body_values: self.runtime_body_values,
             case_facts_only: self.case_facts_only,
@@ -254,6 +265,7 @@ impl<'program> StructuralJudge<'program> {
                 || EntryMachines::of(program),
             ),
             machine_symbol: judged_machine.symbol,
+            normal_results: Vec::new(),
             resolve_applications,
             runtime_body_values: false,
             case_facts_only: false,
@@ -355,12 +367,12 @@ impl<'program> StructuralJudge<'program> {
                     }
                 }
             }
-            (StructuralTerm::Application { .. }, _) => {
+            (StructuralTerm::Application { .. } | StructuralTerm::CapturedCallResult { .. }, _) => {
                 if !term_contains(&right, &left) {
                     self.rewrites.push((left, right));
                 }
             }
-            (_, StructuralTerm::Application { .. }) => {
+            (_, StructuralTerm::Application { .. } | StructuralTerm::CapturedCallResult { .. }) => {
                 if !term_contains(&left, &right) {
                     self.rewrites.push((right, left));
                 }
@@ -400,6 +412,14 @@ impl<'program> StructuralJudge<'program> {
         }
         for _ in 0..32 {
             match term {
+                StructuralTerm::CapturedCallResult { .. } => {
+                    let Some((_, replacement)) =
+                        self.rewrites.iter().find(|(source, _)| *source == term)
+                    else {
+                        return term;
+                    };
+                    term = replacement.clone();
+                }
                 StructuralTerm::Variable(ref name) => {
                     let Some((_, replacement)) = self
                         .substitutions
@@ -1114,6 +1134,7 @@ impl<'program> StructuralJudge<'program> {
                     }
                     StructuralTerm::Integer(_)
                     | StructuralTerm::Float(_)
+                    | StructuralTerm::CapturedCallResult { .. }
                     | StructuralTerm::Projection { .. }
                     | StructuralTerm::ScalarBinary { .. }
                     | StructuralTerm::Application { .. }
@@ -1137,6 +1158,13 @@ impl<'program> StructuralJudge<'program> {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
             ExpressionNode::Call(call) => {
+                if let Some((_, captured)) = self
+                    .normal_results
+                    .iter()
+                    .find(|(source, _)| *source == expression)
+                {
+                    return Some(captured.clone());
+                }
                 if self.runtime_body_values
                     || (call.receiver.is_valid()
                         && !super::structural_terms::static_call_receiver(program, call))
@@ -1241,6 +1269,7 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
             | StructuralTerm::BoundValue(_)
+            | StructuralTerm::CapturedCallResult { .. }
             | StructuralTerm::BoundProjection { .. } => term.clone(),
             StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
                 subject: Box::new(Self::substitute_term(subject, map)),
@@ -1307,6 +1336,7 @@ impl<'program> StructuralJudge<'program> {
                         | StructuralTerm::Float(_)
                         | StructuralTerm::Application { .. }
                         | StructuralTerm::CallProjection { .. }
+                        | StructuralTerm::CapturedCallResult { .. }
                         | StructuralTerm::ScalarBinary { .. }
                         | StructuralTerm::Projection { .. } => StructuralTerm::Projection {
                             subject: Box::new(replacement.clone()),
@@ -1726,6 +1756,7 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
             | StructuralTerm::BoundValue(_) => Some(term),
+            StructuralTerm::CapturedCallResult { .. } => Some(term),
             StructuralTerm::Application { .. }
             | StructuralTerm::CallProjection { .. }
             | StructuralTerm::BoundProjection { .. }

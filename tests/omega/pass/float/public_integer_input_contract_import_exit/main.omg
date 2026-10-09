@@ -1,0 +1,16 @@
+use omega::language::core::float_operations;
+
+machine rounded(value: i32) -> f32
+ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value) {
+    F32::from_i32(value)
+}
+
+machine main() crashes Trap {
+    let value: f32 = rounded(16777217i32);
+    transition value == 16777216.0f32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
