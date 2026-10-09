@@ -255,7 +255,7 @@ pub(crate) fn discard_structural_value(
 }
 
 impl TerminalExecution<'_> {
-    /// Borrowed ingress retains the caller's descriptor storage without an
+    /// Borrowed entry and state arrivals retain descriptor storage without an
     /// affine owner entry in this frame. Its declared authority bounds every
     /// reference crossing. Owned carrier availability follows its declared
     /// multiplicity: only affine storage has a disposal frontier.
@@ -345,7 +345,7 @@ impl TerminalExecution<'_> {
             .get(&source.place)
             .ok_or_else(malformed)?;
         let machine = self.program.verified_machine(self.current_machine)?;
-        if let Some(parameter) = machine.signature_structural_parameter(source.place) {
+        if let Some(parameter) = self.owned_block_source(source.place) {
             if parameter.structural_type != root.structural_type {
                 return Err(malformed());
             }
@@ -365,15 +365,18 @@ impl TerminalExecution<'_> {
                 machine
                     .structural_place(source.place)
                     .is_some_and(|place| match place.kind {
-                        semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. } => true,
-                        semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } => {
-                            machine
-                                .operation(producer)
-                                .and_then(|operation| operation.result.structural())
-                                .is_some_and(|result| {
-                                    result.multiplicity == StructuralMultiplicity::Unrestricted
-                                })
-                        }
+                        semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                            ..
+                        } => true,
+                        semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            producer,
+                            ..
+                        } => machine
+                            .operation(producer)
+                            .and_then(|operation| operation.result.structural())
+                            .is_some_and(|result| {
+                                result.multiplicity == StructuralMultiplicity::Unrestricted
+                            }),
                         _ => false,
                     });
             if unrestricted {
