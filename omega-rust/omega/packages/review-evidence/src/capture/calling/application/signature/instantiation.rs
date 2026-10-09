@@ -1,6 +1,6 @@
 //! Scope-aware projection-only instantiation of checked signature types.
 
-use super::rejected;
+use crate::capture::calling::rejected;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;

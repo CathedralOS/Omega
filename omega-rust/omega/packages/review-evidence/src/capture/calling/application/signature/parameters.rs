@@ -1,6 +1,7 @@
 //! Clone-local instantiation of nested static parameter signatures.
 
-use super::{instantiation, rejected};
+use super::instantiation;
+use crate::capture::calling::rejected;
 use crate::capture::semantics::signatures::parameters::CallingContractScope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;

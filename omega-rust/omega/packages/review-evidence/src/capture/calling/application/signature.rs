@@ -9,8 +9,8 @@ mod scratch;
 pub(crate) use declaration::{declaration_parameters, project_declaration};
 pub(crate) use parameters::instantiate as instantiate_static_parameters;
 
-use super::rejected;
 use crate::capture::PackageReviewInput;
+use crate::capture::calling::rejected;
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::signature_type_identity;

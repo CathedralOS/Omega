@@ -1,7 +1,7 @@
 //! Declared argument categories and exact inherited substitution environments.
 
-use super::rejected;
 use crate::capture::PackageReviewInput;
+use crate::capture::calling::rejected;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::record::PackageReviewTypeIdentity;
 use diagnostics::Diagnostic;

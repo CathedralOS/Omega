@@ -5,12 +5,12 @@
 //! handles and declarations remain unchanged; only temporary type references
 //! and scope-normalized signature copies are allocated.
 use crate::capture::PackageReviewInput;
-use crate::capture::calling::application::rejected;
 use crate::capture::calling::application::signature::CallingSignatureProjection;
 use crate::capture::calling::application::signature::count;
 use crate::capture::calling::application::signature::parameters;
 use crate::capture::calling::application::signature::project_with_binders;
 use crate::capture::calling::application::signature::scratch;
+use crate::capture::calling::rejected;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::record::PackagePolicyTypeParameter;
 use diagnostics::Diagnostic;

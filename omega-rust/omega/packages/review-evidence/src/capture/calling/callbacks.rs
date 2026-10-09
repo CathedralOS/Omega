@@ -33,7 +33,7 @@ pub(crate) fn project_callback_policy(
         .windows(2)
         .any(|pair| pair[0].1.static_machine_ordinal == pair[1].1.static_machine_ordinal)
     {
-        return Err(rejected(
+        return Err(super::rejected(
             "callback binders repeat a semantic telescope ordinal",
         ));
     }
@@ -49,7 +49,7 @@ pub(crate) fn project_callback_policy(
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     catalog.sort_by(|(_, left), (_, right)| left.cmp(right));
     if catalog.windows(2).any(|pair| pair[0].1 == pair[1].1) {
-        return Err(rejected(
+        return Err(super::rejected(
             "callback catalog repeats a semantic layout destination",
         ));
     }
@@ -66,7 +66,7 @@ pub(crate) fn project_callback_policy(
                 .filter(|candidate| candidate.identity() == parameter)
                 .collect::<Vec<_>>();
             let [parameter] = parameters.as_slice() else {
-                return Err(rejected(
+                return Err(super::rejected(
                     "callback destination has no exact native parameter",
                 ));
             };
@@ -76,7 +76,7 @@ pub(crate) fn project_callback_policy(
                 .get(native_ordinal as usize)
                 .is_none_or(|candidate| candidate != *parameter)
             {
-                return Err(rejected(
+                return Err(super::rejected(
                     "callback native parameter changed its authored ordinal",
                 ));
             }
@@ -86,7 +86,9 @@ pub(crate) fn project_callback_policy(
                         parameter.origin(),
                         BoundaryNativeParameterOrigin::PrivateCallback { .. }
                     ) {
-                        return Err(rejected("whole-parameter callback lost its private origin"));
+                        return Err(super::rejected(
+                            "whole-parameter callback lost its private origin",
+                        ));
                     }
                     Ok(PackagePolicyCallbackDestination::Parameter { native_ordinal })
                 }
@@ -97,17 +99,17 @@ pub(crate) fn project_callback_policy(
                         .filter(|(_, (entry, _))| entry.destination() == place)
                         .collect::<Vec<_>>();
                     let [(index, (_, entry))] = entries.as_slice() else {
-                        return Err(rejected(
+                        return Err(super::rejected(
                             "callback field destination lost its exact named catalog entry",
                         ));
                     };
                     if entry.native_ordinal != native_ordinal {
-                        return Err(rejected("callback field changed its native ordinal"));
+                        return Err(super::rejected("callback field changed its native ordinal"));
                     }
                     Ok(PackagePolicyCallbackDestination::Field {
                         native_ordinal,
                         layout_index: u32::try_from(*index)
-                            .map_err(|_| rejected("callback layout index exceeds u32"))?,
+                            .map_err(|_| super::rejected("callback layout index exceeds u32"))?,
                     })
                 }
             }
@@ -120,7 +122,7 @@ pub(crate) fn project_callback_policy(
             .map(|(_, binder)| &binder.requirement)
             .collect::<Vec<_>>();
         let Some(requirement) = requirements.first() else {
-            return Err(rejected(
+            return Err(super::rejected(
                 "callback demand has no exact declared requirement",
             ));
         };
@@ -128,7 +130,7 @@ pub(crate) fn project_callback_policy(
             .iter()
             .any(|candidate| candidate != requirement)
         {
-            return Err(rejected(
+            return Err(super::rejected(
                 "callback compact requirement collides across semantic declarations",
             ));
         }
@@ -142,7 +144,7 @@ pub(crate) fn project_callback_policy(
         .windows(2)
         .any(|pair| pair[0].destination == pair[1].destination)
     {
-        return Err(rejected(
+        return Err(super::rejected(
             "callback policy repeats a native destination demand",
         ));
     }
@@ -154,7 +156,7 @@ pub(crate) fn project_callback_policy(
             .filter(|(_, (binder, _))| binder.binder == row.binder)
             .collect::<Vec<_>>();
         let [(binder_index, (_, binder))] = candidates.as_slice() else {
-            return Err(rejected(
+            return Err(super::rejected(
                 "callback materialization has no unique semantic binder",
             ));
         };
@@ -167,13 +169,13 @@ pub(crate) fn project_callback_policy(
             .count()
             != 1
         {
-            return Err(rejected(
+            return Err(super::rejected(
                 "callback materialization differs from its exact demand",
             ));
         }
         materializations.push(PackagePolicyCallbackMaterialization {
             binder_index: u32::try_from(*binder_index)
-                .map_err(|_| rejected("callback binder index exceeds u32"))?,
+                .map_err(|_| super::rejected("callback binder index exceeds u32"))?,
             destination,
         });
     }
@@ -187,7 +189,7 @@ pub(crate) fn project_callback_policy(
                 != 1
         })
     {
-        return Err(rejected(
+        return Err(super::rejected(
             "callback materializations do not supply every demand exactly once",
         ));
     }
@@ -202,7 +204,7 @@ pub(crate) fn project_callback_policy(
             })
             .count()
     {
-        return Err(rejected(
+        return Err(super::rejected(
             "callback layout catalog contains an unconsumed semantic entry",
         ));
     }
@@ -212,10 +214,4 @@ pub(crate) fn project_callback_policy(
         materializations,
         layouts: catalog.into_iter().map(|(_, layout)| layout).collect(),
     })
-}
-
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "calling policy rejects {reason}"
-    ))]
 }

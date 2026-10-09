@@ -1,6 +1,6 @@
 //! Translate the exact authored native telescope without serializing its IDs.
 
-use super::rejected;
+use crate::capture::calling::rejected;
 use crate::record::{
     PackagePolicyCallbacks, PackagePolicyCallingParameter, PackagePolicyNativeParameter,
     PackagePolicyNativeParameterOrigin,

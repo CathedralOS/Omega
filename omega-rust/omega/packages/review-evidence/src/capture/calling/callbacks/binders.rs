@@ -1,5 +1,5 @@
-use super::rejected;
 use crate::capture::PackageReviewInput;
+use crate::capture::calling::rejected;
 use crate::capture::semantics::declarations::{
     top_level_requirement_identity, trait_requirement_identity,
     trait_requirement_identity_from_symbols,

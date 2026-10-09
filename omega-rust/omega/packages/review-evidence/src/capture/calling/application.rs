@@ -31,7 +31,7 @@ pub(crate) fn project_checked_calling_policy<'a>(
         })
         .collect::<Vec<_>>();
     if candidates.is_empty() || candidates.iter().any(|candidate| *candidate != realization) {
-        return Err(rejected(
+        return Err(super::rejected(
             "missing, ambiguous, or changed checked realization",
         ));
     }
@@ -48,18 +48,18 @@ pub(crate) fn project_checked_calling_policy<'a>(
         || compilation.custody.execution().selected_native_target()
             != Some(materialized.native_target())
     {
-        return Err(rejected(
+        return Err(super::rejected(
             "detached signature, callback context, plan, or target",
         ));
     }
     let (validated, report, commitment) = realization
         .replayed_validated_application()
-        .map_err(|reason| rejected(&format!("invalid calling application: {reason}")))?;
+        .map_err(|reason| super::rejected(&format!("invalid calling application: {reason}")))?;
     if report == 0
         || report != realization.report_fingerprint
         || commitment != realization.commitment
     {
-        return Err(rejected("stale calling application custody"));
+        return Err(super::rejected("stale calling application custody"));
     }
     let semantic = signature::project(compilation, realization)?;
     let semantic_parameters = semantic
@@ -104,10 +104,4 @@ pub(crate) fn project_checked_calling_policy<'a>(
         physical: PackagePolicyPhysicalCallingContract::from_validated_plan(&validated),
     };
     Ok(policy)
-}
-
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "calling policy rejects {reason}"
-    ))]
 }

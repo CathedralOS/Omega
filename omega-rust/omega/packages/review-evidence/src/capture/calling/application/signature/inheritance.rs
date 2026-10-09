@@ -1,4 +1,5 @@
-use super::{instantiation, rejected};
+use super::instantiation;
+use crate::capture::calling::rejected;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
