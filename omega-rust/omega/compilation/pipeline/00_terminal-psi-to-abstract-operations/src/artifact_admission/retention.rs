@@ -29,6 +29,16 @@ impl AdmittedOptimizationArtifact {
     pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
         self.input.context()
     }
+
+    /// The verified optimizer input with the complete roster still retained
+    /// inside the verifier context module. The handoff stays exact because
+    /// construction is private to artifact admission, so a stale or
+    /// substituted roster is unrepresentable here rather than merely
+    /// unchecked. The rows remain semantic custody only: they grant no
+    /// backing, range, access, or lifetime authority.
+    pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInput {
+        self.input
+    }
 }
 
 pub(super) fn retain_optimization_context(
