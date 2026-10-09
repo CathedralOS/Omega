@@ -66,21 +66,6 @@
 //! window and the roster's window rows to equal the independently computed
 //! rotation, and restores the complete source by content.
 
-use crate::rewrites::block_edges::member_position;
 mod admission;
 mod rewrite;
 mod validation;
-
-use std::sync::Arc;
-
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-    SelectedInstructionPlanIdentity,
-};
-use semantic_vocabulary::FuelScheduleIdentity;
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::unexecuted::commuting_accesses as accesses;
-use crate::rewrites::unexecuted::place_storage::structural_place_declarations;

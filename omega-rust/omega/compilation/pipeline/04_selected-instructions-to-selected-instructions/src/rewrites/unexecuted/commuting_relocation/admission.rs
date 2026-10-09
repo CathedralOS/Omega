@@ -7,7 +7,3 @@
 //! row of the position it crosses, no call, hosted-effect, or terminator
 //! barrier anywhere in the window, and no boundary settlement inside its
 //! span.
-use crate::ValidatedSelectedAnalysis;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::SelectedInstructionId;

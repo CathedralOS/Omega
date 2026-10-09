@@ -13,9 +13,3 @@
 //! source by content — every crossed instruction, every other block and
 //! instruction, register, roster row, call, settlement, and edge
 //! included.
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::sealed;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};

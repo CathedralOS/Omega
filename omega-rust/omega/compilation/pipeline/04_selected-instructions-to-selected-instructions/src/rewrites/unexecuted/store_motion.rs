@@ -110,7 +110,6 @@ mod motion;
 mod rewrite;
 mod validation;
 
-use crate::rewrites::block_edges::terminator_successors;
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;

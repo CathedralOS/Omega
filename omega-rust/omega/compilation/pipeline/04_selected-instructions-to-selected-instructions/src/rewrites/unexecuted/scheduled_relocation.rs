@@ -68,21 +68,3 @@
 mod admission;
 mod rewrite;
 mod validation;
-
-use std::collections::{BTreeSet, VecDeque};
-use std::sync::Arc;
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
-    block_instructions, edge_surface, member_position, terminator_successors,
-};
-use crate::rewrites::unexecuted::dead_path;
-
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
-    SelectedSuccessor, terminator_instruction,
-};
-use semantic_vocabulary::{EdgeId, FuelScheduleIdentity};

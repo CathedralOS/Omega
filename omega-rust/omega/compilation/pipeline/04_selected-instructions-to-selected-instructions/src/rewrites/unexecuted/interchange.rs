@@ -56,10 +56,3 @@
 mod admission;
 mod rewrite;
 mod validation;
-
-use std::sync::Arc;
-
-use crate::rewrites::block_edges::member_position;
-use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
-use semantic_vocabulary::FuelScheduleIdentity;

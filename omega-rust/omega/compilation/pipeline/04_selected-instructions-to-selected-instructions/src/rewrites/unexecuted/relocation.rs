@@ -45,21 +45,3 @@
 mod admission;
 mod rewrite;
 mod validation;
-
-use std::collections::BTreeSet;
-
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, instruction_position,
-    terminator_instruction,
-};
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{edge_surface, member_position, terminator_successors};
-
-use std::sync::Arc;
-
-use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
-use semantic_vocabulary::FuelScheduleIdentity;

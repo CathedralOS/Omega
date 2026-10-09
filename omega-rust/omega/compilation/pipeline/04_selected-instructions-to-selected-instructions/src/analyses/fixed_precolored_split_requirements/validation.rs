@@ -1,11 +1,10 @@
 use crate::{
     FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
-    ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
-    ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges,
+    ValidatedAllocationLegality, ValidatedFixedPrecoloredSplitRequirements,
 };
 use register_homes::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSourceSegmentOpening,
-    FixedPrecoloredSplitRequirementPlan, fixed_precolored_split_requirement_plan_identity,
+    FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
+    fixed_precolored_split_requirement_plan_identity,
 };
 /// Admit a freshly produced plan with its receipt; the producer calls this
 /// instead of replaying its own output.

@@ -2,7 +2,7 @@
 
 use crate::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
-    ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges,
+    ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges,
 };
 use register_homes::{FixedPrecoloredIntervalPlan, fixed_precolored_interval_plan_identity};
 use selected_instructions::VirtualFixedConstraintSite;

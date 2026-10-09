@@ -7,16 +7,14 @@
 //! between a member run and its destination crosses — so a family that
 //! admits a run-and-destination pair applies its own traversal-parity gates
 //! and hands the window to one derivation and one audit.
-use std::collections::{BTreeMap, BTreeSet};
 
 /// Every successor edge a terminator names, in its physical record order;
 /// `HostedExitProcess` and `Return` name none.
 pub(super) use selected_instructions::terminator_successors;
 
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedMemoryAccessOrigin, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedValueTransport, terminator_instruction,
+    SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedSuccessor,
+    terminator_instruction,
 };
 
 /// The function a plan-level rewrite entrypoint resolves — every

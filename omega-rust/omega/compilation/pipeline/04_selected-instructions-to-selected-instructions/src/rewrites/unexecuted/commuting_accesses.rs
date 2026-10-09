@@ -13,9 +13,3 @@
 //! through `ranges_disjoint`, and a local-slot row reaches a place's bytes
 //! exactly when the slot is that place's own storage. This audit applies
 //! the same reading symmetrically between two rows.
-use selected_instructions::{
-    SelectedFunction, SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessRole,
-};
-use terminal_psi::StructuralPlaceDeclaration;
-
-use crate::rewrites::unexecuted::place_storage::local_slot_is_place_storage;

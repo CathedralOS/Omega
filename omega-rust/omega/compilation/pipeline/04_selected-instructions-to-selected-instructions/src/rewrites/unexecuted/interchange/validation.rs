@@ -6,10 +6,3 @@
 //! content — splicing the source window back and writing the source
 //! order's rows back into the window's roster positions must reproduce the
 //! complete selected program bit-for-bit.
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::sealed;
-use crate::rewrites::unexecuted::commuting_accesses as accesses;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};

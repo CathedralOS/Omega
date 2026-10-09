@@ -15,8 +15,3 @@
 //! member-written location dead on the paths the move removes, where the
 //! member's vacated index publishes them on arrivals that no longer run
 //! it.
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::terminator_successors;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::SelectedInstructionId;

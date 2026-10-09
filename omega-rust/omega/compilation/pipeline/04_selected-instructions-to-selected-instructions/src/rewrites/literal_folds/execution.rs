@@ -8,7 +8,6 @@ use crate::OptimizedLiteralFoldCustodyError;
 use crate::StagedOptimizedAllocationLegality;
 use crate::StagedOptimizedLiteralFoldAttempt;
 use crate::StagedOptimizedLiteralFoldStep;
-use crate::StagedOptimizedLiteralFolds;
 use crate::StagedSelectedLoweringOptimizationCustodyReceipt;
 use crate::StagedSelectedLoweringOptimizationRun;
 use crate::ValidatedAllocationLegality;

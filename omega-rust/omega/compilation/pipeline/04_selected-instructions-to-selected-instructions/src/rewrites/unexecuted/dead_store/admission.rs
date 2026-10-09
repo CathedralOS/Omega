@@ -75,5 +75,3 @@
 //! never read again. Boundary settlements inside the walked region still
 //! reject, since a boundary event positioned where the bytes remain current
 //! could observe them.
-use crate::rewrites::block_edges::terminator_successors;
-use crate::rewrites::window_hazards::unrostered_reach;

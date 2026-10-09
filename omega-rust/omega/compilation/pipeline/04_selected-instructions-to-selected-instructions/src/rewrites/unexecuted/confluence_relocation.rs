@@ -105,18 +105,3 @@
 mod admission;
 mod rewrite;
 mod validation;
-
-use std::sync::Arc;
-
-use optimization_core::OptimizationUnitIdentity;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedSuccessor,
-    SelectedTerminator, instruction_position, terminator_instruction,
-};
-use semantic_vocabulary::FuelScheduleIdentity;
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::member_position;
-use crate::rewrites::unexecuted::dead_path;

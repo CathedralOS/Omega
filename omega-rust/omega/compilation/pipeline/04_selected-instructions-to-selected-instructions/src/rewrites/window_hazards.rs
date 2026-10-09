@@ -3,14 +3,10 @@
 //! register or condition-state hazard, and whether a boundary settlement
 //! sits inside a window. Each rewrite locates its own window; the audit of
 //! that window is one owner.
-use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-    VirtualRegisterId, terminator_instruction,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedInstruction, SelectedInstructionKind,
 };
 
-use crate::rewrites::block_edges::{edge_surface, terminator_successors};
 /// What an instruction without a roster row can reach. Private work is
 /// register-only or touches a compiler-owned spill/boundary slot that no
 /// referent place aliases. A store or byte copy outside that set could write

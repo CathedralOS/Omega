@@ -38,12 +38,3 @@
 //! remains published for every other reader the function still holds, so
 //! the fold only changes which register the access reads and which
 //! displacement it carries.
-
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
-use selected_instructions::{
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
-    MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior, SelectedInstruction,
-    SelectedInstructionKind,
-};
-
-use crate::analyses::machine_effects::{machine_alternative_is_transparent, machine_semantic_kind};

@@ -7,8 +7,3 @@
 //! general admission: the sink/hoist once-per-traversal bounds
 //! (dominance, re-entry, continuations), the member's pure-work bound,
 //! and the skipped-edge dead-path audit a sink owes.
-
-use crate::ValidatedSelectedAnalysis;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::SelectedInstructionId;

@@ -15,8 +15,3 @@
 //! whose observed executed prefix changes) — and every member-written
 //! location dead from the landing index forward, where the run's new
 //! execution publishes them on arrivals that never ran it.
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{edge_surface, terminator_successors};
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedInstruction, SelectedInstructionId};
