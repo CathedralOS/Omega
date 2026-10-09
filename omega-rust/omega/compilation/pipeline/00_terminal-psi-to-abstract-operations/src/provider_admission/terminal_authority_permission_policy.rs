@@ -55,10 +55,6 @@ impl MissingTerminalAuthorityPermission {
     pub const fn service_schema(&self) -> ServiceSchemaDigest {
         self.service_schema
     }
-
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,14 +105,6 @@ pub fn terminal_authority_permission_policy_with_rows(
 
 /// Empty, exact deny-by-absence policy. Authority-bearing and authority-free
 /// terminal leaves both require explicit schema/requirement permission rows.
-pub(crate) fn current_terminal_authority_permission_policy() -> TerminalAuthorityPermissionPolicy {
-    static IDENTITY: OnceLock<TerminalAuthorityPermissionPolicyIdentity> = OnceLock::new();
-    TerminalAuthorityPermissionPolicy {
-        identity: *IDENTITY.get_or_init(|| permission_policy_identity(&[])),
-        rows: Vec::new(),
-    }
-}
-
 fn permission_policy_identity(
     rows: &[TerminalAuthorityPermissionPolicyRow],
 ) -> TerminalAuthorityPermissionPolicyIdentity {

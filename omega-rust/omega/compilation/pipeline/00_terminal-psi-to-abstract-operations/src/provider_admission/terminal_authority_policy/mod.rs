@@ -18,17 +18,11 @@ mod time_host;
 
 pub(crate) use console_host::console_mechanism_row;
 pub(crate) use darwin_clock::darwin_clock_mechanism_row;
-pub use filesystem::{ filesystem_host_permission_rows,
-};
-pub(crate) use filesystem::{
-    FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract,
-    filesystem_host_permission_row, filesystem_mechanism_row,
-    filesystem_ordinary_release_contract, filesystem_release_bound_mechanism,
-    filesystem_release_mechanism_row, settled_filesystem_cohort};
+pub use filesystem::{filesystem_host_permission_rows};
+pub(crate) use filesystem::{  filesystem_mechanism_row };
 pub use filesystem::{ UnsettledFilesystemRequirement};
 pub use model::{
-    TerminalAuthorityPolicy,
-};
+    TerminalAuthorityPolicy};
 pub(crate) use model::{ TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,
     UnclassifiedTerminalMechanism};
 
@@ -36,10 +30,8 @@ pub(crate) use normalized_foreign::{
     normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations};
 pub(crate) use syscall::conservative_syscall_terminal_mechanism;
-pub use time_host::{ time_host_permission_rows,
-};
-pub(crate) use time_host::{ settled_time_host_cohort, time_host_mechanism_row,
-    time_host_permission_row};
+pub use time_host::{time_host_permission_rows};
+pub(crate) use time_host::{  time_host_mechanism_row };
 pub use time_host::{
     UnsettledTimeHostRequirement};
 
@@ -68,12 +60,3 @@ pub fn current_terminal_authority_policy() -> TerminalAuthorityPolicy {
     )
 }
 
-/// Transitional name retained for callers with no normalized foreign demand.
-pub(crate) type CompilerIntrinsicTerminalAuthorityPolicy = TerminalAuthorityPolicy;
-pub(crate) type UnclassifiedCompilerIntrinsicTerminalMechanism = UnclassifiedTerminalMechanism;
-pub(crate) const COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION: u32 =
-    TERMINAL_AUTHORITY_POLICY_VERSION;
-
-pub(crate) fn current_compiler_intrinsic_terminal_authority_policy() -> TerminalAuthorityPolicy {
-    current_terminal_authority_policy()
-}

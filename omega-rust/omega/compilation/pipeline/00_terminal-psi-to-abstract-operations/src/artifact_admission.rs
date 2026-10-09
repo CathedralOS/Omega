@@ -12,7 +12,6 @@ pub use error::ArtifactLoweringError;
 pub use establishment::TerminalPlacedViewEstablishment;
 pub use native::{ VerifiedNativeArtifactInput};
 pub(crate) use native::{AdmittedNativeArtifact};
-pub(crate) use retention::AdmittedOptimizationArtifact;
 
 /// Canonical artifact sections.
 #[derive(Clone, Copy)]
