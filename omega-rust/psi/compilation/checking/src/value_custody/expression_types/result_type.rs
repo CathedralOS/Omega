@@ -166,21 +166,13 @@ fn result_type(
                     .collect::<Vec<_>>(),
             )
         }
-        ExpressionNode::Call(call) => {
-            // Semantic overloads retain the actual declaring telescope.
-            // Reuse the selected catalog owner with the same result references
-            // as ordinary calls; anonymous expected types never choose a row.
-            let operands: Vec<_> = program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|argument| result_type(program, owner, *argument, active))
-                .collect();
-            let selected_operator = typed_trees::operator::resolve_named_expression_call(program, call)
-                .or_else(|| {
-                    let references = operands.iter().copied().collect::<Option<Vec<_>>>()?;
-                    let (symbol, _, _) = crate::proof_contracts::float_projection_bindings::semantic_operations::float_semantic_application_with_operand_types(program, call, &references)?;
-                    typed_trees::operator::declaration_by_symbol(program, symbol)
+        ExpressionNode::Call(call) => (|| {
+            let selected_operator =
+                typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {
+                    crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)
+                        .and_then(|contract| {
+                            typed_trees::operator::declaration_by_symbol(program, contract.callable)
+                        })
                 });
             // Inside an abstract trait contract, a sibling requirement's
             // generic result already belongs to this exact telescope. Runtime
@@ -206,8 +198,27 @@ fn result_type(
                 }
                 _ => None,
             };
-            scoped_requirement_result
-                .or_else(|| crate::machine_calls::calls::resolved_call_result_type(program, call))
+            let declared_result = scoped_requirement_result
+                .or_else(|| crate::machine_calls::calls::resolved_call_result_type(program, call));
+            // Keep known ordinary results cheap. Only generic result binding,
+            // semantic overload selection or an actual float policy adaptation
+            // needs operand result references; prepare that roster once.
+            if let Some(result) = declared_result
+                && (call.exact_coercion_target.is_valid()
+                    || selected_operator.is_none_or(|operator| !crate::machine_calls::calls::selected_float_operation_retains_argument_policy(program, operator.symbol)))
+            { return Some(result); }
+            let operands: Vec<_> = program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|argument| result_type(program, owner, *argument, active))
+                .collect();
+            let selected_operator = selected_operator.or_else(|| {
+                let references = operands.iter().copied().collect::<Option<Vec<_>>>()?;
+                let (symbol, _, _) = crate::proof_contracts::float_projection_bindings::semantic_operations::float_semantic_application_with_operand_types(program, call, &references)?;
+                typed_trees::operator::declaration_by_symbol(program, symbol)
+            });
+            declared_result
                 .or_else(|| {
                     selected_operator.and_then(|operator| {
                         bound_result_type_parameter(program, operator, &operands).or_else(|| {
@@ -229,10 +240,10 @@ fn result_type(
                         .builtin_function_for_symbol(call.target_symbol)
                         .filter(|function| function.is_scalar_computation())?;
                     let arguments = program.expression_table.expression_handles(call.arguments);
-                    let references: Vec<_> = arguments
+                    let references: Vec<_> = operands
                         .iter()
-                        .map(|argument| {
-                            result_type(program, owner, *argument, active).and_then(|reference| {
+                        .map(|reference| {
+                            reference.and_then(|reference| {
                                 arithmetic_result_type_reference(program, reference)
                             })
                         })
@@ -262,29 +273,9 @@ fn result_type(
                     // their entry state. That state belongs to the same exact
                     // callable contract as the original operator declaration;
                     // its bare signature result is not an adapted result type.
-                    let Some(operator) =
-                        typed_trees::operator::resolve_named_expression_call(program, call)
-                            .or_else(|| {
-                                crate::machine_calls::calls::callee_entry_contract(
-                                    program,
-                                    call.target_symbol,
-                                )
-                                .and_then(|contract| {
-                                    typed_trees::operator::declaration_by_symbol(
-                                        program,
-                                        contract.callable,
-                                    )
-                                })
-                            })
-                    else {
+                    let Some(operator) = selected_operator else {
                         return Some(result);
                     };
-                    let operands: Vec<_> = program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .iter()
-                        .map(|argument| result_type(program, owner, *argument, active))
-                        .collect();
                     selected_operator_result_type_reference(
                         program,
                         operator.symbol,
@@ -292,7 +283,7 @@ fn result_type(
                         &operands,
                     )
                 })
-        }
+        })(),
         ExpressionNode::StructLiteral(literal) => program
             .type_reference_table
             .find_named_type_reference(literal.type_symbol),
