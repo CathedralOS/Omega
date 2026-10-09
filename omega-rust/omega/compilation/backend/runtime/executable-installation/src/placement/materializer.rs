@@ -16,7 +16,7 @@ use target::Architecture;
 /// placement. The bytes are not executable authority; only the installation
 /// ladder can consume the corresponding placement and establish execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MaterializedArtifactBytes {
+pub(crate) struct MaterializedArtifactBytes {
     admission: AdmittedArtifact,
     placement: CodePlacementEvidence,
     placement_plan: PlacementPlanId,
@@ -66,7 +66,7 @@ impl MaterializedArtifactBytes {
 /// Resolve and patch one admitted artifact without granting write or execute
 /// authority. Resolution is atomic: a missing/out-of-range target returns an
 /// error and no partially materialized result.
-pub fn materialize_admitted_artifact(
+pub(crate) fn materialize_admitted_artifact(
     artifact: &AdmittedArtifact,
     placement: &CodePlacement,
     mut resolve: impl FnMut(RelocationTarget) -> Option<u64>,

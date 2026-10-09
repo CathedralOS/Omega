@@ -12,15 +12,15 @@ use crate::installation::InstallationDiagnostic;
 use layout_plans::{PlacementConstraints, RelocationTarget};
 use sha2::Sha256;
 use target::Architecture;
-pub const OMEGA_EXECUTABLE_CONTAINER_V1_MARKER: u16 = u16::from_le_bytes(*b"OX");
-pub const OMEGA_EXECUTABLE_CONTAINER_V2_MARKER: u16 = u16::from_le_bytes(*b"O2");
-pub const OMEGA_EXECUTABLE_CONTAINER_MARKER: u16 = OMEGA_EXECUTABLE_CONTAINER_V2_MARKER;
+pub(crate) const OMEGA_EXECUTABLE_CONTAINER_V1_MARKER: u16 = u16::from_le_bytes(*b"OX");
+pub(crate) const OMEGA_EXECUTABLE_CONTAINER_V2_MARKER: u16 = u16::from_le_bytes(*b"O2");
+pub(crate) const OMEGA_EXECUTABLE_CONTAINER_MARKER: u16 = OMEGA_EXECUTABLE_CONTAINER_V2_MARKER;
 const CANONICAL_ENTRY_RECORD_BYTES: u64 = 16;
 const CANONICAL_RELOCATION_COUNT_BYTES: u64 = 8;
 const CANONICAL_RELOCATION_RECORD_BYTES: u64 = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ContainerLimits {
+pub(crate) struct ContainerLimits {
     pub max_total_bytes: u64,
     pub max_sections: usize,
     pub max_section_bytes: u64,
@@ -28,14 +28,14 @@ pub struct ContainerLimits {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ContainerSection {
+pub(crate) struct ContainerSection {
     pub kind: ContainerSectionKind,
     pub offset: u64,
     pub length: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ContainerSectionKind {
+pub(crate) enum ContainerSectionKind {
     Code,
     Relocations(RelocationSetId),
     Contracts(MachineContractSetId),
@@ -101,7 +101,7 @@ pub struct DecodedArtifactRelocation {
 /// validation. This type deliberately has no scripts, constructors, imports,
 /// or recursive section form.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DecodedArtifactContainer {
+pub(crate) struct DecodedArtifactContainer {
     pub format_marker: u16,
     pub total_length: u64,
     pub artifact: ArtifactId,
@@ -136,7 +136,7 @@ pub struct DecodedArtifactContainer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedArtifactContainer {
+pub(crate) struct ValidatedArtifactContainer {
     artifact: Artifact,
     informational_sections: Vec<NonAuthoritativeInformationalFingerprint64>,
     unknown_informational_sections: Vec<u64>,
@@ -147,7 +147,7 @@ impl ValidatedArtifactContainer {
         &self.artifact
     }
 
-    pub fn relocation_set(&self) -> RelocationSetId {
+    pub(crate) fn relocation_set(&self) -> RelocationSetId {
         self.artifact.relocation_set()
     }
 
@@ -157,11 +157,11 @@ impl ValidatedArtifactContainer {
         self.artifact.relocations()
     }
 
-    pub fn informational_sections(&self) -> &[NonAuthoritativeInformationalFingerprint64] {
+    pub(crate) fn informational_sections(&self) -> &[NonAuthoritativeInformationalFingerprint64] {
         &self.informational_sections
     }
 
-    pub fn unknown_informational_sections(&self) -> &[u64] {
+    pub(crate) fn unknown_informational_sections(&self) -> &[u64] {
         &self.unknown_informational_sections
     }
 }
@@ -170,14 +170,14 @@ impl ValidatedArtifactContainer {
 /// Informational sections are deliberately absent because they carry no
 /// admission authority.
 #[derive(Debug, PartialEq, Eq)]
-pub struct ValidatedContainerAdmissionEvidence {
+pub(crate) struct ValidatedContainerAdmissionEvidence {
     receipt: AdmissionReceiptId,
     artifact: Artifact,
     accepted: bool,
 }
 
 impl ValidatedContainerAdmissionEvidence {
-    pub fn from_validator(
+    pub(crate) fn from_validator(
         receipt: AdmissionReceiptId,
         container: &ValidatedArtifactContainer,
         accepted: bool,
@@ -192,7 +192,7 @@ impl ValidatedContainerAdmissionEvidence {
 
 /// Establishes the reusable executable qualification only from acceptance
 /// evidence for this exact checked container.
-pub fn admit_validated_container(
+pub(crate) fn admit_validated_container(
     container: &ValidatedArtifactContainer,
     evidence: ValidatedContainerAdmissionEvidence,
 ) -> Result<AdmittedArtifact, InstallationDiagnostic> {
@@ -211,7 +211,7 @@ pub fn admit_validated_container(
     )
 }
 
-pub fn validate_decoded_container(
+pub(crate) fn validate_decoded_container(
     decoded: DecodedArtifactContainer,
     limits: ContainerLimits,
 ) -> Result<ValidatedArtifactContainer, InstallationDiagnostic> {
@@ -483,7 +483,7 @@ pub fn validate_decoded_container(
 /// schema decode. Container byte order, section order, and informational
 /// sections do not participate; executable bytes and every
 /// published semantic commitment do.
-pub fn normalized_decoded_content_digest(
+pub(crate) fn normalized_decoded_content_digest(
     decoded: &DecodedArtifactContainer,
 ) -> Result<ArtifactContentDigest, InstallationDiagnostic> {
     let relocations = validate_decoded_relocations(
@@ -511,7 +511,7 @@ pub fn normalized_decoded_content_digest(
 /// Legacy container-v1 checksum of the normalized semantic payload. This is
 /// retained for wire compatibility only and never substitutes for the strong
 /// content digest or exact artifact replay.
-pub fn non_authoritative_decoded_container_fingerprint(
+pub(crate) fn non_authoritative_decoded_container_fingerprint(
     decoded: &DecodedArtifactContainer,
 ) -> Result<NonAuthoritativeContainerFingerprint64, InstallationDiagnostic> {
     let relocations = validate_decoded_relocations(

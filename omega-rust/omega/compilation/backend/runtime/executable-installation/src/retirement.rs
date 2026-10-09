@@ -16,7 +16,7 @@ use crate::installation::{InstallationDiagnostic, InstalledCode};
 use crate::placement::CodePlacement;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct RetirementAuthority {
+pub(crate) struct RetirementAuthority {
     pub(crate) installed: InstalledCodeEvidence,
     pub(crate) required_facts: std::collections::BTreeSet<RetirementFactDigest>,
 }
@@ -34,7 +34,7 @@ impl RetirementAuthority {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct RetirementReceipt {
+pub(crate) struct RetirementReceipt {
     pub(crate) installed: InstalledCodeEvidence,
     pub(crate) executors_quiesced: bool,
     pub(crate) execute_disabled: bool,
@@ -63,7 +63,7 @@ impl RetirementReceipt {
 /// Result of synchronous retirement. The previous artifact remains reusable;
 /// the exact destination returns to the W+NX `CodePlacement` state.
 #[derive(Debug)]
-pub struct RetiredInstallation {
+pub(crate) struct RetiredInstallation {
     pub(crate) previous_artifact: AdmittedArtifact,
     pub(crate) placement: CodePlacement,
 }
@@ -73,13 +73,13 @@ impl RetiredInstallation {
         &self.previous_artifact
     }
 
-    pub fn into_placement(self) -> CodePlacement {
+    pub(crate) fn into_placement(self) -> CodePlacement {
         self.placement
     }
 }
 
 #[derive(Debug)]
-pub struct RetirementError {
+pub(crate) struct RetirementError {
     pub(crate) installed: InstalledCode,
     pub(crate) authority: RetirementAuthority,
     pub(crate) receipt: RetirementReceipt,

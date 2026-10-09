@@ -27,7 +27,7 @@ impl InstalledCode {
     /// lowering. Pre-resolved entry fragments must equal the address from this
     /// exact installed realization; unresolved fragments must be members of
     /// this artifact's admitted entry set.
-    pub fn validate_post_handoff_entry_writer(
+    pub(crate) fn validate_post_handoff_entry_writer(
         &self,
         plan: &PostHandoffWriterPlan,
         destination_len: usize,
@@ -135,7 +135,7 @@ impl InstalledCode {
 
     /// Execute with the exact once-resolved values sealed into `context`.
     /// Context/plan/site drift rejects before destination mutation.
-    pub fn execute_populated_post_handoff_entry_writer(
+    pub(crate) fn execute_populated_post_handoff_entry_writer(
         &self,
         context: &ResolvedPostHandoffEntryWriterContext,
         plan: &PostHandoffWriterPlan,
@@ -242,7 +242,7 @@ impl InstalledCode {
     /// it. Failure returns both linear inputs; success retains the exact
     /// context with the still-unpublished destination for independent consumer
     /// replay before semantic validation and publication.
-    pub fn write_prepared_post_handoff_destination<'mapping, 'bytes>(
+    pub(crate) fn write_prepared_post_handoff_destination<'mapping, 'bytes>(
         &self,
         context: ResolvedPostHandoffEntryWriterContext,
         plan: &PostHandoffWriterPlan,
@@ -297,7 +297,7 @@ impl InstalledCode {
     /// Executes an atomic post-handoff writer using this installed code as the
     /// resolver authority for entry targets. Data symbols and entries from any
     /// other artifact fail before the destination is published.
-    pub fn execute_post_handoff_entry_writer(
+    pub(crate) fn execute_post_handoff_entry_writer(
         &self,
         plan: &PostHandoffWriterPlan,
         destination: &mut [u8],
@@ -363,7 +363,7 @@ pub struct ResolvedPostHandoffEntryWriterContext {
 /// generated writer may reach one activated mapping. The exact mapping
 /// evidence is sealed in `mapping`; compact receipt identity is report-only.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DestinationPreparationReceipt {
+pub(crate) struct DestinationPreparationReceipt {
     identity: DestinationPreparationReceiptId,
     mapping: MappingReceiptContext,
     required_write_rights: ExtentRights,
@@ -418,7 +418,7 @@ pub struct ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes> {
 }
 
 #[derive(Debug)]
-pub struct PreparedPostHandoffWriterDestinationValidationError<'mapping, 'bytes> {
+pub(crate) struct PreparedPostHandoffWriterDestinationValidationError<'mapping, 'bytes> {
     destination: PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     diagnostic: InstallationDiagnostic,
 }
@@ -428,7 +428,7 @@ impl<'mapping, 'bytes> PreparedPostHandoffWriterDestinationValidationError<'mapp
         &self.diagnostic
     }
 
-    pub fn into_destination(self) -> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub(crate) fn into_destination(self) -> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
         self.destination
     }
 }
@@ -475,7 +475,7 @@ impl<'mapping, 'bytes> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
     /// placement, and byte-view geometry before a resolver observes symbolic
     /// source values. This borrows the carrier and grants no write or
     /// publication authority.
-    pub fn validate_for_writer_preparation(&self) -> Result<(), InstallationDiagnostic> {
+    pub(crate) fn validate_for_writer_preparation(&self) -> Result<(), InstallationDiagnostic> {
         validate_post_handoff_destination_binding(
             &self.mapping,
             &self.receipt,
@@ -486,7 +486,7 @@ impl<'mapping, 'bytes> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
 
     /// Consume this destination into replayed custody before a resolver may
     /// observe symbolic sources. Rejection returns the exact raw destination.
-    pub fn into_validated_for_writer_preparation(
+    pub(crate) fn into_validated_for_writer_preparation(
         self,
     ) -> Result<
         ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
@@ -553,7 +553,7 @@ fn validate_post_handoff_destination_binding(
 }
 
 #[derive(Debug)]
-pub struct DestinationClaimError<'mapping, 'bytes> {
+pub(crate) struct DestinationClaimError<'mapping, 'bytes> {
     mapping: MappedExtent<'mapping>,
     receipt: DestinationPreparationReceipt,
     site: PlacementSite,
@@ -583,7 +583,7 @@ impl<'mapping, 'bytes> DestinationClaimError<'mapping, 'bytes> {
 /// of the complete produced destination image for replay before
 /// consumer-specific validation and eventual publication or recovery.
 #[derive(Debug)]
-pub struct WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+pub(crate) struct WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     mapping: MappedExtent<'mapping>,
     receipt: DestinationPreparationReceipt,
     site: PlacementSite,
@@ -597,14 +597,14 @@ pub struct WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
 /// been replayed before observation.
 #[derive(Debug)]
 #[must_use = "validated written destination retains mapping and byte custody"]
-pub struct ValidatedWrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+pub(crate) struct ValidatedWrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     written: WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
 }
 
 /// Validation rejection preserves the complete written destination so its
 /// exact retained evidence can be repaired and retried without reconstruction.
 #[derive(Debug)]
-pub struct WrittenPostHandoffWriterConsumerValidationError<'mapping, 'bytes> {
+pub(crate) struct WrittenPostHandoffWriterConsumerValidationError<'mapping, 'bytes> {
     written: WrittenPostHandoffWriterDestination<'mapping, 'bytes>,
     diagnostic: InstallationDiagnostic,
 }
@@ -614,11 +614,11 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterConsumerValidationError<'mapping,
         &self.diagnostic
     }
 
-    pub fn into_written(self) -> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
+    pub(crate) fn into_written(self) -> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         self.written
     }
 
-    pub fn into_prepared_parts(
+    pub(crate) fn into_prepared_parts(
         self,
     ) -> (
         ResolvedPostHandoffEntryWriterContext,
@@ -663,7 +663,7 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     /// preparation, and complete producer-captured byte image before an owning
     /// consumer validates semantic contents or publishes the mapping. This
     /// establishes no consumer value and performs no publication.
-    pub fn validate_for_consumer(
+    pub(crate) fn validate_for_consumer(
         &self,
         installed_code: &InstalledCode,
     ) -> Result<(), InstallationDiagnostic> {
@@ -689,7 +689,7 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
 
     /// Consume this still-unpublished destination only after exact replay.
     /// Rejection exposes no context or bytes and returns complete custody.
-    pub fn into_validated_for_consumer(
+    pub(crate) fn into_validated_for_consumer(
         self,
         installed_code: &InstalledCode,
     ) -> Result<
@@ -820,7 +820,7 @@ impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'b
 }
 
 #[derive(Debug)]
-pub struct DestinationWriteError<'mapping, 'bytes> {
+pub(crate) struct DestinationWriteError<'mapping, 'bytes> {
     context: ResolvedPostHandoffEntryWriterContext,
     destination: ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     diagnostic: MaterializationDiagnostic,
@@ -979,7 +979,7 @@ fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
 /// materialization. Every rejection leaves the destination bytes unchanged;
 /// successful application commits the complete writer range once. Publication
 /// remains a later transition owned by the caller.
-pub fn execute_post_handoff_writer_plan(
+pub(crate) fn execute_post_handoff_writer_plan(
     plan: &PostHandoffWriterPlan,
     destination: &mut [u8],
     site: PlacementSite,

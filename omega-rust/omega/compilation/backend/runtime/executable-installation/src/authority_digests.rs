@@ -118,7 +118,7 @@ canonical_authority_digest!(
 /// remain report coordinates and are included in each digest's domain-framed
 /// preimage; they are never sufficient on their own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ArtifactAuthorityCommitments {
+pub(crate) struct ArtifactAuthorityCommitments {
     imported_contract_report_identity: u64,
     imported_contracts: ImportedContractSetDigest,
     declared_footprint_report_identity: u64,
@@ -131,7 +131,7 @@ pub struct ArtifactAuthorityCommitments {
 
 impl ArtifactAuthorityCommitments {
     #[allow(clippy::too_many_arguments)]
-    pub fn from_canonical_evidence(
+    pub(crate) fn from_canonical_evidence(
         contracts: MachineContractSetId,
         contract_bytes: &[u8],
         footprint: MachineFootprintId,
@@ -352,7 +352,7 @@ macro_rules! non_authoritative_fingerprint64 {
         pub struct $name(u64);
 
         impl $name {
-            pub fn from_compatibility_value(value: u64) -> Result<Self, InstallationDiagnostic> {
+            pub(crate) fn from_compatibility_value(value: u64) -> Result<Self, InstallationDiagnostic> {
                 if value == 0 {
                     return Err(InstallationDiagnostic(format!(
                         "non-authoritative {} fingerprint cannot be zero",

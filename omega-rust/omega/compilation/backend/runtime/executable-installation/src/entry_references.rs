@@ -38,7 +38,7 @@ use layout_plans::{EntryStubId, RelocationTarget};
 /// An authority demanding no facts admits any receipt that satisfies those
 /// lifecycle gates.
 #[derive(Debug, PartialEq, Eq)]
-pub struct EntryReferenceAuthority {
+pub(crate) struct EntryReferenceAuthority {
     pub(crate) installed: InstalledCodeEvidence,
     pub(crate) entry: EntryStubId,
     pub(crate) contract: EntryContractDigest,
@@ -62,7 +62,7 @@ impl EntryReferenceAuthority {
     /// Names the provider-canonical facts the entry-sealing receipt must
     /// establish, the same contract installation and retirement authorities
     /// already impose.
-    pub fn with_required_facts(
+    pub(crate) fn with_required_facts(
         mut self,
         required_facts: impl IntoIterator<Item = EntryReferenceFactDigest>,
     ) -> Self {
@@ -77,7 +77,7 @@ impl EntryReferenceAuthority {
 /// the authority's demanded set to appear here rather than recording
 /// assertions unchallenged.
 #[derive(Debug, PartialEq, Eq)]
-pub struct EntryReferenceReceipt {
+pub(crate) struct EntryReferenceReceipt {
     installed: InstalledCodeEvidence,
     entry: EntryStubId,
     contract: EntryContractDigest,
@@ -107,7 +107,7 @@ impl EntryReferenceReceipt {
     }
 
     /// Records the provider-canonical facts the operation established.
-    pub fn with_established_facts(
+    pub(crate) fn with_established_facts(
         mut self,
         established_facts: impl IntoIterator<Item = EntryReferenceFactDigest>,
     ) -> Self {
@@ -121,7 +121,7 @@ impl EntryReferenceReceipt {
 /// satisfies, held under a borrow of the installed realization. Callers
 /// receive a sealed target identity, never a resolved executable address.
 #[derive(Debug)]
-pub struct InstalledEntryReference<'installed> {
+pub(crate) struct InstalledEntryReference<'installed> {
     installed: &'installed InstalledCode,
     entry: EntryStubId,
     contract: EntryContractDigest,
@@ -168,7 +168,7 @@ impl InstalledEntryReference<'_> {
 /// realization was borrowed rather than consumed, so only the authority and
 /// receipt need returning.
 #[derive(Debug)]
-pub struct EntryReferenceError {
+pub(crate) struct EntryReferenceError {
     authority: EntryReferenceAuthority,
     receipt: EntryReferenceReceipt,
     diagnostic: InstallationDiagnostic,
@@ -192,7 +192,7 @@ impl InstalledCode {
     /// establish requirement compatibility, instruction-fetch visibility over
     /// the entry, and every fact the authority demands. Any refusal returns
     /// the authority and receipt unchanged.
-    pub fn seal_entry_reference(
+    pub(crate) fn seal_entry_reference(
         &self,
         authority: EntryReferenceAuthority,
         receipt: EntryReferenceReceipt,

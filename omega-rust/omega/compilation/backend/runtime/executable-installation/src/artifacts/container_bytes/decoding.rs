@@ -42,7 +42,7 @@ use target::Architecture;
 /// checked before slicing, and the result still grants no executable
 /// eligibility: callers receive only the ordinary validated candidate consumed
 /// by the separate admission gate.
-pub fn decode_executable_container(
+pub(crate) fn decode_executable_container(
     bytes: &[u8],
     limits: ContainerLimits,
 ) -> Result<ValidatedArtifactContainer, InstallationDiagnostic> {

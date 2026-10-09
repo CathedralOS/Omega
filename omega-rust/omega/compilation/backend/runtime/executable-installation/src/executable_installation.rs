@@ -80,7 +80,7 @@ use crate::retirement::{
     RetiredInstallation, RetirementAuthority, RetirementError, RetirementReceipt,
 };
 
-pub fn admit_executable(
+pub(crate) fn admit_executable(
     artifact: &Artifact,
     evidence: ArtifactAdmissionEvidence,
 ) -> Result<AdmittedArtifact, InstallationDiagnostic> {
@@ -106,7 +106,7 @@ pub fn admit_executable(
     })
 }
 
-pub fn materialize_and_freeze(
+pub(crate) fn materialize_and_freeze(
     artifact: &AdmittedArtifact,
     placement: CodePlacement,
     materialized: MaterializedArtifactBytes,
@@ -149,7 +149,7 @@ pub fn materialize_and_freeze(
     })
 }
 
-pub fn install_validated(
+pub(crate) fn install_validated(
     validated: ValidatedPlacement,
     authority: InstallAuthority,
     receipt: InstallationReceipt,
@@ -188,7 +188,7 @@ pub fn install_validated(
     })
 }
 
-pub fn retire_installed(
+pub(crate) fn retire_installed(
     installed: InstalledCode,
     authority: RetirementAuthority,
     receipt: RetirementReceipt,
@@ -239,7 +239,7 @@ impl OwnedImageProvider {
     /// a gate-stage refusal returns them plus the receipt the gate rejected.
     /// The returned identity names the provider-resident image the installed
     /// code binds.
-    pub fn install_code(
+    pub(crate) fn install_code(
         &mut self,
         validated: ValidatedPlacement,
         authority: InstallAuthority,
@@ -278,7 +278,7 @@ impl OwnedImageProvider {
     ///
     /// The provider borrows the installed realization, so the returned
     /// reference cannot outlive this borrow of the code custody.
-    pub fn seal_code_entry<'installed>(
+    pub(crate) fn seal_code_entry<'installed>(
         &self,
         installed: &'installed InstalledCode,
         authority: EntryReferenceAuthority,
@@ -313,7 +313,7 @@ impl OwnedImageProvider {
     /// resident entry extent to the caller's executor. While the returned
     /// call is held, this provider stays borrowed — the in-flight call is
     /// the executor-quiescence witness a later retirement asks about.
-    pub fn call_code<'provider, 'installed>(
+    pub(crate) fn call_code<'provider, 'installed>(
         &'provider self,
         installed: &'installed InstalledCode,
         authority: EntryReferenceAuthority,
@@ -337,7 +337,7 @@ impl OwnedImageProvider {
     /// restored — and the gate returns the placement. The provider's resident
     /// storage stays mapped until the caller, holding the retired outcome,
     /// invokes `release` on the returned identity.
-    pub fn retire_code(
+    pub(crate) fn retire_code(
         &mut self,
         installed: InstalledCode,
         authority: RetirementAuthority,
@@ -377,7 +377,7 @@ impl OwnedImageProvider {
     /// On a retired ending the provider keeps the drained storage resident
     /// until the caller invokes `release` on the returned identity; on a
     /// quarantined ending the range stays reserved under trapping.
-    pub fn uninstall_code(
+    pub(crate) fn uninstall_code(
         &mut self,
         installed: InstalledCode,
         authority: RetirementAuthority,
@@ -450,7 +450,7 @@ impl OwnedImageProvider {
     /// fragment, then the superseded custody drains — retiring outright when
     /// `residual` is `None`, or parking in quarantine when a residual holder
     /// keeps the mapping unreclaimable.
-    pub fn replace_code(
+    pub(crate) fn replace_code(
         &mut self,
         installed: InstalledCode,
         successor: &InstalledCode,
@@ -560,7 +560,7 @@ impl OwnedImageProvider {
 /// refusal returns no receipt; a gate-stage refusal returns the minted
 /// receipt the gate rejected.
 #[derive(Debug)]
-pub struct InstallCodeError {
+pub(crate) struct InstallCodeError {
     validated: ValidatedPlacement,
     authority: InstallAuthority,
     receipt: Option<InstallationReceipt>,
@@ -599,7 +599,7 @@ impl std::error::Error for InstallCodeError {}
 
 /// A refused [`OwnedImageProvider::seal_code_entry`] drive.
 #[derive(Debug)]
-pub struct SealCodeEntryError {
+pub(crate) struct SealCodeEntryError {
     authority: EntryReferenceAuthority,
     receipt: Option<EntryReferenceReceipt>,
     diagnostic: InstallationDiagnostic,
@@ -627,7 +627,7 @@ impl std::error::Error for SealCodeEntryError {}
 /// seal-stage inputs; `Call` keeps the minted reference so the caller can
 /// retry the call without re-sealing.
 #[derive(Debug)]
-pub enum CallCodeError<'installed> {
+pub(crate) enum CallCodeError<'installed> {
     Seal(SealCodeEntryError),
     Call {
         reference: InstalledEntryReference<'installed>,
@@ -654,7 +654,7 @@ impl std::error::Error for CallCodeError<'_> {}
 
 /// A refused [`OwnedImageProvider::retire_code`] drive.
 #[derive(Debug)]
-pub struct RetireCodeError {
+pub(crate) struct RetireCodeError {
     installed: InstalledCode,
     authority: RetirementAuthority,
     receipt: Option<RetirementReceipt>,
@@ -687,7 +687,7 @@ impl std::error::Error for RetireCodeError {}
 
 /// A refused [`OwnedImageProvider::quarantine_code`] drive.
 #[derive(Debug)]
-pub struct QuarantineCodeError {
+pub(crate) struct QuarantineCodeError {
     installed: InstalledCode,
     cause: MappingQuarantineCause,
     receipt: Option<MappingQuarantineReceipt>,
@@ -722,7 +722,7 @@ impl std::error::Error for QuarantineCodeError {}
 /// input returns, and `drain_diagnostic` names the leg that refused first —
 /// the provider's drain, the provider's quarantine, or the join itself.
 #[derive(Debug)]
-pub struct UninstallCodeError {
+pub(crate) struct UninstallCodeError {
     installed: InstalledCode,
     authority: RetirementAuthority,
     retirement: Option<RetirementReceipt>,
@@ -772,7 +772,7 @@ impl std::error::Error for UninstallCodeError {}
 /// input returns, with the refused stage's diagnostic in `diagnostic` and
 /// any later drain-leg diagnostics kept alongside.
 #[derive(Debug)]
-pub struct ReplaceCodeError {
+pub(crate) struct ReplaceCodeError {
     installed: InstalledCode,
     authority: ReplacementAuthority,
     retirement_authority: RetirementAuthority,

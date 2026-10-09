@@ -48,7 +48,7 @@ optimization_core::custody_field_inventory! {
     /// honest, and each report coordinate carries its recomputed strong
     /// commitments — the `*WithoutRecommit` lanes name exactly the same
     /// coordinate with the strong commitments left stale.
-    pub enum ArtifactWireFieldForTest {
+    pub(crate) enum ArtifactWireFieldForTest {
         // Representable lanes: construction, encoding, and decode pass and
         // the admission replay refuses to bind the substitution.
         ClaimedArtifactIdentity,
@@ -98,7 +98,7 @@ optimization_core::custody_field_inventory! {
 /// outside the declared vocabulary is a shape the family does not declare
 /// and panics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ContainerWireRejection {
+pub(crate) enum ContainerWireRejection {
     /// `Artifact::from_canonical_decode` refused the substituted record.
     Construction(&'static str),
     /// `encode_executable_container` refused the substituted artifact.
@@ -115,7 +115,7 @@ pub enum ContainerWireRejection {
 /// (`must be required` inside `container-v2 authority commitments must be
 /// required`) is not a separate match; two independent contained fragments
 /// are an ambiguous vocabulary and panic, as does a rejection naming none.
-pub fn classify_container_wire_rejection(
+pub(crate) fn classify_container_wire_rejection(
     diagnostic: &InstallationDiagnostic,
     vocabulary: impl IntoIterator<Item = ContainerWireRejection>,
 ) -> ContainerWireRejection {
@@ -161,7 +161,7 @@ impl ContainerWireRejection {
 /// recomputes the containing content digest and container fingerprint. The
 /// seed is the matrix's retained custody view.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ArtifactSeed {
+pub(crate) struct ArtifactSeed {
     pub identity: ArtifactId,
     pub architecture: Architecture,
     pub code: Vec<u8>,
@@ -292,7 +292,7 @@ struct PlacementEdit {
 /// fingerprint over the substitution. `donor` supplies the foreign artifact
 /// identity the `ClaimedArtifactIdentity` lane borrows; the remaining lanes
 /// take fixed non-identity alternates.
-pub fn substitute_artifact_wire_for_test(
+pub(crate) fn substitute_artifact_wire_for_test(
     seed: &mut ArtifactSeed,
     field: ArtifactWireFieldForTest,
     donor: &ArtifactSeed,
@@ -454,7 +454,7 @@ pub fn substitute_artifact_wire_for_test(
 }
 
 /// The exact checker verdict each declared lane must produce.
-pub fn artifact_wire_custody_outcome(
+pub(crate) fn artifact_wire_custody_outcome(
     field: ArtifactWireFieldForTest,
 ) -> MutationOutcome<ContainerWireRejection> {
     use ArtifactWireFieldForTest as Lane;
@@ -499,7 +499,7 @@ pub fn artifact_wire_custody_outcome(
 
 /// Every verdict the artifact family declares, for the checker's
 /// classification.
-pub fn artifact_wire_vocabulary() -> impl Iterator<Item = ContainerWireRejection> {
+pub(crate) fn artifact_wire_vocabulary() -> impl Iterator<Item = ContainerWireRejection> {
     ArtifactWireFieldForTest::INVENTORY.iter().map(|&field| {
         match artifact_wire_custody_outcome(field) {
             MutationOutcome::ExactError(verdict) => verdict,
