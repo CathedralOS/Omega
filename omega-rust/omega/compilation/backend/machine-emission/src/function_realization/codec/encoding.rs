@@ -71,7 +71,7 @@ pub(super) fn encode_manifest_content(
         manifest.statistics.resolved_conditional_branches,
         manifest.statistics.unresolved_internal_machine_fixups,
     ] {
-        canonical.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, value.to_le_bytes());
     }
     match manifest.frame {
         FunctionRelativeFrameDisposition::Unavailable => canonical.push(1),

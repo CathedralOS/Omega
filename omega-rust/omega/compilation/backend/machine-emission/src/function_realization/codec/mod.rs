@@ -30,7 +30,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
         let content = encoding::encode_manifest_content(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
         encoded.extend_from_slice(MANIFEST_MAGIC);
-        encoded.extend_from_slice(&MANIFEST_VERSION.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, MANIFEST_VERSION.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
         encoded.extend_from_slice(&content);
         encoded

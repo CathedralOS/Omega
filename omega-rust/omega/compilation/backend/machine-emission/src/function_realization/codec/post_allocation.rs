@@ -15,9 +15,9 @@ pub(super) fn encode_optional_custody(
             bytes.extend_from_slice(&custody.selections().bytes());
             bytes.extend_from_slice(&custody.post_allocation_machine_selections().bytes());
             bytes.extend_from_slice(&custody.source().bytes());
-            bytes.extend_from_slice(&(custody.action_count() as u64).to_le_bytes());
-            bytes.extend_from_slice(&custody.baseline_bytes().to_le_bytes());
-            bytes.extend_from_slice(&custody.selected_bytes().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, (custody.action_count() as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, custody.baseline_bytes().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, custody.selected_bytes().to_le_bytes());
         }
         None => bytes.push(0),
     }
