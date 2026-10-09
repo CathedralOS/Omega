@@ -5,4 +5,3 @@
 
 pub(crate) mod mov_r32_imm32;
 pub(crate) mod mov_r64_imm32_sign_extended;
-pub(crate) mod xor_zero;
