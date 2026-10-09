@@ -34,6 +34,8 @@ macro_rules! publication_digest {
     };
 }
 
+pub(crate) use publication_digest;
+
 publication_digest!(NativePublicationCertificateDigest);
 publication_digest!(NativePublicationEvidenceDigest);
 publication_digest!(ExecutableContainerDigest);

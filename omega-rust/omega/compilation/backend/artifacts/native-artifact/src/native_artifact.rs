@@ -26,6 +26,7 @@ mod provider_execution;
 #[cfg(test)]
 mod tests;
 
+use crate::publication::publication_digest;
 use crate::physical::{
     self, NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
     ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence};
@@ -510,39 +511,17 @@ impl std::fmt::Display for NativeArtifactIdentity {
     }
 }
 
-/// Collision-resistant commitment to the complete source-selected provider
-/// closure carried by this source-free artifact projection.
-///
-/// The digest is derived by the selected-closure owner and independently
-/// replayed when the standalone component candidate rejoins source policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NativeSelectedProviderClosureDigest([u8; 32]);
+// Collision-resistant commitment to the complete source-selected provider
+// closure carried by this source-free artifact projection.
+//
+// The digest is derived by the selected-closure owner and independently
+// replayed when the standalone component candidate rejoins source policy.
+publication_digest!(NativeSelectedProviderClosureDigest);
 
-impl NativeSelectedProviderClosureDigest {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
-
-/// Strong source-free projection of one exact normalized provider-plan
-/// digest. Unlike the compact report coordinate, these bytes bind every plan
-/// field and can be carried into D41 physical-parent custody.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NativeSelectedProviderPlanDigest([u8; 32]);
-
-impl NativeSelectedProviderPlanDigest {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
+// Strong source-free projection of one exact normalized provider-plan
+// digest. Unlike the compact report coordinate, these bytes bind every plan
+// field and can be carried into D41 physical-parent custody.
+publication_digest!(NativeSelectedProviderPlanDigest);
 
 /// Exact upstream scope under which this artifact may derive D32 evidence.
 ///
