@@ -19,13 +19,11 @@ use target::{Architecture, NativeTarget, NormalizedElfInterpreterPlan, ObjectFor
 use terminal_psi::TerminalPsiIdentity;
 
 use super::dynamic_elf::{
-    DynamicElfOrchestrationError, RequestedDynamicElfImage, emit_dynamic_elf_image,
-};
+    DynamicElfOrchestrationError, RequestedDynamicElfImage, emit_dynamic_elf_image};
 use super::final_image_validation::validate_terminal_image;
 use super::{
     ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectCompilerPrivateFunction,
-    ObjectFunction, ObjectPortEffect,
-};
+    ObjectFunction, ObjectPortEffect};
 
 /// Exact image-emission inputs selected outside the source-free object owner.
 ///
@@ -43,19 +41,15 @@ pub enum ExecutableImageEmissionRequest {
         /// (wiki/spec/build/macos_application.md). `None` selects the
         /// validated executable leaf as the ad-hoc label; the ELF and PE
         /// writers do not interpret this value.
-        code_signature_identifier: Option<String>,
-    },
+        code_signature_identifier: Option<String>},
     DynamicElf {
-        interpreter: NormalizedElfInterpreterPlan,
-    },
-}
+        interpreter: NormalizedElfInterpreterPlan}}
 
 impl ExecutableImageEmissionRequest {
     pub const fn direct(subsystem: u16) -> Self {
         Self::Direct {
             subsystem,
-            code_signature_identifier: None,
-        }
+            code_signature_identifier: None}
     }
 
 
@@ -66,8 +60,7 @@ impl ExecutableImageEmissionRequest {
                 code_signature_identifier,
                 ..
             } => code_signature_identifier.as_deref(),
-            Self::DynamicElf { .. } => None,
-        }
+            Self::DynamicElf { .. } => None}
     }
 
     pub const fn dynamic_elf(interpreter: NormalizedElfInterpreterPlan) -> Self {
@@ -107,8 +100,7 @@ impl ExecutableImageEmissionRequest {
                         "ELF interpreter selected for target `{}` cannot load an object emitted for {:?}",
                         interpreter.target().target_name(),
                         artifact.target(),
-                    )),
-                },
+                    ))},
             )),
             None => Err(Box::new(
                 RequestedExecutableImageError::MissingDynamicElfInterpreter {
@@ -116,10 +108,8 @@ impl ExecutableImageEmissionRequest {
                     subsystem,
                     diagnostic: Diagnostic::error(
                         "missing output configuration: dynamically linked ELF output requires an interpreter pathname; select `Build.elf_interpreter` for the target, whose environment declares no default",
-                    ),
-                },
-            )),
-        }
+                    )},
+            ))}
     }
 }
 
@@ -139,15 +129,13 @@ fn requires_dynamic_elf(artifact: &ObjectArtifact) -> bool {
 #[must_use = "requested image emission retains its exact authority boundary"]
 pub enum RequestedExecutableImage {
     Direct(ExecutableImage),
-    DynamicElf(RequestedDynamicElfImage),
-}
+    DynamicElf(RequestedDynamicElfImage)}
 
 impl RequestedExecutableImage {
     pub const fn output(&self) -> &EmittedImageOutput {
         match self {
             Self::Direct(image) => image.output(),
-            Self::DynamicElf(image) => image.output(),
-        }
+            Self::DynamicElf(image) => image.output()}
     }
 }
 
@@ -158,15 +146,12 @@ pub enum RequestedExecutableImageError {
     MissingDynamicElfInterpreter {
         target: target::NativeTarget,
         subsystem: u16,
-        diagnostic: Diagnostic,
-    },
+        diagnostic: Diagnostic},
     UnexpectedDynamicElfInterpreter {
         interpreter: NormalizedElfInterpreterPlan,
-        diagnostic: Diagnostic,
-    },
+        diagnostic: Diagnostic},
     Direct(Diagnostic),
-    DynamicElf(Box<DynamicElfOrchestrationError>),
-}
+    DynamicElf(Box<DynamicElfOrchestrationError>)}
 
 impl RequestedExecutableImageError {
     pub const fn diagnostic(&self) -> &Diagnostic {
@@ -174,8 +159,7 @@ impl RequestedExecutableImageError {
             Self::MissingDynamicElfInterpreter { diagnostic, .. }
             | Self::UnexpectedDynamicElfInterpreter { diagnostic, .. }
             | Self::Direct(diagnostic) => diagnostic,
-            Self::DynamicElf(error) => error.diagnostic(),
-        }
+            Self::DynamicElf(error) => error.diagnostic()}
     }
 
 }
@@ -205,8 +189,7 @@ pub fn emit_executable_image(
                 .map(|emission| {
                     RequestedExecutableImage::DynamicElf(RequestedDynamicElfImage {
                         artifact: artifact.clone(),
-                        emission,
-                    })
+                        emission})
                 })
                 .map_err(|error| Box::new(RequestedExecutableImageError::DynamicElf(error)))
         }
@@ -216,31 +199,27 @@ pub fn emit_executable_image(
                 subsystem,
                 diagnostic: Diagnostic::error(
                     "import-bearing ELF image emission requires an exact normalized interpreter input",
-                ),
-            },
+                )},
         )),
         (false, ExecutableImageEmissionRequest::DynamicElf { interpreter }) => Err(Box::new(
             RequestedExecutableImageError::UnexpectedDynamicElfInterpreter {
                 interpreter,
                 diagnostic: Diagnostic::error(
                     "a normalized ELF interpreter cannot select the dynamic writer without normalized ELF imports",
-                ),
-            },
+                )},
         )),
         (
             false,
             ExecutableImageEmissionRequest::Direct {
                 subsystem,
-                code_signature_identifier,
-            },
+                code_signature_identifier},
         ) => emit_direct_executable_image_signed(
             artifact,
             subsystem,
             code_signature_identifier.as_deref(),
         )
         .map(RequestedExecutableImage::Direct)
-        .map_err(|diagnostic| Box::new(RequestedExecutableImageError::Direct(diagnostic))),
-    }
+        .map_err(|diagnostic| Box::new(RequestedExecutableImageError::Direct(diagnostic)))}
 }
 
 fn validate_x86_scalar_fma_provider(artifact: &ObjectArtifact) -> Result<(), Diagnostic> {
@@ -273,8 +252,7 @@ fn validate_x86_scalar_fma_provider(artifact: &ObjectArtifact) -> Result<(), Dia
     for fragment in fragments {
         let slot = match fragment.format {
             machine_code::X86ScalarFmaFormat::Binary32 => target::X86ScalarFmaSlot::Binary32,
-            machine_code::X86ScalarFmaFormat::Binary64 => target::X86ScalarFmaSlot::Binary64,
-        };
+            machine_code::X86ScalarFmaFormat::Binary64 => target::X86ScalarFmaSlot::Binary64};
         if !provider.admits(fragment.requirement, slot) {
             return Err(Diagnostic::error(format!(
                 "x86 scalar FMA provider does not admit exact generic slot `{}`",
@@ -285,24 +263,11 @@ fn validate_x86_scalar_fma_provider(artifact: &ObjectArtifact) -> Result<(), Dia
     Ok(())
 }
 
-pub(crate) fn emit_object_container(artifact: &ObjectArtifact) -> ObjectContainer {
-    ObjectContainer {
-        psi: artifact.psi,
-        output: emit_omega_object_container(ObjectContainerInput {
-            target: artifact.target,
-            object: &artifact.object,
-            relocations: &artifact.relocations,
-            text_bytes: &artifact.text_bytes,
-            data_bytes: artifact.data_bytes(),
-        }),
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectContainer {
     pub psi: TerminalPsiIdentity,
-    pub output: ObjectContainerOutput,
-}
+    pub output: ObjectContainerOutput}
 
 pub fn can_emit_executable_image(target: NativeTarget) -> bool {
     target.pointer_size == 8
@@ -332,12 +297,6 @@ pub fn can_emit_executable_image(target: NativeTarget) -> bool {
 /// build-bound identity enters only through
 /// [`crate::ExecutableImageEmissionRequest::Direct`]
 /// (wiki/spec/build/macos_application.md).
-pub(crate) fn emit_direct_executable_image(
-    artifact: &ObjectArtifact,
-    subsystem: u16,
-) -> Result<ExecutableImage, Diagnostic> {
-    emit_direct_executable_image_signed(artifact, subsystem, None)
-}
 
 /// `code_signature_identifier` is the build-bound Mach-O signing identity
 /// carried by the image request. It is written verbatim into the emitted
@@ -377,8 +336,7 @@ pub(crate) fn emit_direct_executable_image_signed(
         object,
         relocations,
         text_bytes,
-        data_bytes: artifact.data_bytes(),
-    });
+        data_bytes: artifact.data_bytes()});
     let final_image_symbol_digest = image::final_image_symbol_digest(&image);
     let output = match (artifact.target.object_format, artifact.target.architecture) {
         (ObjectFormat::Elf, Architecture::Aarch64) => image_elf::emit_elf_aarch64_executable(image),
@@ -387,12 +345,10 @@ pub(crate) fn emit_direct_executable_image_signed(
             Some(identifier) => {
                 image_macho::emit_macho_aarch64_executable_signed(image, identifier)
             }
-            None => image_macho::emit_macho_aarch64_executable(image),
-        },
+            None => image_macho::emit_macho_aarch64_executable(image)},
         (ObjectFormat::MachO, Architecture::X86_64) => match code_signature_identifier {
             Some(identifier) => image_macho::emit_macho_x86_64_executable_signed(image, identifier),
-            None => image_macho::emit_macho_x86_64_executable(image),
-        },
+            None => image_macho::emit_macho_x86_64_executable(image)},
         (ObjectFormat::Coff, Architecture::X86_64) => {
             image_pe::emit_pe_x86_64_executable(image, subsystem)
         }
@@ -427,8 +383,7 @@ pub(crate) fn emit_direct_executable_image_signed(
         boundary_settlements: artifact.boundary_settlements.clone(),
         foreign_calls: artifact.foreign_calls.clone(),
         final_image_symbol_digest,
-        output,
-    })
+        output})
 }
 
 /// Independently replay the complete object-to-executable-image join retained
@@ -483,8 +438,7 @@ pub fn validate_direct_executable_image(
         object,
         relocations,
         text_bytes,
-        data_bytes: artifact.data_bytes(),
-    });
+        data_bytes: artifact.data_bytes()});
     if image.final_image_symbol_digest != image::final_image_symbol_digest(&replayed_final_image) {
         return Err(Diagnostic::error(
             "terminal executable image symbol evidence does not match its exact object entry/data-symbol table",
@@ -526,8 +480,7 @@ pub struct ExecutableImage {
     boundary_settlements: Vec<ObjectBoundarySettlement>,
     foreign_calls: Vec<super::ObjectForeignCall>,
     final_image_symbol_digest: image::FinalImageSymbolDigest,
-    output: EmittedImageOutput,
-}
+    output: EmittedImageOutput}
 
 impl ExecutableImage {
     pub const fn psi(&self) -> TerminalPsiIdentity {

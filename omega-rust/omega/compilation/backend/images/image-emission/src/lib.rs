@@ -53,27 +53,22 @@ pub use object_artifact::{
     foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
     durable_home_offsets, producer_instruction, scalar_immediate_span, transported_span_end, scalar_call_result_producer,
     unique_block_instruction,
-    structural_result_capture,
-};
+    structural_result_capture};
 pub(crate) use object_artifact::{ ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction, ObjectError, ObjectPortEffect, ObjectScalarStack, ObjectUnitStack};
 
 pub use function_fragments::{ FunctionFragmentObjectArtifactRequest,
-    build_function_fragment_object_artifact,
-};
+    build_function_fragment_object_artifact};
 
 pub use dynamic_elf::{
-    RequestedDynamicElfImage, validate_requested_dynamic_elf_image,
-};
+    RequestedDynamicElfImage, validate_requested_dynamic_elf_image};
 pub use hosted_receiver::{ bind_hosted_receiver};
 pub(crate) use hosted_receiver::{HostedReceiverBinding};
 pub use image_output::{
     ExecutableImage, ExecutableImageEmissionRequest, ImageApplicationMetadataError,
     ObjectContainer, RequestedExecutableImage,
-    can_emit_executable_image, emit_executable_image, validate_direct_executable_image,
-};
+    can_emit_executable_image, emit_executable_image, validate_direct_executable_image};
 
-pub use installation_record::{ InstallationError,
-};
+pub use installation_record::{ InstallationError};
 pub(crate) use installation_record::{ InstallationRecord,
     InstalledCompilerPrivateFunction, validate_installation_record};
 pub use machine_code::BoundaryExecutionRecord;

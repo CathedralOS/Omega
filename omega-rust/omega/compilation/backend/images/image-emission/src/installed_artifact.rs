@@ -1,13 +1,10 @@
-use boundary_applications::BoundaryOpaqueRepresentationApplications;
 use executable_installation::{ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId};
 use function_identity::MachineFunctionIdentity;
 use installation_evidence::InstalledArtifactOccurrenceDigest;
 use layout_plans::EntryStubId;
 
 use crate::{
-    ExecutableImage, InstallationRecord, InstalledCompilerPrivateFunction, ObjectArtifact,
-    validate_installation_record,
-};
+    ExecutableImage, InstallationRecord, InstalledCompilerPrivateFunction, ObjectArtifact};
 
 /// Exact join between one canonical terminal installation record and the
 /// installed code occurrence containing that record's compiler-authored text.
@@ -20,8 +17,7 @@ pub(crate) struct InstalledArtifact {
     object: ObjectArtifact,
     image: ExecutableImage,
     installation: InstallationRecord,
-    installed: InstalledCode,
-}
+    installed: InstalledCode}
 
 impl InstalledArtifact {
     pub const fn object(&self) -> &ObjectArtifact {
@@ -78,8 +74,7 @@ pub(crate) struct InstalledArtifactBindingError {
     image: ExecutableImage,
     installation: InstallationRecord,
     installed: InstalledCode,
-    diagnostic: String,
-}
+    diagnostic: String}
 
 impl InstalledArtifactBindingError {
     pub fn diagnostic(&self) -> &str {
@@ -115,8 +110,7 @@ pub(crate) struct InstalledArtifactMemoryImages {
     layout: image::FinalImageLayout,
     data_offset: Option<usize>,
     encoded: Vec<u8>,
-    materialized: Vec<u8>,
-}
+    materialized: Vec<u8>}
 
 impl InstalledArtifactMemoryImages {
     pub const fn layout(&self) -> image::FinalImageLayout {
@@ -159,139 +153,7 @@ impl std::error::Error for InstalledArtifactMemoryProjectionError {}
 /// thunks, binding slots, alignment padding). BSS remains outside this lane.
 /// The placed-region inventories must replay over the retained final bytes
 /// with no unclassified gap before this projection is produced.
-pub(crate) fn project_installed_artifact_memory_images(
-    object: &ObjectArtifact,
-    image: &ExecutableImage,
-) -> Result<InstalledArtifactMemoryImages, InstalledArtifactMemoryProjectionError> {
-    if object.psi() != image.psi() || object.target() != image.target() {
-        return Err(InstalledArtifactMemoryProjectionError(
-            "terminal object and image identity differ".into(),
-        ));
-    }
-    crate::validate_direct_executable_image(object, image).map_err(|diagnostic| {
-        InstalledArtifactMemoryProjectionError(format!(
-            "terminal executable image replay failed: {diagnostic}"
-        ))
-    })?;
-    let output = image.output();
-    if output.final_text_bytes.len() < object.text_bytes().len()
-        || output.final_data_bytes.len() < object.data_bytes().len()
-        || output.final_image_layout.text_address == 0
-    {
-        return Err(InstalledArtifactMemoryProjectionError(
-            "terminal object/image section byte counts or text placement differ".into(),
-        ));
-    }
-    image::validate_placed_executable_region_inventory(
-        &output.executable_regions,
-        &output.final_text_bytes,
-    )
-    .map_err(|diagnostic| {
-        InstalledArtifactMemoryProjectionError(format!(
-            "executable placement inventory does not replay over final text: {diagnostic}"
-        ))
-    })?;
-    image::validate_placed_data_region_inventory(&output.data_regions, &output.final_data_bytes)
-        .map_err(|diagnostic| {
-            InstalledArtifactMemoryProjectionError(format!(
-                "initialized-data placement inventory does not replay over final data: {diagnostic}"
-            ))
-        })?;
-    if let Some(gap) = output.executable_regions.unclassified_gaps.first() {
-        return Err(InstalledArtifactMemoryProjectionError(format!(
-            "executable placement left {} unclassified byte(s) at .text offset {}",
-            gap.byte_count, gap.section_offset
-        )));
-    }
-    if let Some(gap) = output.data_regions.unclassified_gaps.first() {
-        return Err(InstalledArtifactMemoryProjectionError(format!(
-            "initialized-data placement left {} unclassified byte(s) at .data offset {}",
-            gap.byte_count, gap.section_offset
-        )));
-    }
-    if object.target().object_format == target::ObjectFormat::MachO {
-        let pairing = match object.target().architecture {
-            target::Architecture::Aarch64 => {
-                image_macho::validate_macho_aarch64_import_binding_pairing(
-                    &output.final_text_bytes,
-                    &output.executable_regions,
-                    &output.data_regions,
-                )
-            }
-            target::Architecture::X86_64 => {
-                image_macho::validate_macho_x86_64_import_binding_pairing(
-                    &output.final_text_bytes,
-                    &output.executable_regions,
-                    &output.data_regions,
-                )
-            }
-        };
-        pairing.map_err(|diagnostic| {
-            InstalledArtifactMemoryProjectionError(format!(
-                "Mach-O import thunk/binding-slot pairing drifted: {diagnostic}"
-            ))
-        })?;
-    }
-    let data_offset = if output.final_data_bytes.is_empty() {
-        None
-    } else {
-        let offset = output
-            .final_image_layout
-            .data_address
-            .checked_sub(output.final_image_layout.text_address)
-            .and_then(|offset| usize::try_from(offset).ok())
-            .filter(|offset| *offset >= output.final_text_bytes.len())
-            .ok_or_else(|| {
-                InstalledArtifactMemoryProjectionError(
-                    "terminal initialized-data placement overlaps text or is not representable"
-                        .into(),
-                )
-            })?;
-        Some(offset)
-    };
-    // The canonical artifact bytes keep the compiler's unrelocated prefixes and
-    // the writer-generated suffixes exactly as emitted: thunks are patched by
-    // the image writer and binding slots arrive as zeroed pointers the loader
-    // binds at load time, so neither carries provider-side relocations.
-    let mut encoded_text = object.text_bytes().to_vec();
-    encoded_text.extend_from_slice(&output.final_text_bytes[object.text_bytes().len()..]);
-    let mut encoded_data = object.data_bytes().to_vec();
-    encoded_data.extend_from_slice(&output.final_data_bytes[object.data_bytes().len()..]);
-    let encoded = flatten_installed_sections(&encoded_text, &encoded_data, data_offset)?;
-    let materialized = flatten_installed_sections(
-        &output.final_text_bytes,
-        &output.final_data_bytes,
-        data_offset,
-    )?;
-    Ok(InstalledArtifactMemoryImages {
-        layout: output.final_image_layout,
-        data_offset,
-        encoded,
-        materialized,
-    })
-}
 
-fn flatten_installed_sections(
-    text: &[u8],
-    data: &[u8],
-    data_offset: Option<usize>,
-) -> Result<Vec<u8>, InstalledArtifactMemoryProjectionError> {
-    let Some(data_offset) = data_offset else {
-        if !data.is_empty() {
-            return Err(InstalledArtifactMemoryProjectionError(
-                "initialized data has no retained placement".into(),
-            ));
-        }
-        return Ok(text.to_vec());
-    };
-    let total = data_offset.checked_add(data.len()).ok_or_else(|| {
-        InstalledArtifactMemoryProjectionError("installed section extent overflows".into())
-    })?;
-    let mut bytes = vec![0; total];
-    bytes[..text.len()].copy_from_slice(text);
-    bytes[data_offset..].copy_from_slice(data);
-    Ok(bytes)
-}
 
 /// Exact attribution of one already-admitted entry to one compiler-private
 /// function in one installed artifact occurrence.
@@ -303,8 +165,7 @@ pub(crate) struct InstalledCompilerPrivateFunctionEntry {
     entry: EntryStubId,
     artifact: ArtifactId,
     installed_code: InstalledCodeId,
-    installed_context: InstalledCodeContext,
-}
+    installed_context: InstalledCodeContext}
 
 impl std::fmt::Debug for InstalledCompilerPrivateFunctionEntry {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -359,8 +220,7 @@ impl InstalledCompilerPrivateFunctionEntry {
 pub(crate) struct InstalledCompilerPrivateFunctionEntryBindingError {
     private_function: MachineFunctionIdentity,
     entry: EntryStubId,
-    diagnostic: String,
-}
+    diagnostic: String}
 
 impl InstalledCompilerPrivateFunctionEntryBindingError {
     pub const fn private_function(&self) -> MachineFunctionIdentity {
@@ -383,176 +243,3 @@ impl std::fmt::Display for InstalledCompilerPrivateFunctionEntryBindingError {
 }
 
 impl std::error::Error for InstalledCompilerPrivateFunctionEntryBindingError {}
-
-/// Bind a caller-supplied, already-admitted entry to the exact compiler-private
-/// function row and installed occurrence that contain its executable bytes.
-/// This gate never derives an entry identity or resolves an executable address.
-pub(crate) fn bind_installed_compiler_private_function_entry(
-    installed_artifact: &InstalledArtifact,
-    private_function: MachineFunctionIdentity,
-    entry: EntryStubId,
-) -> Result<InstalledCompilerPrivateFunctionEntry, InstalledCompilerPrivateFunctionEntryBindingError>
-{
-    let reject = |diagnostic: &str| InstalledCompilerPrivateFunctionEntryBindingError {
-        private_function,
-        entry,
-        diagnostic: diagnostic.into(),
-    };
-    let mut matches = installed_artifact
-        .installation
-        .private_functions()
-        .iter()
-        .filter(|candidate| candidate.identity == private_function);
-    let Some(candidate) = matches.next() else {
-        return Err(reject(
-            "installed artifact does not retain the requested compiler-private function",
-        ));
-    };
-    if matches.next().is_some() {
-        return Err(reject(
-            "installed artifact retains the compiler-private function more than once",
-        ));
-    }
-    let Some(end) = candidate.text_offset.checked_add(candidate.byte_count) else {
-        return Err(reject(
-            "compiler-private function text interval is not representable",
-        ));
-    };
-    let Some(expected_bytes) = installed_artifact
-        .image
-        .output()
-        .final_text_bytes
-        .get(candidate.text_offset..end)
-        .filter(|bytes| !bytes.is_empty())
-    else {
-        return Err(reject(
-            "compiler-private function text interval is empty or outside the final image",
-        ));
-    };
-    let Ok(expected_offset) = u64::try_from(candidate.text_offset) else {
-        return Err(reject(
-            "compiler-private function entry offset is not representable",
-        ));
-    };
-    if installed_artifact
-        .installed
-        .selected_entry_target(entry)
-        .is_err()
-    {
-        return Err(reject(
-            "entry is not admitted by the exact installed artifact",
-        ));
-    }
-    if !installed_artifact
-        .installed
-        .binds_entry_offset(entry, expected_offset)
-    {
-        return Err(reject(
-            "entry does not begin at the compiler-private function text offset",
-        ));
-    }
-    if !installed_artifact
-        .installed
-        .binds_exact_materialized_entry_bytes(entry, expected_bytes)
-    {
-        return Err(reject(
-            "entry does not retain the compiler-private function's exact final bytes",
-        ));
-    }
-
-    Ok(InstalledCompilerPrivateFunctionEntry {
-        private_function: candidate.clone(),
-        entry,
-        artifact: installed_artifact.installed.artifact(),
-        installed_code: installed_artifact.installed.identity(),
-        installed_context: installed_artifact.installed.receipt_context(),
-    })
-}
-
-/// Bind canonical terminal installation metadata to one exact installed code
-/// occurrence. Neither an image fingerprint nor an artifact ID can substitute
-/// for the byte-bearing values replayed here. `boundary_opaque_applications`
-/// is the bound artifact's retained by-value opaque custody
-/// (`NativeArtifact::boundary_application_coverage`'s `opaque_applications`,
-/// or the canonical empty set when the artifact carries no coverage); the
-/// replayed record must claim that same set, since equal size, alignment, or
-/// a compact fingerprint never establishes agreement.
-pub(crate) fn bind_installed_artifact(
-    object: ObjectArtifact,
-    image: ExecutableImage,
-    installation: InstallationRecord,
-    boundary_opaque_applications: &BoundaryOpaqueRepresentationApplications,
-    installed: InstalledCode,
-) -> Result<InstalledArtifact, Box<InstalledArtifactBindingError>> {
-    let reject = |object, image, installation, installed, diagnostic: String| {
-        Err(Box::new(InstalledArtifactBindingError {
-            object,
-            image,
-            installation,
-            installed,
-            diagnostic,
-        }))
-    };
-
-    if object.psi() != image.psi() || object.target() != image.target() {
-        return reject(
-            object,
-            image,
-            installation,
-            installed,
-            "terminal object and executable image have different semantic or target identity"
-                .into(),
-        );
-    }
-    if let Err(error) = validate_installation_record(&installation, &image) {
-        return reject(
-            object,
-            image,
-            installation,
-            installed,
-            format!("terminal installation record does not bind the exact image: {error}"),
-        );
-    }
-    if installation.boundary_opaque_applications() != boundary_opaque_applications {
-        return reject(
-            object,
-            image,
-            installation,
-            installed,
-            "installed artifact by-value opaque custody disagrees with the installation record"
-                .into(),
-        );
-    }
-    if installed.architecture() != object.target().architecture {
-        return reject(
-            object,
-            image,
-            installation,
-            installed,
-            "installed code architecture differs from the terminal artifact target".into(),
-        );
-    }
-    let memory = match project_installed_artifact_memory_images(&object, &image) {
-        Ok(memory) => memory,
-        Err(error) => {
-            return reject(object, image, installation, installed, error.to_string());
-        }
-    };
-    if !installed.binds_exact_materialized_artifact_bytes(memory.encoded(), memory.materialized()) {
-        return reject(
-            object,
-            image,
-            installation,
-            installed,
-            "installed code does not contain the exact unrelocated and materialized terminal text/data sections"
-                .into(),
-        );
-    }
-
-    Ok(InstalledArtifact {
-        object,
-        image,
-        installation,
-        installed,
-    })
-}

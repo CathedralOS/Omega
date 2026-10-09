@@ -20,18 +20,14 @@ pub(crate) mod stack_demand;
 
 pub use carriers::{
     ObjectArtifact, ObjectBoundarySettlement,
-    ObjectCodeAttribution, ObjectForeignCall, ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
-};
+    ObjectCodeAttribution, ObjectForeignCall, ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack};
 pub(crate) use carriers::{
     find_object_function, ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction,
     ObjectPortEffect, ObjectScalarStack,
     ObjectUnitStack};
 pub(crate) use construction::text_emission::emit_private_functions;
 pub use construction::{
-    build_object_artifact,
-};
-pub(crate) use construction::{
-    build_admitted_x86_fma_object_artifact, build_feature_required_x86_fma_object_artifact, build_object_artifact_with_private_functions};
+    build_object_artifact};
 pub(crate) use errors::ObjectError;
 pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;
 pub use normalized_foreign_calls::{
@@ -41,7 +37,5 @@ pub use normalized_foreign_calls::{
     transported_span_end,
     producer_instruction, scalar_call_result_producer,
     foreign_result_operand_count, fragment_instruction_span,
-    structural_result_capture, unique_block_instruction,
-};
-pub(crate) use normalized_foreign_calls::{ scalar_observation_producer};
+    structural_result_capture, unique_block_instruction};
 pub(crate) use private_functions::validate_private_functions;

@@ -26,31 +26,25 @@ pub(crate) use codec::envelope::{decode_installation_record, encode_installation
 pub use installation_errors::InstallationError;
 
 pub(crate) use record_construction::{
-    InstallationStackError, build_installation_record, build_installation_record_with_evidence,
-    build_installation_record_with_provider_executions,
-    build_installation_record_with_selected_provider_plans_and_evidence,
-    derive_installation_stack_demand};
+    InstallationStackError, derive_installation_stack_demand};
 
 pub(crate) use record_types::{
     ImageFingerprint, InitializedDataFingerprint, InstallationFingerprint, InstallationRecord,
     InstalledCompilerPrivateFunction, InstalledComponentProgress, InstalledForeignCallStack,
     InstalledFunction, InstalledImageSections, InstalledInternalUnitCall,
     InstalledInternalUnitScalarCall, InstalledStructuralReturn, SelectedProviderPlanReportIdentity};
-pub(crate) use record_validation::{installation_fingerprint, validate_installation_record};
+pub(crate) use record_validation::{validate_installation_record};
 
 use crate::object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
 use crate::object_artifact::replay::boundary::completion_receipts::{
-    CompletionCustodyError, validate_completion_custody,
-};
+    CompletionCustodyError, validate_completion_custody};
 use crate::object_artifact::replay::boundary::result_placement::boundary_result_is_exact;
 use crate::object_artifact::replay::boundary::runtime_scalar_custody::hosted_write_byte_custody_is_exact;
 use crate::{
-    ObjectBoundarySettlement, ObjectCodeAttribution, ObjectPortEffect, can_emit_executable_image,
-};
+    ObjectBoundarySettlement, ObjectCodeAttribution, ObjectPortEffect, can_emit_executable_image};
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueClass, ValueLocation, ValuePlacement, ValueShape,
-    evaluate_call_plan,
-};
+    evaluate_call_plan};
 use machine_code::SemanticCodeSite;
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target::{Architecture, ObjectFormat};
@@ -60,15 +54,13 @@ use terminal_psi::{StructuralMultiplicity, StructuralPathSegment, StructuralType
 use installed_unit_scalar_transport::{
     installed_function_scalar_transport_is_canonical, validate_installed_unit_scalar_calls,
     validate_installed_unit_structural_scalar_field_stores,
-    validate_installed_unit_write_only_primitive_stores,
-};
+    validate_installed_unit_write_only_primitive_stores};
 
 use codec::structural::case::{decode_structural_cases, encode_structural_cases};
 use codec::structural::record::{decode_structural_fields, encode_structural_fields};
 
 use codec::structural::scalar::{
-    decode_identity, decode_multiplicity, encode_identity, multiplicity_tag,
-};
+    decode_identity, decode_multiplicity, encode_identity, multiplicity_tag};
 use codec::structural::types::{decode_structural_types, encode_structural_types};
 use codec::wire::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
