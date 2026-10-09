@@ -8,7 +8,7 @@
 use crate::{EntryStack, PlanDiagnostic, Preemption};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ArrivalContextId(u64);
+pub(crate) struct ArrivalContextId(u64);
 
 impl ArrivalContextId {
     pub const fn new(value: u64) -> Option<Self> {
@@ -117,7 +117,7 @@ pub(crate) fn validate_entry_stack_domain_closure(
 /// The entry offset is allowed to be zero; every nominal identity must already
 /// have been established by the installation pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledEntryFactIdentity {
+pub(crate) struct InstalledEntryFactIdentity {
     pub target_profile: X86_64TargetProfileIdentity,
     pub artifact: u64,
     pub installed_code: u64,
@@ -135,10 +135,10 @@ pub struct InstalledEntryFactIdentity {
 /// A target/provider may cite this identity through compiler installation
 /// metadata, but cannot construct a new rule identity or supply frame sizes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86_64TargetProfileIdentity(u64);
+pub(crate) struct X86_64TargetProfileIdentity(u64);
 
 impl X86_64TargetProfileIdentity {
-    pub const LONG_MODE_INTERRUPT_GATES: Self = Self(0x7838_365f_6c6d_6967);
+    pub(crate) const LONG_MODE_INTERRUPT_GATES: Self = Self(0x7838_365f_6c6d_6967);
 
     pub const fn get(self) -> u64 {
         self.0
@@ -147,7 +147,7 @@ impl X86_64TargetProfileIdentity {
 
 /// Closed x86-64 gate category retained only as compiler installation data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64GateKind {
+pub(crate) enum X86_64GateKind {
     Interrupt,
     Trap,
 }
@@ -157,7 +157,7 @@ pub enum X86_64GateKind {
 /// an exception arrival may push an architectural error code while an external
 /// or software arrival at the same vector does not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64ArrivalMechanism {
+pub(crate) enum X86_64ArrivalMechanism {
     Exception,
     ExternalInterrupt,
     NonMaskableInterrupt,
@@ -170,7 +170,7 @@ pub enum X86_64ArrivalMechanism {
 /// compiler stack domain reached by the validated gate/TSS installation; no
 /// source program can manufacture or inspect this value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64HardwareStackSelection {
+pub(crate) enum X86_64HardwareStackSelection {
     Current,
     PrivilegeTransition { dedicated_class: u16 },
     InterruptStackTable { slot: u8, dedicated_class: u16 },
@@ -178,7 +178,7 @@ pub enum X86_64HardwareStackSelection {
 
 /// One exact admissible arrival context from a validated x86-64 installation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86_64InstalledArrivalContext {
+pub(crate) struct X86_64InstalledArrivalContext {
     pub context: ArrivalContextId,
     pub mechanism: X86_64ArrivalMechanism,
     pub interrupted_privilege: u8,
@@ -190,7 +190,7 @@ pub struct X86_64InstalledArrivalContext {
 /// Unvalidated exact facts decoded from one installed x86-64 gate and its
 /// target-owned installation metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64InstalledHardwareEntryFacts {
+pub(crate) struct X86_64InstalledHardwareEntryFacts {
     pub identity: InstalledEntryFactIdentity,
     pub vector: u8,
     pub gate: X86_64GateKind,
@@ -201,7 +201,7 @@ pub struct X86_64InstalledHardwareEntryFacts {
 /// Canonical, fail-closed installed facts accepted by the sealed x86-64
 /// hardware-arrival rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedX86_64InstalledHardwareEntryFacts {
+pub(crate) struct ValidatedX86_64InstalledHardwareEntryFacts {
     facts: X86_64InstalledHardwareEntryFacts,
     non_authoritative_report_fingerprint: u64,
 }
@@ -220,7 +220,7 @@ impl ValidatedX86_64InstalledHardwareEntryFacts {
 
 /// Validate and canonicalize the exact installation facts consumed by the
 /// compiler's sealed x86-64 arrival rule.
-pub fn validate_x86_64_installed_hardware_entry_facts(
+pub(crate) fn validate_x86_64_installed_hardware_entry_facts(
     mut facts: X86_64InstalledHardwareEntryFacts,
 ) -> Result<ValidatedX86_64InstalledHardwareEntryFacts, PlanDiagnostic> {
     let identity = facts.identity;
@@ -478,10 +478,11 @@ impl Fnv1a {
 mod entry_exit_stub;
 
 pub use entry_exit_stub::{
-    ValidatedX86_64DeriverStub,
-    X86_64ErrorCodeDisposition, derive_x86_64_entry_exit_stub,
 };
-pub use entry_exit_stub::{ X86_64DeriverStub, X86_64DeriverStubContext};
+pub(crate) use entry_exit_stub::{
+    ValidatedX86_64DeriverStub,
+    X86_64ErrorCodeDisposition, derive_x86_64_entry_exit_stub};
+pub(crate) use entry_exit_stub::{ X86_64DeriverStub, X86_64DeriverStubContext};
 
 #[cfg(test)]
 mod tests;

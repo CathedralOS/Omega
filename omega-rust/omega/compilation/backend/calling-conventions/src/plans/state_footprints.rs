@@ -39,7 +39,7 @@ impl StateFootprintEvidence {
 /// externally entered boundary. This is implementation evidence, not part of
 /// the public `CallPlan + StatePlan` identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ProviderExitRealization {
+pub(crate) struct ProviderExitRealization {
     pub control: EntryControl,
     pub restored_state: MachineStateSet,
 }
