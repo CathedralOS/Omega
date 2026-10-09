@@ -73,14 +73,9 @@ pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
         return;
     }
 
-    let Some(member) = program.expression_table.member_node(upper_bound) else {
+    let Some(member) = super::length_member(program, upper_bound) else {
         return;
     };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-    {
-        return;
-    }
 
     let collection_label = program.expression_table.display_name(member.receiver);
     prove_index_within_member_length(program, machine, state, facts, index, &collection_label);
@@ -146,14 +141,9 @@ pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
         return;
     }
 
-    let Some(member) = program.expression_table.member_node(upper_bound) else {
+    let Some(member) = super::length_member(program, upper_bound) else {
         return;
     };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-    {
-        return;
-    }
 
     facts.prove_range_bound(
         program.expression_table.display_name(member.receiver),
@@ -193,14 +183,9 @@ pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
         return;
     };
 
-    let Some(member) = program.expression_table.member_node(upper_bound) else {
+    let Some(member) = super::length_member(program, upper_bound) else {
         return;
     };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-    {
-        return;
-    }
 
     let collection_label = program.expression_table.display_name(member.receiver);
     facts.prove_index(

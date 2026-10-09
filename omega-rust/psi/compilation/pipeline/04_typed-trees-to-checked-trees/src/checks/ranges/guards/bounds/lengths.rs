@@ -82,14 +82,9 @@ fn seed_length_equality_side(
     value: ExpressionHandle,
     possible_length: ExpressionHandle,
 ) -> bool {
-    let Some(member) = program.expression_table.member_node(possible_length) else {
+    let Some(member) = super::length_member(program, possible_length) else {
         return false;
     };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-    {
-        return false;
-    }
 
     facts.prove_range_bound(
         program.expression_table.display_name(member.receiver),
