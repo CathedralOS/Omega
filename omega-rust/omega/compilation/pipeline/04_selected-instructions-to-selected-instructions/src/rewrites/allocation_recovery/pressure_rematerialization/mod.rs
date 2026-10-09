@@ -5,6 +5,7 @@ use crate::ValidatedLiveRanges;
 use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
+use crate::cursor::{Cursor, TakeError, Truncated};
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedRegisterConstraintCatalog,
@@ -410,43 +411,6 @@ impl std::fmt::Display for PressureRematerializationDecodeError {
 }
 impl std::error::Error for PressureRematerializationDecodeError {}
 
-struct Cursor<'a> {
-    encoded: &'a [u8],
-    offset: usize,
-}
-impl<'a> Cursor<'a> {
-    fn new(encoded: &'a [u8]) -> Self {
-        Self { encoded, offset: 0 }
-    }
-    fn take(&mut self, len: usize) -> Result<&'a [u8], PressureRematerializationDecodeError> {
-        let end = self
-            .offset
-            .checked_add(len)
-            .ok_or(PressureRematerializationDecodeError::LengthOverflow)?;
-        let bytes = self
-            .encoded
-            .get(self.offset..end)
-            .ok_or(PressureRematerializationDecodeError::Truncated)?;
-        self.offset = end;
-        Ok(bytes)
-    }
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], PressureRematerializationDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| PressureRematerializationDecodeError::Truncated)
-    }
-    fn byte(&mut self) -> Result<u8, PressureRematerializationDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-    fn length(&mut self) -> Result<usize, PressureRematerializationDecodeError> {
-        usize::try_from(u64::from_le_bytes(self.array()?))
-            .map_err(|_| PressureRematerializationDecodeError::LengthOverflow)
-    }
-    fn remaining(&self) -> usize {
-        self.encoded.len().saturating_sub(self.offset)
-    }
-}
-
 fn decode_constraint_key(
     cursor: &mut Cursor<'_>,
 ) -> Result<RegisterConstraintKey, PressureRematerializationDecodeError> {
@@ -476,5 +440,20 @@ fn decode_integer_value(
         tag => Err(PressureRematerializationDecodeError::UnknownIntegerValue(
             tag,
         )),
+    }
+}
+
+impl From<Truncated> for PressureRematerializationDecodeError {
+    fn from(_: Truncated) -> Self {
+        Self::Truncated
+    }
+}
+
+impl From<TakeError> for PressureRematerializationDecodeError {
+    fn from(error: TakeError) -> Self {
+        match error {
+            TakeError::Truncated => Self::Truncated,
+            TakeError::LengthOverflow => Self::LengthOverflow,
+        }
     }
 }

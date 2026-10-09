@@ -5,6 +5,7 @@ use crate::ValidatedLiveRanges;
 use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
+use crate::cursor::{Cursor, TakeError, Truncated};
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedRegisterConstraintCatalog,
@@ -721,7 +722,7 @@ impl LiteralFoldPlan {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, LiteralFoldDecodeError> {
-        let mut cursor = LiteralFoldCursor::new(encoded);
+        let mut cursor = Cursor::new(encoded);
         if cursor.take(LITERAL_FOLD_MAGIC.len())? != LITERAL_FOLD_MAGIC {
             return Err(LiteralFoldDecodeError::WrongMagic);
         }
@@ -995,7 +996,7 @@ impl std::fmt::Display for LiteralFoldDecodeError {
 impl std::error::Error for LiteralFoldDecodeError {}
 
 fn decode_constraint_key(
-    cursor: &mut LiteralFoldCursor<'_>,
+    cursor: &mut Cursor<'_>,
 ) -> Result<RegisterConstraintKey, LiteralFoldDecodeError> {
     let family = match cursor.byte()? {
         0 => register_model::RegisterConstraintFamily::Call,
@@ -1011,40 +1012,17 @@ fn decode_constraint_key(
     })
 }
 
-struct LiteralFoldCursor<'a> {
-    bytes: &'a [u8],
-    offset: usize,
+impl From<Truncated> for LiteralFoldDecodeError {
+    fn from(_: Truncated) -> Self {
+        Self::Truncated
+    }
 }
 
-impl<'a> LiteralFoldCursor<'a> {
-    const fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, offset: 0 }
-    }
-    fn take(&mut self, count: usize) -> Result<&'a [u8], LiteralFoldDecodeError> {
-        let end = self
-            .offset
-            .checked_add(count)
-            .ok_or(LiteralFoldDecodeError::Truncated)?;
-        let value = self
-            .bytes
-            .get(self.offset..end)
-            .ok_or(LiteralFoldDecodeError::Truncated)?;
-        self.offset = end;
-        Ok(value)
-    }
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], LiteralFoldDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| LiteralFoldDecodeError::Truncated)
-    }
-    fn byte(&mut self) -> Result<u8, LiteralFoldDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-    fn length(&mut self) -> Result<usize, LiteralFoldDecodeError> {
-        usize::try_from(u64::from_le_bytes(self.array()?))
-            .map_err(|_| LiteralFoldDecodeError::LengthOverflow)
-    }
-    fn remaining(&self) -> usize {
-        self.bytes.len().saturating_sub(self.offset)
+impl From<TakeError> for LiteralFoldDecodeError {
+    fn from(error: TakeError) -> Self {
+        match error {
+            TakeError::Truncated => Self::Truncated,
+            TakeError::LengthOverflow => Self::LengthOverflow,
+        }
     }
 }
