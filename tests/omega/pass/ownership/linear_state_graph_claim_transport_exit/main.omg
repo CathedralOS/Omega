@@ -5,9 +5,12 @@
 // carries a local into the state that returns it; `main` carries a call
 // result into `holding`, which hands that claim through `pass` and back, then
 // carries a fresh call result into `last`.
+// `exchange` joins opposite original claims into destination names; `rotate`
+// exchanges two invocation names on a backedge without overwriting custody.
 use omega::language::core::drop;
 
 data Receipt [linear] { code: i32; }
+data Pair { left: Receipt; right: Receipt; }
 
 machine Receipt::drop(receipt: &mut Receipt) {}
 
@@ -46,12 +49,86 @@ machine issue(code: i32) -> Receipt {
     }
 }
 
+machine exchange(swap: bool, left: Receipt, right: Receipt) crashes Trap {
+    transition swap {
+        true -> received(right, left, 2, 1)
+        _ -> received(left, right, 1, 2)
+    }
+    state received(first: Receipt, second: Receipt, expected_first: i32, expected_second: i32) {
+        let first_code: i32 = consume(first);
+        let second_code: i32 = consume(second);
+        transition first_code == expected_first && second_code == expected_second {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine rotate(first: Receipt, second: Receipt, remaining: u32) -> i32
+terminates by remaining -> Nat::Descending;
+{
+    transition remaining > 0 {
+        true -> rotate(second, first, remaining - 1)
+        _ -> finish(first, second)
+    }
+    state finish(left: Receipt, right: Receipt) -> i32 {
+        let observed: i32 = consume(left);
+        let discarded: i32 = consume(right);
+        observed
+    }
+}
+
+machine exchange_members(swap: bool, pair: Pair) crashes Trap {
+    transition swap {
+        true -> received(pair.right, pair.left, 2, 1)
+        _ -> received(pair.left, pair.right, 1, 2)
+    }
+    state received(first: Receipt, second: Receipt, expected_first: i32, expected_second: i32) {
+        let first_code: i32 = consume(first);
+        let second_code: i32 = consume(second);
+        transition first_code == expected_first && second_code == expected_second {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine exchange_pairs(swap: bool, left: Pair, right: Pair) crashes Trap {
+    transition swap {
+        true -> received(right, left, 3, 1)
+        _ -> received(left, right, 1, 3)
+    }
+    state received(first: Pair, second: Pair, expected_first: i32, expected_second: i32) {
+        let first_code: i32 = consume(first.left);
+        let first_sibling: i32 = consume(first.right);
+        let second_code: i32 = consume(second.left);
+        let second_sibling: i32 = consume(second.right);
+        transition first_code == expected_first && second_code == expected_second {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
 machine main() crashes Trap {
+    exchange(true, make(1), make(2));
+    exchange(false, make(1), make(2));
+    exchange_members(true, Pair { left: make(1), right: make(2) });
+    exchange_members(false, Pair { left: make(1), right: make(2) });
+    exchange_pairs(true, Pair { left: make(1), right: make(2) }, Pair { left: make(3), right: make(4) });
+    exchange_pairs(false, Pair { left: make(1), right: make(2) }, Pair { left: make(3), right: make(4) });
+    let rotated: i32 = rotate(make(9), make(8), 2);
     let looped: i32 = spin(Receipt { code: 9 }, 3);
     let issued: Receipt = Receipt { code: 2 };
     let once: i32 = spin(issued, 0);
     let made: Receipt = issue(6);
-    transition looped == 9 && once == 2 {
+    transition looped == 9 && once == 2 && rotated == 9 {
         true -> holding(made)
         _ -> refusing(made)
     }

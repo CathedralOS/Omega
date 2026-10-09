@@ -126,6 +126,7 @@ pub(super) struct MachineEmission<'a> {
 pub(super) struct StepInputs {
     pub(super) operation_index: usize,
     pub(super) staged: bool,
+    pub(super) finishes_argument_group: bool,
     pub(super) source_value_count: usize,
     pub(super) evaluated_scalar_arguments: Option<Vec<ValueDeclaration>>,
 }
@@ -424,8 +425,12 @@ pub(super) fn emit(
             obligation_limit: u64::MAX,
         },
     };
-    for step in argument_schedule::build(checked, plan)? {
-        emission.lower_step(step)?;
+    let mut schedule = argument_schedule::build(checked, plan)?
+        .into_iter()
+        .peekable();
+    while let Some(step) = schedule.next() {
+        let finishes_argument_group = matches!(schedule.peek(), Some(argument_schedule::Step::End));
+        emission.lower_step(step, finishes_argument_group)?;
         if emission.operations.external_completion.is_some() {
             break;
         }
@@ -1035,6 +1040,7 @@ pub(super) fn emit(
         result: declared_result,
         structural_places,
         entry_claims: entry_claims.clone(),
+        block_entry_claims: Vec::new(),
         loan_completions,
         published_service_ceiling: if let Some(provider) = provider_candidate_plans
             .iter()
@@ -1280,7 +1286,11 @@ impl MachineEmission<'_> {
     /// Lower one scheduled step: argument staging bookkeeping, a continuation
     /// cleanup, or one operation dispatched to its kind's method and pushed
     /// with its source-call record.
-    fn lower_step(&mut self, step: argument_schedule::Step) -> Result<(), LoweringError> {
+    fn lower_step(
+        &mut self,
+        step: argument_schedule::Step,
+        finishes_argument_group: bool,
+    ) -> Result<(), LoweringError> {
         let checked = self.checked;
         let plan = self.plan;
         self.scalar_calls.next_obligation_identity = self.next_call_obligation;
@@ -1452,6 +1462,7 @@ impl MachineEmission<'_> {
         let step = StepInputs {
             operation_index,
             staged,
+            finishes_argument_group,
             source_value_count,
             evaluated_scalar_arguments,
         };
@@ -1534,11 +1545,11 @@ impl<'a> MachineEmission<'a> {
             &mut self.next_literal_argument,
             &self.staged_subslices[step.operation_index],
         )?;
-        // A staged call completes its argument group with operands already
-        // copied, so its temporaries retire first and the result it publishes
-        // takes its actual source slot, as in a composed state. The group then
-        // retains that result when it ends.
-        if step.staged {
+        // Only the final consumer retires the group's scratch. A nested
+        // producer must preserve earlier operands staged for its enclosing
+        // call, including their rebound identities after selective evaluation.
+        // The final result then takes its actual source slot, as in a state.
+        if step.staged && step.finishes_argument_group {
             self.scalar_result_values.truncate(step.source_value_count);
         }
         self.frame(step.source_value_count).emit_call(
@@ -1549,7 +1560,7 @@ impl<'a> MachineEmission<'a> {
             },
         )?;
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-        if step.staged {
+        if step.staged && step.finishes_argument_group {
             self.retained_scalar_prefix = Some(self.scalar_result_values.len());
         }
         Ok(())

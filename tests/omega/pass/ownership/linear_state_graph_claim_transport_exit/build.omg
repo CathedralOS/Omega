@@ -5,4 +5,7 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
+    // Exercise the independent optimizer ownership replay, not just the
+    // no-selection identity route, over the same state binding rosters.
+    Optimizations::enable(&mut builder.optimizations, Optimization::CopyPropagation);
 }

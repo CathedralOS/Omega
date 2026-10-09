@@ -129,6 +129,32 @@ fn validate_entry_claims(
         }
         validate_structural_path(module, parameter.structural_type, &claim.path)?;
     }
+    let mut block_claim_inputs = Vec::new();
+    for claim in &machine.block_entry_claims {
+        let Some(parameter) = machine
+            .block_structural_parameters()
+            .find(|parameter| parameter.place == claim.input)
+        else {
+            return malformed("block entry claim is not bound to a block parameter");
+        };
+        if parameter.access != terminal_psi::StructuralAccess::Owned
+            || parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        {
+            return malformed("block entry claim requires an owned affine or linear parameter");
+        }
+        validate_structural_path(module, parameter.structural_type, &claim.path)?;
+        if block_claim_inputs
+            .iter()
+            .any(|previous: &&terminal_psi::EntryClaim| {
+                previous.input == claim.input
+                    && (previous.path.starts_with(&claim.path)
+                        || claim.path.starts_with(&previous.path))
+            })
+        {
+            return malformed("block entry claims overlap a parameter path");
+        }
+        block_claim_inputs.push(claim);
+    }
     Ok(())
 }
 

@@ -6,7 +6,8 @@
 //! Its claims then never leave the invocation place, and an arrival may drop
 //! the parameter's qualifications without moving the value. A claim-bearing
 //! parameter any arrival fills from another value stays an ordinary block
-//! parameter; `claims` joins its claim identities either way. The referent's representation does not
+//! parameter; its destination roster binds the incoming claims by typed path.
+//! The referent's representation does not
 //! change this proof: a plain record and a record containing views obey the
 //! same rule. This also lets a projected child travel while its parent stays
 //! rooted at invocation storage; Terminal still checks every child access and

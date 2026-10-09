@@ -13,6 +13,10 @@
 //! Projected ownership transfers the affine complement and authenticated linear
 //! claims separately. Outgoing claims leave the source before hooks execute,
 //! remain captured across suspension, and arrive only after residual cleanup.
+//! An authored state's claim roster binds destination-local names by active
+//! typed path. Capture all sources first, then check the complete bijection;
+//! rebinding a name never creates an obligation. Internal continuation blocks
+//! without binding rows simply relocate the identities they received.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -233,6 +237,20 @@ impl BlockBindings {
             })
         {
             return Err(TerminalInterpretError::AffineFrontierMismatch);
+        }
+        // Destination names can equal names consumed elsewhere in a swap or
+        // reentry, but cannot overwrite an obligation surviving the edge.
+        claims.retain(|_, claim| {
+            !claim
+                .place
+                .is_some_and(|place| self.owned_sources.contains(&place))
+        });
+        if self
+            .claims
+            .keys()
+            .any(|identity| claims.contains_key(identity))
+        {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
         Ok(())
     }
@@ -701,6 +719,59 @@ impl TerminalExecution<'_> {
             }
         }
         let mut structural = bind_structural_arguments(descriptor_parameters, &resolved_arguments)?;
+        let mut bound_claims = BTreeMap::new();
+        for parameter in descriptor_parameters {
+            let catalogue = machine
+                .block_entry_claims
+                .iter()
+                .filter(|binding| binding.input == parameter.place)
+                .collect::<Vec<_>>();
+            let mut active = Vec::new();
+            for binding in &catalogue {
+                if crate::structural_inputs::case_membership::case_projection_is_active(
+                    &self.program.structural_types(),
+                    &structural,
+                    &self.structural_cases,
+                    parameter.place,
+                    &binding.path,
+                )? {
+                    active.push(*binding);
+                }
+            }
+            for (identity, claim) in claims
+                .iter()
+                .filter(|(_, claim)| claim.place == Some(parameter.place))
+            {
+                let destination = if catalogue.is_empty() {
+                    *identity
+                } else {
+                    let matching = active
+                        .iter()
+                        .position(|binding| binding.path == claim.path)
+                        .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
+                    let binding = active.swap_remove(matching);
+                    let expected_multiplicity = if binding.path.is_empty() {
+                        parameter.multiplicity
+                    } else {
+                        StructuralMultiplicity::Linear
+                    };
+                    if claim.multiplicity != Some(expected_multiplicity) {
+                        return Err(TerminalInterpretError::ClaimTransferMismatch);
+                    }
+                    binding.claim
+                };
+                if bound_claims.insert(destination, claim.clone()).is_some() {
+                    return Err(TerminalInterpretError::ClaimTransferMismatch);
+                }
+            }
+            if !active.is_empty() {
+                return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+        }
+        if bound_claims.len() != claims.len() {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+        let claims = bound_claims;
         let mut affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
         // A whole affine value arrives with the claims it carried; its new
         // debt is the same complement of those linear regions.

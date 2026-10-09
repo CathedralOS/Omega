@@ -118,7 +118,7 @@ fn active_on_every_path(
             })
 }
 
-fn membership_on_every_path(
+pub(crate) fn membership_on_every_path(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,

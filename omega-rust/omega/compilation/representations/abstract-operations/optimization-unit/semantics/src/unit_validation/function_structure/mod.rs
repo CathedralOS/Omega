@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 mod byte_concatenation;
 mod byte_field_freshness;
 mod case_arguments;
+pub(crate) use case_arguments::membership_on_every_path;
 mod structural_freshness;
 pub use byte_field_freshness::byte_field_root;
 mod byte_predicates;
@@ -148,7 +149,7 @@ pub(crate) fn validate_function(
         &unit.dynamic_dispatch,
         function,
         &control_flow.blocks,
-        &control_flow.successors,
+        &control_flow.predecessors,
         functions,
         boundary_machines,
         structural_types,

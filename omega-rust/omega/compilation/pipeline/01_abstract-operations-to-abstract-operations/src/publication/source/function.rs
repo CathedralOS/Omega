@@ -76,6 +76,7 @@ pub(super) fn project(
         structural_parameters: unit.structural_parameters.clone(),
         result: unit.result.clone(),
         entry_claims: unit.entry_claim_declarations.clone(),
+        block_entry_claims: unit.block_entry_claims.clone(),
         published_service_ceiling: unit.published_service_ceiling.clone(),
         block_entries,
         operations,

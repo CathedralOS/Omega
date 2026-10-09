@@ -592,7 +592,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 130 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 132 + `u16` vocabulary
 marker 122 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -682,7 +682,8 @@ The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by
 an optional attachment structural type identity, counted parameter value
 declarations, counted structural parameters, a ranked-cycle byte, a machine
-result row, counted structural place declarations, counted entry claims, the
+result row, counted structural place declarations, counted invocation entry
+claims, counted block-entry claim bindings, counted loan completions, the
 declared service reach and published service ceiling, a closed reach
 application, counted content entry claims, counted content identity
 reshuffles, counted content partition compositions, the entry block id,
@@ -692,6 +693,7 @@ counted block rows, and the machine contract.
 | --- | --- |
 | structural place declaration | place id + structural place kind |
 | entry claim | claim id + input place id + structural path; strictly ordered by claim id |
+| block-entry claim binding | claim id + owned block parameter place id + structural path; strictly ordered by claim id; names the arriving obligation without establishing one |
 | service ceiling | counted service ids; the published ceiling is strictly ordered |
 | structural result declaration | place id + structural type id + structural multiplicity + counted domain identities + counted projected qualifications + counted reference result sources |
 | reference result source | result structural path + source structural argument; strictly ordered by result path |

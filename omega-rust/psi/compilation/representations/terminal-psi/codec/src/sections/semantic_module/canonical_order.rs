@@ -560,6 +560,11 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         if !strictly_increasing(machine.entry_claims.iter().map(|claim| claim.claim)) {
             return Err(CodecError::NonCanonicalOrder("entry claims by ClaimId"));
         }
+        if !strictly_increasing(machine.block_entry_claims.iter().map(|claim| claim.claim)) {
+            return Err(CodecError::NonCanonicalOrder(
+                "block entry claims by ClaimId",
+            ));
+        }
         if !strictly_increasing(
             machine
                 .loan_completions

@@ -137,6 +137,29 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .ok_or(LoweringError::Unsupported(
             "Unit claim identities exhaust their namespace",
         ))?;
+    // Reserve destination names before expression/call emission borrows the
+    // namespace. Reservation is not establishment: each block arrival must
+    // bind these names to the claims captured from its outgoing arguments.
+    for (position, state) in plan.states.iter().enumerate() {
+        if !admitted.live[position] {
+            continue;
+        }
+        for entry in &state.entry_claims {
+            if !admitted
+                .claim_transport
+                .aliases
+                .iter()
+                .any(|(alias, _)| *alias == entry.claim_identity)
+                && !claims
+                    .source_claims
+                    .iter()
+                    .any(|(identity, _)| *identity == entry.claim_identity)
+            {
+                let claim = claim_id(allocate_dense(&mut next_claim)?);
+                claims.source_claims.push((entry.claim_identity, claim));
+            }
+        }
+    }
     for event in checked
         .facts
         .flow
@@ -176,9 +199,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // A structural call result establishes the claims it carries when the
     // call completes. A received result keeps the receiving local's identity
     // (or an input's, returned on every exit); a result no place receives is
-    // named by its call and path alone. A state's transported entry claim
-    // handed back as a result keeps its root's binding, joined below.
-    let transported = |identity: language_semantics::PermissionClaimIdentity| {
+    // named by its call and path alone. A state's invocation-storage alias
+    // handed back as a result keeps its invocation binding, joined below.
+    let invocation_alias = |identity: language_semantics::PermissionClaimIdentity| {
         admitted
             .claim_transport
             .aliases
@@ -215,7 +238,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                             claim,
                         },
                     );
-                } else if !transported(received.claim)
+                } else if !invocation_alias(received.claim)
                     && !claims
                         .source_claims
                         .iter()
@@ -227,9 +250,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             }
         }
     }
-    // A successor state's checked entry claims continue the root claim every
-    // arrival carries; their identities join that root's binding so call,
-    // cleanup and return replays in the state resolve.
+    // Proven invocation storage aliases have no block argument or new name.
     for (successor, root) in &admitted.claim_transport.aliases {
         let claim = lookup_claim_id(&claims.source_claims, *root)?;
         claims.source_claims.push((*successor, claim));
@@ -392,6 +413,27 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             state_erased_proof.push(state.erased_proof_parameters.clone());
         }
     }
+    let mut block_entry_claims = Vec::new();
+    for (position, state) in plan.states.iter().enumerate() {
+        if !admitted.live[position] || (position == 0 && !entry_reentered) {
+            continue;
+        }
+        let lowered = crate::unit::attached_unit::claims::lower_unit_entry_claims(
+            state_owners[position].1,
+            state.state,
+            &state.entry_claims,
+            &state_views[position],
+            &catalogs.structural_types,
+        )?;
+        for (source, mut binding) in state.entry_claims.iter().zip(lowered.entry_claims) {
+            if admitted.entry_aliases[position].contains_key(&source.parameter_index) {
+                continue;
+            }
+            binding.claim = lookup_claim_id(&claims.source_claims, source.claim_identity)?;
+            block_entry_claims.push(binding);
+        }
+    }
+    block_entry_claims.sort_by_key(|binding| binding.claim);
     let mut blocks = Vec::new();
     let mut arrival_edges = BTreeMap::new();
     if let Some(entry) = invocation_entry {
@@ -689,6 +731,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         structural_places,
         structural_parameters: parameters,
         entry_claims: claims.entry_claims,
+        block_entry_claims,
         loan_completions,
         ranked_scc: None,
         result: machine_result,

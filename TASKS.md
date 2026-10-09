@@ -541,10 +541,7 @@ defines the complete product bar.
     in `fail/ownership/linear_{constructor_call_member_second_use,array_constructor_duplicate_operand,array_member_scope_loss,array_call_argument_wrong_element,array_call_argument_wrong_extent}`.
     Remaining: a computed boundary or
     selector call has no claim-transfer lane;
-    a state parameter whose arrivals carry different claims (two locals
-    swapped across arms) has "unsupported graph custody" (stage 05
-    `state_graph/claims.rs`): a Terminal operation names one static claim, so
-    that join needs by-path binding like a call result's. The qualified-result
+    the qualified-result
     boundary/reseated-field combination in
     `pass/ownership/linear_qualified_call_result_claims` still needs boundary
     realization. Preserve projected replacement and sibling custody in

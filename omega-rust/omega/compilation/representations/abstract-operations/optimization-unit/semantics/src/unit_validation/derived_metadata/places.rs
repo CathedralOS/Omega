@@ -6,13 +6,17 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{ClaimId, MachineId, PlaceId};
 use std::collections::BTreeSet;
 
-/// Entry and structural-result claims share the declared identity namespace.
+/// Invocation, block-binding and result claims share the identity namespace.
 /// Membership does not establish a birth, a current home, or liveness: structural
 /// foundation and current-ownership replay independently authenticate those.
 /// `entry_claims` remains the independently checked ordinary-entry index;
 /// content and operation claims retain their complete source declarations.
 pub(crate) fn function_has_claim(function: &PsiOptimizationFunction, claim: ClaimId) -> bool {
     function.entry_claims.contains(&claim)
+        || function
+            .block_entry_claims
+            .iter()
+            .any(|binding| binding.claim == claim)
         || function
             .content_entry_claims
             .iter()

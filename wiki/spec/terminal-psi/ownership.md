@@ -32,6 +32,22 @@ return is a bijection between the claims it hands back and the caller's result
 bindings. Claim identities stay machine-local. Result custody is established
 only on successful completion; it cannot also remain on the input owner.
 
+An owned block parameter may declare a destination-local claim-path roster in
+the machine's `block_entry_claims`. An edge captures all outgoing values and
+claims, removes their source custody, performs its ordered residual cleanup,
+then binds the complete active path set to the destination names. A binding
+continues the obligation that arrived; it is not a claim establishment. Two
+arms may supply different original identities, and simultaneous swaps or
+backedges may reuse names removed by that edge. A destination name cannot
+overwrite an obligation that survives the transfer and cleanup.
+
+Case guards select binding rows from authenticated membership, never from a
+missing incoming identity. Missing or extra active paths, duplicate bindings,
+multiplicity drift and surviving-name collisions reject. After binding,
+arrivals still agree on the exact live ownership frontier. A parameter with
+no binding rows relocates the incoming identities unchanged; this is the
+ordinary identity-preserving transfer used by expression continuations.
+
 A claim declaration's path describes its establishment, not its permanent
 location. Construction, replacement stores and state transfers can rebase the
 same identity beneath a different owned home. Foundation validation authenticates

@@ -64,10 +64,8 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
     }
 }
 
-/// A state's entry claims are established at every admission of that state,
-/// so a claim carried across an edge keeps the machine parameter's place
-/// instead of becoming a fresh block parameter. Successor transport must
-/// resolve each claim onto an entry parameter place regardless of topology.
+/// Every claimed destination path must have an authenticated incoming move.
+/// Its local binding name need not equal the source's claim identity.
 fn claim_transport_supported(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
@@ -80,7 +78,7 @@ fn claim_transport_supported(
     {
         return true;
     }
-    claims::resolve(checked, plan, live).is_ok()
+    claims::resolve(checked, plan, live, &[]).is_ok()
 }
 
 pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
@@ -350,15 +348,13 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // Dead states are authored and shape-checked above but never execute:
     // their parameter, claim, and call rows have no producing edge, so the
     // emitted graph prunes to the entry state's successor closure.
-    // Resolve replays each edge's checked Transfer event to join every
-    // state's entry claims to the claims that arrive.
-    let claim_transport = claims::resolve(checked, plan, &live)?;
     // A whole entry parameter proven to arrive unchanged on every edge keeps
     // its invocation place: a claim-bearing owner instead of a block
     // parameter, a loan instead of duplicating its authority.
     let mut entry_aliases = vec![std::collections::BTreeMap::new(); plan.states.len()];
     entry_aliases::alias_forwarded_entry_claims(plan, &live, &mut entry_aliases)?;
     entry_aliases::alias_entry_parameter_loans(plan, &live, &mut entry_aliases)?;
+    let claim_transport = claims::resolve(checked, plan, &live, &entry_aliases)?;
     // A shared parameter that only ever receives its source's whole
     // exclusive loan holds that loan; Terminal edges transfer mutable names.
     let exclusive_handoffs =

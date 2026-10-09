@@ -5,19 +5,21 @@
 //! the edge's residual and trivial cleanup runs against what remains, and only
 //! then are the target's roots installed (`establish_edge_parameters`). A
 //! projected owned argument moves one subtree out of an affine root, including
-//! its linear descendant claims. Claims retain their identities and rebase onto
-//! the arrival's path; sibling claims and residual custody stay on the source
-//! until the same edge's cleanup retires them. A containing claim is indivisible.
+//! its linear descendant claims. Claims rebase onto the arrival's path and
+//! bind its declared local names, if any. The complete active path bijection
+//! continues incoming obligations; missing custody cannot create a claim.
+//! Sibling claims and residual custody stay on the source until the same
+//! edge's cleanup retires them. A containing claim is indivisible.
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::structural::projected_root_is_fully_consumed;
 use crate::current_ownership::{CurrentOwnership, LiveClaim};
 use abstract_operations::AbstractStructuralBinding;
 use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
-use semantic_vocabulary::{BlockId, ClaimId, StructuralTypeId};
+use semantic_vocabulary::{BlockId, ClaimId, PlaceId, StructuralCaseId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeDeclaration,
+    StructuralPathSegment, StructuralTypeDeclaration,
 };
 
 /// Claims carried by consumed sources, already renamed to their destination
@@ -37,6 +39,7 @@ pub(super) fn consume_edge_sources(
     frontier: &mut CurrentOwnership,
     bindings: &[AbstractStructuralBinding],
     target: &OptimizationBlock,
+    case_is_excluded: impl Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId) -> bool,
 ) -> Result<EdgeTransfer, OptimizationUnitValidationError> {
     let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
         machine: function.machine,
@@ -118,9 +121,64 @@ pub(super) fn consume_edge_sources(
         reference.carrier = parameter.place;
         reference.carrier_path.drain(..binding.argument.path.len());
     }
-    Ok(EdgeTransfer {
-        claims: transferred,
-    })
+    let mut bound = Vec::with_capacity(transferred.len());
+    for (binding, parameter) in bindings.iter().zip(&target.structural_parameters) {
+        let catalogue = function
+            .block_entry_claims
+            .iter()
+            .filter(|claim| claim.input == parameter.place)
+            .collect::<Vec<_>>();
+        let mut active = catalogue
+            .iter()
+            .copied()
+            .filter(|claim| {
+                let mut source_path = binding.argument.path.clone();
+                for segment in &claim.path {
+                    if let StructuralPathSegment::Case(case) = segment
+                        && case_is_excluded(binding.argument.place, &source_path, *case)
+                    {
+                        return false;
+                    }
+                    source_path.push(segment.clone());
+                }
+                true
+            })
+            .collect::<Vec<_>>();
+        for (identity, claim) in transferred
+            .iter()
+            .filter(|(_, claim)| claim.input == Some(parameter.place))
+        {
+            let destination = if catalogue.is_empty() {
+                *identity
+            } else {
+                let matching = active
+                    .iter()
+                    .position(|binding| binding.path == claim.path)
+                    .ok_or_else(invalid)?;
+                let binding = active.swap_remove(matching);
+                let multiplicity = if binding.path.is_empty() {
+                    parameter.multiplicity
+                } else {
+                    StructuralMultiplicity::Linear
+                };
+                if claim.multiplicity != Some(multiplicity) {
+                    return Err(invalid());
+                }
+                binding.claim
+            };
+            if bound.iter().any(|(identity, _)| *identity == destination) {
+                return Err(invalid());
+            }
+            bound.push((destination, claim.clone()));
+        }
+        if !active.is_empty() {
+            return Err(invalid());
+        }
+    }
+    if bound.len() != transferred.len() {
+        return Err(invalid());
+    }
+    Ok(EdgeTransfer { claims: bound })
 }
 
 /// A projected move keeps its affine root live until the remaining

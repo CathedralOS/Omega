@@ -196,6 +196,7 @@ pub fn reconstruct_psi_optimization_function_seed(
         result: function.result.clone(),
         declared_places,
         entry_claim_declarations: function.entry_claims.clone(),
+        block_entry_claims: function.block_entry_claims.clone(),
         content_entry_claims: Vec::new(),
         verified_contract: None,
         evidence_contract_lanes: Vec::new(),

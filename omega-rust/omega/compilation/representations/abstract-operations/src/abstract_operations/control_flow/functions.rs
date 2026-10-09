@@ -17,6 +17,8 @@ pub struct AbstractFunction {
     pub result: AbstractFunctionResult,
     /// Generic live claims supplied by the caller/root installation.
     pub entry_claims: Vec<EntryClaim>,
+    /// Block-local names that continue owned incoming claims by typed path.
+    pub block_entry_claims: Vec<EntryClaim>,
     /// Exact verified service ceiling retained for realization and audit.
     pub published_service_ceiling: Vec<ServiceId>,
     /// Canonical block starts in `operations`. This keeps conditional targets

@@ -171,7 +171,7 @@ pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
-    _successors: &BTreeMap<BlockId, Vec<BlockId>>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     boundary_machines: &BTreeMap<
         semantic_vocabulary::BoundaryMachineId,
@@ -1090,6 +1090,39 @@ pub(super) fn validate_current_ownership_cfg(
                 &mut outgoing,
                 &edge.structural_bindings,
                 blocks[&edge.target],
+                |source, path, case| {
+                    let terminator = &block.nodes[block.nodes.len() - 1].operation;
+                    if let O::StructuralCase {
+                        source: observed,
+                        path: observed_path,
+                        cases,
+                    } = terminator
+                        && *observed == source
+                        && observed_path == path
+                        && cases.iter().any(|selected| {
+                            selected.psi_edge == edge.psi_edge && selected.case != case
+                        })
+                    {
+                        return true;
+                    }
+                    let Some(block_position) = function
+                        .blocks
+                        .iter()
+                        .position(|candidate| candidate.id == block_id)
+                    else {
+                        return false;
+                    };
+                    crate::unit_validation::function_structure::membership_on_every_path(
+                        function,
+                        structural_types,
+                        predecessors,
+                        (block_position, block.nodes.len() - 1),
+                        source,
+                        path,
+                        case,
+                        false,
+                    )
+                },
             )?;
             super::continuation::apply_edge_cleanup_actions(
                 function,

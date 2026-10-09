@@ -36,6 +36,11 @@ pub struct TerminalMachine {
     /// content projections. Content claims below refine these identities when
     /// present.
     pub entry_claims: Vec<EntryClaim>,
+    /// Destination-local claim names for owned block parameters. An arrival
+    /// binds its complete active path roster to these names, continuing the
+    /// incoming obligations rather than establishing new ones. Parameters
+    /// without rows relocate their incoming identities unchanged.
+    pub block_entry_claims: Vec<EntryClaim>,
     /// Exact ownership joins of normal exclusive-call completions, independent
     /// of whether the call returns Unit, a scalar or a structural value.
     pub loan_completions: Vec<crate::LoanCompletion>,

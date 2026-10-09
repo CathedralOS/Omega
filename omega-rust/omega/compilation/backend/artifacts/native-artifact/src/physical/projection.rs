@@ -11,9 +11,9 @@ use semantic_vocabulary::OperationId;
 use terminal_psi::TerminalPsiIdentity;
 
 use super::{
-    ValidatedOptimizedNativePhysicalEvidenceScope, canonical_usize,
-    native_optimization_projection, optimized_boundary_occurrence,
-    optimized_operator_occurrence, validated_optimized_native_physical_evidence_scope,
+    ValidatedOptimizedNativePhysicalEvidenceScope, canonical_usize, native_optimization_projection,
+    optimized_boundary_occurrence, optimized_operator_occurrence,
+    validated_optimized_native_physical_evidence_scope,
 };
 
 const OPTIMIZED_SCOPE_IDENTITY_DOMAIN: &[u8] =
@@ -332,6 +332,7 @@ mod tests {
                 structural_parameters: Vec::new(),
                 result: AbstractFunctionResult::Unit,
                 entry_claims: Vec::new(),
+                block_entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![AbstractBlockEntry {
                     block: BlockId::new(2).unwrap(),

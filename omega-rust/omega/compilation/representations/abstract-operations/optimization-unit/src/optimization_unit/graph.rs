@@ -245,6 +245,8 @@ pub struct PsiOptimizationFunction {
     /// Full ordered caller/root claim signature. `entry_claims` below is the
     /// independently checked membership index used by ownership validation.
     pub entry_claim_declarations: Vec<EntryClaim>,
+    /// Destination-local custody names, not invocation establishments.
+    pub block_entry_claims: Vec<EntryClaim>,
     /// Complete verifier-owned content-claim signature. Content projection
     /// authority cannot be reconstructed from ordinary claims alone.
     pub content_entry_claims: Vec<ContentEntryClaim>,

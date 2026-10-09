@@ -51,7 +51,7 @@ pub(super) fn validate_current_ownership_frontier_collecting(
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
-    successors: &BTreeMap<BlockId, Vec<BlockId>>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     boundary_machines: &BTreeMap<
         semantic_vocabulary::BoundaryMachineId,
@@ -69,7 +69,7 @@ pub(super) fn validate_current_ownership_frontier_collecting(
         function,
         dynamic_dispatch,
         blocks,
-        successors,
+        predecessors,
         functions,
         boundary_machines,
         structural_types,

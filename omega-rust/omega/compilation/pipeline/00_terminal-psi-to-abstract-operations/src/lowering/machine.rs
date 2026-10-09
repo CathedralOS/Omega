@@ -128,6 +128,7 @@ pub(super) fn lower_machine(
             }
         },
         entry_claims: machine.entry_claims.clone(),
+        block_entry_claims: machine.block_entry_claims.clone(),
         published_service_ceiling: machine.published_service_ceiling.clone(),
         block_entries,
         operations,

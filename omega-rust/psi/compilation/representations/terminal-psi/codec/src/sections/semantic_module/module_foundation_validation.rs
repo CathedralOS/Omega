@@ -1218,6 +1218,7 @@ fn validate_claim_actions(
         let declared = machine
             .entry_claims
             .iter()
+            .chain(&machine.block_entry_claims)
             .any(|entry| entry.claim == claim)
             || machine.loan_completions.iter().any(|completion| {
                 completion

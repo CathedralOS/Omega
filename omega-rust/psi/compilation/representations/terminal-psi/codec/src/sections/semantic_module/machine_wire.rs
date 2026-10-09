@@ -70,6 +70,12 @@ pub(crate) fn encode_machine(
         writer.id(claim.input);
         encode_structural_path(writer, "entry claim path", &claim.path)?;
     }
+    writer.len("block entry claims", machine.block_entry_claims.len())?;
+    for claim in &machine.block_entry_claims {
+        writer.id(claim.claim);
+        writer.id(claim.input);
+        encode_structural_path(writer, "block entry claim path", &claim.path)?;
+    }
     writer.len("loan completions", machine.loan_completions.len())?;
     for completion in &machine.loan_completions {
         writer.id(completion.operation);
@@ -161,6 +167,13 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
             path: decode_structural_path(reader)?,
         })
     })?;
+    let block_entry_claims = decode_counted(reader, |reader| {
+        Ok(EntryClaim {
+            claim: reader.id("ClaimId")?,
+            input: reader.id("PlaceId")?,
+            path: decode_structural_path(reader)?,
+        })
+    })?;
     let loan_completions = decode_counted(reader, |reader| {
         Ok(terminal_psi::LoanCompletion {
             operation: reader.id("OperationId")?,
@@ -211,6 +224,7 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
         result,
         structural_places,
         entry_claims,
+        block_entry_claims,
         loan_completions,
         declared_service_reach,
         published_service_ceiling,

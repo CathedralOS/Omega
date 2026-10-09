@@ -48,6 +48,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
         structural_parameters: vec![],
         result: AbstractFunctionResult::Unit,
         entry_claims: vec![],
+        block_entry_claims: vec![],
         published_service_ceiling: vec![],
         block_entries: vec![],
         operations: vec![AbstractOperation::EstablishPrimitiveLocal {

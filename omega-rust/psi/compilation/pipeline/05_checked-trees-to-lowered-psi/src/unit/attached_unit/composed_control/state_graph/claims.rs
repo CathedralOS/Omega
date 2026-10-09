@@ -1,21 +1,15 @@
 //! Claim transport across composed-control state edges.
 //!
-//! A Terminal claim is a machine-local identity that moves with its place: a
-//! jump binds each successor structural parameter from its outgoing value,
-//! and every claim that value holds moves into the parameter unchanged.
-//! Checking instead names a fresh claim at each state's entry. `resolve`
-//! joins every such entry claim to the caller claim each incoming edge's
-//! checked Transfer event moves into that parameter path — an invocation
-//! claim of the entry state, a claim a state established for a local, a
-//! construction or a call result, or another state's entry claim — and
-//! follows those joins to the one root identity the graph publishes.
-//! Emission then binds each successor identity to its root's `ClaimId`, so
-//! call, cleanup and return replays in any state resolve the claim they hold.
+//! Checking names claims at each state's entry. A real block parameter binds
+//! those destination-local names to the obligations its incoming value holds,
+//! by typed path. Different arms may carry different original identities;
+//! receiving a value continues its obligations rather than establishing any.
+//! `resolve` authenticates each arrival against checked Transfer events.
 //!
-//! Every arrival of one parameter path must carry the same root claim. A
-//! Terminal operation names one static claim, so alternatives arriving with
-//! different identities reject rather than invent a join; a cycle through
-//! several states settles through its arrivals from outside the cycle.
+//! A parameter proven to retain invocation storage on every arrival has no
+//! block argument. Only those physical aliases reuse the invocation claim's
+//! name. Identity equality is therefore an optional storage proof, not an
+//! admission requirement on ordinary state transitions or cycles.
 //!
 //! Ordinary borrowed referents use the address-arrival path, not this claim
 //! identity resolution.
@@ -32,9 +26,7 @@ use language_semantics::{
     PermissionEventSource,
 };
 
-/// Resolved claim custody for one composed machine: each successor-state
-/// entry claim joined to the root claim every arrival carries, so the
-/// lowered `ClaimId` table resolves either identity.
+/// Invocation-storage aliases. All other state entries own binding names.
 pub(super) struct ClaimTransport {
     pub(super) aliases: Vec<(PermissionClaimIdentity, PermissionClaimIdentity)>,
 }
@@ -43,9 +35,9 @@ pub(super) fn resolve(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     live: &[bool],
+    entry_aliases: &[std::collections::BTreeMap<u32, u32>],
 ) -> Result<ClaimTransport, LoweringError> {
-    // Each (entry claim, claim an arriving edge moves into its path).
-    let mut arrivals = Vec::new();
+    let mut aliases = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
         if !live[position] || state.entry_claims.is_empty() {
             continue;
@@ -84,71 +76,28 @@ pub(super) fn resolve(
                 return unsupported("Unit graph claim is not exact owned claim custody");
             }
             for (source, edge) in &incoming {
-                arrivals.push((
-                    claim.claim_identity,
-                    arriving_claim(checked, plan, *source, edge, claim)?,
-                ));
+                arriving_claim(checked, plan, *source, edge, claim)?;
+            }
+            if let Some(root_parameter) = entry_aliases
+                .get(position)
+                .and_then(|parameters| parameters.get(&claim.parameter_index))
+            {
+                let root = plan.states[0]
+                    .entry_claims
+                    .iter()
+                    .find(|entry| {
+                        entry.parameter_index == *root_parameter && entry.path == claim.path
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph invocation alias has no matching claim path",
+                    ))?;
+                if claim.claim_identity != root.claim_identity {
+                    aliases.push((claim.claim_identity, root.claim_identity));
+                }
             }
         }
     }
-    // The entry state's claims are the invocation's own; every other entry
-    // claim continues whatever its arrivals carry. A source identity that is
-    // no successor entry claim was established in this machine and is
-    // published under its own identity.
-    let successor_claims = plan
-        .states
-        .iter()
-        .enumerate()
-        .skip(1)
-        .filter(|(position, _)| live[*position])
-        .flat_map(|(_, state)| &state.entry_claims)
-        .map(|claim| claim.claim_identity)
-        .collect::<Vec<_>>();
-    let mut roots: Vec<(PermissionClaimIdentity, PermissionClaimIdentity)> = Vec::new();
-    let root_of = |roots: &[(PermissionClaimIdentity, PermissionClaimIdentity)],
-                   identity: PermissionClaimIdentity| {
-        if successor_claims.contains(&identity) {
-            roots
-                .iter()
-                .find(|(successor, _)| *successor == identity)
-                .map(|(_, root)| *root)
-        } else {
-            Some(identity)
-        }
-    };
-    loop {
-        let mut progress = false;
-        for (claim, arriving) in &arrivals {
-            if !successor_claims.contains(claim) || root_of(&roots, *claim).is_some() {
-                continue;
-            }
-            if let Some(root) = root_of(&roots, *arriving) {
-                roots.push((*claim, root));
-                progress = true;
-            }
-        }
-        if !progress {
-            break;
-        }
-    }
-    // Every arrival, including a reentry of the authored entry, must carry
-    // the one root its target claim settled on.
-    for (claim, arriving) in &arrivals {
-        let (Some(expected), Some(actual)) = (root_of(&roots, *claim), root_of(&roots, *arriving))
-        else {
-            return unsupported("Unit graph claim transport lost its root claim");
-        };
-        if expected != actual {
-            return unsupported("Unit graph claim parameter carried from divergent claims");
-        }
-    }
-    if successor_claims
-        .iter()
-        .any(|claim| root_of(&roots, *claim).is_none())
-    {
-        return unsupported("Unit graph claim transport lost its root claim");
-    }
-    Ok(ClaimTransport { aliases: roots })
+    Ok(ClaimTransport { aliases })
 }
 
 /// The caller claim one edge moves into `claim`'s parameter path: the

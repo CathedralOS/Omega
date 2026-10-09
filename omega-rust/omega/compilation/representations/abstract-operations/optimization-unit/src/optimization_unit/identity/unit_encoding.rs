@@ -386,6 +386,7 @@ fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunctio
         bytes.id(*place);
     }
     bytes.slice(&function.entry_claim_declarations, encode_entry_claim);
+    bytes.slice(&function.block_entry_claims, encode_entry_claim);
     bytes.slice(&function.content_entry_claims, encode_content_entry_claim);
     encode_optional(
         bytes,

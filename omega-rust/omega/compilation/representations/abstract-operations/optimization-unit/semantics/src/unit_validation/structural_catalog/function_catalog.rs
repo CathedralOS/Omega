@@ -391,6 +391,40 @@ pub(crate) fn validate_function_structural_catalog(
         }
         claim_inputs.push(claim);
     }
+    // Block rows bind arriving obligations into a destination namespace; they
+    // neither mint claims nor extend the invocation's dense ingress roster.
+    // Reentry may reuse an invocation identity, and removed destinations may
+    // leave gaps, but each block binding identity occurs once in sorted order.
+    if function
+        .block_entry_claims
+        .windows(2)
+        .any(|pair| pair[0].claim >= pair[1].claim)
+    {
+        return Err(mismatch());
+    }
+    let mut block_claim_inputs = Vec::new();
+    for claim in &function.block_entry_claims {
+        let Some(parameter) = function
+            .block_structural_parameters()
+            .find(|parameter| parameter.place == claim.input)
+        else {
+            return Err(mismatch());
+        };
+        if parameter.access != terminal_psi::StructuralAccess::Owned
+            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            || resolve_structural_path(types, parameter.structural_type, &claim.path).is_none()
+            || block_claim_inputs
+                .iter()
+                .any(|previous: &&terminal_psi::EntryClaim| {
+                    previous.input == claim.input
+                        && (previous.path.starts_with(&claim.path)
+                            || claim.path.starts_with(&previous.path))
+                })
+        {
+            return Err(mismatch());
+        }
+        block_claim_inputs.push(claim);
+    }
     if function
         .content_entry_claims
         .iter()

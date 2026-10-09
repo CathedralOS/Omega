@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 6.35, "load1_start": 6.35, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1786,6 +1786,8 @@ fail/ownership/linear_second_transfer rejected 332ms expected @04d0fbe9d97c
 	cannot use `receipt` in machine `Main::main` state `main` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/linear_state_arm_abandons_local rejected 651ms expected @c70a706629c8+wt
 	linear value `carried` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation
+fail/ownership/linear_state_join_duplicate_argument rejected 403ms expected @64bdacf1469b
+	linear value `left` was already transferred or consumed; it cannot be moved here
 fail/ownership/linear_state_parameter_scope_loss rejected 598ms expected @c70a706629c8+wt
 	linear value `held` reaches scope exit without being consumed or transferred
 fail/ownership/linear_state_parameter_second_use rejected 468ms expected @c70a706629c8+wt
