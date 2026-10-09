@@ -15,7 +15,8 @@ pub struct CheckedProviderProgram {
     pub program: Arc<CheckedProgram>,
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
-    pub callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
+    pub callback_placements:
+        Vec<provider_planning::calling_policy_plans::SelectedCallbackPlacement>,
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
 }
 

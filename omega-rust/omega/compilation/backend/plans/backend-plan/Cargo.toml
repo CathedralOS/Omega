@@ -11,7 +11,5 @@ path = "src/lib.rs"
 [dependencies]
 calling-conventions = { path = "../../calling-conventions" }
 function-identity = { path = "../../../../foundation/function-identity" }
-checked-trees = { path = "../../../../../psi/compilation/representations/checked-trees" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
-symbols = { path = "../../../../../psi/foundation/symbols" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }

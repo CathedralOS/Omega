@@ -10,9 +10,9 @@ pub(crate) fn project_terminal_native_realization_proposal(
     checked: &CheckedCompilation,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
-    callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
+    let callback_placements = checked.execution().callback_placements.as_slice();
     let callback_thunks = callback_placements
         .iter()
         .map(|placement| produce_callback_thunk_artifact(checked, placement, selections))
@@ -26,7 +26,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
 
 fn produce_callback_thunk_artifact(
     checked: &CheckedCompilation,
-    placement: &backend_plan::BoundNominalCallbackPlacement,
+    placement: &provider_planning::calling_policy_plans::SelectedCallbackPlacement,
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_products::TerminalCallbackThunkArtifact, Vec<Diagnostic>> {
     // The thunk body leaves through the same production body as the program

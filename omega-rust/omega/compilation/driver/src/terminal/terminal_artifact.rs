@@ -78,7 +78,6 @@ pub(crate) fn produce_retained_terminal_artifact(
     let selected_program_entry = checked.admit_terminal_production()?;
     let entry_machine_symbol = selected_program_entry.source_signature().machine_symbol();
     let source_signature_identity = selected_program_entry.source_signature().identity().bytes();
-    let callback_placements = checked.execution().callback_placements.as_slice().to_vec();
     // The accumulator steps out of the checked record across the measured
     // legs below so each closure may borrow the record while it is timed; it
     // rejoins the record once the product is produced and admitted.
@@ -142,7 +141,6 @@ pub(crate) fn produce_retained_terminal_artifact(
                 checked,
                 &artifact,
                 checked_program_entry,
-                &callback_placements,
                 selections,
             )
         });

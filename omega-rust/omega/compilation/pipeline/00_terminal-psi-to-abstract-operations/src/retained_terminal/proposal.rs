@@ -25,7 +25,7 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
     pub behavior_exclusions: &'input [effects::AuthoredBehaviorExclusion],
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
-    pub callback_placements: &'input [backend_plan::BoundNominalCallbackPlacement],
+    pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
     pub callback_thunks: Vec<crate::TerminalCallbackThunkArtifact>,
 }
 
@@ -36,7 +36,7 @@ pub fn project_terminal_native_realization_proposal(
     checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     request: TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
-    let callback_placements = request.callback_placements;
+    let callback_placements = &request.callback_placements;
     let target_profile = request.target_profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Terminal native proposal requires one selected target profile",
@@ -149,7 +149,7 @@ pub fn project_terminal_native_realization_proposal(
 /// occurrences. The thunks were compiled from these placements in this
 /// compile, so their native interfaces are not re-checked here.
 fn project_callback_occurrences(
-    callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
+    callback_placements: &[backend_plan::NativeCallbackPlacement],
     caller: terminal_codec::TerminalArtifactView<'_>,
     thunks: Vec<crate::TerminalCallbackThunkArtifact>,
 ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
@@ -172,7 +172,7 @@ fn project_callback_occurrences(
                 ))])?;
             if application.static_machine_ordinal != placement.static_machine_ordinal
                 || application.requirement != placement.canonical_requirement_overload
-                || application.body.contract != placement.resource_receipt.contract_commitment().as_bytes()
+                || application.body.contract != placement.contract_commitment
             {
                 return Err(vec![Diagnostic::error("callback placement disagrees with its checked Terminal application")]);
             }

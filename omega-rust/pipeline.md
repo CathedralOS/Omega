@@ -221,6 +221,9 @@ moving them out of the coordinator does not establish the intended Terminal-only
 handoff. Callback proposal production now closes source placements into body,
 ABI and argument records once; retained native re-entry borrows those records
 without retaining or rejoining checked-source callback placements.
+The native placement carries application/contract identity and its ABI recipe;
+the source-selected machine stays with the producer that compiles its body.
+Backend callback planning no longer depends on checked-tree records.
 
 Calling-policy evaluation retains its validated ABI application as backend-owned
 output. Native entry and registrar settlement consume that application, not the

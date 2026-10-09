@@ -24,6 +24,14 @@ use target::NativeTarget;
 use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceHandle;
 
+/// Source selection is needed only to produce the callback's Terminal body.
+/// Its native placement carries no source handles or checked-tree receipts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedCallbackPlacement {
+    pub selected_machine: symbols::SymbolHandle,
+    pub native: backend_plan::NativeCallbackPlacement,
+}
+
 /// Omega-owned realization state for one canonical source boundary contract.
 ///
 /// Typed trees retain only the semantic key and fingerprint. Concrete ABI,
@@ -272,7 +280,7 @@ pub(crate) fn validate_callback_requirement_report_collision(
 pub fn validate_nominal_callback_placement_bindings(
     checked: &checked_trees::CheckedTrees,
     realizations: &[BoundaryCallingPlanRealization],
-) -> Result<Vec<backend_plan::BoundNominalCallbackPlacement>, Vec<Diagnostic>> {
+) -> Result<Vec<SelectedCallbackPlacement>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut bound = Vec::new();
     for nominal_use in &checked.facts.nominal_machine_uses.uses {
@@ -404,20 +412,16 @@ pub fn validate_nominal_callback_placement_bindings(
                 continue;
             }
         };
-        bound.push(backend_plan::BoundNominalCallbackPlacement {
-            application_index: nominal_use.application_index,
-            site: nominal_use.site,
-            registration_operation: nominal_use.registration_operation,
-            static_machine_ordinal: nominal_use.static_machine_ordinal,
+        bound.push(SelectedCallbackPlacement {
             selected_machine: nominal_use.selected_machine,
-            selected_entry: nominal_use.selected_entry,
-            satisfaction_trait: nominal_use.satisfaction_trait,
-            satisfaction_requirement: nominal_use.satisfaction_requirement,
-            canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
-            boundary_calling_plan_report_fingerprint: validated.contract_report_fingerprint(),
-            resource_receipt: placement.resource_receipt,
-            boundary_entry_plan: validated.plan().clone(),
-            private_materialization,
+            native: backend_plan::NativeCallbackPlacement {
+                application_index: nominal_use.application_index,
+                static_machine_ordinal: nominal_use.static_machine_ordinal,
+                canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
+                contract_commitment: placement.resource_receipt.contract_commitment().as_bytes(),
+                boundary_entry_plan: validated.plan().clone(),
+                private_materialization,
+            },
         });
     }
 

@@ -28,7 +28,8 @@ pub struct SelectedExecution {
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
     /// Target-owned recipes joined to checked nominal uses. Engines consume
     /// these plans rather than reconstructing placement from source semantics.
-    pub callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
+    pub callback_placements:
+        Vec<provider_planning::calling_policy_plans::SelectedCallbackPlacement>,
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,

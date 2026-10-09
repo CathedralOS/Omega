@@ -41,7 +41,7 @@ impl CheckedCompilation {
     /// stage 00 must check their cardinality, identities and source associations.
     pub fn terminal_native_proposal_request<'input>(
         &'input self,
-        callback_placements: &'input [backend_plan::BoundNominalCallbackPlacement],
+        callback_placements: &[provider_planning::calling_policy_plans::SelectedCallbackPlacement],
         callback_thunks: Vec<TerminalCallbackThunkArtifact>,
         selections: &optimization_core::OptimizationSelections,
     ) -> TerminalNativeProposalRequest<'input> {
@@ -79,7 +79,7 @@ impl CheckedCompilation {
             external_bindings: &providers.external_binding_rows,
             behavior_exclusions: self.build().config.behavior_exclusions.as_slice(),
             package_terminal_authority_permissions: execution.terminal_authority_permissions(),
-            callback_placements,
+            callback_placements: callback_placements.iter().map(|placement| placement.native.clone()).collect(),
             callback_thunks,
         }
     }

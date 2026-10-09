@@ -2070,7 +2070,9 @@ crash and native exit behavior.
     Native re-entry retains produced callback bodies and ABI/argument rows,
     not checked-source placement records. Stage 00 consumes completed calling
     applications rather than provider-planning's evaluator records; its direct
-    dependency on that source-aware planner is gone. Initial callback
+    dependency on that source-aware planner is gone. Callback placements now
+    cross with portable contract/ABI records; source selection stays at the
+    producer, and backend-plan no longer depends on checked trees. Initial
     ABI/resource planning and entry signatures still need source-free inputs.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming

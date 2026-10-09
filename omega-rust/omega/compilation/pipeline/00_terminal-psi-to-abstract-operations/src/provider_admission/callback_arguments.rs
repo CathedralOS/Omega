@@ -14,7 +14,7 @@ use diagnostics::Diagnostic;
 /// This does not validate the thunk body, admit registration, or replace the
 /// target lowerer's independent application replay.
 pub(crate) fn project_native_callback_arguments(
-    placements: &[backend_plan::BoundNominalCallbackPlacement],
+    placements: &[backend_plan::NativeCallbackPlacement],
     occurrences: &[backend_plan::TerminalCallbackOccurrenceProposal],
 ) -> Result<Option<Vec<crate::AdmittedNativeCallbackArgument>>, Vec<Diagnostic>> {
     let mut admitted = Vec::with_capacity(occurrences.len());

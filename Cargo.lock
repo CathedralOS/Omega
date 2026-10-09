@@ -103,10 +103,8 @@ name = "backend-plan"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
- "checked-trees",
  "function-identity",
  "semantic-vocabulary",
- "symbols",
  "terminal-codec",
 ]
 

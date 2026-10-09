@@ -4,39 +4,16 @@ use calling_conventions::{
     BoundaryEntryPlan, CallbackMaterializationContext, CallbackRequirementId,
     NativeParameterApplication, NativePlace, PlanDiagnostic, StaticMachineBinderId,
 };
-use checked_trees::NominalMachineUseSite;
-use symbols::SymbolHandle;
 
-/// Target-owned callback recipe joined to one admitted nominal machine use.
-///
-/// The checked program owns the semantic admission and retains a compact
-/// report coordinate. This row carries the exact validated plan past
-/// orchestration so thunk lowering never has to rediscover ABI placement from
-/// names, types, or a convention oracle. Authority never rests on the compact
-/// coordinate alone.
+/// Target-owned ABI recipe for one portable Terminal callback application.
+/// Source selection and resource checking finish before this record is produced.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundNominalCallbackPlacement {
-    /// Joins the portable callback application in this compilation's Terminal artifact.
+pub struct NativeCallbackPlacement {
     pub application_index: u32,
-    pub site: NominalMachineUseSite,
-    pub registration_operation: SymbolHandle,
     pub static_machine_ordinal: u32,
-    pub selected_machine: SymbolHandle,
-    pub selected_entry: SymbolHandle,
-    pub satisfaction_trait: SymbolHandle,
-    pub satisfaction_requirement: SymbolHandle,
     pub canonical_requirement_overload: String,
-    /// Non-authoritative compatibility/report coordinate beside the exact
-    /// `boundary_entry_plan` below.
-    pub boundary_calling_plan_report_fingerprint: u64,
-    /// Exact checked per-entry resource anchor selected by semantic callback
-    /// admission. It remains a derivation receipt only; later resource
-    /// realizations must independently join it before admission.
-    pub resource_receipt: checked_trees::CheckedCallbackResourceReceipt,
+    pub contract_commitment: [u8; 32],
     pub boundary_entry_plan: BoundaryEntryPlan,
-    /// Exact target-closed outbound binder/destination row selected by this
-    /// nominal callback use. `None` retains the established non-materializing
-    /// callback path; a plan containing private rows may not use that form.
     pub private_materialization: Option<BoundCallbackPrivateMaterialization>,
 }
 
@@ -141,137 +118,3 @@ impl BoundCallbackPrivateMaterialization {
         Ok(application)
     }
 }
-
-/// Independently replay the exact evaluated calling plan retained by one
-/// callback placement.
-///
-/// The source-to-checked join already validates this pair, but backend planning
-/// and final emission are separate consumers. Reconstructing the signature
-/// from the retained placements and revalidating the complete entry plan keeps
-/// either consumer from trusting a copied fingerprint or a noncanonical plan.
-pub fn validate_bound_nominal_callback_placement(
-    placement: &BoundNominalCallbackPlacement,
-) -> Result<calling_conventions::ValidatedBoundaryEntryPlan, calling_conventions::PlanDiagnostic> {
-    placement.resource_receipt.validate().map_err(|error| {
-        calling_conventions::PlanDiagnostic(format!(
-            "callback placement retained an invalid checked resource receipt: {error}"
-        ))
-    })?;
-    if placement.resource_receipt.machine() != placement.selected_machine
-        || placement.resource_receipt.entry() != placement.selected_entry
-    {
-        return Err(calling_conventions::PlanDiagnostic(
-            "callback placement resource receipt does not bind its selected machine entry"
-                .to_owned(),
-        ));
-    }
-    let signature = calling_conventions::CallSignature {
-        parameters: placement
-            .boundary_entry_plan
-            .call
-            .parameters
-            .iter()
-            .map(|parameter| parameter.shape)
-            .collect(),
-        result: placement
-            .boundary_entry_plan
-            .call
-            .result
-            .as_ref()
-            .map(|result| result.shape),
-    };
-    let validated = calling_conventions::validate_boundary_entry_plan(
-        placement.boundary_entry_plan.clone(),
-        &signature,
-    )?;
-    if let Some(materialization) = &placement.private_materialization {
-        let registrar_signature = calling_conventions::CallSignature {
-            parameters: materialization
-                .registrar_boundary_entry_plan
-                .call
-                .parameters
-                .iter()
-                .map(|parameter| parameter.shape)
-                .collect(),
-            result: materialization
-                .registrar_boundary_entry_plan
-                .call
-                .result
-                .as_ref()
-                .map(|result| result.shape),
-        };
-        let validated_registrar =
-            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
-                materialization.registrar_boundary_entry_plan.clone(),
-                &registrar_signature,
-                &materialization.context,
-            )?;
-        if validated_registrar.plan() != &materialization.registrar_boundary_entry_plan
-            || materialization.registrar_calling_plan_report_fingerprint == 0
-            || validated_registrar.contract_report_fingerprint()
-                != materialization.registrar_calling_plan_report_fingerprint
-        {
-            return Err(calling_conventions::PlanDiagnostic(
-                "callback placement private materialization drifted from its exact evaluated registrar plan"
-                    .to_owned(),
-            ));
-        }
-        let matching_binders = materialization
-            .context
-            .binders
-            .iter()
-            .filter(|candidate| candidate.binder == materialization.binder)
-            .collect::<Vec<_>>();
-        let matching_demands = materialization
-            .context
-            .demands
-            .iter()
-            .filter(|candidate| candidate.destination == materialization.destination)
-            .collect::<Vec<_>>();
-        let matching_rows = materialization
-            .registrar_boundary_entry_plan
-            .call
-            .callback_materializations
-            .iter()
-            .filter(|candidate| candidate.binder == materialization.binder)
-            .collect::<Vec<_>>();
-        let ([binder], [demand], [row]) = (
-            matching_binders.as_slice(),
-            matching_demands.as_slice(),
-            matching_rows.as_slice(),
-        ) else {
-            return Err(calling_conventions::PlanDiagnostic(
-                    "callback placement private materialization lost its exact binder, demand, or plan row"
-                        .to_owned(),
-                ));
-        };
-        if binder.requirement != materialization.requirement
-            || demand.requirement != materialization.requirement
-            || row.destination != materialization.destination
-        {
-            return Err(calling_conventions::PlanDiagnostic(
-                    "callback placement private materialization binder, requirement, or destination drifted"
-                        .to_owned(),
-                ));
-        }
-        materialization.destination_parameter_application()?;
-    }
-    if validated.plan() != &placement.boundary_entry_plan {
-        return Err(calling_conventions::PlanDiagnostic(
-            "callback placement retained a noncanonical boundary entry plan".to_owned(),
-        ));
-    }
-    if placement.boundary_calling_plan_report_fingerprint == 0
-        || validated.contract_report_fingerprint()
-            != placement.boundary_calling_plan_report_fingerprint
-    {
-        return Err(calling_conventions::PlanDiagnostic(
-            "callback placement boundary entry plan drifted from its retained fingerprint"
-                .to_owned(),
-        ));
-    }
-    Ok(validated)
-}
-
-#[cfg(test)]
-pub(crate) mod tests;

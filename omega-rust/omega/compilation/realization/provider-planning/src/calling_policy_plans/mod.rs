@@ -28,8 +28,8 @@ pub use boundary_signatures::{
     BoundaryValueField, BoundaryValueShape, MaterializedBoundarySignature,
 };
 pub use callback_bindings::{
-    BoundaryCallingPlanRealization, close_outbound_callback_materializations,
-    validate_nominal_callback_placement_bindings,
+    BoundaryCallingPlanRealization, SelectedCallbackPlacement,
+    close_outbound_callback_materializations, validate_nominal_callback_placement_bindings,
 };
 pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
 pub use opaque_representations::{

@@ -2,7 +2,7 @@
 
 mod operations;
 
-use backend_plan::BoundNominalCallbackPlacement;
+use backend_plan::NativeCallbackPlacement;
 use calling_conventions::BoundaryCallingApplication;
 use calling_conventions::ExternalBindingRow;
 use operations::CallbackTerminalOperations;
@@ -30,7 +30,7 @@ pub struct CallbackRegistrarOccurrence {
 /// This closure does not grant native publication or registration authority.
 pub fn settle_callback_registrar_imports(
     terminal_module: &TerminalModule,
-    callback_placements: &[BoundNominalCallbackPlacement],
+    callback_placements: &[NativeCallbackPlacement],
     callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,
     calling_applications: &[BoundaryCallingApplication],
     external_binding_rows: &[ExternalBindingRow],
