@@ -29,7 +29,7 @@ pub use entry_signature::{ ProgramEntryExtentValueLayout,
     ProgramEntryReceiverSignature, SelectedProgramEntrySignature,
 };
 pub(crate) use entry_signature::{ ProgramEntryExtentFieldRole, ProgramEntryResultSignature};
-pub use entry_signature::{ ProgramEntrySignatureIdentity,
+pub(crate) use entry_signature::{ ProgramEntrySignatureIdentity,
     ProgramEntryVisibleParameterSignature};
 pub use optimized_semantic_entry::{
     OptimizedProgramStorageSemanticCallingApplication,
@@ -38,7 +38,7 @@ pub use optimized_semantic_entry::{
 };
 pub(crate) use optimized_semantic_entry::{
     OptimizedProgramStoragePhysicalEntryDisposition};
-pub use optimized_semantic_entry::{ OptimizedProgramStorageSemanticRoot};
+pub(crate) use optimized_semantic_entry::{ OptimizedProgramStorageSemanticRoot};
 pub use optimized_semantic_wrapper::{
     OptimizedProgramStorageSemanticReceiverLayout,
     OptimizedProgramStorageSemanticWrapperEncodingError,
@@ -51,7 +51,7 @@ pub(crate) use optimized_semantic_wrapper::{
     OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     OptimizedProgramStorageSemanticWrapperRelocationKind,
     OptimizedProgramStorageSemanticWrapperStep};
-pub use optimized_semantic_wrapper::{
+pub(crate) use optimized_semantic_wrapper::{
     OptimizedProgramStorageSemanticWrapperPlan};
 #[cfg(feature = "installed-writer")]
 pub use post_handoff_writer::{
@@ -81,7 +81,7 @@ pub use program_entry_physical::{
 };
 pub use selected_entry::SelectedProgramStorageEntryPlan;
 
-pub use selected_entry::diagnostic::ProgramStorageEntryDiagnostic;
+pub(crate) use selected_entry::diagnostic::ProgramStorageEntryDiagnostic;
 pub use selected_entry::root_role::ProgramStorageEntryRootRole;
 pub use selected_entry::service_establishment::ProgramEntryFusedServiceEstablishment;
 
