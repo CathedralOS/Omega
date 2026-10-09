@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 4.52, "load1_start": 3.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.49, "load1_start": 2.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -317,6 +317,7 @@ pass/drops/erased_record_initializer_exit built 1121ms exit:70 interpreter-exit:
 pass/drops/projected_case_subject_root_cleanup_exit built 1570ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @e06e59f77bec+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit built 1669ms exit:0 interpreter-exit:0 interpreter:agrees @f53544b209b2+wt
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit built 1843ms exit:0 interpreter-exit:0 interpreter:agrees @fc0dd94dcf25
+pass/drops/runtime_case_selected_cleanup_continuations_exit built 2253ms exit:0 interpreter-exit:0 interpreter:agrees @ec967ce62874
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit built 1715ms exit:0 interpreter-exit:0 interpreter:agrees @ac7aca8a5050+wt
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit built 1599ms exit:0 interpreter-exit:0 interpreter:agrees @e830e1bb7013+wt
 pass/drops/runtime_composed_nominal_output_hook_exit built 14800ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5833e7d00af3
@@ -343,6 +344,8 @@ pass/drops/runtime_owned_replacement_composition_exit built 1704ms exit:0 interp
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 2239ms exit:0 interpreter-exit:0 interpreter:agrees @e0e325f7052d+wt
 pass/drops/runtime_projected_nominal_cleanup_exit built 13309ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5833e7d00af3
 pass/drops/runtime_projected_nominal_core_exit built 1736ms exit:0 interpreter-exit:0 interpreter:agrees @40cf22348cf8+wt
+pass/drops/runtime_projected_reference_transition_cleanup_exit built 2569ms exit:0 interpreter-exit:0 interpreter:agrees @ec967ce62874
+pass/drops/runtime_projected_transition_cleanup_exit built 2000ms exit:0 interpreter-exit:0 interpreter:agrees @ec967ce62874
 pass/drops/runtime_record_construction_cleanup_order_exit built 13307ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @68b079fa706e+wt
 pass/drops/runtime_replaced_record_custody_transfer_exit built 13115ms exit:0 interpreter-exit:0 interpreter:agrees @68b079fa706e+wt
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 3659ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @792abb82ccd2
