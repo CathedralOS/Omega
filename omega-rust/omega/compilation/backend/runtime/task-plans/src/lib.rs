@@ -22,9 +22,6 @@ pub use task_plans::activation_plan_facts::{
 };
 pub use task_plans::composition_model;
 pub use task_plans::diagnostic::TaskPlanDiagnostic;
-pub use task_plans::executor_selection;
-pub(crate) use task_plans::executor_selection::{
-    ExecutorPreservationAxis, ExecutorSelectionCandidate};
 pub use task_plans::identities::{
     ActivationPlanId, AdmittedStackContributionReportId, CallingPlanId, CompositionModelId,
     ExecutorPreservationEvidenceId, ExecutorSelectionId, LiveCarryPlaceId, LiveCarryTypeId,
@@ -33,7 +30,6 @@ pub use task_plans::identities::{
     TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId,
     TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId, ValueLayoutId,
 };
-pub use task_plans::runtime_invocation;
 pub use task_plans::stack_composition::{
     AdmittedSameStackContribution, CallTargetBinding,
     SameStackContributionAdmissionCandidate, SameStackContributionCommitment,

@@ -3,8 +3,7 @@
 
 use crate::task_plans::stack_composition::WcsuStackPlanProjection;
 use crate::{
-    ActivationPlanCandidate, ExecutorPreservationAxis, ExecutorSelectionCandidate,
-    LiveCarryStorage, ValidatedActivationPlan,
+    ActivationPlanCandidate, LiveCarryStorage, ValidatedActivationPlan,
 };
 use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
@@ -59,25 +58,6 @@ pub(crate) fn activation_plan_report_fingerprint(
     fingerprint.flag(plan.carry_obligations.preserve_cpu);
     fingerprint.flag(plan.carry_obligations.preserve_host_thread);
     fingerprint.flag(plan.cancellation_required);
-    fingerprint.finish()
-}
-
-pub(crate) fn executor_selection_report_fingerprint(
-    plan: &ValidatedActivationPlan,
-    candidate: &ExecutorSelectionCandidate,
-) -> u64 {
-    let mut fingerprint = Fingerprint::new();
-    fingerprint.word(plan.normalized_identity().normalized_identity());
-    fingerprint.word(candidate.runtime.normalized_identity());
-    fingerprint.word(candidate.runtime_instance.normalized_identity());
-    fingerprint.word(candidate.preservation.len() as u64);
-    for evidence in &candidate.preservation {
-        fingerprint.byte(match evidence.axis() {
-            ExecutorPreservationAxis::Cpu => 1,
-            ExecutorPreservationAxis::HostThread => 2,
-        });
-        fingerprint.word(evidence.identity().normalized_identity());
-    }
     fingerprint.finish()
 }
 
