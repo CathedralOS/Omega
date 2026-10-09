@@ -41,9 +41,6 @@ pub(super) fn index_argument(
             }
             index_name(program, symbol, program.symbols.name(symbol), context)
         }
-        IndexIdentityArgument::Literal(spelling) => {
-            index_name(program, SymbolHandle::invalid(), spelling, context)
-        }
         IndexIdentityArgument::StaticArgument(argument) => {
             if argument.type_reference.is_valid() {
                 return normalize_type_reference(program, argument.type_reference, context);

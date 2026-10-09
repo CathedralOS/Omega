@@ -8,9 +8,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::type_identity::{IndexIdentityArgument, normalized_index_identity};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn index_identity_bindings(
-    substitutions: &BoundIndexSubstitutions,
-) -> Vec<(SymbolHandle, IndexIdentityArgument<'_>)> {
+pub(super) fn index_identity_bindings<'bindings>(
+    substitutions: &'bindings BoundIndexSubstitutions<'_>,
+) -> Vec<(SymbolHandle, IndexIdentityArgument<'bindings>)> {
     substitutions
         .iter()
         .map(|(symbol, value)| {

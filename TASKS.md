@@ -2926,12 +2926,12 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: preserve exact erased
   applications, clone correspondence and lexical owners through folding and
-  substitution;
-  in `pass/generics/open_computed_quantity_result`, changing the forwarder's
-  result to `Indexed<RightIndex + LeftIndex>` still rejects the concrete
-  `Indexed<3>` use after establishing `1 + 2 == 3` (macOS arm64).
-  Local-fact compatibility must compose with the selected algebra's checked
-  AC laws without reopening typed preparation in checking.
+  substitution, including lifetime scopes. Local-fact discharge in
+  `facts/index_compatibility/substitutions.rs` still reads a selected `==` as
+  mathematical equality: a generic conformance may supply a Boolean relation
+  while `requires A + B == 4` incorrectly discharges `Indexed<A + B>` against
+  `Indexed<4>` (macOS arm64). Retain and consume the comparison's selected
+  meaning without reopening typed preparation in checking.
   Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal
   template commitments use the retained authored graph, never a concrete

@@ -151,11 +151,11 @@ pub(super) fn expression_proves_index_equality(
     direct || symmetric
 }
 
-pub(super) fn fact_substitutions(
-    program: &dyn ::validation::CheckingInput,
+pub(super) fn fact_substitutions<'program>(
+    program: &'program dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     point: ProgramPoint,
-) -> BoundIndexSubstitutions {
+) -> BoundIndexSubstitutions<'program> {
     let ProgramPoint::CallEnsures {
         machine_symbol,
         state_symbol,
@@ -241,20 +241,21 @@ pub(super) fn call_flow_at_point(
 
 /// Compatibility uses the producer's exact binder associations, not another
 /// walk over argument spellings or a reconstruction of the erased telescope.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum BoundIndexArgument {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BoundIndexArgument<'program> {
     Reference(TypeReferenceHandle),
     Subject(SymbolHandle),
-    Algebra(StaticMachineArgument),
+    Algebra(&'program StaticMachineArgument),
     Expression(ExpressionHandle),
 }
 
-pub(crate) type BoundIndexSubstitutions = Vec<(SymbolHandle, BoundIndexArgument)>;
+pub(crate) type BoundIndexSubstitutions<'program> =
+    Vec<(SymbolHandle, BoundIndexArgument<'program>)>;
 
 pub(crate) fn bound_index_substitutions(
     program: &dyn ::validation::CheckingInput,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
-) -> BoundIndexSubstitutions {
+) -> BoundIndexSubstitutions<'_> {
     use typed_trees::static_applications::StaticMachineBindingValue;
     if !application.is_valid() {
         return Vec::new();
@@ -276,7 +277,7 @@ pub(crate) fn bound_index_substitutions(
                         BoundIndexArgument::Subject(*subject)
                     }
                     StaticMachineBindingValue::Conformance(argument) => {
-                        BoundIndexArgument::Algebra(argument.clone())
+                        BoundIndexArgument::Algebra(argument)
                     }
                     _ => return None,
                 },
@@ -288,11 +289,11 @@ pub(crate) fn bound_index_substitutions(
 /// The substitutions implied by the call at `point`, if `point` is a call
 /// boundary — this is what lets an argument in `Coordinate<N>` discharge a
 /// parameter declared `in Coordinate<I>` when the call bound `I` to `N`.
-pub(super) fn enclosing_call_substitutions(
-    program: &dyn ::validation::CheckingInput,
+pub(super) fn enclosing_call_substitutions<'program>(
+    program: &'program dyn ::validation::CheckingInput,
     state_calls: &StateCallIndex<'_, '_>,
     point: ProgramPoint,
-) -> BoundIndexSubstitutions {
+) -> BoundIndexSubstitutions<'program> {
     let ProgramPoint::Call {
         statement_index,
         call_ordinal,
@@ -321,7 +322,7 @@ pub(super) fn enclosing_call_substitutions(
 pub(super) fn value_call_substitutions(
     program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
-) -> BoundIndexSubstitutions {
+) -> BoundIndexSubstitutions<'_> {
     let mut node = value;
     let call = loop {
         match program.expression_table.expression(node) {

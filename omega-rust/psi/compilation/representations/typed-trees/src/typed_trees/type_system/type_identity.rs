@@ -56,7 +56,6 @@ pub enum IndexIdentityArgument<'argument> {
     TypeReference(TypeReferenceHandle),
     Expression(crate::expression::ExpressionHandle),
     Subject(SymbolHandle),
-    Literal(&'argument str),
     StaticArgument(&'argument crate::expression::StaticMachineArgument),
 }
 

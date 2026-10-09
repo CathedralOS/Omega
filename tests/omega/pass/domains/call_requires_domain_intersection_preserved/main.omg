@@ -44,5 +44,5 @@ machine Main::main(main: &mut Main) {
     mark_valid(&mut main.password);
     mark_secure(&mut main.password);
     touch_salt(&mut main.password);
-    main.accept(main.password);
+    Main::accept(main.password);
 }

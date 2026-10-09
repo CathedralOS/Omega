@@ -21,5 +21,5 @@ machine Main::main(main: &mut Main)
 requires
     main.password in Password::Valid
 {
-    main.accept(main.password.length);
+    Main::accept(main.password.length);
 }
