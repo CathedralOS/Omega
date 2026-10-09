@@ -1357,8 +1357,7 @@ defines the complete product bar.
     suffix was store-enforced: re-prove dependent reads after a write
     (`pass/termination/rank_range_mutable_bounded_endpoint` plus negative
     mutation controls).
-  - Library: `source/library/core/numeric_conversion.omg` (suffixed widening
-    results), `source/library/std/time.omg` (subsecond fields/locals,
+  - Library: `source/library/std/time.omg` (subsecond fields/locals,
     constants), `source/library/core/layout.omg` (fuel/index),
     `source/library/std/calling.omg` (indexed fields),
     `source/library/std/filesystem.omg` (open-mode fields),

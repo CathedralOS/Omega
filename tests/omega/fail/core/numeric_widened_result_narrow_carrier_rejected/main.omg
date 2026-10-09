@@ -1,5 +1,5 @@
-// `widen_u8_to_u16` publishes `u16 [0..=255]`. The range refines the result;
-// it does not change its carrier. Storing the result into a u8 local is an
+// `widen_u8_to_u16` ensures `result <= 255`. The postcondition bounds the
+// result; it does not change its carrier. Storing the result into a u8 local is an
 // implicit u16 -> u8 conversion and rejects even though every value fits.
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;

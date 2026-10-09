@@ -1,11 +1,11 @@
-// An unsigned widening publishes its source interval on the result
-// (`widen_u8_to_u16 -> u16 [0..=255]`, and `widen_u32_to_u64` also
-// `ensures result == (value as u64)`). Callers rely on that interval to
-// discharge Exact arithmetic on the result: each shift or multiply here
-// reaches exactly the target maximum or stays just below it, which only
-// the source's own interval proves, never the wider target's. Operands
-// are read through a borrowed record, so every bound comes from the
-// published range rather than a folded constant.
+// An unsigned widening publishes its source interval as a postcondition
+// (`widen_u8_to_u16` ensures `result >= 0 && result <= 255`, and
+// `widen_u32_to_u64` also `result == (value as u64)`). Callers rely on that
+// interval to discharge Exact arithmetic on the result: each shift or
+// multiply here reaches exactly the target maximum or stays just below it,
+// which only the source's own interval proves, never the wider target's.
+// Operands are read through a borrowed record, so every bound comes from the
+// published postcondition rather than a folded constant.
 //
 // Exit 0 when every result holds; a wrong result executes `crash Trap;`.
 // `main` takes no arguments and reaches no service, so the Terminal
