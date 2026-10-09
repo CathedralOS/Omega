@@ -98,7 +98,7 @@ pub(super) fn identifier_path_text(path: &[Identifier]) -> String {
     path.joined_path()
 }
 
-pub fn bundled_omega_root() -> Result<PathBuf, Vec<Diagnostic>> {
+pub(crate) fn bundled_omega_root() -> Result<PathBuf, Vec<Diagnostic>> {
     crate::toolchain_library::root().map_err(|error| vec![Diagnostic::error(error)])
 }
 

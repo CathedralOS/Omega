@@ -219,7 +219,7 @@ impl PackageCompilationInputs {
     }
 
     #[doc(hidden)]
-    pub fn dependency_generated_source_bundles(
+    pub(crate) fn dependency_generated_source_bundles(
         &self,
     ) -> impl Iterator<Item = &PackageGeneratedSourceBundle> {
         self.target.dependency_generated_sources.values()
@@ -298,7 +298,7 @@ impl PackageCompilationInputs {
     }
 
     #[doc(hidden)]
-    pub fn generated_source_import_path(
+    pub(crate) fn generated_source_import_path(
         &self,
         package: PackageKeyIdentity,
         import_scope: DependencyPurpose,

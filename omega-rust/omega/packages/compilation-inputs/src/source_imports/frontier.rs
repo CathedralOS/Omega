@@ -11,7 +11,7 @@ use syntax_trees::ParsedSources;
 use syntax_trees::SyntaxTrees;
 
 #[derive(Clone, Default)]
-pub struct SourceStorage {
+pub(crate) struct SourceStorage {
     pub filesystem: source::SourceFileSystem,
     pub files: Arena<SourceFile>,
     pub sources: SourceMap,
@@ -77,7 +77,7 @@ impl SourceStorage {
         }
     }
 
-    pub fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {
+    pub(crate) fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {
         Self {
             default_package_root: normalize_directory(default_package_root),
             toolchain_root: Some(normalize_directory(toolchain_root)),
@@ -85,7 +85,7 @@ impl SourceStorage {
         }
     }
 
-    pub fn for_package_compilation(
+    pub(crate) fn for_package_compilation(
         default_package_root: PathBuf,
         default_package_identity: PackageKeyIdentity,
         toolchain_root: PathBuf,
@@ -102,7 +102,7 @@ impl SourceStorage {
         }
     }
 
-    pub fn register_reconciled_package_root(
+    pub(crate) fn register_reconciled_package_root(
         &mut self,
         package_root: PathBuf,
         identity: PackageKeyIdentity,
@@ -115,7 +115,7 @@ impl SourceStorage {
     /// contract root so `package_relative_source` retains the canonical path.
     /// A reconciled supplier must not be registered here: doing so would erase
     /// its ordinary package identity and defeat accepted-binding replay.
-    pub fn register_toolchain_contract_root(&mut self, path: PathBuf, contract_root: PathBuf) {
+    pub(crate) fn register_toolchain_contract_root(&mut self, path: PathBuf, contract_root: PathBuf) {
         self.toolchain_contract_roots.insert(
             normalize_directory(path),
             normalize_directory(contract_root),
@@ -126,7 +126,7 @@ impl SourceStorage {
     /// its transitive `use` closure resolves inside the same root, so every
     /// file under it inherits the contract's toolchain custody rather than a
     /// package identity it cannot have.
-    pub fn register_toolchain_contract_dir(&mut self, root: PathBuf) {
+    pub(crate) fn register_toolchain_contract_dir(&mut self, root: PathBuf) {
         let root = normalize_directory(root);
         if !self.toolchain_contract_dirs.contains(&root) {
             self.toolchain_contract_dirs.push(root);
@@ -139,13 +139,13 @@ impl SourceStorage {
     /// source frontier even when it sits outside every reconciled root: its
     /// origin and identity are fixed toolchain by registration, so loading it
     /// cannot launder package content into the compiled program.
-    pub fn is_toolchain_contract_source(&self, path: &Path) -> bool {
+    pub(crate) fn is_toolchain_contract_source(&self, path: &Path) -> bool {
         self.toolchain_contract_root_for(path).is_some()
     }
 
     /// Snapshot toolchain contract custody for import reconciliation, where a
     /// mutable `resolved_imports` borrow forbids retaining `&self`.
-    pub fn toolchain_contract_custody(&self) -> ToolchainContractCustody {
+    pub(crate) fn toolchain_contract_custody(&self) -> ToolchainContractCustody {
         ToolchainContractCustody {
             roots: self.toolchain_contract_roots.clone(),
             dirs: self.toolchain_contract_dirs.clone(),
@@ -205,7 +205,7 @@ impl SourceStorage {
         Ok(())
     }
 
-    pub fn next_source_id(&self) -> usize {
+    pub(crate) fn next_source_id(&self) -> usize {
         self.sources.len()
     }
 
@@ -294,13 +294,13 @@ fn normalize_directory(path: PathBuf) -> PathBuf {
 /// their registered root, while bundled contract fallback roots admit their
 /// whole closed subtree.
 #[derive(Clone, Default)]
-pub struct ToolchainContractCustody {
+pub(crate) struct ToolchainContractCustody {
     roots: BTreeMap<PathBuf, PathBuf>,
     dirs: Vec<PathBuf>,
 }
 
 impl ToolchainContractCustody {
-    pub fn root_for(&self, path: &Path) -> Option<&Path> {
+    pub(crate) fn root_for(&self, path: &Path) -> Option<&Path> {
         toolchain_contract_root_for(&self.roots, &self.dirs, path)
     }
 }
@@ -324,7 +324,7 @@ pub struct SourceFile {
     pub root_items: Vec<syntax_trees::item::ItemHandle>,
 }
 
-pub fn validate_package_source_frontier(
+pub(crate) fn validate_package_source_frontier(
     frontier: Vec<(PathBuf, source::DependencyScope)>,
     package_inputs: &crate::PackageCompilationInputs,
     source_storage: &SourceStorage,

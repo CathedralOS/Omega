@@ -116,7 +116,7 @@ impl PackageCompilationInputs {
     /// occurrence — requester, purpose, alias, and target all naming one
     /// edge. Inputs keyed to a coordinate that is not an occurrence reject
     /// at binding rather than attaching to the nearest edge.
-    pub fn has_dependency_occurrence(&self, occurrence: &BuildDependencyOccurrence) -> bool {
+    pub(crate) fn has_dependency_occurrence(&self, occurrence: &BuildDependencyOccurrence) -> bool {
         let Some(record) = self.source.packages.get(&occurrence.requester) else {
             return false;
         };
@@ -142,7 +142,7 @@ impl PackageCompilationInputs {
     }
 
     /// The root's build-scope edges. Only the root package may hold them.
-    pub fn build_dependencies(
+    pub(crate) fn build_dependencies(
         &self,
     ) -> impl Iterator<Item = (PackageKeyIdentity, &str, PackageKeyIdentity)> {
         self.source.packages.iter().flat_map(|(requester, record)| {
@@ -169,7 +169,7 @@ impl PackageCompilationInputs {
     /// its product-reachable packages and the product edges between them.
     /// Generated-source bundle custody compares against exactly this shape.
     #[doc(hidden)]
-    pub fn dependency_closure_for(&self, root: PackageKeyIdentity) -> PackageDependencyClosure {
+    pub(crate) fn dependency_closure_for(&self, root: PackageKeyIdentity) -> PackageDependencyClosure {
         let reachable = reachable_packages(root, |package| {
             self.source
                 .packages
@@ -205,7 +205,7 @@ impl PackageCompilationInputs {
     /// Scopes never fall back to each other: a miss here does not license
     /// probing the other scope.
     #[doc(hidden)]
-    pub fn dependency_target_for_purpose(
+    pub(crate) fn dependency_target_for_purpose(
         &self,
         requester: PackageKeyIdentity,
         purpose: DependencyPurpose,

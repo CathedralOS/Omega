@@ -41,8 +41,7 @@ mod target_profile_tags;
 mod wire_codec_sources;
 
 pub use build_declarations::BuildDeclarationKind;
-pub use checked_source_cache::{
-    CachedSourceIndex, CheckedSourceCache, CheckedSourceCacheLimits, CheckedSourceCacheOutcome,
+pub use checked_source_cache::{ CheckedSourceCache, CheckedSourceCacheLimits,
 };
 pub use compilation_reuse::{BuildExecutionInputs, SourceAssemblyInputs};
 pub use package_compilation::{
@@ -57,12 +56,14 @@ pub use semantic_bindings::{
     program_entry_semantic_binding_role,
 };
 pub use source_consumption::{
-    BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
-    PackageCompilationSubject, PackageSourceConsumptionCommitment, derive_consumed_source_units,
+    BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind, PackageSourceConsumptionCommitment,
     derive_package_compilation_subject, derive_source_consumption_commitment,
     toolchain_source_identities, toolchain_source_identity_digest,
 };
+pub use source_consumption::{
+    PackageCompilationSubject};
 pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
-    capture_scoped_source_input,
 };
+pub(crate) use source_snapshot::{
+    capture_scoped_source_input};
