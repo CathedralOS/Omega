@@ -1036,7 +1036,23 @@ fn validate_structural_arguments(
         if owned_byte_view_presentation(module, machine, argument, expected) {
             continue;
         }
-        let actual_type = validate_structural_path(module, actual_type, &argument.path)?;
+        // Shared primitive loans observe the original field; its restriction
+        // remains with that field rather than becoming an owned scalar type.
+        // Independent semantic validation still checks access and live loans.
+        let shared_endpoint = (argument.access == terminal_psi::StructuralAccess::SharedBorrow
+            && expected.access == terminal_psi::StructuralAccess::SharedBorrow)
+            .then(|| {
+                terminal_semantics::shared_primitive_projection_declaration(
+                    module.structural_types.iter(),
+                    actual_type,
+                    &argument.path,
+                )
+            })
+            .flatten();
+        let actual_type = match shared_endpoint {
+            Some(endpoint) => endpoint,
+            None => validate_structural_path(module, actual_type, &argument.path)?,
+        };
         if actual_type != expected.structural_type {
             return malformed("structural argument has the wrong concrete type");
         }

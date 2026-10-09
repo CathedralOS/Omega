@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.48, "load1_start": 2.52, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 3.14, "load1_start": 3.48, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1853,6 +1853,8 @@ fail/recast/recast_size_mismatch_rejected rejected 161ms expected @a3bac00e54bb+
 	machine `Main::main` state `main`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `i64` is 8 bytes, target `f32` is 4 bytes
 fail/recast/reference_let_pun_requires_recast rejected 155ms expected @a3bac00e54bb+wt
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
+fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 23054ms expected @865f63ff771a+wt
+	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("structural path must retain structural custody")))
 fail/recast/scalar_parameter_view_footprint_rejected rejected 311ms expected @9782e38b64ab+wt
 	machine `inspect` state `entry`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `f32` is 4 bytes, target `u64` is 8 bytes
 fail/recast/shared_parameter_view_mutable_call_rejected rejected 181ms expected @cba4afbf6f2f+wt
@@ -3595,6 +3597,7 @@ pass/recast/runtime_nested_record_byte_store_exit checked 1232ms check-target:ma
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1800ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_recast_record_view_indexed_write_exit checked 1653ms check-target:macos_arm64 @3b624377ec31
 pass/recast/runtime_record_array_view_mutable_write_exit checked 3863ms check-target:macos_arm64 @def08a434d7a+wt
+pass/recast/runtime_restricted_field_call_arguments_exit checked 11967ms check-target:macos_arm64 @865f63ff771a+wt
 pass/recast/runtime_scalar_parameter_shared_views_exit checked 2431ms check-target:macos_arm64 @e8239f945e8
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1008ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_shared_parameter_view_calls_exit checked 4299ms check-target:macos_arm64 @e8239f945e8

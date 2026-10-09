@@ -772,7 +772,11 @@ impl TerminalExecution<'_> {
             };
             // Keep case selection and its payload field together. The ordinary
             // projection owner strips declaration-only case steps from storage.
-            value = project_structural_value(&types, &value, prefix)?;
+            value = if access == StructuralAccess::SharedBorrow {
+                crate::custody::project_shared_structural_observation(&types, &value, prefix)?
+            } else {
+                project_structural_value(&types, &value, prefix)?
+            };
             if let Some(boundary) = boundary {
                 let (referent_type, authority) = self.reference_contract(value.structural_type)?;
                 if !access_covers(authority, access) {

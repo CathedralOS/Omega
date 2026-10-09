@@ -82,26 +82,29 @@ pub(super) fn argument(
         };
         let mut shape_cache = BTreeMap::new();
         let mut active = BTreeSet::new();
-        let (projected_type, projected_shape, source_byte_offset) = if argument.path.is_empty() {
-            (
-                home.structural_type(),
-                crate::lowering::structural_layout::structural_shape(
+        let (projected_type, projected_shape, source_byte_offset, runs) =
+            if argument.path.is_empty() {
+                (
                     home.structural_type(),
+                    crate::lowering::structural_layout::structural_shape(
+                        home.structural_type(),
+                        types,
+                        &mut shape_cache,
+                        &mut active,
+                    )?,
+                    0,
+                    Vec::new(),
+                )
+            } else {
+                crate::lowering::structural_layout::runtime_borrowed_projection(
+                    home.structural_type(),
+                    &argument.path,
+                    argument.access,
                     types,
                     &mut shape_cache,
                     &mut active,
-                )?,
-                0,
-            )
-        } else {
-            crate::lowering::structural_layout::resolve_structural_projection_path(
-                home.structural_type(),
-                &argument.path,
-                types,
-                &mut shape_cache,
-                &mut active,
-            )?
-        };
+                )?
+            };
         // A whole owned bounded byte local lends its home's address to a
         // borrowed bounded-owner formal. Unit validation replayed the formal's
         // byte predicates from the local's current storage; the qualifications
@@ -151,7 +154,11 @@ pub(super) fn argument(
             source_byte_offset,
             fixed_array_length: None,
             element_stride: None,
-            indices: Vec::new(),
+            indices: super::scalar_sources::runtime_indices(
+                runs,
+                function,
+                &super::scalar_sources::ScalarSources::from(live),
+            )?,
             source,
             destination: destination.placement.clone(),
         });
@@ -180,7 +187,8 @@ pub(super) fn argument(
             },
         )
     } else {
-        let source = prepared.parameter(argument.place)
+        let source = prepared
+            .parameter(argument.place)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let allowed = match source.access {
             StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
@@ -263,9 +271,10 @@ pub(super) fn storage_argument(
         StructuralAccess::Owned => live.owned_arrivals.contains(&argument.place),
     };
     let (selected, referent, offset, runs) =
-        crate::lowering::structural_layout::runtime_projection(
+        crate::lowering::structural_layout::runtime_borrowed_projection(
             root_type,
             &argument.path,
+            argument.access,
             types,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
@@ -505,7 +514,8 @@ pub(super) fn byte_argument(
             .block_entries
             .iter()
             .find_map(|entry| {
-                entry.structural_parameter(argument.place)
+                entry
+                    .structural_parameter(argument.place)
                     .map(|parameter| (entry, parameter))
             })
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
@@ -531,7 +541,8 @@ pub(super) fn byte_argument(
             },
         )
     } else {
-        let source = prepared.parameter(argument.place)
+        let source = prepared
+            .parameter(argument.place)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if source.access != argument.access
             || source.multiplicity != declaration.multiplicity

@@ -1013,14 +1013,6 @@ defines the complete product bar.
     site. Known limits that still fail closed: aggregate re-views refuse case
     path segments, `ViewByte` storage is read-only, and a literal byte place
     cannot be lent mutably.
-  - A restricted scalar field passed by reference as a call argument
-    (`take(&byte.value)` into a `&u8` formal, where `byte.value` carries a
-    record `where` bound) fails Terminal validation with "structural path must
-    retain structural custody". The `let` capture and place-value producers
-    keep such loans on the place-observation route
-    ([recast checking](omega-rust/psi/compilation/checking/recasts.md)), but
-    call-argument presentation still forms a reference to the
-    `BoundedInteger` leaf.
   - **OPERATOR-BOUNDARY-CALLS**: `pass/float/{x86_fma_plan_association,build_runtime_semantics_twins_x86_baseline,build_runtime_semantics_twins_windows_x64,named_provider_directed_divide_exit,named_provider_fused_multiply_add_exit,named_provider_multiply_then_add_exit}`,
     `pass/expressions/match_float_{interpretation,subjects}`;
     `pass/float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,float_trapping_propagated_nan_traps}`

@@ -107,9 +107,10 @@ pub(super) fn validate_borrowed_argument(
         })
         .and_then(|root| {
             let (selected, offset, elements) =
-                crate::structural_inputs::structural_reference_input::runtime_projection(
+                crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
                     root,
                     &semantic.path,
+                    semantic.access,
                     &signature.structural_types,
                 )?;
             let shape =
@@ -245,11 +246,12 @@ pub(super) fn validate_borrowed_argument(
             })
             .and_then(|view_type| {
                 let (selected, offset, elements) =
-                    crate::structural_inputs::structural_reference_input::runtime_projection(
-                        view_type,
-                        &semantic.path,
-                        &signature.structural_types,
-                    )?;
+            crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
+                view_type,
+                &semantic.path,
+                semantic.access,
+                &signature.structural_types,
+            )?;
                 if target.root_structural_type != view_type
                     || target.structural_type != selected
                     || target.source_byte_offset != offset
@@ -310,9 +312,10 @@ pub(super) fn validate_borrowed_argument(
             destination_shape
         } else {
             let (selected, offset, elements) =
-                crate::structural_inputs::structural_reference_input::runtime_projection(
+                crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
                     joined.structural_type,
                     &semantic.path,
+                    semantic.access,
                     &signature.structural_types,
                 )?;
             if target.root_structural_type != joined.structural_type
@@ -567,9 +570,10 @@ fn projected_loan_shape(
         return None;
     }
     let (referent, offset, elements) =
-        crate::structural_inputs::structural_reference_input::runtime_projection(
+        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
             root.structural_type,
             &semantic.path,
+            semantic.access,
             &signature.structural_types,
         )?;
     let shape = crate::structural_inputs::structural_reference_input::internal_borrow_shape(

@@ -1024,9 +1024,12 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         };
         let field = terminal_psi::live_field_by_identity(fields, identity).ok_or_else(malformed)?;
-        let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(stored_type)) =
+        let shape = if shared_view {
+            field.field_type.shared_observation_shape()
+        } else {
             field.field_type.canonical_leaf_shape()
-        else {
+        };
+        let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(stored_type)) = shape else {
             return Err(malformed());
         };
         if stored_type != scalar_type

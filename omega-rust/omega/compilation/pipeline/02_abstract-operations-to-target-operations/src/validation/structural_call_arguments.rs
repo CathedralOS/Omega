@@ -52,6 +52,21 @@ use canonical_roots::{RootDeclaration, canonical_roots};
 use result_projections::*;
 use retained_matches::*;
 
+/// Only a matching shared call observes a restricted field's scalar carrier.
+/// Its original declaration still owns physical storage and invariant custody.
+fn call_leaf_shape(
+    argument: &StructuralArgument,
+    parameter: &StructuralParameterDeclaration,
+) -> fn(&StructuralFieldType) -> Option<StructuralTypeShape> {
+    if argument.access == StructuralAccess::SharedBorrow
+        && parameter.access == StructuralAccess::SharedBorrow
+    {
+        StructuralFieldType::shared_observation_shape
+    } else {
+        StructuralFieldType::canonical_leaf_shape
+    }
+}
+
 /// The result row one retained `Call`-family operation carries.
 enum EmbeddedResult<'a> {
     /// The callee returns Unit and no result row exists.
@@ -1204,6 +1219,7 @@ impl Replay<'_> {
             {
                 return Err(psi_operation);
             }
+            let leaf_shape = call_leaf_shape(semantic, declaration_parameter);
             // Reconstruct geometry and multiplicity from source declarations,
             // not the producer's retained home. The common
             // structural_argument_sources replay separately binds the exact
@@ -1333,9 +1349,7 @@ impl Replay<'_> {
             } else {
                 None
             };
-            let (projected_type, projected_shape, byte_offset) = if let Some((offset, _, _)) =
-                presentation
-            {
+            let projected_storage = if let Some((offset, _, _)) = presentation {
                 (
                     declaration_parameter.structural_type,
                     structural_shapes::reconstruct(
@@ -1421,12 +1435,14 @@ impl Replay<'_> {
                         } else if semantic.path.iter().any(|segment| {
                             matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
                         }) {
-                            let (ty, offset, elements) = structural_shapes::project_runtime_path(
-                                root.structural_type,
-                                &semantic.path,
-                                self.declarations,
-                            )
-                            .map_err(|_| psi_operation)?;
+                            let (ty, offset, elements) =
+                                structural_shapes::project_runtime_path_with_leaf_shape(
+                                    root.structural_type,
+                                    &semantic.path,
+                                    self.declarations,
+                                    leaf_shape,
+                                )
+                                .map_err(|_| psi_operation)?;
                             runtime_elements = elements;
                             (
                                 ty,
@@ -1442,12 +1458,20 @@ impl Replay<'_> {
                             // A fixed element (`&text[0]`) is one static offset
                             // inside the referent, like a field; the element's
                             // own declaration supplies its storage shape.
-                            static_element_projection(
-                                root.structural_type,
-                                &semantic.path,
-                                self.declarations,
+                            let (selected, offset) =
+                                structural_shapes::project_static_path_with_leaf_shape(
+                                    root.structural_type,
+                                    &semantic.path,
+                                    self.declarations,
+                                    leaf_shape,
+                                )
+                                .map_err(|_| psi_operation)?;
+                            (
+                                selected,
+                                structural_shapes::reconstruct(selected, self.declarations)
+                                    .map_err(|_| psi_operation)?,
+                                offset,
                             )
-                            .ok_or(psi_operation)?
                         } else {
                             if semantic
                                 .path
@@ -1456,10 +1480,11 @@ impl Replay<'_> {
                             {
                                 return Err(psi_operation);
                             }
-                            match structural_shapes::projected_field(
+                            match structural_shapes::projected_field_with_leaf_shape(
                                 root.structural_type,
                                 &semantic.path,
                                 self.declarations,
+                                leaf_shape,
                             ) {
                                 Ok(projection) => projection,
                                 Err(_) => {
@@ -1493,6 +1518,7 @@ impl Replay<'_> {
                     }
                 }
             };
+            let (projected_type, projected_shape, byte_offset) = projected_storage;
             let projects_view_backing = semantic.access != StructuralAccess::Owned
                 && !semantic.path.is_empty()
                 && self.declarations.iter().any(|row| {
@@ -1983,6 +2009,7 @@ impl Replay<'_> {
         if !matches_argument_identity(actual, semantic, declared) {
             return Err(psi_operation);
         }
+        let leaf_shape = call_leaf_shape(semantic, declared);
         let Some(referent) =
             structural_shapes::reconstruct(actual.structural_type, self.declarations).ok()
         else {
@@ -2131,10 +2158,11 @@ impl Replay<'_> {
             if actual.root_structural_type != root.structural_type {
                 return Err(psi_operation);
             }
-            match structural_shapes::project_static_path(
+            match structural_shapes::project_static_path_with_leaf_shape(
                 root.structural_type,
                 &semantic.path,
                 self.declarations,
+                leaf_shape,
             ) {
                 Ok((projected_type, byte_offset)) => {
                     if !matches_projected_carrier(actual, projected_type, self.declarations)
@@ -2166,11 +2194,14 @@ impl Replay<'_> {
             let (expected_length, expected_stride) =
                 structural_shapes::root_array_transport(root.structural_type, self.declarations)
                     .map_err(|_| psi_operation)?;
-            let Ok((projected_type, byte_offset)) = structural_shapes::project_static_path(
-                root.structural_type,
-                &semantic.path,
-                self.declarations,
-            ) else {
+            let Ok((projected_type, byte_offset)) =
+                structural_shapes::project_static_path_with_leaf_shape(
+                    root.structural_type,
+                    &semantic.path,
+                    self.declarations,
+                    leaf_shape,
+                )
+            else {
                 return Err(psi_operation);
             };
             if actual.root_structural_type != root.structural_type
@@ -2190,12 +2221,14 @@ impl Replay<'_> {
             // retained byte offset is the projection's static prefix and each
             // runtime segment's resolved operand and stride ride `indices`
             // with the verified selector verbatim on `path`.
-            let (projected_type, byte_offset, elements) = structural_shapes::project_runtime_path(
-                root.structural_type,
-                &semantic.path,
-                self.declarations,
-            )
-            .map_err(|_| psi_operation)?;
+            let (projected_type, byte_offset, elements) =
+                structural_shapes::project_runtime_path_with_leaf_shape(
+                    root.structural_type,
+                    &semantic.path,
+                    self.declarations,
+                    leaf_shape,
+                )
+                .map_err(|_| psi_operation)?;
             if actual.root_structural_type != root.structural_type
                 || actual.structural_type != projected_type
                 || actual.source_byte_offset != byte_offset
@@ -2276,9 +2309,12 @@ impl Replay<'_> {
                 return false;
             }
         }
-        let Ok((selected, offset)) =
-            structural_shapes::project_static_path(current, path, self.declarations)
-        else {
+        let Ok((selected, offset)) = structural_shapes::project_static_path_with_leaf_shape(
+            current,
+            path,
+            self.declarations,
+            call_leaf_shape(semantic, declared),
+        ) else {
             return false;
         };
         actual.root_structural_type == root.structural_type

@@ -27,7 +27,7 @@ pub(super) fn call_reference_custody(
 ) -> Result<AccessReferenceCustody, LoweringError> {
     let mut current = source_contract(function, live, argument.place)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    for segment in &argument.path {
+    for (position, segment) in argument.path.iter().enumerate() {
         current = match segment {
             StructuralPathSegment::Referent => {
                 let StructuralTypeShape::Reference { referent, .. } = types
@@ -41,6 +41,18 @@ pub(super) fn call_reference_custody(
             }
             StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => {
                 leaf_type(types, current, std::slice::from_ref(segment))
+                    .or_else(|| {
+                        (argument.access == StructuralAccess::SharedBorrow
+                            && position + 1 == argument.path.len())
+                        .then(|| {
+                            terminal_semantics::shared_primitive_projection_declaration(
+                                types.values().copied(),
+                                current,
+                                std::slice::from_ref(segment),
+                            )
+                        })
+                        .flatten()
+                    })
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?
             }
             _ => return Err(LoweringError::unsupported_control_flow(function.machine)),

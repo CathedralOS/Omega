@@ -76,7 +76,18 @@ pub(super) fn reference_referent_projection(
             return Err(LoweringError::UnsupportedStructuralReference(root));
         }
     }
-    resolve_structural_projection_path(root, path, declarations, &mut shapes, &mut active)
+    let (selected, shape, offset, indices) = runtime_borrowed_projection(
+        root,
+        path,
+        requested,
+        declarations,
+        &mut shapes,
+        &mut active,
+    )?;
+    if !indices.is_empty() {
+        return Err(LoweringError::UnsupportedStructuralReference(root));
+    }
+    Ok((selected, shape, offset))
 }
 
 /// Resolve a primitive address in path order. A reference declaration supplies
@@ -1210,6 +1221,31 @@ pub(super) fn runtime_leaf_copy_projection(
         cache,
         active,
         StructuralFieldType::leaf_copy_shape,
+    )
+}
+
+/// Borrowed call geometry retains the original field's physical storage.
+/// Shared observations may present its scalar carrier without transferring
+/// the field invariant; exclusive loans keep canonical writable endpoints.
+pub(super) fn runtime_borrowed_projection(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<RuntimeProjection, LoweringError> {
+    runtime_projection_with_leaf_shape(
+        structural_type,
+        path,
+        declarations,
+        cache,
+        active,
+        if access == StructuralAccess::SharedBorrow {
+            StructuralFieldType::shared_observation_shape
+        } else {
+            StructuralFieldType::canonical_leaf_shape
+        },
     )
 }
 

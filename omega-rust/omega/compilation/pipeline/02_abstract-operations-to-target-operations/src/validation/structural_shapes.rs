@@ -73,9 +73,25 @@ pub(super) fn internal_parameter_shape(
 }
 
 pub(super) fn project_static_path(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<(StructuralTypeId, u32), InvalidStructuralShape> {
+    project_static_path_with_leaf_shape(
+        structural_type,
+        path,
+        declarations,
+        StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+/// The endpoint policy does not change field storage, offsets or index geometry.
+/// Shared call observations select their carrier without creating an owned leaf.
+pub(super) fn project_static_path_with_leaf_shape(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Result<(StructuralTypeId, u32), InvalidStructuralShape> {
     let indexed = index_declarations(declarations)?;
     if !path.is_empty()
@@ -85,7 +101,7 @@ pub(super) fn project_static_path(
         )
     {
         let (endpoint, offset, elements) =
-            project_runtime_path(structural_type, path, declarations)?;
+            project_runtime_path_with_leaf_shape(structural_type, path, declarations, leaf_shape)?;
         return if elements.is_empty() {
             Ok((endpoint, offset))
         } else {
@@ -151,8 +167,14 @@ pub(super) fn project_static_path(
             structural_type = element;
             continue;
         }
-        let (field_type, _, field_offset) =
-            record_field_step(segment, structural_type, &indexed, &mut cache, &mut active)?;
+        let (field_type, _, field_offset) = record_field_step(
+            segment,
+            structural_type,
+            &indexed,
+            &mut cache,
+            &mut active,
+            leaf_shape,
+        )?;
         byte_offset = byte_offset
             .checked_add(field_offset)
             .ok_or(InvalidStructuralShape)?;
@@ -166,10 +188,11 @@ pub(super) fn project_static_path(
 /// `RuntimeIndex` segment instead contributes one `(selector, array extent,
 /// element stride)` element and continues inside the array's element. The
 /// selector's bound is its own verified obligation, never restated here.
-pub(super) fn project_runtime_path(
+pub(super) fn project_runtime_path_with_leaf_shape(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Result<
     (
         StructuralTypeId,
@@ -248,8 +271,12 @@ pub(super) fn project_runtime_path(
                 } else {
                     std::slice::from_ref(segment)
                 };
-                let (selected, run_offset) =
-                    project_static_path(structural_type, projection, declarations)?;
+                let (selected, run_offset) = project_static_path_with_leaf_shape(
+                    structural_type,
+                    projection,
+                    declarations,
+                    leaf_shape,
+                )?;
                 byte_offset = byte_offset
                     .checked_add(run_offset)
                     .ok_or(InvalidStructuralShape)?;
@@ -266,9 +293,24 @@ pub(super) fn project_runtime_path(
 /// catalog; the returned shape is not the catalog's normalized scalar shape,
 /// matching the producer's `resolve_structural_field_path` replay exactly.
 pub(super) fn projected_field(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<(StructuralTypeId, ValueShape, u32), InvalidStructuralShape> {
+    projected_field_with_leaf_shape(
+        structural_type,
+        path,
+        declarations,
+        StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+/// Retain the field's physical shape while resolving its observed carrier.
+pub(super) fn projected_field_with_leaf_shape(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), InvalidStructuralShape> {
     let indexed = index_declarations(declarations)?;
     let mut cache = BTreeMap::new();
@@ -276,8 +318,14 @@ pub(super) fn projected_field(
     let mut byte_offset = 0_u32;
     let mut selected_shape = None;
     for segment in path {
-        let (field_type, shape, field_offset) =
-            record_field_step(segment, structural_type, &indexed, &mut cache, &mut active)?;
+        let (field_type, shape, field_offset) = record_field_step(
+            segment,
+            structural_type,
+            &indexed,
+            &mut cache,
+            &mut active,
+            leaf_shape,
+        )?;
         byte_offset = byte_offset
             .checked_add(field_offset)
             .ok_or(InvalidStructuralShape)?;
@@ -1020,6 +1068,7 @@ fn record_field_step(
     indexed: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), InvalidStructuralShape> {
     let StructuralPathSegment::Field(identity) = segment else {
         return Err(InvalidStructuralShape);
@@ -1044,7 +1093,7 @@ fn record_field_step(
             let field_type = match &field.field_type {
                 StructuralFieldType::Structural(nested) => *nested,
                 leaf => {
-                    let shape = leaf.canonical_leaf_shape().ok_or(InvalidStructuralShape)?;
+                    let shape = leaf_shape(leaf).ok_or(InvalidStructuralShape)?;
                     *indexed
                         .iter()
                         .find(|(_, declaration)| declaration.shape == shape)

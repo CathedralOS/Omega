@@ -161,7 +161,13 @@ pub(super) fn call_reference_custody(
         }
         if !further_crossing {
             if origins.is_empty()
-                || leaf_type(types, referent, &argument.path[position + 1..]).is_none()
+                || crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
+                    referent,
+                    &argument.path[position + 1..],
+                    argument.access,
+                    types,
+                )
+                .is_none()
             {
                 return Err(invalid());
             }

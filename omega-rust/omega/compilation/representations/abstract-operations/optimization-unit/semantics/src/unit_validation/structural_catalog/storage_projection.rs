@@ -96,6 +96,27 @@ pub fn structural_storage_projection<'types>(
     }
 }
 
+/// A loan retains the same storage coordinate even when a restricted scalar
+/// field presents only its read carrier. This is correspondence geometry, not
+/// reference formation, liveness, or permission to write that field.
+pub fn structural_borrowed_storage_projection<'types>(
+    declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    access: terminal_psi::StructuralAccess,
+) -> Option<StructuralStorageProjection> {
+    if access == terminal_psi::StructuralAccess::SharedBorrow
+        && let Some(endpoint) = terminal_semantics::shared_primitive_projection_declaration(
+            declarations.clone(),
+            root,
+            path,
+        )
+    {
+        return Some(StructuralStorageProjection::Endpoint(endpoint));
+    }
+    structural_storage_projection(declarations, root, path)
+}
+
 /// The byte field a path ends at, including a selected case payload's field.
 /// A catalog declaration of the same carrier resolves first as an endpoint
 /// above, so one catalog spells each field storage once.

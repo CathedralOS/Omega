@@ -20,7 +20,10 @@ mod type_declarations;
 mod witnesses;
 
 pub use paths::structural_projection_type;
-pub use storage_projection::{StructuralStorageProjection, structural_storage_projection};
+pub use storage_projection::{
+    StructuralStorageProjection, structural_borrowed_storage_projection,
+    structural_storage_projection,
+};
 
 pub(crate) use function_catalog::{structural_root_key, validate_function_structural_catalog};
 pub(crate) use paths::{

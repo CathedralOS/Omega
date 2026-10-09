@@ -705,7 +705,12 @@ fn storage_projection(
     source: &StructuralArgument,
 ) -> Option<optimization_unit_semantics::StructuralStorageProjection> {
     let carrier = source_contract(function, custody, source.place)?;
-    optimization_unit_semantics::structural_storage_projection(types.iter(), carrier, &source.path)
+    optimization_unit_semantics::structural_borrowed_storage_projection(
+        types.iter(),
+        carrier,
+        &source.path,
+        source.access,
+    )
 }
 
 /// A `.., Referent` source names a suspended child of the located carrier

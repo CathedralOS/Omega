@@ -435,7 +435,18 @@ where
         if borrowed_owner_expected && !bounded_owner_presentation {
             return false;
         }
-        let actual_type = resolve_runtime_projection(types, source.structural_type, &argument.path);
+        let actual_type = if argument.access == terminal_psi::StructuralAccess::SharedBorrow
+            && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+        {
+            terminal_semantics::shared_primitive_projection_declaration(
+                types.values().copied(),
+                source.structural_type,
+                &argument.path,
+            )
+        } else {
+            None
+        }
+        .or_else(|| resolve_runtime_projection(types, source.structural_type, &argument.path));
         if actual_type.is_none()
             && !byte_field_presentation
             && !fixed_array_presentation

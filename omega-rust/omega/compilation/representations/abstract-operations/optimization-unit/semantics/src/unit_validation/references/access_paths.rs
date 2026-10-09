@@ -30,6 +30,15 @@ pub(crate) fn call_source_type(
         return None;
     }
     let (current, prefix_start) = access_referent_tail(function, types, source)?;
+    if source.access == terminal_psi::StructuralAccess::SharedBorrow
+        && let Some(endpoint) = terminal_semantics::shared_primitive_projection_declaration(
+            types.values().copied(),
+            current,
+            &source.path[prefix_start..],
+        )
+    {
+        return Some(endpoint);
+    }
     leaf_type(types, current, &source.path[prefix_start..])
 }
 

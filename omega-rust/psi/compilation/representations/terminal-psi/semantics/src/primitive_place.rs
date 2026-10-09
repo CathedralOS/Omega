@@ -119,7 +119,8 @@ pub fn primitive_projection_type<'a>(
     {
         return None;
     }
-    walk_primitive_projection(declarations, root, path, |_| {})?.primitive_scalar()
+    walk_primitive_projection(declarations, root, path, plain_scalar_field, |_| {})?
+        .primitive_scalar()
 }
 
 /// Rejoin a primitive storage endpoint to its unique declared carrier. Inline
@@ -132,6 +133,33 @@ pub fn primitive_projection_declaration<'a>(
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     let scalar = primitive_projection_type(declarations.clone(), root, path)?;
+    let mut matching = declarations
+        .filter(|declaration| declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar));
+    let declaration = matching.next()?;
+    matching.next().is_none().then_some(declaration.id)
+}
+
+/// The unique primitive carrier observed through a shared loan of original
+/// storage. Restricted fields keep their declaration-owned predicate and exact
+/// path; unlike a writable projection, their observed scalar needs no owned
+/// leaf type. Bounds, selected cases, reference access and loan custody remain
+/// independent obligations of the call. Atomic fields grant no such endpoint.
+pub fn shared_primitive_projection_declaration<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let scalar = walk_primitive_projection(
+        declarations.clone(),
+        root,
+        path,
+        |field| match field.shared_observation_shape()? {
+            StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+            _ => None,
+        },
+        |_| {},
+    )?
+    .primitive_scalar()?;
     let mut matching = declarations
         .filter(|declaration| declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar));
     let declaration = matching.next()?;
@@ -191,7 +219,7 @@ pub fn primitive_read_field<'a>(
         return None;
     }
     let ProjectionTip::Declared(record) =
-        walk_primitive_projection(declarations, root, carrier, |_| {})?
+        walk_primitive_projection(declarations, root, carrier, plain_scalar_field, |_| {})?
     else {
         return None;
     };
@@ -222,13 +250,15 @@ pub fn canonical_primitive_path<'a>(
         return None;
     }
     let mut canonical = Some(Vec::with_capacity(path.len()));
-    let tip = walk_primitive_projection(declarations, root, path, |step| {
-        match (step, &mut canonical) {
+    let tip =
+        walk_primitive_projection(declarations, root, path, plain_scalar_field, |step| match (
+            step,
+            &mut canonical,
+        ) {
             (Some(segment), Some(canonical)) => canonical.push(segment),
             (None, canonical) => *canonical = None,
             (Some(_), None) => {}
-        }
-    })?;
+        })?;
     if matches!(tip, ProjectionTip::ByteElement) {
         return None;
     }
@@ -250,12 +280,13 @@ pub fn canonical_static_projection<'a>(
 )> {
     let mut canonical = Some(Vec::with_capacity(path.len()));
     let ProjectionTip::Declared(tip) =
-        walk_primitive_projection(declarations, root, path, |step| {
-            match (step, &mut canonical) {
-                (Some(segment), Some(canonical)) => canonical.push(segment),
-                (None, canonical) => *canonical = None,
-                (Some(_), None) => {}
-            }
+        walk_primitive_projection(declarations, root, path, plain_scalar_field, |step| match (
+            step,
+            &mut canonical,
+        ) {
+            (Some(segment), Some(canonical)) => canonical.push(segment),
+            (None, canonical) => *canonical = None,
+            (Some(_), None) => {}
         })?
     else {
         return None;
@@ -272,7 +303,7 @@ pub fn runtime_structural_path_tip<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralTypeDeclaration> {
-    match walk_primitive_projection(declarations, root, path, |_| {})? {
+    match walk_primitive_projection(declarations, root, path, plain_scalar_field, |_| {})? {
         ProjectionTip::Declared(tip) => Some(tip),
         ProjectionTip::ScalarField(_) | ProjectionTip::ByteElement => None,
     }
@@ -353,6 +384,7 @@ fn walk_primitive_projection<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
+    scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
     mut step: impl FnMut(Option<CanonicalStructuralPathSegment>),
 ) -> Option<ProjectionTip<'a>> {
     enum Position {
@@ -415,7 +447,7 @@ fn walk_primitive_projection<'a>(
                         Some(carrier) => Position::Declared(
                             byte_carrier_field_declaration(declarations.clone(), carrier)?.id,
                         ),
-                        None => Position::ScalarField(plain_scalar_field(&field.field_type)?),
+                        None => Position::ScalarField(scalar_field(&field.field_type)?),
                     },
                 }
             }

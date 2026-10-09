@@ -101,6 +101,15 @@ value, and whatever the view's totality. Its shared and mutable loans and
 views keep the place observation: reads transport the field invariant and
 writes re-prove it.
 
+A shared scalar call argument keeps the same original owner and field path,
+with shared access and the formal's exact scalar carrier. Terminal, native
+lowering and independent call replay resolve this as a shared observation,
+not an owned bounded-integer type or a copied scalar home. The restriction
+stays with the field. A bare writable scalar formal cannot use this observation
+to erase the receiving field's invariant; atomic fields keep their distinct
+access protocol. Qualifiers, bounds, overlapping loans and reference crossings
+remain independently checked.
+
 A record-as-record view retains its source leaf at Terminal: stage 05 reads
 each view field at the same offset under the source's declaration
 (`recast_record_source_leaf`), which the identical-geometry judgment makes

@@ -218,9 +218,10 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
     // dominating scalar source — the same transport the leaf-copy sibling
     // already carries. A static path has no selectors.
     let (selected, offset, elements) =
-        crate::structural_inputs::structural_reference_input::runtime_projection(
+        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
             root,
             &argument.path,
+            argument.access,
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;

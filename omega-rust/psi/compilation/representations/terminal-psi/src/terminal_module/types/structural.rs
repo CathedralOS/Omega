@@ -400,6 +400,22 @@ impl StructuralFieldType {
         }
     }
 
+    /// The carrier a shared observation of the original field presents.
+    /// Restrictions stay on the owning field: this grants neither a standalone
+    /// owned leaf nor write access. Atomic fields retain their separate access
+    /// protocol and cannot supply an ordinary scalar loan.
+    pub fn shared_observation_shape(&self) -> Option<StructuralTypeShape> {
+        match self {
+            Self::BoundedInteger(integer) => Some(StructuralTypeShape::PrimitiveScalar(
+                ScalarType::Integer(integer.integer_type()),
+            )),
+            Self::RefinedScalar(refinement) => {
+                Some(StructuralTypeShape::PrimitiveScalar(refinement.carrier()))
+            }
+            _ => self.canonical_leaf_shape(),
+        }
+    }
+
     /// The shape an explicit `StructuralLeafCopy` of this field mints. It is
     /// `canonical_leaf_shape` plus explicit byte snapshots: copying a borrowed
     /// view yields its descriptor, while a bounded owner yields independent

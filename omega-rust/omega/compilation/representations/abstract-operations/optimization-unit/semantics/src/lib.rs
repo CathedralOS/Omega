@@ -34,7 +34,8 @@ pub use unit_validation::function_structure::{byte_field_root, declared_descript
 pub use unit_validation::references::unqualified_owned_reference_carrier;
 pub use unit_validation::structural_catalog::structural_projection_type;
 pub use unit_validation::structural_catalog::{
-    StructuralStorageProjection, structural_storage_projection,
+    StructuralStorageProjection, structural_borrowed_storage_projection,
+    structural_storage_projection,
 };
 
 /// Current declaration and producer authority for one structural place.

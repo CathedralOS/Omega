@@ -845,10 +845,11 @@ fn storage_projection(
     source: &StructuralArgument,
 ) -> Option<optimization_unit_semantics::StructuralStorageProjection> {
     let carrier = source_contract(function, live, source.place)?;
-    optimization_unit_semantics::structural_storage_projection(
+    optimization_unit_semantics::structural_borrowed_storage_projection(
         types.values().copied(),
         carrier,
         &source.path,
+        source.access,
     )
 }
 

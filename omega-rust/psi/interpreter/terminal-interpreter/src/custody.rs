@@ -1149,6 +1149,22 @@ pub(crate) fn project_structural_value(
     )
 }
 
+/// A shared loan observes the original restricted field without acquiring its
+/// owning declaration or writable storage authority. Its backing path and
+/// qualifications are selected by the same geometry as ordinary projections.
+pub(crate) fn project_shared_structural_observation(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    root: &TerminalStructuralValue,
+    path: &[StructuralPathSegment],
+) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+    project_structural_value_with_leaf(
+        structural_types,
+        root,
+        path,
+        terminal_psi::StructuralFieldType::shared_observation_shape,
+    )
+}
+
 /// A copy materializes an inline leaf's value carrier, while ordinary
 /// projections keep the storage presentation and its authority unchanged.
 pub(crate) fn project_structural_leaf_copy(

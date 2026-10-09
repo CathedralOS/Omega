@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.47, "load1_start": 2.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 3.45, "load1_start": 3.44, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -446,6 +446,7 @@ pass/recast/runtime_interior_slice_congruent_offset_exit built 1133ms exit:70 in
 pass/recast/runtime_interior_slice_view_mutable_write_exit built 1567ms exit:70 interpreter-exit:70 interpreter:agrees @c851c47b7cd1
 pass/recast/runtime_recast_record_view_indexed_write_exit built 2185ms exit:70 interpreter-exit:70 interpreter:agrees @3b624377ec31
 pass/recast/runtime_record_array_view_mutable_write_exit built 4386ms exit:70 interpreter-exit:70 interpreter:agrees @06ca7704be0a
+pass/recast/runtime_restricted_field_call_arguments_exit built 12061ms exit:0 interpreter-exit:0 interpreter:agrees @865f63ff771a+wt
 pass/recast/runtime_scalar_parameter_shared_views_exit built 1784ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/recast/runtime_shared_domain_weakening_recast_exit built 8105ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/recast/runtime_shared_parameter_view_calls_exit built 793ms exit:0 interpreter-exit:0 interpreter:agrees @cd7399e98041+wt

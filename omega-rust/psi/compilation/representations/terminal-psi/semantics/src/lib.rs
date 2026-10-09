@@ -89,7 +89,7 @@ pub use primitive_place::{
     byte_carrier_field_declaration, canonical_primitive_path, canonical_static_projection,
     fixed_array_place_shape, primitive_place_type, primitive_projection_declaration,
     primitive_projection_type, primitive_read_field, primitive_read_projection_type,
-    runtime_structural_path_tip,
+    runtime_structural_path_tip, shared_primitive_projection_declaration,
 };
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,

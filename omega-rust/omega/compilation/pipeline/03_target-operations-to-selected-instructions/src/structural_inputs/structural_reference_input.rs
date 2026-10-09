@@ -1677,7 +1677,7 @@ pub(crate) fn reference_projection(
     if descriptor_offsets.is_empty() {
         return None;
     }
-    let (selected, referent_offset) = project(root, path, declarations)?;
+    let (selected, referent_offset) = borrowed_projection(root, path, access, declarations)?;
     Some(ReferenceProjection {
         selected,
         descriptor_offsets,
@@ -1697,6 +1697,28 @@ pub(crate) fn project(
         declarations,
         StructuralFieldType::canonical_leaf_shape,
     )
+}
+
+/// Borrowing retains the original place and its restrictions. Only a shared
+/// endpoint may expose a restricted scalar's carrier for observation; writable
+/// and owned projections still require an ordinary canonical leaf.
+fn borrowed_projection(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    access: terminal_psi::StructuralAccess,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, u32)> {
+    project_with_leaf_shape(root, path, declarations, borrowed_leaf_shape(access))
+}
+
+fn borrowed_leaf_shape(
+    access: terminal_psi::StructuralAccess,
+) -> fn(&StructuralFieldType) -> Option<StructuralTypeShape> {
+    if access == terminal_psi::StructuralAccess::SharedBorrow {
+        StructuralFieldType::shared_observation_shape
+    } else {
+        StructuralFieldType::canonical_leaf_shape
+    }
 }
 
 /// Byte-carrier leaves resolve to the standalone declaration a leaf copy of
@@ -1916,6 +1938,18 @@ pub(crate) fn runtime_projection(
         declarations,
         StructuralFieldType::canonical_leaf_shape,
     )
+}
+
+/// Reconstruct a loan's exact storage geometry using its admitted access.
+/// Primitive observation changes only the endpoint declaration, not the root,
+/// field placement, selectors, qualifications, or authority held by the caller.
+pub(crate) fn runtime_borrowed_projection(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    access: terminal_psi::StructuralAccess,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
+    runtime_projection_with_leaf_shape(root, path, declarations, borrowed_leaf_shape(access))
 }
 
 /// The referent a declared `Reference` shape names, when `reference` resolves

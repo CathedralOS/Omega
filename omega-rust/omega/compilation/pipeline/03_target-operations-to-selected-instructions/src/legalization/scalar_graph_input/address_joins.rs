@@ -86,9 +86,10 @@ pub(in crate::legalization) fn call_argument(
         };
     }
     let (selected, offset, elements) =
-        crate::structural_inputs::structural_reference_input::runtime_projection(
+        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
             parameter.structural_type,
             &semantic.path,
+            semantic.access,
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;
