@@ -2,7 +2,9 @@
 //! not repeat arithmetic or select a provider. Trapping reads the raw result;
 //! saturation reads the reduced overflow eligibility, then that raw result.
 //! The output follows all inputs and may alias an input only after it is read.
-//! Source operand classification belongs to scalar selection, not ISA state.
+//! Source operand classification belongs to Psi, not ISA state. Payloads 2..5
+//! described the retired binary input/rule adapters; the reduced form receives
+//! new payloads 6 and 7 so old machine effects cannot change meaning on decode.
 
 use semantic_vocabulary::IeeeFloatFormat;
 
@@ -52,11 +54,12 @@ impl FloatResultPolicyForm {
         Self::FAMILY_TAG
     }
 
-    /// Policy-major order, binary32 before binary64. Existing ordinals never move.
+    /// Stable wire identity, binary32 before binary64. Retired identities stay
+    /// absent rather than describing the reduced operand contract.
     pub const fn ordinal(self) -> u8 {
         let policy = match self.policy {
             FloatResultPolicyKind::Trapping => 0,
-            FloatResultPolicyKind::Saturating => 1,
+            FloatResultPolicyKind::Saturating => 3,
         };
         policy * 2
             + match self.format {
@@ -70,10 +73,10 @@ impl FloatResultPolicyForm {
     }
 
     pub const fn from_machine_payload(payload: u8) -> Option<Self> {
-        if (payload as usize) < Self::COUNT {
-            Some(Self::ALL[payload as usize])
-        } else {
-            None
+        match payload {
+            0 | 1 => Some(Self::ALL[payload as usize]),
+            6 | 7 => Some(Self::ALL[payload as usize - 4]),
+            _ => None,
         }
     }
 
@@ -101,18 +104,18 @@ mod tests {
     #[test]
     fn float_result_policy_forms_have_closed_stable_payloads() {
         assert!(FloatResultPolicyForm::ALL.is_sorted());
-        for (ordinal, form) in FloatResultPolicyForm::ALL.into_iter().enumerate() {
-            assert_eq!(usize::from(form.machine_payload()), ordinal);
+        for (payload, form) in [0, 1, 6, 7].into_iter().zip(FloatResultPolicyForm::ALL) {
+            assert_eq!(form.machine_payload(), payload);
             assert_eq!(form.machine_tag(), 231);
             assert_eq!(
-                FloatResultPolicyForm::from_machine_payload(ordinal as u8),
+                FloatResultPolicyForm::from_machine_payload(payload),
                 Some(form)
             );
-            assert_eq!(form.is_binary32(), ordinal % 2 == 0);
-            assert_eq!(form.can_trap(), ordinal < 2);
-            assert_eq!(form.operand_count(), if ordinal < 2 { 1 } else { 2 });
+            assert_eq!(form.is_binary32(), payload % 2 == 0);
+            assert_eq!(form.can_trap(), payload < 2);
+            assert_eq!(form.operand_count(), if payload < 2 { 1 } else { 2 });
         }
-        for payload in 4..=u8::MAX {
+        for payload in (2..=5).chain(8..=u8::MAX) {
             assert_eq!(FloatResultPolicyForm::from_machine_payload(payload), None);
         }
     }
