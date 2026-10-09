@@ -994,7 +994,7 @@ impl TerminalAuthorityClosureReviewReceipt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminalAuthorityClosureReviewBuildError {
+pub(crate) enum TerminalAuthorityClosureReviewBuildError {
     EmptyRequirement,
     DuplicateRequirementLeaf,
     /// A receipt mixing a present permission-policy identity with

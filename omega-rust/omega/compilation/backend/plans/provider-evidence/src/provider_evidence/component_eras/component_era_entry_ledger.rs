@@ -1,7 +1,7 @@
 //! Entry, quiescence, publication and retirement of one component era, as receipts
 //! rather than state transitions.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentEraEntryReceipt {
+pub(crate) struct ComponentEraEntryReceipt {
     invocation_identity: u64,
     binding_contract_identity: String,
     entry_contract_identity: String,
@@ -10,14 +10,14 @@ pub struct ComponentEraEntryReceipt {
     entry_linearized: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentEraQuiescenceReceipt {
+pub(crate) struct ComponentEraQuiescenceReceipt {
     era_identity: u64,
     binding_contract_identity: String,
     residual_lifetime_cohort_holds: usize,
     all_dispositions_complete: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentEraRetirementReceipt {
+pub(crate) struct ComponentEraRetirementReceipt {
     retirement_identity: u64,
     era_identity: u64,
     binding_contract_identity: String,
@@ -25,7 +25,7 @@ pub struct ComponentEraRetirementReceipt {
 }
 /// The checkable judgment of a rejected entry replay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EraEntryRejection {
+pub(crate) enum EraEntryRejection {
     /// No era has published: there is no current record to bind.
     NoPublishedEra,
     /// The ledger's current era is absent from its own roster.
@@ -47,7 +47,7 @@ impl EraEntryRejection {
 }
 /// The checkable judgment of a rejected quiescence replay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EraQuiescenceRejection {
+pub(crate) enum EraQuiescenceRejection {
     /// The receipt's era is absent from the ledger's live roster.
     EraNotLive,
     /// The era is not a fully-drained Closing record, or the receipt
@@ -67,7 +67,7 @@ impl EraQuiescenceRejection {
 }
 /// The checkable judgment of a rejected retirement replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EraRetirementRejection {
+pub(crate) enum EraRetirementRejection {
     /// The receipt's era is absent from the ledger's live roster.
     EraNotLive,
     /// Program-local root epoch leases still pin the era.

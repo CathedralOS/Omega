@@ -43,7 +43,7 @@ pub(crate) fn seal_optimized_abstract_plan_projection(
 /// final unit is independently identified by its canonical content; the
 /// transformation ledger separately retains the accepted rewrite history.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ValidatedOptimizedAbstractPlanProjection {
+pub struct ValidatedOptimizedAbstractPlanProjection {
     psi: TerminalPsiIdentity,
     fuel_schedule: FuelScheduleIdentity,
     initial_unit: OptimizationUnitIdentity,

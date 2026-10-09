@@ -3,7 +3,7 @@
 use crate::provider_plan::ProviderPlanDigest;
 /// The execution scope whose known executable entries are being described.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutionScope {
+pub(crate) enum ExecutionScope {
     CallerAddressSpace,
     IsolatedProvider(u64),
 }
