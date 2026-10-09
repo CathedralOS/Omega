@@ -225,14 +225,6 @@ pub struct StructLiteralFieldSnapshot {
     pub value: ExpressionSnapshot,
 }
 
-fn reference_access_name(access: language_core::ReferenceAccess) -> &'static str {
-    match access {
-        language_core::ReferenceAccess::Shared => "shared",
-        language_core::ReferenceAccess::Mutable => "mutable",
-        language_core::ReferenceAccess::WriteOnly => "write_only",
-    }
-}
-
 pub(crate) fn snapshot_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     handle: crate::types::TypeReferenceHandle,
@@ -248,7 +240,7 @@ pub(crate) fn snapshot_type_reference_handle(
             lifetime,
         } => TypeReferenceSnapshot::Reference {
             referee: Box::new(snapshot_type_reference_handle(syntax_trees, *referee)),
-            access: reference_access_name(*access),
+            access: access.name(),
             lifetime: lifetime.as_ref().map(snapshot_identifier),
         },
         TypeReferenceNode::Constrained {
@@ -458,7 +450,7 @@ pub(crate) fn snapshot_expression_handle(
             case_variant: member.case_variant.as_ref().map(snapshot_identifier),
         },
         ExpressionNode::Borrow(value) => ExpressionSnapshot::Borrow {
-            access: reference_access_name(value.access),
+            access: value.access.name(),
             value: Box::new(snapshot_expression_handle(syntax_trees, value.target)),
         },
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {
