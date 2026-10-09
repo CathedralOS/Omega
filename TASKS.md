@@ -1201,6 +1201,13 @@ defines the complete product bar.
   TERMINAL-CONTENT-CLAIMS** (content transfer), **BORROWED-STORAGE-RESTORATION**
   (move-out/replace). No compiler-owned vector/Arena or recursive inline storage.
 
+  Before runtime qualification, `omega --check source/library/alloc/main.omg`
+  rejects six `Extent::Granted` call-result qualifications: exact invocation,
+  authorized route or consumed claims, and result correspondence remain
+  unproved. Complete the content-result join in stage 04's
+  `checks/content/{call_results,retained_custody}.rs`, then repeat package
+  preparation and `omega run --both` on the unchanged growth fixture.
+
   Acceptance: native `Vec<u32>` appends through two allocations, preserves the
   exact live prefix and new elements, and cleans up once with exact backing
   return or explicit retention; empty cleanup and real request failure (with

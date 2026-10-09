@@ -1955,6 +1955,13 @@ fail/proofs/proof_bignum_constant_false rejected 264ms expected @2d8ed253669f
 	machine `big_products_fold_wrong` ensures contract proof fact `false` is disproved by constant arithmetic
 fail/proofs/proof_integer_embedding_boolean rejected 188ms expected @2d8ed253669f
 	compiler-owned `embed(value)` accepts only a fixed-width integer or address value
+fail/proofs/proof_integer_embedding_denotational_operand_crash rejected 5559ms expected @30eb6513ae80+wt
+	`embed` source call `observed` is not denotational: the selected call closure has a crash route
+	specification call `magnitude` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
+	specification call `magnitude` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
+fail/proofs/proof_integer_embedding_denotational_operand_nontermination rejected 6198ms expected @30eb6513ae80+wt
+	specification call `magnitude` is not denotational: the selected machine is not unconditionally terminating
+	specification call `magnitude` is not denotational: the selected machine is not unconditionally terminating
 fail/proofs/proof_integer_embedding_runtime rejected 184ms expected @2d8ed253669f
 	compiler-owned `embed(value)` is proof-only and cannot be used in an executable value or statement
 fail/proofs/proof_integer_quotient_bound_false_twin rejected 250ms expected @2d8ed253669f
@@ -3864,6 +3871,7 @@ pass/proofs/proof_constant_arithmetic_identity checked 295ms @2d8ed253669f
 pass/proofs/proof_inductive_climbing_sum checked 295ms @2d8ed253669f
 pass/proofs/proof_inductive_gauss_sum checked 287ms @2d8ed253669f
 pass/proofs/proof_integer_embedding checked 290ms @2d8ed253669f
+pass/proofs/proof_integer_embedding_denotational_call checked 7208ms @30eb6513ae80+wt
 pass/proofs/proof_integer_quotient_remainder checked 305ms @2d8ed253669f
 pass/proofs/proof_linear_range_sum checked 353ms @2d8ed253669f
 pass/proofs/proof_multiplication_distributivity checked 302ms @2d8ed253669f

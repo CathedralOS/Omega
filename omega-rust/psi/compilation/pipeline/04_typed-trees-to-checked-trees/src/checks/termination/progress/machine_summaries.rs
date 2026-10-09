@@ -178,6 +178,19 @@ pub(crate) fn selected_call_summary<'a>(
     target_symbol: SymbolHandle,
     summaries: &'a [CheckedProgressSummary],
 ) -> Option<SelectedCallProgress<'a>> {
+    // Integer embedding is a compiler-owned proof value term. Its own
+    // formation gate checks the operand and forbids runtime occurrences;
+    // it has no authored machine whose progress summary could supply this
+    // meaning. The flow walk still checks every call in its operand, so this
+    // total leaf cannot conceal a nonterminating computation.
+    if program.symbols.builtin_function_for_symbol(target_symbol)
+        == Some(symbols::BuiltinFunction::IntegerEmbed)
+    {
+        return Some(SelectedCallProgress {
+            guarantee: &CLOSED_VALUE_TERMINATION,
+            build_bound_demands: &[],
+        });
+    }
     if let Some((_, signature)) = program.machine_parameter_signature(target_symbol) {
         return Some(SelectedCallProgress {
             guarantee: &signature.termination_guarantee,

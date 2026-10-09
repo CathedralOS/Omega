@@ -475,6 +475,15 @@ fn push_expression_call(
     call_ordinal: &mut usize,
     calls: &mut Vec<CallWork>,
 ) {
+    if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) {
+        // The proof-embedding owner validates this exact builtin's carrier
+        // and proof-only occurrence. It forms a value term, not an unresolved
+        // operational edge. Reserve its lexical coordinate so nested calls
+        // still join the borrow/semantic walk; the caller traverses every
+        // operand, so an effectful operand cannot disappear with the term.
+        *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
+        return;
+    }
     let named_operator = typed_trees::operator::resolve_named_expression_call(program, call);
     let target_operator_symbol = named_operator
         .map(|operator| operator.symbol)
