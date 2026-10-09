@@ -1,7 +1,7 @@
 //! Selected successors partition existing local obligations, not value storage.
 
 use super::super::{CheckedUnitStructuralResultBindingPlan, SymbolHandle};
-use super::{CheckedStructuralControlSuccessorPlan, Multiplicity, TypeReferenceNode};
+use super::{CheckedStructuralControlSuccessorPlan, Multiplicity};
 
 /// A state-exit receipt permits disposal only on successors that do not move
 /// this local. Keep the operation's global discard flag false: scalar edge
@@ -27,37 +27,18 @@ fn validate(
     let local = statements
         .get(result.statement_index as usize)?
         .as_local_data()?;
-    // Byte results and element views retain the structural identity their
-    // constructors and call signatures publish: a view without its loan
-    // shell, a bounded byte owner with its qualification. Other qualifications
-    // are separate obligations on the declared type's full spelling.
+    // Disposal rejoins the same stored carrier identity that establishment
+    // and shape collection publish. Policy and predicate qualifications keep
+    // their own checked obligations; they cannot change the storage identity
+    // used to select a local's disposition. The shared owner also preserves
+    // bounded byte owners, borrowed views, and stored reference descriptors.
     let expected_identity =
-        if super::super::types::byte_sequence_carrier(program, local.type_reference, &[]).is_some()
-            || super::super::types::borrowed_slice_view_element(program, local.type_reference, &[])
-                .is_some()
-        {
-            validation::structural_type_identity(program, local.type_reference, &[], &[])
-        } else {
-            program
-                .normalized_type_identity(local.type_reference)
-                .into_string()
-        };
-    // A reference-loaned result publishes its referent identity — the loan's
-    // access mode lives on the root, not the bound value — the same peel the
-    // shared-referee admission and call-result storage paths apply. An owned
-    // or view-carried binding keeps the declared type's full spelling.
-    let referent_identity = {
-        let mut cursor = local.type_reference;
-        loop {
-            match program.type_reference_table.type_reference(cursor) {
-                TypeReferenceNode::Constrained { base_type, .. } => cursor = *base_type,
-                TypeReferenceNode::Reference { referee, .. } => {
-                    break Some(program.normalized_type_identity(*referee).into_string());
-                }
-                _ => break None,
-            }
-        }
-    };
+        validation::stored_structural_type_identity(program, local.type_reference, &[], &[]);
+    // A reference-loaned result publishes the storage it lends rather than a
+    // stored descriptor. This is a genuine carrier distinction; use the same
+    // shell and referent identity owners as its establishment producer.
+    let referent_identity = validation::reference_shell(program, local.type_reference)
+        .map(|shell| validation::structural_type_identity(program, shell.referee, &[], &[]));
     // An affine reference/view binding is accounted for by its loan release,
     // not by owned-local disposal. Counting both would invent a second owner.
     // Unrestricted aliases still need the ordinary dominance permit below.
