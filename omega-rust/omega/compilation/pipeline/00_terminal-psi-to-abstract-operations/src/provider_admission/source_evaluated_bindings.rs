@@ -277,16 +277,12 @@ fn mint_source_evaluated_imports<'plan>(
 }
 
 fn fnv1a(parts: &[&[u8]]) -> u64 {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut fingerprint = semantic_vocabulary::Fnv1a::new();
     for part in parts {
-        for byte in *part {
-            hash ^= u64::from(*byte);
-            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-        hash ^= 0xff;
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        fingerprint.bytes(part);
+        fingerprint.byte(0xff);
     }
-    hash
+    fingerprint.finish()
 }
 
 fn nonzero(value: u64) -> u64 {
