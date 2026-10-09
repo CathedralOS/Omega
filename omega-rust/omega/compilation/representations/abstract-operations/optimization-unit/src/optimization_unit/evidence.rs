@@ -50,14 +50,8 @@ impl PsiValidatedCandidateDeclaration {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct OptimizationRunUsage {
-    pub rule_evaluations: u64,
-    pub candidates: u64,
-    pub validation_steps: u64,
-    pub commits: u64,
-    pub iterations: u64,
-}
+/// One pass's consumed work, shared with the manifest work-usage axis.
+pub type OptimizationRunUsage = optimization_core::OptimizationWorkUsage;
 
 /// The retained history needed to replay a published abstract program.
 /// Current program data is not recovered by walking this history.
