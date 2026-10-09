@@ -85,11 +85,11 @@ use selected_instructions::{
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use equivalent::{EquivalentCompareError, ValidatedEquivalentCompare};
+pub(crate) use equivalent::{EquivalentCompareError, ValidatedEquivalentCompare};
 pub(crate) use equivalent::{
     measured_steps as equivalent_compare_measured_steps, remove_equivalent_compare,
 };
-pub use redundant::{RedundantCompareError, ValidatedRedundantCompare};
+pub(crate) use redundant::{RedundantCompareError, ValidatedRedundantCompare};
 pub(crate) use redundant::{
     measured_steps as redundant_compare_measured_steps, remove_redundant_compare,
 };

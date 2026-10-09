@@ -13,7 +13,8 @@ mod error;
 mod facts;
 
 pub use error::MachineEffectStageError;
-pub use facts::{MachineEffectError, ValidatedPreAllocationMachineEffects};
+pub(crate) use facts::MachineEffectError;
+pub use facts::ValidatedPreAllocationMachineEffects;
 pub(crate) use facts::{
     analyze_pre_allocation_machine_effects, machine_alternative_is_transparent,
     machine_semantic_kind,

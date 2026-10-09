@@ -19,9 +19,9 @@ mod replay;
 mod validation;
 mod work;
 
-pub use error::FixedPrecoloredSegmentHomeError;
+pub(crate) use error::FixedPrecoloredSegmentHomeError;
 use register_homes::FixedPrecoloredSegmentHomePolicy;
-pub use validation::validate_fixed_precolored_segment_homes;
+pub(crate) use validation::validate_fixed_precolored_segment_homes;
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_homes::{
@@ -39,7 +39,7 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
 
 #[allow(clippy::too_many_arguments)]
-pub fn assign_fixed_precolored_segment_homes(
+pub(crate) fn assign_fixed_precolored_segment_homes(
     ranges: &crate::ValidatedLiveRanges,
     legality: &crate::ValidatedAllocationLegality,
     fixed: &crate::ValidatedFixedPrecoloredIntervals,

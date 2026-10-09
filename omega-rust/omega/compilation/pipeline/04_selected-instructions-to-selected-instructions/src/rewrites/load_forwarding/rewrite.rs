@@ -10,7 +10,7 @@ use crate::ValidatedSelectedAnalysis;
 /// drops exactly the load's read row; every other function, block,
 /// instruction, register, call, settlement, and access is retained, and
 /// replay independently confirms that.
-pub fn forward_selected_stored_load(
+pub(crate) fn forward_selected_stored_load(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     load: SelectedInstructionId,

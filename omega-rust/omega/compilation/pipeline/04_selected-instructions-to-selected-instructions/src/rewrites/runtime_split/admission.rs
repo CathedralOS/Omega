@@ -34,7 +34,8 @@ pub(super) fn admit(
         crate::rewrites::plan_function(source, function_index, environment, || {
             RuntimeSplitError::SourceMismatch
         })?;
-    let victim = function.virtual_register(register)
+    let victim = function
+        .virtual_register(register)
         .ok_or(RuntimeSplitError::UnsupportedValue)?;
     let VirtualRegisterOrigin::InstructionResult { source_value, .. } = victim.origin else {
         return Err(RuntimeSplitError::UnsupportedValue);

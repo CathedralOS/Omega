@@ -22,7 +22,7 @@ use target_operations_to_selected_instructions::{
 };
 use terminal_psi::TerminalPsiIdentity;
 
-pub fn stage_optimized_liveness(
+pub(crate) fn stage_optimized_liveness(
     selected: StagedOptimizedSelectedInstructions,
 ) -> Result<StagedOptimizedLiveness, OptimizedLivenessCustodyError> {
     let liveness = compute::compute_liveness(&selected)?;

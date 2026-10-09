@@ -9,7 +9,7 @@ use crate::{
 use super::custody::fixed_view_copy_custody_receipt;
 use super::{OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopyCustodyReceipt};
 
-pub fn validate_optimized_fixed_view_copy_custody(
+pub(crate) fn validate_optimized_fixed_view_copy_custody(
     source: &StagedOptimizedFixedPrecoloredSegmentHomes,
     copies: &ValidatedFixedViewCopies,
 ) -> Result<StagedOptimizedFixedViewCopyCustodyReceipt, OptimizedFixedViewCopyCustodyError> {

@@ -13,7 +13,7 @@ use crate::ValidatedSelectedAnalysis;
 /// target block shift one ordinal later. Every other function, block,
 /// instruction, register, call, and access is retained, and replay
 /// independently confirms that.
-pub fn sink_selected_store_mutation(
+pub(crate) fn sink_selected_store_mutation(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     store: SelectedInstructionId,

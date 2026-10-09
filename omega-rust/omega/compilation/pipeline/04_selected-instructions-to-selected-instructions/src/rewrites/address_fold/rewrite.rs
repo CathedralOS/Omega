@@ -11,7 +11,7 @@ use crate::ValidatedSelectedAnalysis;
 /// instruction observes the identical bytes at `base + combined`; every
 /// other function, block, instruction, register, call, settlement, and
 /// access is retained, and replay independently confirms that.
-pub fn fold_selected_address(
+pub(crate) fn fold_selected_address(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     access: SelectedInstructionId,

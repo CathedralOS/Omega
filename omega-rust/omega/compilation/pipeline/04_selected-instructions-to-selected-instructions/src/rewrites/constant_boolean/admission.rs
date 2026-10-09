@@ -125,7 +125,8 @@ pub(super) fn admit<'source>(
         return Err(ConstantBooleanError::UnsupportedInstruction);
     }
     let result: VirtualRegisterId = operand.virtual_register;
-    let result_register = function.virtual_register(result)
+    let result_register = function
+        .virtual_register(result)
         .ok_or(ConstantBooleanError::UnsupportedUse)?;
     let keys = environment.selected_keys();
     // The declared consumer's bound row must carry the same single-`Def`

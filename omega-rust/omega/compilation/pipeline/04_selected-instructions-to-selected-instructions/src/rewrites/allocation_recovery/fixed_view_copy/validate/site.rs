@@ -43,7 +43,8 @@ pub(super) fn replay_site_copies(
         if access != RegisterOperandAccess::Use || !seen.insert((instruction, operand)) {
             return Err(FixedViewCopyError::NonCanonicalCopies);
         }
-        let source = source_function.virtual_register(boundary.virtual_register)
+        let source = source_function
+            .virtual_register(boundary.virtual_register)
             .ok_or(FixedViewCopyError::UnsupportedSourceRegister {
                 function: function_index,
                 register: boundary.virtual_register.0,

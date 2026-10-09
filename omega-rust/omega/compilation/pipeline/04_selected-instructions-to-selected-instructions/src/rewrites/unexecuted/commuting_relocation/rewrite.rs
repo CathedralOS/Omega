@@ -27,7 +27,7 @@ use crate::rewrites::unexecuted::commuting_accesses as accesses;
 /// recorded accesses still appear in the order the program performs them;
 /// every other instruction, register, roster row, call, settlement, and
 /// edge is retained, and replay independently confirms that.
-pub fn relocate_selected_commuting_members(
+pub(crate) fn relocate_selected_commuting_members(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,

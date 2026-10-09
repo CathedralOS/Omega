@@ -4,7 +4,7 @@ use super::super::RegisterAllocationRuleTargetApplicability;
 use super::PreAllocationPolicy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PreAllocationRuleCatalogPayload {
+pub(crate) struct PreAllocationRuleCatalogPayload {
     target: RegisterAllocationRuleTargetApplicability,
     policy: PreAllocationPolicy,
 }
@@ -20,13 +20,13 @@ impl PreAllocationRuleCatalogPayload {
     }
 }
 
-pub type PreAllocationRuleCatalogEntry =
+pub(crate) type PreAllocationRuleCatalogEntry =
     OptimizationCatalogDescriptor<PreAllocationRuleCatalogPayload>;
 
 /// The single pre-allocation enable/order catalog. Descriptor order determines
 /// priority in the incremental candidate frontier, including newly enabled
 /// earlier families after a commit; it does not require whole-plan rediscovery.
-pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 10] = [
+pub(crate) const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 10] = [
     PreAllocationRuleCatalogEntry::new(
         Optimization::SelectedSameBlockCopyI64RemovalV1,
         PreAllocationRuleCatalogPayload {
@@ -100,7 +100,7 @@ pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 10] = [
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PreAllocationRuleCatalogError {
+pub(crate) enum PreAllocationRuleCatalogError {
     WrongPhase(OptimizationPhaseMismatch),
     MissingSelection,
     UnsupportedSelection(Optimization),

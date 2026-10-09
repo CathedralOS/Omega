@@ -14,7 +14,6 @@ use register_homes::{
     AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
 };
 use selected_instructions::LiveRangeIdentity;
-pub use validate::validate_allocation_legality;
 
 /// Derive exact per-point physical-view candidates and incompatible fixed-view
 /// transitions without assigning homes or inserting copies.

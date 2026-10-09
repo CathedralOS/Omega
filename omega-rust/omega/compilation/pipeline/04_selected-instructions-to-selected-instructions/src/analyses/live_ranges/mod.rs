@@ -14,7 +14,6 @@ use selected_instructions::{
     LiveRangeIdentity, LiveRangePlan, LivenessIdentity, SelectedInstructionPlanIdentity,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
-pub use validate::validate_live_ranges;
 
 /// Derive block-local live-range fragments and virtual-register interference
 /// from an exact selected CFG and validated liveness facts.
@@ -51,9 +50,10 @@ pub fn analyze_live_ranges_reusing(
 }
 
 mod staging;
-pub use staging::{
+pub use staging::StagedOptimizedLiveRanges;
+pub(crate) use staging::{
     OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt,
-    StagedOptimizedLiveRanges, stage_optimized_live_ranges,
+    stage_optimized_live_ranges,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

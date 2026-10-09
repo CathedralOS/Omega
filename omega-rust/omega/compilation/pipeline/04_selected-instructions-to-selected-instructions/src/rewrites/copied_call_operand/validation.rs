@@ -22,7 +22,7 @@ use crate::rewrites::sealed;
 /// whole-function consumer scan, the forward producer scan, the backward
 /// last-definition walk, and the interval audit — shared by admission,
 /// replay, and the executor's per-candidate budget accounting.
-pub fn copied_call_operand_measured_steps(
+pub(crate) fn copied_call_operand_measured_steps(
     plan: &SelectedInstructionPlan,
     function: &selected_instructions::SelectedFunction,
     block: &selected_instructions::SelectedBlock,

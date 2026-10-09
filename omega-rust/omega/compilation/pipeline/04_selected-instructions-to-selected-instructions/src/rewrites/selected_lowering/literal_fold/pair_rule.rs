@@ -114,7 +114,7 @@ use predicates::{
 /// channel instead of inferring it from operand counts; the independent
 /// validator re-derives the same distinction from the consumer kind and row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairResultDisposition {
+pub(crate) enum PairResultDisposition {
     /// The rewritten instruction writes one scalar `Def` operand; its
     /// constraint row declares no implicit unit definitions.
     ScalarRegister,
@@ -146,7 +146,7 @@ pub enum PairResultDisposition {
 /// the declaration; the validator re-derives the same requirements from
 /// its own matching so a descriptor mistake cannot self-certify.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PairUnitEffects {
+pub(crate) struct PairUnitEffects {
     /// Whether `fixed_view` pins may appear on the admitted consumer's
     /// operands.
     pub consumer_fixed_view: PairConsumerBindingAdmission,
@@ -159,7 +159,7 @@ pub struct PairUnitEffects {
 /// consumer's operand list — the axis `PairUnitEffects`'s
 /// `consumer_fixed_view` and `consumer_early_clobber` fields each carry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairConsumerBindingAdmission {
+pub(crate) enum PairConsumerBindingAdmission {
     /// The binding may not appear on any admitted-consumer operand: the
     /// rewrite rebuilds the operand list from the constraint row, so a
     /// binding there would be silently dropped.
@@ -183,7 +183,7 @@ impl PairUnitEffects {
     /// form implicitly reads or clobbers a unit — a flag-consuming
     /// arithmetic form, a scratch-clobbering realization — declares a new
     /// axis composition instead of weakening this one.
-    pub const ISOLATED: Self = Self {
+    pub(crate) const ISOLATED: Self = Self {
         consumer_fixed_view: PairConsumerBindingAdmission::Rejected,
         consumer_early_clobber: PairConsumerBindingAdmission::Rejected,
     };
@@ -198,7 +198,7 @@ impl PairUnitEffects {
     /// allocation freedom, and a dropped operand's pin dies with the
     /// operand. `tied_to` and `early_clobber` still reject — neither has a
     /// carried meaning once the operand list is rebuilt.
-    pub const BOUND_CONSUMER_OPERANDS: Self = Self {
+    pub(crate) const BOUND_CONSUMER_OPERANDS: Self = Self {
         consumer_fixed_view: PairConsumerBindingAdmission::DroppedWithOperandList,
         ..Self::ISOLATED
     };
@@ -215,7 +215,7 @@ impl PairUnitEffects {
     /// and gains strictly more allocation freedom. `tied_to` still rejects
     /// — a tie would silently lose the shared-home requirement a surviving
     /// operand might have observed.
-    pub const BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS: Self = Self {
+    pub(crate) const BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS: Self = Self {
         consumer_early_clobber: PairConsumerBindingAdmission::DroppedWithOperandList,
         ..Self::BOUND_CONSUMER_OPERANDS
     };
@@ -225,14 +225,14 @@ impl PairUnitEffects {
     /// channel and stay under `PairResultDisposition`. The requirement is
     /// the same under every axis composition: the rewritten row never
     /// carries unit traffic of its own.
-    pub fn admits_row_units(self, row: &RegisterInstructionConstraint) -> bool {
+    pub(crate) fn admits_row_units(self, row: &RegisterInstructionConstraint) -> bool {
         row.implicit_uses.is_empty() && row.clobbers.is_empty()
     }
 
     /// Whether one constraint-row operand carries no unit binding. The
     /// requirement is the same under every axis composition: the rewritten
     /// row's operands are rebuilt undecorated.
-    pub fn admits_operand(self, operand: &RegisterOperandConstraint) -> bool {
+    pub(crate) fn admits_operand(self, operand: &RegisterOperandConstraint) -> bool {
         operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
     }
 
@@ -245,7 +245,7 @@ impl PairUnitEffects {
     /// with the pinned form, an `early_clobber` mark under the
     /// `consumer_early_clobber` axis for the same reason — the hazard it
     /// names exists only inside the dropped operand list.
-    pub fn admits_consumer(self, consumer: &SelectedInstruction) -> bool {
+    pub(crate) fn admits_consumer(self, consumer: &SelectedInstruction) -> bool {
         let admits_fixed_view = matches!(
             self.consumer_fixed_view,
             PairConsumerBindingAdmission::DroppedWithOperandList
@@ -266,7 +266,7 @@ impl PairUnitEffects {
     /// that removing the instruction would silently drop. The requirement is
     /// the same under every axis composition: the eliminated instruction
     /// never survives in any form.
-    pub fn admits_producer(self, producer: &SelectedInstruction) -> bool {
+    pub(crate) fn admits_producer(self, producer: &SelectedInstruction) -> bool {
         producer.implicit_uses.is_empty()
             && producer.implicit_defs.is_empty()
             && producer.clobbers.is_empty()
@@ -301,7 +301,7 @@ impl PairUnitEffects {
 /// dimension; the validator re-derives the same requirements from its own
 /// matching so a descriptor mistake cannot self-certify.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PairMachineEffects {
+pub(crate) struct PairMachineEffects {
     /// The consumer↔rewritten non-unit declaration surface.
     pub non_unit: PairNonUnitSurface,
     /// Which surface discharges the consumer's encoded architectural
@@ -317,7 +317,7 @@ pub struct PairMachineEffects {
 /// cleanup — independent of the consumer's fault discharge and
 /// implicit-definition disposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairNonUnitSurface {
+pub(crate) enum PairNonUnitSurface {
     /// Both declarations are effect-isolated outside their unit surface:
     /// no memory access, no hosted trap, barrier, call, or cleanup
     /// behavior, and every encoded alternative falls through without
@@ -352,7 +352,7 @@ pub enum PairNonUnitSurface {
 /// How the consumer's encoded architectural fault — an alternative
 /// carrying `MayArchitecturalFaultV1` — is discharged across the fold.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairFaultDischarge {
+pub(crate) enum PairFaultDischarge {
     /// The consumer encodes no architectural fault: every alternative's
     /// trap behavior is `NeverV1`.
     Isolated,
@@ -402,7 +402,7 @@ pub enum PairFaultDischarge {
 /// What the rewrite does with the consumer's implicit unit
 /// *definitions*.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairUnitDefRelation {
+pub(crate) enum PairUnitDefRelation {
     /// Every unit the consumer defines stays defined by every rewritten
     /// alternative — a definition the rewritten form dropped would leave
     /// its readers observing a stale unit.
@@ -470,21 +470,21 @@ impl PairMachineEffects {
 
     /// The folded literal discharges every encoded fault; implicit
     /// definitions stay covered.
-    pub const FAULT_DISCHARGED_BY_LITERAL: Self = Self {
+    pub(crate) const FAULT_DISCHARGED_BY_LITERAL: Self = Self {
         fault: PairFaultDischarge::DischargedByLiteral,
         ..Self::ISOLATED
     };
 
     /// The consumer's carried obligation discharges every encoded
     /// fault; implicit definitions stay covered.
-    pub const FAULT_DISCHARGED_BY_OBLIGATION: Self = Self {
+    pub(crate) const FAULT_DISCHARGED_BY_OBLIGATION: Self = Self {
         fault: PairFaultDischarge::DischargedByObligation,
         ..Self::ISOLATED
     };
 
     /// The consumer's implicit unit definitions retire under the
     /// record-level deadness gate; no fault surface.
-    pub const DEAD_CONSUMER_UNIT_DEFS: Self = Self {
+    pub(crate) const DEAD_CONSUMER_UNIT_DEFS: Self = Self {
         unit_defs: PairUnitDefRelation::RetiredWhenDead,
         ..Self::ISOLATED
     };
@@ -492,7 +492,7 @@ impl PairMachineEffects {
     /// The saturating divide's composition: the folded literal
     /// discharges every encoded fault while the consumer's implicit
     /// unit definitions retire under the deadness gate.
-    pub const FAULT_DISCHARGED_BY_LITERAL_DEAD_UNIT_DEFS: Self = Self {
+    pub(crate) const FAULT_DISCHARGED_BY_LITERAL_DEAD_UNIT_DEFS: Self = Self {
         fault: PairFaultDischarge::DischargedByLiteral,
         unit_defs: PairUnitDefRelation::RetiredWhenDead,
         ..Self::ISOLATED
@@ -502,7 +502,7 @@ impl PairMachineEffects {
     /// consumer's carried obligation discharges every encoded fault
     /// while its implicit unit definitions retire under the deadness
     /// gate.
-    pub const FAULT_DISCHARGED_BY_OBLIGATION_DEAD_UNIT_DEFS: Self = Self {
+    pub(crate) const FAULT_DISCHARGED_BY_OBLIGATION_DEAD_UNIT_DEFS: Self = Self {
         fault: PairFaultDischarge::DischargedByObligation,
         unit_defs: PairUnitDefRelation::RetiredWhenDead,
         ..Self::ISOLATED
@@ -511,7 +511,7 @@ impl PairMachineEffects {
     /// The operand-swapped composition: implicit definitions stay
     /// covered while the record-level gate re-derives that every
     /// reachable reader is equality-sensing.
-    pub const OPERAND_SWAPPED_UNIT_DEFS: Self = Self {
+    pub(crate) const OPERAND_SWAPPED_UNIT_DEFS: Self = Self {
         unit_defs: PairUnitDefRelation::OperandSwapped,
         ..Self::ISOLATED
     };
@@ -588,7 +588,7 @@ impl PairMachineEffects {
     /// `SaturatingDivide` carries — must appear in the instruction's
     /// recorded proof custody, so an instruction record not retaining it
     /// cannot fold. Every other discharge needs no carried obligation.
-    pub fn admits_consumer_obligation(self, consumer: &SelectedInstruction) -> bool {
+    pub(crate) fn admits_consumer_obligation(self, consumer: &SelectedInstruction) -> bool {
         if self.fault != PairFaultDischarge::DischargedByObligation {
             return true;
         }
@@ -610,7 +610,7 @@ impl PairMachineEffects {
     /// function, so no reader observes a stale unit once the defining
     /// instruction disappears. Every other relation keeps the defined
     /// units on the rewritten form and needs no record-level gate.
-    pub fn admits_dead_consumer_defs(
+    pub(crate) fn admits_dead_consumer_defs(
         self,
         consumer: &SelectedInstruction,
         function: &SelectedFunction,
@@ -644,7 +644,7 @@ impl PairMachineEffects {
     /// the surviving `v - v` are the identical comparison — so no reader
     /// can observe the rewrite and the audit does not apply. Every other
     /// relation keeps the operand order and needs no flow gate.
-    pub fn admits_swapped_condition_defs(
+    pub(crate) fn admits_swapped_condition_defs(
         self,
         consumer: &SelectedInstruction,
         function: &SelectedFunction,
@@ -683,7 +683,7 @@ impl PairMachineEffects {
     /// all read memory through a pointer operand and byte offset, fall
     /// through, leave the stack unchanged, and declare no implicit uses
     /// or clobbers.
-    pub fn admits_rewritten(self, declaration: &MachineEffectDeclaration) -> bool {
+    pub(crate) fn admits_rewritten(self, declaration: &MachineEffectDeclaration) -> bool {
         match self.non_unit {
             PairNonUnitSurface::Isolated => {
                 isolated_declaration(declaration)
@@ -760,7 +760,7 @@ impl PairUnitDefRelation {
 /// from operand counts; the independent validator re-derives the same
 /// distinction from the consumer kind alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PairOperandShape {
+pub(crate) struct PairOperandShape {
     /// Which `Use` operand of the consumer is the folded literal, and
     /// which operand — if any — survives the fold.
     pub position: PairLiteralPosition,
@@ -777,7 +777,7 @@ pub struct PairOperandShape {
 /// The position fixes the victim index every gate shares — the compute
 /// leg reads it directly rather than re-deriving it per grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairLiteralPosition {
+pub(crate) enum PairLiteralPosition {
     /// Binary consumer: the literal victim is the right `Use` operand
     /// (operand index 1); operand 0 is the other register input.
     RightOperand,
@@ -809,7 +809,7 @@ pub enum PairLiteralPosition {
 /// non-victim operands — the axis that decides which inputs the fold
 /// still observes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairOperandResult {
+pub(crate) enum PairOperandResult {
     /// The non-victim `Use` operand survives into the rewritten row and
     /// produces the result: the immediate-form binary arithmetic and
     /// compare grammars.
@@ -848,7 +848,7 @@ pub enum PairOperandResult {
 /// result — every operand the fold drops must be inert under one of
 /// these custodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairTailCustody {
+pub(crate) enum PairTailCustody {
     /// The operand list ends at the result; the fold drops nothing.
     Bare,
     /// Every operand past the result is a `Use` the fold drops under
@@ -885,7 +885,7 @@ impl PairOperandShape {
     /// (operand index 1) and the left `Use` operand survives into the
     /// rewritten instruction — the immediate-form binary arithmetic and
     /// compare rules.
-    pub const BINARY_RIGHT_LITERAL: Self = Self {
+    pub(crate) const BINARY_RIGHT_LITERAL: Self = Self {
         position: PairLiteralPosition::RightOperand,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::Bare,
@@ -902,7 +902,7 @@ impl PairOperandShape {
     /// the byte-view projection's modular address addition commute;
     /// subtraction and comparison fix the literal's role, so
     /// only those families declare a left-literal pair.
-    pub const BINARY_LEFT_LITERAL: Self = Self {
+    pub(crate) const BINARY_LEFT_LITERAL: Self = Self {
         position: PairLiteralPosition::LeftOperand,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::Bare,
@@ -922,7 +922,7 @@ impl PairOperandShape {
     /// condition state may declare it — a scalar `Def` result would carry
     /// the inverted subtraction to every register reader with no audit
     /// to refuse it.
-    pub const BINARY_LEFT_LITERAL_OPERAND_SWAP: Self = Self {
+    pub(crate) const BINARY_LEFT_LITERAL_OPERAND_SWAP: Self = Self {
         position: PairLiteralPosition::LeftOperand,
         result_kind: PairOperandResult::SwappedOperand,
         tail: PairTailCustody::Bare,
@@ -932,7 +932,7 @@ impl PairOperandShape {
     /// fold recomputes the consumer's constant output directly, as in the
     /// extension-elimination and copy-materialization rules whose rewritten
     /// form is a `MaterializeI64`.
-    pub const UNARY_LITERAL: Self = Self {
+    pub(crate) const UNARY_LITERAL: Self = Self {
         position: PairLiteralPosition::SoleOperand,
         result_kind: PairOperandResult::LiteralRecompute,
         tail: PairTailCustody::Bare,
@@ -948,7 +948,7 @@ impl PairOperandShape {
     /// realization requires, which a divide by one leaves dead. An operand
     /// that is not a dropped `Use` — a `Def`, or any operand at position 0
     /// through 2 outside this grammar — rejects.
-    pub const BINARY_RIGHT_LITERAL_AUXILIARY_USES: Self = Self {
+    pub(crate) const BINARY_RIGHT_LITERAL_AUXILIARY_USES: Self = Self {
         position: PairLiteralPosition::RightOperand,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::AuxiliaryUses,
@@ -966,7 +966,7 @@ impl PairOperandShape {
     /// operand that is not in its declared position and access — a `Use`
     /// past the result, or any operand at positions 0 through 2 outside
     /// this grammar — rejects.
-    pub const BINARY_RIGHT_LITERAL_CONSTANT_RESULT: Self = Self {
+    pub(crate) const BINARY_RIGHT_LITERAL_CONSTANT_RESULT: Self = Self {
         position: PairLiteralPosition::RightOperand,
         result_kind: PairOperandResult::ConstantOfLiteral,
         tail: PairTailCustody::ScratchDefs,
@@ -989,7 +989,7 @@ impl PairOperandShape {
     /// not in its declared position and access — a `Use` past the result,
     /// or any operand at positions 0 through 2 outside this grammar —
     /// rejects.
-    pub const BINARY_LEFT_LITERAL_CONSTANT_RESULT: Self = Self {
+    pub(crate) const BINARY_LEFT_LITERAL_CONSTANT_RESULT: Self = Self {
         position: PairLiteralPosition::LeftOperand,
         result_kind: PairOperandResult::ConstantOfLiteral,
         tail: PairTailCustody::ScratchDefs,
@@ -1013,7 +1013,7 @@ impl PairOperandShape {
     /// is not in its declared position and access — a `Def` past the
     /// result, or any operand at positions 0 through 2 outside this
     /// grammar — rejects.
-    pub const BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES: Self = Self {
+    pub(crate) const BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES: Self = Self {
         position: PairLiteralPosition::LeftOperand,
         result_kind: PairOperandResult::ConstantOfLiteral,
         tail: PairTailCustody::AuxiliaryUses,
@@ -1034,7 +1034,7 @@ impl PairOperandShape {
     /// operand that is not in its declared position and access — a `Use`
     /// past the result, or any operand at positions 0 through 2 outside
     /// this grammar — rejects.
-    pub const BINARY_RIGHT_LITERAL_SCRATCH_DEFS: Self = Self {
+    pub(crate) const BINARY_RIGHT_LITERAL_SCRATCH_DEFS: Self = Self {
         position: PairLiteralPosition::RightOperand,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::ScratchDefs,
@@ -1054,7 +1054,7 @@ impl PairOperandShape {
     /// it. An operand that is not in its declared position and access — a
     /// `Use` past the result, or any operand at positions 0 through 2
     /// outside this grammar — rejects.
-    pub const BINARY_LEFT_LITERAL_SCRATCH_DEFS: Self = Self {
+    pub(crate) const BINARY_LEFT_LITERAL_SCRATCH_DEFS: Self = Self {
         position: PairLiteralPosition::LeftOperand,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::ScratchDefs,
@@ -1078,7 +1078,7 @@ impl PairOperandShape {
     /// materializations, a `Def` occurring anywhere else in the function,
     /// or any operand at positions 0 through 2 outside this grammar
     /// rejects.
-    pub const BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS: Self = Self {
+    pub(crate) const BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS: Self = Self {
         position: PairLiteralPosition::RightOperand,
         result_kind: PairOperandResult::SurvivingOperand,
         tail: PairTailCustody::AuxiliaryUsesOrScratchDefs,
@@ -1103,16 +1103,17 @@ impl PairOperandShape {
     /// materializations, a `Def` occurring anywhere else in the function,
     /// or any operand at positions 0 through 2 outside this grammar
     /// rejects.
-    pub const BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS: Self = Self {
-        position: PairLiteralPosition::LeftOperand,
-        result_kind: PairOperandResult::ConstantOfLiteral,
-        tail: PairTailCustody::AuxiliaryUsesOrScratchDefs,
-    };
+    pub(crate) const BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS: Self =
+        Self {
+            position: PairLiteralPosition::LeftOperand,
+            result_kind: PairOperandResult::ConstantOfLiteral,
+            tail: PairTailCustody::AuxiliaryUsesOrScratchDefs,
+        };
 }
 
 /// The literal values a pair's fold admits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairImmediateBound {
+pub(crate) enum PairImmediateBound {
     /// Any unsigned literal up to the encoding limit the rewritten form's
     /// immediate field admits — the folded value only needs to fit.
     Encoding(u64),
@@ -1134,7 +1135,7 @@ pub enum PairImmediateBound {
 /// unit-effect surface, machine-effect surface, and consumer operand grammar
 /// of one lowering rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectedInstructionPairRule {
+pub(crate) struct SelectedInstructionPairRule {
     producer: MachineSemanticKind,
     consumer: MachineSemanticKind,
     rewritten: MachineSemanticKind,
@@ -1213,7 +1214,7 @@ impl SelectedInstructionPairRule {
     /// zero-producing families and the carrier maximum for the unsigned
     /// saturating-add upper-bound fold. The result is the recorded
     /// `immediate` in [`crate::LiteralFoldAction`].
-    pub fn fold_immediate(self, literal: u64) -> Option<u64> {
+    pub(crate) fn fold_immediate(self, literal: u64) -> Option<u64> {
         Some(match self.operand_shape.result_kind {
             // Surviving-operand and operand-swapped grammars embed the
             // literal itself.
@@ -1250,16 +1251,16 @@ impl SelectedInstructionPairRule {
         })
     }
 
-    pub fn matches_producer(self, kind: SelectedInstructionKind) -> bool {
+    pub(crate) fn matches_producer(self, kind: SelectedInstructionKind) -> bool {
         machine_semantic_kind(kind) == self.producer
     }
 
-    pub fn matches_consumer(self, kind: SelectedInstructionKind) -> bool {
+    pub(crate) fn matches_consumer(self, kind: SelectedInstructionKind) -> bool {
         machine_semantic_kind(kind) == self.consumer
     }
 
     /// The constraint-catalog key of this rule's rewritten instruction form.
-    pub fn immediate_constraint_key(
+    pub(crate) fn immediate_constraint_key(
         self,
         keys: &TargetRegisterEnvironmentConstraintKeys,
     ) -> Option<RegisterConstraintKey> {
@@ -1283,7 +1284,7 @@ impl SelectedInstructionPairRule {
     /// the consumer's `Def` operand when it has one; the materialization
     /// folds require it so the materialized constant sign-matches and is
     /// admitted by the result register's declared integer type.
-    pub fn rewrite_consumer(
+    pub(crate) fn rewrite_consumer(
         self,
         kind: SelectedInstructionKind,
         immediate: u64,

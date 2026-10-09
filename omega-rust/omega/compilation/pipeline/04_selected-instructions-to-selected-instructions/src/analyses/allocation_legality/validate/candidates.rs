@@ -104,8 +104,7 @@ fn derive(
         .iter()
         .filter(|view_id| available.binary_search(view_id).is_ok())
         .filter_map(|view_id| {
-            let view = physical
-                .model().view(*view_id)?;
+            let view = physical.model().view(*view_id)?;
             (view.allocatable
                 && view
                     .units

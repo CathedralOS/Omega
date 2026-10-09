@@ -18,10 +18,8 @@ mod receipt;
 use identity::encode_terminal_literal_fold_content;
 pub(crate) use identity::literal_fold_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-pub use pair_rule::{
-    PairConsumerBindingAdmission, PairFaultDischarge, PairImmediateBound, PairLiteralPosition,
-    PairMachineEffects, PairNonUnitSurface, PairOperandResult, PairOperandShape,
-    PairResultDisposition, PairTailCustody, PairUnitDefRelation, PairUnitEffects,
+pub(crate) use pair_rule::{
+    PairLiteralPosition, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
     SelectedInstructionPairRule,
 };
 use register_homes::{
@@ -251,31 +249,31 @@ impl LiteralFoldPolicy {
         | Self::WRAPPING_REMAINDER_MINUS_ONE_BIT
         | Self::SATURATING_SUBTRACT_UPPER_BOUND_BIT;
 
-    pub const EXACT_ADD_V1: Self = Self {
+    pub(crate) const EXACT_ADD_V1: Self = Self {
         enabled_rules: Self::EXACT_ADD_BIT,
     };
-    pub const EXACT_SUBTRACT_V1: Self = Self {
+    pub(crate) const EXACT_SUBTRACT_V1: Self = Self {
         enabled_rules: Self::EXACT_SUBTRACT_BIT,
     };
-    pub const COMPARE_V1: Self = Self {
+    pub(crate) const COMPARE_V1: Self = Self {
         enabled_rules: Self::COMPARE_BIT,
     };
     /// Exact unary extension elimination: fold a materialized incoming literal
     /// through its sole `ZeroExtend`/`SignExtend` consumer into a direct
     /// `MaterializeI64` of the extension's exact output bits.
-    pub const EXTENSION_V1: Self = Self {
+    pub(crate) const EXTENSION_V1: Self = Self {
         enabled_rules: Self::EXTENSION_BIT,
     };
     /// Indexed byte-load offset materialization: fold a materialized incoming
     /// literal through its sole `Load8Indexed` consumer into the direct-offset
     /// `Load8` form the literal names.
-    pub const LOAD8_INDEXED_V1: Self = Self {
+    pub(crate) const LOAD8_INDEXED_V1: Self = Self {
         enabled_rules: Self::LOAD8_INDEXED_BIT,
     };
     /// Copy-constant materialization: fold a materialized incoming literal
     /// through its sole `CopyI64` consumer into a direct `MaterializeI64` of
     /// the literal at the copy's destination register.
-    pub const COPY_V1: Self = Self {
+    pub(crate) const COPY_V1: Self = Self {
         enabled_rules: Self::COPY_BIT,
     };
     /// Address-mode folding: fold a materialized incoming literal through its
@@ -286,14 +284,14 @@ impl LiteralFoldPolicy {
     /// operand-1 offset literal and the operand-0 backing literal both
     /// rewrite into the same `AddressOffset` row, and the folded literal's
     /// operand position names which grammar the fold belongs to.
-    pub const BYTE_VIEW_ADDRESS_V1: Self = Self {
+    pub(crate) const BYTE_VIEW_ADDRESS_V1: Self = Self {
         enabled_rules: Self::BYTE_VIEW_ADDRESS_BIT,
     };
     /// Exact-division identity: fold a materialized literal `1` feeding its
     /// sole `ExactDivideU64` consumer's divisor operand into a `CopyI64` of
     /// the dividend — a divide by one is the dividend itself, so the
     /// consumer's encoded fault surface is discharged by the literal.
-    pub const EXACT_DIVIDE_V1: Self = Self {
+    pub(crate) const EXACT_DIVIDE_V1: Self = Self {
         enabled_rules: Self::EXACT_DIVIDE_BIT,
     };
     /// Wrapping-remainder constant fold: fold a materialized literal `1`
@@ -301,7 +299,7 @@ impl LiteralFoldPolicy {
     /// into a `MaterializeI64` of zero at the result register — a remainder
     /// by one is always zero, so the consumer's encoded fault surface is
     /// discharged by the literal and its scratch `Def` outputs drop dead.
-    pub const WRAPPING_REMAINDER_V1: Self = Self {
+    pub(crate) const WRAPPING_REMAINDER_V1: Self = Self {
         enabled_rules: Self::WRAPPING_REMAINDER_BIT,
     };
     /// Bitwise-and annihilator fold: fold a materialized literal `0`
@@ -309,7 +307,7 @@ impl LiteralFoldPolicy {
     /// into a `MaterializeI64` of zero at the result register — zero is
     /// the bitwise-and annihilator, so the constant result never reads
     /// the surviving-side `Use` the fold drops.
-    pub const BITWISE_AND_ZERO_V1: Self = Self {
+    pub(crate) const BITWISE_AND_ZERO_V1: Self = Self {
         enabled_rules: Self::BITWISE_AND_ZERO_BIT,
     };
     /// Bitwise-xor identity fold: fold a materialized literal `0` feeding
@@ -317,7 +315,7 @@ impl LiteralFoldPolicy {
     /// `CopyI64` of the other `Use` — zero is the bitwise-xor identity
     /// element, so `x ^ 0` and `0 ^ x` are both `x` and the surviving
     /// operand's register moves to the result unchanged.
-    pub const BITWISE_XOR_ZERO_V1: Self = Self {
+    pub(crate) const BITWISE_XOR_ZERO_V1: Self = Self {
         enabled_rules: Self::BITWISE_XOR_ZERO_BIT,
     };
     /// Wrapping-add identity fold: fold a materialized literal `0` feeding
@@ -327,7 +325,7 @@ impl LiteralFoldPolicy {
     /// surviving operand's register moves to the result unchanged. The
     /// wrapping-add consumer binds the flag-transparent add row, so the
     /// fold carries no flag clobber to retire.
-    pub const WRAPPING_ADD_ZERO_V1: Self = Self {
+    pub(crate) const WRAPPING_ADD_ZERO_V1: Self = Self {
         enabled_rules: Self::WRAPPING_ADD_ZERO_BIT,
     };
     /// Bitwise-and identity fold: fold a materialized all-ones literal
@@ -339,7 +337,7 @@ impl LiteralFoldPolicy {
     /// annihilator family on the literal's value: the producer selects
     /// between the two `BitwiseAndI64` families by which exact literal the
     /// enabled rules admit.
-    pub const BITWISE_AND_ONES_V1: Self = Self {
+    pub(crate) const BITWISE_AND_ONES_V1: Self = Self {
         enabled_rules: Self::BITWISE_AND_ONES_BIT,
     };
     /// Wrapping-remainder zero-dividend fold: fold a materialized literal
@@ -356,7 +354,7 @@ impl LiteralFoldPolicy {
     /// operand position: the producer selects between the two
     /// `WrappingRemainderI64` families by which position the recorded
     /// future use names.
-    pub const WRAPPING_REMAINDER_ZERO_V1: Self = Self {
+    pub(crate) const WRAPPING_REMAINDER_ZERO_V1: Self = Self {
         enabled_rules: Self::WRAPPING_REMAINDER_ZERO_BIT,
     };
     /// Exact-divide zero-dividend fold: fold a materialized literal `0`
@@ -374,7 +372,7 @@ impl LiteralFoldPolicy {
     /// operand position: the producer selects between the two
     /// `ExactDivideU64` families by which position the recorded future
     /// use names.
-    pub const EXACT_DIVIDE_ZERO_V1: Self = Self {
+    pub(crate) const EXACT_DIVIDE_ZERO_V1: Self = Self {
         enabled_rules: Self::EXACT_DIVIDE_ZERO_BIT,
     };
     /// Saturating-add identity fold: fold a materialized literal `0`
@@ -394,7 +392,7 @@ impl LiteralFoldPolicy {
     /// scratch `Def` the fold drops under occurrence-free custody — a
     /// scratch output another instruction read or defined would leave a
     /// use of a register the rewrite stopped defining.
-    pub const SATURATING_ADD_ZERO_V1: Self = Self {
+    pub(crate) const SATURATING_ADD_ZERO_V1: Self = Self {
         enabled_rules: Self::SATURATING_ADD_ZERO_BIT,
     };
     /// Saturating-subtract identity fold: fold a materialized literal `0`
@@ -420,7 +418,7 @@ impl LiteralFoldPolicy {
     /// occurrence-free custody — a scratch output another instruction
     /// read or defined would leave a use of a register the rewrite
     /// stopped defining.
-    pub const SATURATING_SUBTRACT_ZERO_V1: Self = Self {
+    pub(crate) const SATURATING_SUBTRACT_ZERO_V1: Self = Self {
         enabled_rules: Self::SATURATING_SUBTRACT_ZERO_BIT,
     };
     /// Saturating-divide identity fold: fold a materialized literal `1`
@@ -444,7 +442,7 @@ impl LiteralFoldPolicy {
     /// materializations, and a `Def` — the bound scratch an aarch64
     /// signed row writes — drops only when its register occurs nowhere
     /// else in the function.
-    pub const SATURATING_DIVIDE_ONE_V1: Self = Self {
+    pub(crate) const SATURATING_DIVIDE_ONE_V1: Self = Self {
         enabled_rules: Self::SATURATING_DIVIDE_ONE_BIT,
     };
     /// Saturating-divide zero-dividend fold: fold a materialized literal
@@ -468,7 +466,7 @@ impl LiteralFoldPolicy {
     /// the folded literal's operand position: the producer selects
     /// between the two `SaturatingDivide` families by which position the
     /// recorded future use names.
-    pub const SATURATING_DIVIDE_ZERO_V1: Self = Self {
+    pub(crate) const SATURATING_DIVIDE_ZERO_V1: Self = Self {
         enabled_rules: Self::SATURATING_DIVIDE_ZERO_BIT,
     };
     /// Saturating-subtract zero-minuend fold: fold a materialized literal
@@ -490,7 +488,7 @@ impl LiteralFoldPolicy {
     /// operand position: the producer selects between the two
     /// `SaturatingSubtract` families by which position the recorded
     /// future use names.
-    pub const SATURATING_SUBTRACT_ZERO_MINUEND_V1: Self = Self {
+    pub(crate) const SATURATING_SUBTRACT_ZERO_MINUEND_V1: Self = Self {
         enabled_rules: Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT,
     };
     /// Saturating-add upper-bound fold: fold a materialized literal equal
@@ -514,7 +512,7 @@ impl LiteralFoldPolicy {
     /// with the zero-identity fold: the literal's value names which
     /// family a `SaturatingAdd` fold belongs to, and admission requires
     /// exactly one enabled pair to admit the recorded immediate.
-    pub const SATURATING_ADD_UPPER_BOUND_V1: Self = Self {
+    pub(crate) const SATURATING_ADD_UPPER_BOUND_V1: Self = Self {
         enabled_rules: Self::SATURATING_ADD_UPPER_BOUND_BIT,
     };
     /// Wrapping-remainder minus-one fold: fold a materialized literal
@@ -534,7 +532,7 @@ impl LiteralFoldPolicy {
     /// position: the producer selects between the two
     /// `WrappingRemainderI64` divisor families by which exact literal
     /// the enabled rules admit.
-    pub const WRAPPING_REMAINDER_MINUS_ONE_V1: Self = Self {
+    pub(crate) const WRAPPING_REMAINDER_MINUS_ONE_V1: Self = Self {
         enabled_rules: Self::WRAPPING_REMAINDER_MINUS_ONE_BIT,
     };
     /// Saturating-subtract upper-bound subtrahend fold: fold a
@@ -560,7 +558,7 @@ impl LiteralFoldPolicy {
     /// stays position-disjoint from the unsigned zero-minuend family at
     /// operand 0 — `MAX -| x` is `MAX - x`, not a constant, so the
     /// family declares no left-literal pair.
-    pub const SATURATING_SUBTRACT_UPPER_BOUND_V1: Self = Self {
+    pub(crate) const SATURATING_SUBTRACT_UPPER_BOUND_V1: Self = Self {
         enabled_rules: Self::SATURATING_SUBTRACT_UPPER_BOUND_BIT,
     };
 

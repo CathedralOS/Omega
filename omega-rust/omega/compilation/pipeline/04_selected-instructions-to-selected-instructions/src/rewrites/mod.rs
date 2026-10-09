@@ -107,50 +107,50 @@ pub mod test_support;
 pub mod unexecuted;
 mod window_hazards;
 
-pub use address_fold::{AddressFoldError, ValidatedAddressFold};
+pub(crate) use address_fold::{AddressFoldError, ValidatedAddressFold};
 pub(crate) use address_fold::{
     fold_selected_address, measured_steps as address_fold_measured_steps,
 };
 pub(crate) use allocation_recovery::materialize_fixed_view_copies;
 pub(crate) use allocation_recovery::pressure_rematerialization_identity;
-pub use allocation_recovery::{
-    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
-    AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload, FixedViewCopy,
-    FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPlan, FixedViewCopyPolicy,
-    FixedViewCopySourceEvidence, FixedViewCopyValidationReceipt, FunctionPressureRematerialization,
-    PressureRematerializationAction, PressureRematerializationError, PressureRematerializationPlan,
-    PressureRematerializationPolicy, PressureRematerializationRewrite,
-    PressureRematerializationValidationReceipt, ValidatedFixedViewCopies,
-    ValidatedPressureRematerialization, fixed_view_copy_identity,
-    rematerialize_selected_active_resident, selected_allocation_recovery_rule,
+pub(crate) use allocation_recovery::{
+    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry, FixedViewCopyError,
+    FixedViewCopyValidationReceipt, FunctionPressureRematerialization,
+    PressureRematerializationAction, PressureRematerializationPlan,
+    PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
     validate_fixed_view_copies,
 };
-pub use constant_boolean::{ConstantBooleanError, ValidatedConstantBoolean};
+pub use allocation_recovery::{
+    AllocationRecoveryRuleCatalogError, FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan,
+    FixedViewCopyPolicy, FixedViewCopySourceEvidence, PressureRematerializationError,
+    PressureRematerializationPolicy, ValidatedFixedViewCopies, ValidatedPressureRematerialization,
+    fixed_view_copy_identity, rematerialize_selected_active_resident,
+    selected_allocation_recovery_rule,
+};
+pub(crate) use constant_boolean::{ConstantBooleanError, ValidatedConstantBoolean};
 pub(crate) use constant_boolean::{
     fold_selected_constant_boolean, measured_steps as constant_boolean_measured_steps,
     surface_sizes as constant_boolean_surface_sizes,
 };
-pub use constant_branch::{ConstantBranchError, ValidatedConstantBranch};
+pub(crate) use constant_branch::{ConstantBranchError, ValidatedConstantBranch};
 pub(crate) use constant_branch::{
     fold_selected_constant_branch, measured_steps as constant_branch_measured_steps,
     surface_sizes as constant_branch_surface_sizes,
 };
-pub use copied_call_operand::{CopiedCallOperandError, ValidatedCopiedCallOperand};
+pub(crate) use copied_call_operand::{CopiedCallOperandError, ValidatedCopiedCallOperand};
 pub(crate) use copied_call_operand::{
     copied_call_operand_measured_steps, fold_selected_copied_call_operand,
 };
 // Reached as `crate::rewrites::<name>` by the catalog's own tests and by
 // `selected_optimization`'s admission decision.
-pub use catalog::{
-    SELECTED_STAGE_RULE_CATALOG, SelectedStageRuleCatalogSlice, SelectedStageRuleRows,
-};
+pub(crate) use catalog::{SELECTED_STAGE_RULE_CATALOG, SelectedStageRuleRows};
 #[allow(unused_imports)]
 pub(crate) use catalog::{selected_stage_catalog_contains, selected_stage_rule_rows};
-pub use copy_removal::{CopyRemovalError, ValidatedCopyRemoval};
+pub(crate) use copy_removal::{CopyRemovalError, ValidatedCopyRemoval};
 pub(crate) use copy_removal::{
     measured_steps as copy_removal_measured_steps, remove_selected_copy,
 };
-pub use dead_compare::{
+pub(crate) use dead_compare::{
     DeadCompareError, EquivalentCompareError, RedundantCompareError, ValidatedDeadCompare,
     ValidatedEquivalentCompare, ValidatedRedundantCompare,
 };
@@ -160,34 +160,39 @@ pub(crate) use dead_compare::{
     remove_redundant_compare,
 };
 pub use fixed_view::{
-    FixedPrecoloredSegmentHomeDecline, OptimizedFixedPrecoloredSegmentHomeCustodyError,
-    OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
+    OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
+    probe_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_precolored_segment_homes,
+    stage_optimized_fixed_view_copies,
+};
+pub(crate) use fixed_view::{
+    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
     StagedOptimizedFixedPrecoloredSegmentHomes, StagedOptimizedFixedViewCopies,
-    StagedOptimizedFixedViewCopyCustodyReceipt, probe_optimized_fixed_precolored_segment_homes,
-    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
+    StagedOptimizedFixedViewCopyCustodyReceipt,
     validate_optimized_fixed_precolored_segment_home_custody,
-    validate_optimized_fixed_view_copy_custody,
 };
 pub use literal_folds::{
-    OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldAttempt,
-    StagedOptimizedLiteralFoldAttemptReceipt, StagedOptimizedLiteralFoldCustodyReceipt,
-    StagedOptimizedLiteralFoldIterationReceipt, StagedOptimizedLiteralFoldStep,
+    OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,
     StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationCustodyReceipt,
-    StagedSelectedLoweringOptimizationRun, run_selected_lowering_optimizations,
-    stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
-    validate_selected_lowering_optimization_custody,
+    StagedSelectedLoweringOptimizationRun,
+};
+pub(crate) use literal_folds::{
+    StagedOptimizedLiteralFoldAttempt, StagedOptimizedLiteralFoldAttemptReceipt,
+    StagedOptimizedLiteralFoldIterationReceipt, StagedOptimizedLiteralFoldStep,
+    run_selected_lowering_optimizations, validate_selected_lowering_optimization_custody,
 };
 pub use pre_allocation::{
-    OptimizedPreAllocationCustodyError, PRE_ALLOCATION_RULE_CATALOG, PreAllocationPolicy,
-    PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError, PreAllocationRuleCatalogPayload,
+    OptimizedPreAllocationCustodyError, StagedPreAllocationOptimizationCustodyReceipt,
+    StagedPreAllocationOptimizationRun,
+};
+pub(crate) use pre_allocation::{
+    PRE_ALLOCATION_RULE_CATALOG, PreAllocationPolicy, PreAllocationRuleCatalogEntry,
     PreAllocationTransformationIdentity, StagedOptimizedPreAllocationAttempt,
     StagedOptimizedPreAllocationAttemptReceipt, StagedOptimizedPreAllocationIterationReceipt,
-    StagedOptimizedPreAllocationStep, StagedPreAllocationOptimizationCustodyReceipt,
-    StagedPreAllocationOptimizationRun, ValidatedPreAllocationTransformation,
+    StagedOptimizedPreAllocationStep, ValidatedPreAllocationTransformation,
     resolve_pre_allocation_rules, run_pre_allocation_optimizations,
     validate_pre_allocation_optimization_custody,
 };
-pub use redundant_extension::{RedundantExtensionError, ValidatedRedundantExtension};
+pub(crate) use redundant_extension::{RedundantExtensionError, ValidatedRedundantExtension};
 pub(crate) use redundant_extension::{
     measured_steps as redundant_extension_measured_steps, remove_selected_redundant_extension,
 };
@@ -195,39 +200,35 @@ pub use runtime_rematerialization::{
     RuntimeRematerializationError, ValidatedRuntimeRematerialization,
     rematerialize_selected_runtime_value,
 };
+
 pub use runtime_spill::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
-    spill_selected_runtime_value_with_span_policy, validate_runtime_spill_with_span_policy,
+    spill_selected_runtime_value_with_span_policy,
 };
-pub use runtime_split::{
-    RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit, split_selected_runtime_value,
-};
+pub use runtime_split::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runtime_value};
 pub(crate) use selected_lowering::enabled_pair_rules;
 pub(crate) use selected_lowering::fold_selected_incoming_literal;
 pub(crate) use selected_lowering::literal_fold_identity;
 // Reached as `crate::rewrites::validate_literal_fold` by the literal-fold
 // test corpus.
-#[allow(unused_imports)]
-pub use selected_lowering::{
-    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPlan,
-    LiteralFoldPolicy, LiteralFoldValidationReceipt, PairConsumerBindingAdmission,
-    PairFaultDischarge, PairImmediateBound, PairLiteralPosition, PairMachineEffects,
-    PairNonUnitSurface, PairOperandResult, PairOperandShape, PairResultDisposition,
-    PairTailCustody, PairUnitDefRelation, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
-    SelectedInstructionPairRule, SelectedLoweringRuleCatalogEntry,
-    SelectedLoweringRuleCatalogError, SelectedLoweringRuleCatalogPayload, ValidatedLiteralFold,
+pub(crate) use selected_lowering::{
+    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy,
+    LiteralFoldValidationReceipt, PairLiteralPosition, PairOperandShape, PairResultDisposition,
+    PairUnitDefRelation, SELECTED_LOWERING_RULE_CATALOG, SelectedInstructionPairRule,
+    SelectedLoweringRuleCatalogEntry, SelectedLoweringRuleCatalogError,
     resolve_selected_lowering_rules,
 };
+#[allow(unused_imports)]
+pub use selected_lowering::{LiteralFoldIdentity, ValidatedLiteralFold};
 
 /// Explicit applicability of the currently architecture-independent rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RegisterAllocationRuleTargetApplicability {
+pub(crate) enum RegisterAllocationRuleTargetApplicability {
     TargetIndependent,
 }
 
-pub use load_forwarding::{
-    StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
-    forward_selected_stored_load,
+pub(crate) use load_forwarding::{
+    StoredLoadForwardingError, ValidatedStoredLoadForwarding, forward_selected_stored_load,
 };
 
 use crate::rewrites::block_edges::function_at;
@@ -401,8 +402,7 @@ macro_rules! sealed {
     ($validated:ident, $receipt:ident, $source:expr, $proposed:expr $(, $field:ident : $value:expr)* $(,)?) => {
         $validated {
             receipt: crate::rewrites::receipt!($receipt, $source, $proposed $(, $field : $value)*),
-            transformed: std::sync::Arc::new($proposed),
-        }
+            transformed: std::sync::Arc::new($proposed)}
     };
 }
 pub(crate) use sealed;
@@ -478,20 +478,19 @@ pub(crate) fn register_occurs_once(
                 })
                 .count();
             if let Some(case) = &successor.structural_case {
-                occurrences += case
-                    .payloads
-                    .iter()
-                    .filter(|payload| match &payload.transport {
+                occurrences +=
+                    case.payloads
+                        .iter()
+                        .filter(|payload| {
+                            match &payload.transport {
                         selected_instructions::SelectedCasePayloadTransport::Unused => false,
                         selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
-                            parameter,
-                        } => *parameter == register,
+                            parameter} => *parameter == register,
                         selected_instructions::SelectedCasePayloadTransport::Registers {
                             argument,
-                            parameter,
-                        } => *argument == register || *parameter == register,
-                    })
-                    .count();
+                            parameter} => *argument == register || *parameter == register}
+                        })
+                        .count();
             }
             occurrences += successor
                 .bindings

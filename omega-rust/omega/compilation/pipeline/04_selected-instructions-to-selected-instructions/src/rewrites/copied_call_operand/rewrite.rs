@@ -17,7 +17,7 @@ use crate::ValidatedSelectedAnalysis;
 /// function still holds. Every other function, block, instruction,
 /// register, call, settlement, and access is retained, and replay
 /// independently confirms that.
-pub fn fold_selected_copied_call_operand(
+pub(crate) fn fold_selected_copied_call_operand(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     producer: SelectedInstructionId,

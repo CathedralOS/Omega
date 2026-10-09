@@ -29,7 +29,7 @@ use super::accounting::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub fn stage_first_optimized_literal_fold(
+pub(crate) fn stage_first_optimized_literal_fold(
     source: StagedOptimizedAllocationLegality,
     choice_policy: SpillChoicePolicy,
     recovery_policy: RecoveryClassificationPolicy,
@@ -57,7 +57,7 @@ pub fn stage_first_optimized_literal_fold(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn stage_next_optimized_literal_fold(
+pub(crate) fn stage_next_optimized_literal_fold(
     mut sequence: StagedOptimizedLiteralFolds,
     choice_policy: SpillChoicePolicy,
     recovery_policy: RecoveryClassificationPolicy,
@@ -163,7 +163,7 @@ pub(super) fn execute_selected_lowering_optimizations(
     })
 }
 
-pub fn validate_selected_lowering_optimization_custody(
+pub(crate) fn validate_selected_lowering_optimization_custody(
     run: &StagedSelectedLoweringOptimizationRun,
 ) -> Result<StagedSelectedLoweringOptimizationCustodyReceipt, OptimizedLiteralFoldCustodyError> {
     let upstream = run.source.custody();

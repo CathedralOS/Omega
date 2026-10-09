@@ -8,7 +8,6 @@ pub(crate) mod validate;
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{LivenessIdentity, LivenessPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
-pub use validate::validate_liveness;
 
 /// Compute bounded selected-CFG liveness facts. The result grants no
 /// interval, allocation, emission, or publication authority.
@@ -37,7 +36,7 @@ pub fn analyze_liveness_reusing(
 }
 
 mod staging;
-pub use staging::{
+pub(crate) use staging::{
     OptimizedLivenessCustodyError, StagedOptimizedLiveness, StagedOptimizedLivenessCustodyReceipt,
     stage_optimized_liveness,
 };

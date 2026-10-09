@@ -8,14 +8,17 @@ mod fixed_precolored_segment_homes;
 mod fixed_view_copies;
 
 pub use fixed_precolored_segment_homes::{
-    FixedPrecoloredSegmentHomeDecline, OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    probe_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_precolored_segment_homes,
+};
+pub(crate) use fixed_precolored_segment_homes::{
     StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
-    StagedOptimizedFixedPrecoloredSegmentHomes, probe_optimized_fixed_precolored_segment_homes,
-    stage_optimized_fixed_precolored_segment_homes,
+    StagedOptimizedFixedPrecoloredSegmentHomes,
     validate_optimized_fixed_precolored_segment_home_custody,
 };
 pub use fixed_view_copies::{
-    OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopies,
-    StagedOptimizedFixedViewCopyCustodyReceipt, stage_optimized_fixed_view_copies,
-    validate_optimized_fixed_view_copy_custody,
+    OptimizedFixedViewCopyCustodyError, stage_optimized_fixed_view_copies,
+};
+pub(crate) use fixed_view_copies::{
+    StagedOptimizedFixedViewCopies, StagedOptimizedFixedViewCopyCustodyReceipt,
 };

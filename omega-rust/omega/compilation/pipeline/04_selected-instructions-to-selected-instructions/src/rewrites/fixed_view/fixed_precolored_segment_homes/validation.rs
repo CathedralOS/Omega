@@ -11,7 +11,7 @@ use super::{
     StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt, custody,
 };
 
-pub fn validate_optimized_fixed_precolored_segment_home_custody(
+pub(crate) fn validate_optimized_fixed_precolored_segment_home_custody(
     source: &StagedOptimizedAllocationLegality,
     fixed: &ValidatedFixedPrecoloredIntervals,
     requirements: &ValidatedFixedPrecoloredSplitRequirements,

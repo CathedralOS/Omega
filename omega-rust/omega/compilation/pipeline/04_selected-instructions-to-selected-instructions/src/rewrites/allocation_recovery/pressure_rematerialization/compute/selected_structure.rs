@@ -11,19 +11,18 @@ pub(super) fn find_instruction(
     block: &selected_instructions::SelectedBlock,
     id: SelectedInstructionId,
 ) -> Option<&SelectedInstruction> {
-    block.instruction(id)
-        .or_else(|| match &block.terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. }
-            | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. }
-            | SelectedTerminator::Crash { instruction, .. }
-            | SelectedTerminator::HostedExitProcess { instruction, .. }
-                if instruction.id == id =>
-            {
-                Some(instruction)
-            }
-            _ => None,
-        })
+    block.instruction(id).or_else(|| match &block.terminator {
+        SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
+        | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. }
+            if instruction.id == id =>
+        {
+            Some(instruction)
+        }
+        _ => None,
+    })
 }
 
 pub(super) fn validate_dense(

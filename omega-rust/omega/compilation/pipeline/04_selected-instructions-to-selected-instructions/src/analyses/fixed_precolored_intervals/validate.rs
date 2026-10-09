@@ -7,7 +7,7 @@ use crate::{
 use register_homes::{FixedPrecoloredIntervalPlan, fixed_precolored_interval_plan_identity};
 use selected_instructions::VirtualFixedConstraintSite;
 
-pub fn validate_fixed_precolored_intervals(
+pub(crate) fn validate_fixed_precolored_intervals(
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     candidate: FixedPrecoloredIntervalPlan,

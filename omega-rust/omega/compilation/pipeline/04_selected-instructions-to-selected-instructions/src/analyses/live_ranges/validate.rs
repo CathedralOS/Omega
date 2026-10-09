@@ -14,7 +14,7 @@ pub(crate) use receipt::admit;
 use crate::{LiveRangeError, ValidatedLiveRanges, ValidatedLiveness};
 use selected_instructions::LiveRangePlan;
 
-pub fn validate_live_ranges(
+pub(crate) fn validate_live_ranges(
     selected: &impl crate::ValidatedSelectedAnalysis,
     liveness: &ValidatedLiveness,
     plan: LiveRangePlan,

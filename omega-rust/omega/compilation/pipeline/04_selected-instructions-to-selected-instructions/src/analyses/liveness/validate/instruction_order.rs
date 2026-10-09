@@ -6,6 +6,8 @@ pub(super) fn ordered_instructions(block: &SelectedBlock) -> Vec<&SelectedInstru
     block
         .instructions
         .iter()
-        .chain(std::iter::once(selected_instructions::terminator_instruction(&block.terminator)))
+        .chain(std::iter::once(
+            selected_instructions::terminator_instruction(&block.terminator),
+        ))
         .collect()
 }

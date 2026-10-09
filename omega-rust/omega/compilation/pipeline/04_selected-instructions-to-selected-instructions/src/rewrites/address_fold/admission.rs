@@ -146,9 +146,7 @@ pub(super) fn admit<'source>(
         return Err(AddressFoldError::UnsupportedInstruction);
     }
     let pointer = pointer_operand.virtual_register;
-    let find_register = |register| {
-        function.virtual_register(register)
-    };
+    let find_register = |register| function.virtual_register(register);
     let pointer_register = find_register(pointer).ok_or(AddressFoldError::UnsupportedProducer)?;
     let second_register =
         find_register(second_operand.virtual_register).ok_or(AddressFoldError::UnsupportedUse)?;

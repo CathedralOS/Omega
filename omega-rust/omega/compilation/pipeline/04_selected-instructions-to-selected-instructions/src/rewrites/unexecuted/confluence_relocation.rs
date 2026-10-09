@@ -111,9 +111,9 @@ use std::sync::Arc;
 use optimization_core::OptimizationUnitIdentity;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    instruction_position,    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedSuccessor,
-    SelectedTerminator, terminator_instruction,
+    SelectedTerminator, instruction_position, terminator_instruction,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 
@@ -122,12 +122,11 @@ use crate::rewrites::block_edges::{all_edges, member_position, plain_edge};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{RunRelocationRejection, schedulable, speculatable};
 
-pub use rewrite::relocate_selected_members_into_confluence;
-pub use validation::validate_confluence_relocation;
+pub(crate) use validation::validate_confluence_relocation;
 
 /// An accepted cross-confluence run relocation with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedConfluenceRelocation {
+pub(crate) struct ValidatedConfluenceRelocation {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: ConfluenceRelocationReceipt,
 }
@@ -135,7 +134,7 @@ pub struct ValidatedConfluenceRelocation {
 validated_transformed_receipt!(ValidatedConfluenceRelocation, ConfluenceRelocationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConfluenceRelocationReceipt {
+pub(crate) struct ConfluenceRelocationReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -145,7 +144,7 @@ pub struct ConfluenceRelocationReceipt {
 receipt_selected_identities!(ConfluenceRelocationReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConfluenceRelocationError {
+pub(crate) enum ConfluenceRelocationError {
     SourceMismatch,
     /// A barrier kind, a call-roster entry, a roster-carrying or
     /// unaccounted memory-capable kind, or a potentially-faulting kind
@@ -288,7 +287,8 @@ fn derive_confluence_span<'source>(
     // not follow the first names no multi-member run. A single member is
     // the one-instruction confluence relocation the sibling family
     // already proves.
-    let last_index = block.instruction_index(last_member)
+    let last_index = block
+        .instruction_index(last_member)
         .filter(|position| *position >= first_index)
         .ok_or(ConfluenceRelocationError::UnsupportedPair)?;
     let run = &block.instructions[first_index..=last_index];
@@ -313,7 +313,8 @@ fn derive_confluence_span<'source>(
     if !plain_edge(successor) {
         return Err(ConfluenceRelocationError::UnsupportedPair);
     }
-    let target_index = function.block_index(successor.block)
+    let target_index = function
+        .block_index(successor.block)
         .ok_or(ConfluenceRelocationError::SourceMismatch)?;
     let target = &function.blocks[target_index];
     // A self-edge is the in-block family's case with a back-edge

@@ -22,7 +22,7 @@ use crate::ValidatedSelectedAnalysis;
 /// Every other function, block, instruction, register, roster row, call,
 /// settlement, and edge is retained, and replay independently confirms
 /// that.
-pub fn relocate_selected_instruction_onto_inflow(
+pub(crate) fn relocate_selected_instruction_onto_inflow(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,

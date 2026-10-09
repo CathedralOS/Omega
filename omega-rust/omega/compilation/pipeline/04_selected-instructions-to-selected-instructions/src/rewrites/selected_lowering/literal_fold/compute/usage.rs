@@ -104,10 +104,9 @@ pub(super) fn fold_usage(
             // once at its head through a back edge — scanning every
             // instruction record plus the terminator and traversing each of
             // the block's successor edges on each visit.
-            let Some(consumer) = function.block(action.block)
-                .and_then(|block| {
-                    block.instruction(action.consumer_instruction)
-                })
+            let Some(consumer) = function
+                .block(action.block)
+                .and_then(|block| block.instruction(action.consumer_instruction))
             else {
                 continue;
             };

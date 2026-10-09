@@ -86,12 +86,11 @@ use crate::rewrites::unexecuted::commuting_accesses as accesses;
 use crate::rewrites::unexecuted::place_storage::structural_place_declarations;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
 
-pub use rewrite::relocate_selected_commuting_members;
-pub use validation::validate_commuting_relocation;
+pub(crate) use validation::validate_commuting_relocation;
 
 /// An accepted commuting run relocation with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedCommutingRelocation {
+pub(crate) struct ValidatedCommutingRelocation {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: CommutingRelocationReceipt,
 }
@@ -99,7 +98,7 @@ pub struct ValidatedCommutingRelocation {
 validated_transformed_receipt!(ValidatedCommutingRelocation, CommutingRelocationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommutingRelocationReceipt {
+pub(crate) struct CommutingRelocationReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -109,7 +108,7 @@ pub struct CommutingRelocationReceipt {
 receipt_selected_identities!(CommutingRelocationReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommutingRelocationError {
+pub(crate) enum CommutingRelocationError {
     SourceMismatch,
     /// A window position can never trade order: a barrier kind, a
     /// call-roster entry, or a memory-capable kind the roster does not
@@ -186,13 +185,15 @@ fn reconstruct<'source>(
     // block, in the named order; a repeated id or a last member that does
     // not follow the first names no multi-member run. A single member is
     // the one-instruction relocation the sibling family already proves.
-    let last_index = block.instruction_index(last_member)
+    let last_index = block
+        .instruction_index(last_member)
         .filter(|position| *position >= first_index)
         .ok_or(CommutingRelocationError::UnsupportedPair)?;
     // The destination sits outside the run in the same block; inside the
     // run it would name a member's own position, and outside the block it
     // names no in-block window.
-    let destination_index = block.instruction_index(destination)
+    let destination_index = block
+        .instruction_index(destination)
         .filter(|position| !(first_index..=last_index).contains(position))
         .ok_or(CommutingRelocationError::UnsupportedPair)?;
     let (first, last) = (

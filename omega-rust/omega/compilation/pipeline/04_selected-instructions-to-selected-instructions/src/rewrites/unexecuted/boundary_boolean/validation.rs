@@ -143,7 +143,8 @@ fn reconstruct<'source>(
         &function.blocks[block_index].instructions[materialization_index];
     let result = flag_reader(materialization_instruction)
         .ok_or(BoundaryBooleanError::UnsupportedInstruction)?;
-    let result_register = function.virtual_register(result)
+    let result_register = function
+        .virtual_register(result)
         .ok_or(BoundaryBooleanError::UnsupportedUse)?;
     // The flag walk crosses block boundaries: build the block-indexed
     // adjacency once, locate the entry block whose unseeded condition
@@ -258,7 +259,7 @@ fn restore(
 /// producer's `admission::admit` is never consulted, so a wrong legality
 /// decision fails here even when the proposal matches the edit the
 /// producer emitted.
-pub fn validate_boundary_boolean_fold(
+pub(crate) fn validate_boundary_boolean_fold(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     materialization: SelectedInstructionId,

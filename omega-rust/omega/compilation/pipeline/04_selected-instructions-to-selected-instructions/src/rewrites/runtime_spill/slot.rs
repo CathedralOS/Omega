@@ -74,7 +74,12 @@ impl BlockUsePositions {
     /// use lands in the pinned list, any other use flags `flexible` and lands
     /// in the unpinned list, and a consecutive duplicate position is recorded
     /// once.
-    pub fn record_use(&mut self, instruction_index: usize, fixed_view: bool, flexible: &mut bool) {
+    pub(crate) fn record_use(
+        &mut self,
+        instruction_index: usize,
+        fixed_view: bool,
+        flexible: &mut bool,
+    ) {
         let recorded = if fixed_view {
             &mut self.pinned
         } else {
@@ -93,9 +98,10 @@ pub(super) fn instruction_block(
     function: &SelectedFunction,
     instruction: SelectedInstructionId,
 ) -> Option<usize> {
-    function.blocks.iter().position(|block| {
-        block.instruction(instruction).is_some()
-    })
+    function
+        .blocks
+        .iter()
+        .position(|block| block.instruction(instruction).is_some())
 }
 
 /// The slot resolution the rewrite commits to: every emitted store and every

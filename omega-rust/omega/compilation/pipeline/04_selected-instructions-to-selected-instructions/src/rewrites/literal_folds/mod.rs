@@ -24,10 +24,7 @@ use crate::{
     ValidatedLiteralFold, ValidatedLiveRanges, ValidatedLiveness, ValidatedRecoveryClassifications,
     ValidatedSpillChoices,
 };
-pub use execution::{
-    stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
-    validate_selected_lowering_optimization_custody,
-};
+pub(crate) use execution::validate_selected_lowering_optimization_custody;
 
 impl From<crate::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {
     fn from(error: crate::SelectedLoweringRuleCatalogError) -> Self {
@@ -46,7 +43,7 @@ impl From<crate::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCusto
 }
 
 /// Execute the exact selected-lowering projection to a validated fixed point.
-pub fn run_selected_lowering_optimizations(
+pub(crate) fn run_selected_lowering_optimizations(
     source: StagedOptimizedAllocationLegality,
 ) -> Result<StagedSelectedLoweringOptimizationRun, OptimizedLiteralFoldCustodyError> {
     let selections = source.selections().clone();

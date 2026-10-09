@@ -66,13 +66,12 @@ use selected_instructions::{
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::fold_selected_boundary_boolean;
-pub use validation::validate_boundary_boolean_fold;
+pub(crate) use validation::validate_boundary_boolean_fold;
 
 /// An accepted boundary-decided predicate materialization with its replay
 /// receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedBoundaryBoolean {
+pub(crate) struct ValidatedBoundaryBoolean {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: BoundaryBooleanReceipt,
 }
@@ -80,7 +79,7 @@ pub struct ValidatedBoundaryBoolean {
 validated_transformed_receipt!(ValidatedBoundaryBoolean, BoundaryBooleanReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundaryBooleanReceipt {
+pub(crate) struct BoundaryBooleanReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -90,7 +89,7 @@ pub struct BoundaryBooleanReceipt {
 receipt_selected_identities!(BoundaryBooleanReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundaryBooleanError {
+pub(crate) enum BoundaryBooleanError {
     SourceMismatch,
     /// The named instruction is not one of the four ordering
     /// `MaterializeBoolean*` kinds in the emitted `[def]` flag-reader

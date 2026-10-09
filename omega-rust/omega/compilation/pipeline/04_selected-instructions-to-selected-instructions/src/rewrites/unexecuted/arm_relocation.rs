@@ -92,9 +92,9 @@ use std::sync::Arc;
 use optimization_core::OptimizationUnitIdentity;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    instruction_position,    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedSuccessor,
-    SelectedTerminator, terminator_instruction,
+    SelectedTerminator, instruction_position, terminator_instruction,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 
@@ -108,12 +108,11 @@ use crate::rewrites::window_hazards::{
     RunRelocationRejection, admit_run_relocation, schedulable, speculatable,
 };
 
-pub use rewrite::relocate_selected_instruction_out_of_arm;
-pub use validation::validate_arm_relocation;
+pub(crate) use validation::validate_arm_relocation;
 
 /// An accepted relocation out of the branch arm with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedArmRelocation {
+pub(crate) struct ValidatedArmRelocation {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: ArmRelocationReceipt,
 }
@@ -121,7 +120,7 @@ pub struct ValidatedArmRelocation {
 validated_transformed_receipt!(ValidatedArmRelocation, ArmRelocationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ArmRelocationReceipt {
+pub(crate) struct ArmRelocationReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -131,7 +130,7 @@ pub struct ArmRelocationReceipt {
 receipt_selected_identities!(ArmRelocationReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ArmRelocationError {
+pub(crate) enum ArmRelocationError {
     SourceMismatch,
     /// The named member can never speculate: a barrier kind, a call-roster
     /// entry, a roster-carrying or unaccounted memory-capable kind — an

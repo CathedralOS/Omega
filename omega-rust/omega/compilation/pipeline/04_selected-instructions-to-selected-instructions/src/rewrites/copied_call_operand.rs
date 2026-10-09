@@ -101,8 +101,8 @@ use selected_instructions::{
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::fold_selected_copied_call_operand;
-pub use validation::copied_call_operand_measured_steps;
+pub(crate) use rewrite::fold_selected_copied_call_operand;
+pub(crate) use validation::copied_call_operand_measured_steps;
 
 /// Canonical identity of one validated copied-call-operand reroute:
 /// every receipt field — the coordinate, both plan identities, and the
@@ -111,7 +111,7 @@ pub use validation::copied_call_operand_measured_steps;
 /// domain separator is this family's own: the reroute retains the
 /// producer ordinary copy removal removes, so no
 /// `omega.terminal-copy-removal` identity may record it.
-pub fn copied_call_operand_identity(
+pub(crate) fn copied_call_operand_identity(
     receipt: &CopiedCallOperandReceipt,
 ) -> CopiedCallOperandIdentity {
     let mut bytes = Vec::new();

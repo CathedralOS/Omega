@@ -1463,7 +1463,7 @@ pub(super) fn execute_pre_allocation_optimizations(
 /// re-run discovery and admission over the source plan, re-stage every
 /// step's analyses, and require the replayed chain and rebuilt custody
 /// receipt to equal the retained ones field for field.
-pub fn validate_pre_allocation_optimization_custody(
+pub(crate) fn validate_pre_allocation_optimization_custody(
     run: &StagedPreAllocationOptimizationRun,
 ) -> Result<StagedPreAllocationOptimizationCustodyReceipt, OptimizedPreAllocationCustodyError> {
     let upstream = run.source.custody();

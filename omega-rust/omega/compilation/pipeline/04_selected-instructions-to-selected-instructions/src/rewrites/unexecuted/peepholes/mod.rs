@@ -66,7 +66,4 @@
 //!
 mod projected_access;
 
-pub use projected_access::{
-    ProjectedAccessError, ProjectedAccessReceipt, ValidatedProjectedAccess,
-    fold_selected_projected_access, validate_projected_access_fold,
-};
+pub(crate) use projected_access::ValidatedProjectedAccess;

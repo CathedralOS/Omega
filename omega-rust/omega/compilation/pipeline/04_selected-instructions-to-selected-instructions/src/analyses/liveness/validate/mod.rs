@@ -13,7 +13,7 @@ use selected_instructions::LivenessPlan;
 
 pub(crate) use receipt::admit_validated_liveness;
 
-pub fn validate_liveness(
+pub(crate) fn validate_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
     plan: LivenessPlan,
 ) -> Result<ValidatedLiveness, LivenessError> {

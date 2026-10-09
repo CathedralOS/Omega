@@ -51,7 +51,8 @@ use std::collections::BTreeSet;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    instruction_position,    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, terminator_instruction,
+    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, instruction_position,
+    terminator_instruction,
 };
 
 use crate::ValidatedSelectedAnalysis;
@@ -67,12 +68,11 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::relocate_selected_member_run;
-pub use validation::validate_member_run_relocation;
+pub(crate) use validation::validate_member_run_relocation;
 
 /// An accepted member-run relocation with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedMemberRunRelocation {
+pub(crate) struct ValidatedMemberRunRelocation {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: MemberRunRelocationReceipt,
 }
@@ -80,7 +80,7 @@ pub struct ValidatedMemberRunRelocation {
 validated_transformed_receipt!(ValidatedMemberRunRelocation, MemberRunRelocationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MemberRunRelocationReceipt {
+pub(crate) struct MemberRunRelocationReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -90,7 +90,7 @@ pub struct MemberRunRelocationReceipt {
 receipt_selected_identities!(MemberRunRelocationReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MemberRunRelocationError {
+pub(crate) enum MemberRunRelocationError {
     SourceMismatch,
     /// A member or a crossed position can never trade order: a barrier
     /// kind, a call-roster entry, or an unaccounted memory reach.
@@ -193,7 +193,8 @@ fn reconstruct<'source>(
     // last member absent from the same body, or earlier than the first,
     // names no run.
     let block = &function.blocks[run_block];
-    let run_end = block.instruction_index(last_member)
+    let run_end = block
+        .instruction_index(last_member)
         .filter(|position| *position >= run_start)
         .ok_or(MemberRunRelocationError::UnsupportedPair)?;
     // The destination names a body position in any block — the run lands
@@ -294,7 +295,8 @@ fn reconstruct<'source>(
             .map(|edge| edge.block)
             .collect::<BTreeSet<_>>()
         {
-            let source = function.block(source_block)
+            let source = function
+                .block(source_block)
                 .ok_or(MemberRunRelocationError::SourceMismatch)?;
             if terminator_successors(&source.terminator)
                 .iter()

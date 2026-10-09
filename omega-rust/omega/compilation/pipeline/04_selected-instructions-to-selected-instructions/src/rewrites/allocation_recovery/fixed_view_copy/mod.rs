@@ -24,10 +24,11 @@ pub use register_homes::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
     FixedViewCopySourceEvidence, fixed_view_copy_identity,
 };
+
 use selected_instructions::{
     FixedViewCopyIdentity, LiveRangeIdentity, SelectedInstructionPlanIdentity,
 };
-pub use validate::validate_fixed_view_copies;
+pub(crate) use validate::validate_fixed_view_copies;
 
 /// Apply one explicitly selected fixed-view copy policy and independently
 /// reconstruct its complete selected CFG.

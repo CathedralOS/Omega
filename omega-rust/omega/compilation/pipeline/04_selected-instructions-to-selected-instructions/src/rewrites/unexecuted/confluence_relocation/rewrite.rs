@@ -22,7 +22,7 @@ use crate::ValidatedSelectedAnalysis;
 /// it saw before. Every other function, block, instruction, register,
 /// roster row, call, settlement, and edge is retained, and replay
 /// independently confirms that.
-pub fn relocate_selected_members_into_confluence(
+pub(crate) fn relocate_selected_members_into_confluence(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,

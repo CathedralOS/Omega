@@ -13,7 +13,7 @@ use crate::ValidatedSelectedAnalysis;
 /// compile time. Every other function, block, instruction, register, call,
 /// settlement, and access is retained, and replay independently confirms
 /// that — including the control surface the bound catalog declares.
-pub fn fold_selected_constant_branch(
+pub(crate) fn fold_selected_constant_branch(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     branch: SelectedInstructionId,

@@ -104,9 +104,7 @@ pub(super) fn admit<'source>(
         return Err(ProjectedAccessError::UnsupportedConsumer);
     }
     let pointer = pointer_operand.virtual_register;
-    let find_register = |register| {
-        function.virtual_register(register)
-    };
+    let find_register = |register| function.virtual_register(register);
     let pointer_register = find_register(pointer).ok_or(ProjectedAccessError::UnsupportedUse)?;
     let tail_register =
         find_register(tail_operand.virtual_register).ok_or(ProjectedAccessError::UnsupportedUse)?;

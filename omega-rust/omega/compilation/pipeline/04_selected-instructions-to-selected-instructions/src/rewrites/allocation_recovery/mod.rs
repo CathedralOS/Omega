@@ -12,21 +12,24 @@ use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationPh
 
 use super::catalog::selected_stage_catalog_contains;
 
-pub use catalog::{
-    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
-    AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload,
-};
+pub use catalog::AllocationRecoveryRuleCatalogError;
+pub(crate) use catalog::{ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry};
 pub(crate) use fixed_view_copy::materialize_fixed_view_copies;
 pub use fixed_view_copy::{
-    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPlan,
-    FixedViewCopyPolicy, FixedViewCopySourceEvidence, FixedViewCopyValidationReceipt,
-    ValidatedFixedViewCopies, fixed_view_copy_identity, validate_fixed_view_copies,
+    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
+    FixedViewCopySourceEvidence, ValidatedFixedViewCopies, fixed_view_copy_identity,
+};
+pub(crate) use fixed_view_copy::{
+    FixedViewCopyError, FixedViewCopyValidationReceipt, validate_fixed_view_copies,
 };
 pub(crate) use pressure_rematerialization::pressure_rematerialization_identity;
-pub use pressure_rematerialization::{
+pub(crate) use pressure_rematerialization::{
     FunctionPressureRematerialization, PressureRematerializationAction,
-    PressureRematerializationError, PressureRematerializationPlan, PressureRematerializationPolicy,
-    PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
+    PressureRematerializationPlan, PressureRematerializationRewrite,
+    PressureRematerializationValidationReceipt,
+};
+pub use pressure_rematerialization::{
+    PressureRematerializationError, PressureRematerializationPolicy,
     ValidatedPressureRematerialization, rematerialize_selected_active_resident,
 };
 

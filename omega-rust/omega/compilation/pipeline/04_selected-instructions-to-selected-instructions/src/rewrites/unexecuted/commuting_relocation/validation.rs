@@ -40,7 +40,7 @@ use crate::rewrites::unexecuted::commuting_accesses as accesses;
 /// `admission::admit` is never consulted, so a wrong legality decision
 /// fails here even when the proposal matches the edit the producer
 /// emitted.
-pub fn validate_commuting_relocation(
+pub(crate) fn validate_commuting_relocation(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,

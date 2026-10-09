@@ -92,7 +92,7 @@ fn restore(
 /// and restores the complete source by content. The producer's admission
 /// routine is never consulted, so a wrong legality decision fails here
 /// even when the proposal matches the edit the producer emitted.
-pub fn validate_store_mutation_motion(
+pub(crate) fn validate_store_mutation_motion(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     store: SelectedInstructionId,

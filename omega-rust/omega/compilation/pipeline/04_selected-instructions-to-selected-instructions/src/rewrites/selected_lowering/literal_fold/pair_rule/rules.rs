@@ -7,7 +7,7 @@
 use super::*;
 
 impl SelectedInstructionPairRule {
-    pub const EXACT_ADD_IMMEDIATE_U12: Self = Self {
+    pub(crate) const EXACT_ADD_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::ExactAddI64,
         rewritten: MachineSemanticKind::ExactAddI64Immediate,
@@ -22,11 +22,11 @@ impl SelectedInstructionPairRule {
     /// `ExactAddI64Immediate` form `x + literal` uses. The same catalog
     /// selection admits both grammars; the pair disambiguates by which `Use`
     /// position the folded literal occupies.
-    pub const EXACT_ADD_LEFT_IMMEDIATE_U12: Self = Self {
+    pub(crate) const EXACT_ADD_LEFT_IMMEDIATE_U12: Self = Self {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::EXACT_ADD_IMMEDIATE_U12
     };
-    pub const EXACT_SUBTRACT_IMMEDIATE_U12: Self = Self {
+    pub(crate) const EXACT_SUBTRACT_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::ExactSubtractI64,
         rewritten: MachineSemanticKind::ExactSubtractI64Immediate,
@@ -44,7 +44,7 @@ impl SelectedInstructionPairRule {
     /// `CompareI64Zero` realization [`COMPARE_ZERO`](Self::COMPARE_ZERO)
     /// binds instead, so the immediate grammars admit only nonzero
     /// values and exactly one pair admits any candidate.
-    pub const COMPARE_IMMEDIATE_U12: Self = Self {
+    pub(crate) const COMPARE_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::CompareI64,
         rewritten: MachineSemanticKind::CompareI64Immediate,
@@ -70,7 +70,7 @@ impl SelectedInstructionPairRule {
     /// relation they encode, admitted only while every reader each
     /// defined unit can reach through the function's CFG is
     /// equality-sensing.
-    pub const COMPARE_LEFT_IMMEDIATE_U12: Self = Self {
+    pub(crate) const COMPARE_LEFT_IMMEDIATE_U12: Self = Self {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP,
         machine_effects: PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS,
         ..Self::COMPARE_IMMEDIATE_U12
@@ -84,7 +84,7 @@ impl SelectedInstructionPairRule {
     /// refinement of the same computation, not a different computation:
     /// the family's value partition keeps it disjoint from the immediate
     /// grammar so exactly one pair admits the candidate.
-    pub const COMPARE_ZERO: Self = Self {
+    pub(crate) const COMPARE_ZERO: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::CompareI64,
         rewritten: MachineSemanticKind::CompareI64Zero,
@@ -100,7 +100,7 @@ impl SelectedInstructionPairRule {
     /// the nonzero left-immediate grammar, so the pair carries the same
     /// reader-flow audit under
     /// [`OperandSwappedUnitDefs`](PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS).
-    pub const COMPARE_LEFT_ZERO: Self = Self {
+    pub(crate) const COMPARE_LEFT_ZERO: Self = Self {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP,
         machine_effects: PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS,
         ..Self::COMPARE_ZERO
@@ -125,43 +125,43 @@ impl SelectedInstructionPairRule {
     };
     /// Eliminate `MaterializeI64` feeding `ZeroExtendU8`: the result is the
     /// literal's low eight bits materialized directly.
-    pub const ZERO_EXTEND_U8_LITERAL_FOLD: Self = Self {
+    pub(crate) const ZERO_EXTEND_U8_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::ZeroExtendU8,
         ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `ZeroExtendU16`: the result is the
     /// literal's low sixteen bits materialized directly.
-    pub const ZERO_EXTEND_U16_LITERAL_FOLD: Self = Self {
+    pub(crate) const ZERO_EXTEND_U16_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::ZeroExtendU16,
         ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `ZeroExtendU32`: the result is the
     /// literal's low thirty-two bits materialized directly.
-    pub const ZERO_EXTEND_U32_LITERAL_FOLD: Self = Self {
+    pub(crate) const ZERO_EXTEND_U32_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::ZeroExtendU32,
         ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `SignExtendI8`: the result is the
     /// sign extension of the literal's low eight bits materialized directly.
-    pub const SIGN_EXTEND_I8_LITERAL_FOLD: Self = Self {
+    pub(crate) const SIGN_EXTEND_I8_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::SignExtendI8,
         ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `SignExtendI16`: the result is the
     /// sign extension of the literal's low sixteen bits materialized directly.
-    pub const SIGN_EXTEND_I16_LITERAL_FOLD: Self = Self {
+    pub(crate) const SIGN_EXTEND_I16_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::SignExtendI16,
         ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// Eliminate `MaterializeI64` feeding `SignExtendI32`: the result is the
     /// sign extension of the literal's low thirty-two bits materialized
     /// directly.
-    pub const SIGN_EXTEND_I32_LITERAL_FOLD: Self = Self {
+    pub(crate) const SIGN_EXTEND_I32_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::SignExtendI32,
         ..Self::UNARY_MATERIALIZE_FOLD
     };
     /// The six unary extension-elimination rules, in extension-kind order.
-    pub const EXTENSION_LITERAL_FOLDS: [Self; 6] = [
+    pub(crate) const EXTENSION_LITERAL_FOLDS: [Self; 6] = [
         Self::ZERO_EXTEND_U8_LITERAL_FOLD,
         Self::ZERO_EXTEND_U16_LITERAL_FOLD,
         Self::ZERO_EXTEND_U32_LITERAL_FOLD,
@@ -173,7 +173,7 @@ impl SelectedInstructionPairRule {
     /// Eliminate `MaterializeI64` feeding `CopyI64`: the copy's output is
     /// the literal itself, so the fold materializes it directly at the
     /// copy's destination register — a copy of a constant is the constant.
-    pub const COPY_LITERAL_FOLD: Self = Self {
+    pub(crate) const COPY_LITERAL_FOLD: Self = Self {
         consumer: MachineSemanticKind::CopyI64,
         ..Self::UNARY_MATERIALIZE_FOLD
     };
@@ -191,7 +191,7 @@ impl SelectedInstructionPairRule {
     /// `Load8` encoder admits: aarch64 `ldrb` carries a 12-bit unsigned
     /// scaled offset, so a target-independent rule declares 4095 even though
     /// x86-64's disp32 form would admit more.
-    pub const LOAD8_INDEXED_U12: Self = {
+    pub(crate) const LOAD8_INDEXED_U12: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::Load8Indexed,
@@ -225,7 +225,7 @@ impl SelectedInstructionPairRule {
     /// `AddressOffset` encoder admits: aarch64 `add xD, xN, #imm12` carries a
     /// 12-bit unsigned displacement, so a target-independent rule declares
     /// 4095 even though x86-64's `lea` disp32 form would admit more.
-    pub const BYTE_VIEW_ADDRESS_OFFSET_U12: Self = Self {
+    pub(crate) const BYTE_VIEW_ADDRESS_OFFSET_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::ByteViewAddress,
         rewritten: MachineSemanticKind::AddressOffset,
@@ -243,7 +243,7 @@ impl SelectedInstructionPairRule {
     /// operand-1 `Use` surviving as the rewritten row's base. The same
     /// catalog selection admits both operand positions; the pair
     /// disambiguates by which `Use` position the folded literal occupies.
-    pub const BYTE_VIEW_ADDRESS_BACKING_U12: Self = Self {
+    pub(crate) const BYTE_VIEW_ADDRESS_BACKING_U12: Self = Self {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::BYTE_VIEW_ADDRESS_OFFSET_U12
     };
@@ -267,7 +267,7 @@ impl SelectedInstructionPairRule {
     /// materializations. Targets whose divide row carries no auxiliary
     /// `Use` — aarch64's `udiv` — admit the same rule with an empty
     /// auxiliary tail.
-    pub const EXACT_DIVIDE_ONE_COPY: Self = {
+    pub(crate) const EXACT_DIVIDE_ONE_COPY: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::ExactDivideU64,
@@ -319,7 +319,7 @@ impl SelectedInstructionPairRule {
     /// tail. The family shares its consumer kind with the divisor-one
     /// fold; the grammars stay disjoint on the folded literal's operand
     /// position.
-    pub const EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE: Self = {
+    pub(crate) const EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::ExactDivideU64,
@@ -362,7 +362,7 @@ impl SelectedInstructionPairRule {
     /// the constant result never reads it. Targets whose remainder row
     /// carries no scratch `Def` — aarch64's `udiv`/`msub` realization —
     /// admit the same rule with an empty scratch tail.
-    pub const WRAPPING_REMAINDER_ONE_MATERIALIZE: Self = {
+    pub(crate) const WRAPPING_REMAINDER_ONE_MATERIALIZE: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::WrappingRemainderI64,
@@ -414,7 +414,7 @@ impl SelectedInstructionPairRule {
     /// operand position with the divisor-one fold; the grammars stay
     /// disjoint on the folded literal's value — `1` admits only the
     /// divisor-one pair, `u64::MAX` only this one.
-    pub const WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE: Self = {
+    pub(crate) const WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::WrappingRemainderI64,
@@ -464,7 +464,7 @@ impl SelectedInstructionPairRule {
     /// empty scratch tail. The family shares its consumer kind with the
     /// divisor-one fold; the grammars stay disjoint on the folded
     /// literal's operand position.
-    pub const WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE: Self = {
+    pub(crate) const WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::WrappingRemainderI64,
@@ -500,7 +500,7 @@ impl SelectedInstructionPairRule {
     /// [`BINARY_RIGHT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT)
     /// grammar's custody: every `Def` operand past the result must occur
     /// nowhere else in the function.
-    pub const BITWISE_AND_ZERO_MATERIALIZE: Self = {
+    pub(crate) const BITWISE_AND_ZERO_MATERIALIZE: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::BitwiseAndI64,
@@ -529,14 +529,14 @@ impl SelectedInstructionPairRule {
     /// right grammar declares. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
-    pub const BITWISE_AND_ZERO_LEFT_MATERIALIZE: Self = Self {
+    pub(crate) const BITWISE_AND_ZERO_LEFT_MATERIALIZE: Self = Self {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT,
         ..Self::BITWISE_AND_ZERO_MATERIALIZE
     };
 
     /// The two bitwise-and annihilator rules, one per literal `Use`
     /// position.
-    pub const BITWISE_AND_ZERO_FOLDS: [Self; 2] = [
+    pub(crate) const BITWISE_AND_ZERO_FOLDS: [Self; 2] = [
         Self::BITWISE_AND_ZERO_MATERIALIZE,
         Self::BITWISE_AND_ZERO_LEFT_MATERIALIZE,
     ];
@@ -554,7 +554,7 @@ impl SelectedInstructionPairRule {
     /// operand-0 `Use` survives under the ordinary
     /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand.
-    pub const BITWISE_XOR_ZERO_COPY: Self = {
+    pub(crate) const BITWISE_XOR_ZERO_COPY: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::BitwiseXorI64,
@@ -582,13 +582,13 @@ impl SelectedInstructionPairRule {
     /// row's `Use` position. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
-    pub const BITWISE_XOR_ZERO_LEFT_COPY: Self = Self {
+    pub(crate) const BITWISE_XOR_ZERO_LEFT_COPY: Self = Self {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::BITWISE_XOR_ZERO_COPY
     };
 
     /// The two bitwise-xor identity rules, one per literal `Use` position.
-    pub const BITWISE_XOR_ZERO_COPIES: [Self; 2] = [
+    pub(crate) const BITWISE_XOR_ZERO_COPIES: [Self; 2] = [
         Self::BITWISE_XOR_ZERO_COPY,
         Self::BITWISE_XOR_ZERO_LEFT_COPY,
     ];
@@ -607,7 +607,7 @@ impl SelectedInstructionPairRule {
     /// operand-0 `Use` survives under the ordinary
     /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand.
-    pub const WRAPPING_ADD_ZERO_COPY: Self = {
+    pub(crate) const WRAPPING_ADD_ZERO_COPY: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::WrappingAddI64,
@@ -635,13 +635,13 @@ impl SelectedInstructionPairRule {
     /// row's `Use` position. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
-    pub const WRAPPING_ADD_ZERO_LEFT_COPY: Self = Self {
+    pub(crate) const WRAPPING_ADD_ZERO_LEFT_COPY: Self = Self {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::WRAPPING_ADD_ZERO_COPY
     };
 
     /// The two wrapping-add identity rules, one per literal `Use` position.
-    pub const WRAPPING_ADD_ZERO_COPIES: [Self; 2] = [
+    pub(crate) const WRAPPING_ADD_ZERO_COPIES: [Self; 2] = [
         Self::WRAPPING_ADD_ZERO_COPY,
         Self::WRAPPING_ADD_ZERO_LEFT_COPY,
     ];
@@ -663,7 +663,7 @@ impl SelectedInstructionPairRule {
     /// and-zero annihilator rules; the two families stay disjoint on the
     /// literal's value, which the producer's admission now carries as
     /// part of pair selection.
-    pub const BITWISE_AND_ONES_COPY: Self = {
+    pub(crate) const BITWISE_AND_ONES_COPY: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::BitwiseAndI64,
@@ -691,13 +691,13 @@ impl SelectedInstructionPairRule {
     /// row's `Use` position. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
-    pub const BITWISE_AND_ONES_LEFT_COPY: Self = Self {
+    pub(crate) const BITWISE_AND_ONES_LEFT_COPY: Self = Self {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::BITWISE_AND_ONES_COPY
     };
 
     /// The two bitwise-and identity rules, one per literal `Use` position.
-    pub const BITWISE_AND_ONES_COPIES: [Self; 2] = [
+    pub(crate) const BITWISE_AND_ONES_COPIES: [Self; 2] = [
         Self::BITWISE_AND_ONES_COPY,
         Self::BITWISE_AND_ONES_LEFT_COPY,
     ];
@@ -727,7 +727,7 @@ impl SelectedInstructionPairRule {
     /// row carries no operand past its `Def` result; the narrower and
     /// signed carriers bind the clamped row whose bound scratch the
     /// scratch-`Def` grammars below drop.
-    pub const SATURATING_ADD_ZERO_COPY: Self = {
+    pub(crate) const SATURATING_ADD_ZERO_COPY: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::SaturatingAdd(SaturatingCarrier::U64),
@@ -755,7 +755,7 @@ impl SelectedInstructionPairRule {
     /// row's `Use` position. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
-    pub const SATURATING_ADD_ZERO_LEFT_COPY: Self = Self {
+    pub(crate) const SATURATING_ADD_ZERO_LEFT_COPY: Self = Self {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::SATURATING_ADD_ZERO_COPY
     };
@@ -818,7 +818,7 @@ impl SelectedInstructionPairRule {
     /// per position for each carrier binding the clamped row — every
     /// other carrier — whose bound scratch `Def` drops under the
     /// scratch-defs grammar.
-    pub const SATURATING_ADD_ZERO_COPIES: [Self; 16] = [
+    pub(crate) const SATURATING_ADD_ZERO_COPIES: [Self; 16] = [
         Self::SATURATING_ADD_ZERO_COPY,
         Self::SATURATING_ADD_ZERO_LEFT_COPY,
         Self::saturating_add_zero_clamped(SaturatingCarrier::I8),
@@ -922,7 +922,7 @@ impl SelectedInstructionPairRule {
     /// The family shares its consumer kind and operand positions with
     /// the zero-identity fold; the grammars stay disjoint on the folded
     /// literal's value.
-    pub const SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS: [Self; 8] = [
+    pub(crate) const SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS: [Self; 8] = [
         Self::saturating_add_upper_bound(SaturatingCarrier::U8),
         Self::saturating_add_upper_bound_left(SaturatingCarrier::U8),
         Self::saturating_add_upper_bound(SaturatingCarrier::U16),
@@ -1022,7 +1022,7 @@ impl SelectedInstructionPairRule {
     /// family declares no left-literal pair at either operand grammar.
     /// The unsigned `0 -| x` constant fold is a separate family below,
     /// not a left-literal member of this one.
-    pub const SATURATING_SUBTRACT_ZERO_COPIES: [Self; 8] = [
+    pub(crate) const SATURATING_SUBTRACT_ZERO_COPIES: [Self; 8] = [
         Self::saturating_subtract_zero_unsigned(SaturatingCarrier::U8),
         Self::saturating_subtract_zero_unsigned(SaturatingCarrier::U16),
         Self::saturating_subtract_zero_unsigned(SaturatingCarrier::U32),
@@ -1089,7 +1089,7 @@ impl SelectedInstructionPairRule {
     /// family shares its consumer kind with the right-zero identity fold;
     /// the grammars stay disjoint on the folded literal's operand
     /// position.
-    pub const SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS: [Self; 4] = [
+    pub(crate) const SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS: [Self; 4] = [
         Self::saturating_subtract_zero_minuend(SaturatingCarrier::U8),
         Self::saturating_subtract_zero_minuend(SaturatingCarrier::U16),
         Self::saturating_subtract_zero_minuend(SaturatingCarrier::U32),
@@ -1164,7 +1164,7 @@ impl SelectedInstructionPairRule {
     /// family shares its consumer kind and operand position with the
     /// right-zero identity fold; the grammars stay disjoint on the
     /// folded literal's value.
-    pub const SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS: [Self; 4] = [
+    pub(crate) const SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS: [Self; 4] = [
         Self::saturating_subtract_upper_bound(SaturatingCarrier::U8),
         Self::saturating_subtract_upper_bound(SaturatingCarrier::U16),
         Self::saturating_subtract_upper_bound(SaturatingCarrier::U32),
@@ -1239,7 +1239,7 @@ impl SelectedInstructionPairRule {
     /// auxiliary `Use` x86-64's pinned divide rows read and the bound
     /// scratch `Def` aarch64's clamped signed row writes — as well as the
     /// empty tail aarch64's `udiv` leaves.
-    pub const SATURATING_DIVIDE_ONE_COPIES: [Self; 8] = [
+    pub(crate) const SATURATING_DIVIDE_ONE_COPIES: [Self; 8] = [
         Self::saturating_divide_one(SaturatingCarrier::U8),
         Self::saturating_divide_one(SaturatingCarrier::U16),
         Self::saturating_divide_one(SaturatingCarrier::U32),
@@ -1319,7 +1319,7 @@ impl SelectedInstructionPairRule {
     /// role — the auxiliary `Use` x86-64's pinned divide rows read and
     /// the bound scratch `Def` aarch64's clamped signed row writes — as
     /// well as the empty tail aarch64's `udiv` leaves.
-    pub const SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS: [Self; 8] = [
+    pub(crate) const SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS: [Self; 8] = [
         Self::saturating_divide_zero_dividend(SaturatingCarrier::U8),
         Self::saturating_divide_zero_dividend(SaturatingCarrier::U16),
         Self::saturating_divide_zero_dividend(SaturatingCarrier::U32),

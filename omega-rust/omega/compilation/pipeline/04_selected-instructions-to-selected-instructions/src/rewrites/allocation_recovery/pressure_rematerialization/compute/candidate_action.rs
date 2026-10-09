@@ -53,10 +53,11 @@ pub(super) fn derive(
             function: function_index,
         });
     }
-    let victim = function.virtual_register(candidate.victim)
-        .ok_or(PressureRematerializationError::MaterializeMismatch {
+    let victim = function.virtual_register(candidate.victim).ok_or(
+        PressureRematerializationError::MaterializeMismatch {
             function: function_index,
-        })?;
+        },
+    )?;
     if victim.scalar_type != candidate.scalar_type
         || victim.class != candidate.class
         || victim.origin != candidate.origin
@@ -68,14 +69,16 @@ pub(super) fn derive(
             function: function_index,
         });
     }
-    let block = function.block(candidate.block)
-        .ok_or(PressureRematerializationError::MaterializeMismatch {
+    let block = function.block(candidate.block).ok_or(
+        PressureRematerializationError::MaterializeMismatch {
             function: function_index,
-        })?;
-    let original = block.instruction(*defining_instruction)
-        .ok_or(PressureRematerializationError::MaterializeMismatch {
+        },
+    )?;
+    let original = block.instruction(*defining_instruction).ok_or(
+        PressureRematerializationError::MaterializeMismatch {
             function: function_index,
-        })?;
+        },
+    )?;
     if original.kind
         != (selected_instructions::SelectedInstructionKind::MaterializeI64 { value: *value })
         || original.constraint != row.key

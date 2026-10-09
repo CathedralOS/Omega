@@ -320,8 +320,7 @@ pub(super) fn reaches_visited(function: &SelectedFunction, start: usize, visited
         }
         seen[index] = true;
         for edge in terminator_successors(&function.blocks[index].terminator) {
-            if let Some(target) = function.block_index(edge.block)
-            {
+            if let Some(target) = function.block_index(edge.block) {
                 pending.push(target);
             }
         }

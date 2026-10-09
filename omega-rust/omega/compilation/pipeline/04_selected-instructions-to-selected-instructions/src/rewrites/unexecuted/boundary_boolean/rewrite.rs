@@ -13,7 +13,7 @@ use crate::ValidatedSelectedAnalysis;
 /// remain published for every other reached reader. Every other function,
 /// block, instruction, register, call, settlement, and access is retained,
 /// and replay independently confirms that.
-pub fn fold_selected_boundary_boolean(
+pub(crate) fn fold_selected_boundary_boolean(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     materialization: SelectedInstructionId,

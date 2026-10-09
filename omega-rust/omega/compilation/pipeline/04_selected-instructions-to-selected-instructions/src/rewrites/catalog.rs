@@ -22,7 +22,7 @@ use super::{
 /// the family catalog itself, so the stage table cannot drift from the
 /// per-row detail the family owns.
 #[derive(Debug, Clone, Copy)]
-pub enum SelectedStageRuleRows {
+pub(crate) enum SelectedStageRuleRows {
     SelectedLowering(&'static [SelectedLoweringRuleCatalogEntry]),
     PreAllocation(&'static [PreAllocationRuleCatalogEntry]),
     AllocationRecovery(&'static [AllocationRecoveryRuleCatalogEntry]),
@@ -73,7 +73,7 @@ impl SelectedStageRuleRows {
 /// One phase's slice of the stage catalog: every selectable rule the stage
 /// admits under `phase`, ordered exactly as its family catalog orders it.
 #[derive(Debug, Clone, Copy)]
-pub struct SelectedStageRuleCatalogSlice {
+pub(crate) struct SelectedStageRuleCatalogSlice {
     phase: OptimizationExecutionPhase,
     rows: SelectedStageRuleRows,
 }
@@ -103,7 +103,7 @@ impl SelectedStageRuleCatalogSlice {
 /// which rejects a mixed selection as an unsupported composition. Phases the
 /// stage does not carry have no slice: they admit no selectable rule here
 /// rather than listing an empty catalog.
-pub const SELECTED_STAGE_RULE_CATALOG: [SelectedStageRuleCatalogSlice; 3] = [
+pub(crate) const SELECTED_STAGE_RULE_CATALOG: [SelectedStageRuleCatalogSlice; 3] = [
     SelectedStageRuleCatalogSlice::new(
         OptimizationExecutionPhase::SelectedLowering,
         SelectedStageRuleRows::SelectedLowering(&SELECTED_LOWERING_RULE_CATALOG),

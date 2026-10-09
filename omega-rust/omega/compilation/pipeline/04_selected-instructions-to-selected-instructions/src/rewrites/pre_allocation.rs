@@ -17,17 +17,18 @@ use optimization_core::{
 use super::catalog::selected_stage_catalog_contains;
 use crate::StagedOptimizedAllocationLegality;
 
-pub use catalog::{
+pub(crate) use catalog::{
     PRE_ALLOCATION_RULE_CATALOG, PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError,
-    PreAllocationRuleCatalogPayload,
 };
-pub use execution::validate_pre_allocation_optimization_custody;
+pub(crate) use execution::validate_pre_allocation_optimization_custody;
 pub use model::{
-    OptimizedPreAllocationCustodyError, PreAllocationPolicy, PreAllocationTransformationIdentity,
-    StagedOptimizedPreAllocationAttempt, StagedOptimizedPreAllocationAttemptReceipt,
-    StagedOptimizedPreAllocationIterationReceipt, StagedOptimizedPreAllocationStep,
-    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
-    ValidatedPreAllocationTransformation,
+    OptimizedPreAllocationCustodyError, StagedPreAllocationOptimizationCustodyReceipt,
+    StagedPreAllocationOptimizationRun,
+};
+pub(crate) use model::{
+    PreAllocationPolicy, PreAllocationTransformationIdentity, StagedOptimizedPreAllocationAttempt,
+    StagedOptimizedPreAllocationAttemptReceipt, StagedOptimizedPreAllocationIterationReceipt,
+    StagedOptimizedPreAllocationStep, ValidatedPreAllocationTransformation,
 };
 
 impl From<PreAllocationRuleCatalogError> for OptimizedPreAllocationCustodyError {
@@ -49,7 +50,7 @@ impl From<PreAllocationRuleCatalogError> for OptimizedPreAllocationCustodyError 
 /// The returned policy is a derived set of exact catalog payloads, never a
 /// separately declared combined rule. Appending a row therefore requires an
 /// explicit payload and cannot fall through an old whole-catalog special case.
-pub fn resolve_pre_allocation_rules(
+pub(crate) fn resolve_pre_allocation_rules(
     selections: &OptimizationPhaseSelections,
 ) -> Result<(OptimizationSelections, PreAllocationPolicy), PreAllocationRuleCatalogError> {
     let phase = selections
@@ -76,7 +77,7 @@ pub fn resolve_pre_allocation_rules(
 
 /// Execute the exact pre-allocation projection to a validated joint fixed
 /// point.
-pub fn run_pre_allocation_optimizations(
+pub(crate) fn run_pre_allocation_optimizations(
     source: StagedOptimizedAllocationLegality,
 ) -> Result<StagedPreAllocationOptimizationRun, OptimizedPreAllocationCustodyError> {
     let selections = source.selections().clone();

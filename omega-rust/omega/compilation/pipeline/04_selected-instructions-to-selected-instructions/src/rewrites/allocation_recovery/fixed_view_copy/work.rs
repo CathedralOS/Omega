@@ -39,7 +39,8 @@ pub(super) fn apply_fixed_view_copy(
     row: &register_model::RegisterInstructionConstraint,
     require_use_access: bool,
 ) -> Result<(), FixedViewCopyError> {
-    let source = function.virtual_register(copy.source_virtual_register)
+    let source = function
+        .virtual_register(copy.source_virtual_register)
         .cloned()
         .ok_or(FixedViewCopyError::UnsupportedSourceRegister {
             function: function_index,
@@ -113,11 +114,12 @@ pub(super) fn apply_fixed_view_copy(
     {
         block.instructions.len()
     } else {
-        block.instruction_index(copy.before_instruction)
-            .ok_or(FixedViewCopyError::InvalidInsertionSite {
+        block.instruction_index(copy.before_instruction).ok_or(
+            FixedViewCopyError::InvalidInsertionSite {
                 function: function_index,
                 instruction: copy.before_instruction.0,
-            })?
+            },
+        )?
     };
     function
         .virtual_registers

@@ -21,7 +21,7 @@ use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use terminal_psi::TerminalPsiIdentity;
 
-pub fn stage_optimized_live_ranges(
+pub(crate) fn stage_optimized_live_ranges(
     liveness: StagedOptimizedLiveness,
 ) -> Result<StagedOptimizedLiveRanges, OptimizedLiveRangeCustodyError> {
     let ranges = compute::compute_live_ranges(&liveness)?;

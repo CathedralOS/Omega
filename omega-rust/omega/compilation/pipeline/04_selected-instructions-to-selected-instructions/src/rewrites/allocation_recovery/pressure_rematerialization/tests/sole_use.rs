@@ -8,8 +8,8 @@ use selected_instructions::LiveRangeIdentity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlanIdentity,
+    SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
     selected_instruction_plan_identity,
 };
 use semantic_vocabulary::{IntegerValue, ValueId};

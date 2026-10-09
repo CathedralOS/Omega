@@ -39,7 +39,7 @@ use crate::ValidatedSelectedAnalysis;
 /// complete source by content: every other instruction, terminator,
 /// register, roster row, call, settlement, and function included. The pair
 /// descriptor table is never read.
-pub fn validate_projected_access_fold(
+pub(crate) fn validate_projected_access_fold(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     access: SelectedInstructionId,
@@ -99,9 +99,7 @@ pub fn validate_projected_access_fold(
         return Err(ProjectedAccessError::UnsupportedConsumer);
     }
     let pointer = pointer_operand.virtual_register;
-    let find_register = |register| {
-        function.virtual_register(register)
-    };
+    let find_register = |register| function.virtual_register(register);
     let pointer_register = find_register(pointer).ok_or(ProjectedAccessError::UnsupportedUse)?;
     let tail_register =
         find_register(tail_operand.virtual_register).ok_or(ProjectedAccessError::UnsupportedUse)?;

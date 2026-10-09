@@ -89,7 +89,7 @@ fn reconstruct<'source>(
 /// source by content: every instruction before and after the window,
 /// every other instruction, register, roster row, call, settlement, and
 /// function included.
-pub fn validate_selected_interchange(
+pub(crate) fn validate_selected_interchange(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     earlier_first: SelectedInstructionId,

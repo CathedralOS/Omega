@@ -112,7 +112,7 @@ fn reconstruct<'source>(
 /// moving it back must restore the complete source by content — every
 /// crossed instruction, every other block and instruction, register,
 /// roster row, call, settlement, and edge included.
-pub fn validate_arm_relocation(
+pub(crate) fn validate_arm_relocation(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,

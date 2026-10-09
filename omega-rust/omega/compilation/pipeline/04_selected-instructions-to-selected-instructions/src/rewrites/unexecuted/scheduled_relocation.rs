@@ -92,12 +92,11 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{EdgeId, FuelScheduleIdentity};
 
-pub use rewrite::relocate_scheduled_run;
-pub use validation::validate_scheduled_relocation;
+pub(crate) use validation::validate_scheduled_relocation;
 
 /// An accepted scheduled relocation with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedScheduledRelocation {
+pub(crate) struct ValidatedScheduledRelocation {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: ScheduledRelocationReceipt,
 }
@@ -105,7 +104,7 @@ pub struct ValidatedScheduledRelocation {
 validated_transformed_receipt!(ValidatedScheduledRelocation, ScheduledRelocationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScheduledRelocationReceipt {
+pub(crate) struct ScheduledRelocationReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -115,7 +114,7 @@ pub struct ScheduledRelocationReceipt {
 receipt_selected_identities!(ScheduledRelocationReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScheduledRelocationError {
+pub(crate) enum ScheduledRelocationError {
     /// The named member run or destination does not resolve inside the
     /// named function, or the plan's target does not match the register
     /// environment's.
@@ -240,11 +239,10 @@ pub(super) fn landing_position(
     block: &SelectedBlock,
     destination: SelectedInstructionId,
 ) -> Option<usize> {
-    block.instruction_index(destination)
-        .or_else(|| {
-            (terminator_instruction(&block.terminator).id == destination)
-                .then_some(block.instructions.len())
-        })
+    block.instruction_index(destination).or_else(|| {
+        (terminator_instruction(&block.terminator).id == destination)
+            .then_some(block.instructions.len())
+    })
 }
 
 pub(super) fn block_index_of(function: &SelectedFunction, id: SelectedBlockId) -> Option<usize> {

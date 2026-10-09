@@ -9,7 +9,7 @@ mod error;
 mod replay;
 mod validation;
 
-pub use error::FixedPrecoloredSplitRequirementError;
+pub(crate) use error::FixedPrecoloredSplitRequirementError;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_homes::FixedPrecoloredSplitRequirementPolicy;
 use register_homes::{
@@ -20,9 +20,9 @@ use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::LiveRangeIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
-pub use validation::validate_fixed_precolored_split_requirements;
+pub(crate) use validation::validate_fixed_precolored_split_requirements;
 
-pub fn analyze_fixed_precolored_split_requirements(
+pub(crate) fn analyze_fixed_precolored_split_requirements(
     ranges: &crate::ValidatedLiveRanges,
     legality: &crate::ValidatedAllocationLegality,
     fixed: &crate::ValidatedFixedPrecoloredIntervals,

@@ -7,8 +7,6 @@ mod compute;
 mod custody;
 mod validation;
 
-pub use validation::validate_optimized_fixed_view_copy_custody;
-
 use crate::FixedViewCopyPolicy;
 use optimization_core::OptimizationWorkBudget;
 

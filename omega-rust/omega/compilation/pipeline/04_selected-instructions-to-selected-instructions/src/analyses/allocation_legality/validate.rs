@@ -22,7 +22,7 @@ use register_homes::{
 use selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite, VirtualLiveRange};
 
 #[allow(clippy::too_many_arguments)]
-pub fn validate_allocation_legality(
+pub(crate) fn validate_allocation_legality(
     ranges: &ValidatedLiveRanges,
     availability: &ValidatedAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
@@ -248,13 +248,13 @@ fn replay_register(
             let occupied = &general.occupied;
             let mut candidates = general.views.clone();
             if let Some(fixed) = fixed {
-                let fixed_view = physical
-                    .model().view(fixed)
-                    .ok_or(AllocationLegalityError::UnknownFixedView {
+                let fixed_view = physical.model().view(fixed).ok_or(
+                    AllocationLegalityError::UnknownFixedView {
                         function: function_index,
                         register: register.virtual_register.0,
                         view: fixed.0,
-                    })?;
+                    },
+                )?;
                 if fixed_view.class != register.class
                     || fixed_view
                         .units
@@ -333,13 +333,15 @@ fn replay_register(
         let occupied = &general.occupied;
         let mut candidates = general.views.clone();
         if let Some(fixed) = fixed.into_iter().next() {
-            let fixed_view = physical
-                .model().view(fixed)
-                .ok_or(AllocationLegalityError::UnknownFixedView {
-                    function: function_index,
-                    register: register.virtual_register.0,
-                    view: fixed.0,
-                })?;
+            let fixed_view =
+                physical
+                    .model()
+                    .view(fixed)
+                    .ok_or(AllocationLegalityError::UnknownFixedView {
+                        function: function_index,
+                        register: register.virtual_register.0,
+                        view: fixed.0,
+                    })?;
             if fixed_view.class != register.class
                 || fixed_view
                     .units

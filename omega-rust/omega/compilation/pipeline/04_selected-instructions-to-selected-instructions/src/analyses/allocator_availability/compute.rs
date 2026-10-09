@@ -85,9 +85,7 @@ fn admitted_views(
                 return Err(AllocatorAvailabilityError::NonCanonicalAllowlist);
             }
             for view_id in views {
-                let Some(view) = physical
-                    .model().view(*view_id)
-                else {
+                let Some(view) = physical.model().view(*view_id) else {
                     return Err(AllocatorAvailabilityError::UnknownView { view: view_id.0 });
                 };
                 if !is_environment_allocatable(view) {

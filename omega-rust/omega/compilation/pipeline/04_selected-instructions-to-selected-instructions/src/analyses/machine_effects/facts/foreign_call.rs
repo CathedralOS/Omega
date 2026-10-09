@@ -30,7 +30,7 @@ pub(super) fn constraint<'catalog>(
         &catalog.catalog().constraints,
         instruction.constraint,
     )
-        .ok_or_else(invalid)?;
+    .ok_or_else(invalid)?;
     if matches!(
         instruction.kind.call_target(),
         Some(selected_instructions::SelectedCallTarget::Dynamic { .. })

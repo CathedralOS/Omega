@@ -188,7 +188,7 @@ use selected_instructions::{
 use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, PlaceId, ScalarType, ValueId};
 
 pub use rewrite::{spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy};
-pub use validation::validate_runtime_spill_with_span_policy;
+pub(crate) use validation::validate_runtime_spill_with_span_policy;
 
 /// How far a block's still-open shared reload interval may reach. The
 /// entrypoint fixes this once per rewrite so the proposal and the
@@ -625,7 +625,8 @@ pub(super) fn derive_runtime_spill<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             RuntimeSpillError::SourceMismatch
         })?;
-    let victim = function.virtual_register(register)
+    let victim = function
+        .virtual_register(register)
         .ok_or(RuntimeSpillError::UnsupportedValue)?;
     let unsigned = IntegerType::new(IntegerSign::Unsigned, 64)
         .map_err(|_| RuntimeSpillError::UnsupportedValue)?;
@@ -656,7 +657,8 @@ pub(super) fn derive_runtime_spill<'source>(
             block,
             parameter_index,
         } => {
-            let block_index = function.block_index(block)
+            let block_index = function
+                .block_index(block)
                 .ok_or(RuntimeSpillError::UnsupportedValue)?;
             if block == function.entry_block
                 || !matches!(victim.definition_site,
@@ -1898,7 +1900,8 @@ pub(super) fn parameter_definitions(
                     if parameter != victim.id {
                         return Err(RuntimeSpillError::UnsupportedUse);
                     }
-                    let value = function.virtual_register(argument)
+                    let value = function
+                        .virtual_register(argument)
                         .ok_or(RuntimeSpillError::UnsupportedValue)?;
                     if value.scalar_type != victim.scalar_type
                         || value.class != victim.class
@@ -1975,7 +1978,8 @@ pub(super) fn parameter_definitions(
             let SelectedValueTransport::Registers { argument, .. } = binding.transport else {
                 return Err(RuntimeSpillError::UnsupportedUse);
             };
-            let value = function.virtual_register(argument)
+            let value = function
+                .virtual_register(argument)
                 .ok_or(RuntimeSpillError::UnsupportedValue)?;
             if value.scalar_type != victim.scalar_type || value.class != victim.class {
                 return Err(RuntimeSpillError::UnsupportedValue);

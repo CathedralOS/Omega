@@ -24,34 +24,26 @@ pub use selected_optimization::optimization_output::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
     SelectedInstructionOptimizationOutput,
 };
+
 pub use selected_optimization::optimize_selected_instructions;
 
 // Current selected-program facts and their independent validation.
 pub use analyses::{
-    AllocationLegalityError, FixedPrecoloredIntervalError, FixedPrecoloredSegmentHomeError,
-    FixedPrecoloredSplitRequirementError, LiveRangeError, LivenessError, MachineEffectError,
-    MachineEffectStageError, OptimizedAllocationLegalityCustodyError,
-    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
-    OptimizedSelectedReanalysisError, OwnedSelectedProgram, RecoveryClassificationError,
-    SelectedProgramRef, SpillChoiceError, StagedOptimizedAllocationLegality,
-    StagedOptimizedAllocationLegalityCustodyReceipt, StagedOptimizedLiveRanges,
-    StagedOptimizedLiveness, StagedOptimizedSelectedReanalysis,
+    AllocationLegalityError, LiveRangeError, LivenessError, MachineEffectStageError,
+    OptimizedAllocationLegalityCustodyError, OptimizedSelectedReanalysisError,
+    OwnedSelectedProgram, RecoveryClassificationError, SelectedProgramRef, SpillChoiceError,
+    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
+    StagedOptimizedLiveRanges, StagedOptimizedSelectedReanalysis,
     StagedOptimizedSelectedReanalysisCustodyReceipt, ValidatedAllocationLegality,
-    ValidatedAllocatorAvailability, ValidatedFixedPrecoloredIntervals,
-    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
-    ValidatedLiveRanges, ValidatedLiveness, ValidatedPreAllocationMachineEffects,
-    ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
-    analyze_allocation_legality, analyze_allocation_legality_reusing,
-    analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
-    analyze_live_ranges, analyze_live_ranges_reusing, analyze_liveness, analyze_liveness_reusing,
-    analyze_machine_effects, assign_fixed_precolored_segment_homes, choose_spill_victims,
+    ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedLiveness,
+    ValidatedPreAllocationMachineEffects, ValidatedRecoveryClassifications,
+    ValidatedSelectedAnalysis, ValidatedSpillChoices, analyze_allocation_legality,
+    analyze_allocation_legality_reusing, analyze_live_ranges, analyze_live_ranges_reusing,
+    analyze_liveness, analyze_liveness_reusing, analyze_machine_effects, choose_spill_victims,
     classify_pressure_recovery, materialize_allocator_availability,
     stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_allocation_legality_with_availability, stage_optimized_live_ranges,
-    stage_optimized_liveness, stage_optimized_selected_reanalysis, validate_allocation_legality,
-    validate_fixed_precolored_intervals, validate_fixed_precolored_segment_homes,
-    validate_fixed_precolored_split_requirements, validate_live_ranges, validate_liveness,
+    stage_optimized_selected_reanalysis,
 };
 pub(crate) use analyses::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityError,
@@ -61,45 +53,47 @@ pub(crate) use analyses::{
     SpillChoiceValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
     StagedOptimizedLivenessCustodyReceipt,
 };
+pub(crate) use analyses::{
+    FixedPrecoloredIntervalError, FixedPrecoloredSegmentHomeError,
+    FixedPrecoloredSplitRequirementError, MachineEffectError, OptimizedLiveRangeCustodyError,
+    OptimizedLivenessCustodyError, StagedOptimizedLiveness, ValidatedFixedPrecoloredIntervals,
+    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
+    analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
+    assign_fixed_precolored_segment_homes, stage_optimized_live_ranges, stage_optimized_liveness,
+    validate_fixed_precolored_intervals, validate_fixed_precolored_segment_homes,
+    validate_fixed_precolored_split_requirements,
+};
 // Selected-CFG rewrites: the executed catalog slices, the recovery rewrites
 // register assignment replays, and the unexecuted families.
 pub use rewrites::unexecuted;
-pub use rewrites::{
-    ALLOCATION_RECOVERY_RULE_CATALOG, AddressFoldError, AllocationRecoveryRuleCatalogEntry,
-    AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload, ConstantBooleanError,
-    ConstantBranchError, CopiedCallOperandError, CopyRemovalError, DeadCompareError,
-    EquivalentCompareError, FixedPrecoloredSegmentHomeDecline, FixedViewCopy, FixedViewCopyError,
-    FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence, LiteralFoldIdentity,
-    LiteralFoldPolicy, OptimizedFixedPrecoloredSegmentHomeCustodyError,
-    OptimizedFixedViewCopyCustodyError, OptimizedLiteralFoldCustodyError,
-    OptimizedPreAllocationCustodyError, PRE_ALLOCATION_RULE_CATALOG, PairConsumerBindingAdmission,
-    PairFaultDischarge, PairImmediateBound, PairLiteralPosition, PairMachineEffects,
-    PairNonUnitSurface, PairOperandResult, PairOperandShape, PairResultDisposition,
-    PairTailCustody, PairUnitDefRelation, PairUnitEffects, PreAllocationPolicy,
-    PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError, PreAllocationRuleCatalogPayload,
-    PreAllocationTransformationIdentity, PressureRematerializationError,
-    PressureRematerializationPolicy, RedundantCompareError, RedundantExtensionError,
-    RegisterAllocationRuleTargetApplicability, RuntimeRematerializationError, RuntimeSpillError,
-    RuntimeSpillSpanPolicy, SELECTED_LOWERING_RULE_CATALOG, SELECTED_STAGE_RULE_CATALOG,
-    SelectedInstructionPairRule, SelectedLoweringRuleCatalogEntry,
-    SelectedLoweringRuleCatalogError, SelectedLoweringRuleCatalogPayload,
-    SelectedStageRuleCatalogSlice, SelectedStageRuleRows,
+pub(crate) use rewrites::{
+    AddressFoldError, ConstantBooleanError, ConstantBranchError, CopiedCallOperandError,
+    CopyRemovalError, DeadCompareError, EquivalentCompareError, FixedViewCopyError,
+    LiteralFoldPolicy, PairLiteralPosition, PairOperandShape, PairResultDisposition,
+    PairUnitDefRelation, PreAllocationPolicy, PreAllocationTransformationIdentity,
+    RedundantCompareError, RedundantExtensionError, SELECTED_STAGE_RULE_CATALOG,
+    SelectedInstructionPairRule, SelectedLoweringRuleCatalogError, SelectedStageRuleRows,
     StagedOptimizedFixedPrecoloredSegmentHomes, StagedOptimizedFixedViewCopies,
-    StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds,
-    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
-    StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
-    ValidatedFixedViewCopies, ValidatedLiteralFold, ValidatedPressureRematerialization,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
-    rematerialize_selected_runtime_value, resolve_pre_allocation_rules,
-    resolve_selected_lowering_rules, run_pre_allocation_optimizations,
-    run_selected_lowering_optimizations, selected_allocation_recovery_rule,
-    spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
-    stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
-    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
+    resolve_pre_allocation_rules, resolve_selected_lowering_rules,
+    run_pre_allocation_optimizations, run_selected_lowering_optimizations,
     validate_fixed_view_copies, validate_optimized_fixed_precolored_segment_home_custody,
-    validate_optimized_fixed_view_copy_custody, validate_pre_allocation_optimization_custody,
-    validate_runtime_spill_with_span_policy, validate_selected_lowering_optimization_custody,
+    validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
+};
+pub use rewrites::{
+    AllocationRecoveryRuleCatalogError, FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy,
+    FixedViewCopySourceEvidence, LiteralFoldIdentity,
+    OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
+    PressureRematerializationError, PressureRematerializationPolicy, RuntimeRematerializationError,
+    RuntimeSpillError, RuntimeSpillSpanPolicy, StagedOptimizedLiteralFoldCustodyReceipt,
+    StagedOptimizedLiteralFolds, StagedPreAllocationOptimizationCustodyReceipt,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationCustodyReceipt,
+    StagedSelectedLoweringOptimizationRun, ValidatedFixedViewCopies, ValidatedLiteralFold,
+    ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
+    rematerialize_selected_runtime_value, selected_allocation_recovery_rule,
+    spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
+    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
 };
 pub(crate) use rewrites::{
     FixedViewCopyDestination, FixedViewCopyValidationReceipt, FunctionLiteralFold,
@@ -116,12 +110,10 @@ pub(crate) use rewrites::{
     ValidatedDeadCompare, ValidatedEquivalentCompare, ValidatedPreAllocationTransformation,
     ValidatedRedundantCompare, ValidatedRedundantExtension, fixed_view_copy_identity,
 };
-pub use rewrites::{
-    RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit, split_selected_runtime_value,
-};
+pub use rewrites::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runtime_value};
 
 #[cfg(any(test, feature = "test-support"))]
-pub use rewrites::test_support;
+pub(crate) use rewrites::test_support;
 
 // Durable transform-output identities live with the selected-instruction
 // representation; the transform publishes them under its root so callers keep
@@ -136,7 +128,6 @@ pub use selected_instructions::{
 // mimalloc avoids the system allocator's zone locks and free lists.
 // Test-only: the product keeps the system allocator.
 
-pub use rewrites::{
-    StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
-    forward_selected_stored_load,
+pub(crate) use rewrites::{
+    StoredLoadForwardingError, ValidatedStoredLoadForwarding, forward_selected_stored_load,
 };

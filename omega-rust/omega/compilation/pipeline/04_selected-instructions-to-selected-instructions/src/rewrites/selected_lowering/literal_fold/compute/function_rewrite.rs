@@ -55,10 +55,11 @@ pub(super) fn apply_actions(
     for block in &mut function.blocks {
         let mut positions = Vec::new();
         for action in actions.iter().filter(|action| action.block == block.id) {
-            let position = block.instruction_index(action.literal_instruction)
-                .ok_or(LiteralFoldError::DecisionMismatch {
+            let position = block.instruction_index(action.literal_instruction).ok_or(
+                LiteralFoldError::DecisionMismatch {
                     function: function_index,
-                })?;
+                },
+            )?;
             removed_instructions.push(action.literal_instruction);
             positions.push(u32::try_from(position).map_err(|_| LiteralFoldError::WorkOverflow)?);
         }
@@ -138,16 +139,19 @@ pub(super) fn rewritten_consumer(
     action: &LiteralFoldAction,
     rows: &AdmittedPairs<'_>,
 ) -> Result<SelectedInstruction, LiteralFoldError> {
-    let block = function.block(action.block)
+    let block = function
+        .block(action.block)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;
-    let literal = block.instruction(action.literal_instruction)
-        .ok_or(LiteralFoldError::DecisionMismatch {
+    let literal = block.instruction(action.literal_instruction).ok_or(
+        LiteralFoldError::DecisionMismatch {
             function: function_index,
-        })?;
+        },
+    )?;
     let literal_provenance = literal.provenance.clone();
-    let mut consumer = block.instruction(action.consumer_instruction)
+    let mut consumer = block
+        .instruction(action.consumer_instruction)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?
@@ -160,9 +164,7 @@ pub(super) fn rewritten_consumer(
         })?;
     let result_scalar = action
         .result
-        .and_then(|result| {
-            function.virtual_register(result)
-        })
+        .and_then(|result| function.virtual_register(result))
         .map(|register| register.scalar_type);
     let rewritten_kind = pair
         .rule

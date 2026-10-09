@@ -14,7 +14,7 @@ use crate::ValidatedSelectedAnalysis;
 /// reached reader. Every other function, block, instruction, register,
 /// call, settlement, and access is retained, and replay independently
 /// confirms that.
-pub fn fold_selected_boundary_branch(
+pub(crate) fn fold_selected_boundary_branch(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     branch: SelectedInstructionId,

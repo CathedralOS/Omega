@@ -17,11 +17,11 @@ pub(super) fn apply(
     action: &PressureRematerializationAction,
     row: &RegisterInstructionConstraint,
 ) -> Result<(), PressureRematerializationError> {
-    let source = function.virtual_register(action.victim)
-        .cloned()
-        .ok_or(PressureRematerializationError::DecisionMismatch {
+    let source = function.virtual_register(action.victim).cloned().ok_or(
+        PressureRematerializationError::DecisionMismatch {
             function: function_index,
-        })?;
+        },
+    )?;
     function.virtual_registers.push(VirtualRegister {
         id: action.result_virtual_register,
         scalar_type: source.scalar_type,
@@ -74,8 +74,7 @@ pub(super) fn apply(
             .ok_or(PressureRematerializationError::DecisionMismatch {
                 function: function_index,
             })?;
-    if let Some(index) = block.instruction_index(first.instruction)
-    {
+    if let Some(index) = block.instruction_index(first.instruction) {
         let insertion_index =
             u32::try_from(index).map_err(|_| PressureRematerializationError::WorkOverflow)?;
         for settlement in &mut function.boundary_settlements {
@@ -121,7 +120,8 @@ fn rewrite_operand(
         .iter_mut()
         .find(|instruction| instruction.id == rewrite.instruction)
         .or_else(|| {
-            let terminator = selected_instructions::terminator_instruction_mut(&mut block.terminator);
+            let terminator =
+                selected_instructions::terminator_instruction_mut(&mut block.terminator);
             (terminator.id == rewrite.instruction).then_some(terminator)
         })
         .ok_or(PressureRematerializationError::DecisionMismatch { function })?;

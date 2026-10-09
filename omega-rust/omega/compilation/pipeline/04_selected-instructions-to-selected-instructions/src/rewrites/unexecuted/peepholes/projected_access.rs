@@ -138,12 +138,11 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use replay::validate_projected_access_fold;
-pub use rewrite::fold_selected_projected_access;
+pub(crate) use replay::validate_projected_access_fold;
 
 /// An accepted projected-access fold with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedProjectedAccess {
+pub(crate) struct ValidatedProjectedAccess {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: ProjectedAccessReceipt,
 }
@@ -151,7 +150,7 @@ pub struct ValidatedProjectedAccess {
 validated_transformed_receipt!(ValidatedProjectedAccess, ProjectedAccessReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectedAccessReceipt {
+pub(crate) struct ProjectedAccessReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -161,7 +160,7 @@ pub struct ProjectedAccessReceipt {
 receipt_selected_identities!(ProjectedAccessReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProjectedAccessError {
+pub(crate) enum ProjectedAccessError {
     SourceMismatch,
     /// Not the emitted two-operand dereference the family declares: a body
     /// instruction of a kind no declared consumer names — indexed, slot,

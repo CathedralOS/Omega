@@ -23,7 +23,7 @@ use crate::ValidatedSelectedAnalysis;
 /// restore the complete source by content — every crossed instruction,
 /// every other block and instruction, register, roster row, call,
 /// settlement, and edge included.
-pub fn validate_scheduled_relocation(
+pub(crate) fn validate_scheduled_relocation(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     members: &[SelectedInstructionId],

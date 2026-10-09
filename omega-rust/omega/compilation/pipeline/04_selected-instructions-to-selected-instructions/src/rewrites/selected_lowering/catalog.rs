@@ -4,7 +4,7 @@ use super::super::RegisterAllocationRuleTargetApplicability;
 use super::{LiteralFoldPolicy, SelectedInstructionPairRule};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectedLoweringRuleCatalogPayload {
+pub(crate) struct SelectedLoweringRuleCatalogPayload {
     target: RegisterAllocationRuleTargetApplicability,
     policy: LiteralFoldPolicy,
     pairs: &'static [SelectedInstructionPairRule],
@@ -27,11 +27,11 @@ impl SelectedLoweringRuleCatalogPayload {
     }
 }
 
-pub type SelectedLoweringRuleCatalogEntry =
+pub(crate) type SelectedLoweringRuleCatalogEntry =
     OptimizationCatalogDescriptor<SelectedLoweringRuleCatalogPayload>;
 
 /// The single selected-lowering enable/order catalog.
-pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 23] = [
+pub(crate) const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 23] = [
     SelectedLoweringRuleCatalogEntry::new(
         Optimization::SelectedIncomingU12ExactAddImmediate,
         SelectedLoweringRuleCatalogPayload {
@@ -240,7 +240,7 @@ pub(crate) fn enabled_pair_rules(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectedLoweringRuleCatalogError {
+pub(crate) enum SelectedLoweringRuleCatalogError {
     WrongPhase(OptimizationPhaseMismatch),
     MissingSelection,
     UnsupportedSelection(Optimization),

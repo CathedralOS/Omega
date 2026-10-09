@@ -18,7 +18,7 @@ use register_homes::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub fn validate_fixed_precolored_segment_homes(
+pub(crate) fn validate_fixed_precolored_segment_homes(
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     fixed: &ValidatedFixedPrecoloredIntervals,

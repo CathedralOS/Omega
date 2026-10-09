@@ -158,12 +158,11 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::eliminate_selected_dead_store;
-pub use validation::validate_dead_store_elimination;
+pub(crate) use validation::validate_dead_store_elimination;
 
 /// An accepted dead-store elimination with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedDeadStoreElimination {
+pub(crate) struct ValidatedDeadStoreElimination {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: DeadStoreEliminationReceipt,
 }
@@ -171,7 +170,7 @@ pub struct ValidatedDeadStoreElimination {
 validated_transformed_receipt!(ValidatedDeadStoreElimination, DeadStoreEliminationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DeadStoreEliminationReceipt {
+pub(crate) struct DeadStoreEliminationReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -181,7 +180,7 @@ pub struct DeadStoreEliminationReceipt {
 receipt_selected_identities!(DeadStoreEliminationReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeadStoreEliminationError {
+pub(crate) enum DeadStoreEliminationError {
     SourceMismatch,
     UnsupportedInstruction,
     UnsupportedPair,
@@ -388,7 +387,8 @@ pub(super) fn byte_span_row_shape(
         .find(|operand| operand.operand == 2 && operand.access == RegisterOperandAccess::Use)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?
         .virtual_register;
-    let register = function.virtual_register(count)
+    let register = function
+        .virtual_register(count)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
     if !origin_carries(register.origin, length) {
         return Err(DeadStoreEliminationError::ConstraintMismatch);
@@ -413,7 +413,8 @@ pub(super) fn crossed_successors(
         audit(edge)?;
     }
     for edge in edges {
-        let next = function.block_index(edge.block)
+        let next = function
+            .block_index(edge.block)
             .ok_or(DeadStoreEliminationError::SourceMismatch)?;
         // An edge back into the dead store's own block re-executes the
         // removed store from its top — it can never be its own covering
@@ -487,8 +488,7 @@ pub(super) fn covering_span_row(
     // must carry the `length` value the row claims, so a resolved constant
     // — or a same-extent dead span naming the value — really is the reach
     // the instruction writes.
-    let register = function.virtual_register(count)
-        .ok_or_else(reject)?;
+    let register = function.virtual_register(count).ok_or_else(reject)?;
     if !origin_carries(register.origin, length) {
         return Err(reject());
     }

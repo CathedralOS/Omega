@@ -135,12 +135,11 @@ use motion::{
     sole_predecessor,
 };
 
-pub use rewrite::sink_selected_store_mutation;
-pub use validation::validate_store_mutation_motion;
+pub(crate) use validation::validate_store_mutation_motion;
 
 /// An accepted store mutation motion with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedStoreMutationMotion {
+pub(crate) struct ValidatedStoreMutationMotion {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: StoreMutationMotionReceipt,
 }
@@ -148,7 +147,7 @@ pub struct ValidatedStoreMutationMotion {
 validated_transformed_receipt!(ValidatedStoreMutationMotion, StoreMutationMotionReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StoreMutationMotionReceipt {
+pub(crate) struct StoreMutationMotionReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -158,7 +157,7 @@ pub struct StoreMutationMotionReceipt {
 receipt_selected_identities!(StoreMutationMotionReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StoreMutationMotionError {
+pub(crate) enum StoreMutationMotionError {
     SourceMismatch,
     UnsupportedInstruction,
     UnsupportedPair,
@@ -230,11 +229,13 @@ fn moved_boundary_settlements(
     target_block: SelectedBlockId,
     insert_index: usize,
 ) -> Result<Vec<SelectedBoundarySettlement>, StoreMutationMotionError> {
-    let source_body = function.block(source_block)
+    let source_body = function
+        .block(source_block)
         .ok_or(StoreMutationMotionError::SourceMismatch)?
         .instructions
         .len();
-    let target_body = function.block(target_block)
+    let target_body = function
+        .block(target_block)
         .ok_or(StoreMutationMotionError::SourceMismatch)?
         .instructions
         .len();
@@ -501,9 +502,10 @@ fn reconstruct<'source>(
         if edges.iter().any(|edge| edge.block != first.block) {
             // A dangling edge target is malformed source, as on the
             // linear path.
-            if edges.iter().any(|edge| {
-                !function.block(edge.block).is_some()
-            }) {
+            if edges
+                .iter()
+                .any(|edge| !function.block(edge.block).is_some())
+            {
                 return Err(StoreMutationMotionError::SourceMismatch);
             }
             let Some((join, region)) = reconvergent_join(function, cursor, &edges, &visited) else {
@@ -548,8 +550,7 @@ fn reconstruct<'source>(
             start = 0;
             continue;
         }
-        let Some(next) = function.block_index(first.block)
-        else {
+        let Some(next) = function.block_index(first.block) else {
             return Err(StoreMutationMotionError::SourceMismatch);
         };
         // The successor must see the crossed block as its only

@@ -74,7 +74,7 @@ impl PreAllocationPolicy {
     /// Rebind every admissible same-block use of one `CopyI64` destination
     /// to the copied source register, dropping the copy and the
     /// destination's roster row.
-    pub const SAME_BLOCK_COPY_I64_V1: Self = Self {
+    pub(crate) const SAME_BLOCK_COPY_I64_V1: Self = Self {
         enabled: Self::SAME_BLOCK_COPY_I64_V1_BIT,
     };
 
@@ -82,7 +82,7 @@ impl PreAllocationPolicy {
     /// already guarantees the same normalization with a `CopyI64` allocation
     /// can coalesce, keeping the extension's result register and instruction
     /// identity.
-    pub const REDUNDANT_EXTENSION_V1: Self = Self {
+    pub(crate) const REDUNDANT_EXTENSION_V1: Self = Self {
         enabled: Self::REDUNDANT_EXTENSION_V1_BIT,
     };
 
@@ -90,7 +90,7 @@ impl PreAllocationPolicy {
     /// the `AddressOffset` producer's own base and carry the combined
     /// displacement, keeping the consumer's result, identity, and
     /// provenance.
-    pub const ADDRESS_FOLD_V1: Self = Self {
+    pub(crate) const ADDRESS_FOLD_V1: Self = Self {
         enabled: Self::ADDRESS_FOLD_V1_BIT,
     };
 
@@ -99,7 +99,7 @@ impl PreAllocationPolicy {
     /// the `MaterializeI64` carrying the predicate outcome, keeping the
     /// materialization's identity, position, result register, and
     /// provenance while the compare stays published for other readers.
-    pub const CONSTANT_BOOLEAN_V1: Self = Self {
+    pub(crate) const CONSTANT_BOOLEAN_V1: Self = Self {
         enabled: Self::CONSTANT_BOOLEAN_V1_BIT,
     };
 
@@ -108,7 +108,7 @@ impl PreAllocationPolicy {
     /// operands into the `Jump` carrying the decided successor, keeping
     /// the terminator instruction's identity and provenance while the
     /// compare stays published for other readers.
-    pub const CONSTANT_BRANCH_V1: Self = Self {
+    pub(crate) const CONSTANT_BRANCH_V1: Self = Self {
         enabled: Self::CONSTANT_BRANCH_V1_BIT,
     };
 
@@ -116,14 +116,14 @@ impl PreAllocationPolicy {
     /// whose published condition-state units all die unread on every
     /// forward path, shifting later boundary settlements over the removed
     /// ordinal.
-    pub const DEAD_COMPARE_V1: Self = Self {
+    pub(crate) const DEAD_COMPARE_V1: Self = Self {
         enabled: Self::DEAD_COMPARE_V1_BIT,
     };
 
     /// Remove an admitted compare whose published units are already carried
     /// by flag-equivalent shadow compares on every path, so readers observe
     /// the identical publication without it.
-    pub const REDUNDANT_COMPARE_V1: Self = Self {
+    pub(crate) const REDUNDANT_COMPARE_V1: Self = Self {
         enabled: Self::REDUNDANT_COMPARE_V1_BIT,
     };
 
@@ -131,20 +131,20 @@ impl PreAllocationPolicy {
     /// by value-equivalent shadow compares on every path — differing kinds
     /// or operand registers admitted when each side of the subtraction
     /// provably coincides.
-    pub const EQUIVALENT_COMPARE_V1: Self = Self {
+    pub(crate) const EQUIVALENT_COMPARE_V1: Self = Self {
         enabled: Self::EQUIVALENT_COMPARE_V1_BIT,
     };
 
     /// Rebind every `Use` operand of an admitted direct internal call that
     /// reads a `CopyI64` destination to the copy's source register, keeping
     /// the copy, its register, and the call's complete contract published.
-    pub const COPIED_CALL_OPERAND_V1: Self = Self {
+    pub(crate) const COPIED_CALL_OPERAND_V1: Self = Self {
         enabled: Self::COPIED_CALL_OPERAND_V1_BIT,
     };
 
     /// Forward an exact-width store to a later read after independent byte,
     /// alias, register and path reconstruction.
-    pub const STORED_LOAD_FORWARDING_V1: Self = Self {
+    pub(crate) const STORED_LOAD_FORWARDING_V1: Self = Self {
         enabled: Self::STORED_LOAD_FORWARDING_V1_BIT,
     };
 
@@ -226,13 +226,6 @@ pub enum ValidatedPreAllocationTransformation {
 }
 
 impl ValidatedPreAllocationTransformation {
-
-
-
-
-
-
-
     transformation_accessors! {
         transformed : transformed -> &SelectedInstructionPlan;
         shared_transformed : shared_transformed -> Arc<SelectedInstructionPlan>;

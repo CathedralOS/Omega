@@ -11,24 +11,25 @@ pub use legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt, stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_allocation_legality_with_availability,
 };
 pub use live_ranges::{
-    LiveRangeError, LiveRangeValidationReceipt, OptimizedLiveRangeCustodyError,
-    StagedOptimizedLiveRangeCustodyReceipt, StagedOptimizedLiveRanges, ValidatedLiveRanges,
-    analyze_live_ranges, analyze_live_ranges_reusing, stage_optimized_live_ranges,
-    validate_live_ranges,
+    LiveRangeError, StagedOptimizedLiveRanges, ValidatedLiveRanges, analyze_live_ranges,
+    analyze_live_ranges_reusing,
 };
-pub use liveness::{
-    LivenessError, LivenessValidationReceipt, OptimizedLivenessCustodyError,
-    StagedOptimizedLiveness, StagedOptimizedLivenessCustodyReceipt, ValidatedLiveness,
-    analyze_liveness, analyze_liveness_reusing, stage_optimized_liveness, validate_liveness,
+pub(crate) use live_ranges::{
+    LiveRangeValidationReceipt, OptimizedLiveRangeCustodyError,
+    StagedOptimizedLiveRangeCustodyReceipt, stage_optimized_live_ranges,
 };
+pub use liveness::{LivenessError, ValidatedLiveness, analyze_liveness, analyze_liveness_reusing};
+pub(crate) use liveness::{
+    LivenessValidationReceipt, OptimizedLivenessCustodyError, StagedOptimizedLiveness,
+    StagedOptimizedLivenessCustodyReceipt, stage_optimized_liveness,
+};
+pub(crate) use machine_effects::MachineEffectError;
 pub(crate) use machine_effects::analyze_pre_allocation_machine_effects;
 pub(crate) use machine_effects::validated_machine_effect_catalog;
 pub use machine_effects::{
-    MachineEffectError, MachineEffectStageError, ValidatedPreAllocationMachineEffects,
-    analyze_machine_effects,
+    MachineEffectStageError, ValidatedPreAllocationMachineEffects, analyze_machine_effects,
 };
 pub use reanalysis::{
     OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
@@ -43,37 +44,40 @@ pub(crate) mod fixed_precolored_split_requirements;
 pub(crate) mod recovery_classification;
 mod selected_input;
 pub(crate) mod spill_choice;
+pub(crate) use allocation_legality::AllocationLegalityValidationReceipt;
 pub use allocation_legality::{
-    AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
-    analyze_allocation_legality, analyze_allocation_legality_reusing, validate_allocation_legality,
+    AllocationLegalityError, ValidatedAllocationLegality, analyze_allocation_legality,
+    analyze_allocation_legality_reusing,
+};
+pub(crate) use allocator_availability::{
+    AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
 };
 pub use allocator_availability::{
-    AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
     ValidatedAllocatorAvailability, materialize_allocator_availability,
 };
-pub use fixed_precolored_intervals::{
+pub(crate) use fixed_precolored_intervals::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
     ValidatedFixedPrecoloredIntervals, analyze_fixed_precolored_intervals,
     validate_fixed_precolored_intervals,
 };
-pub use fixed_precolored_segment_homes::{
+pub(crate) use fixed_precolored_segment_homes::{
     FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
     ValidatedFixedPrecoloredSegmentHomes, assign_fixed_precolored_segment_homes,
     validate_fixed_precolored_segment_homes,
 };
-pub use fixed_precolored_split_requirements::{
+pub(crate) use fixed_precolored_split_requirements::{
     FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
     ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_split_requirements,
     validate_fixed_precolored_split_requirements,
 };
+pub(crate) use recovery_classification::RecoveryClassificationValidationReceipt;
 pub use recovery_classification::{
-    RecoveryClassificationError, RecoveryClassificationValidationReceipt,
-    ValidatedRecoveryClassifications, classify_pressure_recovery,
+    RecoveryClassificationError, ValidatedRecoveryClassifications, classify_pressure_recovery,
 };
 pub use selected_input::{OwnedSelectedProgram, SelectedProgramRef, ValidatedSelectedAnalysis};
-pub use spill_choice::{
-    SpillChoiceError, SpillChoiceValidationReceipt, ValidatedSpillChoices, choose_spill_victims,
-};
+
+pub(crate) use spill_choice::SpillChoiceValidationReceipt;
+pub use spill_choice::{SpillChoiceError, ValidatedSpillChoices, choose_spill_victims};
 
 /// Each function's digest for the receipt identity: a carried function's
 /// comes from its validated predecessor, whose rows it copies; every other

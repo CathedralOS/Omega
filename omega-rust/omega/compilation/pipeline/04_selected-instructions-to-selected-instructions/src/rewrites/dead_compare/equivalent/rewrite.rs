@@ -11,7 +11,7 @@ use crate::ValidatedSelectedAnalysis;
 /// removed ordinal, and every other function, block, instruction, register,
 /// call, settlement, and access is retained — replay independently confirms
 /// exactly that.
-pub fn remove_equivalent_compare(
+pub(crate) fn remove_equivalent_compare(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     compare: SelectedInstructionId,

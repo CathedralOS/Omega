@@ -76,13 +76,12 @@ use selected_instructions::{
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::fold_selected_boundary_branch;
-pub use validation::validate_boundary_branch_fold;
+pub(crate) use validation::validate_boundary_branch_fold;
 
 /// An accepted boundary-decided conditional-branch fold with its replay
 /// receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedBoundaryBranch {
+pub(crate) struct ValidatedBoundaryBranch {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: BoundaryBranchReceipt,
 }
@@ -90,7 +89,7 @@ pub struct ValidatedBoundaryBranch {
 validated_transformed_receipt!(ValidatedBoundaryBranch, BoundaryBranchReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundaryBranchReceipt {
+pub(crate) struct BoundaryBranchReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -100,7 +99,7 @@ pub struct BoundaryBranchReceipt {
 receipt_selected_identities!(BoundaryBranchReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundaryBranchError {
+pub(crate) enum BoundaryBranchError {
     SourceMismatch,
     /// Not the emitted zero-operand strict-ordering flag reader: a
     /// non-branch terminator, a `ConditionalBranch`/`ConditionalBranchNonZero`

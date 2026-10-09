@@ -233,7 +233,7 @@ fn restore(
 /// `admission::admit` is never consulted, so a wrong legality decision
 /// fails here even when the proposal matches the edit the producer
 /// emitted.
-pub fn validate_boundary_branch_fold(
+pub(crate) fn validate_boundary_branch_fold(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     branch: SelectedInstructionId,

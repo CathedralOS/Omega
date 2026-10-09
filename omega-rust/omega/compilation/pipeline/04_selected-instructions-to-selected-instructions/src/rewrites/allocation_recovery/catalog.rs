@@ -3,7 +3,7 @@ use optimization_core::{Optimization, OptimizationCatalogDescriptor, Optimizatio
 use super::super::RegisterAllocationRuleTargetApplicability;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocationRecoveryRuleCatalogPayload {
+pub(crate) struct AllocationRecoveryRuleCatalogPayload {
     target: RegisterAllocationRuleTargetApplicability,
 }
 
@@ -13,11 +13,11 @@ impl AllocationRecoveryRuleCatalogPayload {
     }
 }
 
-pub type AllocationRecoveryRuleCatalogEntry =
+pub(crate) type AllocationRecoveryRuleCatalogEntry =
     OptimizationCatalogDescriptor<AllocationRecoveryRuleCatalogPayload>;
 
 /// The single allocation-recovery enable/order catalog.
-pub const ALLOCATION_RECOVERY_RULE_CATALOG: [AllocationRecoveryRuleCatalogEntry; 2] = [
+pub(crate) const ALLOCATION_RECOVERY_RULE_CATALOG: [AllocationRecoveryRuleCatalogEntry; 2] = [
     AllocationRecoveryRuleCatalogEntry::new(
         Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
         AllocationRecoveryRuleCatalogPayload {

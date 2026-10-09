@@ -252,7 +252,8 @@ pub(super) fn admit<'source>(
     }
     // The load's result must be defined only here; the copy keeps the register.
     let output = single_def(forwarded_load)?;
-    let output_register = function.virtual_register(output)
+    let output_register = function
+        .virtual_register(output)
         .ok_or(StoredLoadForwardingError::UnsupportedPair)?;
     let VirtualRegisterOrigin::InstructionResult {
         instruction: output_instruction,
@@ -584,7 +585,8 @@ pub(super) fn admit<'source>(
     if value == output {
         return Err(StoredLoadForwardingError::UnsupportedUse);
     }
-    let value_register = function.virtual_register(value)
+    let value_register = function
+        .virtual_register(value)
         .ok_or(StoredLoadForwardingError::UnsupportedPair)?;
     // Nothing on the walked path may redefine the register each leg carries
     // or predefine the load's result: the store's tail, each crossed block's

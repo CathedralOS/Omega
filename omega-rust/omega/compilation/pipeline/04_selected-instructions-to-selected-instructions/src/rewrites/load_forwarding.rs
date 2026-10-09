@@ -83,7 +83,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::forward_selected_stored_load;
+pub(crate) use rewrite::forward_selected_stored_load;
 
 /// An accepted store-to-load forwarding with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]

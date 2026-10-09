@@ -1131,7 +1131,7 @@ fn restore(
 /// settlement included. The producer's admission routine is never
 /// consulted, so a wrong legality decision fails here even when the
 /// proposal matches the edit the producer emitted.
-pub fn validate_dead_store_elimination(
+pub(crate) fn validate_dead_store_elimination(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     store: SelectedInstructionId,

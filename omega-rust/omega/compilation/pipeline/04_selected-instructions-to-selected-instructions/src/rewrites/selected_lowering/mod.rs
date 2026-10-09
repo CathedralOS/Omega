@@ -14,18 +14,16 @@ use optimization_core::{
 use super::catalog::selected_stage_catalog_contains;
 
 pub(crate) use catalog::enabled_pair_rules;
-pub use catalog::{
+pub(crate) use catalog::{
     SELECTED_LOWERING_RULE_CATALOG, SelectedLoweringRuleCatalogEntry,
-    SelectedLoweringRuleCatalogError, SelectedLoweringRuleCatalogPayload,
+    SelectedLoweringRuleCatalogError,
 };
-pub use literal_fold::{
-    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPlan,
-    LiteralFoldPolicy, LiteralFoldValidationReceipt, PairConsumerBindingAdmission,
-    PairFaultDischarge, PairImmediateBound, PairLiteralPosition, PairMachineEffects,
-    PairNonUnitSurface, PairOperandResult, PairOperandShape, PairResultDisposition,
-    PairTailCustody, PairUnitDefRelation, PairUnitEffects, SelectedInstructionPairRule,
-    ValidatedLiteralFold,
+pub(crate) use literal_fold::{
+    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy,
+    LiteralFoldValidationReceipt, PairLiteralPosition, PairOperandShape, PairResultDisposition,
+    PairUnitDefRelation, SelectedInstructionPairRule,
 };
+pub use literal_fold::{LiteralFoldIdentity, ValidatedLiteralFold};
 pub(crate) use literal_fold::{fold_selected_incoming_literal, literal_fold_identity};
 
 /// Resolve every selected-lowering catalog row in canonical catalog order.
@@ -33,7 +31,7 @@ pub(crate) use literal_fold::{fold_selected_incoming_literal, literal_fold_ident
 /// The returned policy is a derived set of exact catalog payloads, never a
 /// separately declared combined rule. Appending a row therefore requires an
 /// explicit payload and cannot fall through an old whole-catalog special case.
-pub fn resolve_selected_lowering_rules(
+pub(crate) fn resolve_selected_lowering_rules(
     selections: &OptimizationPhaseSelections,
 ) -> Result<(OptimizationSelections, LiteralFoldPolicy), SelectedLoweringRuleCatalogError> {
     let phase = selections

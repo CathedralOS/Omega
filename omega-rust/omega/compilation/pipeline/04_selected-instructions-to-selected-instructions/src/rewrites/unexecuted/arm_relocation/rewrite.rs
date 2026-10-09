@@ -20,7 +20,7 @@ use crate::ValidatedSelectedAnalysis;
 /// order, and boundary state it saw before. Every other function, block,
 /// instruction, register, roster row, call, settlement, and edge is
 /// retained, and replay independently confirms that.
-pub fn relocate_selected_instruction_out_of_arm(
+pub(crate) fn relocate_selected_instruction_out_of_arm(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,

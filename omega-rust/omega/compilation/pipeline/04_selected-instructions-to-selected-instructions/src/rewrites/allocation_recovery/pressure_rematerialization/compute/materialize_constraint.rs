@@ -13,7 +13,7 @@ pub(super) fn select<'a>(
         &constraints.catalog().constraints,
         keys.materialize_i64,
     )
-        .ok_or(PressureRematerializationError::MaterializeConstraintMismatch)?;
+    .ok_or(PressureRematerializationError::MaterializeConstraintMismatch)?;
     let [result] = row.operands.as_slice() else {
         return Err(PressureRematerializationError::MaterializeConstraintMismatch);
     };

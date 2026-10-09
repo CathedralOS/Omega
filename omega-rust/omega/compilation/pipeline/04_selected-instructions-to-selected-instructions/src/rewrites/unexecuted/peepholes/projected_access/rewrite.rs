@@ -13,7 +13,7 @@ use crate::ValidatedSelectedAnalysis;
 /// stays: its projected register remains published for every other reader.
 /// Every other function, block, instruction, register, call, settlement,
 /// and access is retained, and replay independently confirms that.
-pub fn fold_selected_projected_access(
+pub(crate) fn fold_selected_projected_access(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     access: SelectedInstructionId,

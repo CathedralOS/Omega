@@ -14,7 +14,7 @@ use crate::ValidatedSelectedAnalysis;
 /// surface; replay independently confirms the whole edit. Every other
 /// function, block, instruction, register, call, settlement, and access is
 /// retained.
-pub fn fold_selected_constant_boolean(
+pub(crate) fn fold_selected_constant_boolean(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     materialization: SelectedInstructionId,

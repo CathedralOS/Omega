@@ -30,7 +30,7 @@ use crate::rewrites::sealed;
 /// source by content — every crossed instruction, every other block and
 /// instruction, register, roster row, call, settlement, and edge
 /// included.
-pub fn validate_member_run_relocation(
+pub(crate) fn validate_member_run_relocation(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,

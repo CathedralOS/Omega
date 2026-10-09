@@ -90,53 +90,20 @@ mod dead_path;
 mod dead_store;
 mod inflow_relocation;
 mod interchange;
-pub mod peepholes;
+pub(crate) mod peepholes;
 pub(super) use super::place_storage;
 mod relocation;
 mod scheduled_relocation;
 mod store_motion;
 
-pub use arm_relocation::{
-    ArmRelocationError, ArmRelocationReceipt, ValidatedArmRelocation,
-    relocate_selected_instruction_out_of_arm, validate_arm_relocation,
-};
-pub use boundary_boolean::{
-    BoundaryBooleanError, BoundaryBooleanReceipt, ValidatedBoundaryBoolean,
-    fold_selected_boundary_boolean, validate_boundary_boolean_fold,
-};
-pub use boundary_branch::{
-    BoundaryBranchError, BoundaryBranchReceipt, ValidatedBoundaryBranch,
-    fold_selected_boundary_branch, validate_boundary_branch_fold,
-};
-pub use commuting_relocation::{
-    CommutingRelocationError, CommutingRelocationReceipt, ValidatedCommutingRelocation,
-    relocate_selected_commuting_members, validate_commuting_relocation,
-};
-pub use confluence_relocation::{
-    ConfluenceRelocationError, ConfluenceRelocationReceipt, ValidatedConfluenceRelocation,
-    relocate_selected_members_into_confluence, validate_confluence_relocation,
-};
-pub use dead_store::{
-    DeadStoreEliminationError, DeadStoreEliminationReceipt, ValidatedDeadStoreElimination,
-    eliminate_selected_dead_store, validate_dead_store_elimination,
-};
-pub use inflow_relocation::{
-    InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation,
-    relocate_selected_instruction_onto_inflow, validate_inflow_relocation,
-};
-pub use interchange::{
-    InterchangeError, InterchangeReceipt, ValidatedInterchange, interchange_selected_runs,
-    validate_selected_interchange,
-};
-pub use relocation::{
-    MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation,
-    relocate_selected_member_run, validate_member_run_relocation,
-};
-pub use scheduled_relocation::{
-    ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedScheduledRelocation,
-    relocate_scheduled_run, validate_scheduled_relocation,
-};
-pub use store_motion::{
-    StoreMutationMotionError, StoreMutationMotionReceipt, ValidatedStoreMutationMotion,
-    sink_selected_store_mutation, validate_store_mutation_motion,
-};
+pub(crate) use arm_relocation::ValidatedArmRelocation;
+pub(crate) use boundary_boolean::ValidatedBoundaryBoolean;
+pub(crate) use boundary_branch::ValidatedBoundaryBranch;
+pub(crate) use commuting_relocation::ValidatedCommutingRelocation;
+pub(crate) use confluence_relocation::ValidatedConfluenceRelocation;
+pub(crate) use dead_store::ValidatedDeadStoreElimination;
+pub(crate) use inflow_relocation::ValidatedInflowRelocation;
+pub(crate) use interchange::ValidatedInterchange;
+pub(crate) use relocation::ValidatedMemberRunRelocation;
+pub(crate) use scheduled_relocation::ValidatedScheduledRelocation;
+pub(crate) use store_motion::ValidatedStoreMutationMotion;

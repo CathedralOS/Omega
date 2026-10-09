@@ -8,7 +8,7 @@ use register_homes::{
     FixedPrecoloredSplitRequirementPlan, fixed_precolored_split_requirement_plan_identity,
 };
 
-pub fn validate_fixed_precolored_split_requirements(
+pub(crate) fn validate_fixed_precolored_split_requirements(
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     fixed: &ValidatedFixedPrecoloredIntervals,

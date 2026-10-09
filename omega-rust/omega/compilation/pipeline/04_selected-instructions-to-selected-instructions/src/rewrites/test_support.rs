@@ -23,7 +23,6 @@ pub fn budget() -> OptimizationWorkBudget {
 /// A budget carrying `steps` measured steps on a one-everything-else profile,
 /// for the measured validation-step boundary legs: the exact count admits,
 /// `measured_step_budget(steps - 1)` starves.
-pub fn measured_step_budget(steps: u64) -> OptimizationWorkBudget {
+pub(crate) fn measured_step_budget(steps: u64) -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap()
 }
-

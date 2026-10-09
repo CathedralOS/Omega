@@ -78,7 +78,8 @@ pub(super) fn admit<'source>(
         return Err(BoundaryBooleanError::UnsupportedInstruction);
     }
     let result = result_operand.virtual_register;
-    let result_register = function.virtual_register(result)
+    let result_register = function
+        .virtual_register(result)
         .ok_or(BoundaryBooleanError::UnsupportedUse)?;
     // The flag walk crosses block boundaries: build the block-indexed
     // adjacency once, locate the entry block whose unseeded condition state

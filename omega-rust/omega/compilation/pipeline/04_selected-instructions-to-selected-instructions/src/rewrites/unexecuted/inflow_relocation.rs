@@ -108,9 +108,9 @@ use std::sync::Arc;
 use optimization_core::OptimizationUnitIdentity;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    instruction_position,    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedSuccessor,
-    SelectedTerminator, terminator_instruction,
+    SelectedTerminator, instruction_position, terminator_instruction,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 
@@ -119,12 +119,11 @@ use crate::rewrites::block_edges::{all_edges, member_position, plain_edge};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{RunRelocationRejection, schedulable, speculatable};
 
-pub use rewrite::relocate_selected_instruction_onto_inflow;
-pub use validation::validate_inflow_relocation;
+pub(crate) use validation::validate_inflow_relocation;
 
 /// An accepted relocation onto the inflow with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedInflowRelocation {
+pub(crate) struct ValidatedInflowRelocation {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: InflowRelocationReceipt,
 }
@@ -132,7 +131,7 @@ pub struct ValidatedInflowRelocation {
 validated_transformed_receipt!(ValidatedInflowRelocation, InflowRelocationReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InflowRelocationReceipt {
+pub(crate) struct InflowRelocationReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -142,7 +141,7 @@ pub struct InflowRelocationReceipt {
 receipt_selected_identities!(InflowRelocationReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InflowRelocationError {
+pub(crate) enum InflowRelocationError {
     SourceMismatch,
     /// The named member can never shed its other-inflow executions: a
     /// barrier kind, a call-roster entry, a roster-carrying or unaccounted

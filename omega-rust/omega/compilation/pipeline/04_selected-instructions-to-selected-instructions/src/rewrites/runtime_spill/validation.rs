@@ -462,7 +462,7 @@ fn consume_emitted<'a>(
 /// produced under the other policy — a shared reload reaching across a
 /// unit-writing instruction, or a private pair where the crossing span
 /// stayed open — mismatches rather than validates.
-pub fn validate_runtime_spill_with_span_policy(
+pub(crate) fn validate_runtime_spill_with_span_policy(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     register: VirtualRegisterId,

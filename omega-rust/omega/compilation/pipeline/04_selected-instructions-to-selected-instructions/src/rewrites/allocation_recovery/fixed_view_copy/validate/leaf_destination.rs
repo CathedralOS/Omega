@@ -71,7 +71,8 @@ pub(super) fn replay_site_block(
             function: function_index,
             instruction: instruction.0,
         })?;
-    let site = block.instruction(instruction)
+    let site = block
+        .instruction(instruction)
         .unwrap_or_else(|| selected_instructions::terminator_instruction(&block.terminator));
     if !site.operands.iter().any(|candidate| {
         candidate.operand == operand

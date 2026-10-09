@@ -64,12 +64,11 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::interchange_selected_runs;
-pub use validation::validate_selected_interchange;
+pub(crate) use validation::validate_selected_interchange;
 
 /// An accepted commuting run interchange with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedInterchange {
+pub(crate) struct ValidatedInterchange {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: InterchangeReceipt,
 }
@@ -77,7 +76,7 @@ pub struct ValidatedInterchange {
 validated_transformed_receipt!(ValidatedInterchange, InterchangeReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InterchangeReceipt {
+pub(crate) struct InterchangeReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -87,7 +86,7 @@ pub struct InterchangeReceipt {
 receipt_selected_identities!(InterchangeReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InterchangeError {
+pub(crate) enum InterchangeError {
     SourceMismatch,
     /// A window position can never trade order: a barrier kind, a
     /// call-roster entry, or a memory-capable kind the roster does not
@@ -173,16 +172,19 @@ pub(super) fn derive_interchange<'source>(
     // Each run is the contiguous span its two named members bound in this
     // block, in the named order. Naming one member twice is the run of one,
     // which is the member granularity; an absent or reversed id names no run.
-    let earlier_last_index = block.instruction_index(earlier_last)
+    let earlier_last_index = block
+        .instruction_index(earlier_last)
         .filter(|position| *position >= earlier_first_index)
         .ok_or(InterchangeError::UnsupportedPair)?;
     // The later run follows the earlier run disjointly; the positions
     // between them form the interior, which keeps its relative order while
     // the runs trade places.
-    let later_first_index = block.instruction_index(later_first)
+    let later_first_index = block
+        .instruction_index(later_first)
         .filter(|position| *position > earlier_last_index)
         .ok_or(InterchangeError::UnsupportedPair)?;
-    let later_last_index = block.instruction_index(later_last)
+    let later_last_index = block
+        .instruction_index(later_last)
         .filter(|position| *position >= later_first_index)
         .ok_or(InterchangeError::UnsupportedPair)?;
     let window = &block.instructions[earlier_first_index..=later_last_index];

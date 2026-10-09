@@ -40,7 +40,8 @@ pub(super) fn admit<'source>(
         crate::rewrites::plan_function(source, function_index, environment, || {
             RuntimeRematerializationError::SourceMismatch
         })?;
-    let victim = function.virtual_register(register)
+    let victim = function
+        .virtual_register(register)
         .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
     let VirtualRegisterOrigin::InstructionResult {
         instruction: definition,
@@ -52,9 +53,7 @@ pub(super) fn admit<'source>(
     let block_index = function
         .blocks
         .iter()
-        .position(|block| {
-            block.instruction(definition).is_some()
-        })
+        .position(|block| block.instruction(definition).is_some())
         .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
     // The regenerable family is one nonaddress runtime value produced by a
     // target-materialized immediate. Narrow values keep their exact type on

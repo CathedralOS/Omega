@@ -50,7 +50,7 @@ pub fn stage_optimized_allocation_legality_for_active_resident_immediate_u64_mul
     stage_optimized_allocation_legality_with_availability(ranges, availability)
 }
 
-pub fn stage_optimized_allocation_legality_with_availability(
+pub(crate) fn stage_optimized_allocation_legality_with_availability(
     ranges: StagedOptimizedLiveRanges,
     availability: ValidatedAllocatorAvailability,
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {

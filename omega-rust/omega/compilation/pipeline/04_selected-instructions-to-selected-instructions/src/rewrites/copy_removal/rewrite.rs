@@ -11,7 +11,7 @@ use crate::ValidatedSelectedAnalysis;
 /// over the removed ordinal, and every other function, block, instruction,
 /// register, call, settlement, and access is retained — replay independently
 /// confirms exactly that.
-pub fn remove_selected_copy(
+pub(crate) fn remove_selected_copy(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     copy: SelectedInstructionId,

@@ -30,7 +30,7 @@ use crate::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub fn validate_fixed_view_copies(
+pub(crate) fn validate_fixed_view_copies(
     selected: &ValidatedSelectedInstructions,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,

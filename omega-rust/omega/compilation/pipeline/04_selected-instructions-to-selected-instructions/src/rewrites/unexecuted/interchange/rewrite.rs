@@ -27,7 +27,7 @@ use crate::rewrites::unexecuted::commuting_accesses as accesses;
 /// appear in the order the program performs them; every other instruction,
 /// register, roster row, call, settlement, and edge is retained, and
 /// replay independently confirms that.
-pub fn interchange_selected_runs(
+pub(crate) fn interchange_selected_runs(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     earlier_first: SelectedInstructionId,

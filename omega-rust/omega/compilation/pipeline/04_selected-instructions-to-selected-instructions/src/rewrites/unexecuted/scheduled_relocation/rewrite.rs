@@ -19,7 +19,7 @@ use crate::ValidatedSelectedAnalysis;
 /// before. Every other function, block, instruction, register, roster row,
 /// call, settlement, and edge is retained, and replay independently
 /// confirms that.
-pub fn relocate_scheduled_run(
+pub(crate) fn relocate_scheduled_run(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     members: &[SelectedInstructionId],
