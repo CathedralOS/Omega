@@ -370,14 +370,9 @@ fn direct_reference(
 
 fn strip_constraints(
     program: &dyn ::validation::CheckingInput,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    {
-        type_reference = *base_type;
-    }
-    type_reference
+    ::validation::peel_declared_constraints(program, type_reference)
 }
 
 /// Return the one parameter selected by an exact authored custody equality.
