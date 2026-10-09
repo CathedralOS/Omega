@@ -10,6 +10,8 @@ use crate::review::{PackagePolicyChangeFingerprint, PackagePolicyChangeSet};
 use std::fmt;
 
 mod document;
+pub use document::{
+};
 pub(crate) use document::{
     PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review};
 

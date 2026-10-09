@@ -31,7 +31,7 @@ impl PackageSourceSelectionEvidence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageSourceSelectionEvidenceError {
+pub(crate) enum PackageSourceSelectionEvidenceError {
     Selection(GitWorkspaceSelectionError),
 }
 

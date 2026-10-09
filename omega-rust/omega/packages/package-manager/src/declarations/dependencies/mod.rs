@@ -6,6 +6,8 @@
 pub(crate) mod edit;
 pub(crate) mod read;
 
+pub use edit::{
+};
 pub(crate) use edit::{
     BuildDependencyEditPlan, BuildFileReplacement};
 pub use read::{ DependencyPurpose, PackageSelection,

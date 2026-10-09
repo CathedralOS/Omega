@@ -38,7 +38,7 @@ pub enum PackageSelection {
 
 /// One source request projected without evaluating `build.omg`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DependencySourceRequest {
+pub(crate) enum DependencySourceRequest {
     Path {
         explicit_alias: Option<AliasName>,
         location: String,

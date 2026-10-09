@@ -14,7 +14,7 @@ pub(crate) enum ResolveWorkspacePackageClosureError {
 }
 
 #[derive(Debug)]
-pub enum ResolveExternalLocalPackageClosureError {
+pub(crate) enum ResolveExternalLocalPackageClosureError {
     Root(ResolvePackageSourceError),
     RootRequestMismatch,
     Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
@@ -72,7 +72,7 @@ impl fmt::Display for ResolveWorkspacePackageClosureError {
 impl std::error::Error for ResolveWorkspacePackageClosureError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResolveDependencySourceError {
+pub(crate) enum ResolveDependencySourceError {
     InvalidPath {
         location: String,
         reason: String,
