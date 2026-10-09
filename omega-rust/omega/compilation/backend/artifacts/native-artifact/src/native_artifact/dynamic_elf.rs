@@ -17,6 +17,7 @@ use effects::{
     TerminalAuthorityPolicyIdentity,
 };
 use sha2::{Digest, Sha256};
+use installation_evidence::ObjectEvidence;
 
 const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
     b"omega.dynamic-elf-native-artifact.sha256.v1\0";
