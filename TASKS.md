@@ -2631,16 +2631,48 @@ crash and native exit behavior.
   runtime oracle and no longer do. Most goldens still claim these successes,
   so `python3 tools/corpus_scoreboard.py` undercounts them: measure with
   `python3 tools/corpus_gate.py` and `--native`, then route by cause, not by
-  the revision that recorded a row. Losses observed at ebf381240e2:
+  the revision that recorded a row. Remaining losses from the full check leg
+  at 4abb00b7b65, each bisected over first-parent history:
 
-  - Read-selector capture (ebf381240e2) names `__hoist_14` instead of the
-    authored index: `fail/collections/non_integer_index_rejected` loses its
-    fragment.
+  - 6ee6dbeacec loses 17 checked pass rows that read slice elements
+    (`pass/slices/*` 10, `pass/calls/` 3, `pass/collections/` 3 window and
+    view rows, 2 `pass/recast/` slice records,
+    `pass/termination/runtime_shrinking_slice_recursion_exit`). The `Slice`
+    arms of `fixed_index_element_type` and `runtime_index_element_type` turn
+    executable reads into `StructuralParameterField` observations through an
+    `ElementView`, which stage 05 rejects. Removing the arms restores all 17
+    but loses `runtime_narrowed_cleanup_receiver_exit`'s ensures proof;
+    admitting `ElementView` in stage 05 only moves them to "static payload
+    binding requires a captured selector". Executable view-element
+    observations need complete lowering, or executable reads keep the view
+    route. **BORROWED-STORAGE-RESTORATION** owns that code.
+  - ebf381240e2's read and store selector capture loses 3 `pass/providers/`
+    structural-result rows (CheckedOperator occurrence unresolved) and makes
+    diagnostics name `__hoist_N`, so
+    `fail/collections/non_integer_index_rejected`,
+    `indexed_domain_requires_invalidated_by_unknown_index_mutation` and
+    `qualified_byte_owner_state_loan_breaks_domain` lose fragments, and leaves
+    `runtime_dutch_flag_partition_exit`,
+    `projected_field_exhaustive_case_dispatch_exit` and
+    `large_zero_initialized_local_exit` incomplete. Snapshotting a place
+    selector only before a later write restores those 6 but breaks
+    `runtime_mutable_selector_window_exit`, whose borrowed window needs the
+    snapshot across statements: the criterion needs move and binding
+    knowledge that only checking has.
+  - decd18d06d4 loses `pass/build/uefi_entry_schema_same_leaf` (composed Unit
+    control graph custody) and two `pass/capabilities/` rows,
+    `sysv_small_aggregate_import_compile` and
+    `win64_pointer_length_vs_descriptor_compile` (borrowed windows closed).
   - `pass/memory/bump_allocator_canary` (checked/built until 68cadd5a83a,
     **BORROWED-STORAGE-RESTORATION**'s claim transport): linear validation
     of `source/library/alloc/bump.omg` reports
     `retained_buffer::Held.storage` already transferred and three
     `Extent::Granted` call-result qualifications unproved.
+  - 00e62d483f4 deliberately rejects every std console consumer ("portable
+    target-family contract ... unimplemented") until
+    **PIPELINE-ARCHITECTURE-ENFORCEMENT** carries the common callable
+    contract; native rows of console programs cannot be remeasured before
+    then.
   - `interrupt_table_canary` and `secondary_processor_canary` select providers
     but lack an executable intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that
     dependency.
