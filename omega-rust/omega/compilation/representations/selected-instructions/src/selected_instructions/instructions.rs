@@ -625,3 +625,11 @@ macro_rules! hosted_slot_quad_pattern {
             | $crate::SelectedInstructionKind::SaveFloatingControl { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! exact_add_or_sub_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::SelectedInstructionKind::ExactAddI64Immediate { $($fields)* }
+            | $crate::SelectedInstructionKind::ExactSubtractI64Immediate { $($fields)* }
+    };
+}

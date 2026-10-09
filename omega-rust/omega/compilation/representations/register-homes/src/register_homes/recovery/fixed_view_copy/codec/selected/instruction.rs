@@ -306,16 +306,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        SelectedInstructionKind::ExactAddI64Immediate {
-            immediate,
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactSubtractI64Immediate {
-            immediate,
-            obligation,
-            accepted_fact,
-        } => {
+        selected_instructions::exact_add_or_sub_pair_pattern!(immediate,obligation,accepted_fact, ..) => {
             encode_integer(bytes, immediate);
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());

@@ -338,16 +338,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        SelectedInstructionKind::ExactAddI64Immediate {
-            immediate,
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactSubtractI64Immediate {
-            immediate,
-            obligation,
-            accepted_fact,
-        } => {
+        crate::exact_add_or_sub_pair_pattern!(immediate,obligation,accepted_fact, ..) => {
             match immediate {
                 semantic_vocabulary::IntegerValue::Signed(value) => {
                     bytes.push(0);

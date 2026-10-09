@@ -1099,8 +1099,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactMultiplyI64 { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. } => (vec![0, 1], vec![2], false),
-        SelectedInstructionKind::ExactAddI64Immediate { .. }
-        | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => (vec![0], vec![1], false),
+        selected_instructions::exact_add_or_sub_pair_pattern!(..) => (vec![0], vec![1], false),
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit

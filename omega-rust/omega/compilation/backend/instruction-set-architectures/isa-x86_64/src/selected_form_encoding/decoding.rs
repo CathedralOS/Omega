@@ -2062,8 +2062,7 @@ pub(crate) fn footprint(
         }
         // `not` never defines flags; only the guarding copy may precede it.
         SelectedInstructionKind::BitwiseNotI64 => (vec![operands[0]], vec![operands[1]], false),
-        SelectedInstructionKind::ExactAddI64Immediate { .. }
-        | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
+        selected_instructions::exact_add_or_sub_pair_pattern!(..) => {
             (vec![operands[0]], vec![operands[1]], false)
         }
         SelectedInstructionKind::ExactSubtractI64 { .. }
@@ -2185,8 +2184,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::CompareI64Zero
                 | SelectedInstructionKind::CompareI64Immediate { .. }
-                | SelectedInstructionKind::ExactAddI64Immediate { .. }
-                | SelectedInstructionKind::ExactSubtractI64Immediate { .. }
+                | selected_instructions::exact_add_or_sub_pair_pattern!(..)
                 | SelectedInstructionKind::BitwiseNotI64 => vec![0],
                 SelectedInstructionKind::CompareI64 => vec![0, 1],
                 SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1, 3],
@@ -2233,8 +2231,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::SignExtendI16
                 | SelectedInstructionKind::SignExtendI32
                 | SelectedInstructionKind::ZeroExtendU32
-                | SelectedInstructionKind::ExactAddI64Immediate { .. }
-                | SelectedInstructionKind::ExactSubtractI64Immediate { .. }
+                | selected_instructions::exact_add_or_sub_pair_pattern!(..)
                 | SelectedInstructionKind::BitwiseNotI64 => vec![1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::WrappingAddI64
