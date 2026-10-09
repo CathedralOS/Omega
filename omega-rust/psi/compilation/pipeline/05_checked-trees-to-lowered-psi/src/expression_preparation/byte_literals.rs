@@ -137,8 +137,7 @@ fn collect_domains(
                     }
                 }
             }
-            CheckedStructuralValueKind::Record { fields, .. }
-            | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+            checked_trees::record_or_structural_case_pattern!(fields, ..) => {
                 for field in plans
                     .record_fields
                     .span(*fields)

@@ -665,8 +665,7 @@ fn construction_local_uses<'a, 'operation>(
                 } => {
                     uses.push((index, argument));
                 }
-                CheckedStructuralValueKind::Record { fields, .. }
-                | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+                checked_trees::record_or_structural_case_pattern!(fields, ..) => {
                     for field in values.record_fields.span(*fields)? {
                         if let CheckedStructuralRecordFieldValue::Structural(value) = field.value {
                             pending.push(value);

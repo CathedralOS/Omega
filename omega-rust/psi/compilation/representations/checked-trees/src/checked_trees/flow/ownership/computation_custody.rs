@@ -124,8 +124,7 @@ impl CallTransfers<'_> {
         let plans = &self.values.structural_values;
         match &plans.nodes.get(root).kind {
             CheckedStructuralValueKind::Place(source) => self.argument(source),
-            CheckedStructuralValueKind::Record { fields, .. }
-            | CheckedStructuralValueKind::StructuralCase { fields, .. } => plans
+            crate::record_or_structural_case_pattern!(fields, ..) => plans
                 .record_fields
                 .span_or_empty(*fields)
                 .iter()
@@ -297,8 +296,7 @@ impl CallTransfers<'_> {
                         + self.operation(call.operation())
                 }),
             CheckedStructuralValueKind::Case(case) => self.case(case),
-            CheckedStructuralValueKind::Record { fields, .. }
-            | CheckedStructuralValueKind::StructuralCase { fields, .. } => plans
+            crate::record_or_structural_case_pattern!(fields, ..) => plans
                 .record_fields
                 .span_or_empty(*fields)
                 .iter()

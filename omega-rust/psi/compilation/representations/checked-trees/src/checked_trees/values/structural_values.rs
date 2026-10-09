@@ -291,3 +291,11 @@ impl CheckedStructuralValuePlans {
         roots.next().is_none().then_some(root)
     }
 }
+
+#[macro_export]
+macro_rules! record_or_structural_case_pattern {
+    ($($fields:tt)*) => {
+        $crate::CheckedStructuralValueKind::Record { $($fields)* }
+            | $crate::CheckedStructuralValueKind::StructuralCase { $($fields)* }
+    };
+}

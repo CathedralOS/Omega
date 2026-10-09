@@ -238,8 +238,7 @@ fn initializer_transfer(
         visited.push(handle);
         let node = plans.nodes.get(handle);
         match &node.kind {
-            CheckedStructuralValueKind::Record { fields, .. }
-            | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+            checked_trees::record_or_structural_case_pattern!(fields, ..) => {
                 for field in plans.record_fields.span(*fields)? {
                     if let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) =
                         field.value

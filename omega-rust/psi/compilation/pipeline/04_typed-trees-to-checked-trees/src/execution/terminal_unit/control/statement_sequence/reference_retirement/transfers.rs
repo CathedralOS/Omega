@@ -294,15 +294,8 @@ impl Query<'_> {
                 selected.extend_from_slice(selection);
                 return self.value(*source, &selected, result, destination, active);
             }
-            CheckedStructuralValueKind::Record {
-                data_symbol,
-                fields,
-            }
-            | CheckedStructuralValueKind::StructuralCase {
-                data_symbol,
-                fields,
-                ..
-            } => {
+            checked_trees::record_or_structural_case_pattern!(data_symbol,
+                fields, ..) => {
                 let data = self.program.data_definition_by_symbol(*data_symbol)?;
                 // Common fields and payload fields have independent path
                 // namespaces even when a case establishes both in one roster.

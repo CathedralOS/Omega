@@ -519,15 +519,8 @@ impl Preparation<'_> {
             return Ok(place);
         }
         let (data_symbol, fields) = match node.kind {
-            CheckedStructuralValueKind::Record {
-                data_symbol,
-                fields,
-            }
-            | CheckedStructuralValueKind::StructuralCase {
-                data_symbol,
-                fields,
-                ..
-            } => (data_symbol, fields),
+            checked_trees::record_or_structural_case_pattern!(data_symbol,
+                fields, ..) => (data_symbol, fields),
             _ => return unsupported("structural construction requires aggregate value custody"),
         };
         let owner = self.checked.data_definition_by_symbol(data_symbol).ok_or(
