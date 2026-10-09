@@ -41,18 +41,7 @@ pub(super) fn append_owned_qualification_transfer(
     }
     let candidates = crate::flow::active_context_facts(contexts, semantic, active);
     for fact in candidates {
-        let (FactPayload::DomainMembership {
-            domain,
-            domain_symbol,
-            semantic_domain,
-            ..
-        }
-        | FactPayload::ContractDomainMembership {
-            domain,
-            domain_symbol,
-            semantic_domain,
-            ..
-        }) = fact.payload
+        let Some((_, domain, domain_symbol, semantic_domain)) = fact.payload.domain_membership()
         else {
             continue;
         };

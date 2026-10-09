@@ -86,16 +86,7 @@ pub(super) fn establishes_scalar_predicates(
             ) {
                 continue;
             }
-            let (FactPayload::DomainMembership {
-                domain_symbol,
-                semantic_domain,
-                ..
-            }
-            | FactPayload::ContractDomainMembership {
-                domain_symbol,
-                semantic_domain,
-                ..
-            }) = fact.payload
+            let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership()
             else {
                 continue;
             };

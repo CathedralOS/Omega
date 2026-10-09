@@ -304,6 +304,35 @@ pub enum FactPayload {
 }
 
 impl FactPayload {
+    /// The domain-membership fields shared by the plain and contract-wrapped
+    /// payload variants: the member value, the domain path, its definition
+    /// symbol, and the normalized semantic domain.
+    pub const fn domain_membership(
+        self,
+    ) -> Option<(
+        ExpressionHandle,
+        HandleSpan<Identifier>,
+        SymbolHandle,
+        language_semantics::SemanticDomainId,
+    )> {
+        match self {
+            Self::DomainMembership {
+                value,
+                domain,
+                domain_symbol,
+                semantic_domain,
+            }
+            | Self::ContractDomainMembership {
+                value,
+                domain,
+                domain_symbol,
+                semantic_domain,
+                ..
+            } => Some((value, domain, domain_symbol, semantic_domain)),
+            _ => None,
+        }
+    }
+
     /// Resolve a comparison only when its arm belongs to the named dispatch.
     /// Handles from another dispatch (or arena generation) confer no evidence.
     pub fn match_pattern_comparison(
@@ -373,29 +402,22 @@ pub enum QualificationPayloadIdentity {
 
 impl QualificationPayloadIdentity {
     pub const fn from_fact_payload(payload: FactPayload) -> Option<Self> {
+        if let Some((_, domain, domain_symbol, semantic_domain)) = payload.domain_membership() {
+            return Some(Self::DomainMembership {
+                domain,
+                domain_symbol,
+                semantic_domain,
+            });
+        }
         match payload {
-            FactPayload::DomainMembership {
-                domain,
-                domain_symbol,
-                semantic_domain,
-                ..
-            }
-            | FactPayload::ContractDomainMembership {
-                domain,
-                domain_symbol,
-                semantic_domain,
-                ..
-            } => Some(Self::DomainMembership {
-                domain,
-                domain_symbol,
-                semantic_domain,
-            }),
             FactPayload::CarryPermission { permission, .. }
             | FactPayload::ContractCarryPermission { permission, .. } => {
                 Some(Self::CarryPermission { permission })
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
-            FactPayload::BooleanPredicate { .. }
+            FactPayload::DomainMembership { .. }
+            | FactPayload::ContractDomainMembership { .. }
+            | FactPayload::BooleanPredicate { .. }
             | FactPayload::AssignedCase { .. }
             | FactPayload::AssignedValue { .. }
             | FactPayload::AssignedIntegerBounds { .. }

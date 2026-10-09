@@ -530,25 +530,14 @@ impl FactPlan {
 
 /// Adapt the two domain-membership payloads to a [`DomainMembershipFact`].
 pub(crate) fn as_domain_membership(payload: FactPayload) -> Option<DomainMembershipFact> {
-    match payload {
-        FactPayload::DomainMembership {
-            value,
-            domain,
-            domain_symbol,
-            semantic_domain,
-        }
-        | FactPayload::ContractDomainMembership {
-            value,
-            domain,
-            domain_symbol,
-            semantic_domain,
-            ..
-        } => Some(DomainMembershipFact {
-            value,
-            domain,
-            domain_symbol,
-            semantic_domain,
-        }),
-        _ => None,
-    }
+    payload
+        .domain_membership()
+        .map(
+            |(value, domain, domain_symbol, semantic_domain)| DomainMembershipFact {
+                value,
+                domain,
+                domain_symbol,
+                semantic_domain,
+            },
+        )
 }
