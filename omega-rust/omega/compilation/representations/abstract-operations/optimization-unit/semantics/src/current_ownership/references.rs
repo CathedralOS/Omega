@@ -29,7 +29,7 @@ const MAX_INCOMING_REFERENCE_LEAVES: usize = 4096;
 
 /// Carrier storage and its pointees are distinct aliasing regions.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum CallRegion {
+pub enum CallRegion {
     OrdinaryStorage,
     CarrierStorage,
     Referent,

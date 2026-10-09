@@ -33,7 +33,7 @@ mod cleanup;
 pub(crate) use call_accesses::{CallAccesses, argument_storage_is_closed};
 mod continuation;
 mod mutations;
-mod references;
+pub(crate) mod references;
 mod replay;
 mod residuals;
 mod storage_regions;
