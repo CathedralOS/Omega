@@ -104,8 +104,7 @@ impl DynamicElfImageEmission {
 /// Rejected production-emitter reconciliation with the admitted owner intact.
 #[derive(Debug)]
 #[must_use = "dynamic ELF emission rejection retains admitted byte custody"]
-pub(crate) struct DynamicElfImageEmissionError {
-    admitted: ValidatedElfDynamicExecutable,
+pub struct DynamicElfImageEmissionError {
     diagnostic: Diagnostic}
 
 impl DynamicElfImageEmissionError {
@@ -113,9 +112,6 @@ impl DynamicElfImageEmissionError {
         &self.diagnostic
     }
 
-    pub fn into_parts(self) -> (ValidatedElfDynamicExecutable, Diagnostic) {
-        (self.admitted, self.diagnostic)
-    }
 }
 
 impl std::fmt::Display for DynamicElfImageEmissionError {
@@ -212,9 +208,7 @@ pub(crate) fn emit_dynamic_elf_image(
         Ok(output) => output,
         Err(diagnostic) => {
             return Err(Box::new(DynamicElfOrchestrationError::ProductionBridge(
-                Box::new(DynamicElfImageEmissionError {
-                    admitted,
-                    diagnostic}),
+                Box::new(DynamicElfImageEmissionError { diagnostic }),
             )));
         }
     };
