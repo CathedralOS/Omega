@@ -171,7 +171,10 @@ pub(super) fn encode_plan_content(
     crate::codec_bytes::push_encoded(&mut bytes, object.continuation_symbol.get().to_le_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, object.wrapper_byte_count.to_le_bytes());
     bytes.push(1);
-    crate::codec_bytes::push_encoded(&mut bytes, object.call_resolution.wrapper_section_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        object.call_resolution.wrapper_section_offset.to_le_bytes(),
+    );
     bytes.extend_from_slice(
         &object
             .call_resolution
@@ -184,7 +187,10 @@ pub(super) fn encode_plan_content(
             .next_instruction_section_offset
             .to_le_bytes(),
     );
-    crate::codec_bytes::push_encoded(&mut bytes, object.call_resolution.displacement.to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        object.call_resolution.displacement.to_le_bytes(),
+    );
     crate::codec_bytes::push_encoded(&mut bytes, object.relocation_record_count.to_le_bytes());
     Ok(bytes)
 }
@@ -256,7 +262,7 @@ fn decode_plan_content(
         wrapper_section_offset: cursor.u64()?,
         continuation_section_offset: cursor.u64()?,
         next_instruction_section_offset: cursor.u64()?,
-        displacement: i32::from_le_bytes(cursor.array()?),
+        displacement: cursor.i32()?,
     };
     let relocation_record_count = cursor.u64()?;
     let object = OptimizedProgramStorageSemanticWrapperObjectPlan {
