@@ -10,7 +10,6 @@ use crate::StagedOptimizedAllocationLegality;
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
 use crate::StagedOptimizedLiteralFoldAttempt;
 use crate::StagedOptimizedLiteralFoldAttemptReceipt;
-use crate::StagedOptimizedLiteralFoldCustodyReceipt;
 use crate::StagedOptimizedLiteralFoldIterationReceipt;
 use crate::StagedOptimizedLiteralFoldStep;
 use crate::StagedSelectedLoweringOptimizationCustodyReceipt;

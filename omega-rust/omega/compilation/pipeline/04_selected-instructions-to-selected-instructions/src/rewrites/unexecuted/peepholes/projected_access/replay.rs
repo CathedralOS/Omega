@@ -10,9 +10,3 @@
 //! the isolated projection row must carry — then rebuilds the expected
 //! folded record, requires the proposal to equal it, and restores the
 //! complete source by content.
-use crate::rewrites::sealed;
-
-use crate::ValidatedSelectedAnalysis;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;

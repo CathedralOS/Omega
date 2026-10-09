@@ -12,5 +12,3 @@
 //! roster rows must reproduce the complete source by content. A producer
 //! admission error therefore fails validation even when the proposal is
 //! exactly what that producer emitted.
-use crate::rewrites::block_edges::terminator_successors;
-use crate::rewrites::window_hazards::unrostered_reach;

@@ -7,12 +7,3 @@
 //! content, every crossed instruction, every other block and
 //! instruction, register, roster row, call, settlement, and edge
 //! included.
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::terminator_successors;
-use crate::rewrites::sealed;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedFunction, SelectedInstructionId, SelectedInstructionPlan, terminator_instruction,
-};

@@ -7,7 +7,3 @@
 //! every predecessor edge into the arrival block lies on a crossed path and
 //! every exit of every crossed block stays on one — then apply the shared
 //! hazard, transport, memory-roster and settlement audit once.
-use crate::ValidatedSelectedAnalysis;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::SelectedInstructionId;

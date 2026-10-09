@@ -57,8 +57,3 @@
 mod admission;
 mod rewrite;
 mod validation;
-
-use std::sync::Arc;
-
-use optimization_core::OptimizationUnitIdentity;
-use semantic_vocabulary::FuelScheduleIdentity;

@@ -102,8 +102,6 @@ mod runtime_spill;
 mod runtime_split;
 mod selected_lowering;
 mod selected_operands;
-#[cfg(any(test, feature = "test-support"))]
-pub mod test_support;
 pub mod unexecuted;
 mod window_hazards;
 

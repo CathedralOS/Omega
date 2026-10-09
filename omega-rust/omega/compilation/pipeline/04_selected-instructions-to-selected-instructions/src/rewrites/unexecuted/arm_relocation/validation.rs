@@ -18,8 +18,3 @@
 //! instruction, register, roster row, call, settlement, and edge. A
 //! producer admission error therefore fails validation even when the
 //! proposal is exactly what that producer emitted.
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::sealed;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;

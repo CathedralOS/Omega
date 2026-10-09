@@ -66,12 +66,3 @@
 mod admission;
 mod rewrite;
 mod validation;
-
-use std::sync::Arc;
-
-use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{
-    SelectedInstruction, SelectedInstructionKind, SelectedInstructionPlan,
-    SelectedInstructionPlanIdentity, SelectedTerminator,
-};
-use semantic_vocabulary::FuelScheduleIdentity;

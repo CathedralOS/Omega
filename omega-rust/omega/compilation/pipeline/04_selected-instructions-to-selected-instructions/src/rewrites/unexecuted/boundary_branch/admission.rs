@@ -7,12 +7,3 @@
 //! compare's operand poles: a far pole or two known operands select the
 //! `Jump`'s successor outright, while a near pole collapses the ordering
 //! to the nonzero condition on the identical published flag state.
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::condition_state::ConditionStateError;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterInstructionConstraint;
-use selected_instructions::{
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedTerminator, terminator_instruction,
-};

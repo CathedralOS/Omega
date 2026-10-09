@@ -17,10 +17,3 @@
 //! complete selected program bit-for-bit. A producer admission error
 //! therefore fails validation even when the proposal is exactly what
 //! that producer emitted.
-
-use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::sealed;
-use crate::rewrites::unexecuted::commuting_accesses as accesses;
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};

@@ -13,4 +13,3 @@
 //! must reproduce the complete source by content. A producer admission
 //! error therefore fails validation even when the proposal is exactly
 //! what that producer emitted.
-use selected_instructions::SelectedInstructionPlan;

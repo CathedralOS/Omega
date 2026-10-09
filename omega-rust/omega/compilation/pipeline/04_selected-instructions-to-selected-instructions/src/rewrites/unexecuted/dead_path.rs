@@ -59,13 +59,3 @@
 //! location a member reads between its old and new positions, on every
 //! path — so the reaching definition it observes at the landing index is
 //! the one it observed at its original position.
-use std::collections::{BTreeSet, VecDeque};
-
-use register_model::RegisterUnitId;
-use selected_instructions::{
-    SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
-    SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterId,
-    terminator_instruction,
-};
-
-use crate::rewrites::block_edges::terminator_successors;
