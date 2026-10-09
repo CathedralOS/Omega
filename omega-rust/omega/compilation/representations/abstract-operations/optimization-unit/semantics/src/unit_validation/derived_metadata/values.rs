@@ -49,18 +49,9 @@ pub(crate) fn expected_uses(
             vec![left.length(), right.length()]
         }
         abstract_operations::byte_sequence_store_pair_pattern!( length, .. ) => vec![*length],
-        O::ByteSequenceWrite {
-            index,
+        abstract_operations::byte_sequence_write_pair_pattern!(index,
             value,
-            length,
-            ..
-        }
-        | O::StructuralByteSequenceFieldByteStore {
-            index,
-            value,
-            length,
-            ..
-        } => vec![*index, *value, *length],
+            length, ..) => vec![*index, *value, *length],
         O::ByteSequenceSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],

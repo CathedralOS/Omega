@@ -30,8 +30,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         AbstractOperation::AtomicEvent { .. }
         | AbstractOperation::SelectImplementation { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. }
-        | AbstractOperation::ByteSequenceWrite { .. }
-        | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
+        | abstract_operations::byte_sequence_write_pair_pattern!(..)
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | AbstractOperation::StructuralByteViewFieldStore { .. }
         | AbstractOperation::EstablishPrimitiveLocal { .. }

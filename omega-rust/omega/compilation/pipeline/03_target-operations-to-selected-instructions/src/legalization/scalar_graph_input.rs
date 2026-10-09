@@ -408,16 +408,8 @@ pub(super) fn match_input(
         {
             return Err(LegalizationError::custody());
         }
-        if let AbstractOperation::ByteSequenceWrite {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | AbstractOperation::StructuralByteSequenceFieldByteStore {
-            psi_operation,
-            obligation,
-            ..
-        }
+        if let abstract_operations::byte_sequence_write_pair_pattern!(psi_operation,
+            obligation, ..)
         | AbstractOperation::StructuralByteSequenceFieldRead {
             psi_operation,
             obligation,

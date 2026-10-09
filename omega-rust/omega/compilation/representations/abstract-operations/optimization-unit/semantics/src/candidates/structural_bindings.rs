@@ -33,8 +33,7 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
     if match operation {
         // Bare-place destinations that replace or re-establish contents.
         O::PrimitiveLocalStore { destination, .. }
-        | O::ByteSequenceWrite { destination, .. }
-        | O::StructuralByteSequenceFieldByteStore { destination, .. }
+        | abstract_operations::byte_sequence_write_pair_pattern!(destination, ..)
         | abstract_operations::byte_sequence_store_pair_pattern!( destination, .. )
         | O::EstablishElementView { destination, .. } => *destination == place,
         // Parameter-row destinations and vacating move sources.

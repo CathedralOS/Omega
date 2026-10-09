@@ -1189,3 +1189,11 @@ macro_rules! byte_sequence_store_pair_pattern {
             | $crate::AbstractOperation::StructuralByteSequenceFieldStore { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! byte_sequence_write_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::ByteSequenceWrite { $($fields)* }
+            | $crate::AbstractOperation::StructuralByteSequenceFieldByteStore { $($fields)* }
+    };
+}

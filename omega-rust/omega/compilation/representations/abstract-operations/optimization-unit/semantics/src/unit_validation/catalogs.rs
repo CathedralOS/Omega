@@ -348,20 +348,10 @@ fn validate_structural_field_range_authority(
                     return Err(invalid);
                 }
             }
-            O::ByteSequenceWrite {
-                psi_operation,
+            abstract_operations::byte_sequence_write_pair_pattern!(psi_operation,
                 index,
                 length,
-                obligation,
-                ..
-            }
-            | O::StructuralByteSequenceFieldByteStore {
-                psi_operation,
-                index,
-                length,
-                obligation,
-                ..
-            }
+                obligation, ..)
             | O::StructuralByteSequenceFieldRead {
                 psi_operation,
                 index,

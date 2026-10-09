@@ -207,14 +207,7 @@ pub(crate) fn validate_operation_places(
         | O::StructuralCaseMembership { source, .. }
         | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceRead { source, .. }
-        | O::ByteSequenceWrite {
-            destination: source,
-            ..
-        }
-        | O::StructuralByteSequenceFieldByteStore {
-            destination: source,
-            ..
-        }
+        | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::StructuralByteSequenceFieldRead { source, .. }

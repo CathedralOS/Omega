@@ -12,18 +12,9 @@ pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDe
             matches!(scalar(*length), Some(ScalarType::Integer(integer))
                 if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
         }
-        O::ByteSequenceWrite {
-            index,
+        abstract_operations::byte_sequence_write_pair_pattern!(index,
             value,
-            length,
-            ..
-        }
-        | O::StructuralByteSequenceFieldByteStore {
-            index,
-            value,
-            length,
-            ..
-        } => {
+            length, ..) => {
             matches!(scalar(*value), Some(ScalarType::Integer(integer))
                 if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 8))
                 && matches!(scalar(*index), Some(ScalarType::Integer(integer))
