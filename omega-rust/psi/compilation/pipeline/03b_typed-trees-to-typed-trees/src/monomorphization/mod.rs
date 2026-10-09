@@ -74,6 +74,7 @@ struct CandidateTemplate {
 #[derive(Clone)]
 struct Candidate<'template> {
     template: std::borrow::Cow<'template, CandidateTemplate>,
+    binding_application: typed_trees::static_applications::StaticMachineApplicationHandle,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     const_bindings: Vec<Option<TypeReferenceHandle>>,
     /// A runtime Value slot binds its carrier here, while the exact call-site
@@ -88,6 +89,7 @@ impl Candidate<'_> {
     fn borrowed(&self) -> Candidate<'_> {
         Candidate {
             template: std::borrow::Cow::Borrowed(&self.template),
+            binding_application: self.binding_application,
             type_bindings: self.type_bindings.clone(),
             const_bindings: self.const_bindings.clone(),
             runtime_value_bindings: self.runtime_value_bindings.clone(),
@@ -212,7 +214,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         });
         for selection in &selections {
             let candidate =
-                candidate_for_selection(&candidates[selection.candidate_index], selection);
+                candidate_for_selection(program, &candidates[selection.candidate_index], selection);
             applications::retain_call(program, &candidate, selection);
         }
         changed_owners.extend(result_locals::refresh_generic_call_results(
@@ -480,7 +482,7 @@ fn apply_call_specializations(
     }
     let concrete_candidates: Vec<Candidate> = groups
         .iter()
-        .map(|(_, members)| candidate_for_selection(template, &selections[members[0]]))
+        .map(|(_, members)| candidate_for_selection(program, template, &selections[members[0]]))
         .collect();
 
     let normalized_template_identity = normalized_machine_identity(
@@ -571,11 +573,24 @@ fn apply_call_specializations(
 }
 
 fn candidate_for_selection<'template>(
+    program: &dyn validation::CheckingInput,
     template: &'template Candidate<'_>,
     selection: &CallSelection,
 ) -> Candidate<'template> {
     Candidate {
         template: std::borrow::Cow::Borrowed(&template.template),
+        binding_application: match selection.site {
+            CallSite::Expression(handle) => program.expression_table.call_node(handle).map_or(
+                typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
+                |call| call.authored_machine_application,
+            ),
+            CallSite::Statement(handle) => {
+                program.statement_table.statement(handle).as_call().map_or(
+                    typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
+                    |call| call.authored_machine_application,
+                )
+            }
+        },
         type_bindings: selection.type_bindings.clone(),
         const_bindings: selection.const_bindings.clone(),
         runtime_value_bindings: selection.runtime_value_bindings.clone(),

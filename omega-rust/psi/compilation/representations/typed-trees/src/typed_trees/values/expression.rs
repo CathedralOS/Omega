@@ -9,6 +9,7 @@ use crate::AuthoredDeclarationSelectionOccurrenceId;
 use crate::name::Identifier;
 use crate::static_applications::{
     StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
+    StaticMachineLifetimeBinding,
 };
 use arena::{Arena, Handle, HandleSpan};
 use numerics::literals::IntegerLiteral;
@@ -110,6 +111,7 @@ pub struct ExpressionTable {
     static_machine_applications: Arena<StaticMachineApplication>,
     static_machine_arguments: Arena<StaticMachineArgument>,
     static_machine_bindings: Arena<StaticMachineBinding>,
+    static_machine_lifetime_bindings: Arena<StaticMachineLifetimeBinding>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -145,6 +147,7 @@ impl ExpressionTable {
             static_machine_applications,
             static_machine_arguments,
             static_machine_bindings,
+            static_machine_lifetime_bindings,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(expressions, &self.expressions)
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
@@ -165,6 +168,10 @@ impl ExpressionTable {
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 static_machine_bindings,
                 &self.static_machine_bindings,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                static_machine_lifetime_bindings,
+                &self.static_machine_lifetime_bindings,
             )
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 expression_roots,
@@ -295,6 +302,8 @@ impl ExpressionTable {
             .wrapping_add(self.static_machine_applications.revision())
             .wrapping_add(self.static_machine_arguments.revision())
             .wrapping_add(self.array_literal_types.revision())
+            .wrapping_add(self.static_machine_bindings.revision())
+            .wrapping_add(self.static_machine_lifetime_bindings.revision())
             .wrapping_add(self.source_spans.len() as u64)
             .wrapping_add(self.authored_selection_occurrences.len() as u64)
     }
@@ -335,6 +344,7 @@ impl ExpressionTable {
             static_machine_applications: Arena::default(),
             static_machine_arguments: Arena::default(),
             static_machine_bindings: Arena::default(),
+            static_machine_lifetime_bindings: Arena::default(),
         }
     }
 
@@ -357,6 +367,8 @@ impl ExpressionTable {
         self.static_machine_applications.reset_retain_capacity();
         self.static_machine_arguments.reset_retain_capacity();
         self.static_machine_bindings.reset_retain_capacity();
+        self.static_machine_lifetime_bindings
+            .reset_retain_capacity();
     }
 
     /// Preserve the source application before folding or specializing its call.
@@ -379,6 +391,7 @@ impl ExpressionTable {
                 target,
                 arguments,
                 bindings: HandleSpan::empty(),
+                lifetime_bindings: HandleSpan::empty(),
                 binding_declaration: SymbolHandle::invalid(),
             })
     }
@@ -444,6 +457,46 @@ impl ExpressionTable {
     ) -> &[StaticMachineArgument] {
         self.static_machine_arguments
             .span_or_empty(self.static_machine_application(application).arguments)
+    }
+
+    pub fn static_machine_application_lifetimes(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &[StaticMachineLifetimeBinding] {
+        self.static_machine_lifetime_bindings.span_or_empty(
+            self.static_machine_application(application)
+                .lifetime_bindings,
+        )
+    }
+
+    pub fn set_static_machine_application_lifetimes(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        bindings: &[StaticMachineLifetimeBinding],
+    ) {
+        let previous = self
+            .static_machine_applications
+            .get(application)
+            .lifetime_bindings;
+        if self
+            .static_machine_lifetime_bindings
+            .span_or_empty(previous)
+            == bindings
+        {
+            return;
+        }
+        if previous.len() == bindings.len() {
+            self.static_machine_lifetime_bindings
+                .span_mut_or_empty(previous)
+                .clone_from_slice(bindings);
+        } else {
+            let bindings = self
+                .static_machine_lifetime_bindings
+                .insert_many(bindings.iter().cloned());
+            self.static_machine_applications
+                .get_mut(application)
+                .lifetime_bindings = bindings;
+        }
     }
 
     /// Preparation substitutes a fresh copied application's operands alongside

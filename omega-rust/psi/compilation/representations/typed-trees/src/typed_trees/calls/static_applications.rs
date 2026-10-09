@@ -29,9 +29,19 @@ pub struct StaticMachineApplication {
     /// Exact inferred operands, including calls with no spelled static list.
     /// These are derivation data; their source bounds still owe admission.
     pub bindings: HandleSpan<StaticMachineBinding>,
+    /// Ordinary parameter-position borrow mapping, retained before executable
+    /// retargeting. Declaration names on the left belong to the callee;
+    /// arguments on the right belong to `lexical_owner`.
+    pub lifetime_bindings: HandleSpan<StaticMachineLifetimeBinding>,
     /// The original declaration whose binders the derived rows substitute.
     /// A requirement call's authored operation may instead belong to a trait.
     pub binding_declaration: SymbolHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StaticMachineLifetimeBinding {
+    pub parameter: Identifier,
+    pub argument: Identifier,
 }
 
 /// One known substitution for a source declaration's binder. Missing bindings

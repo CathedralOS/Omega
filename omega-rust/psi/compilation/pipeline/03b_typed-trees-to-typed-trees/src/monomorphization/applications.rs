@@ -151,6 +151,25 @@ pub(super) fn retain_instance(
     instance: SymbolHandle,
 ) -> StaticMachineApplicationHandle {
     let mut bindings = candidate_bindings(candidate);
+    // Carrier sharing does not make an instance the author of its operands.
+    // Preserve the representative source application's lexical region scope;
+    // every other source edge still owns its separate admission. Roster-only
+    // instances have no source call and retain their declaration context.
+    let (lexical_owner, lifetimes) = if candidate.binding_application.is_valid() {
+        let origin = source.unwrap_or(program);
+        (
+            origin
+                .expression_table
+                .static_machine_application(candidate.binding_application)
+                .lexical_owner,
+            origin
+                .expression_table
+                .static_machine_application_lifetimes(candidate.binding_application)
+                .to_vec(),
+        )
+    } else {
+        (instance, Vec::new())
+    };
     // Runtime callers share a carrier-specialized instance. No one caller's
     // subject belongs to that instance's static tuple.
     for binding in &mut bindings {
@@ -169,7 +188,7 @@ pub(super) fn retain_instance(
     program
         .expression_table
         .static_machine_application_mut(application)
-        .lexical_owner = instance;
+        .lexical_owner = lexical_owner;
     program
         .expression_table
         .static_machine_application_mut(application)
@@ -177,5 +196,8 @@ pub(super) fn retain_instance(
     program
         .expression_table
         .set_static_machine_application_bindings(application, &bindings);
+    program
+        .expression_table
+        .set_static_machine_application_lifetimes(application, &lifetimes);
     application
 }

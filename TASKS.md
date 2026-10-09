@@ -3013,7 +3013,11 @@ of a check the same flow already performed, not the check itself.
   Remaining: preserve exact erased
   applications, clone correspondence and lexical owners through folding and
   substitution, including lifetime scopes and inherited symbolic const
-  arguments. Complete the full frozen-boundary qualification below; the focused
+  arguments. Carry complete applications into inherited row signature and law
+  matching: `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
+  currently reaches `ForwardEnvelope::forward` satisfaction, where the bare
+  inherited-argument projection loses the outer `Value` binding. Complete the
+  full frozen-boundary qualification below; the focused
   operator, algebra-law and returned-loan cohort does not replace it.
   Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal

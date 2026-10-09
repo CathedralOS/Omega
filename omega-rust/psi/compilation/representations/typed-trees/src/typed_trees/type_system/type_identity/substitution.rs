@@ -48,6 +48,11 @@ pub(super) fn index_argument(
             if let Some(literal) = &argument.const_literal {
                 return index_integer(literal, context);
             }
+            if let Some(identity) =
+                super::identity_context::static_type_argument_identity(program, argument, context)
+            {
+                return identity;
+            }
             if !argument.symbol.is_valid() || argument.evidence_projection.is_some() {
                 return rejected(context);
             }
@@ -128,6 +133,9 @@ pub(super) fn index(
     _spelling: &str,
     context: &TypeIdentityContext<'_>,
 ) -> Option<String> {
+    if let Some((argument, outer)) = context.applied_argument(symbol) {
+        return Some(index_argument(program, argument, &outer));
+    }
     if symbol.is_valid()
         && let Some((_, replacement)) = context
             .index_substitutions

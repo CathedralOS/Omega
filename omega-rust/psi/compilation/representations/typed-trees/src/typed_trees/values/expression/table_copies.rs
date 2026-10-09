@@ -75,6 +75,9 @@ impl ExpressionTable {
         let bindings = origin
             .static_machine_application_bindings(application)
             .to_vec();
+        let lifetimes = origin
+            .static_machine_application_lifetimes(application)
+            .to_vec();
         let copy = self.retain_static_machine_application(
             declaration.registration_operation,
             declaration.target,
@@ -84,6 +87,7 @@ impl ExpressionTable {
         self.static_machine_application_mut(copy)
             .binding_declaration = declaration.binding_declaration;
         self.set_static_machine_application_bindings(copy, &bindings);
+        self.set_static_machine_application_lifetimes(copy, &lifetimes);
         copy
     }
 

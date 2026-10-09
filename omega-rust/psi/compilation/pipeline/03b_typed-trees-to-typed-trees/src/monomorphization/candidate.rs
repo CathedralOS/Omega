@@ -49,6 +49,8 @@ pub(super) fn from_machine(
     }
     let evidence_parameters = machine.conformance_bounds.clone();
     Candidate {
+        binding_application:
+            typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
         type_bindings: vec![None; type_parameters.len()],
         const_bindings: vec![None; const_parameters.len()],
         runtime_value_bindings: vec![None; const_parameters.len()],

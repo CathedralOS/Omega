@@ -7,14 +7,13 @@
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
-use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementHandle, StatementNode};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use validation::conformance_applications::{
-    static_argument_identity, substituted_type_identity_with_lifetimes,
+use typed_trees::type_identity::{
+    AppliedTypeIdentityScope, IndexIdentityArgument, applied_type_identity,
 };
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone, Copy)]
 enum ElisionCallSite {
@@ -84,11 +83,22 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             continue;
         }
 
-        let machine_substitutions =
-            machine_static_substitutions(program, callee_machine, &call.machine_arguments);
+        let application = match call.site {
+            ElisionCallSite::Expression(handle) => program
+                .expression_table
+                .call_node(handle)
+                .map(|call| call.authored_machine_application),
+            ElisionCallSite::Statement(handle) => program
+                .statement_table
+                .statement(handle)
+                .as_call()
+                .map(|call| call.authored_machine_application),
+        };
+
         let evidence_bounds = callee_machine.conformance_bounds.iter().collect::<Vec<_>>();
         let mut evidence_index = 0usize;
-        for selected in &mut call.machine_arguments {
+        for argument_ordinal in 0..call.machine_arguments.len() {
+            let mut selected = call.machine_arguments[argument_ordinal].clone();
             if !selected.symbol.is_valid()
                 || !matches!(
                     program.symbols.get(selected.symbol).kind,
@@ -157,9 +167,12 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 continue;
             };
 
-            let conformance_substitutions = conformance_static_substitutions(
-                program,
-                conformance,
+            let machine_substitutions = static_substitutions(
+                program.machine_type_parameters(callee_machine),
+                &call.machine_arguments,
+            );
+            let conformance_substitutions = static_substitutions(
+                program.conformance_type_parameters(conformance),
                 selected
                     .application
                     .as_deref()
@@ -171,24 +184,36 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 .zip(&resolved)
                 .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.clone()))
                 .collect::<Vec<_>>();
-            let shapes_match = program
+            let declared_arguments = program
                 .type_reference_table
-                .type_reference_handles(conformance.arguments)
-                .iter()
-                .zip(&bound.arguments)
-                .all(|(declared, expected)| {
-                    substituted_type_identity_with_lifetimes(
-                        program,
-                        *declared,
-                        &conformance_substitutions,
-                        &inferred_substitutions,
-                    ) == substituted_type_identity_with_lifetimes(
-                        program,
-                        *expected,
-                        &machine_substitutions,
-                        &call_lifetimes,
-                    )
-                });
+                .type_reference_handles(conformance.arguments);
+            let shapes_match = declared_arguments.len() == bound.arguments.len()
+                && declared_arguments
+                    .iter()
+                    .zip(&bound.arguments)
+                    .all(|(declared, expected)| {
+                        applied_type_identity(
+                            program,
+                            *declared,
+                            call.caller_machine,
+                            &[AppliedTypeIdentityScope {
+                                declaration: conformance.symbol,
+                                arguments: &conformance_substitutions,
+                                lifetimes: &inferred_substitutions,
+                            }],
+                        )
+                        .zip(applied_type_identity(
+                            program,
+                            *expected,
+                            call.caller_machine,
+                            &[AppliedTypeIdentityScope {
+                                declaration: callee_machine.symbol,
+                                arguments: &machine_substitutions,
+                                lifetimes: &call_lifetimes,
+                            }],
+                        ))
+                        .is_some_and(|(declared, expected)| declared == expected)
+                    });
             if !shapes_match {
                 if selected
                     .application
@@ -214,8 +239,23 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                     .collect::<Vec<_>>()
                     .into_boxed_slice();
             }
+            call.machine_arguments[argument_ordinal] = selected;
         }
 
+        if let Some(application) = application.filter(|application| application.is_valid()) {
+            let lifetimes = call_lifetimes
+                .iter()
+                .map(|(parameter, argument)| {
+                    typed_trees::static_applications::StaticMachineLifetimeBinding {
+                        parameter: Identifier::generated(parameter),
+                        argument: Identifier::generated(argument),
+                    }
+                })
+                .collect::<Vec<_>>();
+            program
+                .expression_table
+                .set_static_machine_application_lifetimes(application, &lifetimes);
+        }
         match call.site {
             ElisionCallSite::Expression(handle) => {
                 let ExpressionNode::Call(current) = program.expression_table.expression_mut(handle)
@@ -557,18 +597,18 @@ fn collect_lifetime_bindings(
         }
         (
             TypeReferenceNode::Generic {
-                base_name: required_base,
+                base_symbol: required_base,
                 lifetime_arguments: required_lifetimes,
                 arguments: required_arguments,
                 ..
             },
             TypeReferenceNode::Generic {
-                base_name: actual_base,
+                base_symbol: actual_base,
                 lifetime_arguments: actual_lifetimes,
                 arguments: actual_arguments,
                 ..
             },
-        ) if required_base == actual_base => {
+        ) if required_base.is_valid() && required_base == actual_base => {
             for (required, actual) in required_lifetimes.iter().zip(actual_lifetimes) {
                 if parameters
                     .iter()
@@ -677,18 +717,18 @@ fn collect_conformance_lifetime_bindings(
         ),
         (
             TypeReferenceNode::Generic {
-                base_name: declared_base,
+                base_symbol: declared_base,
                 lifetime_arguments: declared_lifetimes,
                 arguments: declared_arguments,
                 ..
             },
             TypeReferenceNode::Generic {
-                base_name: expected_base,
+                base_symbol: expected_base,
                 lifetime_arguments: expected_arguments,
                 arguments,
                 ..
             },
-        ) if declared_base == expected_base => {
+        ) if declared_base.is_valid() && declared_base == expected_base => {
             for (declared, expected) in declared_lifetimes.iter().zip(expected_arguments) {
                 if parameters
                     .iter()
@@ -749,68 +789,18 @@ fn collect_conformance_lifetime_bindings(
     }
 }
 
-fn machine_static_substitutions(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    arguments: &[StaticMachineArgument],
-) -> Vec<(SymbolHandle, String)> {
-    let parameters = program.machine_type_parameters(machine);
-    static_substitutions(program, parameters, arguments)
-}
-
-fn conformance_static_substitutions(
-    program: &dyn ::validation::CheckingInput,
-    conformance: &typed_trees::trait_definition::Conformance,
-    arguments: &[StaticMachineArgument],
-) -> Vec<(SymbolHandle, String)> {
-    static_substitutions(
-        program,
-        program.conformance_type_parameters(conformance),
-        arguments,
-    )
-}
-
-fn static_substitutions(
-    program: &dyn ::validation::CheckingInput,
+fn static_substitutions<'argument>(
     parameters: &[typed_trees::data::TypeParameter],
-    arguments: &[StaticMachineArgument],
-) -> Vec<(SymbolHandle, String)> {
-    let mut substitutions = Vec::new();
-    let mut type_index = 0usize;
-    let mut const_index = 0usize;
-    let type_parameters = parameters
+    arguments: &'argument [StaticMachineArgument],
+) -> Vec<(SymbolHandle, IndexIdentityArgument<'argument>)> {
+    parameters
         .iter()
-        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-        .collect::<Vec<_>>();
-    let const_parameters = parameters
-        .iter()
-        .filter(|parameter| parameter.kind.is_const_or_value())
-        .collect::<Vec<_>>();
-    for argument in arguments {
-        if argument.const_literal.is_some() {
-            if let Some(parameter) = const_parameters.get(const_index) {
-                substitutions.push((
-                    parameter.symbol,
-                    static_argument_identity(program, argument),
-                ));
-                const_index += 1;
-            }
-            continue;
-        }
-        if !argument.symbol.is_valid() {
-            continue;
-        }
-        if matches!(
-            program.symbols.get(argument.symbol).kind,
-            SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
-        ) && let Some(parameter) = type_parameters.get(type_index)
-        {
-            substitutions.push((
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            (
                 parameter.symbol,
-                static_argument_identity(program, argument),
-            ));
-            type_index += 1;
-        }
-    }
-    substitutions
+                IndexIdentityArgument::StaticArgument(argument),
+            )
+        })
+        .collect()
 }

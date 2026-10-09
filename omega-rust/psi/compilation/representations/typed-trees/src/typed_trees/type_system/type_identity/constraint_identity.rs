@@ -2,7 +2,7 @@
 //! identities and array lengths into canonical atoms.
 
 use crate::TypedTrees;
-use crate::expression::{ExpressionHandle};
+use crate::expression::ExpressionHandle;
 use crate::type_identity::substitution;
 use crate::typed_trees::type_system::type_identity::identity_context::{
     TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
@@ -199,7 +199,6 @@ pub(crate) fn normalized_compiler_domain_identity(
     }
 }
 
-
 fn declared_domain_identity(program: &TypedTrees, domain: &DomainConstraint) -> String {
     if domain.semantic_id.is_valid()
         && let Some(name) = program.semantic_domains.name(domain.semantic_id)
@@ -239,6 +238,14 @@ pub(crate) fn normalize_array_length(
     context: &TypeIdentityContext<'_>,
 ) -> String {
     match length {
+        FixedArrayLength::Literal(value) if context.invalid_application.is_some() => {
+            atom("integer", &value.to_string())
+        }
+        FixedArrayLength::ConstParameter { symbol, name }
+            if context.invalid_application.is_some() =>
+        {
+            substitution::index_name(program, *symbol, name.as_str(), context)
+        }
         FixedArrayLength::Literal(value) => atom("literal", &value.to_string()),
         FixedArrayLength::ConstParameter { symbol, name } => {
             substitution::array_length(program, *symbol, name.as_str(), context).unwrap_or_else(

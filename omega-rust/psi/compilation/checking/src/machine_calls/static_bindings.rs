@@ -79,16 +79,7 @@ pub fn validate_static_machine_bindings(
         // without hashing display strings or aliasing their independently
         // owned application spans. Type operands can mention caller bounds,
         // including inside compounds; forwarded consts also read that scope.
-        let scope = if bindings.iter().any(|binding| {
-            matches!(binding.value, StaticMachineBindingValue::Type(_))
-                || matches!(binding.value, StaticMachineBindingValue::Const(actual)
-                if matches!(program.type_reference_table.type_reference(actual),
-                    TypeReferenceNode::Named { symbol, .. } if symbol.is_valid()))
-        }) {
-            application.lexical_owner
-        } else {
-            SymbolHandle::invalid()
-        };
+        let scope = application.lexical_owner;
         if judged.iter().any(|(declaration, owner, previous)| {
             *declaration == machine.symbol
                 && *owner == scope
@@ -96,6 +87,12 @@ pub fn validate_static_machine_bindings(
                     .expression_table
                     .static_machine_application_bindings(*previous)
                     == bindings
+                && program
+                    .expression_table
+                    .static_machine_application_lifetimes(*previous)
+                    == program
+                        .expression_table
+                        .static_machine_application_lifetimes(handle)
         }) {
             continue;
         }
@@ -185,7 +182,16 @@ pub fn validate_static_machine_bindings(
             _ => true,
         });
         if complete {
-            validate_conformance_bindings(program, machine, bindings, &mut diagnostics);
+            validate_conformance_bindings(
+                program,
+                machine,
+                application,
+                bindings,
+                program
+                    .expression_table
+                    .static_machine_application_lifetimes(handle),
+                &mut diagnostics,
+            );
         }
     }
     if diagnostics.iter().any(Diagnostic::is_error) {
@@ -245,7 +251,9 @@ fn validate_const_binding(
 fn validate_conformance_bindings(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    call: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
+    lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for bound in &machine.conformance_bounds {
@@ -276,7 +284,15 @@ fn validate_conformance_bindings(
             };
         let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
         if application.trait_definition != carrier.base
-            || !conformance_arguments_match(program, machine, bindings, bound, &application)
+            || !conformance_arguments_match(
+                program,
+                machine,
+                call.lexical_owner,
+                bindings,
+                lifetimes,
+                bound,
+                &application,
+            )
         {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{}` implementation with the instantiated trait arguments",
@@ -300,47 +316,112 @@ fn validate_conformance_bindings(
 fn conformance_arguments_match(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    lexical_owner: SymbolHandle,
     bindings: &[StaticMachineBinding],
+    lifetimes: &[typed_trees::static_applications::StaticMachineLifetimeBinding],
     bound: &GenericConformanceBound,
     application: &typed_trees::typed_trees::ClosedConformanceApplication,
 ) -> bool {
+    use typed_trees::type_identity::{
+        AppliedTypeIdentityScope, IndexIdentityArgument, applied_type_identity,
+    };
+
     let substitutions = bindings
         .iter()
-        .filter_map(|binding| match binding.value {
-            StaticMachineBindingValue::Type(actual) => Some((
-                binding.parameter,
-                program.normalized_type_identity(actual).into_string(),
-            )),
-            StaticMachineBindingValue::Const(actual)
-            | StaticMachineBindingValue::RuntimeValue {
-                type_reference: actual,
-                ..
-            } => Some((binding.parameter, program.display_type_reference(actual))),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let lifetimes = machine
-        .lifetime_parameters
-        .iter()
-        .map(|parameter| {
+        .map(|binding| {
             (
-                parameter.as_str().to_owned(),
-                "__ordinary_call_region".to_owned(),
+                binding.parameter,
+                match &binding.value {
+                    StaticMachineBindingValue::Type(actual)
+                    | StaticMachineBindingValue::Const(actual) => {
+                        IndexIdentityArgument::TypeReference(*actual)
+                    }
+                    StaticMachineBindingValue::RuntimeValue { subject, .. } => {
+                        IndexIdentityArgument::Subject(*subject)
+                    }
+                    StaticMachineBindingValue::Machine(argument)
+                    | StaticMachineBindingValue::Conformance(argument) => {
+                        IndexIdentityArgument::StaticArgument(argument)
+                    }
+                },
             )
         })
         .collect::<Vec<_>>();
-    let identity = |handle, substitutions: &[(SymbolHandle, String)]| {
-        crate::conformance_applications::substituted_type_identity_with_lifetimes(
-            program,
-            handle,
-            substitutions,
-            &lifetimes,
-        )
+    let lifetimes = lifetimes
+        .iter()
+        .map(|binding| {
+            (
+                binding.parameter.as_str().to_owned(),
+                binding.argument.as_str().to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let machine_scope = AppliedTypeIdentityScope {
+        declaration: machine.symbol,
+        arguments: &substitutions,
+        lifetimes: &lifetimes,
+    };
+
+    let Some(conformance) = program.conformance_by_symbol(application.declaration) else {
+        return false;
+    };
+    let parameters = program.conformance_type_parameters(conformance);
+    if parameters.len() != application.arguments.len() {
+        return false;
+    }
+    let actual_arguments = parameters
+        .iter()
+        .zip(application.arguments.iter())
+        .map(|(parameter, argument)| {
+            (
+                parameter.symbol,
+                IndexIdentityArgument::StaticArgument(argument),
+            )
+        })
+        .collect::<Vec<_>>();
+    let actual_lifetimes = conformance
+        .lifetime_parameters
+        .iter()
+        .zip(&application.lifetime_arguments)
+        .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.clone()))
+        .collect::<Vec<_>>();
+    let actual_scope = AppliedTypeIdentityScope {
+        declaration: conformance.symbol,
+        arguments: &actual_arguments,
+        lifetimes: &actual_lifetimes,
+    };
+    let actual = program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+
+    // A replacement is normalized in its original outer scope. In particular,
+    // an embedded region in a type actual is not a region of the conformance's
+    // telescope. Historical report strings are deliberately not an equality
+    // oracle for this retained semantic edge.
+    let matches = |required: &[TypeReferenceHandle], scopes: &[AppliedTypeIdentityScope<'_>]| {
+        actual.len() == required.len()
+            && required.iter().zip(actual).all(|(required, actual)| {
+                let required_identity = applied_type_identity(
+                    program.typed_program(),
+                    *required,
+                    lexical_owner,
+                    scopes,
+                );
+                let actual_identity = applied_type_identity(
+                    program.typed_program(),
+                    *actual,
+                    lexical_owner,
+                    &[actual_scope],
+                );
+                required_identity
+                    .zip(actual_identity)
+                    .is_some_and(|(required, actual)| required == actual)
+            })
     };
     // A refinement head may reorder or partially apply its base parameters.
     // Compare the instantiated base, not the surface refinement's arguments.
     let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
-    let required = match carrier
+    match carrier
         .refinement
         .and_then(|refinement| refinement.refines.as_ref().map(|base| (refinement, base)))
     {
@@ -354,33 +435,23 @@ fn conformance_arguments_match(
                     bound
                         .arguments
                         .iter()
-                        .map(|argument| identity(*argument, &substitutions)),
+                        .map(|argument| IndexIdentityArgument::TypeReference(*argument)),
                 )
                 .collect::<Vec<_>>();
-            program
-                .type_reference_table
-                .type_reference_handles(base.arguments)
-                .iter()
-                .map(|argument| identity(*argument, &head))
-                .collect::<Vec<_>>()
-        }
-        None => bound
-            .arguments
-            .iter()
-            .map(|argument| identity(*argument, &substitutions))
-            .collect::<Vec<_>>(),
-    };
-    application.trait_arguments.len() == required.len()
-        && required
-            .iter()
-            .zip(&application.trait_arguments)
-            .all(|(required, actual)| {
-                let actual = application.lifetime_arguments.iter().fold(
-                    actual.clone(),
-                    |identity, lifetime| {
-                        identity.replace(&format!("'{lifetime}"), "'__ordinary_call_region")
+            matches(
+                program
+                    .type_reference_table
+                    .type_reference_handles(base.arguments),
+                &[
+                    machine_scope,
+                    AppliedTypeIdentityScope {
+                        declaration: refinement.symbol,
+                        arguments: &head,
+                        lifetimes: &[],
                     },
-                );
-                *required == actual
-            })
+                ],
+            )
+        }
+        None => matches(&bound.arguments, &[machine_scope]),
+    }
 }

@@ -59,6 +59,40 @@ pub enum IndexIdentityArgument<'argument> {
     StaticArgument(&'argument crate::expression::StaticMachineArgument),
 }
 
+/// One simultaneous declaration telescope. Its operands belong to the outer
+/// scope, never to another binder in this same telescope.
+#[derive(Clone, Copy)]
+pub struct AppliedTypeIdentityScope<'argument> {
+    pub declaration: SymbolHandle,
+    pub arguments: &'argument [(SymbolHandle, IndexIdentityArgument<'argument>)],
+    pub lifetimes: &'argument [(String, String)],
+}
+
+/// Local application equality retains erased regions as lexical-owner and
+/// declaration-order identities. It shares the ordinary structural/index
+/// normalizer, but is not a replacement for runtime-carrier identity or a new
+/// published commitment encoding. Missing region custody fails closed.
+pub fn applied_type_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = normalize_type_reference(
+        program,
+        reference,
+        &TypeIdentityContext {
+            application_scopes: scopes,
+            application_owner: lexical_owner,
+            invalid_application: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(NormalizedTypeIdentity(identity))
+}
+
 /// Compare static indices and local fact operands through the same licensed
 /// normalizer as type identity. Replacements belong to the caller's scope and
 /// are therefore simultaneous: a swapped telescope must not bind twice.

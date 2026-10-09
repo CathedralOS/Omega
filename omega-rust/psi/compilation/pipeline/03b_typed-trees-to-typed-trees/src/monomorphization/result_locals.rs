@@ -60,8 +60,11 @@ pub(super) fn refresh_generic_call_results(
     }
     let mut changed_owners = Vec::new();
     for (body, offset, previous_type, return_type, selection) in updates {
-        let candidate =
-            super::candidate_for_selection(&candidates[selection.candidate_index], &selection);
+        let candidate = super::candidate_for_selection(
+            program,
+            &candidates[selection.candidate_index],
+            &selection,
+        );
         let mut forwarded_symbols = Vec::new();
         for (ordinal, ((parameter, _, _), binding)) in candidate
             .template

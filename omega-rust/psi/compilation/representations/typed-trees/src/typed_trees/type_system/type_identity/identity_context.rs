@@ -19,6 +19,9 @@ use symbols::SymbolHandle;
 
 #[derive(Default)]
 pub(crate) struct TypeIdentityContext<'binders> {
+    pub(crate) application_scopes: &'binders [super::AppliedTypeIdentityScope<'binders>],
+    pub(crate) application_owner: SymbolHandle,
+    pub(crate) invalid_application: Option<&'binders Cell<bool>>,
     pub(crate) binders: &'binders [(SymbolHandle, String)],
     pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
     pub(crate) substitution_semantics: SubstitutionSemantics,
@@ -67,6 +70,86 @@ impl PackageQualifiedNominalOwner {
 }
 
 impl TypeIdentityContext<'_> {
+    pub(crate) fn applied_argument(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<(super::IndexIdentityArgument<'_>, Self)> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        for (ordinal, scope) in self.application_scopes.iter().enumerate().rev() {
+            if let Some((_, argument)) =
+                scope.arguments.iter().find(|(binder, _)| *binder == symbol)
+            {
+                return Some((
+                    *argument,
+                    Self {
+                        application_scopes: &self.application_scopes[..ordinal],
+                        ..*self
+                    },
+                ));
+            }
+        }
+        None
+    }
+
+    fn lifetime(&self, program: &TypedTrees, name: &str) -> String {
+        if let Some((ordinal, scope)) = self.application_scopes.iter().enumerate().next_back()
+            && let Some((_, argument)) = scope
+                .lifetimes
+                .iter()
+                .find(|(parameter, _)| parameter == name)
+        {
+            return Self {
+                application_scopes: &self.application_scopes[..ordinal],
+                ..*self
+            }
+            .lifetime(program, argument);
+        }
+        let owner = self
+            .application_scopes
+            .last()
+            .map_or(self.application_owner, |scope| scope.declaration);
+        let parameters = program
+            .machine_by_symbol(owner)
+            .map(|owner| &owner.lifetime_parameters)
+            .or_else(|| {
+                program
+                    .conformance_by_symbol(owner)
+                    .map(|owner| &owner.lifetime_parameters)
+            })
+            .or_else(|| {
+                program
+                    .trait_definition_by_symbol(owner)
+                    .map(|owner| &owner.lifetime_parameters)
+            })
+            .or_else(|| {
+                program
+                    .data_definition_by_symbol(owner)
+                    .map(|owner| &owner.lifetime_parameters)
+            });
+        if let Some(ordinal) = parameters.and_then(|parameters| {
+            parameters
+                .iter()
+                .position(|parameter| parameter.as_str() == name)
+        }) {
+            return compound(
+                "region",
+                [
+                    atom(
+                        "owner",
+                        &format!("{}:{}", owner.arena_index(), owner.generation()),
+                    ),
+                    atom("ordinal", &ordinal.to_string()),
+                ],
+            );
+        }
+        if let Some(invalid) = self.invalid_application {
+            invalid.set(true);
+        }
+        "unresolved-region".to_owned()
+    }
+
     /// A simultaneous application's actual belongs to the caller's scope.
     /// Its leaves must not be rebound by the callee's application again.
     pub(crate) fn replacement_context(&self) -> Self {
@@ -173,11 +256,93 @@ pub(crate) fn package_qualified_nominal_name(
     compound("nominal", [owner.encode(), atom("path", path)])
 }
 
+fn generic_type_identity(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    name: &str,
+    lifetimes: &[crate::name::Identifier],
+    arguments: impl Iterator<Item = String>,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    compound(
+        "generic",
+        std::iter::once(atom("name", &context.name(program, symbol, name)))
+            .chain(context.invalid_application.into_iter().flat_map(|_| {
+                lifetimes
+                    .iter()
+                    .map(|lifetime| context.lifetime(program, lifetime.as_str()))
+            }))
+            .chain(arguments),
+    )
+}
+
+/// A source static type application and a type-reference application denote
+/// the same carrier. Read both through one grammar without allocating a type
+/// node merely to compare a retained source operand.
+pub(super) fn static_type_argument_identity(
+    program: &TypedTrees,
+    argument: &crate::expression::StaticMachineArgument,
+    context: &TypeIdentityContext<'_>,
+) -> Option<String> {
+    if context.invalid_application.is_none()
+        || !argument.symbol.is_valid()
+        || !matches!(
+            program.symbols.get(argument.symbol).kind,
+            symbols::SymbolKind::Data
+                | symbols::SymbolKind::BuiltinType
+                | symbols::SymbolKind::TypeParameter
+        )
+    {
+        return None;
+    }
+    if let Some((replacement, outer)) = context.applied_argument(argument.symbol) {
+        return Some(substitution::index_argument(program, replacement, &outer));
+    }
+    if let Some(application) = &argument.application {
+        return Some(generic_type_identity(
+            program,
+            argument.symbol,
+            "",
+            &application.lifetime_arguments,
+            application.arguments.iter().map(|argument| {
+                substitution::index_argument(
+                    program,
+                    super::IndexIdentityArgument::StaticArgument(argument),
+                    context,
+                )
+            }),
+            context,
+        ));
+    }
+    if let Some(origin) = program
+        .data_definition_by_symbol(argument.symbol)
+        .and_then(|data| data.generic_instance)
+    {
+        return Some(normalize_type_reference(program, origin, context));
+    }
+    Some(compound(
+        "named",
+        [normalize_const_or_nominal_name(
+            program,
+            argument.symbol,
+            "",
+            "name",
+            context,
+        )],
+    ))
+}
+
 pub(crate) fn normalize_type_reference(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     context: &TypeIdentityContext<'_>,
 ) -> String {
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
+        && let Some((argument, outer)) = context.applied_argument(*symbol)
+    {
+        return substitution::index_argument(program, argument, &outer);
+    }
     if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(type_reference)
         && let Some(generic_instance) = program
@@ -202,14 +367,21 @@ pub(crate) fn normalize_type_reference(
         TypeReferenceNode::Reference {
             referee,
             access,
-            lifetime: _,
+            lifetime,
         } => compound(
             match access {
                 language_core::ReferenceAccess::Shared => "ref",
                 language_core::ReferenceAccess::Mutable => "ref-mut",
                 language_core::ReferenceAccess::WriteOnly => "ref-write",
             },
-            [normalize_type_reference(program, *referee, context)],
+            std::iter::once(normalize_type_reference(program, *referee, context)).chain(
+                context.invalid_application.map(|_| {
+                    lifetime.as_ref().map_or_else(
+                        || "elided-region".to_owned(),
+                        |lifetime| context.lifetime(program, lifetime.as_str()),
+                    )
+                }),
+            ),
         ),
         TypeReferenceNode::Constrained {
             base_type,
@@ -250,37 +422,56 @@ pub(crate) fn normalize_type_reference(
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
+            lifetime_arguments,
             arguments,
             ..
-        } if arguments.is_empty() => compound(
-            "named",
-            [normalize_const_or_nominal_name(
-                program,
-                *base_symbol,
-                base_name.as_str(),
-                "name",
-                context,
-            )],
-        ),
+        } if arguments.is_empty()
+            && (lifetime_arguments.is_empty() || context.invalid_application.is_none()) =>
+        {
+            compound(
+                "named",
+                [normalize_const_or_nominal_name(
+                    program,
+                    *base_symbol,
+                    base_name.as_str(),
+                    "name",
+                    context,
+                )],
+            )
+        }
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
-            lifetime_arguments: _,
+            lifetime_arguments,
             arguments,
             ..
-        } => compound(
-            "generic",
-            std::iter::once(atom(
-                "name",
-                &context.name(program, *base_symbol, base_name.as_str()),
-            ))
-            .chain(
-                program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .map(|argument| normalize_type_reference(program, *argument, context)),
-            ),
+        } => generic_type_identity(
+            program,
+            *base_symbol,
+            base_name.as_str(),
+            lifetime_arguments,
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .enumerate()
+                .map(|(ordinal, argument)| {
+                    let is_index = context.invalid_application.is_some()
+                        && program
+                            .data_definition_by_symbol(*base_symbol)
+                            .and_then(|data| program.data_type_parameters(data).get(ordinal))
+                            .is_some_and(|parameter| parameter.kind.is_const_or_value());
+                    if is_index {
+                        substitution::index_argument(
+                            program,
+                            super::IndexIdentityArgument::TypeReference(*argument),
+                            context,
+                        )
+                    } else {
+                        normalize_type_reference(program, *argument, context)
+                    }
+                }),
+            context,
         ),
         TypeReferenceNode::ConstExpression(expression) => compound(
             "index-expression",

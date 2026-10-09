@@ -49,7 +49,7 @@ pub(super) fn replay(
         {
             continue;
         }
-        let concrete = super::candidate_for_selection(candidate, &selection);
+        let concrete = super::candidate_for_selection(source, candidate, &selection);
         super::applications::retain_call(source, &concrete, &selection);
         let Some(instance) = selected_instance(source, program, candidate, &selection) else {
             continue;
