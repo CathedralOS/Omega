@@ -1,5 +1,8 @@
 //! Opt-in value-sensitive custody for exact fixed materialization bytes.
 
+pub(super) use crate::fnv::{
+    byte as hash_byte, bytes as hash_bytes, text as hash_text, uint as hash_u64,
+};
 use layout_plans::{
     ByteOrder, LayoutPlacementReport, LayoutPlanReport, MaterializationDiagnostic,
     layout_plan_reports_match_for_replay, normalized_layout_plan_report_fingerprint,
@@ -616,24 +619,4 @@ pub(super) fn hash_value(hash: &mut u64, value: &BuildTimeValue) {
             }
         }
     }
-}
-
-pub(super) fn hash_text(hash: &mut u64, value: &str) {
-    hash_u64(hash, value.len() as u64);
-    hash_bytes(hash, value.as_bytes());
-}
-
-pub(super) fn hash_u64(hash: &mut u64, value: u64) {
-    hash_bytes(hash, &value.to_le_bytes());
-}
-
-pub(super) fn hash_bytes(hash: &mut u64, values: &[u8]) {
-    for value in values {
-        hash_byte(hash, *value);
-    }
-}
-
-pub(super) fn hash_byte(hash: &mut u64, value: u8) {
-    *hash ^= u64::from(value);
-    *hash = hash.wrapping_mul(0x100000001b3);
 }

@@ -19,6 +19,7 @@
 
 mod build_time_evaluation;
 mod const_evaluation;
+mod fnv;
 mod layouts;
 mod machine_execution;
 mod reflection;
