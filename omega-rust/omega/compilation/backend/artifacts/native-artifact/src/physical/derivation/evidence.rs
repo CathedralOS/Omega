@@ -602,9 +602,12 @@ pub(crate) fn operator_occurrence_identity(
     operation_ordinal: usize,
 ) -> OptimizedOperatorOccurrenceIdentity {
     let mut canonical = terminal_identity_bytes(terminal);
-    crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
-    canonical.extend_from_slice(&canonical_usize(operation_ordinal));
+    crate::physical::identity_bytes::append_operator_occurrence_identity(
+        &mut canonical,
+        machine,
+        operation,
+        operation_ordinal,
+    );
     OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(&canonical)
 }
 
@@ -616,19 +619,13 @@ pub(crate) fn boundary_occurrence_identity(
     operation_ordinal: usize,
 ) -> OptimizedBoundaryOccurrenceIdentity {
     let mut canonical = terminal_identity_bytes(terminal);
-    crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
-    match site.into() {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
-            canonical.push(0);
-            crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
-        }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
-            canonical.push(1);
-            crate::codec_bytes::push_encoded(&mut canonical, edge.get().to_le_bytes());
-        }
-    }
-    crate::codec_bytes::push_encoded(&mut canonical, boundary.get().to_le_bytes());
-    canonical.extend_from_slice(&canonical_usize(operation_ordinal));
+    crate::physical::identity_bytes::append_boundary_occurrence_identity(
+        &mut canonical,
+        machine,
+        site,
+        boundary,
+        operation_ordinal,
+    );
     OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(&canonical)
 }
 
@@ -746,10 +743,7 @@ fn physical_evidence_identity(
 }
 
 fn terminal_identity_bytes(terminal: terminal_psi::TerminalPsiIdentity) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(36);
-    crate::codec_bytes::push_encoded(&mut bytes, terminal.vocabulary_marker.get().to_le_bytes());
-    bytes.extend_from_slice(terminal.program_fingerprint.as_bytes());
-    bytes
+    crate::physical::identity_bytes::terminal_identity_bytes(terminal)
 }
 
 pub(crate) fn span(bytes: &[u8], span: NativeByteSpan) -> Result<&[u8], &'static str> {

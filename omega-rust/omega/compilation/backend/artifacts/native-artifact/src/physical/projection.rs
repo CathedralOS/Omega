@@ -228,9 +228,12 @@ fn optimized_operator_occurrence_identity(
     operation_ordinal: usize,
 ) -> OptimizedOperatorOccurrenceIdentity {
     let mut canonical = validated_authority_bytes(authority);
-    crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
-    canonical.extend_from_slice(&canonical_usize(operation_ordinal));
+    super::identity_bytes::append_operator_occurrence_identity(
+        &mut canonical,
+        machine,
+        operation,
+        operation_ordinal,
+    );
     OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(&canonical)
 }
 
@@ -242,19 +245,13 @@ fn optimized_boundary_occurrence_identity(
     operation_ordinal: usize,
 ) -> OptimizedBoundaryOccurrenceIdentity {
     let mut canonical = validated_authority_bytes(authority);
-    crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
-    match site.into() {
-        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
-            canonical.push(0);
-            crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
-        }
-        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
-            canonical.push(1);
-            crate::codec_bytes::push_encoded(&mut canonical, edge.get().to_le_bytes());
-        }
-    }
-    crate::codec_bytes::push_encoded(&mut canonical, boundary.get().to_le_bytes());
-    canonical.extend_from_slice(&canonical_usize(operation_ordinal));
+    super::identity_bytes::append_boundary_occurrence_identity(
+        &mut canonical,
+        machine,
+        site,
+        boundary,
+        operation_ordinal,
+    );
     OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(&canonical)
 }
 
@@ -267,13 +264,7 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
 }
 
 fn terminal_identity_bytes(terminal: TerminalPsiIdentity) -> Vec<u8> {
-    let mut canonical = Vec::with_capacity(40);
-    crate::codec_bytes::push_encoded(
-        &mut canonical,
-        terminal.vocabulary_marker.get().to_le_bytes(),
-    );
-    canonical.extend_from_slice(terminal.program_fingerprint.as_bytes());
-    canonical
+    super::identity_bytes::terminal_identity_bytes(terminal)
 }
 
 #[cfg(test)]

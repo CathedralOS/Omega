@@ -36,6 +36,7 @@
 
 mod derivation;
 mod fragment_publication;
+mod identity_bytes;
 mod operator_applications;
 mod projection;
 
