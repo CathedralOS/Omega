@@ -14,6 +14,21 @@ use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
+macro_rules! non_windows_verify_stub {
+    ($name:ident) => {
+        #[cfg(not(windows))]
+        pub(super) fn $name(
+            _kind: CacheCustodyKind,
+            _path: &Path,
+            _parent: &CapabilityDirectory,
+            _name: &OsStr,
+            _classified: &CapabilityMetadata,
+        ) -> Result<(), SourceResolveError> {
+            Ok(())
+        }
+    };
+}
+
 pub(crate) fn same_capability_file_identity(
     left: &CapabilityMetadata,
     right: &CapabilityMetadata,
@@ -185,16 +200,7 @@ pub(super) fn verify_windows_open_cache_regular_file_identity(
     Ok(())
 }
 
-#[cfg(not(windows))]
-pub(super) fn verify_windows_open_cache_regular_file_identity(
-    _kind: CacheCustodyKind,
-    _path: &Path,
-    _parent: &CapabilityDirectory,
-    _name: &OsStr,
-    _classified: &CapabilityMetadata,
-) -> Result<(), SourceResolveError> {
-    Ok(())
-}
+non_windows_verify_stub!(verify_windows_open_cache_regular_file_identity);
 
 #[cfg(windows)]
 pub(super) fn verify_windows_open_cache_link_identity(
@@ -224,16 +230,7 @@ pub(super) fn verify_windows_open_cache_link_identity(
     Ok(())
 }
 
-#[cfg(not(windows))]
-pub(super) fn verify_windows_open_cache_link_identity(
-    _kind: CacheCustodyKind,
-    _path: &Path,
-    _parent: &CapabilityDirectory,
-    _name: &OsStr,
-    _classified: &CapabilityMetadata,
-) -> Result<(), SourceResolveError> {
-    Ok(())
-}
+non_windows_verify_stub!(verify_windows_open_cache_link_identity);
 
 #[cfg(target_os = "macos")]
 pub(super) fn verify_macos_cache_link_extended_acl_custody(
