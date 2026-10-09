@@ -5,7 +5,6 @@
 //! module. Replacing it changes the artifact manifest, never terminal-Psi
 //! semantic identity.
 
-use sha2::{Digest, Sha256};
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::sections::semantic_module::wire::{Reader, Writer};

@@ -1,5 +1,3 @@
-use sha2::Digest;
-
 use crate::artifacts::{AdmittedArtifact, Artifact, ArtifactAdmissionEvidence, ArtifactEntry};
 use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::{
@@ -10,7 +8,6 @@ use crate::authority_digests::{
 use crate::executable_installation::admit_executable;
 use crate::installation::InstallationDiagnostic;
 use layout_plans::{PlacementConstraints, RelocationTarget};
-use sha2::Sha256;
 use target::Architecture;
 pub(crate) const OMEGA_EXECUTABLE_CONTAINER_V1_MARKER: u16 = u16::from_le_bytes(*b"OX");
 pub(crate) const OMEGA_EXECUTABLE_CONTAINER_V2_MARKER: u16 = u16::from_le_bytes(*b"O2");

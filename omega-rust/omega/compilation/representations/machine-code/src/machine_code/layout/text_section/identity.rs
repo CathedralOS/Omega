@@ -5,7 +5,6 @@ use super::{
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
 };
 use crate::machine_code::identity_encoding::{encode_call_owner, encode_invocation_site};
-use sha2::{Digest, Sha256};
 #[cfg(test)]
 use target::NativeTarget;
 

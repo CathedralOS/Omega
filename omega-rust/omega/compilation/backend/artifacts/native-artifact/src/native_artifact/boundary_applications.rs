@@ -1,6 +1,5 @@
 use crate::physical::{canonical_usize, hash_bytes};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
-use sha2::{Digest, Sha256};
 
 use crate::NativePhysicalEvidenceScope;
 

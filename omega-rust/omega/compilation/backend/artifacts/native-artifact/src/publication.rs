@@ -6,7 +6,6 @@
 //! before file installation and binds the resulting receipt to its destination.
 //! It does not write files or grant permission to execute them.
 
-use sha2::Digest;
 use std::path::PathBuf;
 
 mod dynamic_elf;

@@ -1,9 +1,7 @@
 //! Canonical identity for an exact package-source tree.
 
-use sha2::{Digest, Sha256};
-
 use crate::SourceResolveError;
-use crate::identity::digest::{format_sha256, hash_bytes, hash_length};
+use crate::identity::digest::format_sha256;
 
 pub(crate) struct SourceIdentityHasher {
     hasher: crate::digest_encoder::DomainDigestEncoder,

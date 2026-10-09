@@ -20,7 +20,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use sha2::{Digest, Sha256};
 use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 
 use effects::provider_plan::{ProviderBinding, ProviderPlan};

@@ -6,7 +6,6 @@ use optimization::{
     PsiOptimizationSelectionDecodeError, PsiOptimizationSelectionIdentity,
     PsiOptimizationSelections,
 };
-use sha2::{Digest, Sha256};
 use terminal_psi::TerminalModule;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 

@@ -10,7 +10,6 @@ use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 use semantic_vocabulary::MachineId;
-use sha2::{Digest, Sha256};
 use target::NativeTarget;
 
 use register_model::FrameAbiPreservationConvention;

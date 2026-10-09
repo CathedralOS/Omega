@@ -28,8 +28,6 @@ impl TargetFrameProtocolEncodingIdentity {
     }
 }
 
-use sha2::{Digest, Sha256};
-
 use crate::{ReturnAddressFrameCustody, TargetFrameLayoutPlan, TargetFrameLayoutPolicy};
 
 pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {

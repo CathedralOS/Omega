@@ -1,5 +1,3 @@
-use sha2::{Digest, Sha256};
-
 use super::{FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity};
 
 const SCHEMA: &[u8] = b"omega.function-fragment-frame-application.v3";

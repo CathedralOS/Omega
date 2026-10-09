@@ -59,7 +59,6 @@ use package_evidence::record::PackagePolicyBaseline;
 use package_source::ImmutableSourceResolution;
 use record_codec::{decode_record, encode_record};
 use semantic_vocabulary::PackageKeyIdentity;
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 

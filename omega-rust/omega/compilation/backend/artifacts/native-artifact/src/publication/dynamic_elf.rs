@@ -11,7 +11,6 @@
 
 use super::{ExecutableContainerDigest, executable_container_digest};
 use crate::DynamicElfNativeArtifact;
-use sha2::Digest;
 use std::path::{Path, PathBuf};
 
 /// Publication evidence admitted before any destination is modified.

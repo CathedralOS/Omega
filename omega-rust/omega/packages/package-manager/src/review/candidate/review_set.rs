@@ -130,7 +130,6 @@ pub(super) fn policy_rows_and_commitment(
     policy: &PackagePolicyBaseline,
 ) -> Result<(Vec<PackagePolicyRow>, [u8; 32]), package_evidence::encoding::PackageReviewEncodingError>
 {
-    use sha2::{Digest, Sha256};
     let (rows, _) = policy
         .canonical_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())?;
     let commitment = crate::digest_encoder::content_identity(&policy.canonical_bytes()?).into();

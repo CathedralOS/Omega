@@ -10,7 +10,6 @@ use package_evidence::record::{
     PackagePolicyRowLimits, PackagePolicyRowUsage, PackagePolicyTerminalPermissions,
 };
 use semantic_vocabulary::PackageKeyIdentity;
-use sha2::{Digest, Sha256};
 use target::TargetProfile;
 
 /// Independently retained consent for one exact checked package occurrence.

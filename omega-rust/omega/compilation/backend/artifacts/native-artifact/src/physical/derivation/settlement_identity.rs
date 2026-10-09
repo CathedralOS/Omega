@@ -13,7 +13,6 @@ use crate::{
 };
 use machine_code::PortEffectRecord;
 use semantic_vocabulary::BoundaryMachineId;
-use sha2::Digest;
 use target::NativeTarget;
 use target_operations::{CallSiteOwner, ProviderExecutionBinding};
 

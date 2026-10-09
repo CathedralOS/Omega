@@ -14,7 +14,6 @@ use crate::review::{
 };
 use package_source::local::staging::StagedLocalSnapshot;
 use package_source::{SourceContentDigest, SourceLineage};
-use sha2::{Digest, Sha256};
 
 /// Publish the exact reviewed declaration and all retained target sections.
 /// No target is silently dropped. Missing acceptance means fresh review; an

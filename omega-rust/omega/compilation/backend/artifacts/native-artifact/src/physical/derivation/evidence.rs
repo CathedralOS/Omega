@@ -37,7 +37,6 @@ use optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity,
 };
-use sha2::Digest;
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::CallSiteOwner;

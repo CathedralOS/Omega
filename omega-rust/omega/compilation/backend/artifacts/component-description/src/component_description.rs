@@ -19,7 +19,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ServiceId};
-use sha2::{Digest, Sha256};
 use terminal_psi::{OperationKind, TerminalModule, TerminalPsiIdentity};
 
 /// Wire magic for the canonical component-description encoding.

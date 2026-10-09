@@ -4,7 +4,6 @@ use crate::{
 };
 use physical_instructions::PostAllocationMachineIdentity;
 use register_model::{RegisterUnitId, RegisterViewId};
-use sha2::{Digest, Sha256};
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 

@@ -4,7 +4,6 @@ pub use effects::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissi
 use effects::{
     TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
     provider_plan::ServiceSchemaDigest};
-use sha2::{Digest, Sha256};
 
 pub(crate) const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
 

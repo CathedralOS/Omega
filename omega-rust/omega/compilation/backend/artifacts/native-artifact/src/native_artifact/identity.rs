@@ -6,7 +6,6 @@ use super::{
 };
 use crate::physical::{canonical_usize, hash_bytes};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
-use sha2::{Digest, Sha256};
 
 const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v8\0";
 

@@ -1,6 +1,5 @@
 use calling_conventions::MachineRegister;
 use semantic_vocabulary::{IeeeFloatValue, OperationId, ValueId};
-use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, X86FeatureRequirement};
 
 const X86_SCALAR_FMA_FRAGMENT_SCHEMA: &[u8] = b"omega.x86-scalar-fma-fragment.v1";

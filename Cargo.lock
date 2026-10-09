@@ -43,7 +43,6 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
- "access-plans",
  "calling-conventions",
  "diagnostics",
  "installation-evidence",

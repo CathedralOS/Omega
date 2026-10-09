@@ -2,8 +2,6 @@
 
 use crate::installation::InstallationDiagnostic;
 use layout_plans::PlacementConstraints;
-use sha2::Digest;
-use sha2::Sha256;
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {

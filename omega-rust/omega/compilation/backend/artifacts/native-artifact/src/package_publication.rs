@@ -30,7 +30,6 @@
 //! encoded in the installed executable's CodeDirectory; matching producer
 //! assertions alone are insufficient.
 
-use sha2::Digest;
 use std::path::{Path, PathBuf};
 
 use crate::ExecutableContainerDigest;

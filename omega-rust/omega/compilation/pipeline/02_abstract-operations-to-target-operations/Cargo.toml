@@ -20,7 +20,6 @@ installation-evidence = { path = "../../backend/runtime/installation-evidence" }
 target-operations = { path = "../../representations/target-operations" }
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
-access-plans = { path = "../../../../psi/foundation/access-plans" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 symbols = { path = "../../../../psi/foundation/symbols" }

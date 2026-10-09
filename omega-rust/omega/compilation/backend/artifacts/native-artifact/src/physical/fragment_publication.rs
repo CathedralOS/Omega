@@ -5,7 +5,6 @@ use std::sync::Arc;
 use image_emission::ObjectArtifact;
 use installation_evidence::ObjectEvidence;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
-use sha2::Digest;
 
 use super::ValidatedOptimizedNativePhysicalEvidenceScope;
 /// Immutable admitted object evidence. Equality deliberately covers the complete

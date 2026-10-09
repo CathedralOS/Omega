@@ -5,7 +5,6 @@
 use crate::capture::{StagedOutputEntry, StagedOutputEntryKind};
 use crate::materialization::materialize_retained_tree;
 use diagnostics::Diagnostic;
-use sha2::Digest;
 
 use std::collections::BTreeSet;
 use std::fmt;

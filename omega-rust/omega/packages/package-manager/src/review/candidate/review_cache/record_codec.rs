@@ -25,7 +25,6 @@ use package_compilation::{
     PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
 use semantic_vocabulary::PackageKeyIdentity;
-use sha2::{Digest, Sha256};
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Usage now carries an explicit engine/fuel/storage identity. Untagged older

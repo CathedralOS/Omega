@@ -1,6 +1,5 @@
 //! Exact identity of the function-relative bytes, layout, and replay inputs.
 
-use sha2::{Digest, Sha256};
 use target::NativeTarget;
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;

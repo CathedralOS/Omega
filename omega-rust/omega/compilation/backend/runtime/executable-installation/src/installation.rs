@@ -10,8 +10,6 @@ use crate::placement::ValidatedPlacement;
 use crate::placement::ValidatedPlacementEvidence;
 use installation_evidence::InstalledArtifactOccurrenceDigest;
 use layout_plans::{EntryStubId, PlacementConstraints, RelocationTarget};
-use sha2::Digest;
-use sha2::Sha256;
 use target::Architecture;
 
 /// One-shot authority to install one exact validated placement. Required

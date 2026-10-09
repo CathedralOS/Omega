@@ -13,7 +13,6 @@ use optimization_core::FunctionFragmentEmissionIdentity;
 use optimization_unit::{FuelSettlement, PsiProvenance};
 use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
-use sha2::{Digest, Sha256};
 use target_operations::TerminalPsiProvenance;
 
 const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v18";

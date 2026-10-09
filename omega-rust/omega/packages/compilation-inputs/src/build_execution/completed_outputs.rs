@@ -6,7 +6,6 @@
 
 use super::{BuildObservationIdentity, BuildObservationSummary};
 use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]

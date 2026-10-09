@@ -47,7 +47,6 @@ use module_foundation_validation::validate_structural_foundation;
 use module_wire::{decode_module_body, encode_raw};
 use proposition_wire::{decode_proposition, encode_proposition};
 use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
-use sha2::{Digest, Sha256};
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity};
 use wire::{Reader, Writer, decode_counted};
 

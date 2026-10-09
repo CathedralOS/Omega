@@ -1,7 +1,6 @@
 //! Canonical version-9 exit-record identity; no producer or admission dependency.
 
 use register_model::RegisterUnitId;
-use sha2::{Digest, Sha256};
 
 use super::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,

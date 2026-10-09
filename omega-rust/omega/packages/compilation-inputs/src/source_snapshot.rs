@@ -56,7 +56,6 @@ use filesystem_authority::{
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRow,
     CanonicalFilesystemMetadataRowKind, FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
 };
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

@@ -3,7 +3,6 @@
 use effects::{
     TerminalAuthorityDisposition, TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
 };
-use sha2::{Digest, Sha256};
 
 use super::{
     TERMINAL_AUTHORITY_POLICY_VERSION,

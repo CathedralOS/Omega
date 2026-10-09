@@ -5,7 +5,6 @@ use effects::{
     TerminalMechanismIdentity,
 };
 use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
-use sha2::{Digest, Sha256};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 const CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN: &[u8] =

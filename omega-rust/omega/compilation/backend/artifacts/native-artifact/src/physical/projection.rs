@@ -8,7 +8,6 @@ use optimization_core::{
     OptimizedOperatorOccurrenceIdentity,
 };
 use semantic_vocabulary::OperationId;
-use sha2::Digest;
 use terminal_psi::TerminalPsiIdentity;
 
 use super::{

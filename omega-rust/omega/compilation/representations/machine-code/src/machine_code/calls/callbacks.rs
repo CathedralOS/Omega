@@ -47,7 +47,6 @@ pub(crate) fn encode_callback_destination_identity(
     hasher: &mut crate::digest_encoder::DomainDigestEncoder,
     destination: CallbackAddressDestination,
 ) {
-    use sha2::Digest;
     match destination {
         CallbackAddressDestination::Register(register) => {
             hasher.byte(0);

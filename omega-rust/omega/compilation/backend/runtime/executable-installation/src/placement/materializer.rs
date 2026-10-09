@@ -1,5 +1,3 @@
-use sha2::Digest;
-
 use crate::artifacts::AdmittedArtifact;
 use crate::artifacts::container::{ArtifactRelocationKind, DecodedArtifactRelocation};
 use crate::authority_digests::{
@@ -10,7 +8,6 @@ use crate::installation::InstallationDiagnostic;
 use crate::placement::CodePlacement;
 use crate::placement::CodePlacementEvidence;
 use layout_plans::RelocationTarget;
-use sha2::Sha256;
 use target::Architecture;
 /// Inert provider-side result of resolving one admitted artifact at one exact
 /// placement. The bytes are not executable authority; only the installation

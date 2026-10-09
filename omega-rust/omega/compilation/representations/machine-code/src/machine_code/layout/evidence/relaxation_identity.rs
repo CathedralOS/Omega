@@ -1,5 +1,4 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use sha2::{Digest, Sha256};
 use target::NativeTarget;
 
 use crate::{ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout};

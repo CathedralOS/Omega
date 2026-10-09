@@ -1,5 +1,4 @@
 use semantic_vocabulary::MachineId;
-use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceApplication {

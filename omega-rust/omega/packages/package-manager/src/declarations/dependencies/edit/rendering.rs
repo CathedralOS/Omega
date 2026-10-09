@@ -2,7 +2,6 @@ use crate::declarations::dependencies::read::{
     DependencyPurpose, DependencySourceRequest, PackageSelection,
 };
 use build_declarations::{BUILD_TYPE_NAME, DependencyOperation};
-use sha2::{Digest, Sha256};
 
 use super::BUILDER_PARAMETER_NAME;
 

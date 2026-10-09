@@ -10,8 +10,6 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use sha2::{Digest, Sha256};
-
 use super::observation::issue_local_source_resolution_observation;
 use super::operations::resolve_local_source;
 use super::resolution_observations::{ResolvedLocalSnapshot, ResolvedLocalSource};
@@ -21,7 +19,7 @@ use crate::custody::tree::verify_local_cache_custody;
 #[cfg(test)]
 use crate::custody::tree::verify_local_cache_root_custody;
 use crate::error::local_snapshot_invalid;
-use crate::identity::digest::{format_sha256, hash_bytes};
+use crate::identity::digest::format_sha256;
 use crate::limits::LOCAL_SNAPSHOT_LOCK_TIMEOUT;
 use crate::limits::{LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LocalSourceLimits};
 use crate::snapshot::metadata::verify_local_snapshot;

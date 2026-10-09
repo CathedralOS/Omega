@@ -20,7 +20,6 @@ use crate::{
 };
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntryKind};
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
-use sha2::{Digest, Sha256};
 
 const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x02";
 const SNAPSHOT_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SNAPSHOT\x01";
