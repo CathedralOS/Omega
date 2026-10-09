@@ -133,7 +133,7 @@ pub(super) fn policy_rows_and_commitment(
     use sha2::{Digest, Sha256};
     let (rows, _) = policy
         .canonical_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())?;
-    let commitment = Sha256::digest(policy.canonical_bytes()?).into();
+    let commitment = crate::digest_encoder::content_identity(&policy.canonical_bytes()?).into();
     Ok((rows, commitment))
 }
 

@@ -691,7 +691,7 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
         return None;
     }
     let (payload, digest) = bytes.split_at(bytes.len() - 32);
-    let expected: [u8; 32] = Sha256::digest(payload).into();
+    let expected: [u8; 32] = crate::digest_encoder::content_identity(&payload).into();
     if expected != digest {
         return None;
     }

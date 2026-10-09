@@ -78,3 +78,10 @@ impl DomainDigestEncoder {
         }
     }
 }
+
+/// One-shot content hash: the bare `Sha256::digest(content)` shape.
+pub(crate) fn content_identity(content: &[u8]) -> [u8; 32] {
+    let mut digest = DomainDigestEncoder::new(b"");
+    digest.raw(content);
+    digest.finish()
+}

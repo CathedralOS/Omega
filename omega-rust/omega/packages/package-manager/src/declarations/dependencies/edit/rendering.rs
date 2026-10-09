@@ -58,5 +58,5 @@ pub(crate) fn canonical_dependency_statement(
 }
 
 pub(super) fn source_digest(source: &str) -> [u8; 32] {
-    Sha256::digest(source.as_bytes()).into()
+    crate::digest_encoder::content_identity(&source.as_bytes()).into()
 }

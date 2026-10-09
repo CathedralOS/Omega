@@ -334,7 +334,7 @@ pub fn discard_package_review(
 }
 
 fn digest(bytes: &[u8]) -> [u8; 32] {
-    Sha256::digest(bytes).into()
+    crate::digest_encoder::content_identity(&bytes).into()
 }
 
 fn targets(

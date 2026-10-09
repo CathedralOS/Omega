@@ -174,7 +174,7 @@ impl PackageAcceptanceRow {
     fn from_row(row: PackagePolicyRow) -> Self {
         Self {
             kind: row.kind(),
-            key: Sha256::digest(row.key_bytes()).into(),
+            key: crate::digest_encoder::content_identity(&row.key_bytes()).into(),
             text: row.into_canonical_text(),
         }
     }

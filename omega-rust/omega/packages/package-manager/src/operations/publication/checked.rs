@@ -34,7 +34,7 @@ pub fn publish_reviewed_package_change(
         || stage.replacement_path().as_str() != "build.omg"
         || stage.expected_sha256() != replacement.expected_sha256()
         || stage.replacement_sha256()
-            != &<[u8; 32]>::from(Sha256::digest(replacement.replacement_source().as_bytes()))
+            != &<[u8; 32]>::from(crate::digest_encoder::content_identity(&replacement.replacement_source().as_bytes()))
     {
         return Err(Error::Association("edit, stage, and project root differ"));
     }
@@ -50,7 +50,7 @@ pub fn publish_reviewed_package_change(
     if before_lock.as_deref() != accepted_lock.map(str::as_bytes) {
         return Err(Error::Association("accepted lock changed during review"));
     }
-    let actual: [u8; 32] = Sha256::digest(&before_build).into();
+    let actual: [u8; 32] = crate::digest_encoder::content_identity(&before_build).into();
     if &actual != replacement.expected_sha256() {
         return Err(Error::Association("build.omg changed during review"));
     }
