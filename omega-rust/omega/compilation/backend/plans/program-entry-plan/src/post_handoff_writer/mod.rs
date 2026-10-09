@@ -14,7 +14,7 @@ use post_handoff_writer_plan::{PostHandoffWriterInvocationPlan, PostHandoffWrite
 use target::{Architecture, NativeTarget};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LoweredPostHandoffWriterFragment {
+pub struct LoweredPostHandoffWriterFragment {
     target: NativeTarget,
     pointer_register: MachineRegister,
     normalized_plan_report_fingerprint: u64,
@@ -50,7 +50,7 @@ impl LoweredPostHandoffWriterFragment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LoweredPostHandoffWriter {
+pub struct LoweredPostHandoffWriter {
     fragment: LoweredPostHandoffWriterFragment,
     invocation: PostHandoffWriterInvocationPlan,
 }
@@ -70,7 +70,7 @@ impl LoweredPostHandoffWriter {
 /// fragment code, target identity, and exact footprint remain inspectable final
 /// artifact inputs without returning destination or entry addresses.
 #[derive(Debug)]
-pub(crate) struct PreparedPostHandoffEntryWriterInvocation<'mapping, 'bytes> {
+pub struct PreparedPostHandoffEntryWriterInvocation<'mapping, 'bytes> {
     lowered: LoweredPostHandoffWriter,
     context: ResolvedPostHandoffEntryWriterContext,
     destination: ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
@@ -80,7 +80,7 @@ pub(crate) struct PreparedPostHandoffEntryWriterInvocation<'mapping, 'bytes> {
 /// inspect it or retry against corrected installed/provider facts without
 /// regenerating bytes or invocation identity.
 #[derive(Debug)]
-pub(crate) struct PostHandoffEntryWriterBindingError<'mapping, 'bytes> {
+pub struct PostHandoffEntryWriterBindingError<'mapping, 'bytes> {
     lowered: LoweredPostHandoffWriter,
     destination: ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
     diagnostic: Diagnostic,
@@ -122,7 +122,7 @@ impl<'mapping, 'bytes> PreparedPostHandoffEntryWriterInvocation<'mapping, 'bytes
 /// The reusable fragment identity and emitted bytes exclude invocation evidence;
 /// the returned sibling retains exact targets and placement for provider
 /// preparation.
-pub(crate) fn lower_post_handoff_writer_fragment(
+pub fn lower_post_handoff_writer_fragment(
     target: NativeTarget,
     pointer_register: MachineRegister,
     writer: &PostHandoffWriterPlan,
@@ -179,7 +179,7 @@ pub(crate) fn lower_post_handoff_writer_fragment(
 /// rejects target/installed-artifact drift and proves that the opaque packed
 /// context is the invocation sibling of the exact normalized fragment whose
 /// bytes and footprint entered the final artifact.
-pub(crate) fn bind_post_handoff_entry_writer_invocation<'mapping, 'bytes>(
+pub fn bind_post_handoff_entry_writer_invocation<'mapping, 'bytes>(
     lowered: LoweredPostHandoffWriter,
     installed: &InstalledCode,
     writer: &PostHandoffWriterPlan,
@@ -277,7 +277,7 @@ fn preflight_post_handoff_entry_writer_binding(
 /// Independently replay one lowered reusable writer without consuming it.
 /// This is the final-artifact/orchestration consumer check for the exact
 /// invocation, canonical target bytes, footprint, and emitted identity.
-pub(crate) fn validate_lowered_post_handoff_writer(
+pub fn validate_lowered_post_handoff_writer(
     lowered: &LoweredPostHandoffWriter,
 ) -> Result<(), Diagnostic> {
     lowered
