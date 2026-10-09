@@ -45,10 +45,7 @@ pub(super) fn check_domain_field_writes(
     decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return;
-    };
-    let Some(state) = validation::find_state_in_machine(
+    let Some((machine, state)) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -527,12 +524,11 @@ fn scan_construction_field_domains(
                     // of the assignment length-fits check (1b). A too-long literal would
                     // otherwise overflow the field's inline storage. Only fires for a
                     // domain-carrying `[u8; N]` field (view carriers have no capacity).
-                    if let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol)
-                        && let Some(state) = validation::find_state_in_machine(
-                            program,
-                            state_flow.machine_symbol,
-                            state_flow.state_symbol,
-                        )
+                    if let Some((machine, state)) = validation::machine_state_by_symbols(
+                        program,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                    )
                         && let Some(field_type) = construction_field_type_by_symbol(
                             program,
                             literal.type_symbol,

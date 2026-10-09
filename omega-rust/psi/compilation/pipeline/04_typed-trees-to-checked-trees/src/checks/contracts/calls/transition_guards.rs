@@ -26,8 +26,11 @@ fn selected_transition_call<'program>(
         call_flow.statement_index,
         call_flow.call_ordinal,
     )?;
-    let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
-    let caller_state = program.state_in_machine(machine, state_flow.state_symbol)?;
+    let (machine, caller_state) = validation::machine_state_by_symbols(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    )?;
     let Some(StatementNode::Transition(transition)) = program
         .statement_table
         .statement_at(caller_state, call_flow.statement_index)

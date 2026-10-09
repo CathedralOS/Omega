@@ -112,10 +112,7 @@ pub(super) fn check_formed_aggregates<'p>(
         );
     }
 
-    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return;
-    };
-    let Some(state) = validation::find_state_in_machine(
+    let Some((machine, state)) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,

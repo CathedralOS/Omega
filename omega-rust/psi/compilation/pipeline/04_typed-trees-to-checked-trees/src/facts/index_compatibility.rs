@@ -46,10 +46,7 @@ pub(super) fn build_index_compatibility_facts(
     let mut unresolved = Vec::new();
 
     for (_, state_flow) in flow.control.states.iter() {
-        let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-            continue;
-        };
-        let Some(state) = validation::find_state_in_machine(
+        let Some((machine, state)) = validation::machine_state_by_symbols(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,

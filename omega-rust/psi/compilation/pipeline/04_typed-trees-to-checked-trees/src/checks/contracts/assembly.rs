@@ -29,10 +29,11 @@ fn check_state_assembly_facts(
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return;
-    };
-    let Some(state) = program.state_in_machine(machine, state_flow.state_symbol) else {
+    let Some((_machine, state)) = validation::machine_state_by_symbols(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    ) else {
         return;
     };
 

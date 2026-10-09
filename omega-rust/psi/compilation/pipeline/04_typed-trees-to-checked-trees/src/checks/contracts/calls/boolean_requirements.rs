@@ -20,10 +20,11 @@ fn standing_domain_fact_proves_requirement(
     call_flow: &FlowCallFact,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(caller) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return false;
-    };
-    let Some(caller_state) = program.state_in_machine(caller, state_flow.state_symbol) else {
+    let Some((caller, caller_state)) = validation::machine_state_by_symbols(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    ) else {
         return false;
     };
     let Some(call_site) = validation::find_call_site(
@@ -69,8 +70,7 @@ fn constant_extent_requirement_value(
     state_flow: &FlowStateFact,
     expression: ExpressionHandle,
 ) -> Option<bool> {
-    let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
-    let state = validation::find_state_in_machine(
+    let (machine, state) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -93,10 +93,7 @@ fn explicit_subject_call_requirement_proven(
     call_flow: &FlowCallFact,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return false;
-    };
-    let Some(state) = validation::find_state_in_machine(
+    let Some((machine, state)) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,

@@ -198,11 +198,11 @@ pub(super) fn check_call_access_conflicts<'p>(
                     else {
                         return false;
                     };
-                    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-                        return false;
-                    };
-                    let Some(source) = program.state_in_machine(machine, state_flow.state_symbol)
-                    else {
+                    let Some((machine, source)) = validation::machine_state_by_symbols(
+                        program,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                    ) else {
                         return false;
                     };
                     frames.local_backing_survives_state_jump(

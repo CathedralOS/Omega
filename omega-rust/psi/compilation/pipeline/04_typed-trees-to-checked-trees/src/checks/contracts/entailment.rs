@@ -242,10 +242,7 @@ pub(super) fn structural_call_requirement(
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let classification = validation::proof_only_classification(program);
-    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return false;
-    };
-    let Some(state) = validation::find_state_in_machine(
+    let Some((machine, state)) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,

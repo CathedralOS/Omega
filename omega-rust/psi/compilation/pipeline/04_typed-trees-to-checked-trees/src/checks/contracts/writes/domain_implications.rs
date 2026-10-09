@@ -387,10 +387,7 @@ fn declared_value_domain_implies(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return false;
-    };
-    let Some(state) = validation::find_state_in_machine(
+    let Some((machine, state)) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -517,10 +514,7 @@ fn recast_source_declared_domain_implies(
     source: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return false;
-    };
-    let Some(state) = validation::find_state_in_machine(
+    let Some((machine, state)) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
