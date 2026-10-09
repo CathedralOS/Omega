@@ -136,9 +136,7 @@ pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
             | abstract_operations::integer_equal_less_pair_pattern!(..)
             | AbstractOperation::IntegerLessOrEqual { .. }
             | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
-            | AbstractOperation::TrappingInteger { .. }
-            | AbstractOperation::IntegerArithmetic { .. }
-            | AbstractOperation::IntegerShift { .. }
+            | abstract_operations::integer_dispatch_triple_pattern!(..)
             | AbstractOperation::IntegerBitwiseAnd { .. }
             | abstract_operations::bitwise_or_xor_pair_pattern!(..)
             | AbstractOperation::IntegerBitwiseNot { .. }

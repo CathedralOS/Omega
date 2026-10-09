@@ -1400,3 +1400,12 @@ macro_rules! byte_read_subslice_triple_pattern {
             | $crate::AbstractOperation::ByteSequenceSubslice { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! integer_dispatch_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::IntegerArithmetic { $($fields)* }
+            | $crate::AbstractOperation::IntegerShift { $($fields)* }
+            | $crate::AbstractOperation::TrappingInteger { $($fields)* }
+    };
+}
