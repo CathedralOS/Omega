@@ -123,8 +123,9 @@ pub enum CheckedNaturalRankMeasure {
         measure: SymbolHandle,
         primitive_type: PrimitiveType,
     },
-    /// `Slice::Length`: the subject slice's live byte length.
-    ByteSequenceLength,
+    /// `Slice::Length`: exact source subject identity; its element or byte
+    /// count and arrival projection live in the shared computation root.
+    SequenceLength { subject: typed_trees::expression::ExpressionHandle },
     /// `Nat::Descending`: the fixed-width integer subject itself, signed or
     /// unsigned. The checker proves it descends on every cyclic edge.
     IntegerParameter { primitive_type: PrimitiveType },
