@@ -42,16 +42,8 @@ pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) ->
                         && scalar_shape(parameter.scalar_type) == Some(placement.shape)
                 }))
         || source.structural.as_ref().is_some_and(|signature| {
-            let parameters = signature
-                .parameters
-                .iter()
-                .map(
-                    |parameter| crate::structural_inputs::structural_unit_input::Parameter {
-                        semantic: &parameter.semantic,
-                        target: &parameter.target,
-                    },
-                )
-                .collect::<Vec<_>>();
+            let parameters =
+                crate::structural_inputs::structural_unit_input::parameter_views(signature);
             crate::structural_inputs::structural_unit_input::accepts_graph(
                 &source.call_plan,
                 &parameters,

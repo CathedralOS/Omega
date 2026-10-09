@@ -11,6 +11,20 @@ pub(crate) struct Parameter<'a> {
     pub target: &'a target_operations::TargetStructuralParameter,
 }
 
+/// The parameter views one structural contract offers its ABI storage check.
+pub(crate) fn parameter_views(
+    contract: &legalized_operations::LegalizedStructuralContract,
+) -> Vec<Parameter<'_>> {
+    contract
+        .parameters
+        .iter()
+        .map(|parameter| Parameter {
+            semantic: &parameter.semantic,
+            target: &parameter.target,
+        })
+        .collect()
+}
+
 /// Each graph parameter has its own storage relation; result shape and statement
 /// sequencing cannot turn an owned fragment into a borrowed pointer.
 pub(crate) fn accepts_graph(

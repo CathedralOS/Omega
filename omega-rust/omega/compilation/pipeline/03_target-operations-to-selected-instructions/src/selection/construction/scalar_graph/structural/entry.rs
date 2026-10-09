@@ -19,16 +19,9 @@ pub(in crate::selection) fn entry(
     };
     // Legalization owns place/producer custody. Entry captures only incoming
     // ABI storage; an empty parameter list follows the same call-plan check.
-    let parameters = signature
-        .parameters
-        .iter()
-        .map(
-            |parameter| crate::structural_inputs::structural_unit_input::Parameter {
-                semantic: &parameter.semantic,
-                target: &parameter.target,
-            },
-        )
-        .collect::<Vec<_>>();
+    let parameters = crate::structural_inputs::structural_unit_input::parameter_views(
+        signature,
+    );
     if !crate::structural_inputs::structural_unit_input::accepts_graph(
         &source.call_plan,
         &parameters,

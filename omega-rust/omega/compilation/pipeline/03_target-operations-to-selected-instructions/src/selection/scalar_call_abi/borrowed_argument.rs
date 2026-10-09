@@ -55,16 +55,9 @@ pub(super) fn validate_borrowed_argument(
     {
         return None;
     }
-    let parameters = signature
-        .parameters
-        .iter()
-        .map(
-            |parameter| crate::structural_inputs::structural_unit_input::Parameter {
-                semantic: &parameter.semantic,
-                target: &parameter.target,
-            },
-        )
-        .collect::<Vec<_>>();
+    let parameters = crate::structural_inputs::structural_unit_input::parameter_views(
+        signature,
+    );
     let exclusive = matches!(
         semantic.access,
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
