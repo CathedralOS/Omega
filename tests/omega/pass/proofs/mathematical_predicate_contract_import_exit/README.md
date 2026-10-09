@@ -1,0 +1,1 @@
+Transparent mathematical predicates discharge ordinary machine postconditions through their checked application terms. The program exercises a direct argument, reserved result, and a public predicate from an imported module. Runtime calls complete normally and the returned value remains 11.

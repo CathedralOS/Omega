@@ -1,0 +1,26 @@
+use helpers;
+
+let reflexive(value: u8): core::Strict<0> = value == value;
+
+machine formed(value: u8)
+ensures reflexive(value) {}
+
+machine identity(value: u8) -> u8
+ensures reflexive(result) {
+    value
+}
+
+machine qualified(value: u8)
+ensures helpers::reflexive(value) {}
+
+machine main() crashes Trap {
+    formed(7u8);
+    qualified(9u8);
+    let observed: u8 = identity(11u8);
+    transition observed == 11u8 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

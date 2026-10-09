@@ -1,0 +1,3 @@
+module helpers;
+
+pub let reflexive(value: u8): core::Strict<0> = value == value;
