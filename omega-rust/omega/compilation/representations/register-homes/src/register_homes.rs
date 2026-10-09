@@ -19,7 +19,7 @@ pub mod view;
 
 pub use codec::RegisterHomeDecodeError;
 pub use constraints::{
-    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityDecodeError,
+    AllocationLegalityIdentity, AllocationLegalityPlan,
     AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
     EntryFixedViewTransition, FixedPrecoloredInterval, FixedPrecoloredIntervalPlan,
     FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
@@ -36,6 +36,7 @@ pub use constraints::{
     fixed_precolored_intervals, fixed_precolored_split_requirement_plan_identity,
     fixed_precolored_split_requirements,
 };
+pub(crate) use constraints::{ AllocatorAvailabilityDecodeError};
 pub use identity::{
     AbstractSpillAccessConstraintPlanIdentity, RegisterHomeIdentity, register_home_identity,
 };
@@ -52,16 +53,17 @@ pub use preservation::{
     encode_callee_saved_modification_witness_identity,
 };
 pub use recovery::{
-    FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyPlan,
+    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan,
     FixedViewCopyPolicy, FixedViewCopySourceEvidence, FunctionRecoveryClassification,
     FunctionSpillChoices, NoAdmittedRecoveryReason, PressureContender,
-    PressureRecoveryClassification, PressureResident, RecoveryClassification,
-    RecoveryClassificationDecodeError, RecoveryClassificationIdentity, RecoveryClassificationPlan,
-    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
-    SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+    PressureRecoveryClassification, PressureResident, RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
     classification, fixed_view_copy, fixed_view_copy_identity, recovery_classification_identity,
     spill_choice, spill_choice_identity,
 };
+pub(crate) use recovery::{ FixedViewCopyDecodeError,
+    RecoveryClassificationDecodeError,
+    SpillChoiceDecodeError};
 pub use storage::{
     FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomePlan,
     FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSegmentHomePolicy,

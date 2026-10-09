@@ -86,7 +86,7 @@ pub struct PressureContender {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpillChoiceDecodeError {
+pub(crate) enum SpillChoiceDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

@@ -125,7 +125,7 @@ pub enum NoAdmittedRecoveryReason {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RecoveryClassificationDecodeError {
+pub(crate) enum RecoveryClassificationDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),
