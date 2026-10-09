@@ -123,7 +123,7 @@ pub struct RegisterClassAvailability {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AllocatorAvailabilityDecodeError {
+pub(crate) enum AllocatorAvailabilityDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),
