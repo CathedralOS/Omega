@@ -778,6 +778,7 @@ pub(super) fn replacement_footprints_retained(
         source,
         length,
         obligation,
+        ..
     )) = operation
     else {
         return false;
