@@ -81,7 +81,7 @@ pub(crate) use validation::measured_steps;
 
 /// An accepted redundant-compare removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedRedundantCompare {
+pub struct ValidatedRedundantCompare {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: RedundantCompareReceipt,
 }
@@ -89,7 +89,7 @@ pub(crate) struct ValidatedRedundantCompare {
 validated_transformed_receipt!(ValidatedRedundantCompare, RedundantCompareReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RedundantCompareReceipt {
+pub struct RedundantCompareReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -140,7 +140,7 @@ pub(crate) fn redundant_compare_identity(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RedundantCompareError {
+pub enum RedundantCompareError {
     SourceMismatch,
     UnsupportedInstruction,
     UnsupportedUse,

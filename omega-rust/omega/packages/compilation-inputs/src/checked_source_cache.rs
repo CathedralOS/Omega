@@ -92,7 +92,7 @@ impl Default for CheckedSourceCacheLimits {
 
 /// Whether one capture replayed a retained index or rebuilt it from source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CheckedSourceCacheOutcome {
+pub enum CheckedSourceCacheOutcome {
     /// The live stat fingerprint matched a verified retained record; no file
     /// bytes were rehashed.
     Warm,
@@ -107,7 +107,7 @@ pub(crate) enum CheckedSourceCacheOutcome {
 /// racing writer's record, or an I/O failure on derived data); the returned
 /// index is always freshly verified regardless.
 #[derive(Debug, Clone)]
-pub(crate) struct CachedSourceIndex {
+pub struct CachedSourceIndex {
     index: CanonicalFilesystemMetadataIndex,
     outcome: CheckedSourceCacheOutcome,
     record_stored: bool,

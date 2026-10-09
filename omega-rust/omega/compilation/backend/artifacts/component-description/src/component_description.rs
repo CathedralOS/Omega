@@ -56,7 +56,7 @@ pub(crate) const MAX_IDENTITY_BYTES: usize = 1024;
 /// Earlier frontiers describe a component before its closure exists and are
 /// rejected by `verify_component` rather than treated as complete.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum DescriptionFrontier {
+pub enum DescriptionFrontier {
     /// The component was declared in source but no checked closure exists.
     AuthoredDeclaration,
     /// A provider plan was selected but the artifact closure was not bound.
@@ -88,7 +88,7 @@ impl DescriptionFrontier {
 /// not itself seal to a retained provider. Installation must bind each slot
 /// to an exact provider occurrence under a fresh profile.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ImportSlot {
+pub struct ImportSlot {
     pub slot: u32,
     /// Canonical identity of the boundary requirement left unsealed.
     pub requirement_identity: String,
@@ -108,7 +108,7 @@ pub(crate) struct ImportSlot {
 /// selected `CheckedAdapter` row names. A description cannot invent or omit
 /// either family; the verifier compares the roster row for row.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ExportSurface {
+pub struct ExportSurface {
     /// Canonical export identity.
     pub identity: String,
 }
@@ -148,7 +148,7 @@ pub(crate) struct ExportContract {
 
 /// Every possible way execution may enter the described component.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum ComponentEntryKind {
+pub enum ComponentEntryKind {
     /// The module's canonical selected entry machine.
     Canonical,
     /// A suspension call site whose stored frontier re-enters on resume.
@@ -194,7 +194,7 @@ impl ComponentEntryKind {
 
 /// Evidence binding one entry row to independently checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum EntryEvidence {
+pub enum EntryEvidence {
     /// The entry is re-derived from the embedded artifact itself.
     ModuleDerived,
     /// The entry is declared by the producer and inseparable from the named
@@ -204,7 +204,7 @@ pub(crate) enum EntryEvidence {
 
 /// One row of the component's complete entry roster.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ComponentEntry {
+pub struct ComponentEntry {
     pub kind: ComponentEntryKind,
     pub identity: String,
     pub evidence: EntryEvidence,
@@ -212,7 +212,7 @@ pub(crate) struct ComponentEntry {
 
 /// Classes of authority that can leave the component's own closure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum OutgoingAuthorityClass {
+pub enum OutgoingAuthorityClass {
     /// A bodyless boundary machine invoked by a `BoundaryCall` operation.
     BoundaryRequirement,
     /// An immediate port-space write naming its exact service identity.
@@ -244,7 +244,7 @@ impl OutgoingAuthorityClass {
 
 /// Evidence binding one outgoing-authority row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum OutgoingEvidence {
+pub enum OutgoingEvidence {
     /// The row is re-derived from the embedded artifact and remains an
     /// unsealed demand: installation must bind it per occurrence.
     ModuleDerived,
@@ -261,7 +261,7 @@ pub(crate) enum OutgoingEvidence {
 
 /// One row of the component's complete outgoing-authority roster.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct OutgoingAuthority {
+pub struct OutgoingAuthority {
     pub class: OutgoingAuthorityClass,
     pub identity: String,
     pub evidence: OutgoingEvidence,
@@ -277,7 +277,7 @@ pub(crate) struct OutgoingAuthority {
 /// would let a bound stand in for resolved reach, so the two publish as
 /// distinct fields.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct InstallationServiceBound {
+pub struct InstallationServiceBound {
     /// Canonical identity of the unresolved installation-bound requirement.
     pub requirement_identity: String,
     /// The row's declared conservative upper bound, in canonical order.
@@ -286,7 +286,7 @@ pub(crate) struct InstallationServiceBound {
 
 /// Ownership, custody, and capability constraints the component carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum CustodyKind {
+pub enum CustodyKind {
     /// A closure-wide direct entry input bound to one exact placed view.
     PlacedViewInput,
     /// An exact direct-root custody handoff over a finite reborrow lineage.
@@ -344,7 +344,7 @@ impl CustodyKind {
 
 /// Evidence binding one custody row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum CustodyEvidence {
+pub enum CustodyEvidence {
     /// The row is re-derived from the embedded artifact.
     ModuleDerived,
     /// The row is declared and inseparable from the named assumption digest.
@@ -354,7 +354,7 @@ pub(crate) enum CustodyEvidence {
 /// One row of the component's custody roster. These constraints preserve
 /// custody; they grant no cleanup, transfer, or discharge authority.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct CustodyConstraint {
+pub struct CustodyConstraint {
     pub kind: CustodyKind,
     pub identity: String,
     pub evidence: CustodyEvidence,
@@ -364,7 +364,7 @@ pub(crate) struct CustodyConstraint {
 /// `plan_digest` is the only authoritative plan identity; `report_identity`
 /// is a non-authoritative compact coordinate for reports and cache joins.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct RetainedProvider {
+pub struct RetainedProvider {
     pub report_identity: u64,
     pub plan_digest: [u8; 32],
     /// Exact requirement identities this provider seals for the component.
@@ -376,7 +376,7 @@ pub(crate) struct RetainedProvider {
 /// admission at installation; compilation or provider code alone cannot
 /// discharge them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum ObligationKind {
+pub enum ObligationKind {
     /// Provision the exact selected-entry stack closure demand.
     StackProvision,
     /// Admit one retained provider occurrence under a fresh profile.
@@ -425,7 +425,7 @@ impl ObligationKind {
 /// One installation obligation. The `identity` is the canonical obligation
 /// coordinate; `detail` carries bounded human-readable context only.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct InstallationObligation {
+pub struct InstallationObligation {
     pub kind: ObligationKind,
     pub identity: String,
     pub detail: String,
@@ -438,7 +438,7 @@ pub(crate) struct InstallationObligation {
 /// every module-derived row, so a hand-authored description cannot claim
 /// facts the embedded artifact does not contain.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ComponentDescription {
+pub struct ComponentDescription {
     pub schema: u32,
     pub frontier: DescriptionFrontier,
     /// Canonical bytes of the sealed Terminal artifact this description
@@ -509,7 +509,7 @@ impl std::error::Error for DescribeError {}
 
 /// Decode failures for the canonical description wire format.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DescriptionDecodeRejection {
+pub enum DescriptionDecodeRejection {
     /// Input is empty, truncated, or has trailing bytes.
     Corrupt(&'static str),
     /// The wire magic did not match.

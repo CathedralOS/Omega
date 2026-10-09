@@ -210,7 +210,7 @@ pub enum RelocationFreeObjectError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RelocationFreeObjectDecodeError {
+pub enum RelocationFreeObjectDecodeError {
     WrongMagic,
     UnsupportedVersion(u32),
     Truncated,

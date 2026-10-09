@@ -67,7 +67,7 @@ pub(crate) use validation::measured_steps;
 
 /// An accepted copy removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedCopyRemoval {
+pub struct ValidatedCopyRemoval {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: CopyRemovalReceipt,
 }
@@ -75,7 +75,7 @@ pub(crate) struct ValidatedCopyRemoval {
 validated_transformed_receipt!(ValidatedCopyRemoval, CopyRemovalReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CopyRemovalReceipt {
+pub struct CopyRemovalReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -124,7 +124,7 @@ pub(crate) fn copy_removal_identity(receipt: &CopyRemovalReceipt) -> CopyRemoval
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CopyRemovalError {
+pub enum CopyRemovalError {
     SourceMismatch,
     UnsupportedInstruction,
     UnsupportedRegister,

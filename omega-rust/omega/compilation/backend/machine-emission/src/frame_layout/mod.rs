@@ -66,7 +66,7 @@ pub(crate) fn stage_target_frame_layout(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TargetFrameLayoutReceipt {
+pub struct TargetFrameLayoutReceipt {
     identity: TargetFrameLayoutIdentity,
     post_allocation_machine: PostAllocationMachineIdentity,
     callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
@@ -96,7 +96,7 @@ impl TargetFrameLayoutReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedTargetFrameLayout {
+pub struct ValidatedTargetFrameLayout {
     pub(in crate::frame_layout) plan: std::sync::Arc<TargetFrameLayoutPlan>,
     pub(in crate::frame_layout) receipt: TargetFrameLayoutReceipt,
 }

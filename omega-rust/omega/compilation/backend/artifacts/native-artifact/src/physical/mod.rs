@@ -386,7 +386,7 @@ pub struct NormalizedForeignCallRelocation {
 /// two architecture-native encodings; no open-ended mutable relocation list
 /// can be smuggled into D32 evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NormalizedForeignCallbackRelocations {
+pub enum NormalizedForeignCallbackRelocations {
     X86_64Relative32 {
         callback_function: function_identity::MachineFunctionIdentity,
         relocation: NormalizedForeignCallbackRelocation},
@@ -398,7 +398,7 @@ pub(crate) enum NormalizedForeignCallbackRelocations {
 /// One exact object relocation targeting a compiler-private callback
 /// function. Construction remains derivation-owned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct NormalizedForeignCallbackRelocation {
+pub struct NormalizedForeignCallbackRelocation {
     object_symbol: object_file::ObjectSymbolHandle,
     origin: object_file::RelocationOrigin,
     offset: usize,

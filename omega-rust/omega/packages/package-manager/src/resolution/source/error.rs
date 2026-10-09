@@ -8,7 +8,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ResolvePackageSourceError {
+pub enum ResolvePackageSourceError {
     Source(SourceResolveError),
     Declaration(BuildDeclarationError),
     DependencyProjection(DependencyProjectionError),

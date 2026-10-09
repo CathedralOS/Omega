@@ -37,7 +37,7 @@ pub(crate) fn materialize_allocator_availability(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AllocatorAvailabilityValidationReceipt {
+pub struct AllocatorAvailabilityValidationReceipt {
     pub(crate) identity: AllocatorAvailabilityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) physical: PhysicalRegisterModelIdentity,
@@ -92,7 +92,7 @@ impl ValidatedAllocatorAvailability {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum AllocatorAvailabilityError {
+pub enum AllocatorAvailabilityError {
     RootMismatch,
     NonCanonicalAllowlist,
     UnknownView { view: u16 },

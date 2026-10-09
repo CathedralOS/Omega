@@ -30,7 +30,7 @@ pub enum PackageReviewContractKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewContractBinaryOperator {
+pub enum PackageReviewContractBinaryOperator {
     Add,
     And,
     BitwiseAnd,
@@ -52,27 +52,27 @@ pub(crate) enum PackageReviewContractBinaryOperator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewContractUnaryOperator {
+pub enum PackageReviewContractUnaryOperator {
     BitwiseNot,
     LogicalNot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewReferenceAccess {
+pub enum PackageReviewReferenceAccess {
     Shared,
     Mutable,
     WriteOnly,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewAtomicLoadOrdering {
+pub enum PackageReviewAtomicLoadOrdering {
     NoOrdering,
     Receive,
     GlobalOrder,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewArithmeticDomain {
+pub enum PackageReviewArithmeticDomain {
     Exact,
     Wrapping,
     Saturating,
@@ -80,14 +80,14 @@ pub(crate) enum PackageReviewArithmeticDomain {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewCastForm {
+pub enum PackageReviewCastForm {
     Value,
     RecastShared,
     RecastMutable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewContractStaticArgument {
+pub enum PackageReviewContractStaticArgument {
     /// One exact concrete type identity.
     Type(PackageReviewTypeIdentity),
     /// One type parameter from the containing declaration's canonical static
@@ -136,7 +136,7 @@ pub(crate) enum PackageReviewContractStaticArgument {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewByteSequencePredicate {
+pub enum PackageReviewByteSequencePredicate {
     ValidUtf8,
     NoNul,
     AsciiOnly,
@@ -144,7 +144,7 @@ pub(crate) enum PackageReviewByteSequencePredicate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewCollectionViewOperation {
+pub enum PackageReviewCollectionViewOperation {
     SharedSlice,
     MutableSlice,
     TextView,
@@ -152,7 +152,7 @@ pub(crate) enum PackageReviewCollectionViewOperation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewContractCallTarget {
+pub enum PackageReviewContractCallTarget {
     Nominal(PackageReviewNominalIdentity),
     /// One exact compiler-installed root builtin-function slot. The spelling
     /// is diagnostic only; package declarations with the same name remain
@@ -176,7 +176,7 @@ pub(crate) enum PackageReviewContractCallTarget {
 /// proof-expression call. Local aliases are excluded; declaration ownership,
 /// contract lane kind, and ordinal are semantic identity.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewContractEvidenceTerm {
+pub struct PackageReviewContractEvidenceTerm {
     pub(crate) owner: PackageReviewNominalIdentity,
     pub(crate) kind: PackageReviewContractKind,
     pub(crate) lane_position: u32,
@@ -198,7 +198,7 @@ impl PackageReviewContractEvidenceTerm {
 
 /// One exact source-to-parameter binding in an erased evidence call lane.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewContractEvidenceArgument {
+pub struct PackageReviewContractEvidenceArgument {
     pub(crate) lane_position: u32,
     pub(crate) source: PackageReviewContractEvidenceTerm,
     pub(crate) parameter: PackageReviewContractEvidenceTerm,
@@ -263,7 +263,7 @@ impl PackageReviewOperatorRealization {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewContractOperatorMeaning {
+pub enum PackageReviewContractOperatorMeaning {
     Builtin,
     Declared(PackageReviewOperatorCoordinate),
 }
@@ -275,7 +275,7 @@ impl PackageReviewContractCallTarget {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewContractExpression {
+pub enum PackageReviewContractExpression {
     Boolean(bool),
     Integer(String),
     /// One width-landed IEEE literal. Exact checked bits, including signed
@@ -382,13 +382,13 @@ pub(crate) enum PackageReviewContractExpression {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewFloatLiteral {
+pub enum PackageReviewFloatLiteral {
     F32(u32),
     F64(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewConstructorField {
+pub struct PackageReviewConstructorField {
     pub(crate) field: PackageReviewNominalIdentity,
     pub(crate) value: PackageReviewContractExpression,
 }

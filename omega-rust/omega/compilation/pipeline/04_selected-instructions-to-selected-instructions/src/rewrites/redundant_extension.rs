@@ -67,7 +67,7 @@ pub(crate) use validation::measured_steps;
 
 /// An accepted redundant-extension removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedRedundantExtension {
+pub struct ValidatedRedundantExtension {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: RedundantExtensionReceipt,
 }
@@ -75,7 +75,7 @@ pub(crate) struct ValidatedRedundantExtension {
 validated_transformed_receipt!(ValidatedRedundantExtension, RedundantExtensionReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RedundantExtensionReceipt {
+pub struct RedundantExtensionReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -126,7 +126,7 @@ pub(crate) fn redundant_extension_identity(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RedundantExtensionError {
+pub enum RedundantExtensionError {
     SourceMismatch,
     UnsupportedInstruction,
     UnsupportedProducer,

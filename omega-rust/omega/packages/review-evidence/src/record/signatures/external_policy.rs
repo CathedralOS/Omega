@@ -10,7 +10,7 @@ pub(crate) use signatures::{PackagePolicyExternalCallableSignature, PackagePolic
 
 /// Exact producer identity retained independently of its evaluation history.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyEvaluatedBindingProducer {
+pub struct PackagePolicyEvaluatedBindingProducer {
     pub(crate) declaration: PackageReviewNominalIdentity,
     pub(crate) package: Option<PackageKeyIdentity>,
     pub(crate) callable_identity: String,

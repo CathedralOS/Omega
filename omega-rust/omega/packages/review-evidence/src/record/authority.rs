@@ -84,13 +84,13 @@ impl PackageReviewInstallationReach {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewWriteFrameCompleteness {
+pub enum PackageReviewWriteFrameCompleteness {
     Complete,
     Opaque,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewCrashCause {
+pub enum PackageReviewCrashCause {
     Trap,
     Abort,
 }

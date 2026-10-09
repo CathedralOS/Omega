@@ -31,7 +31,7 @@ pub(crate) enum PackageReviewExternalBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewForeignLocator {
+pub enum PackageReviewForeignLocator {
     PeByName {
         library: Vec<u8>,
         export: Vec<u8>,
@@ -131,7 +131,7 @@ pub(crate) struct PackageReviewEvaluatedSyscall {
 
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewExternalCallableParameter {
+pub struct PackageReviewExternalCallableParameter {
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,
     pub(crate) is_mutable: bool,

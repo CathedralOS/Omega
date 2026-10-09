@@ -27,7 +27,7 @@ use std::fmt;
 
 /// One exact requester-local edge in a root-to-dependency path.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DependencyRequestPathStep {
+pub struct DependencyRequestPathStep {
     requester: PackageKey,
     purpose: DependencyPurpose,
     dependency_index: usize,
@@ -65,7 +65,7 @@ impl DependencyRequestPathStep {
 /// The root custody has an empty `steps` sequence. Dependency-row ordinals
 /// keep repeated otherwise-identical authored requests distinguishable.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DependencyRequestPath {
+pub struct DependencyRequestPath {
     root: PackageKey,
     steps: Vec<DependencyRequestPathStep>,
 }
@@ -83,7 +83,7 @@ impl DependencyRequestPath {
 /// One distinct custody observed for a conflicted `PackageKey`, together with
 /// every dependency path that produced that exact custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageSourceClosureConflictCandidate {
+pub struct PackageSourceClosureConflictCandidate {
     custody: PackageSourceCustody,
     requesting_paths: Vec<DependencyRequestPath>,
 }
@@ -100,7 +100,7 @@ impl PackageSourceClosureConflictCandidate {
 
 /// All distinct source custodies observed for one conflicting package key.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageSourceClosureConflict {
+pub struct PackageSourceClosureConflict {
     key: PackageKey,
     candidates: Vec<PackageSourceClosureConflictCandidate>,
 }
@@ -134,14 +134,14 @@ impl Default for PackageSourceClosureLimits {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackageSourceClosureLimitKind {
+pub enum PackageSourceClosureLimitKind {
     Packages,
     DependencyRequests,
     Depth,
 }
 
 #[derive(Debug)]
-pub(crate) enum PackageSourceClosureResolutionError<E> {
+pub enum PackageSourceClosureResolutionError<E> {
     /// The adapter could not resolve one projected dependency request.
     Adapter {
         requester: PackageKey,

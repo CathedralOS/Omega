@@ -85,7 +85,7 @@ impl ValidatedCountedLoopAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum CountedLoopAnalysisError {
+pub enum CountedLoopAnalysisError {
     StaleUnitIdentity {
         stored: OptimizationUnitIdentity,
         recomputed: OptimizationUnitIdentity,

@@ -137,7 +137,7 @@ impl StagedOptimizedFunctionFragmentEmission {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct StagedFunctionFragmentEmissionCustodyReceipt {
+pub struct StagedFunctionFragmentEmissionCustodyReceipt {
     source_realization: FunctionRelativeOptimizationRealizationManifestIdentity,
     fragments: FunctionFragmentEmissionIdentity,
     manifest: FunctionFragmentEmissionManifestIdentity,

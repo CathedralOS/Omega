@@ -71,7 +71,7 @@ pub(crate) use validation::measured_steps;
 
 /// An accepted address fold with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedAddressFold {
+pub struct ValidatedAddressFold {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: AddressFoldReceipt,
 }
@@ -79,7 +79,7 @@ pub(crate) struct ValidatedAddressFold {
 validated_transformed_receipt!(ValidatedAddressFold, AddressFoldReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct AddressFoldReceipt {
+pub struct AddressFoldReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -128,7 +128,7 @@ pub(crate) fn address_fold_identity(receipt: &AddressFoldReceipt) -> AddressFold
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AddressFoldError {
+pub enum AddressFoldError {
     SourceMismatch,
     UnsupportedInstruction,
     UnsupportedProducer,

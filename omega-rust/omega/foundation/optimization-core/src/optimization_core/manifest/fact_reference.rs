@@ -65,7 +65,7 @@ impl OptimizationFactReference {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OptimizationFactReferenceDecodeError {
+pub enum OptimizationFactReferenceDecodeError {
     WrongLength { expected: usize, actual: usize },
     UnknownTag(u8),
 }

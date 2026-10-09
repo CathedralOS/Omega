@@ -25,7 +25,7 @@ mod tests;
 
 /// Closed schema for descriptive target costs. It is identity, not authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TargetCostModelVersion {
+pub enum TargetCostModelVersion {
     MachineKnowledgeV1,
 }
 
@@ -45,7 +45,7 @@ impl TargetCostModelIdentity {
 
 /// Descriptive size knowledge retained without converting bounds into facts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NonAuthoritativeMachineSizeCost {
+pub enum NonAuthoritativeMachineSizeCost {
     ExactBytes(u16),
     EncoderResolved {
         minimum_bytes: u16,
@@ -81,13 +81,13 @@ impl NonAuthoritativeMachineSizeCost {
 
 /// Latency is deliberately unavailable until target-owned stable data exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NonAuthoritativeLatencyCost {
+pub enum NonAuthoritativeLatencyCost {
     Unavailable,
 }
 
 /// One deterministic observation tied to the exact model that described it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct NonAuthoritativeMachineCost {
+pub struct NonAuthoritativeMachineCost {
     model: TargetCostModelIdentity,
     size: NonAuthoritativeMachineSizeCost,
     latency: NonAuthoritativeLatencyCost,
@@ -109,7 +109,7 @@ impl NonAuthoritativeMachineCost {
 
 /// Exact target binding for a descriptive cost vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TargetCostModel {
+pub struct TargetCostModel {
     target: NativeTarget,
     version: TargetCostModelVersion,
     identity: TargetCostModelIdentity,

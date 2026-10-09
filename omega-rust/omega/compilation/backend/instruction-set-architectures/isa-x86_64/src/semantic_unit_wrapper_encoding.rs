@@ -67,24 +67,24 @@ pub struct X86_64SemanticUnitWrapperEncodingRequest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum X86_64SemanticUnitWrapperTrapBehavior {
+pub enum X86_64SemanticUnitWrapperTrapBehavior {
     MayArchitecturalFaultV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum X86_64SemanticUnitWrapperCallEffect {
+pub enum X86_64SemanticUnitWrapperCallEffect {
     DirectPrivateContinuationUnitV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum X86_64SemanticUnitWrapperCleanupEffect {
+pub enum X86_64SemanticUnitWrapperCleanupEffect {
     NoneV1,
 }
 
 /// Physical effects retained beside the exact target bytes. This is target
 /// validation evidence, not permission to invoke the wrapper.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct X86_64SemanticUnitWrapperFootprint {
+pub struct X86_64SemanticUnitWrapperFootprint {
     pub root_reads: [X86_64SemanticUnitWrapperCopy; 4],
     pub caller_copy_writes: [X86_64SemanticUnitWrapperCopy; 4],
     /// Bytes the wrapper zero-fills inside its own frame to provision the
@@ -108,7 +108,7 @@ pub(crate) struct X86_64SemanticUnitWrapperFootprint {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum X86_64SemanticUnitWrapperRelocationKind {
+pub enum X86_64SemanticUnitWrapperRelocationKind {
     Relative32PrivateContinuationFromNextInstructionV1,
 }
 
@@ -150,7 +150,7 @@ impl ValidatedX86_64SemanticUnitWrapperTemplate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum X86_64SemanticUnitWrapperResolutionState {
+pub enum X86_64SemanticUnitWrapperResolutionState {
     ResolvedInSectionV1,
 }
 

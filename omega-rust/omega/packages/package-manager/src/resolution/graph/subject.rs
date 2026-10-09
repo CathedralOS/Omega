@@ -252,7 +252,7 @@ impl CanonicalDependencySourceSelection {
 
 /// A closed error from projection or strict canonical recovery.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CanonicalSourceClosureSubjectError {
+pub struct CanonicalSourceClosureSubjectError {
     message: &'static str,
 }
 

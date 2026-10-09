@@ -2,7 +2,7 @@
 
 /// Failure while decoding a framed post-allocation machine-plan artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PostAllocationMachineDecodeError {
+pub enum PostAllocationMachineDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

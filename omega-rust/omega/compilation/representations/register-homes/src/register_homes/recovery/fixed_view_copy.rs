@@ -101,7 +101,7 @@ pub struct FixedViewCopyDestination {
 /// Artifact framing errors. Successful decoding returns an unchecked plain
 /// plan and does not replace independent fixed-view-copy validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FixedViewCopyDecodeError {
+pub enum FixedViewCopyDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

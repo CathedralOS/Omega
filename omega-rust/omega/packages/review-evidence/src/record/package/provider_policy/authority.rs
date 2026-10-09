@@ -46,7 +46,7 @@ impl PackagePolicyServiceProgressPremise {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyServiceProgressRoute {
+pub struct PackagePolicyServiceProgressRoute {
     pub(crate) kind: ServiceProgressEstablishmentRouteKind,
     pub(crate) requirement_owner: PackageReviewNominalIdentity,
     pub(crate) requirement: PackageReviewNominalIdentity,

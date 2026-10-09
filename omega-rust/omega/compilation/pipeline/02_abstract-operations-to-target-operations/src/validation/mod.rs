@@ -99,7 +99,7 @@ impl AbstractToTargetFunctionRosterReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum AbstractToTargetTranslationValidationError {
+pub enum AbstractToTargetTranslationValidationError {
     UnsupportedIeeeFloatFmaRealization(OperationId),
     StructuralSignatureMismatch {
         machine: MachineId,

@@ -1,7 +1,7 @@
 //! Complete checked shape graph for one representation demand.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewBoundaryShapeClass {
+pub enum PackageReviewBoundaryShapeClass {
     Integer,
     Float,
     Reference,
@@ -10,7 +10,7 @@ pub(crate) enum PackageReviewBoundaryShapeClass {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewBoundaryShape {
+pub struct PackageReviewBoundaryShape {
     pub(crate) class: PackageReviewBoundaryShapeClass,
     pub(crate) byte_size: u16,
     pub(crate) alignment: u16,
@@ -31,7 +31,7 @@ impl PackageReviewBoundaryShape {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewBoundaryShapeField {
+pub struct PackageReviewBoundaryShapeField {
     pub(crate) shape: u16,
     pub(crate) byte_offset: u16,
 }
@@ -47,7 +47,7 @@ impl PackageReviewBoundaryShapeField {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewBoundaryShapeGraph {
+pub struct PackageReviewBoundaryShapeGraph {
     pub(crate) shapes: Vec<PackageReviewBoundaryShape>,
     pub(crate) fields: Vec<PackageReviewBoundaryShapeField>,
     pub(crate) parameters: Vec<u16>,

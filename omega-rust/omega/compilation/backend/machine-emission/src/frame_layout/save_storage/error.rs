@@ -2,7 +2,7 @@ use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::RegisterUnitId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum NonAuthoritativeCalleeSaveStorageError {
+pub enum NonAuthoritativeCalleeSaveStorageError {
     RootMismatch,
     UnsupportedPolicy,
     UnsupportedTargetCatalog,

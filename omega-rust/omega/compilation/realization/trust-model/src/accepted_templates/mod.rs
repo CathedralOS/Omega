@@ -18,7 +18,7 @@ struct AcceptedTemplateClassification {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AcceptedTemplateIdentity {
+pub struct AcceptedTemplateIdentity {
     report_fingerprint: u64,
     commitment: typed_trees::typed_trees::MachineTemplateCommitment,
 }

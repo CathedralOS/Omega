@@ -2,7 +2,7 @@ use super::SourceStorage;
 use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ProjectRoots {
+pub struct ProjectRoots {
     pub sources: Vec<std::path::PathBuf>,
     pub build: Option<std::path::PathBuf>,
 }

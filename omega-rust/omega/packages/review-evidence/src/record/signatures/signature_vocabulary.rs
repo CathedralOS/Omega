@@ -32,7 +32,7 @@ pub(crate) enum PackageReviewTypeParameterKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewPropositionParameterSignature {
+pub struct PackageReviewPropositionParameterSignature {
     pub(crate) parameters: Vec<PackageReviewPropositionParameterValue>,
 }
 
@@ -80,7 +80,7 @@ pub(crate) struct PackageReviewMachineParameterSignature {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewMachineParameterValue {
+pub struct PackageReviewMachineParameterValue {
     pub(crate) name: String,
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,

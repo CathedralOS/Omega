@@ -47,7 +47,7 @@ pub(crate) fn stage_non_authoritative_callee_save_storage(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct NonAuthoritativeCalleeSaveStorageReceipt {
+pub struct NonAuthoritativeCalleeSaveStorageReceipt {
     pub(in crate::frame_layout::save_storage) identity: NonAuthoritativeCalleeSaveStorageIdentity,
     pub(in crate::frame_layout::save_storage) callee_saved_requirements:
         AllocatedCalleeSavedRequirementIdentity,
@@ -81,7 +81,7 @@ impl NonAuthoritativeCalleeSaveStorageReceipt {
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedNonAuthoritativeCalleeSaveStorage {
+pub struct ValidatedNonAuthoritativeCalleeSaveStorage {
     pub(in crate::frame_layout::save_storage) plan: NonAuthoritativeCalleeSaveStoragePlan,
     pub(in crate::frame_layout::save_storage) receipt: NonAuthoritativeCalleeSaveStorageReceipt,
 }

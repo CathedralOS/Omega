@@ -64,7 +64,7 @@ impl ValidatedPrePhysicalOptimizationManifest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PrePhysicalOptimizationManifestError {
+pub enum PrePhysicalOptimizationManifestError {
     InitialUnitProjection,
     StructuralStatisticsOverflow,
 }

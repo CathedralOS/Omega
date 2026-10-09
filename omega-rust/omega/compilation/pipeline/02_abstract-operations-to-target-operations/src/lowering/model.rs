@@ -216,7 +216,7 @@ pub enum LoweringError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PlacedViewInputTranslationError {
+pub enum PlacedViewInputTranslationError {
     UnsupportedInputCount(usize),
     SelectionCountMismatch { expected: usize, actual: usize },
     InputIsNotDirectEntry,

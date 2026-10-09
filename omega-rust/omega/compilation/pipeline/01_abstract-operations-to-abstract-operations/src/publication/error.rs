@@ -4,7 +4,7 @@ use crate::validation::PrePhysicalOptimizationManifestError;
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizedAbstractProjectionError {
+pub enum OptimizedAbstractProjectionError {
     FunctionRosterMismatch,
     InvalidFunctionParameter { machine: MachineId, position: usize },
     InvalidBlockParameter { machine: MachineId, position: usize },

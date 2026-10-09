@@ -76,7 +76,7 @@ impl SelectedInstructionValidationReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SelectedInstructionError {
+pub enum SelectedInstructionError {
     /// Selection's own replay disagrees with the legalized input or the
     /// selected output. `machine` and `operation` name the legalized function
     /// and the instruction being selected when the refusal was raised, the

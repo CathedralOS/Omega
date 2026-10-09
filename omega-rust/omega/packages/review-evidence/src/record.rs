@@ -33,7 +33,7 @@ pub use policy_rows::{
     PACKAGE_POLICY_ROW_VERSION, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
     PackagePolicyRowUsage,
 };
-mod signatures;
+pub(crate) mod signatures;
 mod target_context;
 pub(in crate::record) use public_policy::validation;
 pub(crate) use public_policy::{

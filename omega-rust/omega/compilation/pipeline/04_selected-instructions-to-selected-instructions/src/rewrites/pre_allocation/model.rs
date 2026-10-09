@@ -45,7 +45,7 @@ use selected_instructions::{
 /// selected pre-allocation rules enable. This is not an opt level or a
 /// generic instruction-combining grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct PreAllocationPolicy {
+pub struct PreAllocationPolicy {
     enabled: u32,
 }
 
@@ -212,7 +212,7 @@ macro_rules! transformation_accessors {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ValidatedPreAllocationTransformation {
+pub enum ValidatedPreAllocationTransformation {
     CopyRemoval(ValidatedCopyRemoval),
     RedundantExtension(ValidatedRedundantExtension),
     AddressFold(ValidatedAddressFold),
@@ -361,7 +361,7 @@ impl From<PreAllocationTransformationIdentity>
 /// rebuilt analyses over its transformed program. No source analysis fact
 /// crosses the transformed selected-CFG boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedPreAllocationStep {
+pub struct StagedOptimizedPreAllocationStep {
     pub(super) transformation: ValidatedPreAllocationTransformation,
     pub(super) liveness: ValidatedLiveness,
     pub(super) ranges: ValidatedLiveRanges,
@@ -397,7 +397,7 @@ impl StagedOptimizedPreAllocationStep {
 /// current function revision, establishing the joint admission fixed point
 /// without a final whole-plan discovery sweep.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedPreAllocationAttempt {
+pub struct StagedOptimizedPreAllocationAttempt {
     pub(super) source_selected: SelectedInstructionPlanIdentity,
     pub(super) candidates: usize,
     pub(super) declined: usize,
@@ -608,7 +608,7 @@ impl StagedOptimizedPreAllocationIterationReceipt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedPreAllocationAttemptReceipt {
+pub struct StagedOptimizedPreAllocationAttemptReceipt {
     pub(super) source_selected: SelectedInstructionPlanIdentity,
     pub(super) candidates: usize,
     pub(super) declined: usize,

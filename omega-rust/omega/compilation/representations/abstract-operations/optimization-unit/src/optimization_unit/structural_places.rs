@@ -296,7 +296,7 @@ pub(crate) fn canonicalize_ordinary_path(
 /// The scalar kind a resolved observation must carry: the Boolean or integer
 /// type of its `StructuralScalarFieldRead` result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ObservedFieldKind {
+pub enum ObservedFieldKind {
     Boolean,
     Integer,
 }
@@ -451,7 +451,7 @@ pub(crate) enum EstablishmentScalar {
 /// initializer folds to a literal or forwards as a substitution — `None` for
 /// a declared singleton bound.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ProvenFieldValue {
+pub struct ProvenFieldValue {
     pub producer: Option<OperationId>,
     pub resolution: FieldValueResolution,
 }
@@ -837,7 +837,7 @@ pub fn integer_comparison_condition(
 /// operand. Mirrors the three integer comparison operations lowered literal
 /// guards and ordering guards produce.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum IntegerComparisonOrdering {
+pub enum IntegerComparisonOrdering {
     Equal,
     LessThan,
     LessOrEqual,

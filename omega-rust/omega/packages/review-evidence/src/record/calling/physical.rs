@@ -7,7 +7,7 @@ use crate::record::{
 /// deliberately contains no callback IDs, selected entries, evidence receipts,
 /// or claims to be the complete requirement-pinned boundary policy.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyPhysicalCallingContract {
+pub struct PackagePolicyPhysicalCallingContract {
     pub(crate) policy: PackageReviewBoundaryCallingPolicy,
     pub(crate) parameters: Vec<PackageReviewBoundaryValuePlacement>,
     pub(crate) result: Option<PackageReviewBoundaryValuePlacement>,
@@ -56,7 +56,7 @@ impl PackagePolicyPhysicalCallingContract {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackagePolicyEntryControl {
+pub enum PackagePolicyEntryControl {
     CallReturn,
     SupervisorCall {
         number_register: PackageReviewMachineRegister,
@@ -66,13 +66,13 @@ pub(crate) enum PackagePolicyEntryControl {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackagePolicyMachineRegime {
+pub enum PackagePolicyMachineRegime {
     X86Long64,
     Aarch64A64 { exception_level: u8 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackagePolicyMachineState {
+pub enum PackagePolicyMachineState {
     GeneralRegisters,
     VectorRegisters,
     Flags,
@@ -86,7 +86,7 @@ pub(crate) enum PackagePolicyMachineState {
 
 /// A canonical set of named state classes, not compiler bit assignments.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyMachineStateSet(Vec<PackagePolicyMachineState>);
+pub struct PackagePolicyMachineStateSet(Vec<PackagePolicyMachineState>);
 
 impl PackagePolicyMachineStateSet {
     pub fn new(states: impl IntoIterator<Item = PackagePolicyMachineState>) -> Self {
@@ -109,14 +109,14 @@ impl PackagePolicyMachineStateSet {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackagePolicyEntryStack {
+pub enum PackagePolicyEntryStack {
     Interrupted,
     Dedicated { class: u16 },
     ProviderSelected,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackagePolicyPreemption {
+pub enum PackagePolicyPreemption {
     NotApplicable,
     Masked,
     Nestable { maximum_depth: u16 },
@@ -124,7 +124,7 @@ pub(crate) enum PackagePolicyPreemption {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyStatePlan {
+pub struct PackagePolicyStatePlan {
     pub(crate) initial_regime: PackagePolicyMachineRegime,
     pub(crate) interrupted_state: PackagePolicyMachineStateSet,
     pub(crate) saved_state: PackagePolicyMachineStateSet,

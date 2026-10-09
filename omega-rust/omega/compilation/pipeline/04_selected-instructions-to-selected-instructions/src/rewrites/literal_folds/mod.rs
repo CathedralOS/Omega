@@ -91,7 +91,7 @@ impl StagedOptimizedLiteralFoldStep {
 /// whether another transformed-CFG analysis cycle is required. A terminal
 /// attempt has `applied_count() == 0` and is positive fixed-point evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedLiteralFoldAttempt {
+pub struct StagedOptimizedLiteralFoldAttempt {
     choices: ValidatedSpillChoices,
     recovery: ValidatedRecoveryClassifications,
     fold: ValidatedLiteralFold,
@@ -242,7 +242,7 @@ impl StagedSelectedLoweringOptimizationCustodyReceipt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedLiteralFoldAttemptReceipt {
+pub struct StagedOptimizedLiteralFoldAttemptReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     source_ranges: selected_instructions::LiveRangeIdentity,
     source_legality: register_homes::AllocationLegalityIdentity,

@@ -112,7 +112,7 @@ impl ValidatedCountdownInvariantConstantPlacementAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum CountdownInvariantConstantPlacementAnalysisError {
+pub enum CountdownInvariantConstantPlacementAnalysisError {
     CountedLoop(CountedLoopAnalysisError),
     InvariantConstant(CountdownInvariantConstantAnalysisError),
     StaleUnitIdentity {

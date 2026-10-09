@@ -13,7 +13,7 @@ pub(crate) enum PackageReviewPropositionBinderKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageReviewPropositionBinder {
+pub struct PackageReviewPropositionBinder {
     pub(crate) kind: PackageReviewPropositionBinderKind,
     pub(crate) bounds: PackageReviewDataProperties,
 }
@@ -112,7 +112,7 @@ impl PackageReviewEvidenceRequirement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewEvidenceInterface {
+pub struct PackageReviewEvidenceInterface {
     pub(crate) trait_identity: PackageReviewNominalIdentity,
     pub(crate) lifetime_arguments: Vec<u32>,
     pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
@@ -132,7 +132,7 @@ pub(crate) enum PackageReviewPropositionEvidence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewPublicPropositionBody {
+pub enum PackageReviewPublicPropositionBody {
     Primitive,
     Witness(PackageReviewEvidenceInterface),
     Transparent(PackageReviewContractFact),
@@ -165,7 +165,7 @@ impl PackageReviewPropositionShape {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewPropositionApplication {
+pub struct PackageReviewPropositionApplication {
     pub(crate) declaration: PackageReviewNominalIdentity,
     pub(crate) binders: Vec<PackageReviewPropositionBinder>,
     pub(crate) parameter_types: Vec<PackageReviewTypeIdentity>,
@@ -183,7 +183,7 @@ impl PackageReviewPropositionApplication {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewPropositionParameterApplication {
+pub struct PackageReviewPropositionParameterApplication {
     pub(crate) binder_ordinal: u32,
     pub(crate) arguments: Vec<PackageReviewContractExpression>,
 }
