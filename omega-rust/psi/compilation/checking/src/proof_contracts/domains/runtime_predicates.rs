@@ -242,6 +242,13 @@ pub fn scalar_field_domain_predicate(
     if let typed_trees::types::DomainConstraintSubject::Value(domain) = constraint.subject {
         return crate::scalar_value_domain_predicate(domain, subject);
     }
+    // Static tag identity and indexed arguments remain on the checked type.
+    // With no predicates or routes, its storage restriction is exactly true;
+    // use the same exact-instance classification as scalar signatures rather
+    // than treating every indexed family as an unsupported predicate theory.
+    if super::scalar_tags::scalar_tag_constraint(program, constraint, primitive) {
+        return Some(Boolean::Constant(true));
+    }
     if constraint.subject != typed_trees::types::DomainConstraintSubject::Declared
         || !constraint.arguments.is_empty()
         || !constraint.establishment_routes.is_empty()

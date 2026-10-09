@@ -41,8 +41,9 @@ mod work_domain;
 pub(crate) use uses::statement_type_inputs;
 
 pub(crate) use arguments::{
-    DomainHead, closed_argument_identity, domain_application_head, domain_index_telescope,
-    monomorphizable_argument_slugs, normalize_domain_head_positions, type_reference_slug,
+    DomainCarrier, DomainHead, closed_argument_identity, domain_application_head,
+    domain_index_telescope, monomorphizable_argument_slugs, normalize_domain_head_positions,
+    selected_domain_family, type_reference_slug,
 };
 pub(in crate::preparation::generic_data) use arguments::{
     canonicalize_monomorphizable_argument_handles, complete_argument_tuple,

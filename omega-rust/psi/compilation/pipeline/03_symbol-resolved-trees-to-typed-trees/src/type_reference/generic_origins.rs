@@ -422,9 +422,7 @@ impl Equality<'_, '_> {
         {
             return false;
         }
-        (0..left.count()).all(|offset| {
-            self.child(left.handle_at(offset), right.handle_at(offset))
-        })
+        (0..left.count()).all(|offset| self.child(left.handle_at(offset), right.handle_at(offset)))
     }
 
     fn child(&mut self, left: Handle<TypeReference>, right: Handle<TypeReference>) -> bool {
@@ -661,7 +659,15 @@ impl Equality<'_, '_> {
                 name.source_span(),
             );
         let mut candidates = self.source.domain_definitions.iter().filter(|domain| {
-            matches!(&domain.target_type, TypeReference::Named { symbol, .. } if symbol == carrier)
+            // A generic carrier is the family's first type binder. The outer
+            // reference equality already compares the actual carrier; this
+            // lookup selects only its domain declaration, not a replacement
+            // carrier or a discharged membership predicate.
+            (matches!(&domain.target_type, TypeReference::Named { symbol, .. } if symbol == carrier)
+                || self.source.data_type_parameters(domain.type_parameters).first().is_some_and(|parameter| {
+                    matches!(parameter.kind, resolved::data::TypeParameterKind::Type)
+                        && matches!(&domain.target_type, TypeReference::Named { symbol, .. } if *symbol == parameter.symbol)
+                }))
                 && (qualified == Some(domain.symbol)
                     || (!name.as_str().contains("::")
                         && domain.name.as_str().rsplit("::").next() == Some(name.as_str())))

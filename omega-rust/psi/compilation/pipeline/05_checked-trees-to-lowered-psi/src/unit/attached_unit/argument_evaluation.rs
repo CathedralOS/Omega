@@ -1046,15 +1046,14 @@ impl Evaluation {
             .map(|value| value.value_type())
             .collect::<Vec<_>>();
         let scalar_type = terminal_scalar_type(primitive_type)?;
-        let computation_role = crate::emission::structural_scalar_store_source::computation_root(
+        let computation = crate::emission::structural_scalar_store_source::computation_root(
             checked,
             machine,
             state,
             statement_index,
             value,
             field_identity,
-        )?
-        .map(|(_, role)| role);
+        )?;
         // The store may consume the SSA result of the scalar call this same
         // statement performed. That value has no authored local binding and so
         // no `AssignmentValue` expression row; it is reconstructed from the
@@ -1116,21 +1115,38 @@ impl Evaluation {
                 "field assignment has no single completed RHS",
             );
         }
+        let (root, role) = computation.ok_or(LoweringError::Unsupported(
+            "field assignment lost its exact scalar computation root",
+        ))?;
+        // Complete the RHS with its full checked type. The field stores its
+        // scalar payload after source checking has established its invariant;
+        // that storage representation must not erase qualifications from the
+        // evaluation edge or demand a bare type from an authored qualified cast.
+        let result_type = crate::scalar_lowering::computations::computation_value_type(
+            checked,
+            qualifications,
+            root,
+            &bindings,
+            &source_types,
+        )?;
+        if result_type.scalar_type != scalar_type {
+            return unsupported("field assignment computation changed its scalar carrier");
+        }
         let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
         let entry = expansion.retained_value(
             state,
             statement_index,
-            computation_role.unwrap_or(CheckedScalarExpressionRole::AssignmentValue),
+            role,
             &bindings,
             &source_types,
-            scalar_type.into(),
+            result_type,
             0,
         )?;
         let states = expansion.finish();
         self.single_completed_expansion(
             &states,
             entry,
-            scalar_type.into(),
+            result_type,
             values,
             next_value,
             next_block,

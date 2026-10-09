@@ -9,8 +9,8 @@
 
 use super::super::{Binding, Solver, const_binder_envelope, normalized_boolean_argument};
 use crate::preparation::generic_data::{
-    ClosedArgumentIdentity, DomainHead, closed_argument_identity, closed_name_identity,
-    domain_application_head, domain_index_telescope,
+    ClosedArgumentIdentity, DomainCarrier, DomainHead, closed_name_identity,
+    domain_application_head, domain_index_telescope, selected_domain_family,
 };
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
@@ -38,7 +38,7 @@ struct DomainApplication {
     declared_name: Identifier,
     /// The matched carrier: the declared target for a `Carrier::Name<..>`
     /// head, the authored base for a `base in Name<..>` constraint.
-    carrier: TypeReferenceHandle,
+    carrier: DomainCarrier,
 }
 
 impl Solver<'_, '_> {
@@ -117,7 +117,7 @@ impl Solver<'_, '_> {
                                 domain.index_parameters,
                                 Some(DomainApplication {
                                     declared_name: domain.declared_name,
-                                    carrier: domain.target_type,
+                                    carrier: domain.carrier,
                                 }),
                             )
                         }
@@ -179,12 +179,12 @@ impl Solver<'_, '_> {
 
     /// A carrier-qualified head selects the in-forest domain by leaf name and
     /// carrier: `u64::AtMost` reaches `domain<const C: u64> u64::AtMost<C>`,
-    /// whose declared name retains only the domain segments. A generic-carrier
-    /// family (`domain<T> T::Foreign`) declines: its binder needs its own
-    /// binding law before an application can be structural. The selection law
-    /// is shared with argument identity in `generic_data::arguments`.
+    /// whose declared name retains only the domain segments. Generic families
+    /// retain the spelled carrier for ordinary structural type binding, apart
+    /// from the index telescope. The selection law is shared with argument
+    /// identity in `generic_data::arguments`.
     fn domain_head(&self, name: &Identifier) -> Option<DomainHead> {
-        domain_application_head(self.syntax, name)
+        domain_application_head(self.syntax, self.selection, name)
     }
 
     /// The `base in Name<index, ..>` spelling: the constraint name reaches a
@@ -203,41 +203,17 @@ impl Solver<'_, '_> {
                 constraint.name.source_span(),
             )
         };
-        let base = closed_argument_identity(self.syntax, self.selection, base_type, false)
-            .ok_or_else(decline)?;
-        let mut candidates = self
+        let declaration =
+            selected_domain_family(self.syntax, self.selection, &constraint.name, None)
+                .ok_or_else(decline)?;
+        let definition = self
             .syntax
-            .root_item_handles()
-            .iter()
-            .copied()
-            .filter(|handle| {
-                let Some(definition) = self.syntax.root_item(*handle).as_domain() else {
-                    return false;
-                };
-                let declared = definition.name.as_str();
-                let declared_leaf = declared.rsplit("::").next().unwrap_or(declared);
-                let authored = constraint.name.as_str();
-                let authored_leaf = authored.rsplit("::").next().unwrap_or(authored);
-                if declared != authored && declared_leaf != authored_leaf {
-                    return false;
-                }
-                closed_argument_identity(self.syntax, self.selection, definition.target_type, false)
-                    .as_ref()
-                    == Some(&base)
-            });
-        let Some(declaration) = candidates.next() else {
-            return Err(decline());
-        };
-        if candidates.next().is_some() {
-            return Err(decline());
-        }
-        let Some(definition) = self.syntax.root_item(declaration).as_domain() else {
-            unreachable!("a domain head is a domain item")
-        };
+            .root_item(declaration)
+            .as_domain()
+            .ok_or_else(decline)?;
         let (index_parameters, generic_carrier) = domain_index_telescope(self.syntax, definition);
-        if generic_carrier {
-            return Err(self
-                .type_structure_error("requires a domain application on a closed carrier", span));
+        if !generic_carrier {
+            self.require_equal_type_structure(definition.target_type, base_type, span)?;
         }
         let arguments = self
             .syntax
@@ -251,7 +227,7 @@ impl Solver<'_, '_> {
             arguments,
             Some(DomainApplication {
                 declared_name: definition.name.clone(),
-                carrier: base_type,
+                carrier: DomainCarrier::Type(base_type),
             }),
             span,
         )
@@ -267,6 +243,11 @@ impl Solver<'_, '_> {
         let actual = self.application(actual, false, span)?;
         if pattern.declaration != actual.declaration {
             return Err(self.type_structure_error("has conflicting nominal constructors", span));
+        }
+        if let (Some(pattern_domain), Some(actual_domain)) = (&pattern.domain, &actual.domain) {
+            let pattern_carrier = pattern_domain.carrier.clone().materialize(self.syntax);
+            let actual_carrier = actual_domain.carrier.clone().materialize(self.syntax);
+            self.match_type_structure(pattern_carrier, actual_carrier, span)?;
         }
         for ((pattern, actual), parameter) in pattern
             .arguments
@@ -375,7 +356,8 @@ impl Solver<'_, '_> {
             .type_references
             .insert_type_reference_handles(arguments);
         if let Some(domain) = application.domain {
-            let Some(base_type) = self.construct_type_structure(domain.carrier, span)? else {
+            let carrier = domain.carrier.materialize(self.syntax);
+            let Some(base_type) = self.construct_type_structure(carrier, span)? else {
                 return Ok(None);
             };
             let constraints =
@@ -643,6 +625,19 @@ impl Solver<'_, '_> {
         };
         if expected.declaration != actual.declaration {
             return Err(self.type_structure_error("has conflicting element types", span));
+        }
+        if let (Some(expected_domain), Some(actual_domain)) = (&expected.domain, &actual.domain) {
+            let expected_carrier = expected_domain
+                .carrier
+                .identity(self.syntax, self.selection)
+                .ok_or_else(undecidable)?;
+            let actual_carrier = actual_domain
+                .carrier
+                .identity(self.syntax, self.selection)
+                .ok_or_else(undecidable)?;
+            if expected_carrier != actual_carrier {
+                return Err(self.type_structure_error("has conflicting domain carriers", span));
+            }
         }
         for ((expected, actual), parameter) in expected
             .arguments

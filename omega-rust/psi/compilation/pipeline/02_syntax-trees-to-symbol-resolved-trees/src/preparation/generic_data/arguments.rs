@@ -481,7 +481,7 @@ pub(crate) fn closed_argument_identity(
                         indexed_domain_identity(
                             syntax,
                             selection,
-                            domain.name.as_str(),
+                            &domain.name,
                             &base,
                             domain.arguments,
                         )?
@@ -623,42 +623,56 @@ pub(crate) fn domain_index_telescope(
     )
 }
 
+/// Rejoin an authored domain family through the shared namespace authority.
+/// Without a supplied package selection, build the same local header authority;
+/// never rescue a contested or inaccessible owner with a leaf-name scan.
+pub(crate) fn selected_domain_family(
+    syntax: &SyntaxTrees,
+    selection: Option<&declaration_selection::ConstantSelection>,
+    name: &Identifier,
+    carrier: Option<&str>,
+) -> Option<ItemHandle> {
+    let fallback;
+    let selection = match selection {
+        Some(selection) => selection,
+        None => {
+            fallback =
+                declaration_selection::ConstantSelection::new(syntax, None, Vec::new()).ok()?;
+            &fallback
+        }
+    };
+    let definition = selection
+        .domain_family(syntax, name.as_str(), name.source_span(), carrier)?
+        .1;
+    syntax.root_item_handles().iter().copied().find(|handle| {
+        syntax
+            .root_item(*handle)
+            .as_domain()
+            .is_some_and(|candidate| std::ptr::eq(candidate, definition))
+    })
+}
+
 /// Identity for an indexed declared-domain application: the declaration the
 /// authored name selects on this carrier plus each index argument's own
 /// closed identity under the family's declared index telescope. Selection
-/// follows the structural matcher's name law — exact qualified name or leaf
-/// with the declared target matching the carrier — rather than
-/// `selection.domain`, which declines generic families by design. Competing
-/// or carrier-mismatched owners decline rather than equate spellings; a
-/// generic-carrier family (`domain<T> T::Foreign`) has no closed index
-/// identity either.
+/// follows the shared declaration authority used by structural matching.
+/// Fixed families require their declared carrier; generic families retain the
+/// actual carrier in the enclosing constrained identity independently of the
+/// family's index tuple. Competing owners decline rather than equate spellings.
 fn indexed_domain_identity(
     syntax: &SyntaxTrees,
     selection: Option<&declaration_selection::ConstantSelection>,
-    authored: &str,
+    authored: &Identifier,
     carrier: &ClosedArgumentIdentity,
     arguments: HandleSpan<TypeReferenceHandle>,
 ) -> Option<ClosedConstraintIdentity> {
-    let authored_leaf = authored.rsplit("::").next().unwrap_or(authored);
-    let mut candidates = syntax.root_item_handles().iter().copied().filter(|handle| {
-        let Some(definition) = syntax.root_item(*handle).as_domain() else {
-            return false;
-        };
-        let declared = definition.name.as_str();
-        let declared_leaf = declared.rsplit("::").next().unwrap_or(declared);
-        if declared != authored && declared_leaf != authored_leaf {
-            return false;
-        }
-        closed_argument_identity(syntax, selection, definition.target_type, false).as_ref()
-            == Some(carrier)
-    });
-    let declaration = candidates.next()?;
-    if candidates.next().is_some() {
-        return None;
-    }
+    let declaration = selected_domain_family(syntax, selection, authored, None)?;
     let definition = syntax.root_item(declaration).as_domain()?;
     let (index_parameters, generic_carrier) = domain_index_telescope(syntax, definition);
-    if generic_carrier {
+    if !generic_carrier
+        && closed_argument_identity(syntax, selection, definition.target_type, false).as_ref()
+            != Some(carrier)
+    {
         return None;
     }
     let arguments = syntax.type_references.type_reference_handles(arguments);
@@ -682,19 +696,49 @@ pub(crate) struct DomainHead {
     /// type binder that names a generic carrier (`domain<T> T::Foreign`).
     pub(crate) index_parameters: Vec<TypeParameter>,
     /// The declared carrier, retained as the canonical constrained base.
-    pub(crate) target_type: TypeReferenceHandle,
+    pub(crate) carrier: DomainCarrier,
+}
+
+/// A qualified head retains its authored carrier until it can join an ordinary
+/// type tree. Fixed families retain their declared tree; generic families bind
+/// the spelled carrier independently from their index telescope.
+#[derive(Clone)]
+pub(crate) enum DomainCarrier {
+    Type(TypeReferenceHandle),
+    Named(Identifier),
+}
+
+impl DomainCarrier {
+    pub(crate) fn materialize(self, syntax: &mut SyntaxTrees) -> TypeReferenceHandle {
+        match self {
+            Self::Type(reference) => reference,
+            Self::Named(name) => syntax
+                .type_references
+                .insert(TypeReferenceNode::Named(name)),
+        }
+    }
+
+    pub(crate) fn identity(
+        &self,
+        syntax: &SyntaxTrees,
+        selection: Option<&declaration_selection::ConstantSelection>,
+    ) -> Option<ClosedArgumentIdentity> {
+        match self {
+            Self::Type(reference) => closed_argument_identity(syntax, selection, *reference, false),
+            Self::Named(name) => super::closed_name_identity(syntax, selection, name),
+        }
+    }
 }
 
 /// Select the domain a `Carrier::Name` or bare `Name` head applies: the
-/// declared name or its leaf owns the spelled leaf, and a `::` prefix must
-/// spell the declared target's own name. Competing or carrier-mismatched
-/// owners decline rather than equate spellings, and a generic-carrier family
-/// (`domain<T> T::Foreign`) has no closed application — its binder needs its
-/// own binding law first. This is the single head law shared with the
-/// structural matcher's `application()`; identity sees exactly the
-/// declaration matching chose.
+/// shared declaration authority owns the spelled leaf. Fixed families check
+/// the prefix against their declared target; generic families retain the
+/// explicit prefix as a type tree for ordinary structural binding. Competing
+/// or carrier-mismatched owners decline rather than equate spellings. Identity
+/// sees exactly the declaration chosen by the structural matcher.
 pub(crate) fn domain_application_head(
     syntax: &SyntaxTrees,
+    selection: Option<&declaration_selection::ConstantSelection>,
     name: &Identifier,
 ) -> Option<DomainHead> {
     let spelled = name.as_str();
@@ -702,39 +746,28 @@ pub(crate) fn domain_application_head(
         Some((carrier, leaf)) => (Some(carrier), leaf),
         None => (None, spelled),
     };
-    let mut candidates = syntax.root_item_handles().iter().copied().filter(|handle| {
-        let Some(definition) = syntax.root_item(*handle).as_domain() else {
-            return false;
-        };
-        let declared = definition.name.as_str();
-        let declared_leaf = declared.rsplit("::").next().unwrap_or(declared);
-        if declared != spelled && declared_leaf != leaf {
-            return false;
-        }
-        match carrier {
-            None => true,
-            Some(carrier) => matches!(
-                syntax
-                    .type_references
-                    .type_reference(definition.target_type),
-                TypeReferenceNode::Named(target) if target.as_str() == carrier
-            ),
-        }
-    });
-    let declaration = candidates.next()?;
-    if candidates.next().is_some() {
-        return None;
-    }
+    let family = Identifier::new(leaf, name.source_span());
+    let declaration = selected_domain_family(syntax, selection, &family, carrier)?;
     let definition = syntax.root_item(declaration).as_domain()?;
     let (index_parameters, generic_carrier) = domain_index_telescope(syntax, definition);
-    if generic_carrier {
-        return None;
-    }
+    let carrier = if generic_carrier {
+        DomainCarrier::Named(Identifier::new(carrier?, name.source_span()))
+    } else {
+        if let Some(carrier) = carrier {
+            let authored = Identifier::new(carrier, name.source_span());
+            if super::closed_name_identity(syntax, selection, &authored)?
+                != closed_argument_identity(syntax, selection, definition.target_type, false)?
+            {
+                return None;
+            }
+        }
+        DomainCarrier::Type(definition.target_type)
+    };
     Some(DomainHead {
         declaration,
         declared_name: definition.name.clone(),
         index_parameters,
-        target_type: definition.target_type,
+        carrier,
     })
 }
 
@@ -779,7 +812,7 @@ fn normalize_domain_head_node(
             // family's own arity diagnostic reports it.
             if lifetime_arguments.is_empty()
                 && selected_data_item(syntax, selection, &base_name).is_none()
-                && let Some(head) = domain_application_head(syntax, &base_name)
+                && let Some(head) = domain_application_head(syntax, selection, &base_name)
             {
                 let constraints =
                     syntax
@@ -791,10 +824,11 @@ fn normalize_domain_head_node(
                             ),
                             arguments,
                         })]);
+                let base_type = head.carrier.materialize(syntax);
                 syntax.type_references.replace_type_reference(
                     handle,
                     TypeReferenceNode::Constrained {
-                        base_type: head.target_type,
+                        base_type,
                         constraints,
                     },
                 );

@@ -59,14 +59,29 @@ pub fn scalar_type_tags(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
-    constrained_scalar_domains(program, reference, |program, domain, primitive| {
-        domain.subject == DomainConstraintSubject::Declared
-            && program.domain_definitions().iter().any(|declaration| {
-                declaration.symbol == domain.symbol
-                    && exact_instance(program, declaration, &domain.arguments, domain.semantic_id)
-                    && vacuous_scalar_tag(program, declaration, primitive, &mut Vec::new())
-            })
-    })
+    constrained_scalar_domains(program, reference, scalar_tag_constraint)
+}
+
+/// Classify the exact application once for signature and stored-field readers.
+/// This is a vacuous storage predicate, not evidence that two indexed tags are
+/// compatible or that an establishment route has been executed.
+pub(super) fn scalar_tag_constraint(
+    program: &dyn crate::CheckingInput,
+    constraint: &typed_trees::types::DomainConstraint,
+    primitive: PrimitiveType,
+) -> bool {
+    constraint.subject == DomainConstraintSubject::Declared
+        && constraint.establishment_routes.is_empty()
+        && program.domain_definitions().iter().any(|declaration| {
+            declaration.symbol == constraint.symbol
+                && exact_instance(
+                    program,
+                    declaration,
+                    &constraint.arguments,
+                    constraint.semantic_id,
+                )
+                && vacuous_scalar_tag(program, declaration, primitive, &mut Vec::new())
+        })
 }
 
 pub fn scalar_state_contracts_are_qualifications(
