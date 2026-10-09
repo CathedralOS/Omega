@@ -868,53 +868,43 @@ fn charge_canonical_source_content(total: &mut u64, amount: u64) -> Result<(), S
 fn canonical_build_source_content_commitment(
     rows: &BTreeMap<Vec<u8>, CapturedSourceMetadataRow>,
 ) -> Result<[u8; 32], String> {
-    let mut digest = Sha256::new();
-    digest.update(CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN);
-    digest.update(CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION.to_le_bytes());
-    digest.update(
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN);
+    digest.u32(CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION);
+    digest.u64(
         u64::try_from(rows.len())
-            .map_err(|_| "canonical Source row count exceeds u64".to_owned())?
-            .to_le_bytes(),
+            .map_err(|_| "canonical Source row count exceeds u64".to_owned())?,
     );
     for (path, row) in rows {
-        hash_framed_bytes(&mut digest, path)?;
+        digest.bytes(path);
         match row.kind {
-            CanonicalFilesystemMetadataRowKind::Directory => digest.update([0]),
+            CanonicalFilesystemMetadataRowKind::Directory => digest.byte(0),
             CanonicalFilesystemMetadataRowKind::File {
                 executable,
                 logical_byte_length,
             } => {
-                digest.update([1, u8::from(executable)]);
-                digest.update(logical_byte_length.to_le_bytes());
-                digest.update(
-                    row.content_digest
+                digest.byte(1);
+                digest.byte(u8::from(executable));
+                digest.u64(logical_byte_length);
+                digest.raw(
+                    &row.content_digest
                         .ok_or_else(|| "canonical Source file omits content digest".to_owned())?,
                 );
             }
             CanonicalFilesystemMetadataRowKind::Symlink {
                 target_spelling_logical_byte_length,
             } => {
-                digest.update([2]);
-                digest.update(target_spelling_logical_byte_length.to_le_bytes());
-                digest.update(
-                    row.content_digest.ok_or_else(|| {
+                digest.byte(2);
+                digest.u64(target_spelling_logical_byte_length);
+                digest.raw(
+                    &row.content_digest.ok_or_else(|| {
                         "canonical Source symlink omits content digest".to_owned()
                     })?,
                 );
             }
         }
     }
-    Ok(digest.finalize().into())
-}
-
-fn hash_framed_bytes(digest: &mut Sha256, bytes: &[u8]) -> Result<(), String> {
-    digest.update(
-        u64::try_from(bytes.len())
-            .map_err(|_| "canonical Source path length exceeds u64".to_owned())?
-            .to_le_bytes(),
-    );
-    digest.update(bytes);
-    Ok(())
+    Ok(digest.finish())
 }
 
 #[cfg(unix)]

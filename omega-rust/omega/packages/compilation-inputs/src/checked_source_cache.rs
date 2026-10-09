@@ -568,23 +568,22 @@ fn stat_fingerprint(
     canonical_root: &Path,
     rows: &BTreeMap<Vec<u8>, StatRow>,
 ) -> Result<[u8; 32], String> {
-    let mut digest = Sha256::new();
-    digest.update(RECORD_KEY_DOMAIN);
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(RECORD_KEY_DOMAIN);
     let root_bytes = os_str_bytes(canonical_root.as_os_str())?;
-    push_framed(&mut digest, &root_bytes);
-    digest.update(
+    digest.bytes(&root_bytes);
+    digest.u64(
         u64::try_from(rows.len())
-            .map_err(|_| "canonical Source row count exceeds u64".to_owned())?
-            .to_le_bytes(),
+            .map_err(|_| "canonical Source row count exceeds u64".to_owned())?,
     );
     for (path, row) in rows {
-        push_framed(&mut digest, path);
+        digest.bytes(path);
         match row.kind {
-            StatRowKind::Directory => digest.update([0u8]),
+            StatRowKind::Directory => digest.byte(0),
             StatRowKind::File { executable } => {
-                digest.update([1u8, u8::from(executable)]);
+                digest.byte(1);
+                digest.byte(u8::from(executable));
             }
-            StatRowKind::Symlink => digest.update([2u8]),
+            StatRowKind::Symlink => digest.byte(2),
         }
         for value in [
             row.device,
@@ -592,7 +591,7 @@ fn stat_fingerprint(
             u64::from(row.mode),
             row.logical_byte_length,
         ] {
-            digest.update(value.to_le_bytes());
+            digest.u64(value);
         }
         for value in [
             row.modified_unix_seconds,
@@ -600,27 +599,21 @@ fn stat_fingerprint(
             row.changed_unix_seconds,
             row.changed_unix_nanos,
         ] {
-            digest.update(value.to_le_bytes());
+            digest.i64(value);
         }
         if let Some(target) = &row.symlink_target {
-            push_framed(&mut digest, target);
+            digest.bytes(target);
         }
     }
-    Ok(digest.finalize().into())
-}
-
-fn push_framed(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
+    Ok(digest.finish())
 }
 
 fn record_name(canonical_root: &Path, fingerprint: &[u8; 32]) -> Result<String, String> {
-    let mut digest = Sha256::new();
-    digest.update(RECORD_KEY_DOMAIN);
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(RECORD_KEY_DOMAIN);
     let root_bytes = os_str_bytes(canonical_root.as_os_str())?;
-    push_framed(&mut digest, &root_bytes);
-    digest.update(fingerprint);
-    Ok(format!("{}.{RECORD_EXTENSION}", hex(&digest.finalize())))
+    digest.bytes(&root_bytes);
+    digest.raw(fingerprint);
+    Ok(format!("{}.{RECORD_EXTENSION}", hex(&digest.finish())))
 }
 
 /// Canonical record encoding: magic, framed root, embedded fingerprint,

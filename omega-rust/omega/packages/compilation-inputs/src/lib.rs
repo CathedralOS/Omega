@@ -27,6 +27,7 @@ mod canonical_fs;
 mod checked_source_cache;
 mod codec_bytes;
 mod compilation_reuse;
+mod digest_encoder;
 pub mod source_assembly;
 pub mod source_imports;
 pub mod toolchain_library;

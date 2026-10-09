@@ -6,7 +6,6 @@ use crate::{
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
     BuildFilesystemProvider, BuildFilesystemRoot, BuildObservationSummary,
 };
-use sha2::{Digest, Sha256};
 
 // This domain is an established serialized contract. The trailing `\\0` is
 // intentionally the two literal bytes `\\` and `0`, not a NUL byte.
@@ -29,200 +28,174 @@ impl BuildObservationIdentity {
 impl BuildObservationSummary {
     /// Computes the canonical identity of this complete retained observation.
     pub fn identity(&self) -> BuildObservationIdentity {
-        let mut digest = Sha256::new();
-        digest.update(BUILD_OBSERVATION_IDENTITY_DOMAIN);
-        digest.update(self.schema_version().to_le_bytes());
-        digest.update([u8::from(self.filesystem_host_observed())]);
-        digest.update(self.filesystem_operation_schema_version().to_le_bytes());
+        let mut digest =
+            crate::digest_encoder::DomainDigestEncoder::new(BUILD_OBSERVATION_IDENTITY_DOMAIN);
+        digest.u32(self.schema_version());
+        digest.byte(u8::from(self.filesystem_host_observed()));
+        digest.u32(self.filesystem_operation_schema_version());
         match self.canonical_source_metadata_identity() {
-            None => digest.update([0]),
+            None => digest.byte(0),
             Some(identity) => {
-                digest.update([1]);
-                digest.update(identity.policy_version().to_le_bytes());
-                digest.update(identity.source_content_commitment());
+                digest.byte(1);
+                digest.u32(identity.policy_version());
+                digest.raw(&identity.source_content_commitment());
             }
         }
         let activation = self.activation();
         match activation.root_package_identity() {
-            None => digest.update([0]),
+            None => digest.byte(0),
             Some(identity) => {
-                digest.update([1]);
-                digest.update(identity.digest());
+                digest.byte(1);
+                digest.raw(&identity.digest());
             }
         }
-        digest.update([declaration_role_tag(activation.root_role())]);
+        digest.byte(declaration_role_tag(activation.root_role()));
         match activation.build_execution_profile() {
-            None => digest.update([0]),
+            None => digest.byte(0),
             Some(profile) => {
-                digest.update([1]);
-                hash_bytes(&mut digest, profile.target_name().as_bytes());
+                digest.byte(1);
+                digest.bytes(profile.target_name().as_bytes());
             }
         }
         match self.captured_source_inventory() {
-            None => digest.update([0]),
+            None => digest.byte(0),
             Some(inventory) => {
-                digest.update([1]);
-                digest.update(inventory.entry_count().to_le_bytes());
-                digest.update(inventory.file_bytes().to_le_bytes());
-                digest.update(
-                    inventory
-                        .source_metadata_identity()
-                        .policy_version()
-                        .to_le_bytes(),
-                );
-                digest.update(
-                    inventory
+                digest.byte(1);
+                digest.u64(inventory.entry_count());
+                digest.u64(inventory.file_bytes());
+                digest.u32(inventory.source_metadata_identity().policy_version());
+                digest.raw(
+                    &inventory
                         .source_metadata_identity()
                         .source_content_commitment(),
                 );
             }
         }
-        digest.update((self.named_input_inventories().len() as u64).to_le_bytes());
+        digest.u64(self.named_input_inventories().len() as u64);
         for input in self.named_input_inventories() {
-            hash_bytes(&mut digest, input.name());
-            digest.update(input.root_identity().to_le_bytes());
+            digest.bytes(input.name());
+            digest.u32(input.root_identity());
             let inventory = input.inventory();
-            digest.update(inventory.entry_count().to_le_bytes());
-            digest.update(inventory.file_bytes().to_le_bytes());
-            digest.update(
-                inventory
-                    .source_metadata_identity()
-                    .policy_version()
-                    .to_le_bytes(),
-            );
-            digest.update(
-                inventory
+            digest.u64(inventory.entry_count());
+            digest.u64(inventory.file_bytes());
+            digest.u32(inventory.source_metadata_identity().policy_version());
+            digest.raw(
+                &inventory
                     .source_metadata_identity()
                     .source_content_commitment(),
             );
         }
-        digest.update(
+        digest.u64(
             u64::try_from(self.included_source_handoffs().len())
-                .expect("included-source handoff count fits u64")
-                .to_le_bytes(),
+                .expect("included-source handoff count fits u64"),
         );
         for handoff in self.included_source_handoffs() {
-            hash_bytes(&mut digest, handoff.relative_path());
-            digest.update(handoff.filesystem_attempt_ordinal().to_le_bytes());
+            digest.bytes(handoff.relative_path());
+            digest.u64(handoff.filesystem_attempt_ordinal());
         }
-        digest.update(
+        digest.u64(
             u64::try_from(self.required_output_settlements().len())
-                .expect("required-output settlement count fits u64")
-                .to_le_bytes(),
+                .expect("required-output settlement count fits u64"),
         );
         for settlement in self.required_output_settlements() {
-            hash_bytes(&mut digest, settlement.relative_path());
-            digest.update(settlement.sealed_attempt_ordinal().to_le_bytes());
+            digest.bytes(settlement.relative_path());
+            digest.u64(settlement.sealed_attempt_ordinal());
         }
         match self.staged_output_tree() {
-            None => digest.update([0]),
+            None => digest.byte(0),
             Some(tree) => {
-                digest.update([1]);
-                digest.update(tree.digest());
-                digest.update(tree.entry_count().to_le_bytes());
-                digest.update(tree.file_bytes().to_le_bytes());
+                digest.byte(1);
+                digest.raw(&tree.digest());
+                digest.u64(tree.entry_count());
+                digest.u64(tree.file_bytes());
             }
         }
-        hash_bytes(&mut digest, self.build_log());
-        digest.update(
+        digest.bytes(self.build_log());
+        digest.u64(
             u64::try_from(self.filesystem_operation_attempts().len())
-                .expect("build observation attempt count fits u64")
-                .to_le_bytes(),
+                .expect("build observation attempt count fits u64"),
         );
         for attempt in self.filesystem_operation_attempts() {
-            digest.update(attempt.operation_tag().to_le_bytes());
-            digest.update([filesystem_provider_tag(attempt.provider())]);
+            digest.u16(attempt.operation_tag());
+            digest.byte(filesystem_provider_tag(attempt.provider()));
             match attempt.result() {
                 BuildFilesystemOperationResult::Scalar(value) => {
-                    digest.update([0]);
-                    digest.update(value.to_le_bytes());
+                    digest.byte(0);
+                    digest.i64(value);
                 }
                 BuildFilesystemOperationResult::LogicalHandle(identity) => {
-                    digest.update([1]);
-                    digest.update(identity.get().to_le_bytes());
+                    digest.byte(1);
+                    digest.u64(identity.get());
                 }
             }
-            digest.update(attempt.post_error().to_le_bytes());
-            digest.update(
+            digest.raw(&attempt.post_error().to_le_bytes());
+            digest.u64(
                 u64::try_from(attempt.authorized_paths().len())
-                    .expect("build observation authorized-path count fits u64")
-                    .to_le_bytes(),
+                    .expect("build observation authorized-path count fits u64"),
             );
             for path in attempt.authorized_paths() {
-                digest.update([path.operand_ordinal()]);
-                digest.update([grant_access_tag(path.access())]);
-                digest.update([filesystem_root_tag(path.root())]);
+                digest.byte(path.operand_ordinal());
+                digest.byte(grant_access_tag(path.access()));
+                digest.byte(filesystem_root_tag(path.root()));
                 if let BuildFilesystemRoot::NamedInput(identity) = path.root() {
-                    digest.update(identity.to_le_bytes());
+                    digest.u32(identity);
                 }
-                hash_bytes(&mut digest, path.relative_path());
+                digest.bytes(path.relative_path());
             }
-            digest.update(
+            digest.u64(
                 u64::try_from(attempt.logical_handle_inputs().len())
-                    .expect("build observation logical-handle input count fits u64")
-                    .to_le_bytes(),
+                    .expect("build observation logical-handle input count fits u64"),
             );
             for input in attempt.logical_handle_inputs() {
-                digest.update([input.operand_ordinal()]);
-                digest.update([logical_handle_kind_tag(input.kind())]);
+                digest.byte(input.operand_ordinal());
+                digest.byte(logical_handle_kind_tag(input.kind()));
                 match input.resolution() {
                     BuildFilesystemLogicalHandleInputResolution::Resolved(identity) => {
-                        digest.update([0]);
-                        digest.update(identity.get().to_le_bytes());
+                        digest.byte(0);
+                        digest.u64(identity.get());
                     }
-                    BuildFilesystemLogicalHandleInputResolution::Null => digest.update([1]),
-                    BuildFilesystemLogicalHandleInputResolution::Unknown => digest.update([2]),
+                    BuildFilesystemLogicalHandleInputResolution::Null => digest.byte(1),
+                    BuildFilesystemLogicalHandleInputResolution::Unknown => digest.byte(2),
                 }
             }
             match attempt.logical_handle_output() {
-                None => digest.update([0]),
+                None => digest.byte(0),
                 Some(output) => {
-                    digest.update([1]);
-                    digest.update([logical_handle_kind_tag(output.kind())]);
-                    digest.update(output.identity().get().to_le_bytes());
+                    digest.byte(1);
+                    digest.byte(logical_handle_kind_tag(output.kind()));
+                    digest.u64(output.identity().get());
                     match output.source() {
-                        BuildFilesystemLogicalHandleOutputSource::Created => digest.update([0]),
+                        BuildFilesystemLogicalHandleOutputSource::Created => digest.byte(0),
                         BuildFilesystemLogicalHandleOutputSource::Duplicated(identity) => {
-                            digest.update([1]);
-                            digest.update(identity.get().to_le_bytes());
+                            digest.byte(1);
+                            digest.u64(identity.get());
                         }
                         BuildFilesystemLogicalHandleOutputSource::Borrowed(identity) => {
-                            digest.update([2]);
-                            digest.update(identity.get().to_le_bytes());
+                            digest.byte(2);
+                            digest.u64(identity.get());
                         }
                     }
                 }
             }
-            digest.update(
+            digest.u64(
                 u64::try_from(attempt.retired_logical_handles().len())
-                    .expect("build observation retired logical-handle count fits u64")
-                    .to_le_bytes(),
+                    .expect("build observation retired logical-handle count fits u64"),
             );
             for identity in attempt.retired_logical_handles() {
-                digest.update(identity.get().to_le_bytes());
+                digest.u64(identity.get());
             }
-            digest.update(
+            digest.u64(
                 u64::try_from(attempt.grant_refusals().len())
-                    .expect("build observation refusal count fits u64")
-                    .to_le_bytes(),
+                    .expect("build observation refusal count fits u64"),
             );
             for refusal in attempt.grant_refusals() {
-                digest.update([refusal.operand_ordinal()]);
-                digest.update([grant_access_tag(refusal.access())]);
-                digest.update([grant_refusal_reason_tag(refusal.reason())]);
+                digest.byte(refusal.operand_ordinal());
+                digest.byte(grant_access_tag(refusal.access()));
+                digest.byte(grant_refusal_reason_tag(refusal.reason()));
             }
         }
-        BuildObservationIdentity(digest.finalize().into())
+        BuildObservationIdentity(digest.finish())
     }
-}
-
-fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update(
-        u64::try_from(bytes.len())
-            .expect("build observation byte length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(bytes);
 }
 
 const fn filesystem_provider_tag(provider: BuildFilesystemProvider) -> u8 {

@@ -5,7 +5,6 @@
 //! before first use; OMEGA_LIBRARY_ROOT supplies the same explicit process-level
 //! choice for command-line use. Neither bypasses a release's content check.
 
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -155,14 +154,14 @@ fn library_digest(root: &Path) -> Result<String, String> {
     let mut files = Vec::new();
     collect(root, root, &mut files)?;
     files.sort();
-    let mut digest = Sha256::new();
-    digest.update(b"omega-toolchain-library-v1\0");
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-toolchain-library-v1\0");
     for relative in files {
         let contents = std::fs::read(root.join(&relative)).map_err(|error| error.to_string())?;
-        digest.update((relative.len() as u64).to_le_bytes());
-        digest.update(relative.as_bytes());
-        digest.update((contents.len() as u64).to_le_bytes());
-        digest.update(contents);
+        digest.u64(relative.len() as u64);
+        digest.raw(relative.as_bytes());
+        digest.u64(contents.len() as u64);
+        digest.raw(&contents);
     }
-    Ok(format!("{:x}", digest.finalize()))
+    Ok(digest.finish().iter().map(|b| format!("{b:02x}")).collect())
 }

@@ -1,5 +1,4 @@
 use diagnostics::Diagnostic;
-use sha2::{Digest, Sha256};
 use source::{SourceFile, SourceOrigin};
 use std::path::{Component, Path};
 
@@ -193,46 +192,33 @@ pub fn derive_source_consumption_commitment(
         )]);
     }
 
-    let mut digest = Sha256::new();
-    digest.update(SOURCE_CONSUMPTION_DOMAIN);
-    hash_field(&mut digest, &inputs.root().digest());
-    digest.update([canonical_root_role(inputs.root_role())]);
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SOURCE_CONSUMPTION_DOMAIN);
+    digest.raw(&inputs.root().digest());
+    digest.byte(canonical_root_role(inputs.root_role()));
     let packages = inputs
         .packages()
         .map(|(identity, _)| identity)
         .collect::<Vec<_>>();
-    digest.update(
-        u64::try_from(packages.len())
-            .expect("compiler package count fits u64")
-            .to_le_bytes(),
-    );
+    digest.u64(u64::try_from(packages.len()).expect("compiler package count fits u64"));
     for package in packages {
-        hash_field(&mut digest, &package.digest());
+        digest.raw(&package.digest());
     }
     let dependencies = inputs.dependencies().collect::<Vec<_>>();
-    digest.update(
-        u64::try_from(dependencies.len())
-            .expect("compiler dependency count fits u64")
-            .to_le_bytes(),
-    );
+    digest.u64(u64::try_from(dependencies.len()).expect("compiler dependency count fits u64"));
     for (requester, alias, target) in dependencies {
-        hash_field(&mut digest, &requester.digest());
-        hash_field(&mut digest, alias.as_bytes());
-        hash_field(&mut digest, &target.digest());
+        digest.raw(&requester.digest());
+        digest.bytes(alias.as_bytes());
+        digest.raw(&target.digest());
     }
-    digest.update(
-        u64::try_from(consumed_units.len())
-            .expect("loaded source count fits u64")
-            .to_le_bytes(),
-    );
+    digest.u64(u64::try_from(consumed_units.len()).expect("loaded source count fits u64"));
     let mut row_bytes = Vec::new();
     for unit in consumed_units {
         row_bytes.clear();
         append_canonical_consumed_unit(&mut row_bytes, unit);
-        hash_field(&mut digest, &row_bytes);
+        digest.bytes(&row_bytes);
     }
     Ok(PackageSourceConsumptionCommitment {
-        digest: digest.finalize().into(),
+        digest: digest.finish(),
     })
 }
 
@@ -484,17 +470,16 @@ fn consumed_source_unit(
             source.path.display()
         ))]
     })?;
-    let mut digest = Sha256::new();
-    digest.update(SOURCE_CONTENT_DOMAIN);
-    digest.update(byte_count.to_le_bytes());
-    digest.update(source.source.as_bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SOURCE_CONTENT_DOMAIN);
+    digest.u64(byte_count);
+    digest.raw(source.source.as_bytes());
     Ok(ConsumedSourceUnit {
         kind,
         package,
         toolchain_namespace,
         relative_path,
         byte_count,
-        content_digest: digest.finalize().into(),
+        content_digest: digest.finish(),
     })
 }
 
@@ -600,15 +585,13 @@ pub fn toolchain_source_identity_digest(source: &SourceFile) -> Result<[u8; 32],
         ))]);
     }
     let custody_entry = canonical_source_entry(source)?;
-    let mut digest = Sha256::new();
-    digest.update(b"OMEGA-PACKAGE-REVIEW-TOOLCHAIN-SOURCE\0");
-    digest.update(
-        u64::try_from(custody_entry.len())
-            .expect("canonical source custody entry length fits u64")
-            .to_le_bytes(),
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"OMEGA-PACKAGE-REVIEW-TOOLCHAIN-SOURCE\0");
+    digest.u64(
+        u64::try_from(custody_entry.len()).expect("canonical source custody entry length fits u64"),
     );
-    digest.update(custody_entry);
-    Ok(digest.finalize().into())
+    digest.raw(&custody_entry);
+    Ok(digest.finish())
 }
 
 pub(super) fn canonical_source_entry(source: &SourceFile) -> Result<Vec<u8>, Vec<Diagnostic>> {
@@ -624,15 +607,6 @@ fn append_field(output: &mut Vec<u8>, bytes: &[u8]) {
             .to_le_bytes(),
     );
     output.extend_from_slice(bytes);
-}
-
-fn hash_field(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update(
-        u64::try_from(bytes.len())
-            .expect("source commitment entry length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(bytes);
 }
 
 fn is_virtual_toolchain_path(path: &Path) -> bool {
