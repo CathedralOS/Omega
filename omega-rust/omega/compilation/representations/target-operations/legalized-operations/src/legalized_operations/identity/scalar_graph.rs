@@ -557,13 +557,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 } => {
                     bytes.push(9);
                     super::structural_result::encode_operation_result(bytes, result);
-                    for identity in [
-                        source.get(),
-                        start.get(),
-                        end.get(),
-                        length.get(),
-                        obligation.get(),
-                    ] {
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    encode_runtime_indices(bytes, indices);
+                    for identity in [start.get(), end.get(), length.get(), obligation.get()] {
                         crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                     }
                     bytes.extend_from_slice(&accepted_fact.bytes());
@@ -608,7 +604,8 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     length_byte_offset,
                 } => {
                     bytes.push(7);
-                    crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    encode_runtime_indices(bytes, indices);
                     crate::codec_bytes::push_encoded(bytes, length_byte_offset.to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::ByteSequencePredicate { operand, predicate } => {
@@ -691,13 +688,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 } => {
                     bytes.push(41);
                     super::structural_result::encode_operation_result(bytes, result);
-                    for identity in [
-                        source.get(),
-                        start.get(),
-                        end.get(),
-                        length.get(),
-                        obligation.get(),
-                    ] {
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    encode_runtime_indices(bytes, indices);
+                    for identity in [start.get(), end.get(), length.get(), obligation.get()] {
                         crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                     }
                     bytes.extend_from_slice(&accepted_fact.bytes());
