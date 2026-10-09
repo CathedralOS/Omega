@@ -132,7 +132,7 @@ impl OptimizationDecisionRecord {
         if cursor.take(8)? != DECISION_WIRE_FORMAT.magic {
             return Err(OptimizationManifestDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != DECISION_WIRE_FORMAT.version {
             return Err(OptimizationManifestDecodeError::UnsupportedVersion(version));
         }
@@ -144,7 +144,7 @@ impl OptimizationDecisionRecord {
             .map_err(OptimizationManifestDecodeError::CoreContract)?;
         let consumed_analyses = AnalysisSet::decode(cursor.take(8)?)
             .map_err(OptimizationManifestDecodeError::CoreContract)?;
-        let fact_count = u32::from_le_bytes(cursor.array()?) as usize;
+        let fact_count = cursor.u32()? as usize;
         if fact_count > cursor.remaining().saturating_sub(1) / 33 {
             return Err(OptimizationManifestDecodeError::Truncated);
         }

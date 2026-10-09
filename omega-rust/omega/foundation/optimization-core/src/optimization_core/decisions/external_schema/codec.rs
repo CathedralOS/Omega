@@ -46,7 +46,7 @@ impl ExternalDecisionPoint {
         if cursor.take(8)? != POINT_MAGIC {
             return Err(ExternalDecisionSchemaError::WrongPointMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != VERSION {
             return Err(ExternalDecisionSchemaError::UnsupportedPointVersion(
                 version,
@@ -55,7 +55,7 @@ impl ExternalDecisionPoint {
         let claimed = OptimizationDecisionIdentity::from_bytes(cursor.array()?);
         let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let rule = OptimizationRuleIdentity::from_bytes(cursor.array()?);
-        let count = u32::from_le_bytes(cursor.array()?) as usize;
+        let count = cursor.u32()? as usize;
         if count > cursor.remaining().saturating_sub(2) / MINIMUM_CANDIDATE_WIDTH {
             return Err(ExternalDecisionSchemaError::Truncated);
         }
@@ -110,19 +110,19 @@ impl ExternalDecisionLog {
         if cursor.take(8)? != LOG_MAGIC {
             return Err(ExternalDecisionSchemaError::WrongLogMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != VERSION {
             return Err(ExternalDecisionSchemaError::UnsupportedLogVersion(version));
         }
         let claimed = OptimizationDecisionLogIdentity::from_bytes(cursor.array()?);
         let context = decode_context(&mut cursor)?;
-        let count = u32::from_le_bytes(cursor.array()?) as usize;
+        let count = cursor.u32()? as usize;
         if count > cursor.remaining() / 4 {
             return Err(ExternalDecisionSchemaError::Truncated);
         }
         let mut points = Vec::with_capacity(count);
         for _ in 0..count {
-            let length = u32::from_le_bytes(cursor.array()?) as usize;
+            let length = cursor.u32()? as usize;
             points.push(ExternalDecisionPoint::decode(cursor.take(length)?)?);
         }
         if cursor.remaining() != 0 {
@@ -155,11 +155,11 @@ fn decode_candidate_features(
 ) -> Result<ExternalCandidateFeatures, ExternalDecisionSchemaError> {
     let summary = ValidatedCandidateSummary {
         candidate: OptimizationCandidateIdentity::from_bytes(cursor.array()?),
-        predicted_cost_delta: i64::from_le_bytes(cursor.array()?),
+        predicted_cost_delta: cursor.i64()?,
     };
     let consumed_analyses = AnalysisSet::decode(cursor.take(8)?)
         .map_err(ExternalDecisionSchemaError::InvalidAnalysisSet)?;
-    let fact_count = u32::from_le_bytes(cursor.array()?) as usize;
+    let fact_count = cursor.u32()? as usize;
     if fact_count > cursor.remaining() / OptimizationFactReference::ENCODED_LENGTH {
         return Err(ExternalDecisionSchemaError::Truncated);
     }

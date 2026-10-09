@@ -100,7 +100,7 @@ impl OptimizationIdentityBundle {
         if cursor.take(8)? != BUNDLE_MAGIC {
             return Err(IdentityBundleDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != BUNDLE_VERSION {
             return Err(IdentityBundleDecodeError::UnsupportedVersion(version));
         }

@@ -102,7 +102,10 @@ impl BaselineDecisionLog {
             );
             for candidate in &record.considered {
                 encoded.extend_from_slice(&candidate.candidate.bytes());
-                crate::codec_bytes::push_encoded(&mut encoded, candidate.predicted_cost_delta.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut encoded,
+                    candidate.predicted_cost_delta.to_le_bytes(),
+                );
             }
             match record.outcome {
                 BaselineDecisionOutcome::Choose(candidate) => {
@@ -123,21 +126,21 @@ impl BaselineDecisionLog {
         if cursor.take(8)? != b"OMGBDL\0\0" {
             return Err(BaselineDecisionLogDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != 1 {
             return Err(BaselineDecisionLogDecodeError::UnsupportedVersion(version));
         }
-        let count = u32::from_le_bytes(cursor.array()?);
+        let count = cursor.u32()?;
         let mut records = Vec::new();
         for _ in 0..count {
             let encoded_identity = OptimizationDecisionIdentity::from_bytes(cursor.array()?);
             let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
-            let candidate_count = u32::from_le_bytes(cursor.array()?);
+            let candidate_count = cursor.u32()?;
             let mut considered = Vec::with_capacity(candidate_count as usize);
             for _ in 0..candidate_count {
                 considered.push(ValidatedCandidateSummary {
                     candidate: OptimizationCandidateIdentity::from_bytes(cursor.array()?),
-                    predicted_cost_delta: i64::from_le_bytes(cursor.array()?),
+                    predicted_cost_delta: cursor.i64()?,
                 });
             }
             let outcome = match cursor.byte()? {
@@ -273,7 +276,10 @@ fn encode_decision(
     );
     for candidate in considered {
         canonical.extend_from_slice(&candidate.candidate.bytes());
-        crate::codec_bytes::push_encoded(&mut canonical, candidate.predicted_cost_delta.to_le_bytes());
+        crate::codec_bytes::push_encoded(
+            &mut canonical,
+            candidate.predicted_cost_delta.to_le_bytes(),
+        );
     }
     match outcome {
         BaselineDecisionOutcome::Choose(candidate) => {
