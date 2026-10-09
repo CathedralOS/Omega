@@ -51,6 +51,7 @@ fn custody_transferred(
 }
 
 fn captured_reference_result<'operation>(
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -62,6 +63,27 @@ fn captured_reference_result<'operation>(
 )> {
     match operation {
         CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
+            super::reference_retirement::local_reference_loans(
+                facts, machine, state, result, results,
+            )
+            .map(|loans| (result, loans))
+        }
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. }
+            if facts.values.structural_values.nodes.is_valid(*value)
+                && validation::reference_shell(
+                    program,
+                    facts
+                        .values
+                        .structural_values
+                        .nodes
+                        .get(*value)
+                        .type_reference,
+                )
+                .is_some() =>
+        {
+            // A transported bare descriptor has its own captured occurrence,
+            // just like an explicitly formed one. Releasing it cannot consume
+            // the supplying holder or wait for a copy as though it reborrowed.
             super::reference_retirement::local_reference_loans(
                 facts, machine, state, result, results,
             )
@@ -90,10 +112,19 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
     let authored_state = program.state_by_symbol(state)?;
+    let transported_loans = super::reference_retirement::transported_loans(
+        program,
+        facts,
+        machine,
+        authored_state,
+        results,
+        operations,
+    )?;
     let mut pending = Vec::new();
     let mut retired = Vec::new();
     for operation in operations.iter().rev() {
-        let reference_result = captured_reference_result(facts, machine, state, results, operation);
+        let reference_result =
+            captured_reference_result(program, facts, machine, state, results, operation);
         if let Some((result, loans)) = reference_result {
             if custody_transferred(program, facts, results, result.binding_ordinal, operations)? {
                 // The receiving constructor or call owns the descriptor now.
@@ -118,6 +149,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 results,
                 operations,
                 pending: &pending,
+                transported_loans: &transported_loans,
             };
             if boundary <= statement_index && facts.borrow.loan_group(loans)?.all(|(loan, _)| retirement.children_retired(loan)) && !operations.iter().any(|operation| {
                 matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. } if *released == loans)
@@ -197,6 +229,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             results,
             operations,
             pending: &pending,
+            transported_loans: &transported_loans,
         };
         let local_loans = validation::reference_result_custody::local_record_loans(
             program,
@@ -319,7 +352,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     let mut pending = Vec::new();
     for operation in operations.iter() {
         if let Some((result, loans)) =
-            captured_reference_result(facts, machine, state, results, operation)
+            captured_reference_result(program, facts, machine, state, results, operation)
         {
             // The exit boundary consumes the same current custody as an
             // ordinary statement. A prior constructor/call transfer already

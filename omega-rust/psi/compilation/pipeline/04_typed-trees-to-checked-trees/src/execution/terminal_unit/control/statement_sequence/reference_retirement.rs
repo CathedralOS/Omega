@@ -1,18 +1,347 @@
 //! Exact holder retirement and owned operands used by statement scheduling.
-//! The checked value graph supplies constructor transfers; loan lineage supplies
-//! child dependencies. Neither is inferred from the spelling of an initializer.
+//! The checked value graph supplies constructor transfers and copied-carrier
+//! correspondence; loan formation supplies immediate parent dependencies.
+//! Transport preserves those parents without creating a new reborrow, and
+//! retirement never infers custody from the spelling of an initializer.
 
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralResultBindingPlan, SymbolHandle,
 };
-use checked_trees::{BorrowLoanFact, CheckedStructuralValueKind, CheckedUnitStructuralPathSegment};
+use checked_trees::{
+    BorrowLoanFact, BorrowLoanOwnerSegment, CheckedStructuralValueHandle,
+    CheckedStructuralValueKind, CheckedUnitStructuralPathSegment,
+};
+use typed_trees::data::DataMember;
 
 type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 
 mod transfers;
 use transfers::transfers;
+
+/// Historical carrier transport, not a new loan descent. A copy and an owned
+/// move retain the supplying occurrence's immediate parents; neither makes
+/// the supplying descriptor itself a parent of the receiving descriptor.
+pub(super) type TransportedLoans =
+    Vec<(arena::Handle<BorrowLoanFact>, arena::Handle<BorrowLoanFact>)>;
+
+/// Rejoin each receiving loan leaf through its retained construction graph.
+/// The relation is prepared once for statement scheduling and remains valid
+/// after the supplying holder retires: retirement cannot erase provenance.
+pub(super) fn transported_loans(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    results: &Results,
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Option<TransportedLoans> {
+    let mut states = facts.borrow.states.iter().filter_map(|(_, borrowing)| {
+        (borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol)
+            .then_some(borrowing)
+    });
+    let Some(borrowing) = states.next() else {
+        return Some(Vec::new());
+    };
+    if states.next().is_some() {
+        return None;
+    }
+    let mut output = Vec::new();
+    for operation in operations {
+        let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
+            operation
+        else {
+            continue;
+        };
+        let mut registered = results.iter().filter(|(binding, _)| binding == result);
+        let Some((_, facts::PlaceRoot::Symbol(owner))) = registered.next() else {
+            continue;
+        };
+        if registered.next().is_some() {
+            return None;
+        }
+        let (_, local) = program.state_local_declaration(state, *owner)?;
+        for (receiver, loan) in facts.borrow.loans.iter().filter(|(handle, loan)| {
+            facts.borrow.state_owns_loan(borrowing, *handle)
+                && loan.owner_symbol == *owner
+                && loan.statement_index == result.statement_index as usize
+        }) {
+            let path = loan_carrier_path(
+                program,
+                local.type_reference,
+                facts.borrow.loan_owner_path(loan),
+            )?;
+            let mut sources = Vec::new();
+            transported_sources(program, facts, *value, &path, &mut Vec::new(), &mut sources)?;
+            for source in sources {
+                let (source_owner, source_formation) = match source.source {
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => {
+                        let mut holders = results
+                            .iter()
+                            .filter(|(binding, _)| binding.binding_ordinal == binding_ordinal);
+                        let (binding, facts::PlaceRoot::Symbol(owner)) = holders.next()? else {
+                            return None;
+                        };
+                        if holders.next().is_some() {
+                            return None;
+                        }
+                        (*owner, Some(binding.statement_index as usize))
+                    }
+                    _ => match source.structural_storage_root() {
+                        Some(facts::PlaceRoot::Symbol(owner)) => (owner, None),
+                        // An ingress carrier has no retiring local parent in
+                        // this activation. Its lifetime stays with its caller.
+                        _ => continue,
+                    },
+                };
+                let Some((_, supplying_local)) =
+                    program.state_local_declaration(state, source_owner)
+                else {
+                    continue;
+                };
+                let mut supplying = Vec::new();
+                for (handle, candidate) in
+                    facts.borrow.loans.iter().filter(|(handle, candidate)| {
+                        facts.borrow.state_owns_loan(borrowing, *handle)
+                            && candidate.owner_symbol == source_owner
+                            && candidate.statement_index < loan.statement_index
+                            && source_formation
+                                .is_none_or(|formation| candidate.statement_index == formation)
+                    })
+                {
+                    if loan_carrier_path(
+                        program,
+                        supplying_local.type_reference,
+                        facts.borrow.loan_owner_path(candidate),
+                    )? == source.path
+                    {
+                        supplying.push((handle, candidate.statement_index));
+                    }
+                }
+                // Replacements establish a new occurrence at the same slot.
+                // Every alternative at that latest formation is retained.
+                let formation = supplying.iter().map(|(_, statement)| *statement).max()?;
+                for (supplier, _) in supplying
+                    .into_iter()
+                    .filter(|(_, statement)| *statement == formation)
+                {
+                    if !output.contains(&(receiver, supplier)) {
+                        output.push((receiver, supplier));
+                    }
+                }
+            }
+        }
+    }
+    Some(output)
+}
+
+/// Translate an occurrence's symbolic owner path through its declarations.
+/// Common fields and active payload fields keep distinct nominal namespaces.
+fn loan_carrier_path(
+    program: &dyn ::validation::CheckingInput,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+    owner_path: &[BorrowLoanOwnerSegment],
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+    let mut output = Vec::with_capacity(owner_path.len());
+    let mut payload = None;
+    for segment in owner_path {
+        reference = validation::peel_declared_constraints(program, reference);
+        match segment {
+            BorrowLoanOwnerSegment::FixedIndex(element_index) => {
+                let typed_trees::types::TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                } = program.type_reference_table.type_reference(reference)
+                else {
+                    return None;
+                };
+                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                    return None;
+                };
+                if element_index >= length || payload.is_some() {
+                    return None;
+                }
+                output.push(CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(*element_index).ok()?,
+                ));
+                reference = *element_type;
+            }
+            BorrowLoanOwnerSegment::Case(symbol) => {
+                let owner = program
+                    .type_reference_table
+                    .unparameterized_type_symbol(reference)?;
+                let data = program.data_definition_by_symbol(*owner)?;
+                if payload.is_some() {
+                    return None;
+                }
+                let variant =
+                    program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            DataMember::Variant(variant) if variant.symbol == *symbol => {
+                                Some(variant)
+                            }
+                            _ => None,
+                        })?;
+                output.push(CheckedUnitStructuralPathSegment::Case(
+                    variant.path_identity(),
+                ));
+                payload = Some(variant);
+            }
+            BorrowLoanOwnerSegment::Field(symbol) => {
+                let field = if let Some(variant) = payload.take() {
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find(|field| field.symbol == *symbol)?
+                } else {
+                    let owner = program
+                        .type_reference_table
+                        .unparameterized_type_symbol(reference)?;
+                    let data = program.data_definition_by_symbol(*owner)?;
+                    program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            DataMember::Field(field) if field.symbol == *symbol => Some(field),
+                            _ => None,
+                        })?
+                };
+                output.push(CheckedUnitStructuralPathSegment::Field(
+                    field.path_identity(),
+                ));
+                reference = field.type_reference;
+            }
+            BorrowLoanOwnerSegment::DynamicIndex => return None,
+        }
+    }
+    payload.is_none().then_some(output)
+}
+
+/// Select one stored carrier through ordinary value composition. Every
+/// dispatch alternative supplies provenance; unrelated sibling leaves do not.
+fn transported_sources(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    value: CheckedStructuralValueHandle,
+    selection: &[CheckedUnitStructuralPathSegment],
+    active: &mut Vec<CheckedStructuralValueHandle>,
+    output: &mut Vec<CheckedUnitStructuralArgumentPlan>,
+) -> Option<()> {
+    let values = &facts.values.structural_values;
+    if !values.nodes.is_valid(value) || active.contains(&value) {
+        return None;
+    }
+    active.push(value);
+    match &values.nodes.get(value).kind {
+        CheckedStructuralValueKind::Place(source)
+        | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
+            let mut source = source.clone();
+            source.path.extend_from_slice(selection);
+            output.push(source);
+        }
+        CheckedStructuralValueKind::Projection { source, path, .. } => {
+            let mut path = path.clone();
+            path.extend_from_slice(selection);
+            transported_sources(program, facts, *source, &path, active, output)?;
+        }
+        CheckedStructuralValueKind::Dispatch { arms, .. } => {
+            let arms = values.dispatch_arms.span(*arms)?;
+            if arms.is_empty() {
+                return None;
+            }
+            for arm in arms {
+                transported_sources(program, facts, arm.value, selection, active, output)?;
+            }
+        }
+        CheckedStructuralValueKind::FixedArray { elements } => {
+            let (CheckedUnitStructuralPathSegment::FixedIndex(element_index), suffix) =
+                selection.split_first()?
+            else {
+                return None;
+            };
+            let child = elements.get(usize::try_from(*element_index).ok()?)?;
+            transported_sources(program, facts, *child, suffix, active, output)?;
+        }
+        CheckedStructuralValueKind::Record {
+            data_symbol,
+            fields,
+        }
+        | CheckedStructuralValueKind::StructuralCase {
+            data_symbol,
+            fields,
+            ..
+        } => {
+            let data = program.data_definition_by_symbol(*data_symbol)?;
+            let (field_identity, suffix, payload) = match selection {
+                [
+                    CheckedUnitStructuralPathSegment::Case(case),
+                    CheckedUnitStructuralPathSegment::Field(field),
+                    suffix @ ..,
+                ] => {
+                    let CheckedStructuralValueKind::StructuralCase { case: selected, .. } =
+                        &values.nodes.get(value).kind
+                    else {
+                        return None;
+                    };
+                    let variant =
+                        program
+                            .data_members(data)
+                            .iter()
+                            .find_map(|member| match member {
+                                DataMember::Variant(variant)
+                                    if variant.symbol == *selected
+                                        && variant.path_identity() == *case =>
+                                {
+                                    Some(variant)
+                                }
+                                _ => None,
+                            })?;
+                    (field, suffix, Some(variant))
+                }
+                [CheckedUnitStructuralPathSegment::Field(field), suffix @ ..] => {
+                    (field, suffix, None)
+                }
+                _ => return None,
+            };
+            let declaration = if let Some(variant) = payload {
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.path_identity() == *field_identity)?
+            } else {
+                program
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member| match member {
+                        DataMember::Field(field) if field.path_identity() == *field_identity => {
+                            Some(field)
+                        }
+                        _ => None,
+                    })?
+            };
+            let field = values
+                .record_fields
+                .span(*fields)?
+                .iter()
+                .find(|field| field.field == declaration.symbol)?;
+            let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) = field.value
+            else {
+                return None;
+            };
+            transported_sources(program, facts, child, suffix, active, output)?;
+        }
+        // These form rather than transport a descriptor. Their admitted
+        // formation/call lineage remains the independent parent authority.
+        _ => {}
+    }
+    active.pop();
+    Some(())
+}
 
 pub(super) fn transferred_paths(
     program: &dyn ::validation::CheckingInput,
@@ -39,6 +368,7 @@ pub(super) struct Retirement<'a> {
     pub(super) results: &'a Results,
     pub(super) operations: &'a [CheckedUnitEffectOperationPlan],
     pub(super) pending: &'a [CheckedUnitEffectOperationPlan],
+    pub(super) transported_loans: &'a TransportedLoans,
 }
 
 impl Retirement<'_> {
@@ -66,11 +396,7 @@ impl Retirement<'_> {
             for (handle, loan) in self.facts.borrow.loans.iter() {
                 if self.facts.borrow.state_owns_loan(state, handle)
                     && loan.statement_index < self.statement_index as usize
-                    && (loan.lineage
-                        == (checked_trees::BorrowLoanLineage::Reborrow {
-                            parent_loan: parent,
-                        })
-                        || self.captures_holder(handle, parent))
+                    && self.retains_parent(handle, parent, &mut Vec::new())
                 {
                     if !self.holder_retired(handle) {
                         return false;
@@ -82,6 +408,32 @@ impl Retirement<'_> {
             }
         }
         true
+    }
+
+    fn retains_parent(
+        &self,
+        child: arena::Handle<BorrowLoanFact>,
+        parent: arena::Handle<BorrowLoanFact>,
+        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+    ) -> bool {
+        if child == parent || active.contains(&child) {
+            return false;
+        }
+        let loan = self.facts.borrow.loans.get(child);
+        if loan.lineage
+            == (checked_trees::BorrowLoanLineage::Reborrow {
+                parent_loan: parent,
+            })
+            || self.captures_holder(child, parent)
+        {
+            return true;
+        }
+        active.push(child);
+        let retained = self.transported_loans.iter().any(|(receiver, supplier)| {
+            *receiver == child && self.retains_parent(*supplier, parent, active)
+        });
+        active.pop();
+        retained
     }
 
     /// Materialized descriptors retain their supplying carrier even when the
