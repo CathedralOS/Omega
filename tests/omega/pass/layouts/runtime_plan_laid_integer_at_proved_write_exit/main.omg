@@ -80,9 +80,11 @@ machine Main::main(main: &mut Main) reaches Console {
         main.packed.value = main.flow_source;
         let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
         view.value.value = main.source;
+        // `view` suspends the byte it covers until its last use, so the
+        // owner's byte is read after it.
         transition main.packed.value == 0
-            && main.bytes[0] == 247
-            && view.value.value == -9 {
+            && view.value.value == -9
+            && main.bytes[0] == 247 {
             true -> check_by_value(main)
             _ -> bad(main)
         }

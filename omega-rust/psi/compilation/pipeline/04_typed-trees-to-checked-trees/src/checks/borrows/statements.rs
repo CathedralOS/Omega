@@ -155,7 +155,7 @@ pub(super) fn check_statement_borrows<'p>(
             arena::Handle<checked_trees::BorrowLoanFact>,
             Vec<super::super::ownership_occurrences::EvaluationBranch>,
         )> = Vec::new();
-        for occurrence in crate::checks::ownership_occurrences::statement_steps(
+        let occurrences = crate::checks::ownership_occurrences::statement_steps(
             program,
             machine,
             state,
@@ -163,9 +163,52 @@ pub(super) fn check_statement_borrows<'p>(
             statement_node,
             &moves,
             &facts.operators,
-        ) {
+        );
+        let final_holds = super::reads::final_holds_in_statement(
+            program,
+            facts,
+            state_flow,
+            statement,
+            statement_node,
+            &occurrences,
+        );
+        let mut staged_operands = super::reads::StagedOperands::default();
+        for (position, occurrence) in occurrences.into_iter().enumerate() {
             use crate::checks::ownership_occurrences::{StatementStep, routes_compatible};
             match occurrence.step {
+                StatementStep::Observe { place, expression } => {
+                    let active: Vec<_> = facts
+                        .flow
+                        .borrow_loan_constraints(statement.entry_constraints)
+                        .filter(|loan| {
+                            !final_holds
+                                .iter()
+                                .any(|(ended, held_until)| ended == loan && *held_until < position)
+                        })
+                        .chain(
+                            formed
+                                .iter()
+                                .filter(|(_, route)| routes_compatible(route, &occurrence.route))
+                                .map(|(handle, _)| *handle),
+                        )
+                        .collect();
+                    super::reads::check_storage_read(
+                        program,
+                        facts,
+                        super::reads::StatementRead {
+                            state: state_flow,
+                            borrow_state,
+                            statement,
+                            place: &place,
+                            expression,
+                            active_loans: &active,
+                        },
+                        &mut staged_operands,
+                        stated_premises,
+                        diagnostics,
+                        bound_lookup,
+                    );
+                }
                 StatementStep::Complete(expression) => {
                     for (handle, _) in facts.borrow.loans.iter().filter(|(handle, loan)| {
                         facts.borrow.state_owns_loan(borrow_state, *handle)
@@ -268,33 +311,23 @@ pub(super) fn check_statement_borrows<'p>(
             )));
             continue;
         };
-        // Storage identity and authority are separate: compare every captured
-        // backing, exempting only the destination's authenticated loan lineage.
         // A write through an unselected parent still conflicts with the child.
         for loan_handle in facts
             .flow
             .borrow_loan_constraints(statement.entry_constraints)
         {
-            let loan = facts.borrow.loans.get(loan_handle);
-            if destinations.iter().all(|destination| {
-                destination.lineage.contains(&loan_handle)
-                    || super::overlap::captured_place_compatibility(
-                        program,
-                        &destination.place,
-                        &checked_trees::BorrowAccessKind::Mutable,
-                        &checked_trees::CapturedPlace {
-                            incoming_reference: loan.incoming_reference,
-                            root_symbol: loan.root_symbol,
-                            segments: facts.borrow.loan_segments(loan).to_vec(),
-                        },
-                        &loan.kind,
-                        stated_premises,
-                        bound_lookup,
-                    )
-                    .non_interfering
-            }) {
+            if !super::place_access::access_interferes(
+                program,
+                &facts.borrow,
+                &destinations,
+                &checked_trees::BorrowAccessKind::Mutable,
+                loan_handle,
+                stated_premises,
+                bound_lookup,
+            ) {
                 continue;
             }
+            let loan = facts.borrow.loans.get(loan_handle);
             diagnostics.push(Diagnostic::error(format!(
                 "statement {} mutates `{}` while local borrow `{}` is still active ({})",
                 statement.statement_index,

@@ -17,7 +17,9 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Console {
     let view: &mut u32 in Small = &mut main.value as &mut u32;
-    transition main.value == 0 && view == 0 {
+    // `view` suspends `main.value` until its last use, so the owner is read
+    // after it.
+    transition view == 0 && main.value == 0 {
         true -> good(main)
         _ -> bad(main)
     }

@@ -63,6 +63,7 @@ pass/borrows/nested_reference_crossings_exit built 7261ms exit:70 interpreter-ex
 pass/borrows/nested_reference_leaf_projection_exit built 1615ms exit:70 interpreter-exit:70 interpreter:agrees @51b4aa0b5a70+wt
 pass/borrows/owned_byte_value_call_exit built 5365ms exit:70 interpreter-exit:70 interpreter:agrees @316799d840c3+wt
 pass/borrows/owner_byte_read_during_shared_record_loan_exit built 1879ms exit:70 interpreter-exit:70 interpreter:agrees @fef76bc46fc7+wt
+pass/borrows/plain_read_after_exclusive_loan_last_use_exit built 2508ms exit:0 interpreter-exit:0 interpreter:agrees @89af21767c32+wt
 pass/borrows/projected_claim_owner_shared_observation_exit built 1729ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
 pass/borrows/projected_reference_record_argument_exit built 10962ms exit:29 interpreter-exit:29 interpreter:agrees @2001bffe7901+wt
 pass/borrows/projected_reference_record_residual_exit built 10890ms exit:29 interpreter-exit:29 interpreter:agrees @2001bffe7901+wt

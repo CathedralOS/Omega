@@ -122,6 +122,7 @@ pass/borrows/nested_reference_leaf_projection_exit built 1617ms exit:70 @104c2da
 pass/borrows/owned_byte_value_call_exit built 3530ms exit:70 @316799d840c3+wt
 pass/borrows/owned_nested_record_copy_exit built 956ms exit:70 @3a0c3ba44cd8+wt
 pass/borrows/owner_byte_read_during_shared_record_loan_exit built 1738ms exit:70 @fef76bc46fc7+wt
+pass/borrows/plain_read_after_exclusive_loan_last_use_exit built 2609ms exit:0 @89af21767c32+wt
 pass/borrows/projected_claim_owner_shared_observation_exit built 1782ms exit:70 @5889f8b8208f+wt
 pass/borrows/projected_indexed_member_loan built 2120ms exit:0 @bed5f45e9185+wt
 pass/borrows/projected_local_member_loan built 2413ms exit:0 @bed5f45e9185+wt

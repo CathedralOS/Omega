@@ -598,6 +598,17 @@ A call's operands and the reference leaves of one aggregate formed by a `let`,
 a store or a return are held together, so both pass the one pairwise
 [simultaneous-hold judgment](src/checks/borrows/simultaneous.rs);
 [aggregates.rs](src/checks/borrows/aggregates.rs) selects the leaves.
+Reads, writes, call operands and exclusive operations share one live-loan
+judgment in [place_access.rs](src/checks/borrows/place_access.rs): a place
+rooted at a local reference that owns a live loan is rejoined to every backing
+that loan captured, and only the access's own retained lineage is exempt.
+[reads.rs](src/checks/borrows/reads.rs) applies it to each evaluated
+observation in the order `ownership_occurrences` replays a statement, against
+the loans live at statement entry and those the statement already formed. A
+loan whose last use is that statement ends after the last observation naming
+its owner, extended to the completion of any invocation that holds it. A
+loan's own formation and an operand a call stages in its access roster are
+judged at those events instead.
 Compatibility results are transient: there are no retained compatibility,
 mutation or call-comparison certificates. The overlap and containment judgments
 share a local selector cache, not a serialized snapshot to replay.

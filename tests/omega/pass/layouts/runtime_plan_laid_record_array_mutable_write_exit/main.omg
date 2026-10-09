@@ -50,18 +50,20 @@ machine Main::main(main: &mut Main) reaches Console {
     view.value.pairs[1].low = 0x0807;
     view.value.pairs[1].high = 0x0c0b0a09;
     view.value.marker = 13;
-    transition main.bytes[8] == 1 && main.bytes[9] == 2
+    // `view` suspends the bytes it covers until its last use, so the owner's
+    // bytes are read after it.
+    transition view.value.pairs[0].low == 0x0201
+        && view.value.pairs[0].high == 0x06050403
+        && view.value.pairs[1].low == 0x0807
+        && view.value.pairs[1].high == 0x0c0b0a09
+        && view.value.marker == 13
+        && main.bytes[8] == 1 && main.bytes[9] == 2
         && main.bytes[12] == 3 && main.bytes[13] == 4
         && main.bytes[14] == 5 && main.bytes[15] == 6
         && main.bytes[16] == 7 && main.bytes[17] == 8
         && main.bytes[20] == 9 && main.bytes[21] == 10
         && main.bytes[22] == 11 && main.bytes[23] == 12
-        && main.bytes[24] == 13
-        && view.value.pairs[0].low == 0x0201
-        && view.value.pairs[0].high == 0x06050403
-        && view.value.pairs[1].low == 0x0807
-        && view.value.pairs[1].high == 0x0c0b0a09
-        && view.value.marker == 13 {
+        && main.bytes[24] == 13 {
         true -> good(main)
         _ -> bad(main)
     }

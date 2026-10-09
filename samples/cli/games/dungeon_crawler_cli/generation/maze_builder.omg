@@ -287,6 +287,9 @@ machine MazeBuilder::carve_room(
     depth: u32 in Wrapping,
     branch_id: u32 in Wrapping
 ) {
+    // `room` borrows all of `level` until its last use, so the start cell is
+    // read before it forms.
+    let start_cell: CellId = level.start_cell;
     let room: &mut Room = Level::room_mut(level, cell);
     let index: u64 = MazeBuilder::cell_index(cell); // <= 15 by cell_index's ensures
     room.cell = cell;
@@ -295,7 +298,7 @@ machine MazeBuilder::carve_room(
     room.label = MazeBuilder::room_label(cell);
     room.description = MazeBuilder::room_description(depth, branch_id);
     room.exit_count = 0;
-    room.discovered = cell == level.start_cell;
+    room.discovered = cell == start_cell;
     RoomEvents::roll_event(&mut maze_builder.events, depth, random, &mut room.event);
     level.room_count = max(level.room_count, index + 1);
     level.deepest_depth = max(level.deepest_depth, depth);

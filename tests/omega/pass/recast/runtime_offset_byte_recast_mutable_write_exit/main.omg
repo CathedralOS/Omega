@@ -21,15 +21,17 @@ machine Main::main(main: &mut Main) reaches Console {
 
     let view: &mut u32 = &mut main.buf[main.k] as &mut u32;
     view = 67305985;
-    transition main.buf[0] == 9
+    // `view` suspends the buffer its runtime offset may cover until its last
+    // use, so the owner's bytes are read after it.
+    transition view == 67305985
+        && main.buf[0] == 9
         && main.buf[1] == 8
         && main.buf[2] == 1
         && main.buf[3] == 2
         && main.buf[4] == 3
         && main.buf[5] == 4
         && main.buf[6] == 7
-        && main.buf[7] == 6
-        && view == 67305985 {
+        && main.buf[7] == 6 {
         true -> good(main)
         _ -> bad(main)
     }

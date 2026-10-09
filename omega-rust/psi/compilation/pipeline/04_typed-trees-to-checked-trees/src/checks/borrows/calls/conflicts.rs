@@ -3,11 +3,10 @@ use diagnostics::Diagnostic;
 
 use crate::labels::{borrow_access_label, symbol_name};
 
-use super::super::access_sources;
-use super::super::aliases::ResolvedAlias;
 use super::super::details::active_loan_detail;
 use super::super::overlap::StatedOrderingPremise;
-use super::super::overlap::{canonical_place_loan_compatibility, captured_place_compatibility};
+use super::super::overlap::canonical_place_loan_compatibility;
+use super::super::place_access;
 use super::super::simultaneous::{Hold, simultaneous_hold_conflict};
 
 pub(super) fn check_call_access_conflicts<'p>(
@@ -84,10 +83,8 @@ pub(super) fn check_call_access_conflicts<'p>(
     }
 
     // A local reference operand lends the storage its own loans captured, not
-    // the local's name. Rejoin each operand whose root holds a live loan to
-    // every backing it may denote, with the retained lineage that grants its
-    // authority, as a write through the same alias resolves its destination.
-    // A root that holds no live loan names its own storage.
+    // the local's name: judge each operand at every backing it may denote, as
+    // a read or a write through the same alias is judged.
     let mut operand_backings = Vec::with_capacity(accesses.len());
     for access in &accesses {
         let place = CapturedPlace {
@@ -95,22 +92,13 @@ pub(super) fn check_call_access_conflicts<'p>(
             root_symbol: access.root_symbol,
             segments: facts.borrow.access_segments(access).to_vec(),
         };
-        if !active_loans
-            .iter()
-            .any(|(_, loan)| loan.owner_symbol == access.root_symbol)
-        {
-            operand_backings.push(vec![ResolvedAlias {
-                place,
-                lineage: Vec::new(),
-            }]);
-            continue;
-        }
-        let Some(backings) = access_sources::resolve_captured_all(
+        let Some(backings) = place_access::place_backings(
             program,
             facts,
             state_flow,
             borrow_call.statement_index,
             entry_constraints,
+            active_loans.iter().map(|(handle, _)| *handle),
             place,
         ) else {
             diagnostics.push(Diagnostic::error(format!(
@@ -245,28 +233,18 @@ pub(super) fn check_call_access_conflicts<'p>(
             if data_access == Some(index) {
                 continue;
             }
-            // Exactly as for a write through the same alias, only the
-            // operand's own retained lineage is exempt; every other live loan
-            // over a backing it may denote, such as a child view formed through
-            // it, suspends that backing for the invocation.
-            let loan_place = CapturedPlace {
-                incoming_reference: loan.incoming_reference,
-                root_symbol: loan.root_symbol,
-                segments: facts.borrow.loan_segments(loan).to_vec(),
-            };
-            if operand_backings[index].iter().all(|backing| {
-                backing.lineage.contains(loan_handle)
-                    || captured_place_compatibility(
-                        program,
-                        &backing.place,
-                        &access.kind,
-                        &loan_place,
-                        &loan.kind,
-                        stated_premises,
-                        bound_lookup,
-                    )
-                    .non_interfering
-            }) {
+            // Only the operand's own retained lineage is exempt; every other
+            // live loan over a backing it may denote, such as a child view
+            // formed through it, suspends that backing for the invocation.
+            if !place_access::access_interferes(
+                program,
+                &facts.borrow,
+                &operand_backings[index],
+                &access.kind,
+                *loan_handle,
+                stated_premises,
+                bound_lookup,
+            ) {
                 continue;
             }
             let detail =

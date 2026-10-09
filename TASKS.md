@@ -2380,10 +2380,6 @@ crash and native exit behavior.
     execution, keeping exact receiver/argument correspondence (no blanket
     `is_self` exemption). Reproduce the parameter-source/refinement stops
     before assigning repairs.
-  - **Borrow rules.** Operators spelled as calls keep ordinary call borrow
-    rules; an exclusive loan forbids a second alias reading the old contents.
-    With **BORROW-PROOF-CONVERGENCE**, give plain-read, call-argument and
-    float-comparison forms of one live-loan conflict the same rejection.
   - Checked interpretation (`omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator/execution/operator_applications.rs`)
     declines a requirement with several checked satisfiers because checked Psi
     does not retain the Build's provider choice; this closes with

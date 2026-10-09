@@ -336,6 +336,8 @@ fail/borrows/evidence_bound_record_result_keeps_loan rejected 2564ms expected @b
 	statement 2 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/fixed_element_reference_return_out_of_bounds rejected 429ms expected @3fa817733300+wt
 	cannot prove index `2` is within length 2
+fail/borrows/float_comparison_read_during_live_exclusive_loan rejected 1519ms expected @89af21767c32+wt
+	statement 2 reads `level` while local borrow `raised` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/fresh_selector_borrow_has_no_parent_capture rejected 390ms expected @ebf381240e20+wt
 	statement 3 creates local borrow `fresh` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 4 mutates `held` while local borrow `fresh` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
@@ -393,10 +395,19 @@ fail/borrows/nested_reference_live_source_write rejected 145ms expected @21b6591
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/nested_result_retains_operand_loan rejected 326ms expected @f0ed096e2456+wt
 	state `observe` receives `value` as mutable more than once
+fail/borrows/plain_read_during_live_exclusive_loan rejected 587ms expected @89af21767c32+wt
+	statement 3 reads `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 2 reads `items[2]` while local borrow `middle` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 reads `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/primitive_aggregate_live_owner_read rejected 853ms expected @99b41199ec38
 	state `observe` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 259ms expected @51b4aa0b5a70+wt
 	cannot prove default-domain field requirement for return from Packet::main at statement 1: packet.bytes requires [u8; N]::Ascii
+fail/borrows/read_positions_during_live_exclusive_loan rejected 624ms expected @89af21767c32+wt
+	statement 3 reads `value` while local borrow `borrowed` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 2 reads `value` while local borrow `lent` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 reads `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 3 reads `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/borrows/record_reference_from_immutable_bytes rejected 203ms expected @69d297ae3ee5
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
@@ -2056,8 +2067,9 @@ fail/slices/inclusive_endpoint_equals_length rejected 344ms expected @dd31f301c6
 	cannot prove subslice range end bound `..4` is within slice length 4
 fail/slices/inclusive_endpoint_maximum rejected 336ms expected @ebf381240e20+wt
 	cannot prove subslice range end bound `..end` is within unknown slice length
-fail/slices/inclusive_last_element_overlap rejected 325ms expected @dd31f301c60c+wt
+fail/slices/inclusive_last_element_overlap rejected 516ms expected @89af21767c32+wt
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+	statement 2 reads `first.unknown` while local borrow `second` is still active (borrowed at statement 1)
 fail/slices/inclusive_negative_endpoint rejected 338ms expected @ebf381240e20+wt
 	cannot prove subslice range end bound `0..end` is within unknown slice length
 fail/slices/index_operator_contract_unproven rejected 185ms expected @5aed35f3503f+wt
@@ -2076,8 +2088,9 @@ fail/slices/match_index_guard_does_not_escape rejected 170ms expected @64c3c65ff
 	cannot prove index `0` is within unknown slice length of `values` in observe::entry
 fail/slices/nonempty_subslice_empty_range rejected 369ms expected @a5ac65bf511d+wt
 	cannot prove requires contract for call inspect from relay: bytes[0..0] in [u8]::Nonempty
-fail/slices/overlapping_mut_subslice_windows_rejected rejected 727ms expected @2d8ed253669f
+fail/slices/overlapping_mut_subslice_windows_rejected rejected 525ms expected @89af21767c32+wt
 	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+	statement 3 reads `a.unknown` while local borrow `b` is still active (borrowed at statement 2)
 fail/slices/result_length_contract_requires_returned_view rejected 663ms expected @1152c1496b39
 	cannot prove ensures contract for exit from bogus at statement 0: result.len == 2
 fail/slices/signed_slice_index_upper_only rejected 567ms expected @2d8ed253669f
@@ -2471,6 +2484,7 @@ pass/borrows/nested_reference_leaf_projection_exit checked 1599ms check-target:m
 pass/borrows/owned_byte_value_call_exit checked 3786ms check-target:macos_arm64 @316799d840c3+wt
 pass/borrows/owned_nested_record_copy_exit checked 6433ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 1789ms check-target:macos_arm64 @fef76bc46fc7+wt
+pass/borrows/plain_read_after_exclusive_loan_last_use_exit checked 5249ms check-target:macos_arm64 @89af21767c32+wt
 pass/borrows/projected_claim_owner_shared_observation_exit checked 1781ms check-target:macos_arm64 @5889f8b8208f+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/projected_local_member_loan checked 1270ms check-target:macos_arm64 @2d8ed253669f

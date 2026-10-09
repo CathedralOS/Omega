@@ -45,15 +45,17 @@ machine Main::main(main: &mut Main) reaches Console {
     view.value.values[1][0] = 0x0605;
     view.value.values[1][1] = 0x0807;
     view.value.marker = 9;
-    transition main.bytes[8] == 1 && main.bytes[9] == 2
+    // `view` suspends the bytes it covers until its last use, so the owner's
+    // bytes are read after it.
+    transition view.value.values[0][0] == 0x0201
+        && view.value.values[0][1] == 0x0403
+        && view.value.values[1][0] == 0x0605
+        && view.value.values[1][1] == 0x0807
+        && main.bytes[8] == 1 && main.bytes[9] == 2
         && main.bytes[10] == 3 && main.bytes[11] == 4
         && main.bytes[12] == 5 && main.bytes[13] == 6
         && main.bytes[14] == 7 && main.bytes[15] == 8
-        && main.bytes[24] == 9
-        && view.value.values[0][0] == 0x0201
-        && view.value.values[0][1] == 0x0403
-        && view.value.values[1][0] == 0x0605
-        && view.value.values[1][1] == 0x0807 {
+        && main.bytes[24] == 9 {
         true -> good(main)
         _ -> bad(main)
     }

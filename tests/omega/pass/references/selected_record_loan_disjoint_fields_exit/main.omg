@@ -1,4 +1,6 @@
-// A selected mutable room loan suspends its possible rooms, not siblings.
+// A selected mutable room loan writes only the room it selects. The returned
+// `&mut Room` borrows all of `level` through its elided signature, so `update`
+// reads the sibling fields before it forms the room loan.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -15,9 +17,11 @@ machine choose(level: &mut Level, first: bool) -> &mut Room {
 }
 
 machine update(level: &mut Level, first: bool) {
+    let start: Marker = level.start;
+    let counter: u64 = level.counter;
     let room: &mut Room = choose(level, first);
-    room.flag = level.start == Marker::First;
-    room.value = level.counter;
+    room.flag = start == Marker::First;
+    room.value = counter;
 }
 
 machine Main::main(main: &mut Main) reaches Console {

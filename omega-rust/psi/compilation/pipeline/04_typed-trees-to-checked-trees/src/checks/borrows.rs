@@ -1,8 +1,10 @@
 //! Borrow checks over the facts constructed once by the check stage.
 //! Calls and statements judge conflicts at their actual evaluation points;
-//! a call's operands and an aggregate's reference leaves share one
-//! simultaneous-hold judgment; returned views and stored carriers are checked
-//! for escape and persistence.
+//! reads, writes, call operands and exclusive operations share one live-loan
+//! judgment over the storage they may denote (`place_access`); a call's
+//! operands and an aggregate's reference leaves share one simultaneous-hold
+//! judgment; returned views and stored carriers are checked for escape and
+//! persistence.
 //! Resource rows are prepared before this pass for lowering. Compatibility
 //! results are transient judgments, not certificates to serialize and replay.
 
@@ -18,6 +20,7 @@ pub(crate) mod calls;
 mod resources;
 pub(crate) use resources::{LifecyclePhase, weakening_event_boundary};
 mod moves;
+mod reads;
 mod statements;
 
 // Shared by the checks: compatibility judgments, and binding and loan
@@ -26,6 +29,7 @@ mod access_sources;
 mod aliases;
 mod details;
 mod overlap;
+mod place_access;
 pub(crate) use overlap::{StorageSelectorFacts, storage_path_compatibility};
 mod simultaneous;
 

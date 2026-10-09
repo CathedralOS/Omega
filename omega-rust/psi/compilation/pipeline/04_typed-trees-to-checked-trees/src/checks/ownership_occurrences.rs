@@ -17,6 +17,10 @@ pub(super) struct EvaluationBranch {
 pub(super) struct StatementOccurrence {
     pub(super) step: StatementStep,
     pub(super) route: Vec<EvaluationBranch>,
+    /// The last step through which this occurrence's access is held: its own
+    /// position, or the completion of the outermost invocation that stages it
+    /// as a receiver or operand, since the callee observes it until then.
+    pub(super) held_until: usize,
 }
 
 pub(super) fn routes_compatible(left: &[EvaluationBranch], right: &[EvaluationBranch]) -> bool {
@@ -106,6 +110,7 @@ pub(super) fn statement_steps(
                 order.expression(*argument, false);
             }
             order.push(StatementStep::Complete(ExpressionHandle::invalid()));
+            order.hold_through_completion(0);
         }
         StatementNode::RootBinding(binding) => {
             order.expression(binding.receiver, false);
@@ -136,10 +141,12 @@ pub(super) fn statement_steps(
                     // expression table's span at the same offset names
                     // unrelated expressions.
                     typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+                        let first = order.steps.len();
                         for argument in program.statement_table.expression_handles(*arguments) {
                             order.expression(*argument, true);
                         }
                         order.push(StatementStep::Complete(ExpressionHandle::invalid()));
+                        order.hold_through_completion(first);
                     }
                     _ => {}
                 }
@@ -225,10 +232,21 @@ struct StatementOrder<'a> {
 
 impl StatementOrder<'_> {
     fn push(&mut self, step: StatementStep) {
+        let position = self.steps.len();
         self.steps.push(StatementOccurrence {
             step,
             route: self.route.clone(),
+            held_until: position,
         });
+    }
+
+    /// An invocation holds every access it staged from `first` on until the
+    /// completion step just pushed.
+    fn hold_through_completion(&mut self, first: usize) {
+        let completion = self.steps.len().saturating_sub(1);
+        for occurrence in self.steps.get_mut(first..).into_iter().flatten() {
+            occurrence.held_until = occurrence.held_until.max(completion);
+        }
     }
 
     fn complete_moves(&mut self, expression: ExpressionHandle, conditional: bool) {
@@ -269,6 +287,7 @@ impl StatementOrder<'_> {
         }) {
             return;
         }
+        let mut invocation = None;
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Indexed(indexed) if self.selected_index(expression) => {
                 self.expression(indexed.collection, conditional);
@@ -292,6 +311,7 @@ impl StatementOrder<'_> {
                 }
             }
             ExpressionNode::Call(call) => {
+                invocation = Some(self.steps.len());
                 self.expression(call.receiver, conditional);
                 for argument in self
                     .program
@@ -365,6 +385,9 @@ impl StatementOrder<'_> {
         // Ordinary calls and selected operators use their retained exact
         // invocation rows; syntax alone cannot invent an executed boundary.
         self.push(StatementStep::Complete(expression));
+        if let Some(first) = invocation {
+            self.hold_through_completion(first);
+        }
         self.complete_moves(expression, conditional);
     }
 

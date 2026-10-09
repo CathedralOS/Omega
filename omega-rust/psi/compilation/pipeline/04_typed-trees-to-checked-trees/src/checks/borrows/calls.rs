@@ -2,7 +2,8 @@
 //! Flow supplies the left-to-right access lifetimes; this pass judges overlap
 //! and mutable argument writability over the original borrow facts. An
 //! operand named through a local reference is judged against the active loans
-//! at the storage that reference's loans captured, as a write through it is.
+//! at the storage that reference's loans captured, by the same place-access
+//! judgment as a read or a write through it.
 
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;

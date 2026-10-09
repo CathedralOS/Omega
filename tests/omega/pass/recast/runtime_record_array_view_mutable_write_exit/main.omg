@@ -32,12 +32,14 @@ machine Main::main(main: &mut Main) reaches Console {
     view.tag = 0x0201;
     view.entries[0].low = 0x0403;
     view.entries[main.i].high = 0x0605;
-    transition main.bytes[4] == 1 && main.bytes[5] == 2
-        && main.bytes[6] == 3 && main.bytes[7] == 4
-        && main.bytes[12] == 5 && main.bytes[13] == 6
-        && view.tag == 0x0201
+    // `view` suspends the bytes its runtime offset may cover until its last
+    // use, so the owner's bytes are read after it.
+    transition view.tag == 0x0201
         && view.entries[0].low == 0x0403
-        && view.entries[main.i].high == 0x0605 {
+        && view.entries[main.i].high == 0x0605
+        && main.bytes[4] == 1 && main.bytes[5] == 2
+        && main.bytes[6] == 3 && main.bytes[7] == 4
+        && main.bytes[12] == 5 && main.bytes[13] == 6 {
         true -> good(main)
         _ -> bad(main)
     }

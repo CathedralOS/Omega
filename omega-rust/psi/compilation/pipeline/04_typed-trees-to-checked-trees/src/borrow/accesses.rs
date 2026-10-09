@@ -12,6 +12,10 @@
 //! operation's receiver. A transition arm's target roster comes from
 //! `collect_transition_target_argument_accesses`, which also ends the reads of
 //! payloads its dispatch already copied (`validation::DispatchExtraction`).
+//! Rows do not retain the operand that produced them;
+//! `collect_call_argument_access_expressions` replays the same walk to name
+//! those operands, so the statement read judgment leaves a call's staged
+//! operands to that call's own judgment.
 //!
 //! `borrow_access_place` (`place`) resolves an expression to the place it
 //! accesses, with `contextual` resolving names and members in the state and
@@ -54,6 +58,33 @@ pub(crate) fn collect_call_argument_accesses(
         target_symbol,
         false,
     )
+}
+
+/// Append the authored operand occurrence of each access row
+/// `collect_call_argument_accesses` would record for these arguments.
+pub(crate) fn collect_call_argument_access_expressions(
+    program: &dyn ::validation::CheckingInput,
+    arguments: &[ExpressionHandle],
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    expressions: &mut Vec<ExpressionHandle>,
+) {
+    let mut access_segments = arena::Arena::new();
+    let mut argument_accesses = arena::Arena::new();
+    let mut accesses = arena::HandleSpan::empty();
+    let mut collection = BorrowAccessCollection::new(
+        program,
+        &mut access_segments,
+        &mut argument_accesses,
+        &mut accesses,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+    )
+    .recording_expressions(expressions);
+    collect_target_argument_accesses(&mut collection, arguments, target_symbol);
 }
 
 /// A transition arm's own target roster. Its plain-copy payload bindings were
@@ -150,7 +181,7 @@ fn collect_target_argument_accesses(
             && let Some(place) = collection.borrow_access_place(*argument)
         {
             read::collect_place_evaluation_reads(collection, *argument);
-            collection.append_argument_access(place, kind);
+            collection.append_argument_access(place, kind, *argument);
             continue;
         }
         collect_argument_accesses(collection, *argument);
@@ -168,6 +199,7 @@ fn collect_argument_accesses(
                 collection.append_argument_access(
                     access_place,
                     borrow_access_kind(inner_expression.access),
+                    expression,
                 );
             }
         }

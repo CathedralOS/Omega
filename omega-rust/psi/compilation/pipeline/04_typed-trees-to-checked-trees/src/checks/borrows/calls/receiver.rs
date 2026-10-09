@@ -8,7 +8,7 @@ use typed_trees::types::TypeReferenceNode;
 use super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 use super::super::statements::local_jump;
 
-use super::super::{access_sources, aliases};
+use super::super::{access_sources, aliases, place_access};
 mod footprint;
 
 pub(super) use footprint::explicit_jump_data_access;
@@ -53,28 +53,20 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
         .flow
         .borrow_loan_constraints(statement.entry_constraints)
     {
-        if receiver.lineage.contains(&loan_handle) {
-            continue;
-        }
-        let loan = facts.borrow.loans.get(loan_handle);
-        if !captured_place_compatibility(
+        if place_access::access_interferes(
             program,
-            &receiver.place,
+            &facts.borrow,
+            std::slice::from_ref(&receiver),
             &BorrowAccessKind::Mutable,
-            &CapturedPlace {
-                incoming_reference: loan.incoming_reference,
-                root_symbol: loan.root_symbol,
-                segments: facts.borrow.loan_segments(loan).to_vec(),
-            },
-            &loan.kind,
+            loan_handle,
             stated_premises,
             bound_lookup,
-        )
-        .non_interfering
-        {
+        ) {
             diagnostics.push(Diagnostic::error(format!(
                 "exclusive operation receiver overlaps local borrow `{}` which is still active",
-                program.symbols.name(loan.owner_symbol),
+                program
+                    .symbols
+                    .name(facts.borrow.loans.get(loan_handle).owner_symbol),
             )));
         }
     }
