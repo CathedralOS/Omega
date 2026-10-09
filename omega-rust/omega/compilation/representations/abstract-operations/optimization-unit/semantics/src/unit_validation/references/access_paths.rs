@@ -61,7 +61,7 @@ pub(crate) fn access_referent_tail(
         return None;
     }
     let mut current = signature.structural_type;
-    let mut authority = signature.access;
+    let mut authority = signature.backing_access(types);
     let mut prefix_start = 0;
     for (position, segment) in source.path.iter().enumerate() {
         match segment {

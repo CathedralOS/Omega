@@ -182,7 +182,7 @@ pub(crate) fn validate_structural_root_operations(
                         return Err(catalog_mismatch(function));
                     }
                 }
-                abstract_operations::byte_sequence_store_pair_pattern!( source, .. ) => {
+                abstract_operations::byte_sequence_store_pair_pattern!(source, ..) => {
                     super::byte_views::validate_byte_view_source(
                         function,
                         block.id,
@@ -212,9 +212,7 @@ pub(crate) fn validate_structural_root_operations(
                         return Err(catalog_mismatch(function));
                     }
                 }
-                abstract_operations::byte_len_or_field_read_pattern!(source,
-                    path,
-                    field, ..) => {
+                abstract_operations::byte_len_or_field_read_pattern!(source, path, field, ..) => {
                     let geometry = if matches!(
                         path.first(),
                         Some(terminal_psi::StructuralPathSegment::Referent)
@@ -307,7 +305,19 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
-                abstract_operations::byte_read_subslice_triple_pattern!(source, ..) => {
+                O::ByteSequenceSubslice { .. }
+                | O::ByteSequenceLength { .. }
+                | O::ElementViewSubslice { .. }
+                | O::ElementViewLength { .. } => {
+                    if !super::descriptor_sources::valid(
+                        function,
+                        &node.operation,
+                        structural_types,
+                    ) {
+                        return Err(catalog_mismatch(function));
+                    }
+                }
+                O::ByteSequenceRead { source, .. } => {
                     super::byte_views::validate_byte_view_source(
                         function,
                         block.id,
@@ -965,8 +975,7 @@ fn direct_relevant_scalar_field(
     allow_refined_scalar: bool,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
-    else {
+    let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape else {
         return None;
     };
     relevant_scalar_field(fields, field, allow_refined_scalar)

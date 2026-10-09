@@ -33,7 +33,7 @@ impl StructuralSourceContract<'_> {
     /// Owning an unrestricted descriptor owns its carrier value, not mutable
     /// permission over its backing. Explicit incoming loans keep their declared
     /// access; this ceiling applies before selecting any element of the view.
-    fn backing_access(
+    pub(crate) fn backing_access(
         &self,
         types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     ) -> terminal_psi::StructuralAccess {

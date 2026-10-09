@@ -229,12 +229,8 @@ pub(super) fn validate_byte_view_source(
             length,
             ..
         } => (*destination, Some(*length)),
-        AbstractOperation::ByteSequenceLength { source, .. } => (*source, None),
         abstract_operations::byte_sequence_store_pair_pattern!(source, length, ..)
-        | AbstractOperation::ByteSequenceRead { source, length, .. }
-        | AbstractOperation::ByteSequenceSubslice { source, length, .. } => {
-            (*source, Some(*length))
-        }
+        | AbstractOperation::ByteSequenceRead { source, length, .. } => (*source, Some(*length)),
         _ => return Ok(()),
     };
     validate_source(
@@ -390,7 +386,7 @@ pub(super) fn validate_source(
         function.block_nodes().any(|node| {
             matches!(&node.operation, AbstractOperation::ByteSequenceLength {
                 source: measured, result, ..
-            } if *measured == source && result.value == length)
+            } if measured.place == source && measured.path.is_empty() && result.value == length)
         })
     });
     let valid_result = match operation {
