@@ -7,6 +7,8 @@
 
 use crate::{EntryStack, PlanDiagnostic, Preemption};
 
+pub(crate) use entry_exit_stub::{
+    X86_64ErrorCodeDisposition, derive_x86_64_entry_exit_stub};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct ArrivalContextId(u64);
 
@@ -54,7 +56,6 @@ pub(crate) struct ValidatedEntryStackDomainClosure {
     contexts: Vec<ArrivalContextStackDomain>,
     non_authoritative_report_fingerprint: u64,
 }
-
 
 pub(crate) fn validate_entry_stack_domain_closure(
     boundary_stack: EntryStack,
@@ -211,12 +212,7 @@ impl ValidatedX86_64InstalledHardwareEntryFacts {
         &self.facts
     }
 
-    /// Compact report/cache coordinate over the retained exact facts.
-    pub const fn report_fingerprint(&self) -> u64 {
-        self.non_authoritative_report_fingerprint
-    }
 }
-
 
 /// Validate and canonicalize the exact installation facts consumed by the
 /// compiler's sealed x86-64 arrival rule.
@@ -440,7 +436,6 @@ fn x86_64_installed_facts_report_fingerprint(facts: &X86_64InstalledHardwareEntr
     hash.finish()
 }
 
-
 fn report_fingerprint_domain(hash: &mut Fnv1a, domain: StackDomainRef) {
     match domain {
         StackDomainRef::Interrupted => hash.u64(0),
@@ -476,7 +471,5 @@ impl Fnv1a {
 }
 
 mod entry_exit_stub;
-
-
 #[cfg(test)]
 mod tests;
