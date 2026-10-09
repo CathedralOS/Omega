@@ -41,8 +41,8 @@ use crate::checks::unsigned;
 use arena::Handle;
 use checked_trees::{CheckFacts, ContractProofFactKind, FlowExitFact, FlowStateFact};
 use facts::{ContractFactKind, FactOrigin, FactPayload};
-use language_core::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
+use language_core::OperatorSpelling;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -767,7 +767,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 }),
             ExpressionNode::Borrow(borrow) => self.term_reference(borrow.target),
             ExpressionNode::Binary(binary) => {
-                let spelling = crate::checks::arithmetic_spelling(binary.operator)?;;
+                let spelling = crate::checks::arithmetic_spelling(binary.operator)?;
                 let left = self.term_reference(binary.left)?;
                 let right = self.term_reference(binary.right)?;
                 self.builtin_meaning(expression, spelling, left.binder_type, right.binder_type)
