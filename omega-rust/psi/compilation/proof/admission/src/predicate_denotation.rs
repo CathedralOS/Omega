@@ -509,11 +509,7 @@ pub enum PredicateDenotationError {
     Proof(ProofError),
 }
 
-impl std::fmt::Display for PredicateDenotationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(PredicateDenotationError);
 
 impl std::error::Error for PredicateDenotationError {}
 

@@ -274,11 +274,7 @@ pub enum BoundedDenotationError {
     DepthLimitExceeded,
 }
 
-impl std::fmt::Display for BoundedDenotationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(BoundedDenotationError);
 
 impl std::error::Error for BoundedDenotationError {}
 

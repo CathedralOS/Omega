@@ -111,3 +111,14 @@ pub(crate) fn forge_term_and_assert_rejected(denoted: &mut BoundedDenotation) ->
     );
     evidence
 }
+
+macro_rules! debug_display {
+    ($type:ty) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Debug::fmt(self, formatter)
+            }
+        }
+    };
+}
+pub(crate) use debug_display;

@@ -214,11 +214,7 @@ pub enum KernelError {
     JudgmentDoesNotEstablishGoal { judgment: PrimitiveJudgment },
 }
 
-impl std::fmt::Display for KernelError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(KernelError);
 
 impl std::error::Error for KernelError {}
 

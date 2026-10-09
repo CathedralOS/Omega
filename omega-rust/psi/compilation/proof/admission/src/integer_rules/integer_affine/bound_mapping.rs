@@ -1319,10 +1319,6 @@ pub enum IntegerAffineBoundConversionError {
     ConclusionMismatch,
 }
 
-impl std::fmt::Display for IntegerAffineBoundConversionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(IntegerAffineBoundConversionError);
 
 impl std::error::Error for IntegerAffineBoundConversionError {}

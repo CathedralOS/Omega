@@ -648,19 +648,11 @@ pub enum IntegerCorrelatedForbiddenRootConversionError {
     ConclusionMismatch,
 }
 
-impl std::fmt::Display for IntegerCorrelatedForbiddenRootConversionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(IntegerCorrelatedForbiddenRootConversionError);
 
 impl std::error::Error for IntegerCorrelatedForbiddenRootConversionError {}
 
-impl std::fmt::Display for IntegerCorrelatedForbiddenRootWitnessError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(IntegerCorrelatedForbiddenRootWitnessError);
 
 impl std::error::Error for IntegerCorrelatedForbiddenRootWitnessError {}
 

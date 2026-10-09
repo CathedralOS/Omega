@@ -207,11 +207,7 @@ pub enum IntegerCastChainWitnessError {
     TargetMismatch,
 }
 
-impl std::fmt::Display for IntegerCastChainWitnessError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(IntegerCastChainWitnessError);
 
 impl std::error::Error for IntegerCastChainWitnessError {}
 
@@ -352,11 +348,7 @@ pub enum IntegerCastBoundConversionError {
     EmptySurvivingInterval,
 }
 
-impl std::fmt::Display for IntegerCastBoundConversionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(IntegerCastBoundConversionError);
 
 impl std::error::Error for IntegerCastBoundConversionError {}
 

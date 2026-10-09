@@ -176,11 +176,7 @@ pub enum EvidenceError {
     SourceCheckedOutsideOperation,
 }
 
-impl std::fmt::Display for EvidenceError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(EvidenceError);
 
 impl std::error::Error for EvidenceError {}
 

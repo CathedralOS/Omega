@@ -654,10 +654,6 @@ pub enum IntegerAffineWitnessError {
     TargetMismatch,
 }
 
-impl std::fmt::Display for IntegerAffineWitnessError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(IntegerAffineWitnessError);
 
 impl std::error::Error for IntegerAffineWitnessError {}

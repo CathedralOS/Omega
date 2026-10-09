@@ -502,11 +502,7 @@ pub enum ProofError {
     MathematicalCore(Box<BoundedDenotationError>),
 }
 
-impl std::fmt::Display for ProofError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(ProofError);
 
 impl std::error::Error for ProofError {}
 

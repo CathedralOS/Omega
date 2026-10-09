@@ -326,11 +326,7 @@ pub enum IntegerShiftChainWitnessError {
     TargetMismatch,
 }
 
-impl std::fmt::Display for IntegerShiftChainWitnessError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+crate::debug_display!(IntegerShiftChainWitnessError);
 
 impl std::error::Error for IntegerShiftChainWitnessError {}
 
