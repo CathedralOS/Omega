@@ -30,7 +30,7 @@ const DYNAMIC_FIXUP_COUNT: usize = 9;
 /// publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated indexed ELF payloads retain the section-header template"]
-pub struct ValidatedElfIndexedSectionPayloadPlan {
+pub(crate) struct ValidatedElfIndexedSectionPayloadPlan {
     section_headers: ValidatedElfSectionHeaderTableTemplate,
     contents: ElfIndexedSectionPayloadContents,
     non_authoritative_payload_roster_compatibility_fingerprint: u64,
@@ -44,7 +44,7 @@ impl ValidatedElfIndexedSectionPayloadPlan {
     pub fn row_count(&self) -> usize {
         self.contents.rows.len()
     }
-    pub fn dynamic_fixup_count(&self) -> usize {
+    pub(crate) fn dynamic_fixup_count(&self) -> usize {
         self.contents.dynamic_fixups.len()
     }
 
@@ -71,7 +71,7 @@ impl ValidatedElfIndexedSectionPayloadPlan {
 /// Rejected indexed-payload planning with exact header-template custody.
 #[derive(Debug)]
 #[must_use = "ELF indexed-payload rejection retains the section-header template"]
-pub struct ElfIndexedSectionPayloadPlanningError {
+pub(crate) struct ElfIndexedSectionPayloadPlanningError {
     section_headers: ValidatedElfSectionHeaderTableTemplate,
     diagnostic: Diagnostic,
 }
@@ -154,7 +154,7 @@ struct CandidateValidationError {
 
 /// Consume exact section-header templates into a numeric byte roster with
 /// indexed but unresolved payload and source-text fixups.
-pub fn plan_elf_indexed_section_payloads(
+pub(crate) fn plan_elf_indexed_section_payloads(
     section_headers: ValidatedElfSectionHeaderTableTemplate,
 ) -> Result<ValidatedElfIndexedSectionPayloadPlan, Box<ElfIndexedSectionPayloadPlanningError>> {
     let contents = match derive_contents(&section_headers) {

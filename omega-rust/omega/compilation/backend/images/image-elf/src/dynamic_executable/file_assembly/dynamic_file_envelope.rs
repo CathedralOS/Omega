@@ -52,7 +52,7 @@ const PT_INTERP: u32 = 3;
 /// section payload, source byte, relocation obligation, and selected import.
 #[derive(Debug)]
 #[must_use = "dynamic ELF file envelope retains the complete pre-mutation custody chain"]
-pub struct ValidatedElfDynamicFileEnvelope {
+pub(crate) struct ValidatedElfDynamicFileEnvelope {
     resolved_dynamic_table: ValidatedElfResolvedDynamicTable,
     contents: ElfDynamicFileEnvelopeContents,
     non_authoritative_envelope_compatibility_fingerprint: u64,
@@ -65,7 +65,7 @@ impl ValidatedElfDynamicFileEnvelope {
 
     /// Exact bytes at file offset zero: one `Elf64_Ehdr` followed by five
     /// `Elf64_Phdr` rows.
-    pub fn header_prefix_bytes(&self) -> &[u8] {
+    pub(crate) fn header_prefix_bytes(&self) -> &[u8] {
         &self.contents.header_prefix_bytes
     }
 
@@ -79,7 +79,7 @@ impl ValidatedElfDynamicFileEnvelope {
 
     /// Exact applied fourteen-row section-header table to place at
     /// [`Self::section_header_table_file_offset`].
-    pub fn section_header_table_bytes(&self) -> &[u8] {
+    pub(crate) fn section_header_table_bytes(&self) -> &[u8] {
         &self.contents.section_header_table_bytes
     }
 
@@ -97,7 +97,7 @@ impl ValidatedElfDynamicFileEnvelope {
 /// Rejected serialization retaining the exact resolved-dynamic owner.
 #[derive(Debug)]
 #[must_use = "dynamic ELF envelope rejection retains resolved-dynamic custody"]
-pub struct ElfDynamicFileEnvelopeSerializationError {
+pub(crate) struct ElfDynamicFileEnvelopeSerializationError {
     resolved_dynamic_table: ValidatedElfResolvedDynamicTable,
     diagnostic: Diagnostic,
 }
@@ -170,7 +170,7 @@ struct DecodedElf64ProgramHeader {
 
 /// Serialize and replay the exact dynamic ELF header envelope without mutating
 /// any retained payload or claiming a runnable file.
-pub fn serialize_elf_dynamic_file_envelope(
+pub(crate) fn serialize_elf_dynamic_file_envelope(
     resolved_dynamic_table: ValidatedElfResolvedDynamicTable,
 ) -> Result<ValidatedElfDynamicFileEnvelope, Box<ElfDynamicFileEnvelopeSerializationError>> {
     let contents = match derive_contents(&resolved_dynamic_table) {

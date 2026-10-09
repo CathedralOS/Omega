@@ -32,7 +32,7 @@ const COMPLETE_SECTION_NAME_TABLE: &[u8] = b"\0.interp\0.dynstr\0.dynsym\0.hash\
 /// authority.
 #[derive(Debug)]
 #[must_use = "validated ELF section-name table retains the dynamic descriptor owner"]
-pub struct ValidatedElfSectionNameTablePlan {
+pub(crate) struct ValidatedElfSectionNameTablePlan {
     dynamic_table: ValidatedElfDynamicTableSectionDescriptorPlan,
     contents: ElfSectionNameTableContents,
     non_authoritative_table_compatibility_fingerprint: u64,
@@ -81,7 +81,7 @@ impl ValidatedElfSectionNameTablePlan {
 /// custody.
 #[derive(Debug)]
 #[must_use = "ELF section-name-table rejection retains the dynamic descriptor owner"]
-pub struct ElfSectionNameTablePlanningError {
+pub(crate) struct ElfSectionNameTablePlanningError {
     dynamic_table: ValidatedElfDynamicTableSectionDescriptorPlan,
     diagnostic: Diagnostic,
 }
@@ -155,7 +155,7 @@ struct CandidateValidationError {
 /// This does not assign final numeric section indexes, resolve any semantic
 /// link, choose `e_shstrndx`, serialize section headers, place bytes, or mutate
 /// an image.
-pub fn plan_elf_section_name_table(
+pub(crate) fn plan_elf_section_name_table(
     dynamic_table: ValidatedElfDynamicTableSectionDescriptorPlan,
 ) -> Result<ValidatedElfSectionNameTablePlan, Box<ElfSectionNameTablePlanningError>> {
     let contents = match derive_contents(&dynamic_table) {

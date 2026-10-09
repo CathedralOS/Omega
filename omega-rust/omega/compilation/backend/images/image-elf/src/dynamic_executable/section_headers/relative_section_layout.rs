@@ -26,7 +26,7 @@ const SHF_EXECINSTR: u64 = 0x4;
 /// segment, page permission, or absolute placement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElfRelativeSectionPayloadRegion {
+pub(crate) enum ElfRelativeSectionPayloadRegion {
     ReadOnly = 1,
     ReadExecute = 2,
     ReadWrite = 3,
@@ -42,7 +42,7 @@ pub enum ElfRelativeSectionPayloadRegion {
 /// authority.
 #[derive(Debug)]
 #[must_use = "validated relative ELF layout retains the indexed payload plan"]
-pub struct ValidatedElfRelativeSectionPayloadLayout {
+pub(crate) struct ValidatedElfRelativeSectionPayloadLayout {
     payloads: ValidatedElfIndexedSectionPayloadPlan,
     contents: ElfRelativeSectionPayloadLayoutContents,
     non_authoritative_layout_compatibility_fingerprint: u64,
@@ -56,7 +56,7 @@ impl ValidatedElfRelativeSectionPayloadLayout {
     /// The dynamic-table descriptor plan reachable through this layout's
     /// section-name table — the ABI-relevant dynamic region every consumer
     /// walks the same six accessor hops to reach.
-    pub fn dynamic_table_plan(&self) -> &ValidatedElfDynamicTableSectionDescriptorPlan {
+    pub(crate) fn dynamic_table_plan(&self) -> &ValidatedElfDynamicTableSectionDescriptorPlan {
         self.payloads()
             .section_headers()
             .roster()
@@ -99,7 +99,7 @@ impl ValidatedElfRelativeSectionPayloadLayout {
 /// Rejected relative layout with exact indexed-payload custody.
 #[derive(Debug)]
 #[must_use = "relative ELF layout rejection retains the indexed payload plan"]
-pub struct ElfRelativeSectionPayloadLayoutError {
+pub(crate) struct ElfRelativeSectionPayloadLayoutError {
     payloads: ValidatedElfIndexedSectionPayloadPlan,
     diagnostic: Diagnostic,
 }
@@ -185,7 +185,7 @@ struct CandidateValidationError {
 /// `sh_addralign`; the null row remains the unique zero-sized, regionless row
 /// at offset zero. This function does not choose future region bases or resolve
 /// any serialized section-header field.
-pub fn plan_elf_relative_section_payload_layout(
+pub(crate) fn plan_elf_relative_section_payload_layout(
     payloads: ValidatedElfIndexedSectionPayloadPlan,
 ) -> Result<ValidatedElfRelativeSectionPayloadLayout, Box<ElfRelativeSectionPayloadLayoutError>> {
     let contents = match derive_contents(&payloads) {

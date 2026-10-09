@@ -41,7 +41,7 @@ const ELF64_GENERAL_SLOT_WIDTH: usize = 8;
 /// rows or eight-byte `.data` slots bound through general `.rela.dyn` rows.
 #[derive(Debug)]
 #[must_use = "validated procedure linkage retains the exact descriptor plan"]
-pub struct ValidatedElfProcedureLinkageRelocationPlan {
+pub(crate) struct ValidatedElfProcedureLinkageRelocationPlan {
     descriptors: ValidatedElfDynamicSectionDescriptorPlan,
     contents: ElfProcedureLinkageRelocationContents,
     non_authoritative_linkage_compatibility_fingerprint: u64,
@@ -52,15 +52,15 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
         &self.descriptors
     }
 
-    pub fn logical_slot_count(&self) -> usize {
+    pub(crate) fn logical_slot_count(&self) -> usize {
         self.contents.slots.len()
     }
 
-    pub fn procedure_relocation_count(&self) -> usize {
+    pub(crate) fn procedure_relocation_count(&self) -> usize {
         self.contents.jump_slot_relocations.len()
     }
 
-    pub fn direct_call_site_count(&self) -> usize {
+    pub(crate) fn direct_call_site_count(&self) -> usize {
         self.contents
             .slots
             .iter()
@@ -70,7 +70,7 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
 
     /// Number of semantic general `.rela.dyn` rows this plan emits, one per
     /// admitted data-slot import reference.
-    pub fn general_dynamic_relocation_count(&self) -> usize {
+    pub(crate) fn general_dynamic_relocation_count(&self) -> usize {
         self.contents.general_relocations.len()
     }
 
@@ -99,7 +99,7 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
 /// Rejected procedure-linkage planning with exact descriptor custody.
 #[derive(Debug)]
 #[must_use = "ELF procedure-linkage rejection retains the descriptor plan"]
-pub struct ElfProcedureLinkageRelocationPlanningError {
+pub(crate) struct ElfProcedureLinkageRelocationPlanningError {
     descriptors: ValidatedElfDynamicSectionDescriptorPlan,
     diagnostic: Diagnostic,
 }
@@ -190,7 +190,7 @@ struct CandidateValidationError {
 /// imported dynamic symbol plus one semantic general RELA row per data slot.
 /// It deliberately emits no bytes and assigns no address or final section
 /// index.
-pub fn plan_elf_procedure_linkage_relocations(
+pub(crate) fn plan_elf_procedure_linkage_relocations(
     descriptors: ValidatedElfDynamicSectionDescriptorPlan,
 ) -> Result<
     ValidatedElfProcedureLinkageRelocationPlan,

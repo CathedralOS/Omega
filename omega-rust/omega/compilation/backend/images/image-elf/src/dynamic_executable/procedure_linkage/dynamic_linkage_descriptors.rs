@@ -44,7 +44,7 @@ const PROCEDURE_LINKAGE_NAME_SUFFIX: &[u8] = b".plt\0.got.plt\0.rela.plt\0.rela.
 /// fixup application, image mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated linkage descriptors retain the exact template carrier"]
-pub struct ValidatedElfProcedureLinkageSectionDescriptorPlan {
+pub(crate) struct ValidatedElfProcedureLinkageSectionDescriptorPlan {
     templates: ValidatedElfProcedureLinkageTemplatePlan,
     contents: ElfProcedureLinkageSectionDescriptorContents,
     non_authoritative_descriptor_compatibility_fingerprint: u64,
@@ -59,7 +59,7 @@ impl ValidatedElfProcedureLinkageSectionDescriptorPlan {
         UPSTREAM_DESCRIPTOR_COUNT + self.contents.descriptors.len()
     }
 
-    pub fn appended_descriptor_count(&self) -> usize {
+    pub(crate) fn appended_descriptor_count(&self) -> usize {
         self.contents.descriptors.len()
     }
 
@@ -92,7 +92,7 @@ impl ValidatedElfProcedureLinkageSectionDescriptorPlan {
 /// Rejected linkage-section descriptor planning with exact template custody.
 #[derive(Debug)]
 #[must_use = "ELF linkage-descriptor rejection retains the validated templates"]
-pub struct ElfProcedureLinkageSectionDescriptorPlanningError {
+pub(crate) struct ElfProcedureLinkageSectionDescriptorPlanningError {
     templates: ValidatedElfProcedureLinkageTemplatePlan,
     diagnostic: Diagnostic,
 }
@@ -187,7 +187,7 @@ struct CandidateValidationError {
 ///
 /// This does not complete `.shstrtab`, assign numeric section indexes, place or
 /// fix up bytes, plan `.dynamic`, serialize headers, or mutate the image.
-pub fn plan_elf_procedure_linkage_section_descriptors(
+pub(crate) fn plan_elf_procedure_linkage_section_descriptors(
     templates: ValidatedElfProcedureLinkageTemplatePlan,
 ) -> Result<
     ValidatedElfProcedureLinkageSectionDescriptorPlan,

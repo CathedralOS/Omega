@@ -31,8 +31,9 @@ pub(crate) use template_plans::{
     ElfProcedureLinkageSemanticTarget,
 };
 pub use template_plans::{
-    ElfProcedureLinkageTemplatePlanningError, ValidatedElfProcedureLinkageTemplatePlan,
 };
+pub(crate) use template_plans::{
+    ElfProcedureLinkageTemplatePlanningError, ValidatedElfProcedureLinkageTemplatePlan};
 
 use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::{ValidatedElfProcedureLinkageRelocationPlan};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::compatibility_fingerprint::non_authoritative_template_compatibility_fingerprint;
@@ -83,7 +84,7 @@ const AARCH64_PLT_ENTRY: [u8; AARCH64_PLT_ENTRY_SIZE] = [
 /// All placement-dependent fields remain exact zero placeholders. This does
 /// not serialize final GOT/PLT/RELA payloads, resolve a fixup, assign a section
 /// index or address, mutate the image, or grant runnable-image authority.
-pub fn plan_elf_procedure_linkage_templates(
+pub(crate) fn plan_elf_procedure_linkage_templates(
     linkage: ValidatedElfProcedureLinkageRelocationPlan,
 ) -> Result<ValidatedElfProcedureLinkageTemplatePlan, Box<ElfProcedureLinkageTemplatePlanningError>>
 {

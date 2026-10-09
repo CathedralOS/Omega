@@ -37,7 +37,7 @@ const ADDRESS_OBLIGATION_COUNT: usize = 9;
 /// `Elf64_Dyn`, program header, image mutation, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF dynamic tags retain the exact descriptor carrier"]
-pub struct ValidatedElfDynamicTagPlan {
+pub(crate) struct ValidatedElfDynamicTagPlan {
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
     contents: ElfDynamicTagContents,
     non_authoritative_tag_compatibility_fingerprint: u64,
@@ -52,7 +52,7 @@ impl ValidatedElfDynamicTagPlan {
         self.contents.rows.len()
     }
 
-    pub fn needed_row_count(&self) -> usize {
+    pub(crate) fn needed_row_count(&self) -> usize {
         self.descriptors
             .templates()
             .linkage()
@@ -62,7 +62,7 @@ impl ValidatedElfDynamicTagPlan {
             .needed_object_count()
     }
 
-    pub fn address_obligation_count(&self) -> usize {
+    pub(crate) fn address_obligation_count(&self) -> usize {
         self.contents.address_obligations.len()
     }
 
@@ -91,7 +91,7 @@ impl ValidatedElfDynamicTagPlan {
 /// Rejected semantic dynamic-tag planning with exact descriptor custody.
 #[derive(Debug)]
 #[must_use = "ELF dynamic-tag rejection retains the eleven-section carrier"]
-pub struct ElfDynamicTagPlanningError {
+pub(crate) struct ElfDynamicTagPlanningError {
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
     diagnostic: Diagnostic,
 }
@@ -208,7 +208,7 @@ struct CandidateValidationError {
 ///
 /// The planner deliberately stops before `Elf64_Dyn` serialization, `.dynamic`
 /// section descriptors, final section indexes, placement, or byte mutation.
-pub fn plan_elf_dynamic_tags(
+pub(crate) fn plan_elf_dynamic_tags(
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
 ) -> Result<ValidatedElfDynamicTagPlan, Box<ElfDynamicTagPlanningError>> {
     let contents = match derive_contents(&descriptors) {

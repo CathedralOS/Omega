@@ -58,7 +58,7 @@ const DYNAMIC_SECTION_KINDS: [ElfDynamicSectionKind; 7] = [
 /// program-header, image-mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF section descriptors retain the exact payload carrier"]
-pub struct ValidatedElfDynamicSectionDescriptorPlan {
+pub(crate) struct ValidatedElfDynamicSectionDescriptorPlan {
     payloads: ValidatedElfDynamicSectionPayloads,
     contents: ElfDynamicSectionDescriptorContents,
     non_authoritative_descriptor_compatibility_fingerprint: u64,
@@ -73,7 +73,7 @@ impl ValidatedElfDynamicSectionDescriptorPlan {
         self.contents.descriptors.len()
     }
 
-    pub fn section_name_seed_byte_count(&self) -> usize {
+    pub(crate) fn section_name_seed_byte_count(&self) -> usize {
         self.contents.section_name_table_seed.len()
     }
 
@@ -107,7 +107,7 @@ impl ValidatedElfDynamicSectionDescriptorPlan {
 /// Rejected dynamic-section descriptor planning with exact payload custody.
 #[derive(Debug)]
 #[must_use = "ELF descriptor rejection retains the validated payload carrier"]
-pub struct ElfDynamicSectionDescriptorPlanningError {
+pub(crate) struct ElfDynamicSectionDescriptorPlanningError {
     payloads: ValidatedElfDynamicSectionPayloads,
     diagnostic: Diagnostic,
 }
@@ -193,7 +193,7 @@ struct CandidateValidationError {
 /// This deliberately does not choose final numeric section indexes, complete
 /// `.shstrtab`, serialize section headers, place bytes, or plan `.dynamic`,
 /// GOT/PLT, relocation, or program-header contents.
-pub fn plan_elf_dynamic_section_descriptors(
+pub(crate) fn plan_elf_dynamic_section_descriptors(
     payloads: ValidatedElfDynamicSectionPayloads,
 ) -> Result<ValidatedElfDynamicSectionDescriptorPlan, Box<ElfDynamicSectionDescriptorPlanningError>>
 {

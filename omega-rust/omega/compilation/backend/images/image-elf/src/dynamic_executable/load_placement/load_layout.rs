@@ -28,11 +28,12 @@ mod validated_layout;
 pub(crate) use load_headers::public_section_kind;
 
 pub use load_headers::{
+};
+pub(crate) use load_headers::{
     ElfLoadImageMemoryPlacement, ElfLoadProgramHeader, ElfLoadProgramHeaderKind,
     ElfPlacedDynamicSection, ElfPlacedDynamicSectionKind, ElfResolvedSectionHeaderPlacement,
-    ElfSectionPlacementResolutionKind,
-};
-pub use validated_layout::{ElfDynamicLoadLayoutError, ValidatedElfDynamicLoadLayout};
+    ElfSectionPlacementResolutionKind};
+pub(crate) use validated_layout::{ElfDynamicLoadLayoutError, ValidatedElfDynamicLoadLayout};
 
 use crate::constants::IMAGE_BASE;
 use crate::dynamic_executable::load_placement::load_layout::abi_validation::retained_target;
@@ -66,7 +67,7 @@ const PF_R: u32 = 4;
 /// Both admitted profiles use a target-derived 64 KiB maximum-page policy.
 /// This is compatible with the AArch64 ELF ABI recommendation and with x86-64
 /// Linux loaders, while preserving `p_offset == p_vaddr (mod p_align)`.
-pub fn plan_elf_dynamic_load_layout(
+pub(crate) fn plan_elf_dynamic_load_layout(
     relative: ValidatedElfRelativeSectionPayloadLayout,
 ) -> Result<ValidatedElfDynamicLoadLayout, Box<ElfDynamicLoadLayoutError>> {
     let target = retained_target(&relative);

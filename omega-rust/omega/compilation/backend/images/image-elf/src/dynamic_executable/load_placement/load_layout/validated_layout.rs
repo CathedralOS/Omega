@@ -12,7 +12,7 @@ use target::TargetProfile;
 /// Replayed absolute geometry retaining the exact relative-layout owner.
 #[derive(Debug)]
 #[must_use = "validated dynamic ELF load layout retains all upstream payload custody"]
-pub struct ValidatedElfDynamicLoadLayout {
+pub(crate) struct ValidatedElfDynamicLoadLayout {
     pub(crate) relative: ValidatedElfRelativeSectionPayloadLayout,
     pub(crate) target: TargetProfile,
     pub(crate) image_base: u64,
@@ -70,7 +70,7 @@ impl ValidatedElfDynamicLoadLayout {
         &self.sections
     }
 
-    pub fn section_header_resolutions(&self) -> &[ElfResolvedSectionHeaderPlacement] {
+    pub(crate) fn section_header_resolutions(&self) -> &[ElfResolvedSectionHeaderPlacement] {
         &self.section_header_resolutions
     }
 
@@ -78,11 +78,11 @@ impl ValidatedElfDynamicLoadLayout {
         self.section_header_table_file_offset
     }
 
-    pub fn section_header_table_byte_size(&self) -> usize {
+    pub(crate) fn section_header_table_byte_size(&self) -> usize {
         self.relative.payloads().section_headers().byte_count()
     }
 
-    pub fn dynamic_section(&self) -> &ElfPlacedDynamicSection {
+    pub(crate) fn dynamic_section(&self) -> &ElfPlacedDynamicSection {
         &self.sections[ElfPlacedDynamicSectionKind::DynamicTable as usize]
     }
 
@@ -99,7 +99,7 @@ impl ValidatedElfDynamicLoadLayout {
 /// Rejected absolute placement with exact relative-layout custody.
 #[derive(Debug)]
 #[must_use = "dynamic ELF load-layout rejection retains the relative layout"]
-pub struct ElfDynamicLoadLayoutError {
+pub(crate) struct ElfDynamicLoadLayoutError {
     pub(crate) relative: ValidatedElfRelativeSectionPayloadLayout,
     pub(crate) diagnostic: Diagnostic,
 }

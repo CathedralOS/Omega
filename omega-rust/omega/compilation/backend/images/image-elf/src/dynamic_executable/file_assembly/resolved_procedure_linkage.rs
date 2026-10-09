@@ -31,10 +31,11 @@ mod storage_fields;
 mod tests;
 
 pub use linkage_fixups::{
+};
+pub(crate) use linkage_fixups::{
     ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageKind,
     ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
-    ElfProcedureLinkageApplicationError, ValidatedElfResolvedProcedureLinkage,
-};
+    ElfProcedureLinkageApplicationError, ValidatedElfResolvedProcedureLinkage};
 
 use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::compatibility_fingerprint::non_authoritative_resolved_linkage_compatibility_fingerprint;
@@ -56,7 +57,7 @@ const ELF64_GOT_WORD_SIZE: u64 = 8;
 /// procedure/source fixup into copied fragments.
 ///
 /// Success remains non-runnable and does not mutate the retained final image.
-pub fn apply_elf_procedure_linkage_fixups(
+pub(crate) fn apply_elf_procedure_linkage_fixups(
     envelope: ValidatedElfDynamicFileEnvelope,
 ) -> Result<ValidatedElfResolvedProcedureLinkage, Box<ElfProcedureLinkageApplicationError>> {
     let contents = match derive_contents(&envelope) {

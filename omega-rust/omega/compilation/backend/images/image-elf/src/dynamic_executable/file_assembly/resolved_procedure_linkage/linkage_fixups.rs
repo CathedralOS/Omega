@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 /// Exact byte owner receiving one applied procedure-linkage fixup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElfAppliedProcedureLinkageStorage {
+pub(crate) enum ElfAppliedProcedureLinkageStorage {
     SourceText = 1,
     ProcedureLinkage = 2,
     ProcedureGot = 3,
@@ -19,7 +19,7 @@ pub enum ElfAppliedProcedureLinkageStorage {
 /// Target-specific encoding used for one applied fixup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum ElfAppliedProcedureLinkageKind {
+pub(crate) enum ElfAppliedProcedureLinkageKind {
     X86PcRelative32 = 1,
     Aarch64Page21 = 2,
     Aarch64Load64Low12 = 3,
@@ -31,7 +31,7 @@ pub enum ElfAppliedProcedureLinkageKind {
 
 /// Exact semantic target selected by one applied fixup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ElfAppliedProcedureLinkageTarget {
+pub(crate) enum ElfAppliedProcedureLinkageTarget {
     DynamicSection,
     ProcedureLinkageHeader,
     ProcedureLinkageEntry {
@@ -56,7 +56,7 @@ pub enum ElfAppliedProcedureLinkageTarget {
 
 /// One exact application retained beside the resulting fragment bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ElfAppliedProcedureLinkageFixup {
+pub(crate) struct ElfAppliedProcedureLinkageFixup {
     pub(crate) ordinal: u32,
     pub(crate) storage: ElfAppliedProcedureLinkageStorage,
     pub(crate) byte_offset: usize,
@@ -115,7 +115,7 @@ impl ElfAppliedProcedureLinkageFixup {
 /// dynamic ELF file-envelope custody chain.
 #[derive(Debug)]
 #[must_use = "resolved ELF procedure linkage retains exact non-runnable envelope custody"]
-pub struct ValidatedElfResolvedProcedureLinkage {
+pub(crate) struct ValidatedElfResolvedProcedureLinkage {
     pub(crate) envelope: ValidatedElfDynamicFileEnvelope,
     pub(crate) contents: ElfResolvedProcedureLinkageContents,
     pub(crate) non_authoritative_resolved_linkage_compatibility_fingerprint: u64,
@@ -126,32 +126,32 @@ impl ValidatedElfResolvedProcedureLinkage {
         &self.envelope
     }
 
-    pub fn source_text_bytes(&self) -> &[u8] {
+    pub(crate) fn source_text_bytes(&self) -> &[u8] {
         &self.contents.source_text_bytes
     }
 
     /// Retained `.data` after image-local relocation at the load layout.
-    pub fn source_data_bytes(&self) -> &[u8] {
+    pub(crate) fn source_data_bytes(&self) -> &[u8] {
         &self.contents.source_data_bytes
     }
 
-    pub fn procedure_linkage_bytes(&self) -> &[u8] {
+    pub(crate) fn procedure_linkage_bytes(&self) -> &[u8] {
         &self.contents.procedure_linkage_bytes
     }
 
-    pub fn procedure_got_bytes(&self) -> &[u8] {
+    pub(crate) fn procedure_got_bytes(&self) -> &[u8] {
         &self.contents.procedure_got_bytes
     }
 
-    pub fn procedure_relocation_bytes(&self) -> &[u8] {
+    pub(crate) fn procedure_relocation_bytes(&self) -> &[u8] {
         &self.contents.procedure_relocation_bytes
     }
 
-    pub fn general_relocation_bytes(&self) -> &[u8] {
+    pub(crate) fn general_relocation_bytes(&self) -> &[u8] {
         &self.contents.general_relocation_bytes
     }
 
-    pub fn applied_fixups(&self) -> &[ElfAppliedProcedureLinkageFixup] {
+    pub(crate) fn applied_fixups(&self) -> &[ElfAppliedProcedureLinkageFixup] {
         &self.contents.applications
     }
 
@@ -169,7 +169,7 @@ impl ValidatedElfResolvedProcedureLinkage {
 /// Rejected fixup application retaining the exact file-envelope owner.
 #[derive(Debug)]
 #[must_use = "procedure-linkage rejection retains dynamic ELF envelope custody"]
-pub struct ElfProcedureLinkageApplicationError {
+pub(crate) struct ElfProcedureLinkageApplicationError {
     pub(crate) envelope: ValidatedElfDynamicFileEnvelope,
     pub(crate) diagnostic: Diagnostic,
 }
