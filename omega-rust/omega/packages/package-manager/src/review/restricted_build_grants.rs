@@ -17,7 +17,8 @@ use std::collections::BTreeSet;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
-use crate::lock::{PackageCheckedContext};
+use package_evidence::record::PackagePolicyRowKind;
+use crate::lock::{PackageCheckedContext, PackageLockTarget};
 use crate::resolution::graph::DependencyRequestPath;
 
 /// One normalized restricted build request a checked package occurrence
@@ -121,11 +122,37 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
 /// acceptance recorded for one purpose or target never authorizes a different
 /// occurrence's restricted action on the same package.
 #[derive(Debug, Clone)]
-pub(crate) struct RestrictedBuildCheckpoint {
+pub struct RestrictedBuildCheckpoint {
     grants: Vec<(PackageKeyIdentity, PackageCheckedContext, BTreeSet<String>)>,
 }
 
 impl RestrictedBuildCheckpoint {
+    /// Retain each accepted occurrence's granted restricted-request meanings
+    /// under its own checked context. Rows outside the restricted-request
+    /// kind never enter the grant view.
+    pub fn derive(accepted: &PackageLockTarget) -> Self {
+        Self {
+            grants: accepted
+                .occurrences()
+                .iter()
+                .map(|occurrence| {
+                    (
+                        occurrence.acceptance().package(),
+                        occurrence.context(),
+                        occurrence
+                            .acceptance()
+                            .rows()
+                            .iter()
+                            .filter(|row| {
+                                row.kind() == PackagePolicyRowKind::RestrictedBuildRequest
+                            })
+                            .map(|row| row.canonical_text().to_owned())
+                            .collect(),
+                    )
+                })
+                .collect(),
+        }
+    }
 
     /// Arm the checkpoint for one admitted activation: the returned binding
     /// crosses to the compile worker and joins each restricted request the
@@ -166,7 +193,7 @@ impl RestrictedBuildCheckpoint {
 /// A refusal fails the compile with the pending meaning attached. A review
 /// carried from the persisted cache ran no Build, so the candidate pass admits
 /// its retained requests through this same binding.
-pub(crate) struct CheckpointRestrictedBuildGrants {
+pub struct CheckpointRestrictedBuildGrants {
     package: PackageKeyIdentity,
     context: PackageCheckedContext,
     request_path: Option<DependencyRequestPath>,

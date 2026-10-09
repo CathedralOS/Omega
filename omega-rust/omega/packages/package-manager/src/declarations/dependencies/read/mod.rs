@@ -23,7 +23,7 @@ use aliases::validate_alias_uniqueness;
 /// so package management and the compiler share one grammar.
 pub use build_declarations::DependencyPurpose;
 pub(crate) use extraction::extract_scoped_from_source;
-pub(crate) use projection::validate_static_dependency_source;
+pub(crate) use projection::{extract_build_projection_from_source, validate_static_dependency_source};
 
 /// Package selection inside one acquired repository source.
 ///
@@ -37,7 +37,7 @@ pub enum PackageSelection {
 
 /// One source request projected without evaluating `build.omg`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DependencySourceRequest {
+pub enum DependencySourceRequest {
     Path {
         explicit_alias: Option<AliasName>,
         location: String,
@@ -53,7 +53,7 @@ pub(crate) enum DependencySourceRequest {
 /// The one ordered set of unconditional direct dependency rows within a
 /// single purpose scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ProjectedDependencies {
+pub struct ProjectedDependencies {
     authored_dependencies: Vec<DependencySourceRequest>,
 }
 
@@ -87,7 +87,7 @@ impl From<Vec<DependencySourceRequest>> for ProjectedDependencies {
 /// alias scopes. One package may appear in both scopes, and each scope's
 /// aliases are validated independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DependencyProjections {
+pub struct DependencyProjections {
     product: ProjectedDependencies,
     build: ProjectedDependencies,
 }

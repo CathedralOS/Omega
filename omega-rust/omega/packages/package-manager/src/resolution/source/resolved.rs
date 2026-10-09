@@ -18,7 +18,7 @@ use std::path::PathBuf;
 /// project policy remain separate; source resolution requires no sealed or
 /// certified package instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ResolvedPackageSource<S> {
+pub struct ResolvedPackageSource<S> {
     key: PackageKey,
     role: BuildDeclarationKind,
     resolution: ImmutableSourceResolution,

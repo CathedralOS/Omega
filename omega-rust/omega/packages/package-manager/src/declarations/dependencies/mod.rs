@@ -6,12 +6,7 @@
 pub(crate) mod edit;
 pub(crate) mod read;
 
-pub(crate) use edit::{
-    BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
-    BuildDependencyManualReason, BuildFileReplacement, canonical_dependency_statement,
+pub(crate) use edit::{ BuildDependencyEditPlan, BuildFileReplacement,
 };
-pub(crate) use read::{
-    BuildDependencyProjection, DependencyAliasError, DependencyProjectionError,
-    DependencyProjections, DependencyPurpose, DependencySourceRequest, PackageSelection,
-    ProjectedDependencies, extract_build_dependency_projection,
+pub(crate) use read::{ DependencyProjectionError, DependencyPurpose, DependencySourceRequest, PackageSelection,
 };

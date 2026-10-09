@@ -1,13 +1,13 @@
 //! Evidence establishing which package root was selected from one source.
 
 use super::git::workspace::{
-    GitWorkspaceSelectionError, GitWorkspaceSelectionEvidence,
+    GitWorkspaceSelectionError, GitWorkspaceSelectionEvidence, GitWorkspaceSelectionPlan,
 };
 use std::fmt;
 
 /// Recheckable source-selection evidence retained outside package source bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PackageSourceSelectionEvidence {
+pub enum PackageSourceSelectionEvidence {
     /// The source root itself is the selected package.
     Root,
     /// A declared member was selected from an authenticated Git workspace.
@@ -15,6 +15,12 @@ pub(crate) enum PackageSourceSelectionEvidence {
 }
 
 impl PackageSourceSelectionEvidence {
+    pub const fn git_workspace(&self) -> Option<&GitWorkspaceSelectionPlan> {
+        match self {
+            Self::Root => None,
+            Self::GitWorkspace(evidence) => Some(evidence.plan()),
+        }
+    }
 
     pub fn revalidate(&self) -> Result<(), PackageSourceSelectionEvidenceError> {
         let Self::GitWorkspace(evidence) = self else {

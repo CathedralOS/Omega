@@ -7,7 +7,7 @@ use build_declarations::WorkspaceMemberPath;
 /// Raw authenticated declarations retained separately from the selected
 /// member's compilation root.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitWorkspaceSelectionDeclarations {
+pub struct GitWorkspaceSelectionDeclarations {
     root: Vec<u8>,
     members: Vec<(WorkspaceMemberPath, Vec<u8>)>,
 }
@@ -27,7 +27,7 @@ impl GitWorkspaceSelectionDeclarations {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitWorkspaceSelectionEvidence {
+pub struct GitWorkspaceSelectionEvidence {
     plan: GitWorkspaceSelectionPlan,
     declarations: GitWorkspaceSelectionDeclarations,
 }
@@ -48,6 +48,11 @@ impl GitWorkspaceSelectionEvidence {
         &self.declarations
     }
 
+    pub fn for_declared_member(&self, member_path: &WorkspaceMemberPath) -> Option<Self> {
+        self.plan
+            .for_declared_member(member_path)
+            .map(|plan| Self::new(plan, self.declarations.clone()))
+    }
 
     pub fn revalidate(&self) -> Result<(), PackageSourceSelectionEvidenceError> {
         let root_build = self.declarations().root();

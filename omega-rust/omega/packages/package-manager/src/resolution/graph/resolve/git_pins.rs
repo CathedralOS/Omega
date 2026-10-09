@@ -15,7 +15,7 @@ use std::fmt;
 /// objects. It forbids new or refreshed Git selections and overrides preserved
 /// pins' exact-fetch permission. Local Path dependencies remain available.
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct GitResolutionOptions<'a> {
+pub struct GitResolutionOptions<'a> {
     pub pins: Option<GitDependencyPins<'a>>,
     pub offline: bool,
 }
@@ -27,7 +27,7 @@ pub(crate) struct GitResolutionOptions<'a> {
 /// and their relative Path edges cannot use different commits of that repository.
 /// New or changed requests resolve normally and still undergo graph reconciliation.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct GitDependencyPins<'a> {
+pub struct GitDependencyPins<'a> {
     accepted: &'a CanonicalSourceClosureSubject,
     updates: &'a [PackageKey],
     acquisition: GitExactRevisionAcquisition,
@@ -125,7 +125,7 @@ pub(super) fn pin_error(request: &GitSourceRequest, message: &str) -> ResolvePac
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum GitDependencyPinsError {
+pub enum GitDependencyPinsError {
     UnknownPackage(PackageKey),
     DuplicatePackage(PackageKey),
 }

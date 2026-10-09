@@ -1,10 +1,10 @@
 //! One package selection over one validated Git acquisition request.
 
 use crate::declarations::dependencies::read::PackageSelection;
-use package_source::{GitSourceRequest};
+use package_source::{GitSourceRequest, GitTransportProfile};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitPackageSourceRequest {
+pub struct GitPackageSourceRequest {
     acquisition: GitSourceRequest,
     selection: PackageSelection,
 }
@@ -17,6 +17,9 @@ impl GitPackageSourceRequest {
         }
     }
 
+    pub fn root(acquisition: GitSourceRequest) -> Self {
+        Self::new(acquisition, PackageSelection::Root)
+    }
 
     pub const fn acquisition(&self) -> &GitSourceRequest {
         &self.acquisition
@@ -26,6 +29,15 @@ impl GitPackageSourceRequest {
         &self.selection
     }
 
+    pub fn requested_locator(&self) -> &str {
+        self.acquisition.requested_locator()
+    }
 
+    pub fn requested_revision(&self) -> &str {
+        self.acquisition.requested_revision()
+    }
 
+    pub fn transport_profile(&self) -> GitTransportProfile {
+        self.acquisition.transport_profile()
+    }
 }

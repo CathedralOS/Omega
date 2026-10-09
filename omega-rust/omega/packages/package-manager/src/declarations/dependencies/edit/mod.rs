@@ -32,7 +32,7 @@ pub(crate) enum BuildDependencyEditPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BuildFileReplacement {
+pub struct BuildFileReplacement {
     build_path: PathBuf,
     expected_sha256: [u8; 32],
     replacement_source: String,

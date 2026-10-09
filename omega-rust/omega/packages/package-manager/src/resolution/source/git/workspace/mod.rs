@@ -11,11 +11,11 @@ mod planner;
 mod source_projection;
 
 use build_declarations::{BuildDeclarationKind, ProjectName, WorkspaceMemberPath};
-pub(crate) use commitment::BuildDeclarationCommitment;
-pub(crate) use error::{GitWorkspaceSelectionError, GitWorkspaceSelectionLimit};
+pub use commitment::BuildDeclarationCommitment;
+pub use error::{GitWorkspaceSelectionError, GitWorkspaceSelectionLimit};
 pub(crate) use evidence::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
 pub(crate) use planner::account_declaration_bytes;
-pub(crate) use planner::{
+pub use planner::{
     MAX_BUILD_DECLARATION_BYTES, MAX_TOTAL_BUILD_DECLARATION_BYTES, MAX_WORKSPACE_MEMBERS,
     discover_git_workspace, plan_git_workspace_selection,
 };
@@ -34,7 +34,7 @@ pub(super) fn git_workspace_declaration_limits() -> package_source::GitWorkspace
 ///
 /// Bytes are borrowed only for planning and are never retained in the plan.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct GitWorkspaceMemberBuild<'a> {
+pub struct GitWorkspaceMemberBuild<'a> {
     member_path: &'a WorkspaceMemberPath,
     build_bytes: &'a [u8],
 }
@@ -44,7 +44,7 @@ pub(crate) struct GitWorkspaceMemberBuild<'a> {
 /// The workspace declaration is committed here so the second-stage selection
 /// can prove it planned against the same authenticated root bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitWorkspaceDiscovery {
+pub struct GitWorkspaceDiscovery {
     workspace_declaration: BuildDeclarationEvidence,
     member_paths: Vec<WorkspaceMemberPath>,
 }
@@ -60,12 +60,12 @@ impl GitWorkspaceDiscovery {
         }
     }
 
+    pub const fn workspace_declaration(&self) -> &BuildDeclarationEvidence {
+        &self.workspace_declaration
+    }
 
     pub fn member_paths(&self) -> &[WorkspaceMemberPath] {
         &self.member_paths
-    }
-    pub const fn workspace_declaration(&self) -> &BuildDeclarationEvidence {
-        &self.workspace_declaration
     }
 }
 
@@ -89,7 +89,7 @@ impl<'a> GitWorkspaceMemberBuild<'a> {
 /// Replay evidence for one declaration, without retaining package-authored
 /// source text.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BuildDeclarationEvidence {
+pub struct BuildDeclarationEvidence {
     repository_path: String,
     byte_count: usize,
     commitment: BuildDeclarationCommitment,
@@ -104,13 +104,22 @@ impl BuildDeclarationEvidence {
         }
     }
 
+    pub fn repository_path(&self) -> &str {
+        &self.repository_path
+    }
 
+    pub const fn byte_count(&self) -> usize {
+        self.byte_count
+    }
 
+    pub const fn commitment(&self) -> &BuildDeclarationCommitment {
+        &self.commitment
+    }
 }
 
 /// One declared workspace member after role and static dependency validation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitWorkspaceMemberPlan {
+pub struct GitWorkspaceMemberPlan {
     member_path: WorkspaceMemberPath,
     package_name: ProjectName,
     role: BuildDeclarationKind,
@@ -140,13 +149,19 @@ impl GitWorkspaceMemberPlan {
         &self.package_name
     }
 
+    pub const fn role(&self) -> BuildDeclarationKind {
+        self.role
+    }
 
+    pub const fn declaration(&self) -> &BuildDeclarationEvidence {
+        &self.declaration
+    }
 }
 
 /// Complete declaration evidence for one Git workspace, independent of which
 /// declared member a request selects.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitWorkspaceEvidence {
+pub struct GitWorkspaceEvidence {
     workspace_declaration: BuildDeclarationEvidence,
     members: Vec<GitWorkspaceMemberPlan>,
 }
@@ -162,12 +177,15 @@ impl GitWorkspaceEvidence {
         }
     }
 
+    pub const fn workspace_declaration(&self) -> &BuildDeclarationEvidence {
+        &self.workspace_declaration
+    }
 
     pub fn members(&self) -> &[GitWorkspaceMemberPlan] {
         &self.members
     }
 
-    pub(crate) fn select_declared_member(
+    pub fn select_declared_member(
         &self,
         member_path: &WorkspaceMemberPath,
     ) -> Option<GitWorkspaceSelectionPlan> {
@@ -183,7 +201,7 @@ impl GitWorkspaceEvidence {
 
 /// Deterministic package selection over complete workspace evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitWorkspaceSelectionPlan {
+pub struct GitWorkspaceSelectionPlan {
     selected_member_path: WorkspaceMemberPath,
     workspace: GitWorkspaceEvidence,
 }
@@ -216,11 +234,17 @@ impl GitWorkspaceSelectionPlan {
         &self.workspace
     }
 
+    pub const fn workspace_declaration(&self) -> &BuildDeclarationEvidence {
+        self.workspace.workspace_declaration()
+    }
 
     pub fn members(&self) -> &[GitWorkspaceMemberPlan] {
         self.workspace.members()
     }
 
+    pub fn for_declared_member(&self, member_path: &WorkspaceMemberPath) -> Option<Self> {
+        self.workspace.select_declared_member(member_path)
+    }
 
     /// Replay the complete selection and require byte-for-byte declaration
     /// evidence and semantics to remain unchanged.
