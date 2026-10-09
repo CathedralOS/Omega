@@ -114,12 +114,7 @@ impl StagedOptimizedRegisterHomes {
             .selected_stage()
             .optimized_target_owner()
     }
-    pub const fn homes(&self) -> &ValidatedRegisterHomes {
-        &self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
-        &self.manifest
-    }
+    assignment_context_accessors!();
     pub const fn custody(&self) -> StagedOptimizedRegisterHomeCustodyReceipt {
         self.custody
     }
@@ -277,12 +272,7 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
             .selected_stage()
             .optimized_target_owner()
     }
-    pub const fn homes(&self) -> &ValidatedRegisterHomes {
-        &self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
-        &self.manifest
-    }
+    assignment_context_accessors!();
     pub const fn custody(&self) -> StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
         self.custody
     }

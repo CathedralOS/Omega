@@ -127,12 +127,7 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
             .selected_stage()
             .optimized_target_owner()
     }
-    pub const fn homes(&self) -> &ValidatedRegisterHomes {
-        &self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
-        &self.manifest
-    }
+    assignment_context_accessors!();
     pub const fn custody(&self) -> &StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
         &self.custody
     }
@@ -237,12 +232,7 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
             .selected_stage()
             .optimized_target_owner()
     }
-    pub const fn homes(&self) -> &ValidatedRegisterHomes {
-        &self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
-        &self.manifest
-    }
+    assignment_context_accessors!();
     pub const fn custody(&self) -> &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
         &self.custody
     }
@@ -353,12 +343,7 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
             .selected_stage()
             .optimized_target_owner()
     }
-    pub const fn homes(&self) -> &ValidatedRegisterHomes {
-        &self.homes
-    }
-    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
-        &self.manifest
-    }
+    assignment_context_accessors!();
     pub const fn custody(&self) -> &StagedOptimizedPostPreAllocationHomeCustodyReceipt {
         &self.custody
     }

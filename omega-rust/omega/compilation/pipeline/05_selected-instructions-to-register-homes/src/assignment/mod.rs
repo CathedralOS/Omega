@@ -8,6 +8,22 @@
 //! victims directly. The crate root re-exports each owner's public names by
 //! module.
 
+/// Every assignment context hands callers its produced homes and the
+/// post-allocation manifest it was built from — one getter pair each
+/// assignment-mode context used to restate.
+macro_rules! assignment_context_accessors {
+    () => {
+        pub const fn homes(&self) -> &crate::ValidatedRegisterHomes {
+            &self.homes
+        }
+        pub const fn post_allocation_manifest(
+            &self,
+        ) -> &crate::ValidatedPostAllocationOptimizationManifest {
+            &self.manifest
+        }
+    };
+}
+
 pub(crate) mod baseline;
 pub(crate) mod home_assignment;
 pub(crate) mod post_allocation_manifest;
