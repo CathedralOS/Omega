@@ -31,7 +31,6 @@
 //! measurement rather than as an absent one. There is nothing in the API that
 //! lets a caller tell the two apart.
 
-use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static ALLOCATION_CALLS: AtomicU64 = AtomicU64::new(0);
