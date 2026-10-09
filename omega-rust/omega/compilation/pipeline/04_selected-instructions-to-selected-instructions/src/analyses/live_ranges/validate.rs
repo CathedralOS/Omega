@@ -11,17 +11,7 @@ mod replay;
 
 pub(crate) use receipt::admit;
 
-use crate::{LiveRangeError, ValidatedLiveRanges, ValidatedLiveness};
-use selected_instructions::LiveRangePlan;
-
-pub(crate) fn validate_live_ranges(
-    selected: &impl crate::ValidatedSelectedAnalysis,
-    liveness: &ValidatedLiveness,
-    plan: LiveRangePlan,
-) -> Result<ValidatedLiveRanges, LiveRangeError> {
-    replay::replay_live_ranges(selected, liveness, plan, &[], &[])
-}
-
+use crate::{LiveRangeError, ValidatedLiveness};
 /// Reject a liveness plan computed for another selected program before the
 /// producer reads it.
 pub(super) fn require_liveness_of(

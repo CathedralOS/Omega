@@ -5,13 +5,7 @@
 //! constraint-row instruction builder every hand-built plan shares, so a rule
 //! file holds only the identifiers and shapes that distinguish its subject.
 
-pub use crate::rewrites::runtime_spill::test_support::runtime_spill_source;
-use optimization_core::OptimizationWorkBudget;
-
-pub use crate::rewrites::allocation_recovery::pressure_rematerialization::tests::{
-    multiple_use::exercise_multiple_use_rematerialization,
-    sole_use::exercise_single_use_rematerialization,
-};
+pub use optimization_core::OptimizationWorkBudget;
 
 /// The generous fixture budget shared by the rewrite corpus: wide enough that
 /// no exercised plan reaches it, so budget assertions stay about the measured
