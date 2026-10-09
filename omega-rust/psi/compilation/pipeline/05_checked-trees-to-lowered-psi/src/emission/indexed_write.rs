@@ -424,9 +424,12 @@ impl Destination {
                     field: *field,
                 }
             }
-            DestinationShape::ElementView { .. } => {
-                OperationKind::ElementViewLength { source: self.place }
-            }
+            DestinationShape::ElementView { .. } => OperationKind::ElementViewLength {
+                source: terminal_psi::StructuralArgument::whole(
+                    self.place,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ),
+            },
         };
         let length = value_id(allocate_dense(next_value)?);
         operations.push_leaf(

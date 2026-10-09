@@ -91,6 +91,8 @@ impl ScalarBindings {
                 StructuralTypeShape::ElementView { .. } if requested_extent != Some(true) => {
                     Some(LoweredDirectExpression::ElementViewLength {
                         source: place,
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
                         scalar_type,
                     })
                 }

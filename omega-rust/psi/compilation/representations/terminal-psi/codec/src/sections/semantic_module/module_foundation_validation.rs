@@ -541,7 +541,7 @@ fn validate_operation_foundation(
             )?
         }
         OperationKind::ElementViewLength { .. } => {
-            storage_foundations::validate_element_view_length(operation)?
+            storage_foundations::validate_element_view_length(module, machine, operation)?
         }
         OperationKind::ElementViewRead { .. } => {
             storage_foundations::validate_element_view_read(module, machine, operation)?

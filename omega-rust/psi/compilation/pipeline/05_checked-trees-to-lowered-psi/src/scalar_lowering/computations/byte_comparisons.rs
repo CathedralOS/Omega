@@ -311,7 +311,8 @@ impl OperandSelectors {
     fn capture(&mut self, expression: &mut LoweredDirectExpression) {
         match expression {
             LoweredDirectExpression::Boolean { expression } => self.boolean(expression),
-            LoweredDirectExpression::ByteSequenceFieldLength { path, .. }
+            LoweredDirectExpression::ElementViewLength { path, .. }
+            | LoweredDirectExpression::ByteSequenceFieldLength { path, .. }
             | LoweredDirectExpression::ByteSequenceFieldRead { path, .. } => {
                 if let Some((_, prepared)) =
                     self.paths.iter().find(|(original, _)| original == path)

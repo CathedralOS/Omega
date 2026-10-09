@@ -170,3 +170,15 @@ pub struct StructuralArgument {
     pub path: Vec<StructuralPathSegment>,
     pub access: StructuralAccess,
 }
+
+impl StructuralArgument {
+    /// Spell a whole-home operand with the access its consumer requests.
+    /// This constructor supplies no storage or custody authority.
+    pub fn whole(place: PlaceId, access: StructuralAccess) -> Self {
+        Self {
+            place,
+            path: Vec::new(),
+            access,
+        }
+    }
+}

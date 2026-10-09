@@ -148,7 +148,14 @@ impl Emission<'_, '_, '_> {
         }
         // The verifier rejoins this exact root's current, dominating length
         // to the index obligation. No capacity or source-array size is used.
-        emit_element_length(argument.place, self.next_value, self.operations);
+        emit_element_length(
+            terminal_psi::StructuralArgument::whole(
+                argument.place,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            ),
+            self.next_value,
+            self.operations,
+        );
         Ok(path)
     }
 }

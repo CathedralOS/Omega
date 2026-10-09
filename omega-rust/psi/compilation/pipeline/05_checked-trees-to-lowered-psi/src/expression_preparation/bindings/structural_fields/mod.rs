@@ -767,7 +767,7 @@ pub(crate) fn plan_case_payload_leaf(
     })
 }
 
-pub(crate) fn resolve_byte_projection(
+pub(crate) fn resolve_sequence_projection(
     source: PlaceId,
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
@@ -777,13 +777,14 @@ pub(crate) fn resolve_byte_projection(
         PlaceId,
         Vec<crate::emission::runtime_elements::ProjectionStep>,
         StructuralFieldId,
+        super::view_locals::ViewCarrier,
     )>,
     LoweringError,
 > {
     let Some((checked_trees::CheckedStructuralPredicatePathSegment::Field(identity), carrier)) =
         path.split_last()
     else {
-        return unsupported("byte field length requires an exact field endpoint");
+        return unsupported("sequence field length requires an exact field endpoint");
     };
     let carrier = carrier
         .iter()
@@ -797,7 +798,7 @@ pub(crate) fn resolve_byte_projection(
             checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => Ok(
                 CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone()),
             ),
-            _ => unsupported("byte field length has an unsupported case path"),
+            _ => unsupported("sequence field length has an unsupported case path"),
         })
         .collect::<Result<Vec<_>, _>>()?;
     let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_steps(
@@ -806,11 +807,10 @@ pub(crate) fn resolve_byte_projection(
         identity,
         declarations,
     )?;
-    // Raw fixed arrays have static capacity, not live metadata; a borrowed
-    // view leaf carries its extent on the view descriptor instead. The
-    // element view behind a shared-borrow slice field keeps its element count
-    // on the same descriptor slot a byte carrier keeps its byte count.
-    let leaf_is_view = match field.field_type {
+    // Counts belong to the exact stored descriptor family. Byte and element
+    // metadata may share layout, but a byte operation cannot observe an element
+    // descriptor or donate its extent to a byte-content read.
+    let carrier = match field.field_type {
         StructuralFieldType::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
             | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
@@ -820,20 +820,28 @@ pub(crate) fn resolve_byte_projection(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                 | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
             ..
-        } => true,
-        StructuralFieldType::Structural(view) => declarations.iter().any(|declaration| {
-            declaration.id == view
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ElementView { .. }
-                )
-        }),
-        _ => false,
+        } => super::view_locals::ViewCarrier::Bytes,
+        StructuralFieldType::Structural(view) => {
+            let Some(StructuralTypeShape::ElementView { element }) = declarations
+                .iter()
+                .find(|declaration| declaration.id == view)
+                .map(|declaration| &declaration.shape)
+            else {
+                return Ok(None);
+            };
+            super::view_locals::ViewCarrier::Elements {
+                element: declarations
+                    .iter()
+                    .find(|declaration| declaration.id == *element)
+                    .and_then(|declaration| match declaration.shape {
+                        StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+                        _ => None,
+                    }),
+            }
+        }
+        _ => return Ok(None),
     };
-    if !leaf_is_view {
-        return Ok(None);
-    }
-    Ok(Some((source, path, field.id)))
+    Ok(Some((source, path, field.id, carrier)))
 }
 
 /// Resolve an ordered scalar read from its established storage home. Root

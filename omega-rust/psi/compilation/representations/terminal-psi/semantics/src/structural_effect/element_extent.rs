@@ -23,7 +23,7 @@ pub fn element_subslice_length_equation(
         producer,
         |observation| match observation {
             StructuralEffectObservation::ElementViewLengthRead { source, result } => {
-                Some((*source, *result))
+                source.path.is_empty().then_some((source.place, *result))
             }
             _ => None,
         },
@@ -50,10 +50,16 @@ pub fn element_establishment_length_equation(
     producer: &StructuralEffectObservation,
     collection_length: u64,
 ) -> Result<Option<Proposition>, OperationSemanticError> {
-    let (StructuralEffectObservation::ElementViewLengthRead { source, result }
-    | StructuralEffectObservation::ByteSequenceLengthRead { source, result }) = observation
-    else {
-        return Ok(None);
+    let (source, result) = match observation {
+        StructuralEffectObservation::ElementViewLengthRead { source, result }
+            if source.path.is_empty() =>
+        {
+            (source.place, *result)
+        }
+        StructuralEffectObservation::ByteSequenceLengthRead { source, result } => {
+            (*source, *result)
+        }
+        _ => return Ok(None),
     };
     let StructuralEffectObservation::ElementViewEstablished {
         destination,
@@ -63,10 +69,10 @@ pub fn element_establishment_length_equation(
     else {
         return Ok(None);
     };
-    if source != destination {
+    if source != *destination {
         return Ok(None);
     }
-    super::u64_extent_proposition(*result, u128::from(collection_length))
+    super::u64_extent_proposition(result, u128::from(collection_length))
 }
 
 /// The scalar an `ElementViewRead` yields at `path` below one element of type

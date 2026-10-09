@@ -157,7 +157,9 @@ pub(crate) enum LoweredDirectExpression {
         bound_decided: bool,
     },
     ElementViewLength {
-        source: terminal_psi::StructuralArgument,
+        source: PlaceId,
+        path: Vec<LoweredElementPathSegment>,
+        access: terminal_psi::StructuralAccess,
         scalar_type: ScalarType,
     },
     /// One scalar of one element of an established view: the element itself
@@ -350,30 +352,37 @@ pub(crate) fn emit_byte_length(
 }
 
 pub(crate) fn emit_element_length(
-    source: PlaceId,
+    source: terminal_psi::StructuralArgument,
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
 ) -> ValueId {
-    // Immutable descriptor extent is unchanged on this emission path. Reuse
-    // its dominating observation so later bounds retain the selected guard's
-    // exact value identity; branch emitters scope this cache to their path.
-    if let Some(value) = operations
-        .element_lengths
-        .iter()
-        .rev()
-        .find_map(|(place, value)| (*place == source).then_some(*value))
+    // Whole immutable descriptor values keep their captured extent. A stored
+    // projected descriptor can be replaced through another alias, so observing
+    // it uses the general fresh-read path rather than this optional whole-value
+    // cache. No root-only cache key may donate a sibling's or an earlier slot's
+    // count. Branch emitters scope whole observations to their path.
+    if source.path.is_empty()
+        && let Some(value) = operations
+            .element_lengths
+            .iter()
+            .rev()
+            .find_map(|(place, value)| (place == &source).then_some(*value))
     {
         return value;
     }
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
     let value = emit_scalar_leaf(
-        OperationKind::ElementViewLength { source },
+        OperationKind::ElementViewLength {
+            source: source.clone(),
+        },
         scalar_type,
         next_value_identity,
         operations,
     );
-    operations.element_lengths.push((source, value));
+    if source.path.is_empty() {
+        operations.element_lengths.push((source, value));
+    }
     value
 }
 
@@ -725,8 +734,23 @@ pub(crate) fn emit_direct_expression(
                 operations,
             )
         }
-        LoweredDirectExpression::ElementViewLength { source, .. } => {
-            emit_element_length(*source, next_value_identity, operations)
+        LoweredDirectExpression::ElementViewLength {
+            source,
+            path,
+            access,
+            ..
+        } => {
+            let path = emit_prepared_path(path, 0, parameters, next_value_identity, operations);
+            let path = path_with_current_bounds(&path, operations.next_identity);
+            emit_element_length(
+                terminal_psi::StructuralArgument {
+                    place: *source,
+                    path,
+                    access: *access,
+                },
+                next_value_identity,
+                operations,
+            )
         }
         LoweredDirectExpression::ElementViewRead {
             source,
@@ -740,8 +764,19 @@ pub(crate) fn emit_direct_expression(
                 .element_lengths
                 .iter()
                 .rev()
-                .find_map(|(place, value)| (*place == *source).then_some(*value))
-                .unwrap_or_else(|| emit_element_length(*source, next_value_identity, operations));
+                .find_map(|(observed, value)| {
+                    (observed.place == *source && observed.path.is_empty()).then_some(*value)
+                })
+                .unwrap_or_else(|| {
+                    emit_element_length(
+                        terminal_psi::StructuralArgument::whole(
+                            *source,
+                            terminal_psi::StructuralAccess::SharedBorrow,
+                        ),
+                        next_value_identity,
+                        operations,
+                    )
+                });
             let path = emit_prepared_path(path, 0, parameters, next_value_identity, operations);
             // A missing dominating observation may still form a valid read
             // shape. Its canonical bounds certificate must then be produced;

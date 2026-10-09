@@ -105,11 +105,25 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 }
 
 pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_element_view_length(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let OperationKind::ElementViewLength { .. } = &operation.kind else {
+    let OperationKind::ElementViewLength { source } = &operation.kind else {
         unreachable!("dispatched validate_element_view_length")
     };
+    if source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+        return malformed("element-view length requires readable descriptor access");
+    }
+    let Some(root) = place_structural_type(machine, source.place) else {
+        return malformed("element-view length has no source declaration");
+    };
+    let selected = validate_structural_path(module, root, &source.path)?;
+    if !module.structural_type(selected).is_some_and(|declaration| {
+        matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+    }) {
+        return malformed("element-view length requires the exact selected element descriptor");
+    }
     super::validate_u64_length_result(
         operation,
         "element-view length requires an unsigned 64-bit scalar result",

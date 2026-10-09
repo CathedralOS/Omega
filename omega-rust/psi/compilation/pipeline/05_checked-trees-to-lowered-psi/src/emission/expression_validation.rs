@@ -101,8 +101,7 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
         | LoweredDirectExpression::ImplementationSelection { .. }
-        | LoweredDirectExpression::ByteSequenceLength { .. }
-        | LoweredDirectExpression::ElementViewLength { .. } => Ok(()),
+        | LoweredDirectExpression::ByteSequenceLength { .. } => Ok(()),
         LoweredDirectExpression::IndexedPrimitiveRead {
             index,
             element_path,
@@ -111,7 +110,8 @@ pub(crate) fn validate_direct_parameter_types(
             validate_direct_parameter_types(index, parameter_types)?;
             validate_path_parameter_types(element_path, parameter_types)
         }
-        LoweredDirectExpression::ByteSequenceFieldLength { path, .. } => {
+        LoweredDirectExpression::ByteSequenceFieldLength { path, .. }
+        | LoweredDirectExpression::ElementViewLength { path, .. } => {
             validate_path_parameter_types(path, parameter_types)
         }
         LoweredDirectExpression::ByteSequenceFieldRead { path, index, .. } => {

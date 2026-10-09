@@ -187,7 +187,7 @@ pub(crate) struct OperationBuffer {
     pub(crate) operations: Vec<Operation>,
     /// Temporary observations available on the current emission path only.
     pub(crate) byte_lengths: Vec<(PlaceId, ValueId)>,
-    pub(crate) element_lengths: Vec<(PlaceId, ValueId)>,
+    pub(crate) element_lengths: Vec<(terminal_psi::StructuralArgument, ValueId)>,
     /// Field-length observations reuse their dominating value so an
     /// index bound proven against an earlier `.len` discharges the read's
     /// certificate. A replacement or call may change the extent, so the
@@ -308,6 +308,10 @@ impl OperationBuffer {
         place: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
     ) {
+        self.element_lengths.retain(|(source, _)| {
+            source.place != place
+                || !terminal_semantics::structural_paths_may_overlap(&source.path, path)
+        });
         self.field_byte_lengths.retain(|(root, carrier, _, _)| {
             *root != place || !terminal_semantics::structural_paths_may_overlap(carrier, path)
         });

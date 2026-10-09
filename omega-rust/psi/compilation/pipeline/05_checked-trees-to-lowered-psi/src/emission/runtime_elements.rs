@@ -314,7 +314,10 @@ pub(crate) fn observe_element_extent(
             )?,
         ),
         kind: terminal_psi::OperationKind::ElementViewLength {
-            source: destination,
+            source: terminal_psi::StructuralArgument::whole(
+                destination,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            ),
         },
     });
     Ok(())

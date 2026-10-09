@@ -253,6 +253,9 @@ impl OperationKind {
             | Self::EstablishMutableElementView { source, .. } => {
                 source.place = map(source.place, source.access);
             }
+            Self::ElementViewLength { source } => {
+                source.place = map(source.place, StructuralAccess::SharedBorrow);
+            }
             Self::ReleaseReference { source, .. } => {
                 *source = map(*source, StructuralAccess::Owned);
             }
@@ -271,7 +274,6 @@ impl OperationKind {
             | Self::StructuralCaseLeafCopy { source, .. }
             | Self::ByteSequenceLength { source }
             | Self::ByteSequenceRead { source, .. }
-            | Self::ElementViewLength { source }
             | Self::ElementViewRead { source, .. }
             | Self::BooleanStructuralField { source, .. }
             | Self::ScalarStructuralField { source, .. } => {
@@ -383,7 +385,8 @@ impl OperationKind {
             }
             Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
-            | Self::EstablishMutableElementView { source, .. } => {
+            | Self::EstablishMutableElementView { source, .. }
+            | Self::ElementViewLength { source } => {
                 projections.push(argument_projection(source));
             }
             Self::PrimitiveScalarRead { source, path }
@@ -461,7 +464,6 @@ impl OperationKind {
             | Self::ByteSequenceWrite { .. }
             | Self::ByteSequenceStore { .. }
             | Self::ByteSequenceSubslice { .. }
-            | Self::ElementViewLength { .. }
             | Self::ElementViewWrite { .. }
             | Self::ElementViewSubslice { .. }
             | Self::EstablishTrivialAffineLocal { .. }
@@ -496,7 +498,8 @@ impl OperationKind {
             }
             Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
-            | Self::EstablishMutableElementView { source, .. } => {
+            | Self::EstablishMutableElementView { source, .. }
+            | Self::ElementViewLength { source } => {
                 paths.push(&mut source.path);
             }
             Self::PrimitiveScalarRead { path, .. }

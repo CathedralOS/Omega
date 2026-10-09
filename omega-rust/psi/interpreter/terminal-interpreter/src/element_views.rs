@@ -291,7 +291,17 @@ impl TerminalExecution<'_> {
         }
         self.structural_element_view_fields
             .get(&crate::values::StructuralRuntimePlace::from(resolved))
-            .ok_or(malformed())
+            .or_else(|| {
+                self.element_view_values
+                    .values()
+                    .chain(
+                        self.call_stack
+                            .iter()
+                            .flat_map(|frame| frame.element_view_values.values()),
+                    )
+                    .find(|view| view.matches_descriptor_home(resolved))
+            })
+            .ok_or_else(malformed)
     }
 
     /// Descriptor lifetime ends with its frame. Only debt-free views retire
@@ -939,12 +949,33 @@ impl TerminalExecution<'_> {
         if result.scalar_type != ScalarType::Integer(integer_type) {
             return Err(malformed());
         }
-        let view = crate::custody::verified_structural_place(&self.element_view_values, *source)?;
+        if source.access == StructuralAccess::WriteOnlyBorrow {
+            return Err(malformed());
+        }
+        // Read the selected descriptor through the shared live-path owner.
+        // Reference crossings retain their captured backing; this observation
+        // attenuates access without copying an exclusive descriptor.
+        let selected = self.resolve_live_projection(
+            source.place,
+            &source.path,
+            StructuralAccess::SharedBorrow,
+        )?;
+        if !self
+            .program
+            .structural_types()
+            .get(&selected.structural_type)
+            .is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+            })
+        {
+            return Err(malformed());
+        }
+        let length = self.element_view_argument(source, &selected)?.len();
         self.values.insert(
             result.id,
             TerminalScalarValue::Integer {
                 scalar_type: integer_type,
-                value: IntegerValue::Unsigned(u128::try_from(view.len()).map_err(|_| malformed())?),
+                value: IntegerValue::Unsigned(u128::try_from(length).map_err(|_| malformed())?),
             },
         );
         Ok(OperationFlow::Advance)

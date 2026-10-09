@@ -147,7 +147,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
             let count_type = terminal_scalar_type(PrimitiveType::U64)?;
             if !path.is_empty() {
-                let (source, path, field) = byte_field_observation(
+                return sequence_field_observation(
                     structural_fields,
                     structural_locals,
                     view_locals,
@@ -157,13 +157,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 )?
                 .ok_or(LoweringError::Unsupported(
                     "field length requires a live byte or element descriptor",
-                ))?;
-                return Ok(LoweredDirectExpression::ByteSequenceFieldLength {
-                    source,
-                    path,
-                    field,
-                    scalar_type: count_type,
-                });
+                ));
             }
             if let Some(bindings) = scalar_bindings
                 && let Some((home, structural_type)) = bindings.captured_storage_home(*root)?
@@ -206,6 +200,8 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 },
                 ViewCarrier::Elements { .. } => LoweredDirectExpression::ElementViewLength {
                     source,
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
                     scalar_type: count_type,
                 },
             })
@@ -1102,16 +1098,26 @@ fn captured_sequence_length(
             .ok_or(LoweringError::Unsupported(
                 "captured sequence observation has no descriptor declaration",
             ))?;
+    if matches!(
+        declaration.shape,
+        terminal_psi::StructuralTypeShape::ElementView { .. }
+    ) {
+        return Ok(LoweredDirectExpression::ElementViewLength {
+            source: home.place,
+            path: home
+                .path
+                .iter()
+                .cloned()
+                .map(LoweredElementPathSegment::Static)
+                .collect(),
+            access: home.access,
+            scalar_type,
+        });
+    }
     if home.path.is_empty() {
         return match declaration.shape {
             terminal_psi::StructuralTypeShape::ByteSequence(_) => {
                 Ok(LoweredDirectExpression::ByteSequenceLength {
-                    source: home.place,
-                    scalar_type,
-                })
-            }
-            terminal_psi::StructuralTypeShape::ElementView { .. } => {
-                Ok(LoweredDirectExpression::ElementViewLength {
                     source: home.place,
                     scalar_type,
                 })
@@ -1123,7 +1129,7 @@ fn captured_sequence_length(
         declaration.shape,
         terminal_psi::StructuralTypeShape::ByteSequence(_)
     ) {
-        return unsupported("nested element view requires its established descriptor home");
+        return unsupported("captured length requires a sequence descriptor");
     }
     let Some((terminal_psi::StructuralPathSegment::Field(identity), prefix)) =
         home.path.split_last()
@@ -1180,7 +1186,36 @@ fn byte_field_observation(
     )>,
     LoweringError,
 > {
+    Ok(
+        match sequence_field_observation(
+            fields,
+            structural_locals,
+            view_locals,
+            bindings,
+            root,
+            path,
+        )? {
+            Some(LoweredDirectExpression::ByteSequenceFieldLength {
+                source,
+                path,
+                field,
+                ..
+            }) => Some((source, path, field)),
+            _ => None,
+        },
+    )
+}
+
+fn sequence_field_observation(
+    fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
+    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
+    view_locals: &[ViewLocalBinding],
+    bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
+    root: checked_trees::CheckedStorageRoot,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+) -> Result<Option<LoweredDirectExpression>, LoweringError> {
     use crate::emission::runtime_elements::ProjectionStep;
+    let path_endpoint = path.last();
     let captured = bindings
         .map(|bindings| bindings.captured_storage_home(root))
         .transpose()?
@@ -1200,8 +1235,8 @@ fn byte_field_observation(
         )
     };
     let source = home.place;
-    let Some((source, steps, field)) =
-        crate::expression_preparation::bindings::structural_fields::resolve_byte_projection(
+    let Some((source, steps, field, carrier)) =
+        crate::expression_preparation::bindings::structural_fields::resolve_sequence_projection(
             source,
             structural_type,
             fields.declarations(),
@@ -1228,8 +1263,9 @@ fn byte_field_observation(
         });
     let prefix_length = home.path.len();
     if prefix_length != 0 && view_prefix.is_some() {
-        return unsupported("nested element view requires its established descriptor home");
+        return unsupported("captured length requires a sequence descriptor");
     }
+    let access = home.access;
     let path = home
         .path
         .into_iter()
@@ -1268,6 +1304,8 @@ fn byte_field_observation(
             let extent = (view_prefix == Some(ordinal)).then(|| {
                 LoweredDirectExpression::ElementViewLength {
                     source,
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
                     scalar_type: selector.scalar_type(),
                 }
             });
@@ -1286,7 +1324,32 @@ fn byte_field_observation(
     {
         return unsupported("field observation exceeds the runtime selector namespace");
     }
-    Ok(Some((source, path, field)))
+    let scalar_type = terminal_scalar_type(PrimitiveType::U64)?;
+    Ok(Some(match carrier {
+        ViewCarrier::Bytes => LoweredDirectExpression::ByteSequenceFieldLength {
+            source,
+            path,
+            field,
+            scalar_type,
+        },
+        ViewCarrier::Elements { .. } => {
+            let mut path = path;
+            let Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(identity)) =
+                path_endpoint
+            else {
+                return unsupported("sequence observation lost its exact field endpoint");
+            };
+            path.push(LoweredElementPathSegment::Static(
+                terminal_psi::StructuralPathSegment::Field(identity.clone()),
+            ));
+            LoweredDirectExpression::ElementViewLength {
+                source,
+                path,
+                access,
+                scalar_type,
+            }
+        }
+    }))
 }
 
 /// Terminal element reads take a `u64` position. Any integer carrier may index

@@ -140,8 +140,8 @@ pub(super) const MOVE_STRUCTURAL_FIELD: u8 = 77;
 pub(super) const STORE_STRUCTURAL_FIELD: u8 = 78;
 /// `OperationKind::EstablishElementView`.
 pub(super) const ESTABLISH_ELEMENT_VIEW: u8 = 79;
-/// `OperationKind::ElementViewLength`.
-pub(super) const ELEMENT_VIEW_LENGTH: u8 = 80;
+// Tag 80 retired: its whole-place payload cannot represent a projected
+// descriptor. Reject old bytes instead of reinterpreting their source identity.
 /// `OperationKind::ElementViewRead`.
 pub(super) const ELEMENT_VIEW_READ: u8 = 81;
 /// `OperationKind::ElementViewSubslice`.
@@ -225,3 +225,6 @@ pub(super) const CALL_DYNAMIC: u8 = 110;
 
 /// A scalar reference retaining source-selected byte storage interpretation.
 pub(super) const ESTABLISH_STORAGE_VIEW_REFERENCE: u8 = 111;
+
+/// `OperationKind::ElementViewLength` with the complete structural operand.
+pub(super) const ELEMENT_VIEW_LENGTH: u8 = 112;

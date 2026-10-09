@@ -474,7 +474,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 78 | StoreStructuralField | destination place id + structural path + field id + structural argument |
 | 79 | EstablishElementView | destination place id + source structural argument + element type id + element-view region |
 | 98 | EstablishMutableElementView | destination place id + source structural argument + element type id + element-view region |
-| 80 | ElementViewLength | source place id |
+| 80 | retired | rejected; old whole-place element-length payload |
 | 81 | ElementViewRead | source place id + index value id + length value id + obligation id |
 | 82 | ElementViewSubslice | source place id + start value id + end value id + length value id + obligation id |
 | 83 | EstablishStructuralCase | structural case id + counted fields (field id + `u8` operand tag: 1 + value id + optional obligation id; 2 + structural argument) |
@@ -489,6 +489,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 100 | StructuralByteViewFieldStore | destination place id + structural path + field id (zero: the whole destination) + source place id; no predicate obligation |
 | 105 | ByteSequenceEqual | left byte-sequence operand + right byte-sequence operand |
 | 106 | StructuralByteViewFieldStore | destination place id + structural path + field id (zero: the whole destination) + source place id + predicate obligation id |
+| 112 | ElementViewLength | source place id + structural access + structural path |
 
 A byte-sequence operand is `u8` 0 + whole source place id + length value id,
 or `u8` 1 + source place id + structural access + structural path + field id
@@ -497,6 +498,8 @@ predicate obligation retains tag 100's existing payload; tag 106 carries the
 additional exact-source obligation. Its decoder never infers a proof from an
 unqualified store or interprets equality's tag 105 as a field store.
 
+Tag 80's retired whole-place element-length payload rejects; tag 112 retains
+the complete operand without reinterpreting old source identities.
 Tags 51 (retired literal field row) and 67 (retired scalar-only record
 operand) reject; their payloads are not reinterpreted as current forms. Tags
 73, 74, 76 and 87 (retired canonical-path primitive read and store and the

@@ -179,7 +179,14 @@ pub(crate) fn emit_boolean_expression(
         } => {
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             if *observes_element_view_length {
-                emit_element_length(*source, next_value_identity, operations);
+                emit_element_length(
+                    terminal_psi::StructuralArgument::whole(
+                        *source,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    ),
+                    next_value_identity,
+                    operations,
+                );
             }
             let obligation = obligation_id(
                 operations

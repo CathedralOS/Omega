@@ -401,10 +401,12 @@ pub(super) fn decode_establish_mutable_element_view(
 
 pub(super) fn encode_element_view_length(
     writer: &mut Writer,
-    source: PlaceId,
+    source: StructuralArgument,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ELEMENT_VIEW_LENGTH);
-    writer.id(source);
+    writer.id(source.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, source.access);
+    encode_structural_path(writer, "element descriptor path", &source.path)?;
     Ok(())
 }
 
@@ -412,7 +414,11 @@ pub(super) fn decode_element_view_length(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::ElementViewLength {
-        source: reader.id("PlaceId")?,
+        source: StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
     })
 }
 
