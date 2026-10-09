@@ -2,7 +2,7 @@
 //! the requirement subject a fact constrains.
 
 use checked_trees::CheckFacts;
-use facts::{FactPayload, PlaceRoot};
+use facts::PlaceRoot;
 use symbols::SymbolHandle;
 
 /// The proof-fact expressions of a PREDICATE-ONLY domain, or `None` when the
@@ -60,9 +60,7 @@ pub(super) fn predicate_only_domain_labels(
     facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Option<Vec<String>> {
-    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
-    | FactPayload::DomainMembership { domain_symbol, .. }) = fact.payload
-    else {
+    let Some((_, _, domain_symbol, _)) = fact.payload.domain_membership() else {
         return None;
     };
     let place_handle = fact.place.as_place()?;
@@ -95,9 +93,7 @@ pub(super) fn predicate_only_domain_interval(
     facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Option<(String, numerics::bignum::BigInt, numerics::bignum::BigInt)> {
-    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
-    | FactPayload::DomainMembership { domain_symbol, .. }) = fact.payload
-    else {
+    let Some((_, _, domain_symbol, _)) = fact.payload.domain_membership() else {
         return None;
     };
     let place_handle = fact.place.as_place()?;

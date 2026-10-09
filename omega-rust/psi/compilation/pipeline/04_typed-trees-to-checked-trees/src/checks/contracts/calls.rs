@@ -252,9 +252,7 @@ fn subslice_grants_domain(
     payload: FactPayload,
     place: FactPlace,
 ) -> bool {
-    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
-    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
-    else {
+    let Some((_, _, domain_symbol, _)) = payload.domain_membership() else {
         return false;
     };
     let Some(place_handle) = place.as_place() else {
@@ -338,9 +336,7 @@ fn parameter_domain_grants(
     payload: FactPayload,
     place: FactPlace,
 ) -> bool {
-    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
-    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
-    else {
+    let Some((_, _, domain_symbol, _)) = payload.domain_membership() else {
         return false;
     };
     let Some(place_handle) = place.as_place() else {
@@ -390,9 +386,7 @@ fn expression_rooted_domain_parts(
     symbols::SymbolHandle,
     typed_trees::expression::ExpressionHandle,
 )> {
-    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
-    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
-    else {
+    let Some((_, _, domain_symbol, _)) = payload.domain_membership() else {
         return None;
     };
     let place_handle = place.as_place()?;
@@ -525,9 +519,7 @@ fn proven_predicates_grant_domain(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     expression_intervals: &[validation::ExpressionInterval],
 ) -> bool {
-    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
-    | FactPayload::DomainMembership { domain_symbol, .. }) = fact.payload
-    else {
+    let Some((_, _, domain_symbol, _)) = fact.payload.domain_membership() else {
         return false;
     };
     let Some(predicate_expressions) = predicate_only_domain_predicates(program, domain_symbol)
