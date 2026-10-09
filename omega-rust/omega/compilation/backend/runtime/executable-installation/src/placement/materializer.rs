@@ -243,17 +243,16 @@ fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, InstallationDiagnostic> 
     ))
 }
 
-fn write_i32(bytes: &mut [u8], offset: usize, value: i32) -> Result<(), InstallationDiagnostic> {
-    write_bytes(bytes, offset, &value.to_le_bytes())
+macro_rules! write_le {
+    ($name:ident, $t:ty) => {
+        fn $name(bytes: &mut [u8], offset: usize, value: $t) -> Result<(), InstallationDiagnostic> {
+            write_bytes(bytes, offset, &value.to_le_bytes())
+        }
+    };
 }
-
-fn write_u32(bytes: &mut [u8], offset: usize, value: u32) -> Result<(), InstallationDiagnostic> {
-    write_bytes(bytes, offset, &value.to_le_bytes())
-}
-
-fn write_u64(bytes: &mut [u8], offset: usize, value: u64) -> Result<(), InstallationDiagnostic> {
-    write_bytes(bytes, offset, &value.to_le_bytes())
-}
+write_le!(write_i32, i32);
+write_le!(write_u32, u32);
+write_le!(write_u64, u64);
 
 fn write_bytes(
     bytes: &mut [u8],

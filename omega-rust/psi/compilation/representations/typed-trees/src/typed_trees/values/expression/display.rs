@@ -7,6 +7,17 @@ use crate::expression::{
 };
 use crate::name::Identifier;
 
+macro_rules! display_name_via_writer {
+    () => {
+        /// Renders this node's display name through `write_display_name`.
+        pub fn display_name(&self, table: &ExpressionTable) -> String {
+            let mut rendered = String::new();
+            self.write_display_name(table, &mut rendered);
+            rendered
+        }
+    };
+}
+
 impl Expression {
     pub fn display_name(&self) -> String {
         match self {
@@ -71,11 +82,7 @@ impl Expression {
 }
 
 impl ExpressionNode {
-    pub fn display_name(&self, table: &ExpressionTable) -> String {
-        let mut rendered = String::new();
-        self.write_display_name(table, &mut rendered);
-        rendered
-    }
+    display_name_via_writer!();
 
     /// Appends this node's display name to `out`. The whole tree renders into
     /// one buffer instead of formatting a `String` per node and copying it
@@ -243,11 +250,7 @@ impl BinaryExpression {
 }
 
 impl TableBinaryExpression {
-    pub fn display_name(&self, table: &ExpressionTable) -> String {
-        let mut rendered = String::new();
-        self.write_display_name(table, &mut rendered);
-        rendered
-    }
+    display_name_via_writer!();
 
     fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
         table.write_display_name(self.left, out);
@@ -259,11 +262,7 @@ impl TableBinaryExpression {
 }
 
 impl TableUnaryExpression {
-    pub fn display_name(&self, table: &ExpressionTable) -> String {
-        let mut rendered = String::new();
-        self.write_display_name(table, &mut rendered);
-        rendered
-    }
+    display_name_via_writer!();
 
     fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
         out.push_str(self.operator.display_name());
@@ -292,11 +291,7 @@ impl CastExpression {
 }
 
 impl TableCastExpression {
-    pub fn display_name(&self, table: &ExpressionTable) -> String {
-        let mut rendered = String::new();
-        self.write_display_name(table, &mut rendered);
-        rendered
-    }
+    display_name_via_writer!();
 
     fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
         table.write_display_name(self.value, out);
@@ -318,11 +313,7 @@ impl CallExpression {
 }
 
 impl TableCallExpression {
-    pub fn display_name(&self, table: &ExpressionTable) -> String {
-        let mut rendered = String::new();
-        self.write_display_name(table, &mut rendered);
-        rendered
-    }
+    display_name_via_writer!();
 
     fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
         use std::fmt::Write as _;
