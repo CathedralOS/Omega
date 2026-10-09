@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 /// (or the complete manifest) so a compact-equal substitute cannot authorize
 /// a different selected provider closure or pending demand set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ComponentProgressManifestDigest([u8; 32]);
+pub(crate) struct ComponentProgressManifestDigest([u8; 32]);
 
 impl ComponentProgressManifestDigest {
     const fn from_digest(digest: [u8; 32]) -> Self {
@@ -43,7 +43,7 @@ pub struct CheckedComponentProgressDemand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ComponentBuildBoundProgressDemand {
+pub(crate) struct ComponentBuildBoundProgressDemand {
     pub provider_service_identity: String,
     pub provider_service_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub requirement_identity: String,
