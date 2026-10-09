@@ -389,3 +389,12 @@ pub enum CheckedScalarDispatchPattern {
     #[default]
     Wildcard,
 }
+
+#[macro_export]
+macro_rules! cast_or_qualification_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::CheckedScalarComputationKind::AuthoredCast { $($fields)* }
+            | $crate::CheckedScalarComputationKind::BooleanToInteger { $($fields)* }
+            | $crate::CheckedScalarComputationKind::Qualification { $($fields)* }
+    };
+}

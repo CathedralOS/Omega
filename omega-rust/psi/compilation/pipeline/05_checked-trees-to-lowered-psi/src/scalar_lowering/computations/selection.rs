@@ -179,9 +179,7 @@ impl Expansion<'_> {
                 CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                     pending.extend([(*right, false), (*left, false)]);
                 }
-                CheckedScalarComputationKind::Qualification { operand, .. }
-                | CheckedScalarComputationKind::AuthoredCast { operand, .. }
-                | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
+                checked_trees::cast_or_qualification_triple_pattern!(operand, ..) => {
                     pending.push((*operand, false))
                 }
                 CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }

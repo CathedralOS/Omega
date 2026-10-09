@@ -810,9 +810,7 @@ pub(super) fn collect(
                 consumed,
             )?;
         }
-        CheckedScalarComputationKind::Qualification { operand, .. }
-        | CheckedScalarComputationKind::AuthoredCast { operand, .. }
-        | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
+        checked_trees::cast_or_qualification_triple_pattern!(operand, ..) => {
             collect(
                 program,
                 facts,

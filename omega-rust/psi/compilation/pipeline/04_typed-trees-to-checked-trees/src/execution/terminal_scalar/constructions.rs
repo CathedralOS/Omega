@@ -60,9 +60,7 @@ pub(crate) fn retain_shapes(
             CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                 pending.extend([*left, *right])
             }
-            CheckedScalarComputationKind::Qualification { operand, .. }
-            | CheckedScalarComputationKind::AuthoredCast { operand, .. }
-            | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
+            checked_trees::cast_or_qualification_triple_pattern!(operand, ..) => {
                 pending.push(*operand)
             }
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
