@@ -80,12 +80,11 @@ macro_rules! canonical_authority_digest {
                 report_identity: u64,
                 canonical: &[u8],
             ) -> Self {
-                let mut digest = Sha256::new();
-                digest.update($domain);
-                digest.update(report_identity.to_le_bytes());
-                digest.update((canonical.len() as u64).to_le_bytes());
-                digest.update(canonical);
-                Self(digest.finalize().into())
+                let mut digest = crate::digest_encoder::DomainDigestEncoder::new($domain);
+                digest.raw(&report_identity.to_le_bytes());
+                digest.u64((canonical.len() as u64);
+                digest.raw(&canonical);
+                Self(digest.finish())
             }
 
             pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
@@ -250,15 +249,10 @@ impl InstallationFactDigest {
     /// provider's exact cache-order or instruction-fetch completion fact —
     /// and this layer assigns them no ambient meaning.
     pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest = Sha256::new();
-        digest.update(b"omega.installation-fact.sha256.v1\0");
-        digest.update(
-            u64::try_from(canonical.len())
-                .expect("installation-fact canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.update(canonical);
-        Self::from_digest(digest.finalize().into())
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.installation-fact.sha256.v1\0");
+        digest.raw(&u64::try_from(canonical.len()) .expect("installation-fact canonical byte length fits u64") .to_le_bytes(),);
+        digest.raw(&canonical);
+        Self::from_digest(digest.finish())
     }
 }
 
@@ -271,15 +265,10 @@ impl ReplacementFactDigest {
     /// provider's exact patched-site cache-order or instruction-fetch
     /// completion fact — and this layer assigns them no ambient meaning.
     pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest = Sha256::new();
-        digest.update(b"omega.replacement-fact.sha256.v1\0");
-        digest.update(
-            u64::try_from(canonical.len())
-                .expect("replacement-fact canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.update(canonical);
-        Self::from_digest(digest.finalize().into())
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.replacement-fact.sha256.v1\0");
+        digest.raw(&u64::try_from(canonical.len()) .expect("replacement-fact canonical byte length fits u64") .to_le_bytes(),);
+        digest.raw(&canonical);
+        Self::from_digest(digest.finish())
     }
 }
 
@@ -293,15 +282,10 @@ impl EntryContractDigest {
     /// provider's exact calling-boundary contract descriptor — and this
     /// layer assigns them no ambient meaning.
     pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest = Sha256::new();
-        digest.update(b"omega.entry-contract.sha256.v1\0");
-        digest.update(
-            u64::try_from(canonical.len())
-                .expect("entry-contract canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.update(canonical);
-        Self::from_digest(digest.finalize().into())
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.entry-contract.sha256.v1\0");
+        digest.raw(&u64::try_from(canonical.len()) .expect("entry-contract canonical byte length fits u64") .to_le_bytes(),);
+        digest.raw(&canonical);
+        Self::from_digest(digest.finish())
     }
 }
 
@@ -315,15 +299,10 @@ impl EntryReferenceFactDigest {
     /// provider's exact fetch-domain or cache-order completion fact — and
     /// this layer assigns them no ambient meaning.
     pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest = Sha256::new();
-        digest.update(b"omega.entry-reference-fact.sha256.v1\0");
-        digest.update(
-            u64::try_from(canonical.len())
-                .expect("entry-reference-fact canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.update(canonical);
-        Self::from_digest(digest.finalize().into())
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.entry-reference-fact.sha256.v1\0");
+        digest.raw(&u64::try_from(canonical.len()) .expect("entry-reference-fact canonical byte length fits u64") .to_le_bytes(),);
+        digest.raw(&canonical);
+        Self::from_digest(digest.finish())
     }
 }
 
@@ -334,15 +313,10 @@ impl RetirementFactDigest {
     /// than a compact provider-selected integer. The canonical bytes remain
     /// provider vocabulary; this layer assigns them no ambient meaning.
     pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest = Sha256::new();
-        digest.update(b"omega.retirement-fact.sha256.v1\0");
-        digest.update(
-            u64::try_from(canonical.len())
-                .expect("retirement-fact canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.update(canonical);
-        Self::from_digest(digest.finalize().into())
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.retirement-fact.sha256.v1\0");
+        digest.raw(&u64::try_from(canonical.len()) .expect("retirement-fact canonical byte length fits u64") .to_le_bytes(),);
+        digest.raw(&canonical);
+        Self::from_digest(digest.finish())
     }
 }
 

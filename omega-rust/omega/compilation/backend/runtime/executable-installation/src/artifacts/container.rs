@@ -653,15 +653,15 @@ pub(crate) fn derive_artifact_content_commitments(
     }
 
     if let Some(commitments) = authority_commitments {
-        digest.update(commitments.imported_contracts().as_bytes());
-        digest.update(commitments.declared_footprint().as_bytes());
-        digest.update(commitments.machine_regime().as_bytes());
-        digest.update(commitments.installation_scope().as_bytes());
+        digest.raw(commitments.imported_contracts().as_bytes());
+        digest.raw(commitments.declared_footprint().as_bytes());
+        digest.raw(commitments.machine_regime().as_bytes());
+        digest.raw(commitments.installation_scope().as_bytes());
     }
 
     let fingerprint = fingerprint.finish();
     Ok((
-        ArtifactContentDigest::from_digest(digest.finalize().into()),
+        ArtifactContentDigest::from_digest(digest.finish()),
         NonAuthoritativeContainerFingerprint64::from_compatibility_value(if fingerprint == 0 {
             1
         } else {
@@ -671,7 +671,7 @@ pub(crate) fn derive_artifact_content_commitments(
 }
 
 fn fingerprint_placement(
-    digest: &mut Sha256,
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
     compatibility_fingerprint: &mut crate::fnv1a::Fnv1a,
     placement: PlacementConstraints,
 ) {
@@ -727,11 +727,11 @@ fn fingerprint_placement(
 }
 
 fn content_commitment_bytes(
-    digest: &mut Sha256,
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
     fingerprint: &mut crate::fnv1a::Fnv1a,
     bytes: &[u8],
 ) {
-    digest.update(bytes);
+    digest.raw(&bytes);
     fingerprint_bytes(fingerprint, bytes);
 }
 

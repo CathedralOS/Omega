@@ -285,15 +285,14 @@ fn normalized_final_bytes_identity(
     architecture: Architecture,
     bytes: &[u8],
 ) -> Result<FinalBytesDigest, InstallationDiagnostic> {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.materialized-final-bytes.sha256.v1\0");
-    digest.update(content.digest());
-    digest.update(base_address.to_le_bytes());
-    digest.update([match architecture {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.materialized-final-bytes.sha256.v1\0");
+    digest.raw(&content.digest());
+    digest.raw(&base_address.to_le_bytes());
+    digest.byte(match architecture {
         Architecture::Aarch64 => 1,
         Architecture::X86_64 => 2,
-    }]);
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
-    Ok(FinalBytesDigest::from_digest(digest.finalize().into()))
+    });
+    digest.u64((bytes.len() as u64);
+    digest.raw(&bytes);
+    Ok(FinalBytesDigest::from_digest(digest.finish()))
 }

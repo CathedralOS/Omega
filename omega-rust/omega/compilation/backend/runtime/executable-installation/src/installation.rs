@@ -308,57 +308,50 @@ impl InstalledCodeEvidence {
 fn installed_artifact_occurrence_digest(
     evidence: &InstalledCodeEvidence,
 ) -> InstalledArtifactOccurrenceDigest {
-    fn bytes(digest: &mut Sha256, value: &[u8]) {
-        digest.update((value.len() as u64).to_le_bytes());
-        digest.update(value);
+    fn bytes(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: &[u8]) {
+        digest.u64((value.len() as u64);
+        digest.raw(&value);
     }
 
-    fn optional_u64(digest: &mut Sha256, value: Option<u64>) {
+    fn optional_u64(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: Option<u64>) {
         match value {
             Some(value) => {
-                digest.update([1]);
-                digest.update(value.to_le_bytes());
+                digest.byte(1);
+                digest.raw(&value.to_le_bytes());
             }
-            None => digest.update([0]),
+            None => digest.byte(0),
         }
     }
 
     let validated = &evidence.validated;
     let admitted = &validated.admission_evidence;
     let constraints = validated.constraints;
-    let mut digest = Sha256::new();
-    digest.update(b"omega.installed-artifact-occurrence.sha256.v1\0");
-    digest.update(admitted.artifact.content().digest());
-    digest.update(
-        admitted
-            .artifact
-            .identity()
-            .normalized_identity()
-            .to_le_bytes(),
-    );
-    digest.update(admitted.admission.normalized_identity().to_le_bytes());
-    digest.update(evidence.installed.normalized_identity().to_le_bytes());
-    digest.update(validated.placement.normalized_identity().to_le_bytes());
-    digest.update(validated.scope.normalized_identity().to_le_bytes());
-    digest.update([match validated.audience {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.installed-artifact-occurrence.sha256.v1\0");
+    digest.raw(&admitted.artifact.content().digest());
+    digest.raw(&admitted .artifact .identity() .normalized_identity() .to_le_bytes(),);
+    digest.raw(&admitted.admission.normalized_identity().to_le_bytes());
+    digest.raw(&evidence.installed.normalized_identity().to_le_bytes());
+    digest.raw(&validated.placement.normalized_identity().to_le_bytes());
+    digest.raw(&validated.scope.normalized_identity().to_le_bytes());
+    digest.byte(match validated.audience {
         InstallationAudience::DormantLocal => 1,
         InstallationAudience::FutureFetcher => 2,
         InstallationAudience::PossibleCurrentExecutor => 3,
-    }]);
+    });
     match constraints.permitted_range() {
         Some(range) => {
-            digest.update([1]);
-            digest.update(range.start_inclusive().to_le_bytes());
-            digest.update(range.end_exclusive().to_le_bytes());
+            digest.byte(1);
+            digest.raw(&range.start_inclusive().to_le_bytes());
+            digest.raw(&range.end_exclusive().to_le_bytes());
         }
-        None => digest.update([0]),
+        None => digest.byte(0),
     }
-    digest.update(constraints.alignment().to_le_bytes());
-    digest.update([match constraints.phase() {
+    digest.raw(&constraints.alignment().to_le_bytes());
+    digest.byte(match constraints.phase() {
         layout_plans::PlacementPhase::Build => 1,
         layout_plans::PlacementPhase::Load => 2,
         layout_plans::PlacementPhase::PostHandoff => 3,
-    }]);
+    });
     optional_u64(
         &mut digest,
         constraints
@@ -371,30 +364,25 @@ fn installed_artifact_occurrence_digest(
             .installation_scope()
             .map(|identity| identity.normalized_identity()),
     );
-    digest.update(validated.base.to_le_bytes());
-    digest.update(validated.length.to_le_bytes());
-    digest.update(validated.address_space.normalized_identity().to_le_bytes());
-    digest.update((validated.rights.identities().count() as u64).to_le_bytes());
+    digest.raw(&validated.base.to_le_bytes());
+    digest.raw(&validated.length.to_le_bytes());
+    digest.raw(&validated.address_space.normalized_identity().to_le_bytes());
+    digest.u64((validated.rights.identities().count() as u64);
     for right in validated.rights.identities() {
-        digest.update(right.normalized_identity().to_le_bytes());
+        digest.raw(&right.normalized_identity().to_le_bytes());
     }
-    digest.update(validated.provenance.normalized_identity().to_le_bytes());
-    digest.update(validated.era.normalized_identity().to_le_bytes());
-    digest.update(validated.lineage.normalized_identity().to_le_bytes());
+    digest.raw(&validated.provenance.normalized_identity().to_le_bytes());
+    digest.raw(&validated.era.normalized_identity().to_le_bytes());
+    digest.raw(&validated.lineage.normalized_identity().to_le_bytes());
     bytes(&mut digest, &validated.final_bytes);
-    digest.update(
-        validated
-            .realized_footprint
-            .normalized_identity()
-            .to_le_bytes(),
-    );
-    digest.update(validated.validation.normalized_identity().to_le_bytes());
-    digest.update([match evidence.wx {
+    digest.raw(&validated .realized_footprint .normalized_identity() .to_le_bytes(),);
+    digest.raw(&validated.validation.normalized_identity().to_le_bytes());
+    digest.byte(match evidence.wx {
         WxEnforcement::HardwareEnforced => 1,
         WxEnforcement::ConventionOnly => 2,
         WxEnforcement::Unsupported => 3,
-    }]);
-    InstalledArtifactOccurrenceDigest::from_sha256(digest.finalize().into())
+    });
+    InstalledArtifactOccurrenceDigest::from_sha256(digest.finish())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
