@@ -137,11 +137,7 @@ impl HistoricalPackagePolicyDecisions {
                 return Err(Error::UnknownPackage);
             }
             let conflict = parse_digest(fields.next().ok_or(Error::InvalidFraming)?)?;
-            let disposition = match fields.next() {
-                Some("accept") => ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
-                Some("reject") => ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
-                _ => return Err(Error::InvalidFraming),
-            };
+            let disposition = super::text::parse_disposition(&mut fields)?;
             if fields.next().is_some() {
                 return Err(Error::InvalidFraming);
             }
@@ -240,6 +236,16 @@ fn decimal_digits(mut number: usize) -> usize {
         digits += 1;
     }
     digits
+}
+
+pub(super) fn parse_disposition(
+    fields: &mut std::str::Split<'_, char>,
+) -> Result<ReviewOnlyRootPolicyDisposition, Error> {
+    match fields.next() {
+        Some("accept") => Ok(ReviewOnlyRootPolicyDisposition::AcceptCandidateChange),
+        Some("reject") => Ok(ReviewOnlyRootPolicyDisposition::RejectCandidateChange),
+        _ => Err(Error::InvalidFraming),
+    }
 }
 
 pub(super) fn disposition_token(disposition: ReviewOnlyRootPolicyDisposition) -> &'static str {

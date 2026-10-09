@@ -1,7 +1,7 @@
 //! Version 2 stores full-comparison subjects, not source-graph row indices.
 
 use super::super::HistoricalPackagePolicyRecoveryUsage;
-use super::super::text::{disposition_token, parse_digest, parse_number};
+use super::super::text::{disposition_token, parse_digest, parse_disposition, parse_number};
 use super::{
     Error, HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisions,
     HistoricalPackagePolicyLimits, Subject,
@@ -121,11 +121,7 @@ pub(in super::super) fn recover(
             Some("row") => Subject::Row(parse_digest(fields.next().ok_or(Error::InvalidFraming)?)?),
             _ => return Err(Error::InvalidFraming),
         };
-        let disposition = match fields.next() {
-            Some("accept") => ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
-            Some("reject") => ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
-            _ => return Err(Error::InvalidFraming),
-        };
+        let disposition = parse_disposition(&mut fields)?;
         if fields.next().is_some() {
             return Err(Error::InvalidFraming);
         }
