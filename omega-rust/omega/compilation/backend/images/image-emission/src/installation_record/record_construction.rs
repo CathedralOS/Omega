@@ -20,7 +20,7 @@ use std::num::NonZeroU64;
 ///
 /// This convenience path succeeds only when the image has no provider-backed
 /// settlements. Effectful images must use the admission-bearing constructor.
-pub fn build_installation_record(
+pub(crate) fn build_installation_record(
     image: &ExecutableImage,
     profile_decision: ProfileDecisionId,
 ) -> Result<InstallationRecord, InstallationError> {
@@ -37,7 +37,7 @@ pub fn build_installation_record(
 /// The execution closure must match the image's retained settlement evidence
 /// exactly. Numeric provider-plan identities are derived here and cannot be
 /// supplied independently by the caller.
-pub fn build_installation_record_with_provider_executions<'execution, Execution>(
+pub(crate) fn build_installation_record_with_provider_executions<'execution, Execution>(
     image: &ExecutableImage,
     profile_decision: ProfileDecisionId,
     provider_executions: impl IntoIterator<Item = &'execution Execution>,
@@ -52,7 +52,7 @@ where
 /// admitted component-progress closure into artifact identity. The evidence
 /// trait exposes report identities only; runtime publication must still
 /// retain and replay the opaque acceptance owned by orchestration.
-pub fn build_installation_record_with_evidence<'execution, Execution>(
+pub(crate) fn build_installation_record_with_evidence<'execution, Execution>(
     image: &ExecutableImage,
     profile_decision: ProfileDecisionId,
     provider_executions: impl IntoIterator<Item = &'execution Execution>,
@@ -89,7 +89,7 @@ where
 /// custody — the boundary application coverage's `opaque_applications`, or the
 /// canonical empty set when the artifact carries no coverage. Bind rejects a
 /// record whose claimed custody disagrees with the installed artifact's.
-pub fn build_installation_record_with_selected_provider_plans_and_evidence<'execution, Execution>(
+pub(crate) fn build_installation_record_with_selected_provider_plans_and_evidence<'execution, Execution>(
     image: &ExecutableImage,
     profile_decision: ProfileDecisionId,
     selected_provider_plans: impl IntoIterator<Item = u64>,
@@ -275,7 +275,7 @@ where
 /// installation record. The selected entry is supplied by installed-root
 /// realization; external entry-adapter and interrupt-arrival demand remain
 /// outside this artifact-owned closure.
-pub fn derive_installation_stack_demand(
+pub(crate) fn derive_installation_stack_demand(
     record: &InstallationRecord,
     image: &ExecutableImage,
     entry: MachineId,
@@ -316,7 +316,7 @@ pub fn derive_installation_stack_demand(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum InstallationStackError {
+pub(crate) enum InstallationStackError {
     Installation(InstallationError),
     Stack(crate::ObjectError),
 }

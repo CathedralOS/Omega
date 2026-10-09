@@ -15,7 +15,7 @@ use terminal_psi::TerminalPsiIdentity;
 /// installation. Exact selection authority remains outside the decodable
 /// installation record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SelectedProviderPlanReportIdentity(NonZeroU64);
+pub(crate) struct SelectedProviderPlanReportIdentity(NonZeroU64);
 
 impl SelectedProviderPlanReportIdentity {
     pub const fn new(raw: u64) -> Option<Self> {
@@ -35,7 +35,7 @@ impl SelectedProviderPlanReportIdentity {
 /// again before publication; this projection merely prevents the terminal
 /// artifact from shedding or substituting the accepted manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledComponentProgress {
+pub(crate) struct InstalledComponentProgress {
     pub(crate) manifest: NonZeroU64,
     pub(crate) acceptance: NonZeroU64,
 }
@@ -51,7 +51,7 @@ impl InstalledComponentProgress {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ImageFingerprint(pub(crate) [u8; 32]);
+pub(crate) struct ImageFingerprint(pub(crate) [u8; 32]);
 
 impl ImageFingerprint {
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -72,7 +72,7 @@ impl std::fmt::Display for ImageFingerprint {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct InstallationFingerprint(pub(crate) [u8; 32]);
+pub(crate) struct InstallationFingerprint(pub(crate) [u8; 32]);
 
 impl InstallationFingerprint {
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -100,7 +100,7 @@ impl std::fmt::Display for InstallationFingerprint {
 /// profile decision, selected provider plans, image bytes, and the compiler
 /// text-validation receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstallationRecord {
+pub(crate) struct InstallationRecord {
     pub(crate) psi: TerminalPsiIdentity,
     pub(crate) target: NativeTarget,
     pub(crate) subsystem: Option<u16>,
@@ -224,7 +224,7 @@ impl InstallationRecord {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct InitializedDataFingerprint(pub(crate) [u8; 32]);
+pub(crate) struct InitializedDataFingerprint(pub(crate) [u8; 32]);
 
 impl InitializedDataFingerprint {
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -238,7 +238,7 @@ impl InitializedDataFingerprint {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledImageSections {
+pub(crate) struct InstalledImageSections {
     pub layout: FinalImageLayout,
     /// Compiler-authored text prefix. Image-writer thunks remain in the bound
     /// image but outside this bounded installation projection.
@@ -263,7 +263,7 @@ pub struct InstalledImageSections {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledFunction {
+pub(crate) struct InstalledFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
     /// Exact owner-designated cleanup subject, independent of attachment or call sites.
@@ -327,7 +327,7 @@ impl InstalledFunction {
 /// substituting the exact private identity, source program, ABI, or final text
 /// interval already validated by object and image construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledCompilerPrivateFunction {
+pub(crate) struct InstalledCompilerPrivateFunction {
     pub identity: function_identity::MachineFunctionIdentity,
     pub source_psi: TerminalPsiIdentity,
     pub machine: MachineId,
@@ -337,7 +337,7 @@ pub struct InstalledCompilerPrivateFunction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledForeignCallStack {
+pub(crate) struct InstalledForeignCallStack {
     pub owner: CallSiteOwner,
     pub text_offset: usize,
     pub caller_live_bytes: u32,
@@ -349,20 +349,20 @@ pub struct InstalledForeignCallStack {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledStructuralReturn {
+pub(crate) struct InstalledStructuralReturn {
     pub machine: MachineId,
     pub returned: StructuralReturnRecord,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledInternalUnitCall {
+pub(crate) struct InstalledInternalUnitCall {
     pub machine: MachineId,
     pub text_offset: usize,
     pub custody: machine_code::InternalUnitCallRecord,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledInternalUnitScalarCall {
+pub(crate) struct InstalledInternalUnitScalarCall {
     pub machine: MachineId,
     pub text_offset: usize,
     pub custody: machine_code::InternalUnitScalarCallRecord,

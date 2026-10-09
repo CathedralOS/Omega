@@ -16,7 +16,7 @@ use crate::{
 /// produced only after replaying the complete record against the emitted image
 /// and comparing both unrelocated and materialized text with `InstalledCode`.
 #[derive(Debug)]
-pub struct InstalledArtifact {
+pub(crate) struct InstalledArtifact {
     object: ObjectArtifact,
     image: ExecutableImage,
     installation: InstallationRecord,
@@ -51,7 +51,7 @@ impl InstalledArtifact {
     }
 
     /// Compare complete opaque installation evidence, not only report IDs.
-    pub fn binds_installed_code(&self, installed: &InstalledCode) -> bool {
+    pub(crate) fn binds_installed_code(&self, installed: &InstalledCode) -> bool {
         self.installed.receipt_context() == installed.receipt_context()
     }
 
@@ -73,7 +73,7 @@ impl InstalledArtifact {
 /// canonical record is returned so orchestration may correct another input and
 /// retry without reconstructing installation metadata.
 #[derive(Debug)]
-pub struct InstalledArtifactBindingError {
+pub(crate) struct InstalledArtifactBindingError {
     object: ObjectArtifact,
     image: ExecutableImage,
     installation: InstallationRecord,
@@ -111,7 +111,7 @@ impl std::error::Error for InstalledArtifactBindingError {}
 /// frozen placement can reproduce the target addresses used by final
 /// relocation replay without erasing section boundaries.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledArtifactMemoryImages {
+pub(crate) struct InstalledArtifactMemoryImages {
     layout: image::FinalImageLayout,
     data_offset: Option<usize>,
     encoded: Vec<u8>,
@@ -137,7 +137,7 @@ impl InstalledArtifactMemoryImages {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledArtifactMemoryProjectionError(String);
+pub(crate) struct InstalledArtifactMemoryProjectionError(String);
 
 impl InstalledArtifactMemoryProjectionError {
     pub fn diagnostic(&self) -> &str {
@@ -159,7 +159,7 @@ impl std::error::Error for InstalledArtifactMemoryProjectionError {}
 /// thunks, binding slots, alignment padding). BSS remains outside this lane.
 /// The placed-region inventories must replay over the retained final bytes
 /// with no unclassified gap before this projection is produced.
-pub fn project_installed_artifact_memory_images(
+pub(crate) fn project_installed_artifact_memory_images(
     object: &ObjectArtifact,
     image: &ExecutableImage,
 ) -> Result<InstalledArtifactMemoryImages, InstalledArtifactMemoryProjectionError> {
@@ -298,7 +298,7 @@ fn flatten_installed_sections(
 ///
 /// This carrier is descriptive custody only. It exposes neither a resolved
 /// address nor external-root, registrar, capacity, or lifetime authority.
-pub struct InstalledCompilerPrivateFunctionEntry {
+pub(crate) struct InstalledCompilerPrivateFunctionEntry {
     private_function: InstalledCompilerPrivateFunction,
     entry: EntryStubId,
     artifact: ArtifactId,
@@ -356,7 +356,7 @@ impl InstalledCompilerPrivateFunctionEntry {
 /// caller-supplied identities are retained so orchestration can retry without
 /// deriving or minting replacements.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledCompilerPrivateFunctionEntryBindingError {
+pub(crate) struct InstalledCompilerPrivateFunctionEntryBindingError {
     private_function: MachineFunctionIdentity,
     entry: EntryStubId,
     diagnostic: String,
@@ -387,7 +387,7 @@ impl std::error::Error for InstalledCompilerPrivateFunctionEntryBindingError {}
 /// Bind a caller-supplied, already-admitted entry to the exact compiler-private
 /// function row and installed occurrence that contain its executable bytes.
 /// This gate never derives an entry identity or resolves an executable address.
-pub fn bind_installed_compiler_private_function_entry(
+pub(crate) fn bind_installed_compiler_private_function_entry(
     installed_artifact: &InstalledArtifact,
     private_function: MachineFunctionIdentity,
     entry: EntryStubId,
@@ -477,7 +477,7 @@ pub fn bind_installed_compiler_private_function_entry(
 /// or the canonical empty set when the artifact carries no coverage); the
 /// replayed record must claim that same set, since equal size, alignment, or
 /// a compact fingerprint never establishes agreement.
-pub fn bind_installed_artifact(
+pub(crate) fn bind_installed_artifact(
     object: ObjectArtifact,
     image: ExecutableImage,
     installation: InstallationRecord,

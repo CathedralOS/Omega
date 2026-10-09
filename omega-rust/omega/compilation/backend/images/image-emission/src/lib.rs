@@ -43,57 +43,39 @@ mod object_artifact;
 
 pub use object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
 pub use object_artifact::replay::boundary::completion_receipts::completion_receipts_have_exact_custody;
-pub use object_artifact::replay::scalar::control_flow::reconstruct_scalar_control_flow;
-pub use object_artifact::stack_demand::{StackDemand, derive_stack_demand};
+pub use object_artifact::stack_demand::{ derive_stack_demand};
+pub(crate) use object_artifact::stack_demand::{StackDemand};
 pub use object_artifact::{
-    ObjectArtifact, ObjectBoundarySettlement, ObjectByteLiteralAddress, ObjectByteLiteralPool,
-    ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectError, ObjectForeignCall,
-    ObjectFunction, ObjectPortEffect, ObjectScalarCallStack, ObjectScalarStack,
-    ObjectUnitCallStack, ObjectUnitStack, build_admitted_x86_fma_object_artifact,
-    build_feature_required_x86_fma_object_artifact, build_object_artifact,
-    build_object_artifact_with_private_functions, derive_normalized_foreign_call_custody,
+    ObjectArtifact, ObjectBoundarySettlement,
+    ObjectCodeAttribution, ObjectForeignCall,
+    ObjectFunction, ObjectScalarCallStack,
+    ObjectUnitCallStack, build_object_artifact, derive_normalized_foreign_call_custody,
     foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
-    durable_home_offsets, producer_instruction, scalar_immediate_span, transported_span_end, scalar_call_result_producer, scalar_observation_producer,
+    durable_home_offsets, producer_instruction, scalar_immediate_span, transported_span_end, scalar_call_result_producer,
     unique_block_instruction,
     structural_result_capture,
 };
+pub(crate) use object_artifact::{ ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction, ObjectError, ObjectPortEffect, ObjectScalarStack, ObjectUnitStack};
 
-pub use function_fragments::{
-    FunctionFragmentObjectArtifactError, FunctionFragmentObjectArtifactRequest,
-    build_function_fragment_object_artifact, validate_function_fragment_object_artifact,
+pub use function_fragments::{ FunctionFragmentObjectArtifactRequest,
+    build_function_fragment_object_artifact,
 };
 
 pub use dynamic_elf::{
-    DynamicElfImageEmission, DynamicElfImageEmissionError, DynamicElfOrchestrationError,
-    RequestedDynamicElfImage, emit_admitted_dynamic_elf_image, emit_dynamic_elf_image,
-    validate_dynamic_elf_image_emission, validate_requested_dynamic_elf_image,
+    RequestedDynamicElfImage, validate_requested_dynamic_elf_image,
 };
-pub use hosted_receiver::{HostedReceiverBinding, HostedReceiverPartitions, bind_hosted_receiver};
+pub use hosted_receiver::{ bind_hosted_receiver};
+pub(crate) use hosted_receiver::{HostedReceiverBinding};
 pub use image_output::{
     ExecutableImage, ExecutableImageEmissionRequest, ImageApplicationMetadataError,
-    ObjectContainer, RequestedExecutableImage, RequestedExecutableImageError,
-    can_emit_executable_image, emit_direct_executable_image, emit_executable_image,
-    emit_object_container, validate_direct_executable_image,
+    ObjectContainer, RequestedExecutableImage,
+    can_emit_executable_image, emit_executable_image, validate_direct_executable_image,
 };
 
-pub use installation_record::{
-    INSTALLATION_FORMAT_MARKER, ImageFingerprint, InitializedDataFingerprint, InstallationError,
-    InstallationFingerprint, InstallationRecord, InstallationStackError,
-    InstalledCompilerPrivateFunction, InstalledComponentProgress, InstalledForeignCallStack,
-    InstalledFunction, InstalledImageSections, InstalledInternalUnitCall,
-    InstalledInternalUnitScalarCall, InstalledStructuralReturn, SelectedProviderPlanReportIdentity,
-    build_installation_record, build_installation_record_with_evidence,
-    build_installation_record_with_provider_executions,
-    build_installation_record_with_selected_provider_plans_and_evidence,
-    decode_installation_record, derive_installation_stack_demand, encode_installation_record,
-    installation_fingerprint, validate_installation_record,
+pub use installation_record::{ InstallationError,
 };
+pub(crate) use installation_record::{ InstallationRecord,
+    InstalledCompilerPrivateFunction, validate_installation_record};
 #[cfg(feature = "installed-artifact")]
-pub use installed_artifact::{
-    InstalledArtifact, InstalledArtifactBindingError, InstalledArtifactMemoryImages,
-    InstalledArtifactMemoryProjectionError, InstalledCompilerPrivateFunctionEntry,
-    InstalledCompilerPrivateFunctionEntryBindingError, bind_installed_artifact,
-    bind_installed_compiler_private_function_entry, project_installed_artifact_memory_images,
-};
 
 pub use machine_code::BoundaryExecutionRecord;

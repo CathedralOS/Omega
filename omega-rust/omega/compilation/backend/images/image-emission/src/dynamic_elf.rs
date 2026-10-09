@@ -109,7 +109,7 @@ impl DynamicElfImageEmission {
 /// Rejected production-emitter reconciliation with the admitted owner intact.
 #[derive(Debug)]
 #[must_use = "dynamic ELF emission rejection retains admitted byte custody"]
-pub struct DynamicElfImageEmissionError {
+pub(crate) struct DynamicElfImageEmissionError {
     admitted: ValidatedElfDynamicExecutable,
     diagnostic: Diagnostic,
 }
@@ -139,7 +139,7 @@ impl std::error::Error for DynamicElfImageEmissionError {}
 /// observations of that custody, never substitutes for it.
 #[derive(Debug)]
 #[must_use = "dynamic ELF orchestration failure retains the exact failing owner"]
-pub enum DynamicElfOrchestrationError {
+pub(crate) enum DynamicElfOrchestrationError {
     /// The hosted-entry owner rejected the artifact before any ELF stage ran:
     /// an import-bearing object still carries its exact entry custody, so a
     /// receiver bridge cannot be dropped merely because imports selected the
@@ -191,7 +191,7 @@ impl std::error::Error for DynamicElfOrchestrationError {}
 /// non-installable custody and grants no publication or execution authority.
 /// The ordinary object builder now supplies the exact import-bearing input, but
 /// this carrier still stops before native-artifact/installable integration.
-pub fn emit_dynamic_elf_image(
+pub(crate) fn emit_dynamic_elf_image(
     artifact: &ObjectArtifact,
     interpreter: NormalizedElfInterpreterPlan,
 ) -> Result<DynamicElfImageEmission, Box<DynamicElfOrchestrationError>> {
@@ -298,7 +298,7 @@ fn validated_output(
 
 /// Join exact admitted dynamic ELF bytes to the production image-output
 /// surface without granting publication or execution authority.
-pub fn emit_admitted_dynamic_elf_image(
+pub(crate) fn emit_admitted_dynamic_elf_image(
     artifact: &ObjectArtifact,
     admitted: ValidatedElfDynamicExecutable,
 ) -> Result<DynamicElfImageEmission, Box<DynamicElfImageEmissionError>> {
@@ -317,7 +317,7 @@ pub fn emit_admitted_dynamic_elf_image(
 }
 
 /// Independently replay one admitted dynamic ELF production-emission join.
-pub fn validate_dynamic_elf_image_emission(
+pub(crate) fn validate_dynamic_elf_image_emission(
     artifact: &ObjectArtifact,
     emission: &DynamicElfImageEmission,
 ) -> Result<(), Diagnostic> {

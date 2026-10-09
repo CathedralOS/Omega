@@ -9,7 +9,7 @@ use object_file::{
     entry_symbol_name,
 };
 
-pub fn validate_function_fragment_object_artifact(
+pub(crate) fn validate_function_fragment_object_artifact(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {

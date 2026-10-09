@@ -17,7 +17,7 @@ use crate::{ObjectError, ObjectScalarStack};
 /// Fallthrough is a zero-width edge at the end of its conditional instruction;
 /// every other edge owns one complete transfer instruction. Block boundaries
 /// come from these instructions, not a producer-supplied topology description.
-pub fn reconstruct_scalar_control_flow<'row>(
+pub(crate) fn reconstruct_scalar_control_flow<'row>(
     architecture: Architecture,
     machine: MachineId,
     bytes: &[u8],

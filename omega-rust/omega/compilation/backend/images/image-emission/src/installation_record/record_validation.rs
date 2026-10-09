@@ -65,7 +65,7 @@ fn validate_complete_image_placement(image: &ExecutableImage) -> Result<(), Inst
     Ok(())
 }
 
-pub fn validate_installation_record(
+pub(crate) fn validate_installation_record(
     record: &InstallationRecord,
     image: &ExecutableImage,
 ) -> Result<(), InstallationError> {
@@ -320,7 +320,7 @@ pub(crate) fn installed_foreign_call_stacks(
         .collect()
 }
 
-pub fn installation_fingerprint(
+pub(crate) fn installation_fingerprint(
     record: &InstallationRecord,
 ) -> Result<InstallationFingerprint, InstallationError> {
     let bytes = encode_installation_record(record)?;

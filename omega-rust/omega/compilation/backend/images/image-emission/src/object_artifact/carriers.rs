@@ -52,7 +52,7 @@ pub struct ObjectArtifact {
 /// aligned. Every literal address field binds this symbol with the literal's
 /// pool offset as its addend.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectByteLiteralPool {
+pub(crate) struct ObjectByteLiteralPool {
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
     pub byte_count: usize,
@@ -61,7 +61,7 @@ pub struct ObjectByteLiteralPool {
 
 /// One literal address in the program text and the octets it names.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectByteLiteralAddress {
+pub(crate) struct ObjectByteLiteralAddress {
     pub machine: MachineId,
     pub literal: machine_code::ByteLiteralReference,
     /// Text-section coordinates of the instruction's unresolved field(s).
@@ -80,17 +80,17 @@ impl ObjectArtifact {
         self.hosted_receiver.as_ref()
     }
     #[cfg(any(test, feature = "test-support"))]
-    pub fn semantic_code_attribution_mut_for_test(&mut self) -> &mut Vec<ObjectCodeAttribution> {
+    pub(crate) fn semantic_code_attribution_mut_for_test(&mut self) -> &mut Vec<ObjectCodeAttribution> {
         &mut self.semantic_code_attribution
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn functions_mut_for_test(&mut self) -> &mut Vec<ObjectFunction> {
+    pub(crate) fn functions_mut_for_test(&mut self) -> &mut Vec<ObjectFunction> {
         &mut self.functions
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn boundary_settlements_mut_for_test(&mut self) -> &mut Vec<ObjectBoundarySettlement> {
+    pub(crate) fn boundary_settlements_mut_for_test(&mut self) -> &mut Vec<ObjectBoundarySettlement> {
         &mut self.boundary_settlements
     }
     pub const fn psi(&self) -> TerminalPsiIdentity {
@@ -146,7 +146,7 @@ impl ObjectArtifact {
         &self.private_functions
     }
 
-    pub fn entry_function(&self) -> &ObjectFunction {
+    pub(crate) fn entry_function(&self) -> &ObjectFunction {
         self.function_on_machine(self.entry)
             .expect("artifact construction requires one entry function")
     }
@@ -188,7 +188,7 @@ impl installation_evidence::ObjectEvidence for ObjectArtifact {
 }
 
 /// The object function keyed `machine` in a function roster.
-pub fn find_object_function(
+pub(crate) fn find_object_function(
     functions: &[ObjectFunction],
     machine: MachineId,
 ) -> Option<&ObjectFunction> {
@@ -278,7 +278,7 @@ impl ObjectFunction {
 /// object's text section. Its artifact-local `MachineId` remains nested under
 /// this carrier and never joins the semantic program-function namespace.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectCompilerPrivateFunction {
+pub(crate) struct ObjectCompilerPrivateFunction {
     pub identity: function_identity::MachineFunctionIdentity,
     pub source_psi: TerminalPsiIdentity,
     pub function: ObjectFunction,
