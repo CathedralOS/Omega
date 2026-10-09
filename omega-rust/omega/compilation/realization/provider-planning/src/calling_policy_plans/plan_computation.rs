@@ -37,7 +37,7 @@ use sha2::Sha256;
 use target::NativeTarget;
 use typed_trees::TypedTrees;
 
-pub fn evaluate_compatibility_boundary_entry_plan(
+pub(crate) fn evaluate_compatibility_boundary_entry_plan(
     typed: &TypedTrees,
     native_target: NativeTarget,
     trait_name: &str,
@@ -344,7 +344,7 @@ pub fn compute_boundary_calling_plans(
     Ok(evaluated)
 }
 
-pub fn evaluate_calling_policy_plan(
+pub(crate) fn evaluate_calling_policy_plan(
     typed: &TypedTrees,
     policy_machine: &str,
     signature: &CallSignature,
@@ -448,7 +448,7 @@ fn evaluate_selected_materialized_calling_policy_plan(
         .map_err(CallingPolicyRejection::from)
 }
 
-pub fn materialized_boundary_signature_from_abi(
+pub(crate) fn materialized_boundary_signature_from_abi(
     signature: &CallSignature,
 ) -> Result<MaterializedBoundarySignature, String> {
     let mut shapes = Vec::new();

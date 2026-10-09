@@ -36,18 +36,20 @@ pub(crate) use external_binding_rows::extract_native_external_binding_rows;
 pub use operator_provider_evidence::{
     selected_requirement_plan, selected_use_plan, specialized_provider_machines,
 };
-pub use provenance_replay::{
-    DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
-    SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter,
-    replay_selected_provider_provenance, same_semantic_name, satisfies_plan_name,
+pub use provenance_replay::{ ProviderPlanDerivation, ProviderSchemaDeclaration, derive_satisfies_plans, exact_checked_adapter, same_semantic_name, satisfies_plan_name,
     selected_requirement_checked_adapter,
 };
-pub use selected_plan_bindings::SelectedProviderPlanBinding;
+pub(crate) use provenance_replay::{
+    DerivedProviderPlan, ProviderPlanProvenance,
+    SelectedTargetMachineOrigin,
+    replay_selected_provider_provenance};
+pub(crate) use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{
-    ProviderSelectionProvenance, SelectedProviderPlanWithProvenance,
+    ProviderSelectionProvenance,
     SelectedProviderReviewProvenance, selected_provider_plan_facts,
-    selected_provider_plan_facts_with_independent_components,
 };
+pub(crate) use selection_provenance::{ SelectedProviderPlanWithProvenance,
+    selected_provider_plan_facts_with_independent_components};
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
 use effects::provider_grants::AuthoredRootGrant;

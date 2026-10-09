@@ -138,7 +138,7 @@ pub fn selected_provider_plan_facts(
 /// `independent_components` entry (`VerifiedComponent::realizes_selected_plan`),
 /// and each supplied component must realize one such plan; the selected
 /// facts publish only when that join is complete.
-pub fn selected_provider_plan_facts_with_independent_components(
+pub(crate) fn selected_provider_plan_facts_with_independent_components(
     context: crate::ProviderPlanningContext<'_>,
     mut selected: Vec<SelectedProviderPlanWithProvenance>,
     independent_components: &[VerifiedComponent],

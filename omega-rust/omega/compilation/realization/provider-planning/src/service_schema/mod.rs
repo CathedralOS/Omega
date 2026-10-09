@@ -36,7 +36,7 @@ pub fn from_typed(
 /// Reify one concrete generic boundary instance. The argument tuple is
 /// semantic input only for resolving evaluated calling-plan identity;
 /// policy type/source names remain absent from the published schema.
-pub fn from_typed_instance(
+pub(crate) fn from_typed_instance(
     context: ProviderPlanningContext<'_>,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
