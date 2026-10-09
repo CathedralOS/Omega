@@ -52,12 +52,6 @@ pub use function_realization::{
 pub use function_realization::{
     FunctionRelativeOptimizationRealizationError,
 };
-pub(crate) use function_realization::{
-    StagedFixedFrameFunctionRelativeRealization};
-pub(crate) use function_realization::{
-    ValidatedFunctionRelativeOptimizationRealizationManifest};
-pub(crate) use function_realization::{ FunctionRelativeOptimizationRealizationManifest};
-
 // Evidence the realization joins: frame geometry, frame bytes, exit contract.
 mod exit_contract;
 pub mod frame_layout;
@@ -76,9 +70,6 @@ pub use exit_contract::{ WholeFunctionEntryAssumption, WholeFunctionExitContract
     WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
     WholeFunctionReturnValueEvidence,
 };
-pub(crate) use exit_contract::{
-    ValidatedWholeFunctionExitContract};
-
 // 2. Fragment emission.
 mod fragment_emission;
 
@@ -91,11 +82,6 @@ pub use fragment_emission::{ FunctionFragmentEmissionManifest,
     FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
     StagedOptimizedFunctionFragmentEmissionSource,
 };
-pub(crate) use fragment_emission::{
-    FunctionFragmentEmissionError};
-pub(crate) use fragment_emission::{ StagedOptimizedFunctionFragmentEmission, ValidatedFunctionFragmentEmissionManifest};
-
-
 // 3. Frame application.
 mod frame_application;
 
@@ -107,11 +93,6 @@ pub use frame_application::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,
     function_fragment_frame_application_identity,
 };
-pub(crate) use frame_application::{
-    FunctionFragmentFrameApplicationError};
-pub(crate) use frame_application::{ StagedFunctionFragmentFrameApplication};
-
-
 // 4. Text placement.
 mod text_placement;
 
@@ -124,11 +105,6 @@ pub use text_placement::{
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
     FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError, StagedOptimizedFixedFrameTextSection,
 };
-pub(crate) use text_placement::{
-    StagedFixedFrameTextSectionCustodyReceipt,
-    ValidatedFunctionFragmentTextSectionManifest};
-
-
 // Private callback records projected from placed text.
 mod private_callback;
 

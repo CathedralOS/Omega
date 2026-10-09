@@ -17,6 +17,5 @@ pub use bounded_process::{
     BoundedCaptureBudget, BoundedCaptureLimits, BoundedProcessInput,
     BoundedProcessOutput, BoundedProcessRunError, run_bounded_process,
 };
-pub(crate) use bounded_process::{ BoundedCaptureBudgetExceeded, BoundedProcessStream};
 pub use preparation::{BoundedProcessLimits, BoundedProcessPrepared};
 pub use process_child::{BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus};

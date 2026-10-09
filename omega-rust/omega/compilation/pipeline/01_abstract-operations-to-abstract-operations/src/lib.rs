@@ -28,7 +28,6 @@ mod rules;
 mod state_specialization;
 pub mod validation;
 
-pub(crate) use abstract_optimization::AbstractOptimizationError;
 pub use abstract_optimization::optimize_abstract_operations;
 pub(crate) use publication::OptimizedAbstractProjectionError;
 pub use publication::ValidatedOptimizedAbstractPlan;

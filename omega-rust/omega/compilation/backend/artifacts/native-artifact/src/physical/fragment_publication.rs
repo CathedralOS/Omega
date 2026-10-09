@@ -7,8 +7,6 @@ use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use sha2::{Digest, Sha256};
 
 use super::ValidatedOptimizedNativePhysicalEvidenceScope;
-use installation_evidence::ObjectEvidence;
-
 /// Immutable admitted object evidence. Equality deliberately covers the complete
 /// object, including metadata not used by the current physical-child projection.
 #[derive(Debug, Clone, PartialEq, Eq)]

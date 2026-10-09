@@ -39,15 +39,7 @@ pub use component_description::{
     decode_component_description, description_subject,
     encode_component_description,
 };
-pub(crate) use component_description::{ ComponentDescription,
-    ComponentEntry, ComponentEntryKind, CustodyConstraint, CustodyEvidence, CustodyKind, DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportContract,
-    ExportSurface, ImportSlot, InstallationObligation, InstallationServiceBound, ObligationKind,
-    OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
-    StackDemandFacts, canonical_entry_contract_identity, component_description_identity, describe_component_facts, port_mechanism_assumption, requirement_contract_identity,
-    requirement_export_identity};
 pub use component_verification::{ ComponentVerificationRequest, IndependentRealizationMismatch,
     VerifiedComponent, verify_component,
 };
-pub(crate) use component_verification::{
-    ComponentVerificationRejection};
 pub use publication::publish_component_description;

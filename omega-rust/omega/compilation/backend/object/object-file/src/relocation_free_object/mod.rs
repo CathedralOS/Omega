@@ -3,8 +3,8 @@
 
 use std::collections::BTreeSet;
 
-pub(crate) mod publication;
-pub(crate) mod text_section;
+pub mod publication;
+pub mod text_section;
 
 use crate::cursor::Cursor;
 use crate::object_target_policy;

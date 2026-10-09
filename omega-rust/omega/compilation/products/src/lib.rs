@@ -42,7 +42,6 @@ pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport,
     RetainedCompilationChecks,
 };
-pub(crate) use checked_compilation::{ CompileReportSettlement};
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{
     CheckedCompileOutcome, CompileFailure, CompileOutcomes, CompileTargetOutcome,
@@ -71,7 +70,6 @@ pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedBuilds};
 pub use prepared_source::{
     PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier,
 };
-pub(crate) use prepared_source::{ TypedFrontierRetention};
 pub use runtime_provisions::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,

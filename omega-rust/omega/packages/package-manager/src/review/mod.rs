@@ -9,8 +9,6 @@ mod timings;
 
 pub(crate) use candidate::verify_transitive_source_custody;
 
-pub use audit::{
-};
 pub(crate) use audit::{
     CompilerReviewTriage, PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits,
     PackageSourcePatchSide, PackageSourceReviewCustodyRole, PackageSourceReviewError,
@@ -26,8 +24,6 @@ pub(crate) use candidate::{
     ConsumerScopedSemanticBindingReviewInput, PackageSourceVerificationPhase,
     ReviewOnlySourceConsumptionCommitment, SemanticBindingReview, SemanticBindingReviewCandidate,
     compile_resolved_package_reviews, compile_resolved_package_reviews_reusing};
-pub use compare::{
-};
 pub(crate) use compare::{
     LockedPolicyComparisonError, PackagePolicyChangeError, PackagePolicyChangeFingerprint,
     PackagePolicyChangeKind, PackagePolicyChangeLimits, PackagePolicyChangeSet,
@@ -35,8 +31,6 @@ pub(crate) use compare::{
     PackagePolicyReplacementSite, PackagePolicyRowChange, PackagePolicySourceReplacement,
     ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract, compare_locked_package_policies,
     compare_package_policy_changes};
-pub use decision::{
-};
 pub(crate) use decision::{
     PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionSubject,
     PackagePolicyResolution, PackagePolicyReviewError, ReviewOnlyRootPolicyDisposition,

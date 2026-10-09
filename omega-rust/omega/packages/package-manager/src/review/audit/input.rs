@@ -6,8 +6,6 @@ mod error;
 mod input;
 
 pub(crate) use assembly::{assemble_initial_source_review, assemble_update_source_review};
-pub use error::{
-};
 pub(crate) use error::{
     PackageSourceReviewCustodyRole, PackageSourceReviewError, PackageSourceReviewRenderError};
 pub(crate) use input::{PackageSourceReviewInput, PackageSourceReviewLimits};

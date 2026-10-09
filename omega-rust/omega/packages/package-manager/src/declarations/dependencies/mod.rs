@@ -6,8 +6,6 @@
 pub(crate) mod edit;
 pub(crate) mod read;
 
-pub use edit::{
-};
 pub(crate) use edit::{
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
     BuildDependencyManualReason, BuildFileReplacement, canonical_dependency_statement,

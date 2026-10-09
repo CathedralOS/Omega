@@ -23,9 +23,6 @@ pub use post_handoff_writer::{
     PostHandoffWriterSource, PostHandoffWriterSourceSlot, PostHandoffWriterStep,
     derive_post_handoff_writer, post_handoff_writer_context_byte_len, validate_step,
 };
-pub(crate) use post_handoff_writer::{ GeneratedPostHandoffWriterStep, POST_HANDOFF_WRITER_DESTINATION_OFFSET,
-    PostHandoffWriterFitConstraint};
-
 /// Shared test fixtures for the writer-plan consumer tests.
 #[cfg(feature = "test-support")]
 pub mod test_support {

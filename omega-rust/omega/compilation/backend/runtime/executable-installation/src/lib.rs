@@ -47,10 +47,8 @@ pub(crate) use executable_installation::{ admit_executable, install_validated,
     materialize_and_freeze, retire_installed};
 pub use installation::{ InstallationError, InstalledCode, InstalledCodeContext,
 };
-pub(crate) use installation::{
-    InstallationRegistryAuthority};
+pub(crate) use installation::InstallationRegistryAuthority;
 pub use post_handoff_writer::{
     ResolvedPostHandoffEntryWriterContext, ValidatedPreparedPostHandoffWriterDestination,
 };
-pub(crate) use retirement::quarantine::{
-    QuarantinedInstallation};
+pub(crate) use retirement::quarantine::{QuarantinedInstallation};

@@ -54,9 +54,6 @@ pub use retained_terminal::{ RetainedNativeProviderInputs, RetainedTerminalArtif
     TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
     TerminalNativeRealizationProposal, project_terminal_native_realization_proposal,
 };
-pub(crate) use retained_terminal::{
-    PreparedRetainedNativeProviders};
-
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
     artifact_lowering_error,
@@ -80,11 +77,7 @@ pub use lowering::LoweringError;
 pub use optimization::{ VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
     VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
-pub(crate) use optimization::{
-    VerifiedPsiOptimizationContext};
 pub use provider_installation::{ AdmittedProviderInstallation, ProviderInstallationError,
 };
 pub(crate) use provider_installation::{
     SelectedProviderAdapter};
-pub(crate) use provider_installation::{
-    AdmittedInstalledProviderCall};

@@ -36,10 +36,8 @@ pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
 pub use opaque_representations::{ BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
-pub(crate) use opaque_representations::{
-    BoundaryOpaqueRepresentationMovement};
 pub use plan_computation::{
     compute_boundary_calling_plans,
 };
-pub(crate) use plan_computation::{ evaluate_calling_policy_plan,
-    evaluate_compatibility_boundary_entry_plan, materialized_boundary_signature_from_abi};
+pub(crate) use plan_computation::{ 
+    evaluate_compatibility_boundary_entry_plan};

@@ -71,7 +71,7 @@ pub use register_model::{
     aarch64_physical_register_model,
     aarch64_preservation_convention_for_target, aarch64_register_constraint_catalog,
     validate_aarch64_register_constraint_catalog, validated_aarch64_physical_register_model};
-pub(crate) use register_model::{ AARCH64_REQUIRED_REGISTER_CONSTRAINTS, aarch64_physical_register_model_ref,
+pub(crate) use register_model::{AARCH64_REQUIRED_REGISTER_CONSTRAINTS, aarch64_physical_register_model_ref,
     aarch64_register_constraint_catalog_for, canonical_aarch64_physical_register_model_identity};
 pub use register_model::{
     AARCH64_ADDRESS_OFFSET, AARCH64_BYTE_LITERAL_IMAGE_ADDRESS,

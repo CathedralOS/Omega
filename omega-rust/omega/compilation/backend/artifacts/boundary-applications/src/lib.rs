@@ -25,5 +25,3 @@ pub use boundary_applications::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     coverage, demands, opaque_applications, realization,
 };
-pub(crate) use boundary_applications::{ BoundaryApplicationCoverageIdentity,
-    BoundaryApplicationRealizationRole};

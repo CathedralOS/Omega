@@ -7,8 +7,6 @@
 mod execution_identities;
 mod named_float_realizations;
 
-pub use execution_identities::{
-};
 pub(crate) use execution_identities::{
     derive_selected_compiler_intrinsic_execution_identity,
     derive_selected_primitive_float_binary_execution};

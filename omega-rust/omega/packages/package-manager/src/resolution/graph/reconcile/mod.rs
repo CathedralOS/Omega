@@ -10,8 +10,6 @@ mod resolved_closure;
 pub(crate) use dependency_paths::DependencyRequestPaths;
 
 pub(crate) use super::root_request::PackageRootSourceRequest;
-pub use resolved_closure::{
-};
 pub(crate) use resolved_closure::{
     ExactTargetPackageSourceClosure, ResolvedDependencySourceRequest, ResolvedPackageSourceClosure,
     ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest};
