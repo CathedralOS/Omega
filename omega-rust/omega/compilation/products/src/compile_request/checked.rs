@@ -5,7 +5,7 @@ use crate::RetainedCompilationChecks;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::build_execution::RestrictedBuildGrants;
-use package_compilation::{BuildExecutionInputs, BuildSnapshotRequest, PackageCompilationInputs};
+use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
 use std::path::Path;
 use target::TargetProfile;
 
@@ -157,17 +157,5 @@ impl CheckedExecutionRequest<'_> {
                     .map(|error| Diagnostic::error(error.to_string()))
                     .collect::<Vec<_>>()
             })
-    }
-
-    /// Complete inputs for ordinary unsponsored multi-target Build reuse,
-    /// including automatic/explicit capture and the live output directory.
-    /// Sponsored review activations are not consumers of this reuse key.
-    pub fn build_execution_inputs(&self) -> BuildExecutionInputs {
-        BuildExecutionInputs::for_unsponsored(
-            self.package_inputs,
-            self.build_execution_profile,
-            self.build_snapshot.as_ref(),
-            self.build_dir,
-        )
     }
 }

@@ -26,7 +26,7 @@ pub use checking::{
     check_prepared_package_build, compile_checked, compile_checked_reusing_builds,
     compile_to_checked, prepare_package_build,
 };
-pub(crate) use checking::{check_prepared_source, prepare_checked_source};
+pub(crate) use checking::{check_completed_source, prepare_checked_source, prepare_product_source};
 pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
 };

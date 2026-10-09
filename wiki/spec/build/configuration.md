@@ -220,8 +220,11 @@ implementations of uncalled boundary-trait requirements. Native installation mat
 actual callable IDs remaining in the selected deployment's execution scope,
 not whichever candidate first shares a portable overload identity. Generic and
 named per-member conformance transport remains incomplete. The compiler
-still evaluates the Build and checks source inside the per-target route, and
-settles providers on checked trees before Terminal Psi. It no longer rewrites
+executes Build and completes source typing once within one `CompileRequest`;
+checking and Terminal production remain inside the per-target route, with
+provider settlement before checking. Package batch callers still need to use
+that shared invocation. Build staging is invocation-owned; artifact publication
+chooses per-target output directories separately. The compiler no longer rewrites
 source roles or calls to select a target body: providers and roots select exact
 member handles. Portable direct family references currently reject with an
 `unimplemented:` diagnostic, including references from contracts or static

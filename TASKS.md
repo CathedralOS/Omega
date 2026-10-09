@@ -2444,10 +2444,11 @@ crash and native exit behavior.
     Preserve [admission before execution](wiki/spec/build/execution.md#admission-before-execution):
     freeze authored selections and admit the exact Build entry before effects,
     then incorporate generated source and finish product checks.
-  - `PreparedBuilds` reuse already keys on the exact `build_snapshot`. The
-    output-free Pure Build carrier does not authorize sharing effects or
-    output obligations; keep separate Build/Product purposes and current-pass
-    logical charges.
+  - A `CompileRequest` now executes Build and completes authored/generated
+    typing once before target settlement. Package batch compilation still
+    enters separate checked activations; move it onto the shared invocation.
+    Keep separate Build/Product purposes, current-pass logical charges and
+    invocation-owned staging; captured outputs publish without repeating effects.
 
   Acceptance: a two-target request counts one Build activation and one final
   product check (timing rows alone are insufficient); std's six rows come from
@@ -2474,7 +2475,7 @@ crash and native exit behavior.
     source inputs, then move initial source-dependent selection behind Terminal.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`
-    decisions: target-family body substitution, calling plans, program-entry
+    decisions: calling plans, program-entry
     selection, fused-provider settlement, selected legacy generic-operator and
     boundary-family requests, selected-dispatch execution, callback
     materialization, task activation, component progress, x86 FMA associations
@@ -2512,12 +2513,13 @@ crash and native exit behavior.
 - **ONE-DRIVER-PER-STAGE.** (new-scope) `compiler.rs` runs Psi 00–07 once,
   then Omega 00–09 and emission per realization, per the
   [pipeline](omega-rust/pipeline.md). Closes after the items above.
-  - Today `compile` in `omega-rust/omega/compilation/driver/src/compiler.rs`
-    clones prepared source per target and runs checking and production per
-    target. Retire the per-target clones and the reuse structures that mask
-    repeated compilation (`PreparedBuilds`, `compile_checked_reusing_builds`,
-    package-manager's `CandidateSourcePreparation`) as their work moves into
-    the shared stages.
+  - `compile` completes source and Build once, then copies complete typed
+    storage for per-target provider settlement, checking and production. Move
+    those remaining operations behind shared checked/Terminal storage and
+    retire its per-target typed copies. Remove `compile_checked_reusing_builds`
+    and package-manager's `CandidateSourcePreparation` as package invocations
+    move into the same shared stages; the per-target `PreparedBuilds` cache
+    and its input-key machinery are gone.
   - Package review calls the same 00–03 prefix directly; remove alternate
     compile modes (`compile_to_checked` beside `compile`). Source preparation
     supplies stage 00; build-time evaluation, dynamic binding, const evaluation

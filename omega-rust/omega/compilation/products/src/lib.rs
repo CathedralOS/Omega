@@ -39,8 +39,7 @@ pub mod publication;
 mod runtime_provisions;
 
 pub use checked_compilation::{
-    CheckedCompilation, CheckedCompilationInputs, CheckedProductReport,
-    RetainedCompilationChecks,
+    CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, RetainedCompilationChecks,
 };
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{
@@ -49,9 +48,9 @@ pub use compile_outcomes::{
 };
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{
-    CheckedCompileRequest, CheckedExecutionRequest, CompileDestination, CompileRequest,
-    NativeProductRequest, NativeRealizationRequest, RequestedCompileProduct,
-    RequestedNativeArtifactError, RetainedNativeRealizationRequest, SettledCheckReuse,
+    CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeProductRequest,
+    NativeRealizationRequest, RequestedCompileProduct, RequestedNativeArtifactError,
+    RetainedNativeRealizationRequest, SettledCheckReuse,
 };
 pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery,
@@ -66,7 +65,7 @@ pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationCom
 pub use optimization_core::OptimizationRollbackReceipt;
 pub use package_build::{PackageBuildOutcome, PreparedPackageBuild};
 pub use package_compilation::RetainedBuildOutputs;
-pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedBuilds};
+pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedProductSource};
 pub use prepared_source::{
     PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier,
 };

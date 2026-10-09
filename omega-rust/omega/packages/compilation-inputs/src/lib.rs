@@ -11,7 +11,7 @@
 //! operation reconstructs package custody in the coordinator, and neither
 //! reopens a source file: the frontend read each one once and these records
 //! commit to those bytes.
-//! `compilation_reuse` owns exact source/build input comparisons, not admission
+//! `compilation_reuse` owns exact source input comparisons, not admission
 //! or scheduling; the compiler consumes those keys without re-projecting them.
 //! `source_imports` resolves source frontiers through exact package scopes;
 //! `source_assembly` loads and parses them through Psi 00/01, retaining one
@@ -41,9 +41,8 @@ mod target_profile_tags;
 mod wire_codec_sources;
 
 pub use build_declarations::BuildDeclarationKind;
-pub use checked_source_cache::{ CheckedSourceCache, CheckedSourceCacheLimits,
-};
-pub use compilation_reuse::{BuildExecutionInputs, SourceAssemblyInputs};
+pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
+pub use compilation_reuse::SourceAssemblyInputs;
 pub use package_compilation::{
     BuildDependencyOccurrence, IndependentComponentDescription, PackageCompilationInputError,
     PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
@@ -56,12 +55,12 @@ pub use semantic_bindings::{
     program_entry_semantic_binding_role,
 };
 pub use source_consumption::{
-    BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind, PackageSourceConsumptionCommitment,
-    derive_package_compilation_subject, derive_source_consumption_commitment,
-    toolchain_source_identities, toolchain_source_identity_digest,
+    BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
+    PackageSourceConsumptionCommitment, derive_package_compilation_subject,
+    derive_source_consumption_commitment, toolchain_source_identities,
+    toolchain_source_identity_digest,
 };
+pub(crate) use source_snapshot::capture_scoped_source_input;
 pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
 };
-pub(crate) use source_snapshot::{
-    capture_scoped_source_input};

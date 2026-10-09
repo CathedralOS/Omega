@@ -93,10 +93,12 @@ on those facades and shared request/artifact contracts, never their internal
 stages, representations, backend or package-compilation helpers.
 
 The current Rust implementation does not meet this yet. Source preparation and
-checked/Terminal coordination still sit outside the numbered stages. Targets
-with equal Build inputs reuse an evaluation, but the route still checks twice
-(a preliminary pass before Build evaluation and a settled pass after provider
-settlement), and settles providers on checked trees before Terminal Psi:
+checked/Terminal coordination still sit outside the numbered stages. One
+`CompileRequest` assembles sources, executes Build and completes authored/generated
+typing before its target loop. Each target still copies the typed input, settles
+providers, checks Product and produces Terminal Psi separately; provider metadata
+still changes the checking input. Package-manager batches also retain separate
+checked activations. These are unfinished ownership moves, not the intended route:
 
 | Input → output | Owner |
 | --- | --- |

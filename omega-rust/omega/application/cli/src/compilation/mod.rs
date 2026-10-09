@@ -7,8 +7,8 @@ mod build_directory;
 use crate::temporary_directory::TemporaryDirectory;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use compiler::{
-    CompileDestination, CompileOptions, CompileReport, CompileRequest, OptimizationRollback,
-    RequestedCompileProduct, compile,
+    CompileOptions, CompileReport, CompileRequest, OptimizationRollback, RequestedCompileProduct,
+    compile,
 };
 use diagnostics::Diagnostic;
 use package_manager::operations as packages;
@@ -334,23 +334,20 @@ fn compile_project_targets(
                                 RequestedCompileProduct::NativeArtifact
                             }
                         };
-                        // The caller supplies placement, not pipeline child
-                        // configurations. Preserve a lone targetless Check;
-                        // explicit batches name every selected target.
-                        let destinations = profiles
+                        // Build owns one staging directory. Product publication
+                        // below places each realized artifact separately.
+                        let targets = profiles
                             .iter()
-                            .zip(&target_directories)
                             .zip(&refused)
                             .filter(|(_, refusal)| refusal.is_none())
-                            .map(|((profile, directory), _)| CompileDestination {
-                                target: (per_target_directories || options.target_name.is_some())
-                                    .then_some(*profile),
-                                build_directory: directory.clone(),
+                            .map(|(profile, _)| {
+                                (per_target_directories || options.target_name.is_some()).then_some(*profile)
                             })
                             .collect();
-                        let mut request = CompileRequest::for_destinations(
+                        let mut request = CompileRequest::for_targets(
                             options.root_path.clone(),
-                            destinations,
+                            base_build_dir.clone(),
+                            targets,
                         )
                         .with_requested_product(product)
                         .with_optimization_rollback(optimization_rollback.clone())

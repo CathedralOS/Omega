@@ -1,12 +1,12 @@
 //! Compile shared source into independently checked target products.
 //!
-//! `compile` prepares the source set once, then runs each requested target
-//! through the stage chain in `compile_target`, isolating one target's
-//! failure from the others. Every step there is one call; the folders beside
-//! this file own what each call does.
+//! `compile` assembles source, evaluates Build and completes authored/generated
+//! typing once. Each target then settles its execution and produces its product.
+//! Checking and Terminal production still need to move into the shared prefix;
+//! provider metadata currently changes their typed inputs.
 
 use crate::checked::{
-    PreparedCheckedSource, check_prepared_source, prepare_checked_source, run_on_compile_thread,
+    check_completed_source, prepare_checked_source, prepare_product_source, run_on_compile_thread,
 };
 use crate::native::produce_native_product;
 use crate::terminal::produce_terminal_product;
@@ -15,8 +15,8 @@ use crate::{
 };
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
 use compilation_products::{
-    CheckedProductReport, CompileFailure, NativeProductRequest, PreparedBuilds,
-    RequestedCompileProduct,
+    CheckedProductReport, CompileFailure, NativeProductRequest, PreparedProductSource,
+    RequestedCompileProduct, SettledCheckReuse,
 };
 use diagnostics::Diagnostic;
 use std::path::PathBuf;
@@ -29,44 +29,80 @@ pub(crate) mod package;
 pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnostic>> {
     run_on_compile_thread(move || {
         let (shared, targets) = request.validate_for_execution()?.into_parts();
-        // Psi 00-01: read, tokenize and parse the root's source set once.
-        let source = prepare_checked_source(
-            &shared.root_path,
-            shared.package_sources.clone(),
-            shared.timings,
-        );
+        // Admit each target's generated-package custody without executing Build.
+        // A rejected realization neither changes the common input nor prevents
+        // another admitted realization from using it.
+        let admissions: Vec<_> = targets
+            .iter()
+            .map(|target| {
+                target
+                    .checked_execution(&shared.build_directory)
+                    .admit_package_inputs()
+            })
+            .collect();
+        let source = targets
+            .iter()
+            .zip(&admissions)
+            .find(|(_, admission)| admission.is_ok())
+            .map(|(target, _)| {
+                let parsed = prepare_checked_source(
+                    &shared.root_path,
+                    shared.package_sources.clone(),
+                    shared.timings,
+                )?;
+                prepare_product_source(
+                    &shared.root_path,
+                    parsed,
+                    target.checked_execution(&shared.build_directory),
+                )
+                .map_err(CompileFailure::into_diagnostics)
+            });
         let target_count = targets.len();
-        let mut builds = PreparedBuilds::for_targets(target_count);
         let mut outcomes = Vec::with_capacity(target_count);
-        // Checkpoint clones share immutable parsing. repeat_n moves the final
-        // copy, so the last (and the only) target consumes the original arenas.
-        let sources = std::iter::repeat_n(source, target_count);
-        for (target, source) in targets.into_iter().zip(sources) {
+        // No resumable frontend or Build reaches this loop. Target settlement
+        // still needs private typed metadata; the final target consumes the
+        // original storage rather than cloning another copy.
+        let admitted_count = admissions
+            .iter()
+            .filter(|admission| admission.is_ok())
+            .count();
+        let mut sources = std::iter::repeat_n(source, admitted_count);
+        for (target, admission) in targets.into_iter().zip(admissions) {
             let profile = target.profile();
-            let outcome =
-                source.and_then(|source| compile_target(&shared, target, source, &mut builds));
+            let outcome = admission.and_then(|()| {
+                sources
+                    .next()
+                    .flatten()
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "admitted target has no shared source preparation",
+                        )]
+                    })?
+                    .and_then(|source| compile_target(&shared, target, source))
+            });
             outcomes.push(CompileTargetOutcome::new(profile, outcome));
         }
         Ok(CompileOutcomes::new(outcomes))
     })
 }
 
-/// One target through the stage chain: assemble its sources and evaluate the
-/// build (once for every target with equal build inputs), check, admit, then
-/// produce the requested product.
+/// One target settles the complete shared source, then produces its product.
 fn compile_target(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
-    source: PreparedCheckedSource,
-    builds: &mut PreparedBuilds,
+    source: PreparedProductSource,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    let root_path = target.options().root_path.clone();
-    let build_dir = target.options().build_dir();
-    let child = target.checked_execution(&build_dir);
-    let checked = check_prepared_source(&root_path, source, child, Some(builds), None)
-        .map_err(CompileFailure::into_diagnostics)?
-        .result
-        .map_err(CompileFailure::into_diagnostics)?;
+    let root_path = shared.root_path.clone();
+    let checked = check_completed_source(
+        source,
+        target.profile(),
+        target.package_inputs(),
+        target.optimization_rollback(),
+        false,
+        SettledCheckReuse::default(),
+    )
+    .result
+    .map_err(CompileFailure::into_diagnostics)?;
 
     let product = match shared.requested_product {
         RequestedCompileProduct::Check => CompilationProduct::Check,

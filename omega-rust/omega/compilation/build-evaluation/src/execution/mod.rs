@@ -40,6 +40,7 @@ pub(crate) fn execute_admitted_build_program(
     let evaluation_sponsor = evaluation_sponsor.as_ref();
 
     // Phase 1: run the admitted machine once in its admitted execution mode.
+    artifacts::compile_timings::counters::record_build_execution();
     let measured = machine_evaluation::evaluate_admitted_machine(
         &prepared,
         &machine_entry,

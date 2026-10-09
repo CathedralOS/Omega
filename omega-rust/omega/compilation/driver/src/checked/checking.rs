@@ -15,8 +15,8 @@ use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta, counters,
 };
 use compilation_products::{
-    CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedBuilds, PreparedSourceFrontier,
-    TypedCompilationFrontier,
+    CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedProductSource,
+    PreparedSourceFrontier, TypedCompilationFrontier,
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -184,7 +184,7 @@ fn prepare_package_build_worker(
         settled_check_reuse: SettledCheckReuse::default(),
     };
     let prepared_source = request.retain_prepared_source.then(|| source.clone());
-    let prepared = prepare_build_source(&request.root_path, source, child, None, owner.as_ref())?;
+    let prepared = prepare_build_source(&request.root_path, source, child, owner.as_ref())?;
     let result = PreparedPackageBuild::seal(
         request.root_path,
         selected_target,
@@ -273,7 +273,6 @@ fn compile_checked_worker(
         &request.root_path,
         prepared,
         child,
-        None,
         pure_build_compilation.as_ref(),
     )?;
     if outcome.result.is_ok() {
@@ -283,14 +282,13 @@ fn compile_checked_worker(
 }
 
 /// One source-to-checked route for product compilation and package review.
-/// A product batch may retain completed Builds by exact inputs. Sponsored review
+/// A product batch shares its completed source prefix. Sponsored review
 /// activations admit fresh and may consume an exactly matched completed Pure Build. Failures
 /// after Build retain its discovery observations, but never a reusable source.
 pub(crate) fn check_prepared_source(
     root_path: &Path,
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
-    builds: Option<&mut PreparedBuilds>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
 ) -> Result<CheckedCompileOutcome, CompileFailure> {
     let selected_target_profile = child.selected_target_profile;
@@ -299,7 +297,7 @@ pub(crate) fn check_prepared_source(
     let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
     let settled_check_reuse = child.settled_check_reuse.clone();
 
-    let prepared = prepare_build_source(root_path, source, child, builds, pure_build_compilation)?;
+    let prepared = prepare_build_source(root_path, source, child, pure_build_compilation)?;
     Ok(check_completed_build(
         prepared,
         selected_target_profile,
@@ -316,47 +314,66 @@ fn prepare_build_source(
     root_path: &Path,
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
-    builds: Option<&mut PreparedBuilds>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
 ) -> Result<PreparedBuild, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
 
-    // Lookup follows custody admission and never executes a stage. Single
-    // review activations do not construct an unsponsored Build reuse key.
-    let mut reuse = builds.map(|builds| (child.build_execution_inputs(), builds));
-    let completed = reuse
-        .as_mut()
-        .and_then(|(inputs, builds)| builds.begin_target(inputs));
-    match completed {
-        Some(prepared) => {
-            drop(source);
-            drop(child);
-            Ok(prepared)
-        }
-        None => {
-            let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
-            let (built, build_sources) =
-                timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
-                    build_continuation::evaluate_build_and_continue(
-                        root_path,
-                        child,
-                        frontier,
-                        timings,
-                        pure_build_compilation,
-                    )
-                })?;
-            let prepared = PreparedBuild {
-                built,
-                build_sources,
-                timings,
-            };
-            if let Some((inputs, builds)) = reuse {
-                builds.retain_completed(inputs, &prepared);
-            }
-            Ok(prepared)
-        }
-    }
+    let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
+    let (built, build_sources) = timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
+        build_continuation::evaluate_build_and_continue(
+            root_path,
+            child,
+            frontier,
+            timings,
+            pure_build_compilation,
+        )
+    })?;
+    Ok(PreparedBuild {
+        built,
+        build_sources,
+        timings,
+    })
+}
+
+/// Complete the invocation's source prefix before iterating realizations.
+pub(crate) fn prepare_product_source(
+    root_path: &Path,
+    source: PreparedCheckedSource,
+    child: CheckedExecutionRequest<'_>,
+) -> Result<PreparedProductSource, CompileFailure> {
+    let package_inputs = child.package_inputs;
+    let prepared = prepare_build_source(root_path, source, child, None)?;
+    complete_prepared_build(prepared, package_inputs).map_err(CompileFailure::from)
+}
+
+fn complete_prepared_build(
+    prepared: PreparedBuild,
+    package_inputs: Option<&PackageCompilationInputs>,
+) -> Result<PreparedProductSource, Vec<Diagnostic>> {
+    let PreparedBuild {
+        mut built,
+        mut build_sources,
+        mut timings,
+    } = prepared;
+    let retained_build_check = built.retained_build_check.take();
+    let (typed, target_declarations, pending_pre_checks, computed_build_config, admission) =
+        build_continuation::complete_product_frontend(
+            built,
+            &mut build_sources,
+            package_inputs,
+            &mut timings,
+        )?;
+    Ok(PreparedProductSource {
+        typed,
+        target_declarations,
+        pending_pre_checks,
+        computed_build_config,
+        admission,
+        build_sources,
+        timings,
+        retained_build_check,
+    })
 }
 
 fn check_completed_build(
@@ -367,17 +384,43 @@ fn check_completed_build(
     permit_unsettled_fused_service_fields: bool,
     settled_check_reuse: SettledCheckReuse,
 ) -> CheckedCompileOutcome {
-    let PreparedBuild {
-        mut built,
-        mut build_sources,
-        mut timings,
-    } = prepared;
-    let retained_build_check = built.retained_build_check.take();
-    let independent_components = built.computed_build_config.independent_components();
+    let independent_components = prepared
+        .built
+        .computed_build_config
+        .independent_components();
+    match complete_prepared_build(prepared, package_inputs) {
+        Ok(source) => check_completed_source(
+            source,
+            selected_target_profile,
+            package_inputs,
+            rollback,
+            permit_unsettled_fused_service_fields,
+            settled_check_reuse,
+        ),
+        Err(diagnostics) => CheckedCompileOutcome {
+            prepared_source: None,
+            result: Err(CompileFailure::from(diagnostics)),
+            independent_components,
+        },
+    }
+}
+
+/// Target settlement consumes complete source, never a resumable frontend.
+pub(crate) fn check_completed_source(
+    source: PreparedProductSource,
+    selected_target_profile: Option<target::TargetProfile>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    rollback: &crate::OptimizationRollback,
+    permit_unsettled_fused_service_fields: bool,
+    settled_check_reuse: SettledCheckReuse,
+) -> CheckedCompileOutcome {
+    let independent_components = source.computed_build_config.independent_components();
+    let mut timings = source.timings.clone();
+    let build_sources = source.build_sources.clone();
+    let retained_build_check = source.retained_build_check.clone();
     let result = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
         execution_settlement::check_selected_execution(
-            built,
-            &mut build_sources,
+            source,
             selected_target_profile,
             package_inputs,
             rollback,

@@ -18,22 +18,21 @@ for those contracts. Reports and publication come from `compilation-products`;
 there is no compiler-owned `report` or `artifact_publication` module. Root-level
 request/result exports remain conveniences for the compilation entrypoints.
 
-[compiler.rs](src/compiler.rs) sequences request admission, the shared checked
-continuation, and the Check / Terminal / Native product dispatch. Its single public
-function runs one target loop: checking, trust admission, observations, then the
-requested product. There is no stateless wrapper object, finalizer callback, or
-second native scheduler.
+[compiler.rs](src/compiler.rs) sequences request admission, one source/Build
+prefix, then the Check / Terminal / Native product dispatch. Its target loop
+still runs checking, trust admission and production: moving those behind a shared
+Terminal boundary remains unfinished. It never resumes a frontend or Build.
 The independent [product request owner](../products/src/compile_request.rs)
-expands explicit destinations over one invocation policy, rejects staging collisions and incompatible rollback,
+expands explicit targets over one invocation policy, rejects duplicates and incompatible rollback,
 and admits evaluated Build requirements. It returns immutable per-target inputs;
 the coordinator owns the loop, not those policy decisions.
-It prepares immutable source once, then drives each target's ordinary continuation.
-[Prepared Build products](../products/src/prepared_build.rs)
-retain completed typed continuations by exact Build inputs. `compile_target`
-calls [the shared checked-source route](src/checked/checking.rs), which owns
-reuse, frontend and Build execution, selected-execution checking and sealing.
-Package review enters that same route without a Build reuse store, so its
-sponsored activations execute independently. Cache lookup never invokes a stage. Native production consumes each
+It assembles, resolves, executes Build and completes authored/generated typing
+once. [Prepared source products](../products/src/prepared_build.rs) carry that
+completed prefix, not a cache keyed by target inputs. `compile_target` consumes
+one copy because provider settlement still mutates typed metadata. The last
+target consumes the original storage. Package review enters the same operations
+with its own admitted activation; the package batch caller still needs to move
+onto this shared request. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
 reports belong to their product owners; [package.rs](src/compiler/package.rs)
 sequences package custody admission and Terminal production.
@@ -43,20 +42,18 @@ Package inputs, build staging and session sponsors are request
 data, not alternate compilation entrypoints. The request enters the same prepared
 source continuation used by production and target batches.
 Ordinary production accepts one `CompileRequest::with_build_snapshot` inventory
-and required-output roster. `CompileRequest::for_destinations` takes the package
-root and explicit target/output placements for one or several targets; callers
-do not assemble pipeline configurations or duplicate policy. Targetless Check
-uses a destination with no target. Different caller inventories are different
+and required-output roster. `CompileRequest::for_targets` takes the package
+root, one Build staging directory and the selected profiles. Artifact publication
+separately owns output placement. Targetless Check uses one absent profile.
+Different caller inventories are different
 invocations, not target variants of one compilation. Each target independently
 admits the supplied custody without suppressing a sibling's failure.
 Package [compilation reuse](../../packages/compilation-inputs/src/compilation_reuse.rs)
-owns both input comparisons: source assembly observes imported content and entry
-bindings; unsponsored build reuse additionally observes all bindings, component
-descriptions, the full snapshot request and live output placement. Equal captured
-builds may share a result only after per-child custody admission. Different
-inventories or required-output rosters never borrow a sibling's success. Live
-output directories remain separate; the coordinator does not rebuild these
-package projections or treat a source-reuse key as build-execution authority.
+owns the source comparison: assembly observes imported content and entry
+bindings. There is no per-target Build result cache or live-output reuse key.
+Build observes its invocation's single staging account; its captured outputs
+may be published alongside several target products without executing it again.
+Source-reuse keys never confer Build authority.
 An omitted request retains automatic capture of canonical package inputs.
 Standalone scoped inventories must include consumed source files and do not
 expose undeclared siblings. Without a caller-supplied sponsor, captured builds

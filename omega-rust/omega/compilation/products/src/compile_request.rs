@@ -1,4 +1,4 @@
-//! One invocation owns source, product and policy; destinations own only placement.
+//! One invocation owns source, Build staging and policy; targets select realizations.
 
 use self::options::CompileOptions;
 use diagnostics::Diagnostic;
@@ -91,6 +91,7 @@ impl RequestedCompileProduct {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharedCompileInputs {
     pub root_path: PathBuf,
+    pub build_directory: PathBuf,
     pub requested_product: RequestedCompileProduct,
     /// Collect per-stage measurements into every checked record's timing
     /// accumulator; the report carries the recorded ladder.
@@ -99,19 +100,9 @@ pub struct SharedCompileInputs {
     pub package_sources: Option<Arc<PackageCompilationSourceInputs>>,
 }
 
-/// An explicitly requested target and its caller-selected staging directory.
-/// `None` preserves targetless checking; native admission resolves it to the host.
-/// These are destinations, not independently assembled pipeline configurations.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileDestination {
-    pub target: Option<TargetProfile>,
-    pub build_directory: PathBuf,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RequestedDestination {
     target_name: Option<String>,
-    build_dir: Option<PathBuf>,
 }
 
 /// Invocation policy is supplied once, before execution records are expanded.
@@ -160,9 +151,11 @@ impl CompileRequest {
     /// host's catalogued profile, or rejects with a diagnostic on a host that
     /// owns none.
     pub fn new(options: CompileOptions) -> Self {
+        let build_directory = options.build_dir();
         Self {
             shared: SharedCompileInputs {
                 root_path: options.root_path,
+                build_directory,
                 requested_product: RequestedCompileProduct::Check,
                 timings: false,
 
@@ -171,29 +164,28 @@ impl CompileRequest {
             policy: CompilePolicy::default(),
             destinations: vec![RequestedDestination {
                 target_name: options.target_name,
-                build_dir: options.build_dir,
             }],
         }
     }
 
-    /// Compile one package root to explicit destinations under one product and
-    /// policy. The same API serves one or several targets; it never invents
-    /// output directories or resets policy when selecting destinations.
-    /// Empty, duplicate, targetless multi-target and colliding placements reject
-    /// during admission, before source acquisition or Build effects.
-    pub fn for_destinations(root_path: PathBuf, destinations: Vec<CompileDestination>) -> Self {
+    /// Compile one source root under one Build activation into selected targets.
+    /// Build staging belongs to this invocation, not to a realized target.
+    /// Artifact publication chooses its own per-target directories afterward.
+    /// Empty, duplicate and targetless multi-target requests reject before effects.
+    pub fn for_targets(
+        root_path: PathBuf,
+        build_directory: PathBuf,
+        targets: Vec<Option<TargetProfile>>,
+    ) -> Self {
         let mut request = Self::new(CompileOptions {
             root_path,
             target_name: None,
-            build_dir: None,
+            build_dir: Some(build_directory),
         });
-        request.destinations = destinations
+        request.destinations = targets
             .into_iter()
-            .map(|destination| RequestedDestination {
-                target_name: destination
-                    .target
-                    .map(|target| target.target_name().to_owned()),
-                build_dir: Some(destination.build_directory),
+            .map(|target| RequestedDestination {
+                target_name: target.map(|target| target.target_name().to_owned()),
             })
             .collect();
         request
@@ -204,8 +196,8 @@ impl CompileRequest {
     }
 
     /// Supply one capture intent to the invocation.
-    /// Each child checks its own custody; equal captured inputs may share one
-    /// evaluation. This grants neither output sponsorship nor publication authority.
+    /// Each target checks its own custody; the admitted invocation executes Build
+    /// once. This grants neither output sponsorship nor publication authority.
     pub fn with_build_snapshot(mut self, snapshot: BuildSnapshotRequest) -> Self {
         self.policy.build_snapshot = Some(snapshot);
         self
@@ -297,23 +289,11 @@ impl CompileRequest {
                 diagnostics.push(error);
                 continue;
             }
-            let options = CompileOptions {
-                root_path: shared.root_path.clone(),
-                target_name: profile.map(|profile| profile.target_name().to_owned()),
-                build_dir: destination.build_dir,
-            };
             if targets.iter().any(|target| target.profile == profile) {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate compilation target {:?}",
                     profile
                 )));
-            }
-            let staging = options.build_dir_identity();
-            if targets
-                .iter()
-                .any(|target| target.options.build_dir_identity() == staging)
-            {
-                diagnostics.push(Diagnostic::error(format!("target configurations name the same build directory `{}`; each target requires separate staging", options.build_dir().display())));
             }
             let target_inputs = policy.package_target_inputs.clone();
             let package_inputs = match &shared.package_sources {
@@ -339,7 +319,6 @@ impl CompileRequest {
                 }
             };
             targets.push(ValidatedTargetCompilation {
-                options,
                 policy: policy.clone(),
                 package_inputs,
                 profile,
@@ -375,7 +354,6 @@ impl ValidatedCompileRequest {
 /// One admitted execution of the shared invocation, not another public request.
 #[derive(Debug)]
 pub struct ValidatedTargetCompilation {
-    options: CompileOptions,
     policy: Arc<CompilePolicy>,
     package_inputs: Option<PackageCompilationInputs>,
     profile: Option<TargetProfile>,
@@ -390,9 +368,6 @@ impl ValidatedTargetCompilation {
     }
     pub fn optimization_rollback(&self) -> &OptimizationRollback {
         &self.policy.optimization_rollback
-    }
-    pub fn options(&self) -> &CompileOptions {
-        &self.options
     }
     pub fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.package_inputs.as_ref()

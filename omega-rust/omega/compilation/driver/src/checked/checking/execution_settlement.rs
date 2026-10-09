@@ -2,7 +2,7 @@
 //! The resulting checked program and its sidecars remain one owned handoff.
 
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::{BuiltTypedProgram, CheckedCompilationInputs};
+use compilation_products::{CheckedCompilationInputs, PreparedProductSource};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use selected_dispatch::{
@@ -11,8 +11,7 @@ use selected_dispatch::{
 };
 
 pub(crate) fn check_selected_execution(
-    built: BuiltTypedProgram,
-    build_sources: &mut package_compilation::BuildSourceCustody,
+    source: PreparedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     optimization_rollback: &crate::checked::OptimizationRollback,
@@ -26,18 +25,14 @@ pub(crate) fn check_selected_execution(
     ),
     Vec<Diagnostic>,
 > {
-    let (
+    let PreparedProductSource {
         mut typed,
-        selected_target_machine_declarations,
+        target_declarations: selected_target_machine_declarations,
         pending_pre_checks,
         computed_build_config,
         mut admission,
-    ) = super::build_continuation::complete_product_frontend(
-        built,
-        build_sources,
-        package_inputs,
-        timings,
-    )?;
+        ..
+    } = source;
     admission.provider_defaults = selected_target_machine_declarations.retain_provider_defaults(
         provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
     )?;

@@ -17,6 +17,29 @@ pub fn checked_compilation_call_count() -> u64 {
 
 static TYPED_FRONTIER_REUSES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static SOURCE_ASSEMBLY_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static BUILD_EXECUTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static PRODUCT_SOURCE_COMPLETIONS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Actual Build machine execution attempts, excluding retained results.
+#[doc(hidden)]
+pub fn build_execution_count() -> u64 {
+    BUILD_EXECUTIONS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Product frontend completions, including generated-source incorporation.
+#[doc(hidden)]
+pub fn product_source_completion_count() -> u64 {
+    PRODUCT_SOURCE_COMPLETIONS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn record_build_execution() {
+    BUILD_EXECUTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn record_product_source_completion() {
+    PRODUCT_SOURCE_COMPLETIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
 
 /// Monotonic assemblies entered; a reused typed frontier does not assemble again.
 #[doc(hidden)]

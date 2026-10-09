@@ -121,8 +121,8 @@
 //! `\n`, `\r` and `\t`.
 
 use compiler::{
-    CheckedCompileRequest, CompileDestination, CompileOptions, CompileRequest,
-    OptimizationRollback, RequestedCompileProduct, compile_to_checked,
+    CheckedCompileRequest, CompileOptions, CompileRequest, OptimizationRollback,
+    RequestedCompileProduct, compile_to_checked,
 };
 use std::path::{Path, PathBuf};
 use std::{env, fs, process};
@@ -633,14 +633,9 @@ fn check_pass_fixture(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, None)?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    let mut request = CompileRequest::for_destinations(
-        prepared.root_path,
-        vec![CompileDestination {
-            target: None,
-            build_directory: build_dir.clone(),
-        }],
-    )
-    .with_requested_product(RequestedCompileProduct::Check);
+    let mut request =
+        CompileRequest::for_targets(prepared.root_path, build_dir.clone(), vec![None])
+            .with_requested_product(RequestedCompileProduct::Check);
     if let Some(package_inputs) = prepared.package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
@@ -904,15 +899,13 @@ fn build_native_fixture(
 ) -> Result<(PathBuf, Option<String>), Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
-    let mut request = CompileRequest::for_destinations(
+    let mut request = CompileRequest::for_targets(
         prepared.root_path,
-        vec![CompileDestination {
-            target: Some(
-                target::TargetProfile::from_omega_target_name(Some(target))
-                    .map_err(|diagnostic| vec![diagnostic])?,
-            ),
-            build_directory: build_dir.to_path_buf(),
-        }],
+        build_dir.to_path_buf(),
+        vec![Some(
+            target::TargetProfile::from_omega_target_name(Some(target))
+                .map_err(|diagnostic| vec![diagnostic])?,
+        )],
     )
     .with_requested_product(RequestedCompileProduct::NativeArtifact);
     if let Some(rollback) = rollback {

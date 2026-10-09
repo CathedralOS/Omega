@@ -252,6 +252,7 @@ pub(super) fn complete_product_frontend(
     ),
     Vec<Diagnostic>,
 > {
+    artifacts::compile_timings::counters::record_product_source_completion();
     let BuiltTypedProgram {
         mut typing,
         pending_bodies,
