@@ -243,7 +243,8 @@ fn expression_is_fact_observation_free(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    let node = program.expression_table.expression(expression);
+    let allowed = match node {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch)
                 .all(|child| expression_is_fact_observation_free(program, child))
@@ -285,7 +286,11 @@ fn expression_is_fact_observation_free(
             .iter()
             .all(|value| expression_is_fact_observation_free(program, *value)),
         typed_trees::literal_expression_pattern!() => true,
+    };
+    if !allowed && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!("DENOTATION observation expression={expression:?} node={node:?}",);
     }
+    allowed
 }
 
 pub(crate) fn unconditionally_terminates(
