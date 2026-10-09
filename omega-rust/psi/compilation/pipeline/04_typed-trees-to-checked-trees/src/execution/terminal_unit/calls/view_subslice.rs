@@ -627,24 +627,6 @@ pub(in crate::execution) fn whole_extent(
     ))
 }
 
-/// The immutable borrowed-view `let` that `symbol` names, declared at an
-/// earlier statement of `state`. Parameters and later or mutable locals are
-/// not established view places at `statement_index`.
-pub(in crate::execution) fn view_local_before<'a>(
-    program: &'a dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    symbol: symbols::SymbolHandle,
-) -> Option<&'a typed_trees::statement::TableLocalData> {
-    let (_, local) = program
-        .state_local_declaration(state, symbol)
-        .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    (!local.is_mutable
-        && local.initial_value.is_valid()
-        && view_kind(program, local.type_reference).is_some())
-    .then_some(local)
-}
-
 /// Whether `reference` is an immutable byte view under domain constraints
 /// only (`&[u8] in Path`): an exact shared `&[u8]` whose reference or slice
 /// carries one or more constraint shells, each naming only domains.
