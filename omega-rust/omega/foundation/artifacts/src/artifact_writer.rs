@@ -25,10 +25,6 @@ impl ArtifactWriter {
         Ok(Self { root })
     }
 
-    pub fn root(&self) -> &Path {
-        &self.root
-    }
-
     pub fn write_text(&self, file_name: &str, contents: &str) -> Result<(), Diagnostic> {
         self.write_bytes(file_name, contents.as_bytes()).map(|_| ())
     }
