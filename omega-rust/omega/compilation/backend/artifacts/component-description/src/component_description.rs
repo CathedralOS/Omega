@@ -42,11 +42,11 @@ const PORT_MECHANISM_DOMAIN: &[u8] = b"omega-component-port-mechanism-v1";
 pub const COMPONENT_DESCRIPTION_SCHEMA_V2: u32 = 2;
 
 /// Hard bound on one encoded description, including the embedded artifact.
-pub const MAX_COMPONENT_DESCRIPTION_BYTES: usize = 8 * 1024 * 1024;
+pub(crate) const MAX_COMPONENT_DESCRIPTION_BYTES: usize = 8 * 1024 * 1024;
 /// Hard bound on any single roster inside a description.
-pub const MAX_DESCRIPTION_ROSTER: usize = 4096;
+pub(crate) const MAX_DESCRIPTION_ROSTER: usize = 4096;
 /// Hard bound on one declared or derived identity string.
-pub const MAX_IDENTITY_BYTES: usize = 1024;
+pub(crate) const MAX_IDENTITY_BYTES: usize = 1024;
 
 /// How far the checked component evidence has advanced.
 ///
@@ -56,7 +56,7 @@ pub const MAX_IDENTITY_BYTES: usize = 1024;
 /// Earlier frontiers describe a component before its closure exists and are
 /// rejected by `verify_component` rather than treated as complete.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DescriptionFrontier {
+pub(crate) enum DescriptionFrontier {
     /// The component was declared in source but no checked closure exists.
     AuthoredDeclaration,
     /// A provider plan was selected but the artifact closure was not bound.
@@ -88,7 +88,7 @@ impl DescriptionFrontier {
 /// not itself seal to a retained provider. Installation must bind each slot
 /// to an exact provider occurrence under a fresh profile.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ImportSlot {
+pub(crate) struct ImportSlot {
     pub slot: u32,
     /// Canonical identity of the boundary requirement left unsealed.
     pub requirement_identity: String,
@@ -108,7 +108,7 @@ pub struct ImportSlot {
 /// selected `CheckedAdapter` row names. A description cannot invent or omit
 /// either family; the verifier compares the roster row for row.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ExportSurface {
+pub(crate) struct ExportSurface {
     /// Canonical export identity.
     pub identity: String,
 }
@@ -117,7 +117,7 @@ pub struct ExportSurface {
 /// the module's provider-candidate catalog. The three identities are the
 /// exact join coordinates the selected-plan join uses; the spelling is a
 /// string identity compared whole, never parsed.
-pub fn requirement_export_identity(
+pub(crate) fn requirement_export_identity(
     requirement_identity: &str,
     provider_identity: &str,
     candidate_identity: &str,
@@ -138,7 +138,7 @@ pub fn requirement_export_identity(
 /// domain that can never alias a requirement contract (the canonical entry
 /// is an entry surface, not an importable realization).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ExportContract {
+pub(crate) struct ExportContract {
     /// The export surface's canonical identity — the same string the
     /// `exports` roster row carries.
     pub identity: String,
@@ -148,7 +148,7 @@ pub struct ExportContract {
 
 /// Every possible way execution may enter the described component.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ComponentEntryKind {
+pub(crate) enum ComponentEntryKind {
     /// The module's canonical selected entry machine.
     Canonical,
     /// A suspension call site whose stored frontier re-enters on resume.
@@ -194,7 +194,7 @@ impl ComponentEntryKind {
 
 /// Evidence binding one entry row to independently checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum EntryEvidence {
+pub(crate) enum EntryEvidence {
     /// The entry is re-derived from the embedded artifact itself.
     ModuleDerived,
     /// The entry is declared by the producer and inseparable from the named
@@ -204,7 +204,7 @@ pub enum EntryEvidence {
 
 /// One row of the component's complete entry roster.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ComponentEntry {
+pub(crate) struct ComponentEntry {
     pub kind: ComponentEntryKind,
     pub identity: String,
     pub evidence: EntryEvidence,
@@ -212,7 +212,7 @@ pub struct ComponentEntry {
 
 /// Classes of authority that can leave the component's own closure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum OutgoingAuthorityClass {
+pub(crate) enum OutgoingAuthorityClass {
     /// A bodyless boundary machine invoked by a `BoundaryCall` operation.
     BoundaryRequirement,
     /// An immediate port-space write naming its exact service identity.
@@ -244,7 +244,7 @@ impl OutgoingAuthorityClass {
 
 /// Evidence binding one outgoing-authority row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum OutgoingEvidence {
+pub(crate) enum OutgoingEvidence {
     /// The row is re-derived from the embedded artifact and remains an
     /// unsealed demand: installation must bind it per occurrence.
     ModuleDerived,
@@ -261,7 +261,7 @@ pub enum OutgoingEvidence {
 
 /// One row of the component's complete outgoing-authority roster.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct OutgoingAuthority {
+pub(crate) struct OutgoingAuthority {
     pub class: OutgoingAuthorityClass,
     pub identity: String,
     pub evidence: OutgoingEvidence,
@@ -277,7 +277,7 @@ pub struct OutgoingAuthority {
 /// would let a bound stand in for resolved reach, so the two publish as
 /// distinct fields.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct InstallationServiceBound {
+pub(crate) struct InstallationServiceBound {
     /// Canonical identity of the unresolved installation-bound requirement.
     pub requirement_identity: String,
     /// The row's declared conservative upper bound, in canonical order.
@@ -286,7 +286,7 @@ pub struct InstallationServiceBound {
 
 /// Ownership, custody, and capability constraints the component carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CustodyKind {
+pub(crate) enum CustodyKind {
     /// A closure-wide direct entry input bound to one exact placed view.
     PlacedViewInput,
     /// An exact direct-root custody handoff over a finite reborrow lineage.
@@ -344,7 +344,7 @@ impl CustodyKind {
 
 /// Evidence binding one custody row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CustodyEvidence {
+pub(crate) enum CustodyEvidence {
     /// The row is re-derived from the embedded artifact.
     ModuleDerived,
     /// The row is declared and inseparable from the named assumption digest.
@@ -354,7 +354,7 @@ pub enum CustodyEvidence {
 /// One row of the component's custody roster. These constraints preserve
 /// custody; they grant no cleanup, transfer, or discharge authority.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CustodyConstraint {
+pub(crate) struct CustodyConstraint {
     pub kind: CustodyKind,
     pub identity: String,
     pub evidence: CustodyEvidence,
@@ -364,7 +364,7 @@ pub struct CustodyConstraint {
 /// `plan_digest` is the only authoritative plan identity; `report_identity`
 /// is a non-authoritative compact coordinate for reports and cache joins.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RetainedProvider {
+pub(crate) struct RetainedProvider {
     pub report_identity: u64,
     pub plan_digest: [u8; 32],
     /// Exact requirement identities this provider seals for the component.
@@ -376,7 +376,7 @@ pub struct RetainedProvider {
 /// admission at installation; compilation or provider code alone cannot
 /// discharge them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ObligationKind {
+pub(crate) enum ObligationKind {
     /// Provision the exact selected-entry stack closure demand.
     StackProvision,
     /// Admit one retained provider occurrence under a fresh profile.
@@ -425,7 +425,7 @@ impl ObligationKind {
 /// One installation obligation. The `identity` is the canonical obligation
 /// coordinate; `detail` carries bounded human-readable context only.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct InstallationObligation {
+pub(crate) struct InstallationObligation {
     pub kind: ObligationKind,
     pub identity: String,
     pub detail: String,
@@ -438,7 +438,7 @@ pub struct InstallationObligation {
 /// every module-derived row, so a hand-authored description cannot claim
 /// facts the embedded artifact does not contain.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentDescription {
+pub(crate) struct ComponentDescription {
     pub schema: u32,
     pub frontier: DescriptionFrontier,
     /// Canonical bytes of the sealed Terminal artifact this description
@@ -509,7 +509,7 @@ impl std::error::Error for DescribeError {}
 
 /// Decode failures for the canonical description wire format.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DescriptionDecodeRejection {
+pub(crate) enum DescriptionDecodeRejection {
     /// Input is empty, truncated, or has trailing bytes.
     Corrupt(&'static str),
     /// The wire magic did not match.
@@ -544,7 +544,7 @@ impl std::fmt::Display for DescriptionDecodeRejection {
 impl std::error::Error for DescriptionDecodeRejection {}
 
 /// Collision-resistant identity of one exact encoded description.
-pub fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32] {
+pub(crate) fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(DESCRIPTION_IDENTITY_DOMAIN);
     digest.update(
@@ -557,7 +557,7 @@ pub fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32] {
 }
 
 /// Collision-resistant contract identity of one requirement spelling.
-pub fn requirement_contract_identity(requirement_identity: &str) -> [u8; 32] {
+pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(REQUIREMENT_CONTRACT_DOMAIN);
     digest.update(
@@ -575,7 +575,7 @@ pub fn requirement_contract_identity(requirement_identity: &str) -> [u8; 32] {
 /// contract is a requirement contract — so its digest lives in its own
 /// domain and cannot collide with any [`requirement_contract_identity`]
 /// output.
-pub fn canonical_entry_contract_identity(entry: MachineId) -> [u8; 32] {
+pub(crate) fn canonical_entry_contract_identity(entry: MachineId) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(CANONICAL_ENTRY_CONTRACT_DOMAIN);
     digest.update(entry.get().to_le_bytes());
@@ -583,7 +583,7 @@ pub fn canonical_entry_contract_identity(entry: MachineId) -> [u8; 32] {
 }
 
 /// Derived assumption digest for one immediate port-space mechanism.
-pub fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
+pub(crate) fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(PORT_MECHANISM_DOMAIN);
     digest.update(service.get().to_le_bytes());
@@ -980,7 +980,7 @@ pub struct ComponentDescriptionFacts<'a> {
 /// module-derived inventory plus the retained selected-provider facts. This
 /// is publication evidence only: it cannot satisfy its own installation
 /// obligations or grant callable authority to any reader.
-pub fn describe_component_facts(
+pub(crate) fn describe_component_facts(
     facts: ComponentDescriptionFacts<'_>,
 ) -> Result<ComponentDescription, DescribeError> {
     let module = facts.artifact.semantic_module();
