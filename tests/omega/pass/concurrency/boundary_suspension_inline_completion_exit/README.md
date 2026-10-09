@@ -44,3 +44,7 @@ every borrow formation a strict CPU/thread contribution. Carry the loan
 lineage and lifetime obligations into the canonical frontier and activation
 envelope before relaxing admission; runtime backing, preservation and
 cancellation joins remain separate requirements.
+
+`fail/concurrency/suspend_reference_permission_without_backing` also refuses
+descriptor carry permissions that would otherwise bypass this missing join,
+including a generic carrier, a slice and an argument used only by the call.

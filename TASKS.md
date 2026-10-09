@@ -5196,6 +5196,9 @@ wait for Cathedral's instruction coverage. The interpreter is
     first rejects the live reference's strict type policy. The canonical frontier
     retains current structural access but no loan lineage/lifetime relation;
     activation-wide analysis separately treats borrow formation as strict.
+    Descriptor `Carry::AcrossSuspend` permission cannot substitute for that
+    missing join, including borrowed fields, slices and unknown generic shapes;
+    keep `fail/concurrency/suspend_reference_permission_without_backing`.
     Connect the existing checked loan facts to all three consumers before
     relaxing admission, without a reference-type or inline-provider exception. Keep
     `pass/concurrency/boundary_suspension_inline_completion_exit` (0) as the

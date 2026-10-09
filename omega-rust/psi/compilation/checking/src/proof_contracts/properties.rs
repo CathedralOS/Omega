@@ -8,6 +8,8 @@
 //!   primitive, a shared reference, or a data type that declares the property.
 //! - `carry(...)`: the authored four-axis floor may not be more permissive
 //!   than the policy derived from every stored field.
+//!   The same walk retains borrowed-storage requirements independently:
+//!   qualifying a descriptor's carry cannot prove its referent's preservation.
 //!
 //! Whether zeroed storage establishes a type is derived from its default
 //! domain, fields, and zero-case payload in `data`; semantic emptiness is not
@@ -289,7 +291,29 @@ pub fn effective_type_carry_policy(
     type_parameters: &[TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> language_semantics::CarryPolicy {
-    CarryDerivation::new(program, type_parameters).derive(type_reference)
+    effective_type_carry_requirements(program, type_parameters, type_reference).structural
+}
+
+/// Independent requirements of a stored shape. A claim may qualify its carry
+/// policy, but that qualification is not evidence of loan preservation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypeCarryRequirements {
+    pub structural: language_semantics::CarryPolicy,
+    /// The shape contains views or cannot establish their absence. A concrete
+    /// value needs loan preservation evidence before crossing suspension.
+    pub requires_borrow_preservation: bool,
+}
+
+/// Traverse the stored shape once, retaining borrowed-storage obligations
+/// separately from the four-axis policy. Source carry checking must join the
+/// former to per-value loan/backing evidence before accepting a crossing;
+/// neither a positive carry predicate nor an opaque policy result discharges it.
+pub fn effective_type_carry_requirements(
+    program: &dyn crate::CheckingInput,
+    type_parameters: &[TypeParameter],
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> TypeCarryRequirements {
+    CarryDerivation::new(program, type_parameters).derive_requirements(type_reference)
 }
 
 /// One entry point for "does this type carry the declared property?", shared

@@ -246,7 +246,8 @@ pub use proof_contracts::float_projection_bindings::{
 pub use proof_contracts::float_projection_invocations::exact_projection_operation as exact_toolchain_float_projection_operation;
 pub use proof_contracts::properties::{
     DeclaredPropertyRequirement, OpaqueDataPropertyReceipt, OpaqueDataPropertyReceiptKind,
-    declared_property_requirements, effective_data_carry_policy, effective_type_carry_policy,
+    TypeCarryRequirements, declared_property_requirements, effective_data_carry_policy,
+    effective_type_carry_policy, effective_type_carry_requirements,
     type_satisfies_declared_property,
 };
 pub use proof_contracts::proposition_entailment::select_named_evidence_implementation;

@@ -14,6 +14,7 @@ pub(super) struct CarryDerivation<'program> {
         typed_trees::types::TypeReferenceHandle,
     )>,
     visiting: Vec<symbols::SymbolHandle>,
+    requires_borrow_preservation: bool,
 }
 
 impl<'program> CarryDerivation<'program> {
@@ -39,6 +40,18 @@ impl<'program> CarryDerivation<'program> {
             parameters,
             substitutions: Vec::new(),
             visiting: Vec::new(),
+            requires_borrow_preservation: false,
+        }
+    }
+
+    pub(super) fn derive_requirements(
+        mut self,
+        type_reference: typed_trees::types::TypeReferenceHandle,
+    ) -> super::TypeCarryRequirements {
+        let structural = self.derive(type_reference);
+        super::TypeCarryRequirements {
+            structural,
+            requires_borrow_preservation: self.requires_borrow_preservation,
         }
     }
 
@@ -85,12 +98,31 @@ impl<'program> CarryDerivation<'program> {
                                 || (!symbol.is_valid() && candidate_name == name.as_str())
                         })
                 {
+                    // An unbounded stored parameter may contain views. A
+                    // suspension-allowing type-wide bound rules that out by
+                    // the ordinary structural instantiation check; a value's
+                    // Carry::AcrossSuspend qualification does not.
+                    if policy.suspension == language_semantics::CarrySuspension::Forbidden {
+                        self.requires_borrow_preservation = true;
+                    }
                     return *policy;
                 }
                 self.derive_named_data(symbol, name.as_str(), None)
             }
             TypeReferenceNode::Constrained { base_type, .. } => self.derive(base_type),
-            TypeReferenceNode::FixedArray { element_type, .. } => self.derive(element_type),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                // The empty product has no stored element, hence no policy
+                // or loan demand. Nonempty and unresolved extents retain the
+                // element's complete requirements without enumerating it.
+                if length == typed_trees::types::FixedArrayLength::Literal(0) {
+                    CarryPolicy::PERMISSIVE
+                } else {
+                    self.derive(element_type)
+                }
+            }
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,
@@ -109,9 +141,15 @@ impl<'program> CarryDerivation<'program> {
             }
             // Borrows, slices, and erased satisfiers need per-value/provenance
             // evidence. Until that enforcement lands, absence fails closed.
-            TypeReferenceNode::Reference { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::DynamicTrait { .. } => CarryPolicy::STRICT,
+            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
+                // A descriptor's carry permissions cannot establish its
+                // referent's lifetime, access restrictions or stable backing.
+                // Keep this independent obligation through the same stored-
+                // shape traversal, including concrete generic substitutions.
+                self.requires_borrow_preservation = true;
+                CarryPolicy::STRICT
+            }
+            TypeReferenceNode::DynamicTrait { .. } => CarryPolicy::STRICT,
         }
     }
 

@@ -597,10 +597,21 @@ fn append_if_suspension_forbidden_with_type_parameters(
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let structural =
-        validation::effective_type_carry_policy(program, type_parameters, type_reference);
+    let requirements =
+        validation::effective_type_carry_requirements(program, type_parameters, type_reference);
     let claims = claim_carry.live_claim_identities(program, value_name);
-    let policy = claim_carry.effective_policy(program, value_name, structural, &claims);
+    let mut policy =
+        claim_carry.effective_policy(program, value_name, requirements.structural, &claims);
+    // Claim qualification and loan preservation are independent judgments.
+    // There is not yet a checked per-value backing/lifetime join to consume
+    // here or retain in Terminal. Until that producer and its consumers exist,
+    // an AcrossSuspend permission must not bypass the missing loan obligation.
+    // Keep ordinary unqualified diagnostics and resource-claim relaxation intact.
+    let missing_borrow_preservation =
+        requirements.requires_borrow_preservation && policy.suspension == CarrySuspension::Allowed;
+    if missing_borrow_preservation {
+        policy = policy.intersect(CarryPolicy::STRICT);
+    }
     crossing.effective = crossing.effective.intersect(policy);
     crossing
         .live_values
@@ -616,9 +627,15 @@ fn append_if_suspension_forbidden_with_type_parameters(
     }
 
     let target_name = crate::labels::symbol_name(program, call.target_symbol);
-    let message = format!(
-        "call to `{target_name}` may suspend while `{value_name}` remains live, but its effective policy is `{policy}`; consume the value before the call or use a suspension-safe carrier"
-    );
+    let message = if missing_borrow_preservation {
+        format!(
+            "call to `{target_name}` may suspend while `{value_name}` may retain borrowed storage, but its backing lifetime, access restrictions and address preservation have no checked per-value join; carry permission on the descriptor does not establish loan preservation"
+        )
+    } else {
+        format!(
+            "call to `{target_name}` may suspend while `{value_name}` remains live, but its effective policy is `{policy}`; consume the value before the call or use a suspension-safe carrier"
+        )
+    };
     if diagnostics
         .iter()
         .any(|diagnostic| diagnostic.message == message)
