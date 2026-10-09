@@ -6,7 +6,7 @@ use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NonProviderTrustGrant {
+pub(crate) enum NonProviderTrustGrant {
     AcceptedMachine(symbols::SymbolHandle),
 }
 
@@ -16,7 +16,7 @@ struct NonProviderTrustGrantCandidate<'name> {
     name: &'name str,
 }
 
-pub fn resolve_non_provider_trust_grant(
+pub(crate) fn resolve_non_provider_trust_grant(
     typed: &TypedTrees,
     grant: &str,
 ) -> Result<NonProviderTrustGrant, Diagnostic> {

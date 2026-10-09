@@ -16,9 +16,8 @@
 
 pub mod boundary_applications;
 pub use boundary_applications::{
-    BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCoverageIdentity,
-    BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
-    BoundaryApplicationRealizationRole, BoundaryOpaqueRepresentationApplication,
+    BoundaryApplication, BoundaryApplicationArgument,
+    BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion, BoundaryOpaqueRepresentationApplication,
     BoundaryOpaqueRepresentationApplications, BoundaryOperatorRequirement, BoundaryTypeIdentity,
     NominalDeclarationIdentity, OperatorApplicationCoverageRef,
     TerminalBoundaryApplicationCoverage, TerminalBoundaryApplicationDemand,
@@ -26,3 +25,5 @@ pub use boundary_applications::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     coverage, demands, opaque_applications, realization,
 };
+pub(crate) use boundary_applications::{ BoundaryApplicationCoverageIdentity,
+    BoundaryApplicationRealizationRole};

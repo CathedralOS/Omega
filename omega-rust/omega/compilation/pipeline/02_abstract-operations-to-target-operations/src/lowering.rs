@@ -28,7 +28,7 @@ use coordination::lower_to_target_operations_with_settlements_and_installation;
 
 /// The admitted settlements a target lowering consumes beyond the plan and
 /// its target. A source-free plan carries none; every roster is fail-closed.
-pub struct TargetLoweringRequest<'a> {
+pub(crate) struct TargetLoweringRequest<'a> {
     pub target: NativeTarget,
     /// Exact provider executions already admitted by the external-root ledger.
     pub settlements: &'a [AdmittedBoundarySettlement<'a>],
@@ -54,7 +54,7 @@ impl TargetLoweringRequest<'_> {
 }
 
 /// Lower one abstract plan to target operations.
-pub fn lower_to_target_operations(
+pub(crate) fn lower_to_target_operations(
     plan: &AbstractOperationPlan,
     request: TargetLoweringRequest<'_>,
 ) -> Result<TargetOperationPlan, LoweringError> {

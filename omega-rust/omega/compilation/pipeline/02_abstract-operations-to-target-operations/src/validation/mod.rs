@@ -20,7 +20,7 @@ pub(crate) mod structural_shapes;
 mod structural_signatures;
 pub(crate) mod whole_plan;
 
-pub use whole_plan::validate_abstract_to_target_translation;
+pub(crate) use whole_plan::validate_abstract_to_target_translation;
 
 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
 use target::NativeTarget;
@@ -30,7 +30,7 @@ use terminal_psi::TerminalPsiIdentity;
 ///
 /// The receipt covers roots, declarations, and ABI headers, not executable bodies.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractToTargetTranslationValidationReceipt {
+pub(crate) struct AbstractToTargetTranslationValidationReceipt {
     psi: TerminalPsiIdentity,
     target: NativeTarget,
     entry: MachineId,
@@ -68,13 +68,13 @@ impl AbstractToTargetTranslationValidationReceipt {
         self.function_roster.len()
     }
 
-    pub fn function_roster(&self) -> &[AbstractToTargetFunctionRosterReceipt] {
+    pub(crate) fn function_roster(&self) -> &[AbstractToTargetFunctionRosterReceipt] {
         &self.function_roster
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractToTargetFunctionRosterReceipt {
+pub(crate) struct AbstractToTargetFunctionRosterReceipt {
     machine: MachineId,
     attachment: Option<StructuralTypeId>,
 }
@@ -100,7 +100,7 @@ impl AbstractToTargetFunctionRosterReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractToTargetTranslationValidationError {
+pub(crate) enum AbstractToTargetTranslationValidationError {
     UnsupportedIeeeFloatFmaRealization(OperationId),
     StructuralSignatureMismatch {
         machine: MachineId,

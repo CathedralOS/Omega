@@ -14,7 +14,7 @@ use crate::{
 ///
 /// This produces ABI custody only. It does not select backing, establish a
 /// lifetime, or emit a placed access event.
-pub fn lower_to_target_operations_with_placed_view_inputs(
+pub(crate) fn lower_to_target_operations_with_placed_view_inputs(
     source: &AbstractOperationPlanWithPlacedViewInputs,
     target: NativeTarget,
     selections: &[SelectedPlacedViewInputPlan<'_>],
@@ -33,7 +33,7 @@ pub fn lower_to_target_operations_with_placed_view_inputs(
 
 /// Independently reconstruct the complete bounded placed-input target carrier
 /// and reject any missing, extra, reordered, or target-substituted data.
-pub fn validate_placed_view_input_translation(
+pub(crate) fn validate_placed_view_input_translation(
     source: &AbstractOperationPlanWithPlacedViewInputs,
     selections: &[SelectedPlacedViewInputPlan<'_>],
     expected_target: NativeTarget,
