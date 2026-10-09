@@ -69,15 +69,7 @@ pub const UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT: [u8; 32] = [
 pub fn replayed_uefi_x64_physical_calling_plan(
     plan: &BoundaryEntryPlan,
 ) -> Option<ValidatedBoundaryEntryPlan> {
-    let signature = CallSignature {
-        parameters: plan
-            .call
-            .parameters
-            .iter()
-            .map(|placement| placement.shape)
-            .collect(),
-        result: plan.call.result.as_ref().map(|placement| placement.shape),
-    };
+    let signature = CallSignature::of_placements(&plan.call.parameters, plan.call.result.as_ref());
     let validated = validate_boundary_entry_plan(plan.clone(), &signature).ok()?;
     (validated.plan() == plan
         && validated.contract_commitment_digest() == UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT)

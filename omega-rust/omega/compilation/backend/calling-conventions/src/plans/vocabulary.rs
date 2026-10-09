@@ -257,6 +257,18 @@ pub struct CallSignature {
     pub result: Option<ValueShape>,
 }
 
+impl CallSignature {
+    /// The signature of a call boundary whose transports are placements:
+    /// each parameter's carried shape in order, plus the result's when the
+    /// call returns a value.
+    pub fn of_placements(parameters: &[ValuePlacement], result: Option<&ValuePlacement>) -> Self {
+        Self {
+            parameters: parameters.iter().map(|placement| placement.shape).collect(),
+            result: result.map(|placement| placement.shape),
+        }
+    }
+}
+
 /// One concrete call to a C variadic function after default argument
 /// promotion. The fixed/anonymous boundary is ABI-significant even though all
 /// parameters have already acquired exact machine shapes.

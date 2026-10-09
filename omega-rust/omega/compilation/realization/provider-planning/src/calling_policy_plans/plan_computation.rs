@@ -904,15 +904,7 @@ pub(crate) fn validate_materialized_boundary_plan_result(
                 invalid_authored_plan(format!("result classification is invalid: {reason}"))
             })?;
     }
-    let classified = CallSignature {
-        parameters: plan
-            .call
-            .parameters
-            .iter()
-            .map(|placement| placement.shape)
-            .collect(),
-        result: plan.call.result.as_ref().map(|placement| placement.shape),
-    };
+    let classified = CallSignature::of_placements(&plan.call.parameters, plan.call.result.as_ref());
     if signature.callback_demands.is_empty() {
         return validate_boundary_plan_result(BoundaryPlanResult::Accepted(plan), &classified)
             .map_err(|diagnostic| diagnostic.to_string());

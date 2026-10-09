@@ -121,15 +121,7 @@ pub fn instantiate_foreign_call_constraint(
         return None;
     }
     let plan = &call.binding.boundary_entry_plan;
-    let signature = CallSignature {
-        parameters: plan
-            .call
-            .parameters
-            .iter()
-            .map(|placement| placement.shape)
-            .collect(),
-        result: plan.call.result.as_ref().map(|placement| placement.shape),
-    };
+    let signature = CallSignature::of_placements(&plan.call.parameters, plan.call.result.as_ref());
     let validated = match call.callbacks.first() {
         Some(callback) => {
             calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
@@ -259,8 +251,7 @@ fn register_view<'physical>(
     fixed_register_view: &impl Fn(MachineRegister) -> Option<RegisterViewId>,
 ) -> Option<&'physical RegisterView> {
     let identity = fixed_register_view(register)?;
-    physical
-        .model().view(identity)
+    physical.model().view(identity)
 }
 
 fn append_operand(
