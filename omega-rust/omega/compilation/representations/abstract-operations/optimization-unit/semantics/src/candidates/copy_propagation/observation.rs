@@ -128,9 +128,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         // that exact value, so a rewrite that would retire it leaves the use
         // behind and validation rejects the candidate, as for the bounded
         // byte-view operands.
-        O::EstablishPrimitiveLocal { value, .. }
-        | O::PrimitiveLocalStore { value, .. }
-        | O::WriteOnlyPrimitiveStore { value, .. }
+        abstract_operations::primitive_local_triple_pattern!(value, ..)
         | O::StructuralScalarFieldStore { value, .. } => replace(&mut value.value),
         O::CallStructural { callee, arguments, .. } => {
             if let abstract_operations::AbstractCallTarget::Dynamic { selector, .. } = callee {

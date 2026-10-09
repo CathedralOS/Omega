@@ -1323,3 +1323,12 @@ macro_rules! establish_byte_literal_triple_pattern {
             | $crate::AbstractOperation::EstablishTrivialAffineLocal { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! primitive_local_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::EstablishPrimitiveLocal { $($fields)* }
+            | $crate::AbstractOperation::PrimitiveLocalStore { $($fields)* }
+            | $crate::AbstractOperation::WriteOnlyPrimitiveStore { $($fields)* }
+    };
+}

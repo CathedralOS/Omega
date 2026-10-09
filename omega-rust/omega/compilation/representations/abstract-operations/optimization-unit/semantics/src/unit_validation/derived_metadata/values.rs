@@ -63,9 +63,7 @@ pub(crate) fn expected_uses(
         } => vec![*start, *end],
         abstract_operations::call_or_call_structural_pattern!(arguments, ..)
         | O::BoundaryCall { arguments, .. } => arguments.clone(),
-        O::EstablishPrimitiveLocal { value, .. }
-        | O::PrimitiveLocalStore { value, .. }
-        | O::WriteOnlyPrimitiveStore { value, .. }
+        abstract_operations::primitive_local_triple_pattern!(value, ..)
         | O::StructuralScalarFieldStore { value, .. } => {
             vec![value.value]
         }

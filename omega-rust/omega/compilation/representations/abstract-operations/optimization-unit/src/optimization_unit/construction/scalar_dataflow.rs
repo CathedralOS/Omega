@@ -150,9 +150,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::Call { arguments, .. }
         | O::BoundaryCall { arguments, .. }
         | O::ExternalCompletion { arguments, .. } => arguments.clone(),
-        O::EstablishPrimitiveLocal { value, .. }
-        | O::PrimitiveLocalStore { value, .. }
-        | O::WriteOnlyPrimitiveStore { value, .. }
+        abstract_operations::primitive_local_triple_pattern!(value, ..)
         | O::StructuralScalarFieldStore { value, .. } => {
             vec![value.value]
         }

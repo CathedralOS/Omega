@@ -83,9 +83,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::ElementViewLength { .. }
         | abstract_operations::element_view_read_write_pair_pattern!(..)
         | O::ElementViewSubslice { .. } => element_views::types_match(function, operation, definitions),
-        O::EstablishPrimitiveLocal { value, .. }
-        | O::PrimitiveLocalStore { value, .. }
-        | O::WriteOnlyPrimitiveStore { value, .. }
+        abstract_operations::primitive_local_triple_pattern!(value, ..)
         | O::StructuralScalarFieldStore { value, .. } => {
             scalar(value.value) == Some(value.scalar_type)
         }
