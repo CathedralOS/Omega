@@ -7,7 +7,6 @@ use selected_instructions::{
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
     SaturatingCarrier, SaturatingOperation, SelectedConstraintKeys, ValidatedMachineEffectCatalog,
-    validate_machine_effect_catalog,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -171,21 +170,6 @@ pub fn x86_64_machine_effect_catalog(
             })
             .collect::<Result<Vec<_>, _>>()?,
     })
-}
-
-/// The canonical catalog is a pure function of the target and the validated
-/// constraint catalog, whose identity digests its content. Validation
-/// compares against it on every call, so each (target, identity) pair builds
-/// it once per process; a failed build is never recorded.
-fn canonical_x86_64_machine_effect_catalog(
-    target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
-) -> Result<std::sync::Arc<MachineEffectCatalog>, X86_64MachineEffectCatalogValidationError> {
-    selected_instructions::canonical_machine_effect_catalog(
-        target,
-        constraints,
-        x86_64_machine_effect_catalog,
-    )
 }
 
 pub fn validate_x86_64_machine_effect_catalog(

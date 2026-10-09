@@ -153,21 +153,6 @@ pub fn aarch64_machine_effect_catalog(
     })
 }
 
-/// The canonical catalog is a pure function of the target and the validated
-/// constraint catalog, whose identity digests its content. Validation
-/// compares against it on every call, so each (target, identity) pair builds
-/// it once per process; a failed build is never recorded.
-fn canonical_aarch64_machine_effect_catalog(
-    target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
-) -> Result<std::sync::Arc<MachineEffectCatalog>, Aarch64MachineEffectCatalogValidationError> {
-    selected_instructions::canonical_machine_effect_catalog(
-        target,
-        constraints,
-        aarch64_machine_effect_catalog,
-    )
-}
-
 pub fn validate_aarch64_machine_effect_catalog(
     target: NativeTarget,
     constraints: &ValidatedRegisterConstraintCatalog,
