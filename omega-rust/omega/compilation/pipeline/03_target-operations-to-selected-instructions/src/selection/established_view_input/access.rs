@@ -286,7 +286,11 @@ fn projected_source_access(
         },
         StructuralStorageProjection::Endpoint(identity) => {
             match types.iter().find(|row| row.id == identity)?.shape {
-                StructuralTypeShape::ElementView { .. } => authority,
+                // Lending an inline collection uses its storage permission;
+                // selecting an existing descriptor uses its backing permission.
+                // The operation separately checks which carrier it requires.
+                StructuralTypeShape::ElementView { .. }
+                | StructuralTypeShape::FixedArray { .. } => authority,
                 StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { access }
                     | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
