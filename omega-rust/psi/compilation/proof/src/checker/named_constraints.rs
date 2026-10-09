@@ -11,14 +11,13 @@ use crate::checker::float_ranges::{
     float_range_from_constraints,
 };
 use crate::checker::integer_ranges::{
-    IntegerRange, guarded_integer_range_for_assignment,
+    guarded_integer_range_for_assignment,
     guarded_integer_range_for_transition_argument,
     integer_range_for_transition_argument, integer_range_from_constraints, type_constraints,
 };
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
-    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofConstraint, ProofPlan,
-};
+    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofConstraint, ProofPlan, IntegerRange};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
