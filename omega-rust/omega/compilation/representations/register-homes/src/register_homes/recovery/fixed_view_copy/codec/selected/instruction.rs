@@ -240,10 +240,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             }
             crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
-        SelectedInstructionKind::HostedWriteByteI32 { slot }
-        | SelectedInstructionKind::HostedReadByte { slot }
-        | SelectedInstructionKind::SaveFloatingControl { slot }
-        | SelectedInstructionKind::RestoreFloatingControl { slot } => slot.encode_identity(bytes),
+        selected_instructions::hosted_slot_quad_pattern!(slot, ..) => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::CompareI64Immediate { immediate } => {
             encode_integer(bytes, immediate)

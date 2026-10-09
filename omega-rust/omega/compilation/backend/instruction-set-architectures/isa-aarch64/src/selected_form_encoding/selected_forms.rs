@@ -311,10 +311,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::AddressOffset { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::HostedExitProcessI32
-        | SelectedInstructionKind::HostedReadByte { .. }
-        | SelectedInstructionKind::SaveFloatingControl { .. }
-        | SelectedInstructionKind::RestoreFloatingControl { .. }
-        | SelectedInstructionKind::HostedWriteByteI32 { .. }
+        | selected_instructions::hosted_slot_quad_pattern!(..)
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
         | SelectedInstructionKind::Jump

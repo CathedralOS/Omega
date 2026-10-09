@@ -82,10 +82,7 @@ fn instruction_slot_mentions(
     match instruction.kind {
         SelectedInstructionKind::Store64 { slot, .. }
         | SelectedInstructionKind::FrameAddress { slot, .. } => frame_slot_mentions(slot, register),
-        SelectedInstructionKind::HostedReadByte { slot }
-        | SelectedInstructionKind::HostedWriteByteI32 { slot }
-        | SelectedInstructionKind::SaveFloatingControl { slot }
-        | SelectedInstructionKind::RestoreFloatingControl { slot } => {
+        selected_instructions::hosted_slot_quad_pattern!(slot, ..) => {
             local_slot_mentions(slot, register)
         }
         _ => false,
@@ -498,10 +495,7 @@ fn lower_selected_instruction(
         | SelectedInstructionKind::FrameAddress { slot, .. } => {
             lower_frame_slot(slot, removed_register)
         }
-        SelectedInstructionKind::HostedReadByte { slot }
-        | SelectedInstructionKind::HostedWriteByteI32 { slot }
-        | SelectedInstructionKind::SaveFloatingControl { slot }
-        | SelectedInstructionKind::RestoreFloatingControl { slot } => {
+        selected_instructions::hosted_slot_quad_pattern!(slot, ..) => {
             lower_local_slot(slot, removed_register)
         }
         _ => Ok(()),

@@ -256,10 +256,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             }
             crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
-        SelectedInstructionKind::HostedReadByte { slot }
-        | SelectedInstructionKind::HostedWriteByteI32 { slot }
-        | SelectedInstructionKind::SaveFloatingControl { slot }
-        | SelectedInstructionKind::RestoreFloatingControl { slot } => slot.encode_identity(bytes),
+        crate::hosted_slot_quad_pattern!(slot, ..) => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::WrappingRemainderI64 {
             obligation,

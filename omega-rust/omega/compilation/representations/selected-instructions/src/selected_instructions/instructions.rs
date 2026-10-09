@@ -615,3 +615,13 @@ macro_rules! selected_call_triple_pattern {
             | $crate::SelectedInstructionKind::CallUnit { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! hosted_slot_quad_pattern {
+    ($($fields:tt)*) => {
+        $crate::SelectedInstructionKind::HostedReadByte { $($fields)* }
+            | $crate::SelectedInstructionKind::HostedWriteByteI32 { $($fields)* }
+            | $crate::SelectedInstructionKind::RestoreFloatingControl { $($fields)* }
+            | $crate::SelectedInstructionKind::SaveFloatingControl { $($fields)* }
+    };
+}

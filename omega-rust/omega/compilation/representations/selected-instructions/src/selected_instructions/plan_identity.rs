@@ -242,10 +242,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
         SelectedInstructionKind::CallAggregate { target } => target.encode_identity(bytes),
-        SelectedInstructionKind::HostedWriteByteI32 { slot }
-        | SelectedInstructionKind::HostedReadByte { slot }
-        | SelectedInstructionKind::SaveFloatingControl { slot }
-        | SelectedInstructionKind::RestoreFloatingControl { slot } => {
+        crate::hosted_slot_quad_pattern!(slot, ..) => {
             contracts::frame_slot(bytes, crate::FrameStorageSlotId::Local(slot));
         }
         SelectedInstructionKind::Store {
