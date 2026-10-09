@@ -40,6 +40,8 @@ pub data ExpressionFrameKind [copy] {
     case MatchSubject;
     case MatchPattern;
     case MatchValue;
+    // A range slice's end inside an index's brackets.
+    case RangeEnd;
 }
 
 // One open bracket. Reductions inside it stop at `operator_base`; its staged
@@ -58,6 +60,10 @@ pub data ExpressionFrame [copy] {
     arm_start: u64 in Trapping;
     pattern: u64 in Trapping;
     pattern_kind: ArmPatternKind;
+    // A range-end frame: whether the range has a start (its `callee`), and
+    // whether it includes its end (`..=`); `start` is where it begins.
+    range_start: bool;
+    range_inclusive: bool;
 }
 
 // Parse one expression, leaving its handle in `expression_result`. `missing`
@@ -896,7 +902,71 @@ crashes Trap
 
     state index_taken(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
-        transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedOperand) }
+        let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDot);
+        let inclusive: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDotEqual);
+        transition open || inclusive {
+            true -> range_open(parser, input, false, 0, inclusive, 0)
+            _ -> operand(parser, input, ParseDiagnosticCode::ExpectedOperand)
+        }
+    }
+
+    // `..` or `..=` is current, after the index's start operand (beginning
+    // at `from`) or none, when the range begins at the dots: the range's end
+    // follows, or `]` closes an open `..` range at once.
+    state range_open(parser: &mut Parser, input: &TokenStream, has_start: bool, start: u64 in Trapping, inclusive: bool, from: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        let dots: u64 in Trapping = parser.token_start;
+        Parser::push_range_frame(parser, input, has_start, start, inclusive, from, dots);
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBracket);
+        transition parser.output.accepted && closing && !inclusive {
+            true -> range_node(parser, input, false)
+            _ -> range_end_operand(parser, input)
+        }
+    }
+
+    state range_end_operand(parser: &mut Parser, input: &TokenStream) {
+        transition parser.output.accepted {
+            true -> operand(parser, input, ParseDiagnosticCode::ExpectedRangeEnd)
+            _ -> done()
+        }
+    }
+
+    // A completed range end, or none: the range replaces the index operand.
+    state range_node(parser: &mut Parser, input: &TokenStream, has_end: bool) {
+        let frame: ExpressionFrame = Parser::top_frame(parser);
+        Parser::pop_frame(parser);
+        transition has_end {
+            true -> range_ended(parser, input, frame)
+            _ -> range_built(parser, input, frame, false, 0)
+        }
+    }
+
+    state range_ended(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let end: u64 in Trapping = Parser::pop_operand(parser);
+        transition { _ -> range_built(parser, input, frame, true, end) }
+    }
+
+    state range_built(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, has_end: bool, end: u64 in Trapping) {
+        let first: u64 in Trapping = Parser::presence(frame.range_start);
+        let count: u64 in Trapping = Parser::presence(has_end);
+        let node: Expression = Expression {
+            kind: ExpressionKind::Range,
+            operator: OperatorKind::None,
+            left: frame.callee,
+            right: end,
+            first: first,
+            count: count,
+            flag: frame.range_inclusive,
+            name: Parser::identifier_span(parser, 0, 0),
+            type_reference: 0,
+            first_row: 0,
+            source_span: Parser::source_span(parser, frame.start, parser.token_end)
+        };
+        Parser::emit_expression(parser, input, node);
+        transition parser.output.accepted {
+            true -> frame_delimiter(parser, input)
+            _ -> done()
+        }
     }
 
     state open_call(parser: &mut Parser, input: &TokenStream) {
@@ -988,6 +1058,7 @@ crashes Trap
             ExpressionFrameKind::MatchSubject -> match_subject_end(parser, input, frame)
             ExpressionFrameKind::MatchPattern -> match_pattern_end(parser, input, frame)
             ExpressionFrameKind::MatchValue -> match_value_end(parser, input, frame)
+            ExpressionFrameKind::RangeEnd -> range_node(parser, input, true)
         }
     }
 
@@ -1004,7 +1075,23 @@ crashes Trap
         transition { _ -> after_operand(parser, input) }
     }
 
+    // After the index operand, `..` or `..=` makes it a range's start.
     state close_index(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDot);
+        let inclusive: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDotEqual);
+        transition open || inclusive {
+            true -> range_start(parser, input, inclusive)
+            _ -> index_bracket(parser, input, frame)
+        }
+    }
+
+    state range_start(parser: &mut Parser, input: &TokenStream, inclusive: bool) {
+        let start: u64 in Trapping = Parser::pop_operand(parser);
+        let written: Expression = SyntaxTrees::expression(&parser.output, start);
+        transition { _ -> range_open(parser, input, true, start, inclusive, written.source_span.span.start) }
+    }
+
+    state index_bracket(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
         Parser::expect_punctuation(parser, input, PunctuationKind::RightBracket, ParseDiagnosticCode::ExpectedIndexEnd);
         transition parser.output.accepted {
             true -> index_node(parser, input, frame)
@@ -1460,29 +1547,93 @@ machine Parser::push_frame(
 )
 crashes Trap
 {
+    let frame: ExpressionFrame = ExpressionFrame {
+        kind: kind,
+        operator_base: parser.expression_operator_depth as u64 in Trapping,
+        pending_base: Parser::pending_base(parser, kind),
+        callee: callee,
+        field_start: 0,
+        field_end: 0,
+        start: 0,
+        arm_start: 0,
+        pattern: 0,
+        pattern_kind: ArmPatternKind::Wildcard,
+        range_start: false,
+        range_inclusive: false
+    };
+    Parser::push_frame_row(parser, input, frame);
+}
+
+// Push one frame row, when the frame stack has room.
+machine Parser::push_frame_row(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame)
+crashes Trap
+{
     transition parser.expression_frame_depth < 32 {
-        true -> push(parser, kind, callee)
+        true -> push(parser, frame)
         _ -> deep(parser, input)
     }
 
-    state push(parser: &mut Parser, kind: ExpressionFrameKind, callee: u64 in Trapping) {
-        parser.expression_frames[parser.expression_frame_depth] = ExpressionFrame {
-            kind: kind,
-            operator_base: parser.expression_operator_depth as u64 in Trapping,
-            pending_base: Parser::pending_base(parser, kind),
-            callee: callee,
-            field_start: 0,
-            field_end: 0,
-            start: 0,
-            arm_start: 0,
-            pattern: 0,
-            pattern_kind: ArmPatternKind::Wildcard
-        };
+    state push(parser: &mut Parser, frame: ExpressionFrame) {
+        parser.expression_frames[parser.expression_frame_depth] = frame;
         parser.expression_frame_depth = parser.expression_frame_depth + 1;
     }
 
     state deep(parser: &mut Parser, input: &TokenStream) {
         Parser::reject_current(parser, input, ParseDiagnosticCode::ExpressionNestingExceeded);
+    }
+}
+
+// Open a range-end frame: whether its range has a start (`start`) and
+// includes its end, and where the range begins: at its start operand
+// (`from`) or, without one, at its dots.
+machine Parser::push_range_frame(
+    parser: &mut Parser,
+    input: &TokenStream,
+    has_start: bool,
+    start: u64 in Trapping,
+    inclusive: bool,
+    from: u64 in Trapping,
+    dots: u64 in Trapping
+)
+crashes Trap
+{
+    transition has_start {
+        true -> push(parser, input, has_start, start, inclusive, from)
+        _ -> push(parser, input, has_start, start, inclusive, dots)
+    }
+
+    state push(parser: &mut Parser, input: &TokenStream, has_start: bool, start: u64 in Trapping, inclusive: bool, begin: u64 in Trapping) {
+        let frame: ExpressionFrame = ExpressionFrame {
+            kind: ExpressionFrameKind::RangeEnd,
+            operator_base: parser.expression_operator_depth as u64 in Trapping,
+            pending_base: Parser::pending_base(parser, ExpressionFrameKind::RangeEnd),
+            callee: start,
+            field_start: 0,
+            field_end: 0,
+            start: begin,
+            arm_start: 0,
+            pattern: 0,
+            pattern_kind: ArmPatternKind::Wildcard,
+            range_start: has_start,
+            range_inclusive: inclusive
+        };
+        Parser::push_frame_row(parser, input, frame);
+    }
+}
+
+// 1 for a present range endpoint, else 0.
+machine Parser::presence(present: bool) -> u64 in Trapping {
+    transition present {
+        true -> one()
+        _ -> zero()
+    }
+
+    state one() -> u64 in Trapping {
+        1
+    }
+
+    state zero() -> u64 in Trapping {
+        0
     }
 }
 

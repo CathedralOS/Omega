@@ -51,7 +51,8 @@ or the Unit completion `-> {}`. Expressions
 and Boolean literals, names and
 `::` paths (every keyword but `self` is a name; a name keeps its identifier in
 its own row, and only a path's members fill the shared member table),
-`.field`, `[index]`, calls,
+`.field`, `[index]`, range slices `[a..b]`, `[a..=b]`, `[a..]`, `[..b]` and
+`[..]` as an index's operand, calls,
 static applications `path<arguments>(...)`, `as Type` casts,
 `Path { field: value }` constructions (always inside brackets, never before an
 unbracketed body), prefix `!`, `-`, `~`, `&`, `&mut` and the call
@@ -258,7 +259,9 @@ table order, children before parents
 ([`typing/expressions.omg`](typing/expressions.omg)). A name takes its
 binding's declared type. `.field` projects a data type's common field
 through any number of references, its generic arguments substituted;
-`[index]` selects an array's or slice's element. An unsuffixed integer
+`[index]` selects an array's or slice's element, and a range slice
+`[a..b]` is the slice place `[T]` of its elements under the collection's
+qualifier, a view once borrowed or lent; its endpoints are indexes. An unsuffixed integer
 literal is anonymous ([`typing/literals.omg`](typing/literals.omg)): wholly
 anonymous `+`, `-`, `*` and exact `/` fold over exact integers, an anonymous
 `%` or fraction rejects, and the tree lands once at a destination it fits: a
@@ -359,7 +362,8 @@ fields a `where` fact names beside a demanded one
 ([`checking/demand.omg`](checking/demand.omg)), gathered to a
 fixed point and widened when a join keeps loosening around a cycle; a state
 no jump reaches owes nothing. Each reached body is then walked once more: an
-index lies in `0..len`, an Exact (unqualified) operation's result fits its
+index lies in `0..len`, a range slice's start is at most its exclusive end
+and that end at most the length (an inclusive end is a valid index), an Exact (unqualified) operation's result fits its
 carrier, an `as` conversion's value fits its target whatever the target's
 policy (`as` never changes the denoted value), a divisor is nonzero and a
 shift count

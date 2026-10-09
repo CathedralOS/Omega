@@ -82,6 +82,11 @@ crashes Trap
         ExpressionKind::Membership -> unsupported(typer, expression)
         ExpressionKind::Match -> unsupported(typer, expression)
         ExpressionKind::Float -> float_literal(typer, index)
+        ExpressionKind::Range -> range(typer, syntax, index, expression)
+    }
+
+    state range(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        Typer::type_range(typer, syntax, index, expression);
     }
 
     // A static application `path<arguments>` names a machine application
@@ -391,9 +396,38 @@ crashes Trap
 {
     let collection: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
     let selector: u64 in Trapping = Typing::expression_type(&typer.output, expression.right);
-    transition collection > 0 && selector > 0 {
-        true -> typed(typer, syntax, index, expression, collection, selector)
-        _ -> not_a_value(typer, expression)
+    let operand: Expression = SyntaxTrees::expression(syntax, expression.right);
+    transition collection > 0 && selector > 0 && operand.kind == ExpressionKind::Range {
+        true -> sliced(typer, index, expression, collection)
+        _ -> single(typer, syntax, index, expression, collection, selector)
+    }
+
+    state single(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping, selector: u64 in Trapping) {
+        transition collection > 0 && selector > 0 {
+            true -> typed(typer, syntax, index, expression, collection, selector)
+            _ -> not_a_value(typer, expression)
+        }
+    }
+
+    // A range slice of a fixed array or a slice is the slice place `[T]`
+    // of its elements, under the collection's qualifier; a borrow or a
+    // shared lending makes it a view (wiki/spec/language/expressions.md,
+    // Indexing and ranges).
+    state sliced(typer: &mut Typer, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping) {
+        let base: u64 in Trapping = Typer::referent(typer, collection);
+        let row: TypeRow = TypeTable::row(&typer.output.types, base);
+        transition row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
+            true -> view(typer, index, expression, row)
+            _ -> not_collection(typer, expression)
+        }
+    }
+
+    state view(typer: &mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
+        let mut slice_row: TypeRow = TypeRow::of(TypeKind::Slice);
+        slice_row.inner = row.inner;
+        slice_row.domain = row.domain;
+        let handle: u64 in Trapping = Typer::intern(typer, slice_row, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, handle);
     }
 
     state typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping, selector: u64 in Trapping) {
@@ -441,6 +475,72 @@ crashes Trap
     state not_integer(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
         let selector_expression: Expression = SyntaxTrees::expression(syntax, expression.right);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NonIntegerIndex, selector_expression.source_span);
+    }
+
+    state done() {}
+}
+
+// A range slice's endpoints index their collection: each an integer, an
+// anonymous literal landing at `u64`. The range itself is no value; its
+// index types the slice.
+machine Typer::type_range(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let unit: u64 in Trapping = typer.output.unit;
+    Typing::set_expression_type(&mut typer.output, index, unit);
+    transition expression.first == 1 {
+        true -> start(typer, syntax, expression)
+        _ -> end(typer, syntax, expression)
+    }
+
+    state start(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+        Typer::type_endpoint(typer, syntax, expression.left);
+        transition { _ -> end(typer, syntax, expression) }
+    }
+
+    state end(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+        transition expression.count == 1 && typer.output.accepted {
+            true -> ended(typer, syntax, expression)
+            _ -> done()
+        }
+    }
+
+    state ended(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+        Typer::type_endpoint(typer, syntax, expression.right);
+    }
+
+    state done() {}
+}
+
+// One range endpoint: an integer, or an anonymous literal landed at `u64`.
+machine Typer::type_endpoint(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping)
+crashes Trap
+{
+    let typed: u64 in Trapping = Typing::expression_type(&typer.output, endpoint);
+    let integer: bool = Typer::integer_type(typer, typed);
+    transition integer {
+        true -> done()
+        _ -> other(typer, syntax, endpoint, typed == typer.output.anonymous)
+    }
+
+    state other(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping, anonymous: bool) {
+        transition anonymous {
+            true -> land(typer, syntax, endpoint)
+            _ -> not_integer(typer, syntax, endpoint)
+        }
+    }
+
+    state land(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping) {
+        let written: Expression = SyntaxTrees::expression(syntax, endpoint);
+        let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
+        row.builtin = BuiltinType::U64;
+        let destination: u64 in Trapping = Typer::intern(typer, row, written.source_span);
+        let admitted: bool = Typer::admit(typer, syntax, destination, endpoint, false);
+    }
+
+    state not_integer(typer: &mut Typer, syntax: &SyntaxTrees, endpoint: u64 in Trapping) {
+        let written: Expression = SyntaxTrees::expression(syntax, endpoint);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NonIntegerIndex, written.source_span);
     }
 
     state done() {}

@@ -35,7 +35,7 @@ crashes Trap
         ExpressionKind::Name -> name(checker, resolution, typing, handle, type_handle)
         ExpressionKind::Integer -> literal(checker, typing, handle)
         ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle)
-        ExpressionKind::Index -> index(checker, typing, handle, expression, row, checking)
+        ExpressionKind::Index -> index(checker, syntax, typing, handle, expression, row, checking)
         ExpressionKind::Unary -> unary(checker, handle, expression, row, integer, checking)
         ExpressionKind::Binary -> binary(checker, syntax, resolution, typing, handle, expression, row, integer, checking)
         ExpressionKind::Cast -> cast(checker, typing, handle, expression, row, integer, checking)
@@ -62,15 +62,48 @@ crashes Trap
     }
 
     // `collection[index]`: the index lies in `0..len`.
-    state index(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
+    state index(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
         let base: Value = Checker::value_at(checker, expression.left);
-        let position: Value = Checker::value_at(checker, expression.right);
         let collection: TypeRow = Checker::collection_row(typing, expression.left);
         let length: Value = Checker::collection_length(checker, typing, collection, base);
+        let operand: Expression = SyntaxTrees::expression(syntax, expression.right);
+        transition operand.kind == ExpressionKind::Range {
+            true -> sliced(checker, handle, expression, operand, row, length, checking)
+            _ -> element(checker, handle, expression, row, length, checking)
+        }
+    }
+
+    state element(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, row: TypeRow, length: Value, checking: bool) {
+        let position: Value = Checker::value_at(checker, expression.right);
         let below: bool = Checker::proves_less(checker, position, length);
         let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
         let above: bool = Checker::proves_at_most(checker, zero, position);
         transition checking && !(below && above) {
+            true -> out_of_bounds(checker, handle, expression, row)
+            _ -> typed(checker, handle, row)
+        }
+    }
+
+    // A range slice stays within its collection
+    // (wiki/spec/language/expressions.md, Indexing and ranges): its start,
+    // zero when omitted, is at most its exclusive end, which is at most the
+    // length; an omitted end is the length, and an inclusive end `b` is the
+    // exclusive end `b + 1`, valid when `b` is a valid index.
+    state sliced(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, operand: Expression, row: TypeRow, length: Value, checking: bool) {
+        let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
+        let one: Value = Value::constant(ExactInteger { negative: false, magnitude: 1 });
+        let start: Value = Checker::range_endpoint(checker, operand.first == 1, operand.left, zero);
+        let end: Value = Checker::range_endpoint(checker, operand.count == 1, operand.right, length);
+        let interval: Value = Value::sum(end, one);
+        let successor: Value = Value::offset_sum(end, one, interval);
+        let inclusive: bool = operand.flag && operand.count == 1;
+        let within: bool = Checker::proves_at_most(checker, end, length);
+        let index_valid: bool = Checker::proves_less(checker, end, length);
+        let ordered: bool = Checker::proves_at_most(checker, start, end);
+        let ordered_inclusive: bool = Checker::proves_at_most(checker, start, successor);
+        let nonnegative: bool = Checker::proves_at_most(checker, zero, start);
+        let valid: bool = nonnegative && ((inclusive && index_valid && ordered_inclusive) || (!inclusive && within && ordered));
+        transition checking && !valid {
             true -> out_of_bounds(checker, handle, expression, row)
             _ -> typed(checker, handle, row)
         }
@@ -302,6 +335,25 @@ crashes Trap
     state typed(checker: &mut Checker, handle: u64 in Trapping, row: TypeRow) {
         let value: Value = Value::typed(row);
         Checker::set_value(checker, handle, value);
+    }
+}
+
+// A range endpoint's value when it is written, else `omitted`'s.
+machine Checker::range_endpoint(checker: &Checker, written: bool, handle: u64 in Trapping, omitted: Value) -> Value
+crashes Trap
+{
+    transition written {
+        true -> read(checker, handle)
+        _ -> absent(omitted)
+    }
+
+    state read(checker: &Checker, handle: u64 in Trapping) -> Value {
+        let value: Value = Checker::value_at(checker, handle);
+        value
+    }
+
+    state absent(omitted: Value) -> Value {
+        omitted
     }
 }
 

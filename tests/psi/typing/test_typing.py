@@ -884,6 +884,27 @@ def main() -> None:
         b"x + 1",
     )
 
+    # A range slice is the slice place of its collection's elements under
+    # the collection's qualifier: a shared lending or a borrow makes it a
+    # view. Its endpoints are indexes; the range itself is no value.
+    accepted(
+        program,
+        "range-slices-are-slice-places",
+        b"machine see(v: &[u8]) {}\nmachine fill(v: &mut [u8]) {}\n"
+        b"machine f(a: &[u8; 8], b: &mut [u8; 8], c: &[u16], i: u32) {\n"
+        b"    see(a[1..3]);\n    fill(&mut b[..2]);\n    let d: &[u16] = &c[i..];\n    see(a[..=5]);\n}",
+        ((b"a[1..3]", "[u8]"), (b"b[..2]", "[u8]"), (b"&mut b[..2]", "&mut [u8]"), (b"c[i..]", "[u16]"),
+         (b"1..3", "()"), (b"3!2", "u64"), (b"a[..=5]", "[u8]")),
+        adaptations=((b"a[1..3]", "lent"),),
+    )
+    rejected(
+        program,
+        "range-endpoint-is-an-index",
+        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 8]) { see(a[true..]); }",
+        "NonIntegerIndex",
+        b"true",
+    )
+
     # A fact whose root is the set's first expression types.
     accepted(
         program,

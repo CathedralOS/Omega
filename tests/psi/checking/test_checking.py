@@ -224,6 +224,49 @@ def main() -> None:
         b"}",
     )
 
+    # A range slice stays within its collection: its start at most its
+    # exclusive end, that end at most the length; an inclusive end is a
+    # valid index.
+    accepted(
+        program,
+        "range-slices-within-a-guarded-length",
+        b"machine see(v: &[u8]) {}\n"
+        b"machine f(a: &[u8], i: u64) {\n"
+        b"    transition i < a.len {\n"
+        b"        true -> sliced(a, i)\n"
+        b"        _ -> {}\n"
+        b"    }\n"
+        b"\n"
+        b"    state sliced(a: &[u8], i: u64) { see(a[i..]); see(a[..i]); see(a[..=i]); see(a[0..i]); see(a[..]); }\n"
+        b"}",
+    )
+    accepted(
+        program,
+        "range-slices-of-a-fixed-array",
+        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 4]) { see(a[1..4]); see(a[..=3]); see(a[4..]); see(a[2..=1]); }",
+    )
+    rejected(
+        program,
+        "range-end-past-the-length",
+        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 4]) { see(a[1..5]); }",
+        "IndexOutOfBounds",
+        b"a[1..5]",
+    )
+    rejected(
+        program,
+        "inclusive-range-end-at-the-length",
+        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 4]) { see(a[..=4]); }",
+        "IndexOutOfBounds",
+        b"a[..=4]",
+    )
+    rejected(
+        program,
+        "range-start-past-its-end",
+        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 4], i: u64) { see(a[i..2]); }",
+        "IndexOutOfBounds",
+        b"a[i..2]",
+    )
+
     # Short-circuit operands see their left operand's outcome.
     accepted(
         program,

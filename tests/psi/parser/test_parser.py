@@ -1686,6 +1686,25 @@ def expression_form_cases(program: str) -> None:
     assert actual.expressions[10][:6] == (MATCH, 0, 6, 0, 0, 1), actual.expressions
     assert actual.expressions[11][:6] == (MATCH, 0, 0, 0, 1, 2), actual.expressions
 
+    # Range slices `a[s..e]`, `a[s..=e]` and the open `a[s..]`, `a[..e]` and
+    # `a[..]`: a range stands as its index's operand, its start in `left`
+    # when `first` is 1, its end in `right` when `count` is 1, `flag` for
+    # `..=`; it spans its endpoints, or its dots without a start.
+    RANGE, INDEX = 17, 7
+    source = b"machine f(a: &[u8], i: u64, j: u64) { g(a[1..], a[..2], a[0..=1], a[..], a[i..j]); }"
+    status, payload = run(program, source)
+    assert status == 0, f"range-slices: status {status}"
+    rows = decode(payload).expressions
+    ranges = [row for row in rows if row[0] == RANGE]
+    assert [row[4:7] for row in ranges] == [(1, 0, 0), (0, 1, 0), (1, 1, 1), (0, 0, 0), (1, 1, 0)], ranges
+    assert [tuple(row[-3:]) for row in ranges] == [
+        span(source, b"1.."), span(source, b"..2"), span(source, b"0..=1"), span(source, b"..", 4), span(source, b"i..j"),
+    ], ranges
+    assert all(rows[row[3]][0] == RANGE for row in rows if row[0] == INDEX), rows
+    rejected(program, "inclusive-range-without-end", b"machine f(a: &[u8]) { g(a[1..=]); }", 191,
+             (len(b"machine f(a: &[u8]) { g(a[1..="), len(b"machine f(a: &[u8]) { g(a[1..=]")),
+             type_reference_count=3, parameter_count=1, expression_count=3)
+
     # `field as name` renames a pattern binder; `field as _` waives it.
     source = b"machine f(n: Nat) { transition n { Nat::Succ { prev as w } -> g(w) _ -> h() } }"
     status, payload = run(program, source)

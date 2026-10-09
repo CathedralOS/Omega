@@ -157,7 +157,10 @@ pub data Parameter [copy] {
 // `SyntaxTrees::match_arms`. A membership `value in A & B` tests its value
 // `left` against each domain, joined by `operator` (`And` for `&`, `Or` for
 // `|`, `None` for one domain); a match tests its subject `left` against each
-// arm's pattern in order, and each arm's target is its value. Unused fields
+// arm's pattern in order, and each arm's target is its value. A range
+// (`a..b`, `a..=b` with `flag`, and the open `a..`, `..b`, `..`) stands only
+// as an index's operand, a range slice: its start is `left` when `first` is
+// 1 and its end `right` when `count` is 1. Unused fields
 // of a kind are zero.
 pub data ExpressionKind [copy] {
     case Name;
@@ -176,6 +179,7 @@ pub data ExpressionKind [copy] {
     case Construct;
     case Membership;
     case Match;
+    case Range;
 }
 
 pub data OperatorKind [copy] {
@@ -840,6 +844,8 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedDefinitionTerm;
     case ExpectedDefinitionEnd;
     case DefinitionCapacityExceeded;
+    // `..=` with no end before the index's `]`.
+    case ExpectedRangeEnd;
 }
 
 pub data ParseDiagnostic [copy] {

@@ -321,6 +321,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedDefinitionTerm -> parse_diagnostic(parser_harness, output, 188)
             ParseDiagnosticCode::ExpectedDefinitionEnd -> parse_diagnostic(parser_harness, output, 189)
             ParseDiagnosticCode::DefinitionCapacityExceeded -> parse_diagnostic(parser_harness, output, 190)
+            ParseDiagnosticCode::ExpectedRangeEnd -> parse_diagnostic(parser_harness, output, 191)
         }
     }
 
@@ -1107,6 +1108,7 @@ crashes Trap
             ExpressionKind::Float -> expression_kind(parser_harness, output, index, expression, 14)
             ExpressionKind::Membership -> expression_kind(parser_harness, output, index, expression, 15)
             ExpressionKind::Match -> expression_kind(parser_harness, output, index, expression, 16)
+            ExpressionKind::Range -> expression_kind(parser_harness, output, index, expression, 17)
         }
     }
 

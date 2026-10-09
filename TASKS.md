@@ -5820,8 +5820,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  457 parser cases, `tests/psi/resolver/test-resolver.sh` all 262 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 86 typing cases; run
+  459 parser cases, `tests/psi/resolver/test-resolver.sh` all 262 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 88 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -5937,7 +5937,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   a store into a field a case's own fact names, contract refinement beyond
   crash causes and termination promises reject as unsupported; checking
   reports each rejected machine's first rejection.
-  `tests/psi/checking/test-checking.sh` passes 88 checking cases and accepts
+  `tests/psi/checking/test-checking.sh` passes 93 checking cases and accepts
   the whole psi package, 60 units, in 26 seconds. The parser harness reads all 42 product source files whole and 65
   of the 100 `source/library/std` and `core` files; the other 35 stop first at
   12 retired `boundary requirement` and 6 retired `boundary operator`
@@ -5947,8 +5947,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   admits), and one each at an applied type-position domain (`in
   Quantity<Units::METER>`), an installation reach row `reaches <= Bound`, and
   requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
-  in 0..=n`), range expressions and indexed membership domains (`in
-  AtMost<8>`) do not parse yet. Of the 51 std and core files outside target
+  in 0..=n`) and indexed membership domains (`in AtMost<8>`) do not parse
+  yet; range slices (`a[s..e]`, `a[s..=e]` and the open forms) parse, type as
+  their collection's slice place and check within its length. Of the 51 std and core files outside target
   and test directories, 35 parse whole; with the transitive closure of their
   imports (std as package `omega_language_std`, core as the toolchain
   package), 20 resolve. The others stop first at 7 imports that do not parse,
@@ -5965,9 +5966,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   overflow the 1,024-row clause table together with 1,285 clauses, and
   `std/build.omg` names the build context's `Build`. The product entry's
   closure (its 3 units, std's `console` with its 5 target implementations,
-  core's `binding` and `external_binding`) stops parsing at `console.omg`'s
-  retired range suffix and the Windows console's retired `boundary
-  requirement`. The resolver gate resolves the whole psi package, its 58
+  core's `binding` and `external_binding`) parses whole except the Windows
+  console's retired `boundary requirement`; `console.omg`'s writer promises
+  `terminates by bytes -> Slice::Length`, which checking does not rank yet.
+  The resolver gate resolves the whole psi package, its 58
   units, as one package `psi`; the shared syntax tables hold
   4,096 roots, 1,024 uses, 32,000 path members (under a third used by psi; a
   single name stores none, its expression row holding it), 32,768 type references
@@ -5982,8 +5984,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   equality, which needs
   `Equatable` named conformances
   ([core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition));
-  and in checking a case's own `where` facts, contract refinement and
-  termination ranking. Publish the parser's capacity refusals as the
+  and in checking contract refinement and termination ranking. Publish the parser's capacity refusals as the
   request contract's scalar-resource provisions, whose rows (roots and states
   4,096; path members, data members, type nodes, statements and expressions
   16,384) the psi package's own 60,213 expressions exceed, so they must count
