@@ -5,28 +5,42 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use task_plans::{SelectedTaskRuntimeProviderFact, TaskRuntimeId, TaskStartOperation};
 
+fn exact_task_machine_plan<P>(
+    matches: impl Iterator<Item = (symbols::SymbolHandle, P)>,
+    machine: symbols::SymbolHandle,
+    machine_name: &str,
+    plan_domain: &'static str,
+) -> Result<P, Vec<Diagnostic>> {
+    let mut matches = matches.filter(|(fact_machine, _)| *fact_machine == machine);
+    let (_, plan) = matches.next().ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has no checked {plan_domain} plan"
+        ))]
+    })?;
+    if matches.next().is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "task activation target `{machine_name}` has duplicate exact checked {plan_domain} plans"
+        ))]);
+    }
+    Ok(plan)
+}
+
 pub(crate) fn exact_task_machine_suspension(
     program: &CheckedTrees,
     machine: symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<language_semantics::SuspensionPlan, Vec<Diagnostic>> {
-    let mut matches = program
-        .facts
-        .suspensions
-        .machines
-        .iter()
-        .filter(|fact| fact.machine == machine);
-    let plan = matches.next().map(|fact| fact.plan).ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "task activation target `{machine_name}` has no checked suspension plan"
-        ))]
-    })?;
-    if matches.next().is_some() {
-        return Err(vec![Diagnostic::error(format!(
-            "task activation target `{machine_name}` has duplicate exact checked suspension plans"
-        ))]);
-    }
-    Ok(plan)
+    exact_task_machine_plan(
+        program
+            .facts
+            .suspensions
+            .machines
+            .iter()
+            .map(|fact| (fact.machine, fact.plan)),
+        machine,
+        machine_name,
+        "suspension",
+    )
 }
 
 pub(crate) fn exact_task_machine_blocking(
@@ -34,23 +48,17 @@ pub(crate) fn exact_task_machine_blocking(
     machine: symbols::SymbolHandle,
     machine_name: &str,
 ) -> Result<language_semantics::BlockingPlan, Vec<Diagnostic>> {
-    let mut matches = program
-        .facts
-        .blocking
-        .machines
-        .iter()
-        .filter(|fact| fact.machine == machine);
-    let plan = matches.next().map(|fact| fact.plan).ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "task activation target `{machine_name}` has no checked blocking plan"
-        ))]
-    })?;
-    if matches.next().is_some() {
-        return Err(vec![Diagnostic::error(format!(
-            "task activation target `{machine_name}` has duplicate exact checked blocking plans"
-        ))]);
-    }
-    Ok(plan)
+    exact_task_machine_plan(
+        program
+            .facts
+            .blocking
+            .machines
+            .iter()
+            .map(|fact| (fact.machine, fact.plan)),
+        machine,
+        machine_name,
+        "blocking",
+    )
 }
 
 pub(crate) fn selected_task_runtime_provider(
