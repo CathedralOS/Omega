@@ -151,7 +151,7 @@ pub(super) fn index(
             },
         ));
     }
-    let (_, reference) = selected(context, symbol)?;
+    let (ordinal, reference) = selected(context, symbol)?;
     if context.active_const_substitutions.len() >= 64
         || context.active_const_substitutions.contains(&symbol)
     {
@@ -161,7 +161,7 @@ pub(super) fn index(
     active.push(symbol);
     let nested = TypeIdentityContext {
         active_const_substitutions: &active,
-        ..context.replacement_context()
+        ..context.replacement_context_at(ordinal)
     };
     Some(index_reference(program, reference, &nested))
 }
@@ -190,7 +190,7 @@ pub(super) fn range_endpoint(
     end_inclusive: bool,
     context: &TypeIdentityContext<'_>,
 ) -> Option<String> {
-    let (_, reference) = selected(context, symbol)?;
+    let (ordinal, reference) = selected(context, symbol)?;
     if context.active_const_substitutions.len() >= 64
         || context.active_const_substitutions.contains(&symbol)
     {
@@ -200,7 +200,7 @@ pub(super) fn range_endpoint(
     active.push(symbol);
     let nested = TypeIdentityContext {
         active_const_substitutions: &active,
-        ..context.replacement_context()
+        ..context.replacement_context_at(ordinal)
     };
     Some(
         match program.type_reference_table.type_reference(reference) {
@@ -250,7 +250,7 @@ pub(super) fn array_length(
     _spelling: &str,
     context: &TypeIdentityContext<'_>,
 ) -> Option<String> {
-    let (_, reference) = selected(context, symbol)?;
+    let (ordinal, reference) = selected(context, symbol)?;
     if context.active_const_substitutions.len() >= 64
         || context.active_const_substitutions.contains(&symbol)
     {
@@ -260,7 +260,7 @@ pub(super) fn array_length(
     active.push(symbol);
     let nested = TypeIdentityContext {
         active_const_substitutions: &active,
-        ..context.replacement_context()
+        ..context.replacement_context_at(ordinal)
     };
     Some(
         match program.type_reference_table.type_reference(reference) {

@@ -52,10 +52,13 @@ impl<'program> AppliedTraitScope<'program> {
         program: &TypedTrees,
         reference: TypeReferenceHandle,
     ) -> NormalizedTypeIdentity {
-        program.type_identity(TypeIdentityRequest {
-            substitutions: &self.substitutions,
-            ..TypeIdentityRequest::ordinary(reference)
-        })
+        program.scoped_type_identity(
+            TypeIdentityRequest {
+                substitutions: &self.substitutions,
+                ..TypeIdentityRequest::ordinary(reference)
+            },
+            &self.substitution_scope_starts,
+        )
     }
 
     /// Only a bare parameter projects to another existing node. Composite
@@ -63,30 +66,67 @@ impl<'program> AppliedTraitScope<'program> {
     pub fn argument_reference(
         &self,
         program: &TypedTrees,
+        reference: TypeReferenceHandle,
+    ) -> TypeReferenceHandle {
+        self.project_reference(program, reference, self.substitutions.len())
+    }
+
+    /// Project one declaration binder through its outer scopes. A compound
+    /// keeps its existing node; consumers must keep this scope alongside it.
+    pub fn parameter_argument(
+        &self,
+        program: &TypedTrees,
+        parameter: SymbolHandle,
+    ) -> TypeReferenceHandle {
+        let Some((ordinal, (_, reference))) = self
+            .substitutions
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, (binder, _))| *binder == parameter)
+        else {
+            return TypeReferenceHandle::invalid();
+        };
+        let visible = self
+            .substitution_scope_starts
+            .iter()
+            .rev()
+            .find(|start| **start <= ordinal)
+            .copied()
+            .unwrap_or(0);
+        self.project_reference(program, *reference, visible)
+    }
+
+    fn project_reference(
+        &self,
+        program: &TypedTrees,
         mut reference: TypeReferenceHandle,
+        mut visible: usize,
     ) -> TypeReferenceHandle {
         if !reference.is_valid() {
             return reference;
         }
-        let mut visited = Vec::new();
         while let TypeReferenceNode::Named { symbol, .. } =
             program.type_reference_table.type_reference(reference)
         {
-            let Some((_, replacement)) = self
-                .substitutions
+            let Some((ordinal, (_, replacement))) = self.substitutions[..visible]
                 .iter()
+                .enumerate()
                 .rev()
-                .find(|(parameter, _)| parameter == symbol)
+                .find(|(_, (parameter, _))| parameter == symbol)
             else {
                 break;
             };
             if *replacement == reference {
                 break;
             }
-            if visited.contains(&reference) {
-                return TypeReferenceHandle::invalid();
-            }
-            visited.push(reference);
+            visible = self
+                .substitution_scope_starts
+                .iter()
+                .rev()
+                .find(|start| **start <= ordinal)
+                .copied()
+                .unwrap_or(0);
             reference = *replacement;
         }
         reference
@@ -102,9 +142,27 @@ impl<'program> AppliedTraitScope<'program> {
                         scope
                             .substitutions
                             .iter()
+                            .enumerate()
                             .rev()
-                            .find(|(binder, _)| *binder == parameter.symbol)
-                            .map(|(_, reference)| scope.type_identity(program, *reference))
+                            .find(|(_, (binder, _))| *binder == parameter.symbol)
+                            .map(|(ordinal, (_, reference))| {
+                                let outer = scope
+                                    .substitution_scope_starts
+                                    .iter()
+                                    .rev()
+                                    .find(|start| **start <= ordinal)
+                                    .copied()
+                                    .unwrap_or(0);
+                                program.scoped_type_identity(
+                                    TypeIdentityRequest {
+                                        substitutions: &scope.substitutions[..outer],
+                                        ..TypeIdentityRequest::ordinary(*reference)
+                                    },
+                                    &scope.substitution_scope_starts[..scope
+                                        .substitution_scope_starts
+                                        .partition_point(|start| *start < outer)],
+                                )
+                            })
                     };
                     identity(self) == identity(other)
                 })

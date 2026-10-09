@@ -17,7 +17,7 @@ use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
-use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::trait_definition::{AppliedTraitScope, TraitDefinition};
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 /// Count the trailing parameters a specialized instance gained by realizing
@@ -134,17 +134,25 @@ pub(crate) fn authored_satisfier_parameters<'program>(
     &parameters[..parameters.len() - realized_tail]
 }
 
-pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
+pub(crate) fn validate_applied_trait_signature(
     program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     machine: &Machine,
     state: &State,
-    trait_definition: &TraitDefinition,
+    application: &AppliedTraitScope<'_>,
     requirement: &StateSignature,
     trait_lifetime_arguments: Option<&[u32]>,
-    explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let trait_definition = application.declaration;
+    // The inherited declaration owns its nodes, while the complete application
+    // owns their meaning. Bare composite arguments cannot carry that meaning
+    // across an edge, so retain every outer telescope through signature checks.
+    let explicit_type_arguments = program
+        .trait_type_parameters(trait_definition)
+        .iter()
+        .map(|parameter| application.parameter_argument(program.typed_program(), parameter.symbol))
+        .collect::<Vec<_>>();
     // Satisfaction quantifies over the source family, not one demanded
     // specialization. Private instances retain their original edge unchanged;
     // its arguments still name the original binders. Compare all signature
@@ -220,7 +228,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         program,
         trait_definition,
         requirement,
-        explicit_type_arguments,
+        &explicit_type_arguments,
     );
     let expected_callable_parameter_count = requirement_type_parameters.len()
         + indexed_law_telescope_groups
@@ -305,13 +313,21 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         );
         actual_offset = actual_end;
     }
-    let mut type_bindings = trait_type_parameters
+    let mut type_bindings = application
+        .substitutions
         .iter()
-        .zip(explicit_type_arguments.iter().copied())
-        .map(|(parameter, actual)| TraitTypeBinding {
-            parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name.as_str().to_owned(),
-            target: TraitTypeBindingTarget::Type(actual),
+        .enumerate()
+        .map(|(ordinal, (parameter, actual))| TraitTypeBinding {
+            parameter_symbol: *parameter,
+            parameter_name: program.symbols.name(*parameter).to_owned(),
+            target: TraitTypeBindingTarget::Type(*actual),
+            scope_start: application
+                .substitution_scope_starts
+                .iter()
+                .rev()
+                .find(|start| **start <= ordinal)
+                .copied()
+                .unwrap_or(0),
         })
         .collect::<Vec<_>>();
     type_bindings.extend(
@@ -320,6 +336,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                 parameter_symbol: required.symbol,
                 parameter_name: required.name.as_str().to_owned(),
                 target: TraitTypeBindingTarget::Parameter(actual.symbol),
+                scope_start: 0,
             }),
     );
     for (index, (required, actual)) in requirement_type_parameters
@@ -579,6 +596,9 @@ pub(crate) struct TraitTypeBinding {
     pub(crate) parameter_symbol: SymbolHandle,
     pub(crate) parameter_name: String,
     pub(crate) target: TraitTypeBindingTarget,
+    /// The argument sees only application bindings before this simultaneous
+    /// telescope. Inferred/callable arguments belong directly to the satisfier.
+    pub(crate) scope_start: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -599,6 +619,7 @@ pub(crate) fn trait_type_bindings<'a>(
             parameter_symbol: parameter.symbol,
             parameter_name: parameter.name.to_string(),
             target: TraitTypeBindingTarget::Type(*argument),
+            scope_start: 0,
         })
         .collect()
 }
@@ -620,13 +641,14 @@ pub(crate) fn type_references_match_with_trait_bindings(
             binding.parameter_symbol == parameter.symbol
                 && binding.parameter_name == parameter.name.as_str()
         }) {
-            return binding_matches_actual(program, binding, actual);
+            return binding_matches_actual(program, binding, actual, bindings);
         }
 
         bindings.push(TraitTypeBinding {
             parameter_symbol: parameter.symbol,
             parameter_name: parameter.name.to_string(),
             target: TraitTypeBindingTarget::Type(actual),
+            scope_start: 0,
         });
         return true;
     }
@@ -964,7 +986,37 @@ fn binding_matches_actual(
     program: &dyn crate::CheckingInput,
     binding: &TraitTypeBinding,
     actual: TypeReferenceHandle,
+    bindings: &[TraitTypeBinding],
 ) -> bool {
+    if let TraitTypeBindingTarget::Type(expected) = binding.target {
+        let outer = &bindings[..binding.scope_start];
+        let substitutions = outer
+            .iter()
+            .filter_map(|binding| match binding.target {
+                TraitTypeBindingTarget::Type(reference) => {
+                    Some((binding.parameter_symbol, reference))
+                }
+                TraitTypeBindingTarget::Parameter(_) => None,
+            })
+            .collect::<Vec<_>>();
+        let mut scope_starts = outer
+            .iter()
+            .map(|binding| binding.scope_start)
+            .collect::<Vec<_>>();
+        scope_starts.dedup();
+        if substitutions.len() == outer.len()
+            && program.normalized_type_identity(actual)
+                == program.scoped_type_identity(
+                    typed_trees::type_identity::TypeIdentityRequest {
+                        substitutions: &substitutions,
+                        ..typed_trees::type_identity::TypeIdentityRequest::ordinary(expected)
+                    },
+                    &scope_starts,
+                )
+        {
+            return true;
+        }
+    }
     match &binding.target {
         TraitTypeBindingTarget::Type(expected) => match (
             program.type_reference_table.type_reference(actual),

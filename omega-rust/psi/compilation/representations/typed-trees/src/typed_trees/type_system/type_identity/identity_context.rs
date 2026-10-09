@@ -24,6 +24,7 @@ pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) invalid_application: Option<&'binders Cell<bool>>,
     pub(crate) binders: &'binders [(SymbolHandle, String)],
     pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
+    pub(crate) substitution_scope_starts: &'binders [usize],
     pub(crate) substitution_semantics: SubstitutionSemantics,
     pub(crate) active_const_substitutions: &'binders [SymbolHandle],
     pub(crate) index_substitutions:
@@ -158,6 +159,23 @@ impl TypeIdentityContext<'_> {
                 SubstitutionSemantics::Transitive => self.substitutions,
                 SubstitutionSemantics::Simultaneous => &[],
             },
+            ..*self
+        }
+    }
+
+    pub(crate) fn replacement_context_at(&self, replacement_ordinal: usize) -> Self {
+        let Some((scope_ordinal, start)) = self
+            .substitution_scope_starts
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, start)| **start <= replacement_ordinal)
+        else {
+            return self.replacement_context();
+        };
+        Self {
+            substitutions: &self.substitutions[..*start],
+            substitution_scope_starts: &self.substitution_scope_starts[..scope_ordinal],
             ..*self
         }
     }
@@ -354,14 +372,19 @@ pub(crate) fn normalize_type_reference(
     }
     if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(type_reference)
-        && let Some((_, replacement)) = context
+        && let Some((ordinal, (_, replacement))) = context
             .substitutions
             .iter()
+            .enumerate()
             .rev()
-            .find(|(candidate, _)| candidate == symbol)
+            .find(|(_, (candidate, _))| candidate == symbol)
         && *replacement != type_reference
     {
-        return normalize_type_reference(program, *replacement, &context.replacement_context());
+        return normalize_type_reference(
+            program,
+            *replacement,
+            &context.replacement_context_at(ordinal),
+        );
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {

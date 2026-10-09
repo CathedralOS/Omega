@@ -9,8 +9,7 @@ pub use closed_requirement::resolve as resolve_closed_requirement_application;
 use crate::declarations::traits::conformance::signature_matching::{
     TraitTypeBinding, TraitTypeBindingTarget, authored_satisfier_parameters, parameter_shape_label,
     satisfier_parameter_correspondence, type_reference_lifetimes_match_requirement_application,
-    type_references_match_with_trait_bindings,
-    validate_machine_state_satisfies_trait_signature_with_arguments,
+    type_references_match_with_trait_bindings, validate_applied_trait_signature,
 };
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
 use crate::declarations::traits::trait_definition_by_symbol;
@@ -248,6 +247,7 @@ fn validate_machine_top_level_requirement_conformance(
                 parameter_symbol: required.symbol,
                 parameter_name: required.name.as_str().to_owned(),
                 target: TraitTypeBindingTarget::Parameter(actual.symbol),
+                scope_start: 0,
             })
             .collect::<Vec<_>>();
     for (index, (required, actual)) in required_type_parameters
@@ -703,15 +703,21 @@ fn validate_machine_single_requirement(
         return;
     }
 
-    validate_machine_state_satisfies_trait_signature_with_arguments(
+    let Some(application) = typed_trees::trait_definition::AppliedTraitScope::new(
+        program.typed_program(),
+        trait_definition,
+        explicit_type_arguments,
+    ) else {
+        return;
+    };
+    validate_applied_trait_signature(
         program,
         service_reaches,
         machine,
         entry_state,
-        trait_definition,
+        &application,
         requirement,
         Some(trait_lifetime_arguments),
-        explicit_type_arguments,
         diagnostics,
     );
 
@@ -731,9 +737,8 @@ fn validate_machine_single_requirement(
         program,
         machine,
         conformance_alias,
-        trait_definition,
+        &application,
         requirement,
-        explicit_type_arguments,
         diagnostics,
     );
 }

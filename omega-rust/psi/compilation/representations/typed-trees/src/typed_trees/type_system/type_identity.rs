@@ -386,7 +386,11 @@ impl TypedTrees {
     /// before owner qualification, preserving alpha-normalization without
     /// falsely assigning a package owner to a local telescope variable.
     pub fn type_identity(&self, request: TypeIdentityRequest<'_>) -> NormalizedTypeIdentity {
-        self.type_identity_with_substitution_semantics(request, SubstitutionSemantics::Transitive)
+        self.type_identity_with_substitution_semantics(
+            request,
+            SubstitutionSemantics::Transitive,
+            &[],
+        )
     }
 
     /// Substitute an application tuple simultaneously. Each replacement is
@@ -397,13 +401,33 @@ impl TypedTrees {
         &self,
         request: TypeIdentityRequest<'_>,
     ) -> NormalizedTypeIdentity {
-        self.type_identity_with_substitution_semantics(request, SubstitutionSemantics::Simultaneous)
+        self.type_identity_with_substitution_semantics(
+            request,
+            SubstitutionSemantics::Simultaneous,
+            &[],
+        )
+    }
+
+    /// Normalize a chain of simultaneous telescopes, ordered outermost first.
+    /// Each start identifies the first replacement belonging to that scope;
+    /// its operands see only the preceding scopes, never their own siblings.
+    pub fn scoped_type_identity(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        scope_starts: &[usize],
+    ) -> NormalizedTypeIdentity {
+        self.type_identity_with_substitution_semantics(
+            request,
+            SubstitutionSemantics::Transitive,
+            scope_starts,
+        )
     }
 
     fn type_identity_with_substitution_semantics(
         &self,
         request: TypeIdentityRequest<'_>,
         substitution_semantics: SubstitutionSemantics,
+        substitution_scope_starts: &[usize],
     ) -> NormalizedTypeIdentity {
         NormalizedTypeIdentity(normalize_type_reference(
             self,
@@ -412,6 +436,7 @@ impl TypedTrees {
                 binders: request.binders,
                 substitutions: request.substitutions,
                 substitution_semantics,
+                substitution_scope_starts,
                 active_const_substitutions: &[],
                 exact_toolchain_sources: &[],
                 missing_exact_nominal_owner: None,

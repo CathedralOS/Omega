@@ -140,13 +140,12 @@ pub(crate) fn validate_equivalence_selection(
             )));
             continue;
         };
-        let Some(declaring_arguments) = crate::declarations::traits::arguments_for_declaring_trait(
-            program,
+        let Some(application) = typed_trees::trait_definition::AppliedTraitScope::new(
+            program.typed_program(),
             trait_definition,
             selection_arguments,
-            row.declaring_trait,
-            &mut Vec::new(),
-        ) else {
+        )
+        .and_then(|root| root.declaring_scope(program.typed_program(), row.declaring_trait)) else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` conformance `{}` cannot instantiate inherited row `{}::{}`",
                 definition.name,
@@ -170,9 +169,8 @@ pub(crate) fn validate_equivalence_selection(
             program,
             machine,
             Some(selection.conformance_name.as_str()),
-            declaring_trait,
+            &application,
             requirement,
-            &declaring_arguments,
             diagnostics,
         );
         if !row_has_exact_equivalence_premises(

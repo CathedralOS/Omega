@@ -14,8 +14,8 @@
 
 use super::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
-use typed_trees::trait_definition::ConformanceRowSource;
 use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::trait_definition::{AppliedTraitScope, ConformanceRowSource};
 use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn validate_conformances(
@@ -112,6 +112,11 @@ fn validate_closed_rows(
     conformance_name: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let Some(root_application) =
+        AppliedTraitScope::new(program.typed_program(), root_trait, root_arguments)
+    else {
+        return;
+    };
     for row in rows {
         let Some(declaring_trait) = trait_definition_by_symbol(program, row.declaring_trait) else {
             diagnostics.push(Diagnostic::error(format!(
@@ -120,8 +125,8 @@ fn validate_closed_rows(
             )));
             continue;
         };
-        let Some(requirement) = program
-            .trait_machine_signature_by_symbol(declaring_trait, row.requirement)
+        let Some(requirement) =
+            program.trait_machine_signature_by_symbol(declaring_trait, row.requirement)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "closed conformance `{implementation_name} satisfies {}` retains an unresolved requirement `{}::{}`",
@@ -149,37 +154,31 @@ fn validate_closed_rows(
             )));
             continue;
         };
-        let Some(arguments) = arguments_for_declaring_trait(
-            program,
-            root_trait,
-            root_arguments,
-            row.declaring_trait,
-            &mut Vec::new(),
-        ) else {
+        let Some(application) =
+            root_application.declaring_scope(program.typed_program(), row.declaring_trait)
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "closed conformance `{implementation_name} satisfies {}` cannot instantiate inherited row `{}::{}`",
                 root_trait.name, row.declaring_trait_name, row.requirement_name
             )));
             continue;
         };
-        super::conformance::validate_machine_state_satisfies_trait_signature_with_arguments(
+        super::conformance::validate_applied_trait_signature(
             program,
             service_reaches,
             machine,
             state,
-            declaring_trait,
+            &application,
             requirement,
             None,
-            &arguments,
             diagnostics,
         );
         crate::proof_contracts::contract_entailment::check_law_conformance(
             program,
             machine,
             conformance_name,
-            declaring_trait,
+            &application,
             requirement,
-            &arguments,
             diagnostics,
         );
         // Authored rows choose their machine; a default or synthesized row is
@@ -197,43 +196,4 @@ fn validate_closed_rows(
             );
         }
     }
-}
-
-pub(crate) fn arguments_for_declaring_trait(
-    program: &dyn crate::CheckingInput,
-    current_trait: &TraitDefinition,
-    current_arguments: &[TypeReferenceHandle],
-    target_trait: symbols::SymbolHandle,
-    visited: &mut Vec<symbols::SymbolHandle>,
-) -> Option<Vec<TypeReferenceHandle>> {
-    if current_trait.symbol == target_trait {
-        return Some(current_arguments.to_vec());
-    }
-    if visited.contains(&current_trait.symbol) {
-        return None;
-    }
-    visited.push(current_trait.symbol);
-    for parent in program.trait_requirements(current_trait) {
-        let Some(parent_trait) = trait_definition_by_symbol(program, parent.symbol) else {
-            continue;
-        };
-        let parent_arguments = super::conformance::compose_forwarded_trait_arguments(
-            program,
-            current_trait,
-            current_arguments,
-            program
-                .type_reference_table
-                .type_reference_handles(parent.arguments),
-        );
-        if let Some(arguments) = arguments_for_declaring_trait(
-            program,
-            parent_trait,
-            &parent_arguments,
-            target_trait,
-            visited,
-        ) {
-            return Some(arguments);
-        }
-    }
-    None
 }

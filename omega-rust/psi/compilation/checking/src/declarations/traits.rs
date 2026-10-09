@@ -16,8 +16,7 @@
 //! external checks come from `conformance`.
 //!
 //! Other readers. Call validation in `machine_calls::calls` uses the generic
-//! bound queries from `conformance`, `arguments_for_declaring_trait` (also
-//! read by `proof_contracts::quotients`), `dynamic_selector_application` and
+//! bound queries from `conformance`, `dynamic_selector_application` and
 //! `dynamic_requirement_ineligibility`. Typed preparation binds service calls;
 //! specialized producers and build evaluation bind only their selected roots.
 //! The immutable checking stage reads the dynamic implementation
@@ -27,6 +26,8 @@
 //!
 //! `trait_definition_by_symbol` is the trait lookup that the `conformance`,
 //! `named_implementations` and `requirements` children share.
+//! Inherited row and law consumers retain `AppliedTraitScope`: projecting an
+//! argument node alone discards the outer telescope needed to interpret it.
 
 use symbols::SymbolHandle;
 use typed_trees::trait_definition::TraitDefinition;
@@ -58,7 +59,7 @@ pub(crate) use dynamic::{
     dynamic_requirement_ineligibility, dynamic_selector_application,
     report_dynamic_receiver_call_error,
 };
-pub(crate) use named_implementations::{arguments_for_declaring_trait, validate_conformances};
+pub(crate) use named_implementations::validate_conformances;
 pub(crate) use requirements::validate_trait_requirements;
 
 /// The trait `symbol` declares, or `None` for an invalid symbol or a symbol
@@ -72,6 +73,5 @@ fn trait_definition_by_symbol(
         return None;
     }
 
-    program
-        .trait_definition_by_symbol(symbol)
+    program.trait_definition_by_symbol(symbol)
 }

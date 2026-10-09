@@ -55,15 +55,21 @@ pub fn matched_machine_law_guarantees(
         };
         let mut diagnostics = Vec::new();
         let mut matches = Vec::new();
+        let Some(application) = typed_trees::trait_definition::AppliedTraitScope::new(
+            program.typed_program(),
+            trait_definition,
+            program
+                .type_reference_table
+                .type_reference_handles(conformance.arguments),
+        ) else {
+            continue;
+        };
         check_law_conformance_with_matches(
             program,
             machine,
             conformance.alias.as_ref().map(|alias| alias.as_str()),
-            trait_definition,
+            &application,
             requirement,
-            program
-                .type_reference_table
-                .type_reference_handles(conformance.arguments),
             &mut diagnostics,
             &mut matches,
         );

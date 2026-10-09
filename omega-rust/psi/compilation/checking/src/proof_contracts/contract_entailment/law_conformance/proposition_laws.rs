@@ -2,7 +2,6 @@
 
 use crate::proof_contracts::contract_entailment::{
     BinaryOperator, Diagnostic, ExpressionHandle, Machine, StateSignature, StructuralTerm,
-    TraitDefinition,
 };
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
@@ -10,14 +9,14 @@ use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 pub(crate) fn check_proposition_law_conformance(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    trait_definition: &TraitDefinition,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
     requirement: &StateSignature,
-    explicit_trait_arguments: &[typed_trees::types::TypeReferenceHandle],
     proposition_laws: &[&typed_trees::proposition::PropositionApplication],
     proven_propositions: &[&typed_trees::proposition::PropositionApplication],
     proven_expressions: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let trait_definition = application.declaration;
     if proposition_laws.is_empty() {
         return;
     }
@@ -29,22 +28,22 @@ pub(crate) fn check_proposition_law_conformance(
         requirement,
         entry_state,
     );
-    let trait_parameters = program.trait_type_parameters(trait_definition);
 
     for law in proposition_laws {
         let mut instantiated = (*law).clone();
         if program.symbols.get(law.proposition).kind == symbols::SymbolKind::PropositionParameter {
-            let Some(parameter_index) =
-                typed_trees::data::type_parameter_position(trait_parameters, law.proposition)
-            else {
+            let argument = application.parameter_argument(program.typed_program(), law.proposition);
+            if !argument.is_valid() {
+                diagnostics.push(Diagnostic::error(format!("machine `{}` cannot instantiate proposition law `{}` through its complete trait application", machine.name, law.name)));
                 continue;
-            };
-            let Some(argument) = explicit_trait_arguments.get(parameter_index) else {
-                continue;
-            };
+            }
             let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
-                program.type_reference_table.type_reference(*argument)
+                program.type_reference_table.type_reference(argument)
             else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` proposition law `{}` does not select a named proposition family",
+                    machine.name, law.name
+                )));
                 continue;
             };
             instantiated.proposition = *symbol;

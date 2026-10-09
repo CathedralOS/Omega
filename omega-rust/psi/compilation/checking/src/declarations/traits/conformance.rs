@@ -59,7 +59,7 @@ pub use machine_conformance::{
     compose_forwarded_trait_arguments, resolve_closed_requirement_application,
     revalidate_top_level_requirement_realization,
 };
-pub(crate) use signature_matching::validate_machine_state_satisfies_trait_signature_with_arguments;
+pub(crate) use signature_matching::validate_applied_trait_signature;
 pub(crate) use trait_applications::validate_trait_application_obligations;
 
 /// The payload-erased family of a declaration-site type parameter kind.

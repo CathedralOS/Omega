@@ -28,7 +28,7 @@ pub(crate) use slot_bindings::{
 
 use super::{
     Diagnostic, ExpressionHandle, Machine, ProofFact, RESULT_BINDER, StateSignature,
-    StructuralTerm, TraitDefinition, structural_term, unfold_constant_applications,
+    StructuralTerm, structural_term, unfold_constant_applications,
 };
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::{
     bindings_are_forall_general, check_proposition_law_conformance,
@@ -41,18 +41,16 @@ pub(crate) fn check_law_conformance(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     conformance_alias: Option<&str>,
-    trait_definition: &TraitDefinition,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
     requirement: &StateSignature,
-    explicit_trait_arguments: &[typed_trees::types::TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     check_law_conformance_with_matches(
         program,
         machine,
         conformance_alias,
-        trait_definition,
+        application,
         requirement,
-        explicit_trait_arguments,
         diagnostics,
         &mut Vec::new(),
     );
@@ -62,12 +60,12 @@ fn check_law_conformance_with_matches(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     conformance_alias: Option<&str>,
-    trait_definition: &TraitDefinition,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
     requirement: &StateSignature,
-    explicit_trait_arguments: &[typed_trees::types::TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
     matches: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
 ) {
+    let trait_definition = application.declaration;
     // The declared law conjuncts (Equal binaries; And-chains split;
     // `result`-mentioning conjuncts are functional specs, not laws -- they
     // stay outside this check, exactly like the suggestion path).
@@ -119,9 +117,8 @@ fn check_law_conformance_with_matches(
     check_proposition_law_conformance(
         program,
         machine,
-        trait_definition,
+        application,
         requirement,
-        explicit_trait_arguments,
         &proposition_laws,
         &proven_propositions,
         &proven_expressions,
