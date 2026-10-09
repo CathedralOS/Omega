@@ -303,6 +303,10 @@ pub(crate) fn validate_array_literal_elements(
     expected_type: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Qualifications constrain the value, not the array's storage shape.
+    // Element formation still owes its exact carrier checks independently.
+    let expected_type =
+        crate::value_custody::places::peel_declared_constraints(program, expected_type);
     let TypeReferenceNode::FixedArray {
         element_type,
         length,
@@ -440,7 +444,9 @@ pub(crate) fn validate_array_literal_elements_for_shape(
         // over-length was silently accepted (the extra element truncated away). The
         // recursion terminates: the element type is strictly smaller each level.
         None if matches!(
-            program.type_reference_table.type_reference(element_type),
+            program.type_reference_table.type_reference(
+                crate::value_custody::places::peel_declared_constraints(program, element_type),
+            ),
             TypeReferenceNode::FixedArray { .. }
         ) =>
         {

@@ -1,8 +1,11 @@
 //! Literals: numeric literals and the destinations they land in. The checks
-//! here reject anonymous `%` and anonymous division by zero, literals too wide
-//! for their position, and width suffixes that disagree with the destination
-//! or do not fit their own type. The landing queries give an anonymous numeric
-//! literal, or a tree of literal arithmetic, the concrete type of its
+//! here reject anonymous `%` and anonymous division by zero, and width suffixes
+//! that disagree with the destination or do not fit their own carrier. Scalar
+//! destination validation checks exact anonymous integrality and representability
+//! for storage, aggregate leaves, calls, transitions and returns. No source
+//! position or arithmetic policy supplies permission to truncate a literal.
+//! The landing queries give an anonymous numeric literal, or a tree of literal
+//! arithmetic, the concrete type of its
 //! destination.
 //!
 //! `program_validation::validate` runs this module's program-wide checks at
@@ -10,8 +13,7 @@
 //! `validate_anonymous_remainders` (`integer_remainder`),
 //! `validate_anonymous_bitwise` (`integer_bitwise`) and
 //! `validate_anonymous_divisions` (`float_landing`); validation stops if
-//! any reports a diagnostic. Later, in this order, `validate_literal_widths`
-//! (`literal_widths`), `validate_suffix_landings` and
+//! any reports a diagnostic. Later it runs `validate_suffix_landings` and
 //! `validate_suffix_magnitudes`. `validate_suffix_landings` checks each
 //! struct-literal field, state result, assignment, local initializer and
 //! transition value against its declared type through
@@ -35,8 +37,6 @@ use numerics::literals::LandedIntegerType;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
-
-mod literal_widths;
 
 /// The named transition target's spelled arguments paired with the target
 /// state's parameters, or `None` when the target is not a singleton-named
@@ -88,8 +88,6 @@ fn named_transition_arguments<'program>(
             .collect(),
     )
 }
-
-pub(crate) use literal_widths::validate_literal_widths;
 
 /// CR4 (carrier, ch5 two-phase law): a width-SUFFIXED literal (`5i8`) landed
 /// at parse time, so a destination whose declared type DISAGREES with the

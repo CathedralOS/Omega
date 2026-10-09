@@ -20,7 +20,6 @@ use typed_trees::{
 
 mod destinations;
 pub(crate) use destinations::anonymous_integer_landing_warnings;
-pub(super) use destinations::append_destination_literals;
 
 /// Render a wholly anonymous numeric expression at its first fixed-integer
 /// destination. The caller owns operator-selection evidence. No named value,

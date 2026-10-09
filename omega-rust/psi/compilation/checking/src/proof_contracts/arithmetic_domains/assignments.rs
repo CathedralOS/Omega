@@ -230,20 +230,6 @@ pub(crate) fn check_value_narrowing(
 ) {
     if let Some(dispatch) = program.expression_table.match_node(value) {
         for arm in program.expression_table.match_arms(dispatch.arms) {
-            // Narrowing discards arithmetic diagnostics normally produced by
-            // statement validation; dispatch children need their own landing.
-            if !matches!(
-                program.expression_table.expression(arm.value),
-                ExpressionNode::Match(_)
-            ) {
-                validate_anonymous_integer_primitive_range(
-                    program,
-                    target,
-                    arm.value,
-                    owner,
-                    diagnostics,
-                );
-            }
             check_value_narrowing(
                 program,
                 machine,
@@ -256,6 +242,14 @@ pub(crate) fn check_value_narrowing(
                 diagnostics,
             );
         }
+        return;
+    }
+    // Anonymous formation is exact at every scalar destination, including
+    // aggregate leaves. An unbounded signed analysis endpoint cannot prove
+    // that a large value fits, and the destination policy cannot repair it.
+    if validate_anonymous_integer_primitive_range(program, target, value, owner, diagnostics)
+        .is_some()
+    {
         return;
     }
     let mut throwaway = Vec::new();

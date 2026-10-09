@@ -54,7 +54,7 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
 ) -> Option<(Interval, Option<PrimitiveType>, Option<ArithmeticDomain>)> {
     // A destination policy governs operations after landing. It cannot give a
     // fraction an integer value or make an out-of-range anonymous value fit.
-    if primitive == PrimitiveType::Addr || !primitive.accepts_integer_literal() {
+    if !primitive.accepts_integer_literal() {
         return None;
     }
     if let Some(dispatch) = program.expression_table.match_node(expression) {
@@ -112,6 +112,14 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
         );
         return Some((Interval::UNBOUNDED, None, None));
     };
+    if primitive == PrimitiveType::Addr && value.to_u64().is_some() {
+        // Address meaning and target fit remain with the address owner. Its
+        // current literal payload is an unsigned 64-bit word, so an anonymous
+        // value outside that representation cannot reach address lowering.
+        // Passing this bound does not stamp a fixed-integer landing or prove
+        // fit in a selected target's address model.
+        return None;
+    }
     if let Some(literal) = crate::value_custody::literals::land_integer_value(&value, primitive) {
         // The landed literal adopts the destination carrier; it has no
         // arithmetic policy of its own for the store parity check.
@@ -207,8 +215,8 @@ pub(crate) fn validate_value_range_retaining_decisions(
 /// The interval of an anonymous literal (D14). A literal that fits i64 is a
 /// point; an oversize u64-magnitude literal is honestly over-approximated as
 /// "above i64::MAX" (or "below i64::MIN" for its folded negation), so
-/// narrowing checks against i64-bounded targets still REJECT by interval
-/// math alone -- never by silently skipping.
+/// intervals cannot establish exact large-literal representability. Scalar
+/// destination admission uses the complete mathematical value instead.
 pub(crate) fn literal_interval(literal: &numerics::literals::IntegerLiteral) -> Interval {
     match literal.value_i64() {
         Some(value) => Interval::constant(value),

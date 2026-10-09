@@ -193,7 +193,6 @@ fn validate(
     validate_proposition_definitions(program, &mut diagnostics);
     proposition_entailment::validate_proposition_entailment(program, &mut diagnostics);
 
-    literals::validate_literal_widths(program, &mut diagnostics);
     literals::validate_suffix_landings(program, &mut diagnostics);
     literals::validate_suffix_magnitudes(program, &mut diagnostics);
     validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);

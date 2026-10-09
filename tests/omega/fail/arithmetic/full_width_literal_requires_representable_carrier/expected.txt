@@ -1,0 +1,3 @@
+does not fit its `i64` suffix
+does not fit its `u8` suffix
+does not fit its `u64` suffix
