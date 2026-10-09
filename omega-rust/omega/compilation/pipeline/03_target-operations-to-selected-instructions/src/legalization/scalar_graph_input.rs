@@ -435,16 +435,8 @@ pub(super) fn match_input(
             obligation,
             ..
         }
-        | AbstractOperation::ElementViewRead {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | AbstractOperation::ElementViewWrite {
-            psi_operation,
-            obligation,
-            ..
-        }
+        | abstract_operations::element_view_read_write_pair_pattern!(psi_operation,
+            obligation, ..)
         | AbstractOperation::ElementViewSubslice {
             psi_operation,
             obligation,

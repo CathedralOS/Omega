@@ -64,8 +64,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceLength { .. }
         | O::ElementViewLength { .. }
-        | O::ElementViewRead { .. }
-        | O::ElementViewWrite { .. }
+        | abstract_operations::element_view_read_write_pair_pattern!(..)
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }

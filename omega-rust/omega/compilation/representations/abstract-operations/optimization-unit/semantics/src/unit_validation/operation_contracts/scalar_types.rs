@@ -83,8 +83,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::ByteSequenceSubslice { .. } => byte_views::types_match(operation, definitions),
         O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
-        | O::ElementViewRead { .. }
-        | O::ElementViewWrite { .. }
+        | abstract_operations::element_view_read_write_pair_pattern!(..)
         | O::ElementViewSubslice { .. } => element_views::types_match(function, operation, definitions),
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }

@@ -399,8 +399,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
                 AbstractOperation::EstablishElementView { .. }
                 | AbstractOperation::ElementViewLength { .. }
-                | AbstractOperation::ElementViewRead { .. }
-                | AbstractOperation::ElementViewWrite { .. }
+                | abstract_operations::element_view_read_write_pair_pattern!(..)
                 | AbstractOperation::ElementViewSubslice { .. } => {
                     element_operation_retained(operation, targeted)
                 }

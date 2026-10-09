@@ -1245,3 +1245,11 @@ macro_rules! byte_read_or_field_read_pattern {
             | $crate::AbstractOperation::StructuralByteSequenceFieldRead { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! element_view_read_write_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::ElementViewRead { $($fields)* }
+            | $crate::AbstractOperation::ElementViewWrite { $($fields)* }
+    };
+}

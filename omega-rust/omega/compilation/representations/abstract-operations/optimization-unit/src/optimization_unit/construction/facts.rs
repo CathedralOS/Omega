@@ -122,16 +122,8 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             region: terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. },
             ..
         }
-        | O::ElementViewRead {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::ElementViewWrite {
-            psi_operation,
-            obligation,
-            ..
-        }
+        | abstract_operations::element_view_read_write_pair_pattern!(psi_operation,
+            obligation, ..)
         | O::IntegerExactCast {
             psi_operation,
             obligation,
