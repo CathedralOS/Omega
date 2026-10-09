@@ -482,6 +482,9 @@ fn compiler_builtin_execution(
                 symbols::BuiltinFunction::Sqrt => Arithmetic::SquareRoot,
                 symbols::BuiltinFunction::FloatIsNan => Arithmetic::IsNan,
                 symbols::BuiltinFunction::FloatIsInfinite => Arithmetic::IsInfinite,
+                symbols::BuiltinFunction::FloatIsFinite => Arithmetic::IsFinite,
+                symbols::BuiltinFunction::FloatIsNormal => Arithmetic::IsNormal,
+                symbols::BuiltinFunction::FloatIsSubnormal => Arithmetic::IsSubnormal,
                 _ => return None,
             };
             (operation, boundary_format?)

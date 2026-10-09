@@ -140,93 +140,106 @@ fn evaluate(
         .map(|value| decode(*value))
         .collect::<Vec<_>>();
     let first = &meanings[0];
-    let meaning =
-        match realization.operation {
-            Operation::FromInteger(_) => {
-                return Err(rejected("integer conversion received floating operands"));
-            }
-            Operation::Negate => {
-                let bits = match operands[0] {
-                    IeeeFloatValue::Binary32(bits) => IeeeFloatValue::Binary32(bits ^ (1 << 31)),
-                    IeeeFloatValue::Binary64(bits) => IeeeFloatValue::Binary64(bits ^ (1 << 63)),
-                };
-                return Ok(scalar(TerminalScalarValue::IeeeFloat(bits)));
-            }
-            Operation::Minimum | Operation::Maximum => {
-                let take_first = if realization.operation == Operation::Minimum {
-                    FloatSemantics::less(first, &meanings[1])
-                } else {
-                    FloatSemantics::greater(first, &meanings[1])
-                };
-                return Ok(scalar(TerminalScalarValue::IeeeFloat(
-                    operands[if take_first { 0 } else { 1 }],
-                )));
-            }
-            Operation::IsNan => return Ok(scalar(TerminalScalarValue::Boolean(first.is_nan()))),
-            Operation::IsInfinite => {
-                return Ok(scalar(TerminalScalarValue::Boolean(first.is_infinite())));
-            }
-            Operation::TruncateToInteger { target, domain } => {
-                let target_type = target.integer_type();
-                let integer_format = IntegerFormat {
-                    bits: u32::from(target.bits()),
-                    signed: target.is_signed(),
-                };
-                let integer = match domain {
-                    IeeeFloatToIntegerDomain::Saturating => {
-                        FloatSemantics::to_integer_saturating(first, integer_format)
-                    }
-                    IeeeFloatToIntegerDomain::Exact => {
-                        FloatSemantics::to_integer_exact(first, integer_format).map_err(|_| {
-                            rejected("exact float conversion violated its admitted precondition")
-                        })?
-                    }
-                    IeeeFloatToIntegerDomain::Trapping => {
-                        match FloatSemantics::to_integer_trapping(first, integer_format) {
-                            Ok(integer) => integer,
-                            Err(_) => return Ok(TerminalEffectResult::Crash(CrashCause::Trap)),
-                        }
-                    }
-                };
-                let value =
-                    if target.is_signed() {
-                        IntegerValue::Signed(
-                            integer.to_i64().map(i128::from).ok_or_else(|| {
-                                rejected("signed numeric result exceeds its carrier")
-                            })?,
-                        )
-                    } else {
-                        IntegerValue::Unsigned(integer.to_u64().map(u128::from).ok_or_else(
-                            || rejected("unsigned numeric result exceeds its carrier"),
-                        )?)
-                    };
-                if !target_type.admits(value) {
-                    return Err(rejected(
-                        "numeric conversion result exceeds its declared width",
-                    ));
+    let meaning = match realization.operation {
+        Operation::FromInteger(_) => {
+            return Err(rejected("integer conversion received floating operands"));
+        }
+        Operation::Negate => {
+            let bits = match operands[0] {
+                IeeeFloatValue::Binary32(bits) => IeeeFloatValue::Binary32(bits ^ (1 << 31)),
+                IeeeFloatValue::Binary64(bits) => IeeeFloatValue::Binary64(bits ^ (1 << 63)),
+            };
+            return Ok(scalar(TerminalScalarValue::IeeeFloat(bits)));
+        }
+        Operation::Minimum | Operation::Maximum => {
+            let take_first = if realization.operation == Operation::Minimum {
+                FloatSemantics::less(first, &meanings[1])
+            } else {
+                FloatSemantics::greater(first, &meanings[1])
+            };
+            return Ok(scalar(TerminalScalarValue::IeeeFloat(
+                operands[if take_first { 0 } else { 1 }],
+            )));
+        }
+        Operation::IsNan => return Ok(scalar(TerminalScalarValue::Boolean(first.is_nan()))),
+        Operation::IsFinite => return Ok(scalar(TerminalScalarValue::Boolean(first.is_finite()))),
+        Operation::IsNormal => {
+            return Ok(scalar(TerminalScalarValue::Boolean(
+                FloatSemantics::is_normal(format, first),
+            )));
+        }
+        Operation::IsSubnormal => {
+            return Ok(scalar(TerminalScalarValue::Boolean(
+                FloatSemantics::is_subnormal(format, first),
+            )));
+        }
+        Operation::IsInfinite => {
+            return Ok(scalar(TerminalScalarValue::Boolean(first.is_infinite())));
+        }
+        Operation::TruncateToInteger { target, domain } => {
+            let target_type = target.integer_type();
+            let integer_format = IntegerFormat {
+                bits: u32::from(target.bits()),
+                signed: target.is_signed(),
+            };
+            let integer = match domain {
+                IeeeFloatToIntegerDomain::Saturating => {
+                    FloatSemantics::to_integer_saturating(first, integer_format)
                 }
-                return Ok(scalar(TerminalScalarValue::Integer {
-                    scalar_type: target_type,
-                    value,
-                }));
+                IeeeFloatToIntegerDomain::Exact => {
+                    FloatSemantics::to_integer_exact(first, integer_format).map_err(|_| {
+                        rejected("exact float conversion violated its admitted precondition")
+                    })?
+                }
+                IeeeFloatToIntegerDomain::Trapping => {
+                    match FloatSemantics::to_integer_trapping(first, integer_format) {
+                        Ok(integer) => integer,
+                        Err(_) => return Ok(TerminalEffectResult::Crash(CrashCause::Trap)),
+                    }
+                }
+            };
+            let value = if target.is_signed() {
+                IntegerValue::Signed(
+                    integer
+                        .to_i64()
+                        .map(i128::from)
+                        .ok_or_else(|| rejected("signed numeric result exceeds its carrier"))?,
+                )
+            } else {
+                IntegerValue::Unsigned(
+                    integer
+                        .to_u64()
+                        .map(u128::from)
+                        .ok_or_else(|| rejected("unsigned numeric result exceeds its carrier"))?,
+                )
+            };
+            if !target_type.admits(value) {
+                return Err(rejected(
+                    "numeric conversion result exceeds its declared width",
+                ));
             }
-            Operation::ConvertFormat => FloatSemantics::convert(format, first),
-            Operation::SquareRoot => FloatSemantics::square_root(format, first),
-            Operation::MultiplyThenAdd => {
-                FloatSemantics::multiply_then_add(format, first, &meanings[1], &meanings[2])
-            }
-            Operation::FusedMultiplyAdd => {
-                FloatSemantics::fused_multiply_add(format, first, &meanings[1], &meanings[2])
-            }
-            Operation::Add => FloatSemantics::add(format, first, &meanings[1]),
-            Operation::Subtract => FloatSemantics::subtract(format, first, &meanings[1]),
-            Operation::Multiply => FloatSemantics::multiply(format, first, &meanings[1]),
-            Operation::Divide => FloatSemantics::divide(format, first, &meanings[1]),
-            Operation::DirectedBinary {
-                operation,
-                rounding,
-            } => directed(operation, rounding)(format, first, &meanings[1]),
-        };
+            return Ok(scalar(TerminalScalarValue::Integer {
+                scalar_type: target_type,
+                value,
+            }));
+        }
+        Operation::ConvertFormat => FloatSemantics::convert(format, first),
+        Operation::SquareRoot => FloatSemantics::square_root(format, first),
+        Operation::MultiplyThenAdd => {
+            FloatSemantics::multiply_then_add(format, first, &meanings[1], &meanings[2])
+        }
+        Operation::FusedMultiplyAdd => {
+            FloatSemantics::fused_multiply_add(format, first, &meanings[1], &meanings[2])
+        }
+        Operation::Add => FloatSemantics::add(format, first, &meanings[1]),
+        Operation::Subtract => FloatSemantics::subtract(format, first, &meanings[1]),
+        Operation::Multiply => FloatSemantics::multiply(format, first, &meanings[1]),
+        Operation::Divide => FloatSemantics::divide(format, first, &meanings[1]),
+        Operation::DirectedBinary {
+            operation,
+            rounding,
+        } => directed(operation, rounding)(format, first, &meanings[1]),
+    };
     Ok(scalar(encode(realization.format, meaning)))
 }
 

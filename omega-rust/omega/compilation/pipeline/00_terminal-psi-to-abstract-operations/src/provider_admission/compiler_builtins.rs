@@ -394,6 +394,9 @@ fn compiler_intrinsic_execution_identity(
                 Arithmetic::SquareRoot => builtin(symbols::BuiltinFunction::Sqrt),
                 Arithmetic::IsNan => builtin(symbols::BuiltinFunction::FloatIsNan),
                 Arithmetic::IsInfinite => builtin(symbols::BuiltinFunction::FloatIsInfinite),
+                Arithmetic::IsFinite => builtin(symbols::BuiltinFunction::FloatIsFinite),
+                Arithmetic::IsNormal => builtin(symbols::BuiltinFunction::FloatIsNormal),
+                Arithmetic::IsSubnormal => builtin(symbols::BuiltinFunction::FloatIsSubnormal),
                 Arithmetic::MultiplyThenAdd => builtin(match format {
                     semantic_vocabulary::IeeeFloatFormat::Binary32 => {
                         symbols::BuiltinFunction::FloatMultiplyThenAddF32

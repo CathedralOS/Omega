@@ -65,12 +65,12 @@
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId, sorted_units};
 use selected_instructions::{
-    ieee_float_arithmetic_is_trapping,
     IeeeFloatArithmeticForm, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
     MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    ieee_float_arithmetic_is_trapping,
 };
 use selected_instructions::{
     IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
@@ -83,7 +83,6 @@ mod conversions;
 const LEFT_SCRATCH: u8 = 16;
 const RIGHT_SCRATCH: u8 = 17;
 const MASK_SCRATCH: u8 = 18;
-
 
 fn view_units(name: &str) -> Vec<RegisterUnitId> {
     crate::aarch64_physical_register_model()
@@ -117,7 +116,6 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     }
     effects
 }
-
 
 pub(crate) fn declaration(
     form: IeeeFloatArithmeticForm,
@@ -254,6 +252,8 @@ enum Word {
         right: u8,
         result: u8,
     },
+    /// `AND` (vector, 8B), preserving comparison masks.
+    BitwiseAnd { left: u8, right: u8, result: u8 },
     /// `BSL` (vector, 8B): `mask ? if_set : if_clear` per bit, into `mask`.
     BitwiseSelect { mask: u8, if_set: u8, if_clear: u8 },
     /// `ADD Wd|Xd, Wn|Xn, #immediate`, without changing NZCV.
@@ -412,6 +412,11 @@ fn encode_word(word: Word) -> u32 {
                 | reg(source) << 5
                 | reg(result)
         }
+        Word::BitwiseAnd {
+            left,
+            right,
+            result,
+        } => 0x0e20_1c00 | reg(right) << 16 | reg(left) << 5 | reg(result),
         Word::BitwiseSelect {
             mask,
             if_set,
@@ -526,6 +531,11 @@ fn decode_word(word: u32) -> Option<Word> {
                 result: field(0),
             }
         }
+        _ if word & 0xffe0_fc00 == 0x0e20_1c00 => Word::BitwiseAnd {
+            left: field(5),
+            right: field(16),
+            result: field(0),
+        },
         _ if word & 0xffe0_fc00 == 0x2e60_1c00 => Word::BitwiseSelect {
             mask: field(0),
             if_set: field(5),
@@ -619,6 +629,101 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
                 },
                 move_out(first),
             ]
+        }
+        IeeeFloatArithmeticOperation::IsFinite
+        | IeeeFloatArithmeticOperation::IsNormal
+        | IeeeFloatArithmeticOperation::IsSubnormal => {
+            let mut instructions = vec![
+                move_in(registers[0], first, double),
+                Word::OneSource {
+                    double,
+                    opcode: 1,
+                    source: first,
+                    result: first,
+                },
+            ];
+            // A positive finite payload lies strictly below infinity.
+            // Normal uses abs(value) > largest subnormal; subnormal uses
+            // minimum normal > abs(value) and abs(value) > zero.
+            if form.operation != IeeeFloatArithmeticOperation::IsFinite {
+                if form.operation == IeeeFloatArithmeticOperation::IsNormal {
+                    let value: u64 = if double {
+                        0x000f_ffff_ffff_ffff
+                    } else {
+                        0x007f_ffff
+                    };
+                    for shift in 0..4 {
+                        instructions.push(Word::MoveWide {
+                            keep: shift != 0,
+                            shift,
+                            immediate: (value >> (shift * 16)) as u16,
+                            general: result,
+                        });
+                    }
+                } else {
+                    instructions.push(Word::MoveWide {
+                        keep: false,
+                        shift: if double { 3 } else { 1 },
+                        immediate: if double { 0x0010 } else { 0x0080 },
+                        general: result,
+                    });
+                }
+                instructions.push(move_in(result, second, double));
+                let (left, right) = if form.operation == IeeeFloatArithmeticOperation::IsNormal {
+                    (first, second)
+                } else {
+                    (second, first)
+                };
+                instructions.push(Word::Compare {
+                    equal: false,
+                    double,
+                    left,
+                    right,
+                    result: mask,
+                });
+            }
+            instructions.push(Word::MoveWide {
+                keep: false,
+                shift: if double { 3 } else { 1 },
+                immediate: if form.operation == IeeeFloatArithmeticOperation::IsSubnormal {
+                    0
+                } else if double {
+                    0x7ff0
+                } else {
+                    0x7f80
+                },
+                general: result,
+            });
+            instructions.push(move_in(result, second, double));
+            let (left, right) = if form.operation == IeeeFloatArithmeticOperation::IsSubnormal {
+                (first, second)
+            } else {
+                (second, first)
+            };
+            instructions.push(Word::Compare {
+                equal: false,
+                double,
+                left,
+                right,
+                result: first,
+            });
+            if form.operation != IeeeFloatArithmeticOperation::IsFinite {
+                instructions.push(Word::BitwiseAnd {
+                    left: first,
+                    right: mask,
+                    result: first,
+                });
+            }
+            instructions.extend([
+                move_out(first),
+                Word::LogicalShiftRight {
+                    wide: double,
+                    count: if double { 63 } else { 31 },
+                    source: result,
+                    result,
+                },
+            ]);
+            instructions
         }
         IeeeFloatArithmeticOperation::IsInfinite => vec![
             move_in(registers[0], first, double),

@@ -65,12 +65,11 @@ use super::{
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::{RegisterConstraintKey, RegisterUnitId, sorted_units};
 use selected_instructions::{
-    ieee_float_arithmetic_is_trapping,
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier,
     IeeeFloatToIntegerDomain, MachineAlternative, MachineAlternativeApplicability, MachineBarrier,
     MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior,
+    MachineSizeKnowledge, MachineTrapBehavior, ieee_float_arithmetic_is_trapping,
 };
 
 mod conversions;
@@ -89,14 +88,24 @@ fn view_units(name: &str) -> Vec<RegisterUnitId> {
         .clone()
 }
 
-
 /// MXCSR selects the rounding mode the operations honor.
 pub(crate) fn implicit_uses() -> Vec<RegisterUnitId> {
     sorted_units(view_units("mxcsr"))
 }
 
-pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
-    sorted_units(view_units("xmm4").into_iter().chain(view_units("xmm5")))
+pub(crate) fn clobbers(form: IeeeFloatArithmeticForm) -> Vec<RegisterUnitId> {
+    let extra = matches!(
+        form.operation,
+        IeeeFloatArithmeticOperation::IsNormal | IeeeFloatArithmeticOperation::IsSubnormal
+    )
+    .then(|| view_units("xmm3"))
+    .unwrap_or_default();
+    sorted_units(
+        view_units("xmm4")
+            .into_iter()
+            .chain(view_units("xmm5"))
+            .chain(extra),
+    )
 }
 
 fn conversion_control(form: IeeeFloatArithmeticForm) -> bool {
@@ -114,13 +123,12 @@ fn conversion_control(form: IeeeFloatArithmeticForm) -> bool {
     )
 }
 
-
 /// The form reads its operands (operands `0..n`) and defines operand `n`.
 pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     let inputs = form.operand_count() as u16;
     let mut encoded = MachineEncodedEffects {
         implicit_unit_uses: implicit_uses(),
-        implicit_unit_clobbers: clobbers(),
+        implicit_unit_clobbers: clobbers(form),
         ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
     };
     if form.operation.rounding_direction().is_some() {
@@ -144,7 +152,8 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
         encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
     }
     if conversion_control(form) {
-        encoded.implicit_unit_clobbers = sorted_units(clobbers().into_iter().chain(view_units("rflags")));
+        encoded.implicit_unit_clobbers =
+            sorted_units(clobbers(form).into_iter().chain(view_units("rflags")));
     }
     if ieee_float_arithmetic_is_trapping(form) {
         encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
@@ -842,6 +851,122 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
         // Baseline SSE2 has no single-rounding multiply-add. Optional FMA3
         // requires a separately admitted feature and provider occurrence.
         IeeeFloatArithmeticOperation::FusedMultiplyAdd => return Err(Error::EncodedFormMismatch),
+        IeeeFloatArithmeticOperation::IsFinite
+        | IeeeFloatArithmeticOperation::IsNormal
+        | IeeeFloatArithmeticOperation::IsSubnormal => {
+            // Read the payload before using the output register for constants:
+            // input and output may alias. Clearing only the sign preserves
+            // subnormals and leaves NaNs unordered in both comparisons.
+            let mut instructions = vec![
+                move_in(registers[0], LEFT_SCRATCH, double),
+                Instruction::ShiftLeft {
+                    quad: double,
+                    xmm: LEFT_SCRATCH,
+                    count: 1,
+                },
+                Instruction::ShiftRight {
+                    quad: double,
+                    arithmetic: false,
+                    xmm: LEFT_SCRATCH,
+                    count: 1,
+                },
+            ];
+            let minimum = if double {
+                0x0010_0000_0000_0000
+            } else {
+                0x0080_0000
+            };
+            let infinity = if double {
+                0x7ff0_0000_0000_0000
+            } else {
+                0x7f80_0000
+            };
+            if form.operation != IeeeFloatArithmeticOperation::IsFinite {
+                instructions.extend([
+                    Instruction::MoveAligned {
+                        destination: 3,
+                        source: LEFT_SCRATCH,
+                    },
+                    Instruction::MoveImmediate64 {
+                        general: result,
+                        value: minimum,
+                    },
+                    move_in(result, RIGHT_SCRATCH, double),
+                ]);
+                if form.operation == IeeeFloatArithmeticOperation::IsNormal {
+                    instructions.push(Instruction::CompareScalar {
+                        double,
+                        predicate: 2,
+                        destination: RIGHT_SCRATCH,
+                        source: LEFT_SCRATCH,
+                    });
+                    instructions.push(Instruction::MoveAligned {
+                        destination: 3,
+                        source: RIGHT_SCRATCH,
+                    });
+                } else {
+                    instructions.push(Instruction::CompareScalar {
+                        double,
+                        predicate: 1,
+                        destination: 3,
+                        source: RIGHT_SCRATCH,
+                    });
+                }
+            }
+            instructions.extend([
+                Instruction::MoveImmediate64 {
+                    general: result,
+                    value: if form.operation == IeeeFloatArithmeticOperation::IsSubnormal {
+                        0
+                    } else {
+                        infinity
+                    },
+                },
+                move_in(result, RIGHT_SCRATCH, double),
+            ]);
+            if form.operation == IeeeFloatArithmeticOperation::IsSubnormal {
+                // 0 < abs(value) excludes both zeros; the first mask already
+                // excludes normal values, infinity and every NaN.
+                instructions.push(Instruction::CompareScalar {
+                    double,
+                    predicate: 1,
+                    destination: RIGHT_SCRATCH,
+                    source: LEFT_SCRATCH,
+                });
+                instructions.push(Instruction::MoveAligned {
+                    destination: LEFT_SCRATCH,
+                    source: RIGHT_SCRATCH,
+                });
+            } else {
+                instructions.push(Instruction::CompareScalar {
+                    double,
+                    predicate: 1,
+                    destination: LEFT_SCRATCH,
+                    source: RIGHT_SCRATCH,
+                });
+            }
+            if form.operation != IeeeFloatArithmeticOperation::IsFinite {
+                instructions.push(Instruction::And {
+                    destination: LEFT_SCRATCH,
+                    source: 3,
+                });
+            }
+            instructions.extend([
+                Instruction::ShiftRight {
+                    quad: false,
+                    arithmetic: false,
+                    xmm: LEFT_SCRATCH,
+                    count: 31,
+                },
+                Instruction::Transfer {
+                    to_float: false,
+                    wide: false,
+                    xmm: LEFT_SCRATCH,
+                    general: result,
+                },
+            ]);
+            instructions
+        }
         IeeeFloatArithmeticOperation::IsInfinite => vec![
             move_in(registers[0], LEFT_SCRATCH, double),
             Instruction::ShiftLeft {

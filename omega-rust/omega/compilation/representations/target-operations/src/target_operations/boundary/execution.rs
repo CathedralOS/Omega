@@ -136,6 +136,12 @@ pub enum IeeeFloatArithmeticOperation {
     IsNan,
     /// True for either infinity; false for finite values and every NaN.
     IsInfinite,
+    /// True for finite values, including either signed zero.
+    IsFinite,
+    /// True only for a finite nonzero value with a nonzero exponent field.
+    IsNormal,
+    /// True only for a nonzero value with a zero exponent field.
+    IsSubnormal,
 }
 
 /// The selected requirement's invalid-input behavior, retained through emission.
@@ -228,8 +234,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 57] = {
-        let mut all = [Self::Add; 57];
+    pub const ALL: [Self; 60] = {
+        let mut all = [Self::Add; 60];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -263,6 +269,9 @@ impl IeeeFloatArithmeticOperation {
         all[31] = Self::IsNan;
         all[32] = Self::IsInfinite;
         all[44] = Self::FusedMultiplyAdd;
+        all[57] = Self::IsFinite;
+        all[58] = Self::IsNormal;
+        all[59] = Self::IsSubnormal;
         let mut operation = 0;
         while operation < IeeeFloatBinaryOperation::ALL.len() {
             let mut rounding = 0;
@@ -305,6 +314,9 @@ impl IeeeFloatArithmeticOperation {
             } => 45 + operation.ordinal() * 3 + rounding.ordinal(),
             Self::IsNan => 31,
             Self::IsInfinite => 32,
+            Self::IsFinite => 57,
+            Self::IsNormal => 58,
+            Self::IsSubnormal => 59,
             // The 32- and 64-bit carriers came first (9 through 17); the
             // narrow carriers follow (18 through 29).
             Self::FromInteger(carrier) => {
@@ -360,6 +372,9 @@ impl IeeeFloatArithmeticOperation {
             Self::Negate
             | Self::IsNan
             | Self::IsInfinite
+            | Self::IsFinite
+            | Self::IsNormal
+            | Self::IsSubnormal
             | Self::SquareRoot
             | Self::ConvertFormat
             | Self::FromInteger(_)
@@ -390,7 +405,11 @@ impl IeeeFloatArithmeticOperation {
         format: semantic_vocabulary::IeeeFloatFormat,
     ) -> semantic_vocabulary::ScalarType {
         match self {
-            Self::IsNan | Self::IsInfinite => semantic_vocabulary::ScalarType::Boolean,
+            Self::IsNan
+            | Self::IsInfinite
+            | Self::IsFinite
+            | Self::IsNormal
+            | Self::IsSubnormal => semantic_vocabulary::ScalarType::Boolean,
             Self::TruncateToInteger { target, .. } => {
                 semantic_vocabulary::ScalarType::Integer(target.integer_type())
             }
