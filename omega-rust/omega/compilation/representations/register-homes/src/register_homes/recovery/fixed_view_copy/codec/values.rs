@@ -162,8 +162,8 @@ pub(super) fn decode_integer(
     cursor: &mut Cursor<'_>,
 ) -> Result<IntegerValue, FixedViewCopyDecodeError> {
     match cursor.byte()? {
-        0 => Ok(IntegerValue::Signed(i128::from_le_bytes(cursor.array()?))),
-        1 => Ok(IntegerValue::Unsigned(u128::from_le_bytes(cursor.array()?))),
+        0 => Ok(IntegerValue::Signed(cursor.i128()?)),
+        1 => Ok(IntegerValue::Unsigned(cursor.u128()?)),
         tag => Err(FixedViewCopyDecodeError::UnknownIntegerValue(tag)),
     }
 }

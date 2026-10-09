@@ -56,6 +56,14 @@ impl<'a> Cursor<'a> {
         Ok(u64::from_le_bytes(self.array()?))
     }
 
+    pub(crate) fn u128(&mut self) -> Result<u128, Truncated> {
+        Ok(u128::from_le_bytes(self.array()?))
+    }
+
+    pub(crate) fn i128(&mut self) -> Result<i128, Truncated> {
+        Ok(i128::from_le_bytes(self.array()?))
+    }
+
     pub(crate) fn length(&mut self) -> Result<usize, TakeError> {
         let value = self.u64().map_err(|_| TakeError::Truncated)?;
         usize::try_from(value).map_err(|_| TakeError::LengthOverflow)

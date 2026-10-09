@@ -28,11 +28,11 @@ impl SpillChoicePlan {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, SpillChoiceDecodeError> {
-        let mut cursor = SpillChoiceCursor::new(encoded);
+        let mut cursor = crate::cursor::Cursor::new(encoded);
         if cursor.take(SPILL_CHOICE_MAGIC.len())? != SPILL_CHOICE_MAGIC {
             return Err(SpillChoiceDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != SPILL_CHOICE_VERSION {
             return Err(SpillChoiceDecodeError::UnsupportedVersion(version));
         }
@@ -52,47 +52,43 @@ impl SpillChoicePlan {
         let function_count = cursor.length()?;
         let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
         for _ in 0..function_count {
-            let raw_machine = u64::from_le_bytes(cursor.array()?);
+            let raw_machine = cursor.u64()?;
             let machine = MachineId::new(raw_machine)
                 .ok_or(SpillChoiceDecodeError::InvalidMachineId(raw_machine))?;
             let choice = match cursor.byte()? {
                 0 => None,
                 1 => {
-                    let block = SelectedBlockId(u32::from_le_bytes(cursor.array()?));
-                    let point = LiveRangePoint(u32::from_le_bytes(cursor.array()?));
-                    let incoming = VirtualRegisterId(u32::from_le_bytes(cursor.array()?));
-                    let incoming_class = RegisterClassId(u16::from_le_bytes(cursor.array()?));
+                    let block = SelectedBlockId(cursor.u32()?);
+                    let point = LiveRangePoint(cursor.u32()?);
+                    let incoming = VirtualRegisterId(cursor.u32()?);
+                    let incoming_class = RegisterClassId(cursor.u16()?);
                     let candidate_count = cursor.length()?;
                     let mut incoming_common_candidates =
                         Vec::with_capacity(candidate_count.min(cursor.remaining()));
                     for _ in 0..candidate_count {
-                        incoming_common_candidates
-                            .push(RegisterViewId(u16::from_le_bytes(cursor.array()?)));
+                        incoming_common_candidates.push(RegisterViewId(cursor.u16()?));
                     }
                     let resident_count = cursor.length()?;
                     let mut active_residents =
                         Vec::with_capacity(resident_count.min(cursor.remaining()));
                     for _ in 0..resident_count {
                         active_residents.push(PressureResident {
-                            virtual_register: VirtualRegisterId(u32::from_le_bytes(
-                                cursor.array()?,
-                            )),
-                            class: RegisterClassId(u16::from_le_bytes(cursor.array()?)),
-                            start: LiveRangePoint(u32::from_le_bytes(cursor.array()?)),
-                            exclusive_end: LiveRangePoint(u32::from_le_bytes(cursor.array()?)),
-                            view: RegisterViewId(u16::from_le_bytes(cursor.array()?)),
+                            virtual_register: VirtualRegisterId(cursor.u32()?),
+                            class: RegisterClassId(cursor.u16()?),
+                            start: LiveRangePoint(cursor.u32()?),
+                            exclusive_end: LiveRangePoint(cursor.u32()?),
+                            view: RegisterViewId(cursor.u16()?),
                         });
                     }
                     let contender_count = cursor.length()?;
                     let mut contenders =
                         Vec::with_capacity(contender_count.min(cursor.remaining()));
                     for _ in 0..contender_count {
-                        let virtual_register =
-                            VirtualRegisterId(u32::from_le_bytes(cursor.array()?));
-                        let exclusive_end = LiveRangePoint(u32::from_le_bytes(cursor.array()?));
+                        let virtual_register = VirtualRegisterId(cursor.u32()?);
+                        let exclusive_end = LiveRangePoint(cursor.u32()?);
                         let reclaimed_view = match cursor.byte()? {
                             0 => None,
-                            1 => Some(RegisterViewId(u16::from_le_bytes(cursor.array()?))),
+                            1 => Some(RegisterViewId(cursor.u16()?)),
                             tag => return Err(SpillChoiceDecodeError::UnknownOption(tag)),
                         };
                         contenders.push(PressureContender {
@@ -101,7 +97,7 @@ impl SpillChoicePlan {
                             reclaimed_view,
                         });
                     }
-                    let selected_victim = VirtualRegisterId(u32::from_le_bytes(cursor.array()?));
+                    let selected_victim = VirtualRegisterId(cursor.u32()?);
                     Some(SpillChoice {
                         block,
                         point,
@@ -134,43 +130,5 @@ impl SpillChoicePlan {
             return Err(SpillChoiceDecodeError::IdentityMismatch);
         }
         Ok(plan)
-    }
-}
-
-struct SpillChoiceCursor<'encoded> {
-    encoded: &'encoded [u8],
-    offset: usize,
-}
-
-impl<'encoded> SpillChoiceCursor<'encoded> {
-    const fn new(encoded: &'encoded [u8]) -> Self {
-        Self { encoded, offset: 0 }
-    }
-    fn take(&mut self, length: usize) -> Result<&'encoded [u8], SpillChoiceDecodeError> {
-        let end = self
-            .offset
-            .checked_add(length)
-            .ok_or(SpillChoiceDecodeError::Truncated)?;
-        let value = self
-            .encoded
-            .get(self.offset..end)
-            .ok_or(SpillChoiceDecodeError::Truncated)?;
-        self.offset = end;
-        Ok(value)
-    }
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], SpillChoiceDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| SpillChoiceDecodeError::Truncated)
-    }
-    fn byte(&mut self) -> Result<u8, SpillChoiceDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-    fn length(&mut self) -> Result<usize, SpillChoiceDecodeError> {
-        usize::try_from(u64::from_le_bytes(self.array()?))
-            .map_err(|_| SpillChoiceDecodeError::LengthOverflow)
-    }
-    fn remaining(&self) -> usize {
-        self.encoded.len() - self.offset
     }
 }
