@@ -86,7 +86,8 @@ impl IntegerFormat {
         Self { bits, signed: true }
     }
 
-    fn bounds(self) -> (BigInt, BigInt) {
+    /// Exact mathematical endpoints of this declared Integer carrier.
+    pub fn bounds(self) -> (BigInt, BigInt) {
         if self.signed {
             let magnitude = BigInt::from_u64(1).shl_bits((self.bits - 1) as usize);
             (magnitude.negate(), magnitude.sub(&BigInt::from_u64(1)))

@@ -28,6 +28,18 @@ pub fn numeric_float_conversion_contract(
     program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
 ) -> Option<(PrimitiveType, PrimitiveType)> {
+    selected_numeric_float_conversion_contract(program, operator)
+        .map(|(source, target, _)| (source, target))
+}
+
+fn selected_numeric_float_conversion_contract(
+    program: &dyn crate::CheckingInput,
+    operator: &OperatorDefinition,
+) -> Option<(
+    PrimitiveType,
+    PrimitiveType,
+    &'static numerics::float_semantics_catalog::FloatSemanticOperation,
+)> {
     use numerics::float_semantics_catalog::{FloatSemanticKernel, FloatSemanticValueKind};
     let [parameter] = program.operator_parameters(operator) else {
         return None;
@@ -106,8 +118,7 @@ pub fn numeric_float_conversion_contract(
             else {
                 return None;
             };
-            if semantic.name != "from_integer"
-                || !matches!(semantic.kernel(), FloatSemanticKernel::FromInteger(_))
+            if !matches!(semantic.kernel(), FloatSemanticKernel::FromInteger(_))
                 || PrimitiveType::from_name(carrier.spelling()) != Some(source)
             {
                 return None;
@@ -116,11 +127,36 @@ pub fn numeric_float_conversion_contract(
         };
         let value = program.expression_table.name_path_node(value)?;
         if value.symbol.is_valid() && value.symbol == parameter.symbol {
-            Some((source, target))
+            Some((source, target, semantic))
         } else {
             None
         }
     })
+}
+
+/// Normal-return enclosure of a selected Integer-to-float conversion over
+/// its entire admitted source carrier. The sealed kernel supplies rounded
+/// endpoint images; annotations and callable spelling supply no bound.
+/// Executable call formation, Requires and policy adaptation remain separate.
+pub fn integer_float_conversion_bounds(
+    program: &dyn crate::CheckingInput,
+    operator: &OperatorDefinition,
+) -> Option<(
+    PrimitiveType,
+    PrimitiveType,
+    numerics::float_semantics::FloatMeaning,
+    numerics::float_semantics::FloatMeaning,
+)> {
+    let (source, target, semantic) = selected_numeric_float_conversion_contract(program, operator)?;
+    let carrier = numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name())?;
+    let format = match target {
+        PrimitiveType::F32 => numerics::float_semantics::FloatFormat::BINARY32,
+        PrimitiveType::F64 => numerics::float_semantics::FloatFormat::BINARY64,
+        _ => return None,
+    };
+    let (minimum, maximum) = carrier.format().bounds();
+    let (minimum, maximum) = semantic.integer_operand_image(format, carrier, &minimum, &maximum)?;
+    Some((source, target, minimum, maximum))
 }
 
 /// One resolved equality candidate: a reserved-result side against a named

@@ -102,6 +102,7 @@ pub(super) fn raw_result_is_finite(
         program
             .machine_holding_state(operation.location.state())
             .map_or(symbols::SymbolHandle::invalid(), |machine| machine.symbol),
+        operation.location.state(),
     ) else {
         return false;
     };
@@ -109,7 +110,7 @@ pub(super) fn raw_result_is_finite(
     else {
         return false;
     };
-    if super::super::operators::closed_float_boolean_term(&required) == Some(true) {
+    if super::super::operators::float_boolean_term_value(&required) == Some(true) {
         return true;
     }
     contexts

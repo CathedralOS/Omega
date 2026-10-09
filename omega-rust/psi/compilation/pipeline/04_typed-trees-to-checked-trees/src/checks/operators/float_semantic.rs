@@ -6,7 +6,7 @@
 //! adapted results contribute no unconditional raw equation. Proof-position
 //! operations are resolved in the fact's own typed frame: they have no executable
 //! operator-use row or operand capture to fabricate.
-//! Integer catalog inputs have their own carrier and closed numeric authority;
+//! Integer catalog inputs have their own carrier and completed-value authority;
 //! they never occupy a FloatMeaning projection. The selected equation retains
 //! its formal telescope while captured actuals retain their independent caller
 //! owner, so composing a conversion cannot reinterpret a source operation in
@@ -44,6 +44,15 @@ pub(crate) enum FloatSemanticTerm {
         carrier: IntegerCarrier,
         value: numerics::bignum::BigInt,
     },
+    /// An admitted captured Integer value keeps its own policy and source
+    /// frame. Its carrier image can prove a classification consequence without
+    /// asserting a value or replaying the producer's arithmetic as mathematics.
+    IntegerSource {
+        carrier: IntegerCarrier,
+        domain: numerics::arithmetic::ArithmeticDomain,
+        frame: Frame,
+        source: FloatSourceValue,
+    },
     Literal {
         format: IeeeFloatFormat,
         meaning: FloatMeaning,
@@ -62,8 +71,8 @@ pub(crate) enum FloatSourceValue {
     Occurrence(ExpressionHandle),
 }
 
-#[derive(Clone, Copy)]
-struct Frame {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Frame {
     machine: SymbolHandle,
     state: SymbolHandle,
 }
@@ -126,16 +135,7 @@ fn positive_expression_proves(
         return positive_expression_proves(program, facts, binary.left, frame, required)
             || positive_expression_proves(program, facts, binary.right, frame, required);
     }
-    boolean_semantic_term(
-        program,
-        facts,
-        expression,
-        frame,
-        None,
-        frame.map_or(SymbolHandle::invalid(), |frame| frame.machine),
-    )
-    .as_ref()
-        == Some(required)
+    boolean_semantic_term(program, facts, expression, frame, None, frame).as_ref() == Some(required)
 }
 
 fn boolean_semantic_term(
@@ -144,7 +144,7 @@ fn boolean_semantic_term(
     expression: ExpressionHandle,
     frame: Option<Frame>,
     actuals: Option<&SemanticBindings<'_>>,
-    source_owner: SymbolHandle,
+    source_frame: Option<Frame>,
 ) -> Option<FloatSemanticTerm> {
     let (operator, operands, adapter) = selected_expression(program, facts, expression, frame)?;
     if adapter != CheckedArithmeticPolicyAdapter::None {
@@ -164,7 +164,7 @@ fn boolean_semantic_term(
         &inputs,
         actuals,
         frame,
-        source_owner,
+        source_frame,
         &mut remaining_work,
     )
 }
@@ -172,8 +172,9 @@ fn boolean_semantic_term(
 /// Closed caller obligations share the observed-predicate term owner. Actuals
 /// are explicit source bindings, separate from a selected public query's own
 /// formals; composing a raw equation cannot erase the outer call telescope.
-/// Open storage reads stay projections and supply no context-free truth.
-pub(crate) fn closed_float_boolean_requirement(
+/// Open Float storage stays a projection. Integer sources keep their own
+/// bounded carrier and captured caller frame.
+pub(crate) fn selected_float_boolean_requirement(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -182,6 +183,7 @@ pub(crate) fn closed_float_boolean_requirement(
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     source_owner: SymbolHandle,
+    source_state: SymbolHandle,
 ) -> Option<bool> {
     if parameters.len() != operands.len() {
         return None;
@@ -196,21 +198,74 @@ pub(crate) fn closed_float_boolean_requirement(
             parameters,
             operands,
         }),
-        source_owner,
+        Some(Frame {
+            machine: source_owner,
+            state: source_state,
+        }),
     )?;
-    closed_float_boolean_term(&term)
+    float_boolean_term_value(&term)
 }
 
-/// Discharge the already selected term through the same catalog kernel used
-/// by proof checking. This walk consumes semantic terms, never source shapes;
-/// symbolic projections and exhausted work produce no result.
-pub(crate) fn closed_float_boolean_term(term: &FloatSemanticTerm) -> Option<bool> {
+/// Decide a selected Boolean denotation from closed values or a kernel-owned
+/// ordered image. A symbolic Integer source supplies its own finite carrier,
+/// not a literal or a fact about arbitrary Float storage.
+pub(crate) fn float_boolean_term_value(term: &FloatSemanticTerm) -> Option<bool> {
     let mut remaining_work = 1024;
-    let FloatSemanticResult::Bool(value) = closed_semantic_result(term, &mut remaining_work)?
+    if let Some(FloatSemanticResult::Bool(value)) =
+        closed_semantic_result(term, &mut remaining_work)
+    {
+        return Some(value);
+    }
+    let FloatSemanticTerm::Application {
+        operation,
+        operands,
+        ..
+    } = term
     else {
         return None;
     };
-    Some(value)
+    let [meaning] = operands.as_slice() else {
+        return None;
+    };
+    let (minimum, maximum) = ordered_meaning_image(meaning, &mut remaining_work)?;
+    operation.ordered_interval_predicate(&minimum, &maximum)
+}
+
+/// The admitted source's image under the selected monotone Integer conversion.
+/// This is an enclosure query over resolved terms, not another source evaluator.
+fn ordered_meaning_image(
+    term: &FloatSemanticTerm,
+    remaining_work: &mut usize,
+) -> Option<(FloatMeaning, FloatMeaning)> {
+    *remaining_work = remaining_work.checked_sub(1)?;
+    match term {
+        FloatSemanticTerm::Literal { meaning, .. } => Some((meaning.clone(), meaning.clone())),
+        FloatSemanticTerm::Application {
+            operation,
+            operands,
+            ..
+        } => {
+            let [FloatSemanticTerm::Format(format), integer] = operands.as_slice() else {
+                return None;
+            };
+            let (carrier, minimum, maximum) = match integer {
+                FloatSemanticTerm::Integer { carrier, value } => {
+                    (*carrier, value.clone(), value.clone())
+                }
+                FloatSemanticTerm::IntegerSource { carrier, .. } => {
+                    let (minimum, maximum) = carrier.format().bounds();
+                    (*carrier, minimum, maximum)
+                }
+                _ => return None,
+            };
+            let format = match format {
+                IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
+                IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
+            };
+            operation.integer_operand_image(format, carrier, &minimum, &maximum)
+        }
+        _ => None,
+    }
 }
 
 fn closed_semantic_result(
@@ -254,7 +309,9 @@ fn closed_semantic_result(
                 .kernel_discharge(&operands)
                 .map(|discharge| discharge.result)
         }
-        FloatSemanticTerm::Projection { .. } | FloatSemanticTerm::Format(_) => None,
+        FloatSemanticTerm::Projection { .. }
+        | FloatSemanticTerm::IntegerSource { .. }
+        | FloatSemanticTerm::Format(_) => None,
     }
 }
 
@@ -266,6 +323,7 @@ pub(crate) fn instantiated_float_semantic_term(
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     source_owner: SymbolHandle,
+    source_state: SymbolHandle,
 ) -> Option<FloatSemanticTerm> {
     if parameters.len() != operands.len() {
         return None;
@@ -282,7 +340,10 @@ pub(crate) fn instantiated_float_semantic_term(
         },
         None,
         None,
-        source_owner,
+        Some(Frame {
+            machine: source_owner,
+            state: source_state,
+        }),
         &mut remaining_work,
     )
 }
@@ -294,7 +355,13 @@ pub(crate) fn finite_float_semantic_term(
     let mut finite = program.operators().iter().filter_map(|operator| {
         let (row, contract) =
             validation::exact_toolchain_float_semantic_contract(program, operator)?;
-        (row.name == "is_finite").then_some((operator.symbol, row, contract))
+        matches!(
+            row.kernel(),
+            numerics::float_semantics_catalog::FloatSemanticKernel::SinglePredicate(
+                numerics::float_semantics_catalog::FloatSemanticPredicate::Finite
+            )
+        )
+        .then_some((operator.symbol, row, contract))
     });
     let (selected, operation, contract) = finite.next()?;
     if finite.next().is_some() {
@@ -333,7 +400,7 @@ fn semantic_term(
     inputs: &SemanticBindings<'_>,
     actuals: Option<&SemanticBindings<'_>>,
     frame: Option<Frame>,
-    source_owner: SymbolHandle,
+    source_frame: Option<Frame>,
     remaining_work: &mut usize,
 ) -> Option<FloatSemanticTerm> {
     *remaining_work = remaining_work.checked_sub(1)?;
@@ -350,7 +417,7 @@ fn semantic_term(
         };
         let source = substituted_source(program, *source, inputs, actuals, remaining_work)?;
         if let Some((selected, operands, CheckedArithmeticPolicyAdapter::None)) =
-            selected_expression(program, facts, source, frame)
+            selected_expression(program, facts, source, source_frame.or(frame))
             && let Some(raw) = validation::float_result_semantic_contract(program, selected)
         {
             return semantic_term(
@@ -364,7 +431,7 @@ fn semantic_term(
                 },
                 actuals,
                 frame,
-                source_owner,
+                source_frame,
                 remaining_work,
             );
         }
@@ -410,15 +477,29 @@ fn semantic_term(
         .map(|(argument, kind)| match kind {
             FloatSemanticValueKind::Integer(carrier) => {
                 let source = substituted_operand(program, *argument, inputs, actuals)?;
-                let value = validation::closed_float_semantic_integer_operand(
-                    program,
-                    source_owner,
-                    source,
-                    *carrier,
-                )?;
-                Some(FloatSemanticTerm::Integer {
+                let owner = source_frame.map_or(SymbolHandle::invalid(), |frame| frame.machine);
+                if let Some(value) = validation::closed_float_semantic_integer_operand(
+                    program, owner, source, *carrier,
+                ) {
+                    return Some(FloatSemanticTerm::Integer {
+                        carrier: *carrier,
+                        value,
+                    });
+                }
+                let frame = source_frame?;
+                let machine = program.machine_by_symbol(frame.machine)?;
+                let state = program.state_in_machine(machine, frame.state)?;
+                let reference =
+                    validation::expression_result_type_reference(program, machine, state, source)?;
+                let primitive = program.primitive_type_reference(reference)?;
+                if IntegerCarrier::from_spelling(primitive.name()) != Some(*carrier) {
+                    return None;
+                }
+                Some(FloatSemanticTerm::IntegerSource {
                     carrier: *carrier,
-                    value,
+                    domain: program.arithmetic_domain_for_type_reference(reference),
+                    frame,
+                    source: source_value(program, source)?,
                 })
             }
             _ => semantic_term(
@@ -428,7 +509,7 @@ fn semantic_term(
                 inputs,
                 actuals,
                 frame,
-                source_owner,
+                source_frame,
                 remaining_work,
             ),
         })

@@ -111,7 +111,7 @@ pub(crate) fn float_source_bounds_with_result_type(
     let (flow, non_nan) = place_path(program, value)
         .map(|path| environment.float_fact(&path))
         .unwrap_or((FloatInterval::UNBOUNDED, false));
-    let converted = selected_format_conversion_bounds(program, environment, value, result_type);
+    let converted = selected_numeric_conversion_bounds(program, environment, value, result_type);
     let range = if let Some(value) = float_literal_value(program, value) {
         if value.is_nan() {
             return None;
@@ -136,10 +136,11 @@ pub(crate) fn float_source_bounds_with_result_type(
     })
 }
 
-/// A selected sealed format guarantee transports the completed operand's
-/// enclosure. IEEE format conversion is monotone on ordered values, so its
-/// endpoint images enclose every result; no target predicate supplies a bound.
-fn selected_format_conversion_bounds(
+/// A selected sealed numeric guarantee bounds the completed result. Integer
+/// inputs use the selected kernel's full-carrier image; float inputs transport
+/// their live ordered enclosure. Both conversions are monotone, and neither
+/// destination annotations nor receiving predicates supply source bounds.
+fn selected_numeric_conversion_bounds(
     program: &dyn crate::CheckingInput,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
@@ -147,10 +148,26 @@ fn selected_format_conversion_bounds(
 ) -> Option<FloatInterval> {
     let call = program.expression_table.call_node(expression)?;
     let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
-    let (source, target) = crate::float_format_conversion_contract(program, operator)?;
+    let (source, target) = crate::numeric_float_conversion_contract(program, operator)?;
     let [operand] = program.expression_table.expression_handles(call.arguments) else {
         return None;
     };
+    if let Some((integer, converted, minimum, maximum)) =
+        crate::integer_float_conversion_bounds(program, operator)
+    {
+        if integer != source
+            || converted != target
+            || result_type(*operand)
+                .and_then(|reference| program.primitive_type_reference(reference))
+                != Some(source)
+        {
+            return None;
+        }
+        return Some(FloatInterval {
+            low: Some(minimum.to_f64()),
+            high: Some(maximum.to_f64()),
+        });
+    }
     let bounds = float_source_bounds_with_result_type(program, environment, *operand, result_type)?;
     if bounds.primitive != source {
         return None;

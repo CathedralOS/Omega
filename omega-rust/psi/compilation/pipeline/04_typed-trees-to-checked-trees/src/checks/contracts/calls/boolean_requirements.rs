@@ -131,7 +131,7 @@ fn explicit_subject_call_requirement_proven(
     )
 }
 
-fn closed_selected_float_requirement(
+fn selected_float_requirement(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
@@ -147,7 +147,7 @@ fn closed_selected_float_requirement(
     let arguments = super::super::call_values::captured_argument_expressions(
         program, facts, state_flow, call_flow,
     )?;
-    crate::checks::operators::closed_float_boolean_requirement(
+    crate::checks::operators::selected_float_boolean_requirement(
         program,
         facts,
         machine.symbol,
@@ -156,6 +156,7 @@ fn closed_selected_float_requirement(
         parameters,
         &arguments,
         state_flow.machine_symbol,
+        state_flow.state_symbol,
     )
 }
 
@@ -169,79 +170,78 @@ pub(super) fn proves(
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let proven =
-        closed_selected_float_requirement(program, facts, state_flow, call_flow, expression)
-            == Some(true)
-            || closed_boolean_value(program, &facts.operators, expression) == Some(true)
-            || constant_extent_requirement_value(program, state_flow, expression) == Some(true)
-            || super::super::call_bounds::proves(
+    let proven = selected_float_requirement(program, facts, state_flow, call_flow, expression)
+        == Some(true)
+        || closed_boolean_value(program, &facts.operators, expression) == Some(true)
+        || constant_extent_requirement_value(program, state_flow, expression) == Some(true)
+        || super::super::call_bounds::proves(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            entry_contexts,
+            expression,
+            None,
+        )
+        || call_entry_contexts_prove_boolean_contract_expression(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            entry_contexts,
+            expression,
+            call_frames,
+        )
+        || super::super::call_bounds::proves_in_context(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            entry_contexts,
+            expression,
+            call_frames,
+        )
+        || super::super::entailment::structural_call_requirement(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            expression,
+            call_frames,
+        )
+        || explicit_subject_call_requirement_proven(program, state_flow, call_flow, expression)
+        || if !expression_is_boolean_place_like(program, expression) {
+            // R1: a DOMINATING incoming-arm guard establishes a
+            // boolean requires fact -- the ranges machinery's
+            // IncomingGuard walk-back is the soundness gate
+            // (single-predecessor edges, rewrite-fenced across
+            // intermediate states), and the caller state's OWN
+            // statements must preserve the named fields up to
+            // the call (conservative whole-state scan).
+            incoming_guard_proves_requires(
                 program,
                 facts,
                 state_flow,
                 call_flow,
-                entry_contexts,
                 expression,
-                None,
-            )
-            || call_entry_contexts_prove_boolean_contract_expression(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                entry_contexts,
-                expression,
+                incoming_guards,
                 call_frames,
             )
-            || super::super::call_bounds::proves_in_context(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                entry_contexts,
-                expression,
-                call_frames,
-            )
-            || super::super::entailment::structural_call_requirement(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                expression,
-                call_frames,
-            )
-            || explicit_subject_call_requirement_proven(program, state_flow, call_flow, expression)
-            || if !expression_is_boolean_place_like(program, expression) {
-                // R1: a DOMINATING incoming-arm guard establishes a
-                // boolean requires fact -- the ranges machinery's
-                // IncomingGuard walk-back is the soundness gate
-                // (single-predecessor edges, rewrite-fenced across
-                // intermediate states), and the caller state's OWN
-                // statements must preserve the named fields up to
-                // the call (conservative whole-state scan).
-                incoming_guard_proves_requires(
-                    program,
-                    facts,
-                    state_flow,
-                    call_flow,
-                    expression,
-                    incoming_guards,
-                    call_frames,
-                )
-            } else {
-                // The actual-aware proof above already checked
-                // this formal. A raw callee name is not a caller
-                // fact, even when both parameters spell `flag`.
-                false
-            }
-            || transition_guard_proves_boolean_requirement(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                expression,
-                call_frames,
-            )
-            || standing_domain_fact_proves_requirement(program, state_flow, call_flow, expression);
+        } else {
+            // The actual-aware proof above already checked
+            // this formal. A raw callee name is not a caller
+            // fact, even when both parameters spell `flag`.
+            false
+        }
+        || transition_guard_proves_boolean_requirement(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            expression,
+            call_frames,
+        )
+        || standing_domain_fact_proves_requirement(program, state_flow, call_flow, expression);
     if proven {
         return true;
     }

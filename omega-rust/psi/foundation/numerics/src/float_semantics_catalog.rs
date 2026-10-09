@@ -263,10 +263,45 @@ pub enum FloatSemanticKernel {
     PairBool(fn(&FloatMeaning, &FloatMeaning) -> bool),
     /// `(FloatFormat, FloatMeaning) -> FloatClass`.
     UnaryClass(fn(FloatFormat, &FloatMeaning) -> FloatClass),
-    /// `FloatMeaning -> bool`.
-    SingleBool(fn(&FloatMeaning) -> bool),
+    /// Total classification predicates have explicit semantic identity so
+    /// checking can derive interval consequences without inspecting a name.
+    SinglePredicate(FloatSemanticPredicate),
     /// `(FloatFormat, FloatMeaning) -> bool`.
     UnaryBool(fn(FloatFormat, &FloatMeaning) -> bool),
+}
+
+/// The semantic classification law owned by a selected catalog predicate.
+/// An ordered enclosure excludes NaN; endpoint truth alone does not justify
+/// arbitrary predicates over its interior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloatSemanticPredicate {
+    Finite,
+    NaN,
+    Infinite,
+}
+
+impl FloatSemanticPredicate {
+    fn evaluate(self, value: &FloatMeaning) -> bool {
+        match self {
+            Self::Finite => FloatSemantics::is_finite(value),
+            Self::NaN => FloatSemantics::is_nan(value),
+            Self::Infinite => FloatSemantics::is_infinite(value),
+        }
+    }
+
+    fn ordered_interval(self, minimum: &FloatMeaning, maximum: &FloatMeaning) -> Option<bool> {
+        if !FloatSemantics::less_or_equal(minimum, maximum) {
+            return None;
+        }
+        match self {
+            Self::NaN => Some(false),
+            Self::Finite | Self::Infinite if minimum.is_finite() && maximum.is_finite() => {
+                Some(self == Self::Finite)
+            }
+            Self::Finite | Self::Infinite if minimum == maximum => Some(self.evaluate(minimum)),
+            _ => None,
+        }
+    }
 }
 
 impl FloatSemanticOperand {
@@ -423,11 +458,13 @@ impl FloatSemanticKernel {
                     value.as_meaning()?,
                 )))
             }
-            Self::SingleBool(kernel) => {
+            Self::SinglePredicate(predicate) => {
                 let [value] = arguments else {
                     return None;
                 };
-                Some(FloatSemanticResult::Bool(kernel(value.as_meaning()?)))
+                Some(FloatSemanticResult::Bool(
+                    predicate.evaluate(value.as_meaning()?),
+                ))
             }
             Self::UnaryBool(kernel) => {
                 let [format, value] = arguments else {
@@ -443,8 +480,8 @@ impl FloatSemanticKernel {
 }
 
 use FloatSemanticKernel::{
-    BinaryMeaning, FromInteger, PairBool, PairMeaning, SingleBool, TernaryMeaning, ToIntegerExact,
-    ToIntegerSaturating, UnaryBool, UnaryClass, UnaryMeaning,
+    BinaryMeaning, FromInteger, PairBool, PairMeaning, SinglePredicate, TernaryMeaning,
+    ToIntegerExact, ToIntegerSaturating, UnaryBool, UnaryClass, UnaryMeaning,
 };
 use FloatSemanticValueKind::{Bool, Class, Format, Meaning};
 
@@ -698,14 +735,19 @@ pub const FLOAT_SEMANTIC_OPERATIONS: &[FloatSemanticOperation] = &[
         "is_finite",
         SINGLE,
         Bool,
-        SingleBool(FloatSemantics::is_finite),
+        SinglePredicate(FloatSemanticPredicate::Finite),
     ),
-    row("is_nan", SINGLE, Bool, SingleBool(FloatSemantics::is_nan)),
+    row(
+        "is_nan",
+        SINGLE,
+        Bool,
+        SinglePredicate(FloatSemanticPredicate::NaN),
+    ),
     row(
         "is_infinite",
         SINGLE,
         Bool,
-        SingleBool(FloatSemantics::is_infinite),
+        SinglePredicate(FloatSemanticPredicate::Infinite),
     ),
     row(
         "is_normal",
@@ -955,6 +997,60 @@ impl FloatSemanticOperation {
             contract: self.contract_identity(),
             result,
         })
+    }
+
+    /// The image of an admitted Integer enclosure under this exact selected
+    /// conversion. The catalog's FromInteger kernel is monotone; discharge
+    /// each endpoint through that same kernel and retain its rounded meaning.
+    /// Fixed source carriers and sealed target formats remain independent.
+    pub fn integer_operand_image(
+        &self,
+        format: FloatFormat,
+        carrier: IntegerCarrier,
+        minimum: &BigInt,
+        maximum: &BigInt,
+    ) -> Option<(FloatMeaning, FloatMeaning)> {
+        if !matches!(self.kernel, FloatSemanticKernel::FromInteger(_))
+            || self.result != FloatSemanticValueKind::Meaning
+            || self.parameters
+                != [
+                    FloatSemanticValueKind::Format,
+                    FloatSemanticValueKind::Integer(carrier),
+                ]
+            || minimum > maximum
+        {
+            return None;
+        }
+        let endpoint = |value: &BigInt| {
+            let discharge = self.kernel_discharge(&[
+                FloatSemanticOperand::Format(format),
+                FloatSemanticOperand::Integer(value.clone()),
+            ])?;
+            let FloatSemanticResult::Meaning(meaning) = discharge.result else {
+                return None;
+            };
+            Some(meaning)
+        };
+        Some((endpoint(minimum)?, endpoint(maximum)?))
+    }
+
+    /// A classification predicate whose truth holds throughout an ordered
+    /// meaning enclosure. This uses the selected kernel's classification law,
+    /// never a named call or arbitrary endpoint agreement.
+    pub fn ordered_interval_predicate(
+        &self,
+        minimum: &FloatMeaning,
+        maximum: &FloatMeaning,
+    ) -> Option<bool> {
+        if self.parameters != [FloatSemanticValueKind::Meaning]
+            || self.result != FloatSemanticValueKind::Bool
+        {
+            return None;
+        }
+        let FloatSemanticKernel::SinglePredicate(predicate) = self.kernel else {
+            return None;
+        };
+        predicate.ordered_interval(minimum, maximum)
     }
 
     /// The reverse lookup an artifact-verifier performs: the identity carried
@@ -1356,6 +1452,138 @@ mod tests {
                 .result,
             FloatSemanticResult::Integer(BigInt::from_u64(127))
         );
+    }
+
+    #[test]
+    fn integer_carrier_images_preserve_rounded_bounds_and_signature() {
+        for carrier in [
+            IntegerCarrier::I8,
+            IntegerCarrier::I16,
+            IntegerCarrier::I32,
+            IntegerCarrier::I64,
+            IntegerCarrier::U8,
+            IntegerCarrier::U16,
+            IntegerCarrier::U32,
+            IntegerCarrier::U64,
+        ] {
+            let conversion = row_named(
+                "from_integer",
+                &[
+                    FloatSemanticValueKind::Format,
+                    FloatSemanticValueKind::Integer(carrier),
+                ],
+                FloatSemanticValueKind::Meaning,
+            );
+            let (minimum, maximum) = carrier.format().bounds();
+            for format in [FloatFormat::BINARY32, FloatFormat::BINARY64] {
+                let (lower, upper) = conversion
+                    .integer_operand_image(format, carrier, &minimum, &maximum)
+                    .expect("every builtin Integer image is finite");
+                assert!(FloatSemantics::is_finite(&lower));
+                assert!(FloatSemantics::is_finite(&upper));
+                assert!(FloatSemantics::less_or_equal(&lower, &upper));
+                // The image retains rounding: u64::MAX rounds up to 2^64.
+                if carrier == IntegerCarrier::U64 {
+                    assert_eq!(upper, FloatMeaning::from_f64(18446744073709551616.0));
+                }
+            }
+            assert!(
+                conversion
+                    .integer_operand_image(
+                        FloatFormat::BINARY32,
+                        carrier,
+                        &minimum,
+                        &maximum.add(&BigInt::from_u64(1))
+                    )
+                    .is_none()
+            );
+            assert!(
+                conversion
+                    .integer_operand_image(FloatFormat::BINARY32, carrier, &maximum, &minimum)
+                    .is_none()
+            );
+            let other = if carrier == IntegerCarrier::I8 {
+                IntegerCarrier::U8
+            } else {
+                IntegerCarrier::I8
+            };
+            assert!(
+                conversion
+                    .integer_operand_image(
+                        FloatFormat::BINARY32,
+                        other,
+                        &BigInt::zero(),
+                        &BigInt::from_u64(1)
+                    )
+                    .is_none()
+            );
+            assert!(
+                conversion
+                    .integer_operand_image(
+                        FloatFormat {
+                            precision: 8,
+                            ..FloatFormat::BINARY32
+                        },
+                        carrier,
+                        &minimum,
+                        &maximum
+                    )
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn ordered_predicate_images_follow_classification_laws() {
+        let finite = row_named(
+            "is_finite",
+            &[FloatSemanticValueKind::Meaning],
+            FloatSemanticValueKind::Bool,
+        );
+        let infinite = row_named(
+            "is_infinite",
+            &[FloatSemanticValueKind::Meaning],
+            FloatSemanticValueKind::Bool,
+        );
+        let nan = row_named(
+            "is_nan",
+            &[FloatSemanticValueKind::Meaning],
+            FloatSemanticValueKind::Bool,
+        );
+        let lower = FloatMeaning::from_f64(-1.0);
+        let upper = FloatMeaning::from_f64(1.0);
+        assert_eq!(
+            finite.ordered_interval_predicate(&lower, &upper),
+            Some(true)
+        );
+        assert_eq!(
+            infinite.ordered_interval_predicate(&lower, &upper),
+            Some(false)
+        );
+        assert_eq!(nan.ordered_interval_predicate(&lower, &upper), Some(false));
+        let negative_infinity = FloatMeaning::from_f64(f64::NEG_INFINITY);
+        let positive_infinity = FloatMeaning::from_f64(f64::INFINITY);
+        // Equal endpoint predicates do not establish the interior: this span
+        // contains finite values as well as both infinities.
+        assert_eq!(
+            finite.ordered_interval_predicate(&negative_infinity, &positive_infinity),
+            None
+        );
+        assert_eq!(
+            infinite.ordered_interval_predicate(&negative_infinity, &positive_infinity),
+            None
+        );
+        assert_eq!(
+            infinite.ordered_interval_predicate(&positive_infinity, &positive_infinity),
+            Some(true)
+        );
+        assert_eq!(finite.ordered_interval_predicate(&upper, &lower), None);
+        for predicate in [finite, infinite, nan] {
+            assert_eq!(
+                predicate.ordered_interval_predicate(&FloatMeaning::NaN, &FloatMeaning::NaN),
+                None
+            );
+        }
     }
 
     #[test]
