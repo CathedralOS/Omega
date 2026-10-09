@@ -19,15 +19,15 @@ use register_model::{
     RegisterConstraintKey, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
 };
 use selected_instructions::{
-    FloatResultPolicyForm, FloatResultPolicyKind, MachineAlternative,
-    MachineAlternativeApplicability, MachineAlternativeFamily, MachineAlternativeKey,
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
-    MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    FloatResultPolicyForm, MachineAlternative, MachineAlternativeApplicability,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
+    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SelectedInstructionKind,
 };
 
 #[cfg(test)]
-use selected_instructions::MachineEncodedControlEffect;
+use selected_instructions::{FloatResultPolicyKind, MachineEncodedControlEffect};
 
 pub(crate) fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
     let physical = crate::x86_64_physical_register_model_ref();

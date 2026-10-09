@@ -24,7 +24,7 @@ fn trapping_words_match_assembler_and_corrupted_policy_bytes_reject() {
         let registers = if form.can_trap() {
             vec![3, 4]
         } else {
-            vec![1, 2, 3, 4]
+            vec![1, 3, 4]
         };
         let bytes = encode(form, &registers).unwrap();
         validate(form, &registers, &bytes).unwrap();

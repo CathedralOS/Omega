@@ -273,9 +273,6 @@ impl FloatSemantics {
         Self::round_exact(format, value.to_exact())
     }
 
-
-
-
     pub fn add(format: FloatFormat, left: &FloatMeaning, right: &FloatMeaning) -> FloatMeaning {
         Self::round_exact(format, left.to_exact().add(&right.to_exact()))
     }
@@ -304,8 +301,6 @@ impl FloatSemantics {
     pub fn from_integer_toward_zero(format: FloatFormat, value: &BigInt) -> FloatMeaning {
         Self::from_integer_directed(format, value, RoundingDirection::TowardZero)
     }
-
-
 
     /// Exact conversion is contract-gated: callers prove this succeeds before
     /// selecting the operation.
@@ -716,7 +711,9 @@ impl FloatSemantics {
         )
     }
 
-    fn maximum_finite(format: FloatFormat, negative: bool) -> FloatMeaning {
+    /// Signed finite endpoint used when an admitted result adapter clamps
+    /// magnitude overflow in one of the supported IEEE formats.
+    pub fn maximum_finite(format: FloatFormat, negative: bool) -> FloatMeaning {
         if format == FloatFormat::BINARY32 {
             let sign = if negative { 0x8000_0000 } else { 0 };
             FloatMeaning::from_f32(f32::from_bits(sign | 0x7f7f_ffff))
