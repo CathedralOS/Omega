@@ -129,7 +129,7 @@ pub(super) fn lower(
             psi_operation: *psi_operation,
             boundary: *boundary,
             execution,
-            realization: *realization,
+            realization,
             result_home: home,
             argument,
         });
