@@ -1392,13 +1392,24 @@ defines the complete product bar.
     suffix was store-enforced: re-prove dependent reads after a write
     (`pass/termination/rank_range_mutable_bounded_endpoint` plus negative
     mutation controls).
-  - Library: `source/library/std/time.omg` (subsecond fields/locals,
-    constants), `source/library/core/layout.omg` (fuel/index),
-    `source/library/std/calling.omg` (indexed fields),
-    `source/library/std/tests/direct_callback_parameter.omg` (indexed
-    parameter) and target-entry `field_range` parameters; prove computed
-    `fuel - 1` / `index + 1` arguments and equivalent guards (`< 255` vs
-    `<= 254`).
+  - Library: 12 integer suffixes remain, each blocked in the Rust reference.
+    `Duration.subsecond_nanoseconds` (`source/library/std/time.omg`): in data
+    `where` form, `pub const Duration::MAX` (read by
+    `pass/time/runtime_duration_core_exit`) loses its canonical declaration
+    identity, because `validate_selected_const_type`
+    (`omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/values.rs`)
+    refuses data with default-domain facts. `AccessPlan::with_bounded`'s
+    `fuel`/`index`/`field_count` parameters (`source/library/core/layout.omg`,
+    9) and `field_range`'s `first_field` (`std/entry_shapes.omg`,
+    `std/targets/macos_x86_64/entry.omg`): build-time admission
+    (`omega-rust/psi/compilation/compile-time/src/machine_execution/admission/closure_validation.rs`)
+    treats an authored `requires` anywhere in a policy's call closure as an
+    undischarged premise. In `requires` form a placement policy calling
+    `AccessPlan::with` is refused even in a program that otherwise checks, and
+    every hosted entry calling policy pays the whole-program discharge probe
+    (`argument_independent_closure_discharges`): `pass/filesystem/native_crud`
+    checks in 34 s instead of 4.5 s. Migrate these once admission discharges
+    premises the checker already proved.
   - Migrate `fail/wire/wire_policy_plan_disagrees` keeping its plan/schema
     disagreement rejection.
   Canonical controls to keep: `pass/collections/runtime_argmax_index_exit`,
@@ -6031,28 +6042,31 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   body's derived summary serves its callers, exported or not. Checking
   reports each rejected machine's first rejection.
   `tests/psi/checking/test-checking.sh` passes 125 checking cases and accepts
-  the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 75
-  of the 102 `source/library/std` and `core` files; the other 27 stop first at
+  the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 80
+  of the 102 `source/library/std` and `core` files; the other 22 stop first at
   13 retired `boundary requirement` declarations (12 std target files and
   `core/task.omg`) and `core/float_operations.omg`'s retired `boundary
   operator` rows, which **TOP-LEVEL-BOUNDARY-REQUIREMENTS** has not migrated,
-  10 retired range suffixes awaiting
-  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** migration, and one each at an
-  applied type-position domain (`in
-  Quantity<Units::METER>`), an installation reach row `reaches <= Bound`, and
-  requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
+  3 range suffixes **CANONICALIZE-SCALAR-RANGE-CONTRACTS** keeps
+  (`std/time.omg`, `std/entry_shapes.omg`,
+  `std/targets/macos_x86_64/entry.omg`), and one each at an array-literal
+  field value (`core/layout.omg`), a `native callback procedure from`
+  telescope row (`std/tests/direct_callback_parameter.omg`), an applied
+  type-position domain (`in Quantity<Units::METER>`), an installation reach
+  row `reaches <= Bound`, and requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
   in 0..=n`) and indexed membership domains (`in AtMost<8>`) do not parse
   yet; range slices (`a[s..e]`, `a[s..=e]` and the open forms) parse, type as
   their collection's slice place and check within its length. Of the 52 std
-  and core files outside target and test directories, 42 parse whole; with
+  and core files outside target and test directories, 44 parse whole; with
   the transitive closure of their imports (std as package
-  `omega_language_std`, core as the toolchain package), 27 of the 41
-  measured (`std/build.omg` aside) resolve. The others stop first at 8
-  imports that do not parse, `std/process_exit.omg` at a provider type
+  `omega_language_std`, core as the toolchain package), 27 of the 43
+  measured (`std/build.omg` aside) resolve. The others stop first at 9
+  imports that do not parse, `std/calling.omg` at its trait parameter bound
+  `Policy satisfies CallingPolicy`, `std/process_exit.omg` at a provider type
   its target implementations name without importing `process_exit` (imports
   are not transitive), the 3 device-group files (`core/device.omg` with
-  `arena` and `extent`) at the compiler builtin function `embed`, which
-  resolution does not install, `core/slice.omg` at its `boundary machine []`
+  `arena` and `extent`) at `extent`'s `pub let no_wrap(base: addr, length:
+  u64): core::Strict<0>` declaration, `core/slice.omg` at its `boundary machine []`
   index token, and `core/option.omg` at
   `zero_value<Optional<T>>()`, a proof-only observation the Rust parser
   recognizes contextually and no spec page defines (the product parser reads

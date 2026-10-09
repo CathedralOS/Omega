@@ -670,7 +670,9 @@ reaches FilesystemHost
     state rds_rm_child(filesystem: &mut Filesystem, entry: DirEntry) {
         transition entry.name_len < 256 { true -> rds_rm_child_go(filesystem, entry, entry.name_len) _ -> rds_fail(filesystem) }
     }
-    state rds_rm_child_go(filesystem: &mut Filesystem, entry: DirEntry, name_len: u64[0..=255]) {
+    state rds_rm_child_go(filesystem: &mut Filesystem, entry: DirEntry, name_len: u64)
+    requires name_len <= 255;
+    {
         filesystem.rda_rc = filesystem.host.unlink_at(filesystem.rda_fd, entry.name[0..name_len], 512);
         transition filesystem.rda_rc == 0 { true -> rds_continue(filesystem) _ -> rds_fail(filesystem) }
     }
@@ -679,17 +681,23 @@ reaches FilesystemHost
     state rds_entry(filesystem: &mut Filesystem, entry: DirEntry) {
         transition entry.name_len < 256 { true -> rds_kind(filesystem, entry, entry.name_len) _ -> rds_fail(filesystem) }
     }
-    state rds_kind(filesystem: &mut Filesystem, entry: DirEntry, name_len: u64[0..=255]) {
+    state rds_kind(filesystem: &mut Filesystem, entry: DirEntry, name_len: u64)
+    requires name_len <= 255;
+    {
         transition entry.is_dir {
             true -> rds_descend(filesystem, entry, name_len)
             false -> rds_unlink(filesystem, entry, name_len)
         }
     }
-    state rds_unlink(filesystem: &mut Filesystem, entry: DirEntry, name_len: u64[0..=255]) {
+    state rds_unlink(filesystem: &mut Filesystem, entry: DirEntry, name_len: u64)
+    requires name_len <= 255;
+    {
         filesystem.rda_rc = filesystem.host.unlink_at(filesystem.rda_fd, entry.name[0..name_len], 0);
         transition filesystem.rda_rc == 0 { true -> rds_continue(filesystem) _ -> rds_fail(filesystem) }
     }
-    state rds_descend(filesystem: &mut Filesystem, entry: DirEntry, name_len: u64[0..=255]) {
+    state rds_descend(filesystem: &mut Filesystem, entry: DirEntry, name_len: u64)
+    requires name_len <= 255;
+    {
         filesystem.rda_sub = filesystem.host.open_at(filesystem.rda_fd, entry.name[0..name_len], filesystem.read_flags);
         filesystem.rda_rc = filesystem.rda_sub;
         transition filesystem.rda_sub >= 0 { true -> rds_push(filesystem) _ -> rds_fail(filesystem) }
