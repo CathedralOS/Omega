@@ -157,6 +157,9 @@ pub fn loan_carrier_has_owned_storage(
 /// same element a half-open window shares with its collection, so
 /// `&[Box<Context>]` resumes at `Box<Context>`. A reference with no element
 /// (a record, a scalar, an unbound parameter) has none to resume at.
+/// A non-Exact collection policy is inherited only when the element has no
+/// non-Exact policy of its own. Typing retains the complete qualified element;
+/// this query never substitutes a bare carrier or manufactures a new type.
 pub fn collection_element_type_reference(
     program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -316,7 +319,7 @@ fn indexed_element_type_reference(
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let type_reference = substituted_type_reference(program, type_reference, substitutions);
-    match program.type_reference_table.type_reference(type_reference) {
+    let element = match program.type_reference_table.type_reference(type_reference) {
         typed_trees::types::TypeReferenceNode::Reference { referee, .. }
         | typed_trees::types::TypeReferenceNode::Constrained {
             base_type: referee, ..
@@ -328,6 +331,20 @@ fn indexed_element_type_reference(
         | typed_trees::types::TypeReferenceNode::Named { .. }
         | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
         | typed_trees::types::TypeReferenceNode::Unit => None,
+    }?;
+    let collection_policy = program.arithmetic_domain_for_type_reference(type_reference);
+    if collection_policy != numerics::arithmetic::ArithmeticDomain::Exact
+        && program.arithmetic_domain_for_type_reference(element)
+            == numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        // Typing retains the effective element shell. Reads, stores, literal
+        // construction and views consume this same inherited policy rather
+        // than reconstructing it after stripping the collection constraints.
+        program
+            .type_reference_table
+            .find_policy_qualified_type_reference(element, collection_policy)
+    } else {
+        Some(element)
     }
 }
 

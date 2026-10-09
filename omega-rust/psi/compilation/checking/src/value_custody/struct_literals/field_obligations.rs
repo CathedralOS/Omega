@@ -305,12 +305,15 @@ pub(crate) fn validate_array_literal_elements(
 ) {
     // Qualifications constrain the value, not the array's storage shape.
     // Element formation still owes its exact carrier checks independently.
-    let expected_type =
+    let array_shape =
         crate::value_custody::places::peel_declared_constraints(program, expected_type);
-    let TypeReferenceNode::FixedArray {
-        element_type,
-        length,
-    } = program.type_reference_table.type_reference(expected_type)
+    let TypeReferenceNode::FixedArray { length, .. } =
+        program.type_reference_table.type_reference(array_shape)
+    else {
+        return;
+    };
+    let Some(element_type) =
+        crate::value_custody::places::collection_element_type_reference(program, expected_type)
     else {
         return;
     };
@@ -323,7 +326,7 @@ pub(crate) fn validate_array_literal_elements(
         machine,
         state,
         value,
-        *element_type,
+        element_type,
         expected_len,
         diagnostics,
     );
