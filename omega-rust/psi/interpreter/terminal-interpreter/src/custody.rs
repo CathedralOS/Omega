@@ -1261,19 +1261,26 @@ pub(crate) fn transfer_claims(
         }
         let caller_place = caller_arguments[argument_index as usize].place;
         let argument_path = &caller_arguments[argument_index as usize].path;
-        for (transfer, entry_claim) in actual.iter().zip(expected) {
+        // Caller and callee claim identities are independent machine-local
+        // namespaces, each in its own canonical order, so a transfer joins the
+        // entry claim at its own path below the argument, never by position.
+        let mut unmatched = expected;
+        for transfer in actual {
             let caller_claim = remaining
                 .remove(&transfer.claim)
                 .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
-            let expected_caller_path = argument_path
-                .iter()
-                .cloned()
-                .chain(entry_claim.path.iter().cloned())
-                .collect::<Vec<_>>();
-            if caller_claim.place != Some(caller_place) || caller_claim.path != expected_caller_path
-            {
+            if caller_claim.place != Some(caller_place) {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
+            let suffix = caller_claim
+                .path
+                .strip_prefix(argument_path.as_slice())
+                .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
+            let position = unmatched
+                .iter()
+                .position(|entry_claim| entry_claim.path == suffix)
+                .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
+            let entry_claim = unmatched.swap_remove(position);
             let parameter = callee_parameters
                 .get(argument_index as usize)
                 .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
