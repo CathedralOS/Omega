@@ -3,16 +3,12 @@
 use abstract_operations::{
     AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
 };
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-};
+use optimization_core::{AnalysisKind, AnalysisSet, OptimizationRuleContract};
 use optimization_unit::{
     ProofCertifiedScalarIdentityKind, PsiOptimizationUnit, PsiRewriteCandidate,
 };
 use semantic_vocabulary::IntegerValue;
 
-use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::rules::proof_check_elision::identity_rewrite::{
     ProofCertifiedScalarIdentityShape, propose_proof_certified_scalar_identities,
 };
@@ -61,24 +57,14 @@ pub(crate) struct LiveProofCertifiedIntegerDivideByOneEliminationRule;
 
 impl LiveProofCertifiedIntegerDivideByOneEliminationRule {
     pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(PROOF_CHECK_ELISION_PASS_NAME),
-            1,
+        super::proof_check_elision_rule_contract(
+            b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
             AnalysisSet::new([
                 AnalysisKind::ScalarConstants,
                 AnalysisKind::UseDefinition,
                 AnalysisKind::EffectSummaries,
             ]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::ProofCertified,
         )
-        .expect("built-in rule has nonzero version")
     }
 }
 

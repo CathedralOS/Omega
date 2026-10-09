@@ -1,13 +1,17 @@
 //! Optimizer module role: executable entrance. Proof-check elision, cataloged by the exact scalar identity being proved.
 
 use abstract_operations::IntegerArithmeticOperator;
-use optimization_core::{AnalysisKind, OptimizationRuleContract};
+use optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
 use optimization_unit::{
     IntegerConstantRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerType, IntegerValue};
 
+use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
@@ -25,6 +29,27 @@ mod self_subtract;
 mod signed_remainder_by_negative_one;
 mod zero_dividend;
 mod zero_value_shift;
+
+/// The contract every proof-check-elision rule states by hand — pass,
+/// version, invalidation set and safety class are fixed; only the rule
+/// identity and its required analyses differ.
+fn proof_check_elision_rule_contract(
+    identity: &'static [u8],
+    analyses: AnalysisSet,
+) -> OptimizationRuleContract {
+    OptimizationRuleContract::new(
+        OptimizationRuleIdentity::from_canonical_bytes(identity),
+        OptimizationPassIdentity::from_canonical_bytes(PROOF_CHECK_ELISION_PASS_NAME),
+        1,
+        analyses,
+        AnalysisInvalidationSet::new([
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::ProofCertified,
+    )
+    .expect("built-in rule has nonzero version")
+}
 
 pub(crate) use divide_by_one::LiveProofCertifiedIntegerDivideByOneEliminationRule;
 pub(crate) use multiply_by_zero::LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;
