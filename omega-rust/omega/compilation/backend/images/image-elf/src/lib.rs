@@ -241,11 +241,11 @@ pub(crate) mod test_support {
     ) -> crate::PlannedElfDynamicLinkInputs {
         use arena::Handle;
         use image::{
-            FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-            FinalImageSection, FinalImageSymbol,
+            FinalImageMemory, FinalImageRelocation,
+            FinalImageSection,
         };
-        use object_file::{RelocationKind, SymbolKind};
-        use target::{ForeignLocatorCandidate, normalize_foreign_locator};
+        use object_file::RelocationKind;
+        
 
         let relocation_count = imports
             .iter()
@@ -354,11 +354,11 @@ pub(crate) mod test_support {
     ) -> crate::PlannedElfDynamicLinkInputs {
         use arena::Handle;
         use image::{
-            FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory,
-            FinalImageRelocation, FinalImageSection, FinalImageSymbol,
+            FinalImage, FinalImageMemory,
+            FinalImageRelocation, FinalImageSection,
         };
-        use object_file::{RelocationKind, SymbolKind};
-        use target::{ForeignLocatorCandidate, NativeTarget, normalize_foreign_locator};
+        use object_file::RelocationKind;
+        use target::NativeTarget;
 
         let native_target = target.native_target();
         let mut image = FinalImage::with_capacity(

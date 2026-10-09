@@ -69,16 +69,12 @@ fn representation_specialization_rule_registrations() -> Vec<catalog::BuiltInRul
 }
 
 use optimization::PsiOptimizationSelections;
-#[cfg(any(test, feature = "test-support"))]
-use optimization_core::OptimizationSelections;
 use optimization_core::{
     OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
     OptimizationRuleSetIdentity};
 
 use crate::{OrderedRuleRegistry, RuleRegistryError};
 
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use catalog::PSI_PASS_CATALOG;
 
 /// One scheduled Psi pass: either a fixed-point rewrite registry over
 /// `PsiRewriteCandidate`s under analysis-manager custody, or a session-level

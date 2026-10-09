@@ -28,11 +28,6 @@ use crate::{
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
     analyze_counted_loops,
 };
-#[cfg(any(test, feature = "test-support"))]
-use crate::{
-    CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisSnapshot,
-};
 pub(crate) use execution::run_registries;
 use optimization_core::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionRecordError,

@@ -10,13 +10,10 @@ use super::{
 use crate::plan_elf_dynamic_link_inputs;
 use arena::Handle;
 use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSection, FinalImageSymbol,
+    FinalImage, FinalImageMemory,
 };
-use object_file::{RelocationKind, SymbolKind};
 use target::{
-    ForeignLocatorCandidate, TargetProfile, normalize_elf_interpreter_plan,
-    normalize_foreign_locator,
+    TargetProfile, normalize_elf_interpreter_plan,
 };
 
 #[derive(Clone, Copy)]

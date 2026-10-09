@@ -8,13 +8,9 @@ use crate::{
 };
 use arena::Handle;
 use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSection, FinalImageSymbol,
+    FinalImage, FinalImageMemory,
 };
-use object_file::{RelocationKind, SymbolKind};
-use target::{
-    ForeignLocatorCandidate, normalize_elf_interpreter_plan, normalize_foreign_locator,
-};
+use target::normalize_elf_interpreter_plan;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, derive_contents};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::{read_field, read_u32, validate_candidate, validate_contents, validate_fixup_coverage};
 use target::TargetProfile;

@@ -11,8 +11,6 @@ mod loops;
 pub(super) use call_graph::call_graph;
 pub(super) use components::block_components;
 
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_induction::CountedLoopAnalysisSnapshot;
 pub(crate) use countdown_induction::analyze_counted_loops;
 pub(crate) use countdown_induction::{
     CountedLoopAnalysisError, UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
@@ -20,17 +18,12 @@ pub(crate) use countdown_induction::{
 
 pub(crate) use countdown_invariant_constant_placement::analyze_countdown_invariant_constant_placement;
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_invariant_constant_placement::{
-    CountdownInvariantConstantPlacementAnalysisSnapshot,
-    UnsignedCountdownInvariantConstantPlacements,
-};
+pub(crate) use countdown_invariant_constant_placement::UnsignedCountdownInvariantConstantPlacements;
 pub(crate) use countdown_invariant_constant_placement::{
     CountdownInvariantConstantPlacementAnalysisError,
     ValidatedCountdownInvariantConstantPlacementAnalysis,
 };
 
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_invariant_constants::CountdownInvariantConstantAnalysisSnapshot;
 pub(crate) use countdown_invariant_constants::analyze_countdown_invariant_constants;
 pub(crate) use countdown_invariant_constants::validate_moved_constant_locations;
 pub(crate) use countdown_invariant_constants::{

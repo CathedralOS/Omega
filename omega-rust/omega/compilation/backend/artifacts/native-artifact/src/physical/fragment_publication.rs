@@ -1,9 +1,9 @@
 //! Exact publication custody over the shared, independently validated object route.
 
 use std::sync::Arc;
-use installation_evidence::ObjectEvidence;
 
 use image_emission::ObjectArtifact;
+use installation_evidence::ObjectEvidence;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use sha2::{Digest, Sha256};
 

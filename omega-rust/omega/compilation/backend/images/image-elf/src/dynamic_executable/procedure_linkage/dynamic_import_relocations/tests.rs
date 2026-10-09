@@ -13,11 +13,9 @@ use crate::{
 };
 use arena::Handle;
 use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSymbol,
+    FinalImage, FinalImageMemory, FinalImageRelocation,
 };
-use object_file::SymbolKind;
-use target::{ForeignLocatorCandidate, normalize_elf_interpreter_plan, normalize_foreign_locator};
+use target::normalize_elf_interpreter_plan;
 
 use crate::test_support::{IMPORTS, ImportFixture, import_fixture_interpreter_path};
 

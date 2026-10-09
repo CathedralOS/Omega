@@ -24,8 +24,6 @@
 //! is crate-private -- the phase's own leg -- and `replay_psi_registry` is the
 //! test-only single-registry replay this crate's replay tests drive.
 
-#[cfg(any(test, feature = "test-support"))]
-use optimization_core::ExternalDecisionLog;
 use optimization_core::{
     OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
     PsiOptimizationSelectionProjection,
@@ -42,8 +40,6 @@ use crate::publication::{
     OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan, publish_optimization_run,
 };
 use crate::rules::built_in_psi_steps_for_selections;
-#[cfg(any(test, feature = "test-support"))]
-use crate::rules::registry::OrderedRuleRegistry;
 
 #[derive(Debug)]
 pub enum AbstractOptimizationError {

@@ -44,11 +44,6 @@ pub(crate) use analyses::{
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
     analyze_counted_loops,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use analyses::{
-    CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisSnapshot,
-};
 pub(crate) use optimization_unit::ScalarConstantValue;
 pub(crate) use pass_manager::PsiValidatedCandidateDeclaration;
 pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
