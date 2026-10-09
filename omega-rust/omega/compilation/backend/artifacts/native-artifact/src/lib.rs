@@ -69,3 +69,13 @@ pub(crate) use semantic_wrapper_object::{
     ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
     compose_optimized_program_storage_semantic_wrapper_object,
 };
+
+/// Single-error diagnostic for a failed `context` stage of native artifact work.
+pub(crate) fn native_artifact_error(
+    context: &str,
+    error: impl std::fmt::Display,
+) -> Vec<diagnostics::Diagnostic> {
+    vec![diagnostics::Diagnostic::error(format!(
+        "native artifact {context} failed: {error}"
+    ))]
+}

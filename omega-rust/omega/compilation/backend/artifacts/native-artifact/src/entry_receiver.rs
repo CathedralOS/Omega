@@ -49,7 +49,7 @@ pub fn admit_executable_entry_receiver(
         _ => false,
     };
     if lowered_attachment != terminal_attachment || !parameters_preserved {
-        return Err(receiver_admission_error(
+        return Err(crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
             "lowered entry does not preserve the source-selected receiver identity",
         ));
@@ -68,7 +68,7 @@ pub fn admit_executable_entry_receiver(
         // bridge for it is the semantic wrapper object join.
         || native_target == target::NativeTarget::uefi_x64();
     let checked_entry = program_entry.checked_entry.ok_or_else(|| {
-        receiver_admission_error(
+        crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
             "hosted receiver requires exact checked initialization and cleanup custody",
         )
@@ -79,9 +79,9 @@ pub fn admit_executable_entry_receiver(
         program_entry,
         native_target,
     )
-    .map_err(|error| receiver_admission_error("ProgramEntry receiver custody", error))?;
+    .map_err(|error| crate::native_artifact_error("ProgramEntry receiver custody", error))?;
     let eligibility = settled.checked_entry().receiver_eligibility().ok_or_else(|| {
-        receiver_admission_error(
+        crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
             "hosted receiver requires a checked ZII-valid value with no executable nominal cleanup",
         )
@@ -91,7 +91,7 @@ pub fn admit_executable_entry_receiver(
         terminal_psi::CheckedProgramEntryReceiverProjection::Retained { .. }
     );
     if has_receiver && !supported_receiver_bridge {
-        return Err(receiver_admission_error(
+        return Err(crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
             "the executable entry retains a context parameter, but no root-backed bridge constructs and lends its context; source-entry settlement alone does not provision context storage",
         ));
@@ -127,14 +127,8 @@ fn entry_boundary_without_receiver(
     if placed_view_establishments.is_empty() {
         return Ok(None);
     }
-    Err(receiver_admission_error(
+    Err(crate::native_artifact_error(
         "ProgramEntry placed-view custody",
         "bound placed-view establishments require the hosted entry boundary that lends each referent; this admission retains none",
     ))
-}
-
-fn receiver_admission_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "native artifact {context} failed: {error}"
-    ))]
 }

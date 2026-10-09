@@ -66,7 +66,7 @@ pub fn publish_fragment_object(
                 .unresolved_implementation_table_addresses,
         },
     )
-    .map_err(|error| publication_error("fragment object publication", error))?;
+    .map_err(|error| crate::native_artifact_error("fragment object publication", error))?;
     // The publication receipt retains the complete immutable object, including
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.
@@ -78,7 +78,7 @@ pub fn publish_fragment_object(
         // fails closed here rather than publishing an entry whose loans
         // nobody emits.
         if !entry.placed_view_establishments().is_empty() {
-            return Err(publication_error(
+            return Err(crate::native_artifact_error(
                 "ProgramEntry placed-view custody",
                 "bound placed-view establishments require the hosted entry boundary to lend each referent; this bridge does not carry them yet",
             ));
@@ -104,20 +104,20 @@ pub fn publish_fragment_object(
                 std::sync::Arc::clone(&source),
             )
             .map_err(|error| {
-                publication_error(
+                crate::native_artifact_error(
                     "semantic entry object staging",
                     format!("emitted object artifact replay failed: {error:?}"),
                 )
             })?;
             let contract = bind_semantic_contract(entry).map_err(|error| {
-                publication_error(
+                crate::native_artifact_error(
                     "semantic entry contract",
                     format!("settlement did not bind its retained semantic contract: {error:?}"),
                 )
             })?;
             let receiver =
                 receiver_layout(&source_artifact, entry, &contract).map_err(|error| {
-                    publication_error(
+                    crate::native_artifact_error(
                         "semantic entry receiver",
                         format!("selected receiver shape is not wrapper-provisionable: {error:?}"),
                     )
@@ -126,7 +126,7 @@ pub fn publish_fragment_object(
                 contract, receiver,
             )
             .map_err(|error| {
-                publication_error(
+                crate::native_artifact_error(
                     "semantic entry wrapper plan",
                     format!("semantic wrapper recipe rejected: {error:?}"),
                 )
@@ -136,7 +136,7 @@ pub fn publish_fragment_object(
                     plan,
                 )
                 .map_err(|error| {
-                    publication_error(
+                    crate::native_artifact_error(
                         "semantic entry wrapper encoding",
                         format!("target encoding replay rejected: {error:?}"),
                     )
@@ -148,7 +148,7 @@ pub fn publish_fragment_object(
                     encoding,
                 )
                 .map_err(|error| {
-                    publication_error(
+                    crate::native_artifact_error(
                         "semantic entry object staging",
                         format!("wrapper object join rejected: {error:?}"),
                     )
@@ -159,13 +159,15 @@ pub fn publish_fragment_object(
                 .storage_entry()
                 .and_then(|storage| storage.physical_contract())
                 .ok_or_else(|| {
-                    publication_error(
+                    crate::native_artifact_error(
                         "ProgramEntry receiver provisioning",
                         "missing exact hosted physical contract",
                     )
                 })?;
-            let demand = image_emission::derive_stack_demand(&object, object.entry())
-                .map_err(|error| publication_error("ProgramEntry receiver stack demand", error))?;
+            let demand =
+                image_emission::derive_stack_demand(&object, object.entry()).map_err(|error| {
+                    crate::native_artifact_error("ProgramEntry receiver stack demand", error)
+                })?;
             // The checked eligibility decides whether the receiver's nominal
             // cleanup must occupy its hosted extent through completion. The
             // binding records that occupancy so the extent is tracked through
@@ -206,7 +208,9 @@ pub fn publish_fragment_object(
             &source,
             &object,
         )
-        .map_err(|error| publication_error("fragment physical-evidence projection", error))?,
+        .map_err(|error| {
+            crate::native_artifact_error("fragment physical-evidence projection", error)
+        })?,
         None => NativePhysicalEvidenceScope::Unavailable,
     };
     validate_emitted_receiver_binding(
@@ -226,13 +230,15 @@ fn stage_fragment_object(
     emission: machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<object_file::StagedOptimizedRelocationFreeObjectContainer, Vec<Diagnostic>> {
     let emitted = machine_emission::stage_optimized_function_fragment_emission(emission)
-        .map_err(|error| publication_error("function-fragment emission", error))?;
-    let applied = machine_emission::stage_function_fragment_frame_application(emitted)
-        .map_err(|error| publication_error("function-fragment frame application", error))?;
+        .map_err(|error| crate::native_artifact_error("function-fragment emission", error))?;
+    let applied =
+        machine_emission::stage_function_fragment_frame_application(emitted).map_err(|error| {
+            crate::native_artifact_error("function-fragment frame application", error)
+        })?;
     let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
-        .map_err(|error| publication_error("framed text placement", error))?;
+        .map_err(|error| crate::native_artifact_error("framed text placement", error))?;
     object_file::stage_optimized_relocation_free_object_container(text)
-        .map_err(|error| publication_error("fragment object placement", error))
+        .map_err(|error| crate::native_artifact_error("fragment object placement", error))
 }
 
 /// Admission is demand, not construction. The emitted object must carry a
@@ -251,7 +257,7 @@ fn validate_emitted_receiver_binding(
         return if binding.is_none() && !semantic_wrapper_object {
             Ok(())
         } else {
-            Err(publication_error(
+            Err(crate::native_artifact_error(
                 "ProgramEntry receiver provisioning",
                 "emitted object carries a hosted receiver binding that admission never granted",
             ))
@@ -264,14 +270,14 @@ fn validate_emitted_receiver_binding(
         return if binding.is_none() && semantic_wrapper_object {
             Ok(())
         } else {
-            Err(publication_error(
+            Err(crate::native_artifact_error(
                 "ProgramEntry receiver provisioning",
                 "admitted UEFI semantic entry did not reach a staged wrapper object",
             ))
         };
     }
     let Some(binding) = binding else {
-        return Err(publication_error(
+        return Err(crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
             "admitted receiver provisioning did not reach the emitted object",
         ));
@@ -282,7 +288,7 @@ fn validate_emitted_receiver_binding(
     if binding.source() != settlement.source()
         || admitted_contract != Some(binding.physical_contract())
     {
-        return Err(publication_error(
+        return Err(crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
             "emitted hosted receiver binding does not carry the admitted source signature and physical contract",
         ));
@@ -295,16 +301,10 @@ fn validate_emitted_receiver_binding(
                 == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
         });
     if binding.cleanup_occupancy() != admitted_occupancy {
-        return Err(publication_error(
+        return Err(crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
             "emitted hosted receiver binding does not track the admitted cleanup occupancy",
         ));
     }
     Ok(())
-}
-
-fn publication_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "native artifact {context} failed: {error}"
-    ))]
 }
