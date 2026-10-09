@@ -22,6 +22,20 @@ pub(super) fn validate_borrowed_argument(
     else {
         return None;
     };
+    // Transfers index structural arguments, not the interleaved ABI roster.
+    // A loan cannot consume a claim, including through a stored-reference
+    // crossing. Owned siblings keep their own call-local transfers.
+    let structural_argument_index = call.arguments[..argument_index]
+        .iter()
+        .filter(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
+        .count();
+    if call
+        .claim_transfers
+        .iter()
+        .any(|transfer| transfer.argument_index as usize == structural_argument_index)
+    {
+        return None;
+    }
     if semantic
         .path
         .iter()
@@ -403,7 +417,6 @@ pub(super) fn validate_borrowed_argument(
             &parameters,
             &signature.structural_types,
         ))
-        || !call.claim_transfers.is_empty()
         || call.call_plan != expected
         || (no_indirect_home
             && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))

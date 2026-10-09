@@ -10,31 +10,41 @@ use crate::execution::terminal_unit::{
     Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode, is_reference,
 };
 
-/// A binding projected from an ordinary parameter retains its exact
-/// requirement and source occurrence. This proves the call
-/// receiver; attachment-field requirements remain a separate roster obligation.
-pub(super) fn parameter_binding_receiver_matches(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-    call_site: &validation::CallSite<'_>,
-    requirement: SymbolHandle,
-) -> bool {
-    let Some((source, _)) =
-        parameter_binding_receiver_source(program, state, statement_index, call_site, requirement)
-    else {
-        return false;
-    };
-    parameters.iter().any(|parameter| {
-        program
-            .state_parameters(state)
-            .get(parameter.position as usize)
-            .is_some_and(|candidate| candidate.symbol == source.symbol)
-    })
+/// The source of boundary authority is independent of operand scheduling.
+/// Consumers retain the ordinary parameter in their own signature. Selecting
+/// a provider and establishing an entry context belong to realization; this
+/// query neither provisions a value nor invents implicit `self` authority.
+pub(crate) enum BoundaryTraitReceiver {
+    Namespace,
+    Parameter(SymbolHandle),
 }
 
-/// Resolve the ordinary source parameter whose projected Binding has an exact
+pub(crate) fn boundary_trait_receiver_source(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+    call_site: &validation::CallSite<'_>,
+    requirement: SymbolHandle,
+) -> Option<BoundaryTraitReceiver> {
+    if !call.has_receiver {
+        return None;
+    }
+    if call.receiver_symbol == requirement {
+        return Some(BoundaryTraitReceiver::Namespace);
+    }
+    let Some((source, _)) = parameter_binding_receiver_source(
+        program,
+        state,
+        call.statement_index,
+        call_site,
+        requirement,
+    ) else {
+        return None;
+    };
+    Some(BoundaryTraitReceiver::Parameter(source.symbol))
+}
+
+/// Resolve the ordinary source parameter whose Binding or projection has an exact
 /// declared requirement. This identifies a receiver, not a call admission: the
 /// call planner separately requires its structural parameter, and attachment
 /// collection uses this only for an already-planned matching boundary call.
@@ -65,9 +75,6 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
     };
     let place = place?;
     let root = place.root.as_symbol()?;
-    if place.segments.is_empty() {
-        return None;
-    }
     let source = program
         .state_parameters(state)
         .iter()
@@ -80,11 +87,11 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
     )?;
     // A Binding member identifies the requirement through its own carrier.
     // Provider selection and entry establishment are realization obligations.
-    ((typed_trees::service::exact_bound_service_requirement(program, reference)
-        == Some(requirement))
-        || field_type_carries_requirement(program, reference, requirement)
-        || service_record_member_carries_requirement(program, reference, requirement))
-    .then_some((source, place))
+    typed_trees::service::classify_exact_service_parameter_carrier(program, reference)
+        .ok()
+        .flatten()
+        .filter(|carrier| carrier.carrier.requirement == requirement)
+        .map(|_| (source, place))
 }
 
 /// `substitutions` carries the call edge's admitted specialization: a

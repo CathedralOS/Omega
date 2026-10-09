@@ -1,1 +1,2 @@
 opaque boundary data `Token` has no public constructor
+opaque boundary data `GenericToken<i32>` has no public constructor

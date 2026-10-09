@@ -13,8 +13,7 @@ use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_scalar_arguments,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
-    boundary_value_result_matches, parameter_binding_receiver_matches,
-    provider_attachment_receiver_matches,
+    BoundaryTraitReceiver, boundary_trait_receiver_source, boundary_value_result_matches,
 };
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
     ParameterArgument, SourceParameter, boundary_parameter_path,
@@ -225,11 +224,6 @@ pub(super) fn build(
                     None => nominal_use.callback_entry.is_some(),
                 }
             });
-    let routed_service_parameter_receiver = caller_parameters.iter().any(|parameter| {
-        parameter.binding_carrier.as_ref().is_some_and(|receipt| {
-            receipt.source_parameter == call.receiver_symbol && receipt.requirement == owner
-        })
-    });
     let mut scalar_parameters = Vec::new();
     let mut structural_arguments = Vec::new();
     phase("call operation: boundary arguments");
@@ -461,17 +455,19 @@ pub(super) fn build(
         call.has_receiver && call.receiver_symbol != qualifier
     } else if matches!(requirement, BoundaryRequirement::Trait { .. }) {
         !call.has_receiver
-            || (call.receiver_symbol != owner
-                && !provider_attachment_receiver_matches(program, machine, call_site, owner)
-                && !parameter_binding_receiver_matches(
-                    program,
-                    state,
-                    coordinate.statement_index as usize,
-                    caller_parameters,
-                    call_site,
-                    owner,
-                )
-                && !routed_service_parameter_receiver)
+            || boundary_trait_receiver_source(program, state, call, call_site, owner).is_none_or(
+                |receiver| match receiver {
+                    BoundaryTraitReceiver::Parameter(source) => {
+                        !caller_parameters.iter().any(|parameter| {
+                            program
+                                .state_parameters(state)
+                                .get(parameter.position as usize)
+                                .is_some_and(|parameter| parameter.symbol == source)
+                        })
+                    }
+                    BoundaryTraitReceiver::Namespace => false,
+                },
+            )
     } else {
         false
     } {

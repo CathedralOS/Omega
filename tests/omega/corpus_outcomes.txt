@@ -1037,8 +1037,9 @@ fail/core/translation_unmap_before_activation rejected 318ms expected @61726859b
 	implicit domain weakening in argument `active` for state `unmap` drops `Pending`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/data/bare_payload_case_equality_suggests_in rejected 36ms expected @2d8ed253669f
 	`Command::Move` carries a payload, so the bare case name is not a value -- use `in` to test the case (`value in Command::Move`), or compare against a constructed value
-fail/data/boundary_data_construction_rejected rejected 245ms expected @2d8ed253669f
+fail/data/boundary_data_construction_rejected rejected 283ms expected @ec4721ab353c+wt
 	opaque boundary data `Token` has no public constructor; a boundary provider must establish its values
+	opaque boundary data `GenericToken<i32>` has no public constructor; a boundary provider must establish its values
 fail/data/boundary_data_relaxed_carry_unadmitted rejected 267ms expected @2d8ed253669f
 	opaque boundary data `Lease` cannot relax its carry policy without an admitted property receipt
 fail/data/case_payload_equality_interim rejected 26ms expected @e3131e3bcd65+wt
@@ -1767,6 +1768,8 @@ fail/ownership/linear_call_result_field_scope_loss rejected 500ms expected @9c37
 	linear value `pair.left` reaches scope exit without being consumed or transferred
 fail/ownership/linear_case_result_second_transfer rejected 296ms expected @332ced10410b+wt
 	cannot use `returned` in machine `main` state `entry` (statement 3) after `returned` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `returned` first
+fail/ownership/linear_computed_binding_receiver_second_use rejected 358ms expected @ec4721ab353c+wt
+	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
 fail/ownership/linear_computed_boundary_second_use rejected 266ms expected @177bef659917+wt
 	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
 fail/ownership/linear_computed_call_argument_second_use rejected 799ms expected @c70a706629c8+wt
@@ -2051,6 +2054,8 @@ fail/providers/checked_boundary_operator_const_application_unselected rejected 9
 	const-generic application: const evaluation failed: machine `limit` is not build-time admissible: build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/providers/checked_boundary_operator_missing_contract rejected 259ms expected @2d8ed253669f
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
+fail/providers/computed_binding_receiver_fabricated_carrier rejected 881ms expected @ec4721ab353c+wt
+	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/consuming_requirement_without_provider rejected 6663ms expected @e4c5f1527652+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 fail/providers/named_provider_wrong_requirement_owner rejected 18ms expected @693920652f41
@@ -3821,6 +3826,7 @@ pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_call_result_claims_exit checked 3292ms check-target:macos_arm64 @e007e1d70f35+wt
 pass/ownership/linear_call_result_members_fused_owner_exit checked 3353ms check-target:macos_arm64 @4f5eb9941fad
 pass/ownership/linear_call_result_place_assignment_exit checked 2933ms check-target:macos_arm64 @9c376f77b213+wt
+pass/ownership/linear_computed_binding_receiver_exit checked 2407ms check-target:macos_arm64 @ec4721ab353c+wt
 pass/ownership/linear_computed_call_claim_transfers_exit checked 2651ms check-target:macos_arm64 @c70a706629c8+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit checked 3119ms check-target:macos_arm64 @9c376f77b213+wt
 pass/ownership/linear_qualified_call_result_claims checked 541ms @9c376f77b213+wt

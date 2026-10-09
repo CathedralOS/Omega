@@ -15,7 +15,7 @@
 //! the boundary application as a computation even when it is the entire RHS.
 //! Reads of the old storage complete before the same ordinary store replaces it.
 //!
-//! Receiver-free applications share the ordinary computation operand evaluator:
+//! Applications share the ordinary computation operand evaluator:
 //! structural places, selector snapshots, and scalar computations retain their
 //! formal order. Their published boundary signature still owns access, claims,
 //! completion and contract requirements independently of evaluation.
@@ -121,10 +121,39 @@ impl Builder<'_, '_> {
     ) -> Option<CheckedScalarComputationHandle> {
         let program = self.program;
         let authored_target = validation::call_target_symbol(program, call);
-        // Namespace qualifiers have no runtime operand. A real receiver keeps
-        // its evaluation/custody requirement and cannot be silently discarded.
+        // Boundary authority is admitted through the same source relation as
+        // statement calls. A parameter projection must retain its ordinary
+        // input. Entry establishment and provider selection are independent
+        // realization obligations, not implicit receiver attachment authority.
         if !program.call_has_no_runtime_receiver_for_target(call) {
-            return None;
+            let mut owners = program.traits().iter().filter(|owner| {
+                owner.is_boundary
+                    && program
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .any(|signature| signature.symbol == authored_target)
+            });
+            let owner = owners.next()?;
+            if owners.next().is_some() {
+                return None;
+            }
+            let state = validation::find_state_in_machine(program, self.machine, self.state)?;
+            let (source, _) = self.call_ordinal(expression, authored_target)?;
+            let source = self.flow.control.calls.get(source);
+            let site = validation::CallSite::Expression { expression, call };
+            use crate::execution::terminal_unit::calls::{
+                BoundaryTraitReceiver, boundary_trait_receiver_source,
+            };
+            let receiver =
+                boundary_trait_receiver_source(program, state, source, &site, owner.symbol)?;
+            if let BoundaryTraitReceiver::Parameter(source) = receiver
+                && !self
+                    .authored_parameters
+                    .iter()
+                    .any(|parameter| parameter.symbol == source)
+            {
+                return None;
+            }
         }
         let operands = program
             .expression_table

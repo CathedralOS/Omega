@@ -229,25 +229,20 @@ must equal the retained root declaration: missing, padded, stale, or unused rows
 reject. A primitive service use does not disappear because the service also
 appears in an abstract row's bound.
 
-An attachment retains its nominal context type and its erased `Binding<R>`
-fields.
 Each boundary declaration retains its authored owner kind: machine, trait
-signature, or legacy operator. Only trait signatures consume binding-field
-roots; absence of a nominal attachment does not make an operator a trait call.
-Source replay checks the owner kind, and both Terminal and Omega attachment
-validation use it. The kind participates in canonical identity. Machine
+signature, or legacy operator. Absence of a nominal attachment does not make
+an operator a trait call. The kind participates in canonical identity. Machine
 declarations include token-bearing machines and top-level requirements, so
 this classification does not replace closed-application or physical-child
 custody.
 
-Sorted provider-attachment roots bind each used field to exactly its directly
-called bodyless requirements, not to an installed native provider. Missing
-attachments, duplicate/orphan roots, and roots forwarded as runtime arguments
-reject. An unused binding field keeps its type and attachment but no invented
-root. Ordinary callees retain their own direct requirements.
-
-An ordinary explicit context parameter has the exact attachment type and retains access
-and multiplicity independently of the roots. Its signature does not construct
+An ordinary explicit context parameter retains its exact record type, access
+and multiplicity. A direct or projected `Binding<R>` receiver rejoins that
+parameter occurrence and the exact carrier requirement, independently of
+whether the call is a statement or an operand inside an expression. It gains
+no implicit `self` value or declaration-attachment authority. Ordinary callees
+retain their own direct requirements and receive existing contexts explicitly.
+Their signatures do not construct
 storage. Generated native entry provisioning must establish and lend that
 context under the selected [entry shape](../build/entry_roots.md#entry-shape-and-arrival-bridge);
 an erased field's zero-payload layout proves no authority. A carrier-qualified

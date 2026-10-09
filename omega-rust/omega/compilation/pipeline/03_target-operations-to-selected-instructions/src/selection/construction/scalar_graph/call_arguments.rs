@@ -27,6 +27,11 @@ pub(super) fn marshal(
     builder: &mut Builder<'_>,
     invalid: impl Fn() -> SelectedInstructionError,
 ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
+    // Ownership belongs to the complete call. A borrowed argument neither
+    // transfers a claim nor forbids an owned sibling from transferring one.
+    // Keep the origin's exact transfer/completion event before ABI transport.
+    call.validate_source(&operation.ownership)
+        .map_err(|_| invalid())?;
     let mut operands = Vec::new();
     for (argument_index, argument) in call.arguments.iter().enumerate() {
         let (value, placement) = match argument {
@@ -35,15 +40,6 @@ pub(super) fn marshal(
                 target,
                 indices,
             } => {
-                if semantic.access != StructuralAccess::Owned
-                    && (call.validate_source(&operation.ownership).is_err()
-                        || !call.claim_transfers.is_empty()
-                        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
-                            && !matches!(operation.ownership.as_slice(),
-                                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty()))
-                {
-                    return Err(invalid());
-                }
                 operands.extend(
                     structural_argument(
                         source,
@@ -169,8 +165,7 @@ pub(super) fn structural_argument(
             target,
             indices,
         )?;
-        let block =
-        super::block_containing_operation(source, operation.operation)?;
+        let block = super::block_containing_operation(source, operation.operation)?;
         return super::aggregate_argument::transport(
             operation,
             argument_index,

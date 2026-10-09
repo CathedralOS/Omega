@@ -538,12 +538,14 @@ defines the complete product bar.
     pins nested claims, multiple claims per element and authored effect order;
     `linear_computed_call_claim_transfers_exit` pins computed operands.
     Reject second use, missing child consumption and wrong array type/extent
-    in `fail/ownership/linear_{constructor_call_member_second_use,array_constructor_duplicate_operand,array_member_scope_loss,array_call_argument_wrong_element,array_call_argument_wrong_extent,computed_boundary_second_use}`.
-    Remaining: computed binding receivers must retain their exact attachment
-    roots and receiver custody; the qualified-result
-    boundary/reseated-field combination in
-    `pass/ownership/linear_qualified_call_result_claims` still needs boundary
-    realization. Preserve projected replacement and sibling custody in
+    in `fail/ownership/linear_{constructor_call_member_second_use,array_constructor_duplicate_operand,array_member_scope_loss,array_call_argument_wrong_element,array_call_argument_wrong_extent,computed_boundary_second_use,computed_binding_receiver_second_use}`.
+    Keep `pass/ownership/linear_computed_binding_receiver_exit` at 0 in both
+    engines: ordinary direct/projected Binding parameters, nested context
+    establishment and mixed borrowed/owned helper arguments retain custody.
+    Remaining: migrate the retired standalone requirement in
+    `pass/ownership/linear_qualified_call_result_claims` to its trait/provider
+    form and execute qualified results through field reseating and subsequent
+    observations. Preserve projected replacement and sibling custody in
     `pass/ownership/linear_call_result_place_assignment_exit` and reject
     `fail/ownership/linear_replaced_field_second_use`. Preserve ordinary
     qualified result, state-return and disposal custody in

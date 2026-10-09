@@ -4,8 +4,8 @@
 //! (for example, an ordinary historical shape `CounterV1 { counter: 3 }`),
 //! version's root-level shape definition), and case-payload literals
 //! (`Command::Say { text: ... }`). Literals whose head type is not a data
-//! definition in this program (or is generic, where member types depend on
-//! instantiation) are left to later layers.
+//! definition in this program reject. Generic member checks may wait for
+//! concrete instantiation; declaration-level constructor authority never does.
 //!
 //! Normalized layout-bearing constructors also owe representable physical
 //! stores. The existing scan retains their exact field/value decisions and
@@ -50,7 +50,8 @@ pub(crate) fn validate_struct_literal_fields(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 match statement {
                     StatementNode::RootBinding(binding) => {
@@ -525,6 +526,15 @@ fn validate_literal_field_names(
         )));
         return;
     }
+    // Constructor authority belongs to the declaration, not to its member
+    // specialization. An opaque generic has no authored constructor even
+    // when its dependent field checks must wait for concrete arguments.
+    if data_definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
+        diagnostics.push(Diagnostic::error(format!(
+            "opaque boundary data `{type_name}` has no public constructor; a boundary provider must establish its values"
+        )));
+        return;
+    }
     // A `Value` binder keeps its index as an implicit leading field, so an
     // all-value-parametered data type still constructs against concrete
     // member types and owes its `where` facts at this gate. Type, `const`,
@@ -540,12 +550,6 @@ fn validate_literal_field_names(
                 field.name,
             )));
         }
-    }
-    if data_definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
-        diagnostics.push(Diagnostic::error(format!(
-            "opaque boundary data `{type_name}` has no public constructor; a boundary provider must establish its values"
-        )));
-        return;
     }
 
     // Construction establishes the default domain from the values observed
