@@ -351,7 +351,13 @@ impl<'program> CurrentScalarValues<'program> {
             &self.lengths,
             0,
         ) {
-            if let Some(proposition) = scoped(expression, &self.current, &self.lengths, program) {
+            if let Some(proposition) = scoped(
+                state.symbol,
+                expression,
+                &self.current,
+                &self.lengths,
+                program,
+            ) {
                 self.hypotheses
                     .push(ScopedArithmeticHypothesis { proposition, holds });
             }
@@ -374,7 +380,15 @@ impl<'program> CurrentScalarValues<'program> {
             &self.lengths,
             0,
         )
-        .then(|| scoped(expression, &self.current, &self.lengths, program))
+        .then(|| {
+            scoped(
+                state.symbol,
+                expression,
+                &self.current,
+                &self.lengths,
+                program,
+            )
+        })
         .flatten()
         .map(ScopedArithmeticValue::Term)
     }
@@ -406,7 +420,15 @@ impl<'program> CurrentScalarValues<'program> {
             &self.lengths,
             0,
         )
-        .then(|| scoped(expression, &self.current, &self.lengths, self.program))
+        .then(|| {
+            scoped(
+                self.state.symbol,
+                expression,
+                &self.current,
+                &self.lengths,
+                self.program,
+            )
+        })
         .flatten()
     }
     /// Simultaneous parameter substitution with independently retained actual
@@ -442,6 +464,7 @@ impl<'program> CurrentScalarValues<'program> {
         }
         admitted(self.program, callee, state, expression, &formals, &[], 0).then_some(
             ScopedArithmeticExpression {
+                owner: state.symbol,
                 expression,
                 bindings,
             },
@@ -632,6 +655,7 @@ fn admitted(
 }
 
 fn scoped(
+    owner: SymbolHandle,
     expression: ExpressionHandle,
     bindings: &[Binding],
     lengths: &[Length],
@@ -684,6 +708,7 @@ fn scoped(
     }
     selected.extend(projections);
     Some(ScopedArithmeticExpression {
+        owner,
         expression,
         bindings: selected,
     })

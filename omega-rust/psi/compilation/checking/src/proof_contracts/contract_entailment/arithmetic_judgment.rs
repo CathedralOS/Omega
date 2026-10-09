@@ -238,6 +238,9 @@ pub(super) struct Engine<'program> {
     /// The machine this engine judges (entry-range hypotheses resolve
     /// through it).
     machine_symbol: SymbolHandle,
+    /// Source declaration for the currently installed scoped expression.
+    /// Nested actual terms retain their own owner before formal substitution.
+    source_owner: SymbolHandle,
     /// Canonical atom names for the machine's parameters.
     pub(super) parameter_atoms: Vec<String>,
     /// Authority-bearing adapters bind resolved symbols directly. When this
@@ -316,6 +319,7 @@ impl<'program> Engine<'program> {
         Self {
             program,
             machine_symbol: machine.symbol,
+            source_owner: machine.symbol,
             parameter_atoms,
             strict_symbol_bindings: None,
             strict_symbol_bindings_valid: true,
@@ -514,6 +518,7 @@ impl<'program> Engine<'program> {
         Self {
             program,
             machine_symbol: SymbolHandle::default(),
+            source_owner: SymbolHandle::default(),
             parameter_atoms: Vec::new(),
             strict_symbol_bindings: Some(bindings),
             strict_symbol_bindings_valid: true,
@@ -891,6 +896,9 @@ impl<'program> Engine<'program> {
         let ExpressionNode::Binary(binary) = node else {
             return None;
         };
+        if !self.strict_binary_meaning(fact, &binary) {
+            return None;
+        }
         match binary.operator {
             BinaryOperator::Equal
             | BinaryOperator::NotEqual
@@ -1031,6 +1039,9 @@ impl<'program> Engine<'program> {
             // The typed-tree unary operator is logical-not only (negative
             // literals fold into Integer), so unary nodes are never terms.
             ExpressionNode::Unary(_) => None,
+            ExpressionNode::Binary(binary) if !self.strict_binary_meaning(expression, &binary) => {
+                None
+            }
             ExpressionNode::Binary(_)
                 if !proof_integer_expression(self.program, expression)
                     && ((self.proof_integer_formation

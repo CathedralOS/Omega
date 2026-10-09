@@ -52,6 +52,7 @@ fn expression(
         });
     }
     Some(ScopedArithmeticExpression {
+        owner: source.owner,
         expression: source.expression,
         bindings,
     })

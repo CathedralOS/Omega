@@ -591,6 +591,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             .map(|(parameter, argument)| ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
                 value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+                    owner: self.machine.symbol,
                     expression: *argument,
                     bindings: caller.clone(),
                 }),
@@ -609,11 +610,13 @@ impl<'program, 'facts> Header<'program, 'facts> {
         bindings.push(ScopedArithmeticBinding {
             binder: ScopedArithmeticBinder::Result,
             value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+                owner: self.machine.symbol,
                 expression: candidate.returned,
                 bindings: returned_roster,
             }),
         });
         ScopedArithmeticExpression {
+            owner: self.machine.symbol,
             expression: candidate.guarantee,
             bindings,
         }
@@ -627,6 +630,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
     ) -> ScopedArithmeticHypothesis {
         ScopedArithmeticHypothesis {
             proposition: ScopedArithmeticExpression {
+                owner: self.machine.symbol,
                 expression,
                 bindings,
             },

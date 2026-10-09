@@ -95,9 +95,11 @@ impl<'program> ScopedCalls<'program> {
         // cannot invalidate the caller's unrelated, fully bound hypotheses.
         if let Some(machine) = self.program.machine_by_symbol(self.context) {
             let mut engine = super::Engine::strict_with_symbol_bindings(self.program, machine, &[]);
-            prepared.extend(self.guarantees.drain(..).filter(|hypothesis| {
-                engine.install_scoped_bindings(&hypothesis.proposition.bindings)
-            }));
+            prepared.extend(
+                self.guarantees
+                    .drain(..)
+                    .filter(|hypothesis| engine.install_scoped_expression(&hypothesis.proposition)),
+            );
         }
         Some(prepared)
     }
@@ -280,6 +282,7 @@ impl<'program> ScopedCalls<'program> {
                     };
                     if builtin {
                         let proposition = self.expression(&ScopedArithmeticExpression {
+                            owner: owner_symbol(&owner),
                             expression: guarantee,
                             bindings: bindings.clone(),
                         })?;

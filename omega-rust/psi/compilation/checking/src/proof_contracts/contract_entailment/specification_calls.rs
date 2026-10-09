@@ -182,7 +182,7 @@ fn validate_expression(
                     program,
                     machine,
                     state,
-                    parameters,
+                    &contract_owner,
                     prior_facts,
                     *required,
                     &arguments,
@@ -570,7 +570,7 @@ fn arithmetic_requirement(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
-    callee_parameters: &[StateParameter],
+    callee: &SelectedCallContract<'_>,
     prior_facts: &[ExpressionHandle],
     requirement: ExpressionHandle,
     arguments: &[ExpressionHandle],
@@ -580,7 +580,7 @@ fn arithmetic_requirement(
         ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
         scoped_arithmetic_implication,
     };
-    let parameters = callee_parameters;
+    let parameters = owner_parameters(program, callee);
     if parameters.len() != arguments.len() {
         return false;
     }
@@ -619,6 +619,7 @@ fn arithmetic_requirement(
         .iter()
         .map(|expression| ScopedArithmeticHypothesis {
             proposition: ScopedArithmeticExpression {
+                owner: state.map_or(machine.symbol, |state| state.symbol),
                 expression: *expression,
                 bindings: bindings.clone(),
             },
@@ -628,6 +629,7 @@ fn arithmetic_requirement(
     // Separate rosters keep self-call argument substitution from rewriting
     // the caller's hypotheses, even when caller and callee symbols coincide.
     let goal = ScopedArithmeticExpression {
+        owner: owner_symbol(callee),
         expression: requirement,
         bindings: parameters
             .iter()
@@ -635,6 +637,7 @@ fn arithmetic_requirement(
             .map(|(parameter, argument)| ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
                 value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+                    owner: state.map_or(machine.symbol, |state| state.symbol),
                     expression: *argument,
                     bindings: bindings.clone(),
                 }),

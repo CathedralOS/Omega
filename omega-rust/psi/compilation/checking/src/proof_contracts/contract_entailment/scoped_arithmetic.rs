@@ -78,6 +78,9 @@ pub struct ScopedArithmeticBinding {
 /// language.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopedArithmeticExpression {
+    /// The exact source declaration whose types and selected operations this
+    /// expression retains. Substituting values does not relocate its meaning.
+    pub owner: symbols::SymbolHandle,
     pub expression: ExpressionHandle,
     pub bindings: Vec<ScopedArithmeticBinding>,
 }
@@ -168,7 +171,7 @@ pub fn scoped_arithmetic_implication(
     let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, &[]);
     // Declare the goal's atoms first so their sign facts seed with the
     // hypotheses; the goal roster is installed again before judging.
-    if !engine.install_scoped_bindings(&goal.bindings) {
+    if !engine.install_scoped_expression(&goal) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
     if !install_hypotheses(program, &mut engine, &hypotheses) {
@@ -177,7 +180,7 @@ pub fn scoped_arithmetic_implication(
     if engine.requires_unsatisfiable {
         return StrictArithmeticImplicationJudgment::Proven;
     }
-    if !engine.install_scoped_bindings(&goal.bindings) {
+    if !engine.install_scoped_expression(&goal) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
     match engine.judge(goal.expression) {
@@ -197,7 +200,7 @@ fn read_comparisons(
     engine: &mut Engine<'_>,
     proposition: &ScopedArithmeticExpression,
 ) -> Option<Vec<(BinaryOperator, Polynomial, Polynomial)>> {
-    if !engine.install_scoped_bindings(&proposition.bindings) {
+    if !engine.install_scoped_expression(proposition) {
         return None;
     }
     let mut comparisons = Vec::new();

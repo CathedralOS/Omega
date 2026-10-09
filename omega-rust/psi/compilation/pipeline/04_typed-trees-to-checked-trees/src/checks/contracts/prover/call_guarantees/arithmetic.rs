@@ -183,6 +183,7 @@ pub(super) fn at_call(
                 )
             {
                 return Some(ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+                    owner: caller.state_symbol,
                     expression: actual,
                     bindings: Vec::new(),
                 }));
@@ -387,6 +388,7 @@ fn bind_occurrences(
             continue;
         };
         let term = ScopedArithmeticExpression {
+            owner: callable.target_symbol(),
             expression: selected,
             bindings: bindings.clone(),
         };
@@ -400,6 +402,7 @@ fn bind_occurrences(
         });
     }
     Some(ScopedArithmeticExpression {
+        owner: callable.target_symbol(),
         expression,
         bindings,
     })

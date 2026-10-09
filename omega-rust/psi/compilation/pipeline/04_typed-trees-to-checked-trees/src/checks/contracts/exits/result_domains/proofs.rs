@@ -127,6 +127,7 @@ pub(super) fn establishes_scalar_predicates(
                 }
                 hypotheses.push(validation::ScopedArithmeticHypothesis {
                     proposition: validation::ScopedArithmeticExpression {
+                        owner: candidate.symbol,
                         expression: *expression,
                         bindings: vec![validation::ScopedArithmeticBinding {
                             binder: validation::ScopedArithmeticBinder::Symbol(
@@ -194,6 +195,7 @@ pub(super) fn establishes_scalar_predicates(
                 value: validation::ScopedArithmeticValue::Term(returned),
             });
             let goal = validation::ScopedArithmeticExpression {
+                owner: domain.symbol,
                 expression: *expression,
                 bindings,
             };
@@ -392,6 +394,7 @@ impl ScalarReturnProof<'_> {
         let mut bindings = Vec::new();
         self.current_bindings(expression, &mut bindings, 0)?;
         Some(validation::ScopedArithmeticExpression {
+            owner: self.state.symbol,
             expression,
             bindings,
         })
@@ -444,6 +447,7 @@ impl ScalarReturnProof<'_> {
                 .map(|literal| {
                     validation::ScopedArithmeticValue::Term(
                         validation::ScopedArithmeticExpression {
+                            owner: self.state.symbol,
                             expression: literal,
                             bindings: Vec::new(),
                         },

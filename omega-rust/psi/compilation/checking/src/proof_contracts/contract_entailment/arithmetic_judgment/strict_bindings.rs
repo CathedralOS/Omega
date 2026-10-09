@@ -1,6 +1,6 @@
 //! Strict-arithmetic symbol bindings: engine construction from declared
-//! strict bindings, scoped-value normalization, and strict operator
-//! projection/division/shift/bitwise-and binding rules.
+//! strict bindings, scoped-value normalization under the original declaration
+//! and selected arithmetic policy, and admitted operator occurrence bindings.
 use super::super::{
     BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine,
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
@@ -115,19 +115,134 @@ impl<'program> Engine<'program> {
                 }
             }
             ScopedArithmeticValue::Term(term) => {
-                if !self.install_scoped_bindings(&term.bindings) {
-                    return None;
-                }
-                self.normalize(term.expression)?
+                self.with_scoped_expression(term, |engine| engine.normalize(term.expression))?
             }
             ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
-                if !self.install_scoped_bindings(&term.bindings) {
-                    return None;
-                }
-                self.bind_strict_integer_division(term.expression)?;
-                self.normalize(term.expression)?
+                self.with_scoped_expression(term, |engine| {
+                    // This occurrence was admitted by the caller's selected-value
+                    // owner; bare policy syntax receives no such authority.
+                    engine.bind_strict_integer_division(term.expression)?;
+                    engine.normalize(term.expression)
+                })?
             }
         })
+    }
+
+    fn with_scoped_expression(
+        &mut self,
+        term: &super::super::ScopedArithmeticExpression,
+        query: impl FnOnce(&mut Self) -> Option<Polynomial>,
+    ) -> Option<Polynomial> {
+        let previous_owner = self.source_owner;
+        let value = (|| {
+            self.install_scoped_expression(term).then_some(())?;
+            query(self)
+        })();
+        self.source_owner = previous_owner;
+        value
+    }
+
+    /// A scoped expression keeps its own declaration when its roster changes.
+    /// Actual values are normalized before the formal roster is published.
+    pub(in crate::proof_contracts::contract_entailment) fn install_scoped_expression(
+        &mut self,
+        expression: &super::super::ScopedArithmeticExpression,
+    ) -> bool {
+        if !expression.owner.is_valid() {
+            return false;
+        }
+        self.source_owner = expression.owner;
+        self.install_scoped_bindings(&expression.bindings)
+    }
+
+    /// Source types come from the exact declaration, independently of scoped
+    /// substitutions. A polynomial cannot lend its type to a selected node.
+    fn source_result_type(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<typed_trees::types::TypeReferenceHandle> {
+        if let Some(domain) = self.program.domain_definition(self.source_owner) {
+            return crate::value_custody::expression_types::domain_expression_result_type_reference(
+                self.program,
+                domain,
+                expression,
+            );
+        }
+        if let Some((_, signature)) = self.program.trait_machine_signature(self.source_owner) {
+            return crate::parameter_expression_result_type_reference(
+                self.program,
+                signature.symbol,
+                self.program.state_signature_parameters(signature),
+                expression,
+            );
+        }
+        crate::value_custody::expression_types::declaration_expression_result_type_reference(
+            self.program,
+            self.source_owner,
+            &|place| {
+                crate::proof_contracts::proof_embeddings::expression_type_reference(
+                    self.program,
+                    place,
+                )
+            },
+            expression,
+        )
+    }
+
+    /// Interpret only the selected builtin operation. Fixed-carrier arithmetic
+    /// additionally retains its actual Exact policy; a coercion around a
+    /// Wrapping or Saturating result cannot replace the operation's payload.
+    pub(super) fn strict_binary_meaning(
+        &self,
+        expression: ExpressionHandle,
+        binary: &typed_trees::expression::TableBinaryExpression,
+    ) -> bool {
+        if self.strict_symbol_bindings.is_none() || self.proof_integer_formation {
+            return true;
+        }
+        let owner =
+            crate::machine_calls::calls::machine_state_by_symbol(self.program, self.source_owner)
+                .map_or(self.source_owner, |(machine, _)| machine.symbol);
+        let operands = [binary.left, binary.right].map(|operand| self.source_result_type(operand));
+        if matches!(
+            binary.operator,
+            BinaryOperator::Add
+                | BinaryOperator::Subtract
+                | BinaryOperator::Multiply
+                | BinaryOperator::Divide
+                | BinaryOperator::Modulo
+        ) {
+            crate::proof_contracts::bound_expression_meaning::builtin_arithmetic_with_operand_types(
+                self.program,
+                owner,
+                expression,
+                &operands,
+            ) && (super::super::proof_integer::proof_integer_expression(self.program, expression)
+                || self
+                    .source_result_type(expression)
+                    .is_some_and(|reference| {
+                        self.program
+                            .primitive_type_reference(reference)
+                            .is_some_and(|primitive| primitive.is_fixed_integer())
+                            && self.program.arithmetic_domain_for_type_reference(reference)
+                                == numerics::arithmetic::ArithmeticDomain::Exact
+                    }))
+        } else {
+            let Some(spelling) =
+                crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
+                    binary.operator,
+                )
+            else {
+                return true;
+            };
+            typed_trees::operator::has_builtin_spelled_expression_meaning(
+                self.program,
+                owner,
+                expression,
+                spelling,
+                &operands,
+            )
+        }
     }
 
     /// Replace the strict symbol, result and occurrence tables with one scoped
