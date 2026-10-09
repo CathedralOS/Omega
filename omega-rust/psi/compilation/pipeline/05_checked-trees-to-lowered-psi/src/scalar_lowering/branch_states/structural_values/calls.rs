@@ -286,9 +286,7 @@ impl Preparation<'_> {
         let multiplicity = match binding.multiplicity {
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
             Multiplicity::Affine => StructuralMultiplicity::Affine,
-            Multiplicity::Linear => {
-                return unsupported("scalar structural value cannot acquire linear claims");
-            }
+            Multiplicity::Linear => StructuralMultiplicity::Linear,
         };
         Ok(super::super::super::StructuralOperationResult {
             qualification_establishments: Vec::new(),

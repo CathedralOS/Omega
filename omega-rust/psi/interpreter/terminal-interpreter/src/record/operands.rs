@@ -108,6 +108,16 @@ impl TerminalExecution<'_> {
             }
         }
         for binding in &result.claims {
+            if !self.constructor_claim_is_active(result, &binding.path, case_membership)? {
+                // A catalogue row can describe a nonresident payload, but a
+                // live operand claim cannot disappear behind that guard.
+                if transported.contains_key(&binding.claim)
+                    || self.live_claims.contains_key(&binding.claim)
+                {
+                    return Err(invalid());
+                }
+                continue;
+            }
             match transported.remove(&binding.claim) {
                 Some(path) if path == binding.path => {}
                 None if result.multiplicity == StructuralMultiplicity::Linear
@@ -137,6 +147,33 @@ impl TerminalExecution<'_> {
         Ok(remaining)
     }
 
+    fn constructor_claim_is_active(
+        &self,
+        result: &StructuralOperationResult,
+        path: &[StructuralPathSegment],
+        membership: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
+    ) -> Result<bool, TerminalInterpretError> {
+        let types = self.program.structural_types();
+        crate::structural_inputs::case_membership::case_projection_with_membership_is_active(
+            &types,
+            result.structural_type,
+            path,
+            &|prefix| {
+                let structural_type = crate::custody::resolve_structural_path_type(
+                    &types,
+                    result.structural_type,
+                    prefix,
+                )
+                .ok()?;
+                membership(&StructuralAffineDiscard {
+                    place: result.place,
+                    path: prefix.to_vec(),
+                    structural_type,
+                })
+            },
+        )
+    }
+
     /// Establish only the affine complement of a completed value. Constructors
     /// and borrowed extractions have the same result partition: each declared
     /// linear descendant owns its own claim, never an overlapping affine debt.
@@ -149,6 +186,12 @@ impl TerminalExecution<'_> {
         ) -> Option<semantic_vocabulary::StructuralCaseId>,
     ) -> Result<(), TerminalInterpretError> {
         if result.multiplicity == StructuralMultiplicity::Affine {
+            let mut active_claims = Vec::new();
+            for claim in &result.claims {
+                if self.constructor_claim_is_active(result, &claim.path, case_membership)? {
+                    active_claims.push((result.place, claim.path.as_slice()));
+                }
+            }
             let root = StructuralAffineDiscard {
                 place: result.place,
                 path: Vec::new(),
@@ -160,10 +203,7 @@ impl TerminalExecution<'_> {
             crate::custody::exclude_linear_regions(
                 &self.program.structural_types(),
                 frontier,
-                result
-                    .claims
-                    .iter()
-                    .map(|claim| (result.place, claim.path.as_slice())),
+                active_claims,
                 case_membership,
             )?;
         }

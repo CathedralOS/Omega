@@ -1732,6 +1732,8 @@ fail/ownership/linear_case_result_second_transfer rejected 296ms expected @332ce
 	cannot use `returned` in machine `main` state `entry` (statement 3) after `returned` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `returned` first
 fail/ownership/linear_computed_call_argument_second_use rejected 799ms expected @c70a706629c8+wt
 	cannot use `local` in machine `main` state `entry` (statement 2) after `local` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `local` first
+fail/ownership/linear_constructor_call_member_second_use rejected 320ms expected @dfdcd7ff7b61+wt
+	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
 fail/ownership/linear_forwarded_result_original_second_use rejected 318ms expected @6605065c28a7
 	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
 fail/ownership/linear_inline_argument_result_scope_loss rejected 552ms expected @9c376f77b213+wt

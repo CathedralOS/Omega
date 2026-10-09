@@ -5,7 +5,9 @@
 // into the construction at its field. `pass` returns its input, so the
 // caller's result continues the inline construction's claim. Every value
 // reaches the drop-hooked consumer exactly once, including a construction
-// handed straight to the generic `drop`.
+// handed straight to the generic `drop`. Call-produced children retain their
+// claims through nested construction and preserve authored field order;
+// nonresident case payloads establish no live claim.
 use omega::language::core::drop;
 
 data Receipt [linear] { code: i32; }
@@ -14,8 +16,25 @@ machine Receipt::drop(receipt: &mut Receipt) {}
 
 data Pair { left: Receipt; right: Receipt; }
 
+data Envelope { pair: Pair; }
+
+data Choice { case Empty; case Value(receipt: Receipt); }
+data ChoiceEnvelope { choice: Choice; sibling: Receipt; }
+
 machine pass(receipt: Receipt) -> Receipt {
     receipt
+}
+
+machine make(code: i32) -> Receipt {
+    let issued: Receipt = Receipt { code: code };
+    issued
+}
+
+machine issue(sequence: &mut i32) -> Receipt {
+    let code: i32 = sequence;
+    sequence = ((sequence as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let issued: Receipt = Receipt { code: code };
+    issued
 }
 
 machine consume(receipt: Receipt) -> i32 {
@@ -31,6 +50,39 @@ machine settle(pair: Pair) -> i32 {
     drop(left);
     drop(right);
     total
+}
+
+machine settle_order(pair: Pair) -> i32 {
+    let left: Receipt = pair.left;
+    let right: Receipt = pair.right;
+    let total: i32 = (((left.code as i32 in Wrapping) * (10 as i32 in Wrapping)) + (right.code as i32 in Wrapping)) as i32;
+    drop(left);
+    drop(right);
+    total
+}
+
+machine open(envelope: Envelope) -> i32 {
+    settle(envelope.pair)
+}
+
+machine choose(present: bool) -> Choice {
+    transition present {
+        true -> Choice::Value { receipt: make(12) }
+        false -> Choice::Empty {}
+    }
+}
+
+machine consume_choice(choice: Choice) -> i32 {
+    transition choice {
+        Choice::Empty {} -> 0
+        Choice::Value { receipt } -> consume(receipt)
+    }
+}
+
+machine open_choice(envelope: ChoiceEnvelope) -> i32 {
+    let sibling: i32 = consume(envelope.sibling);
+    let chosen: i32 = consume_choice(envelope.choice);
+    ((sibling as i32 in Wrapping) + (chosen as i32 in Wrapping)) as i32
 }
 
 machine verify(settled: bool) crashes Trap {
@@ -50,6 +102,14 @@ machine main() crashes Trap {
     let direct: i32 = consume(Receipt { code: 5 });
     let passed: Receipt = pass(Receipt { code: 6 });
     let forwarded: i32 = consume(passed);
+    let produced: i32 = settle(Pair { left: make(7), right: make(8) });
+    let original: Receipt = make(10);
+    let nested: i32 = open(Envelope { pair: Pair { left: pass(original), right: make(11) } });
+    let mut sequence: i32 = 1;
+    let ordered: i32 = settle_order(Pair { right: issue(&mut sequence), left: issue(&mut sequence) });
+    let absent: i32 = open_choice(ChoiceEnvelope { choice: choose(false), sibling: make(21) });
+    let present: i32 = open_choice(ChoiceEnvelope { choice: choose(true), sibling: make(22) });
     drop(Receipt { code: 9 });
-    verify(moved == 3 && fresh == 7 && direct == 5 && forwarded == 6);
+    verify(moved == 3 && fresh == 7 && direct == 5 && forwarded == 6 && produced == 15
+        && nested == 21 && ordered == 21 && sequence == 3 && absent == 21 && present == 34);
 }

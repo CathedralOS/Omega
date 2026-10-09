@@ -358,8 +358,11 @@ fn expand_joined_frontier(
     }
     let mut visited = visited.to_vec();
     visited.push(invocation);
-    let validation::CallSite::Expression { call, .. } =
-        validation::find_call_site(program, machine, owner, statement, ordinal)?
+    let validation::CallSite::Expression {
+        call,
+        expression: call_expression,
+        ..
+    } = validation::find_call_site(program, machine, owner, statement, ordinal)?
     else {
         return None;
     };
@@ -411,20 +414,25 @@ fn expand_joined_frontier(
                 entries.push(entry);
                 continue;
             }
-            let mut origins = events.iter().filter(|event| {
-                event.kind == PermissionEventKind::Establish
-                    && event.state_symbol == owner
-                    && event.source
-                        == PermissionEventSource::Statement {
-                            statement_index: statement,
-                        }
-                    && event.claim_identity == claim_identity
-            });
-            let origin = origins.next()?;
+            let mut origins = events
+                .iter()
+                .filter(|event| {
+                    event.kind == PermissionEventKind::Establish
+                        && event.state_symbol == owner
+                        && event.claim_identity == claim_identity
+                })
+                .filter_map(|event| {
+                    let (established_at, expression, path) =
+                        super::receiving_value(program, &ownership.segments, event)?;
+                    (established_at == statement && expression == call_expression).then_some(path)
+                });
+            let path = origins.next()?;
             if origins.next().is_some() {
                 return None;
             }
-            let path = ownership.segments.span_or_empty(origin.segments);
+            // The receiving home may contain this call beneath constructor
+            // fields or indexes. Only its result-relative suffix can select
+            // the callee's return frontier; storage prefixes are not lineage.
             if child.inactive_paths.iter().any(|inactive| inactive == path) {
                 next.inactive_paths.push(entry.output_path);
                 continue;

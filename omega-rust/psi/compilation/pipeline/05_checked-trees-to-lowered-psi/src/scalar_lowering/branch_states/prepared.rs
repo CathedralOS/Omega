@@ -320,6 +320,9 @@ pub(crate) enum LoweredScalarEffect {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredEffectCall {
     pub(crate) result: Option<terminal_psi::StructuralOperationResult>,
+    pub(crate) result_claims: Vec<crate::emission::claim_bindings::PreparedResultClaim>,
+    pub(crate) claim_transfers: Vec<crate::emission::claim_bindings::PreparedClaimTransfer>,
+    pub(crate) checked_coordinate: checked_trees::CheckedUnitCallCoordinate,
     pub(crate) source_coordinate: SourceCallCoordinate,
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) target_state: symbols::SymbolHandle,

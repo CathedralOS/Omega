@@ -79,11 +79,11 @@ pub(super) fn prepare(
     let structural_arguments = &call.structural_arguments;
     let claim_transfers = call.claim_transfers();
     if call.structural_custody().is_some_and(|custody| {
-        !custody.reference_loans.is_empty()
-            || !custody.result_qualifications.is_empty()
-            || !custody.result_claims.is_empty()
+        !custody.reference_loans.is_empty() || !custody.result_qualifications.is_empty()
     }) {
-        return unsupported("scalar effect call requires its returned loan or claim transport");
+        return unsupported(
+            "scalar effect call requires its returned loan or qualification transport",
+        );
     }
     if !erased_scalar_arguments.is_empty() {
         return unsupported("scalar graph Unit call has no erased argument lane");
@@ -127,8 +127,20 @@ pub(super) fn prepare(
             *service_reach,
             target.contract_service_reach,
         )
-        || !target.entry_claims.is_empty()
-        || !claim_transfers.is_empty()
+        || (0..structural_arguments.len()).any(|position| {
+            claim_transfers
+                .iter()
+                .filter(|claim| claim.argument_index as usize == position)
+                .count()
+                != target
+                    .entry_claims
+                    .iter()
+                    .filter(|claim| claim.parameter_index as usize == position)
+                    .count()
+        })
+        || claim_transfers
+            .iter()
+            .any(|claim| claim.argument_index as usize >= structural_arguments.len())
         || structural_arguments.len() != target.structural_parameters.len()
         || scalar_arguments.len() != target.scalar_parameters.len()
     {
@@ -241,9 +253,27 @@ pub(super) fn prepare(
         .iter()
         .map(|parameter| terminal_scalar_type(parameter.primitive_type))
         .collect::<Result<Vec<_>, _>>()?;
+    let result_claims = match (&result, call.structural_custody()) {
+        (Some(result), Some(custody)) => {
+            crate::emission::claim_bindings::prepare_call_result_claims(
+                &custody.result_claims,
+                result.structural_type,
+                structural_types,
+            )?
+        }
+        _ => Vec::new(),
+    };
+    let claim_transfers = crate::emission::claim_bindings::prepare_checked_claim_transfers(
+        claim_transfers,
+        target.structural_parameters,
+        structural_types,
+    )?;
     Ok(Prepared {
         call: LoweredEffectCall {
             result,
+            result_claims,
+            claim_transfers,
+            checked_coordinate: *coordinate,
             source_coordinate: SourceCallCoordinate {
                 state: state.state,
                 statement_index: coordinate.statement_index as usize,

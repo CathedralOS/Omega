@@ -19,7 +19,6 @@ use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
@@ -370,24 +369,16 @@ pub(super) fn emit_structural(
             structural_type,
             structural_types,
         )?,
-        claims: custody
-            .result_claims
-            .iter()
-            .map(|received| {
-                Ok(terminal_psi::StructuralResultClaimBinding {
-                    claim: claim_bindings.receive_call_result_claim(
-                        state,
-                        *coordinate,
-                        received,
-                    )?,
-                    path: lower_static_argument_path(
-                        &received.path,
-                        structural_type,
-                        structural_types,
-                    )?,
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?,
+        claims: crate::emission::claim_bindings::emit_call_result_claims(
+            &crate::emission::claim_bindings::prepare_call_result_claims(
+                &custody.result_claims,
+                structural_type,
+                structural_types,
+            )?,
+            state,
+            *coordinate,
+            claim_bindings,
+        )?,
     };
     // Path order describes the type's frontier; wire order describes this
     // caller's claim namespace. Conserved and newly bound identities can

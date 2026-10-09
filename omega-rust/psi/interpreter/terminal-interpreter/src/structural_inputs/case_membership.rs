@@ -422,6 +422,20 @@ fn case_projection_in_value_is_active(
     cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
     path: &[StructuralPathSegment],
 ) -> Result<bool, TerminalInterpretError> {
+    case_projection_with_membership_is_active(types, root.structural_type, path, &|prefix| {
+        stored_case_at_projection(types, root, cases, prefix)
+    })
+}
+
+/// Established and uncommitted constructor storage authenticate the same
+/// typed guards. The caller supplies actual stored membership at each prefix;
+/// absence of a discriminator never counts as an inactive payload.
+pub(crate) fn case_projection_with_membership_is_active(
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    membership: &impl Fn(&[StructuralPathSegment]) -> Option<StructuralCaseId>,
+) -> Result<bool, TerminalInterpretError> {
     let mut selected = path
         .iter()
         .enumerate()
@@ -443,14 +457,12 @@ fn case_projection_in_value_is_active(
         Some((StructuralPathSegment::Case(_), prefix)) => prefix,
         _ => path,
     };
-    resolve_structural_path_type(types, root.structural_type, structural_prefix)?;
+    resolve_structural_path_type(types, structural_type, structural_prefix)?;
     for (position, case) in selected {
         let prefix = &path[..position];
-        let selected = project_structural_value(types, root, prefix)?;
-        let contents = cases
-            .get(&StructuralRuntimePlace::from(&selected))
-            .ok_or_else(malformed)?;
-        let declaration = types.get(&selected.structural_type).ok_or_else(malformed)?;
+        let selected_type = resolve_structural_path_type(types, structural_type, prefix)?;
+        let stored = membership(prefix).ok_or_else(malformed)?;
+        let declaration = types.get(&selected_type).ok_or_else(malformed)?;
         let (StructuralTypeShape::Sum {
             cases: declared_cases,
         }
@@ -461,12 +473,10 @@ fn case_projection_in_value_is_active(
         else {
             return Err(malformed());
         };
-        if contents.structural_type != selected.structural_type
-            || terminal_psi::find_structural_case(declared_cases, contents.case).is_none()
-        {
+        if terminal_psi::find_structural_case(declared_cases, stored).is_none() {
             return Err(malformed());
         }
-        if contents.case != case {
+        if stored != case {
             return Ok(false);
         }
     }

@@ -1442,45 +1442,19 @@ fn owned_argument_claim_transfers(
 }
 
 /// The caller's establishments that receive this call's result: a local
-/// initialized by the call, an assigned place (whose establishments are
-/// rebased beneath its projection), or the call expression itself when it is
-/// an anonymous operand. An empty roster means no caller place receives the
-/// value (a terminal call returned at once).
+/// initialized by the call, an assigned place, or an anonymous construction
+/// containing the call. The receiving join removes only constructor/storage
+/// prefixes and leaves the result-relative path with its original identity.
+/// An empty roster means no caller place receives the value (a terminal call
+/// returned at once).
 fn received_result_claims<'facts>(
     program: &dyn crate::CheckingInput,
     facts: &'facts CheckFacts,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
-    source_state: &typed_trees::state::State,
+    _source_state: &typed_trees::state::State,
     call: &FlowCallFact,
 ) -> Result<Vec<(&'facts [facts::PlaceSegment], PermissionClaimIdentity)>, &'static str> {
-    let receiving_place = match program
-        .statement_table
-        .statement_at(source_state, call.statement_index)
-    {
-        Some(StatementNode::LocalData(local))
-            if local.initial_value == call.authored_expression =>
-        {
-            Some(crate::CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(local.symbol),
-                segments: Vec::new(),
-            })
-        }
-        Some(StatementNode::Assignment(assignment))
-            if assignment.value == call.authored_expression =>
-        {
-            Some(
-                crate::canonical_place_from_expression_in_state(
-                    program,
-                    caller_state,
-                    call.statement_index,
-                    assignment.target,
-                )
-                .ok_or("structural result assignment has no exact receiving place")?,
-            )
-        }
-        _ => None,
-    };
     let mut received = Vec::new();
     for (_, event) in facts.flow.ownership.permissions.iter() {
         if event.machine_symbol != caller_machine
@@ -1496,21 +1470,14 @@ fn received_result_claims<'facts>(
         {
             continue;
         }
-        // Establishment paths are rooted at their destination home, whereas
-        // the call result frontier is rooted at the returned value. Rebase
-        // through the exact receiving projection, never its sibling fields.
-        // An anonymous producer already uses its own expression root.
-        let segments = retained_claim_segments(facts, event.segments)?;
-        let relative = if event.root == facts::PlaceRoot::Expression(call.authored_expression) {
-            segments
-        } else if let Some(place) = &receiving_place
-            && event.root == place.root
-            && let Some(relative) = segments.strip_prefix(place.segments.as_slice())
-        {
-            relative
-        } else {
+        let Some((_, producer, relative)) =
+            crate::receiving_value(program, &facts.flow.ownership.segments, event)
+        else {
             continue;
         };
+        if producer != call.authored_expression {
+            continue;
+        }
         if event.claim_identity == PermissionClaimIdentity::Unknown {
             return Err("structural result establishment has no claim identity");
         }

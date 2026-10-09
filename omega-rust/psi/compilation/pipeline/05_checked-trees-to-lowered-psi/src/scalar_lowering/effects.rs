@@ -221,13 +221,25 @@ pub(crate) fn emit(
                         crate::scalar_lowering::contracts::lowered_proof_term(term, values, erased)
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
+                let claim_transfers =
+                    crate::emission::claim_bindings::emit_prepared_claim_transfers(
+                        &call.claim_transfers,
+                        calls.claims.bindings(),
+                    )?;
+                let mut result = call.result.clone();
+                if let Some(result) = &mut result {
+                    result.claims = crate::emission::claim_bindings::emit_call_result_claims(
+                        &call.result_claims,
+                        call.source_coordinate.state,
+                        call.checked_coordinate,
+                        &mut calls.claims,
+                    )?;
+                }
                 operations.push(Operation {
                     static_reach_binding: None,
                     suspension_crossing: None,
                     id,
-                    result: call
-                        .result
-                        .clone()
+                    result: result
                         .map(OperationResult::Structural)
                         .unwrap_or(OperationResult::Unit),
                     kind: DirectCall {
@@ -236,7 +248,7 @@ pub(crate) fn emit(
                         erased_arguments: Vec::new(),
                         erased_proof_arguments,
                         structural_arguments: call.structural_arguments.clone(),
-                        claim_transfers: Vec::new(),
+                        claim_transfers,
                         requirement_obligations: Vec::new(),
                         crash_continuations: lower_checked_crash_route_buckets(
                             &call.crash_routes,

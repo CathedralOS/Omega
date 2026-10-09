@@ -1,7 +1,9 @@
 //! One machine-local claim namespace for Unit and scalar-producing operations.
 //! Held identities resolve before fresh establishment is considered. Source
 //! moves cannot mint replacement identities; published graph namespaces are
-//! immutable while straight-line bodies grow at actual value completion.
+//! immutable while straight-line emission reserves checked completion names.
+//! Namespace reservation is not live custody: the producing operation alone
+//! establishes or receives the resource when execution completes.
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
 use language_semantics::PermissionClaimIdentity;
@@ -9,8 +11,8 @@ use semantic_vocabulary::ClaimId;
 
 /// The caller's claim namespace.
 pub(crate) enum ClaimBindings<'f> {
-    /// The body's entry claims and every identity its completed producers
-    /// establish. Scalar and Unit operations share this dense namespace.
+    /// The body's entry claims and its checked producer completion identities.
+    /// Scalar and Unit operations share this dense namespace.
     Growable {
         bindings: Vec<(PermissionClaimIdentity, ClaimId)>,
         next_claim: u64,
@@ -148,6 +150,50 @@ pub(crate) struct PreparedClaimTransfer {
     pub(crate) identity: PermissionClaimIdentity,
     pub(crate) argument_index: u32,
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
+}
+
+/// A result binding retains its checked path for the machine namespace and
+/// its lowered path for the operation. No claim becomes live during preparation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PreparedResultClaim {
+    received: checked_trees::CheckedStructuralResultClaimPlan,
+    path: Vec<terminal_psi::StructuralPathSegment>,
+}
+
+pub(crate) fn prepare_call_result_claims(
+    received: &[checked_trees::CheckedStructuralResultClaimPlan],
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedResultClaim>, LoweringError> {
+    received.iter().map(|received| {
+        Ok(PreparedResultClaim {
+            received: received.clone(),
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                &received.path, structural_type, types,
+            )?,
+        })
+    }).collect()
+}
+
+/// Ordinary and expression calls receive custody at the same successful
+/// completion, never by assigning an enclosing constructor's type to a result.
+pub(crate) fn emit_call_result_claims(
+    prepared: &[PreparedResultClaim],
+    state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    bindings: &mut ClaimBindings<'_>,
+) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
+    let mut received = prepared
+        .iter()
+        .map(|claim| {
+            Ok(terminal_psi::StructuralResultClaimBinding {
+                claim: bindings.receive_call_result_claim(state, coordinate, &claim.received)?,
+                path: claim.path.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    received.sort();
+    Ok(received)
 }
 
 pub(crate) fn prepare_checked_claim_transfers(
@@ -354,9 +400,13 @@ pub(crate) fn resolve_established_claim(
     claims.mint(event.claim_identity)
 }
 
-/// Authenticate a fresh claim at its actual establishment coordinate. Graph
-/// publication and ordinary emission share this minting boundary; transported
-/// claims instead resolve the identity their original establishment published.
+/// Reserve the namespace identity authenticated at this completion. A fresh
+/// construction has establishment provenance; a returned child has a checked
+/// call-join provenance with the same occurrence ordinal. Both reserve names,
+/// not resources: only the actual producing operation establishes live custody.
+/// A constructor may reserve its children's names before emitting their calls,
+/// and those calls resolve the same bindings when they complete. Transported
+/// claims instead resolve their original establishment's existing identity.
 pub(crate) fn claim_established_here(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -377,10 +427,18 @@ pub(crate) fn claim_established_here(
         && event.obligation_live
         && matches!(event.claim_identity, PermissionClaimIdentity::Established { machine_symbol, state_symbol, source, .. }
             if machine_symbol == machine && state_symbol == state && source == event.source)
-        && event.provenance
+        && (event.provenance
             == language_semantics::PermissionProvenance::Established {
                 machine_symbol: machine,
                 state_symbol: state,
                 source: event.source,
             }
+            || matches!((event.provenance, event.claim_identity),
+                (language_semantics::PermissionProvenance::Joined {
+                    machine_symbol, state_symbol,
+                    source: language_semantics::PermissionEventSource::Call { statement_index: received_at, .. },
+                    ordinal,
+                }, PermissionClaimIdentity::Established { ordinal: identity_ordinal, .. })
+                    if machine_symbol == machine && state_symbol == state
+                        && received_at == statement_index && ordinal == identity_ordinal))
 }

@@ -533,11 +533,14 @@ defines the complete product bar.
     edge carries. `pass/ownership/{linear_call_result_claims_exit,linear_ambiguous_state_result_mapping,linear_transparent_record_frontier}`,
     `pass/ownership/linear_{inline_constructed_argument_claims,result_member_projection_arguments,result_owners_residual_cleanup,call_result_place_assignment}_exit`
     and `pass/ownership/linear_{state_graph_call_arguments,state_graph_claim_transport,computed_call_claim_transfers}_exit`
-    run natively. Still refused: a claim-bearing call result as a construction
-    member (`settle(Pair { left: make(1), .. })`) stops at "owned completion
-    changes its established claim identities" in a statement call and at
-    "scalar structural value cannot acquire linear claims" in a computed
-    operand; a computed boundary or selector call has no claim-transfer lane;
+    run natively. Keep call-produced construction children on the shared
+    receiving-value join: nested fresh/forwarded claims, authored field order
+    and nonresident case payloads in
+    `linear_inline_constructed_argument_claims_exit`, and computed operands in
+    `linear_computed_call_claim_transfers_exit`, run at 0 in native and Terminal
+    execution. Reject `fail/ownership/linear_constructor_call_member_second_use`
+    at the original owner's second use. Remaining: a computed boundary or
+    selector call has no claim-transfer lane;
     a state parameter whose arrivals carry different claims (two locals
     swapped across arms) has "unsupported graph custody" (stage 05
     `state_graph/claims.rs`): a Terminal operation names one static claim, so

@@ -991,53 +991,7 @@ fn argument_for_parameter(
     arguments.get(position).copied()
 }
 
-/// Rejoin a produced value through its actual owner root. Anonymous results
-/// retain their expression identity; named destinations retain their write.
-/// The returned path is the establishment's position beneath the produced
-/// value: an assignment into a projected place (`pair.left = make()`) roots
-/// its establishment at the containing owner, so the destination's own
-/// projection is stripped before the path meets a callee's result paths.
-pub(crate) fn receiving_value<'a>(
-    program: &dyn ::validation::CheckingInput,
-    segments: &'a arena::Arena<facts::PlaceSegment>,
-    event: &FlowPermissionEventFact,
-) -> Option<(
-    usize,
-    typed_trees::expression::ExpressionHandle,
-    &'a [facts::PlaceSegment],
-)> {
-    let statement_index = super::linear_validation::permission_event_statement_index(event.source)?;
-    let event_path = segments.span_or_empty(event.segments);
-    if let Some(expression) = event.root.as_expression() {
-        return Some((statement_index, expression, event_path));
-    }
-    let state = program.state_by_symbol(event.state_symbol)?;
-    let statement = program
-        .statement_table
-        .statement_at(state, statement_index)?;
-    let (expression, path) = match statement {
-        StatementNode::LocalData(local) => (local.initial_value, event_path),
-        StatementNode::Assignment(assignment) => {
-            let destination = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                assignment.target,
-            )?;
-            if destination.root != event.root {
-                return None;
-            }
-            (
-                assignment.value,
-                event_path.strip_prefix(destination.segments.as_slice())?,
-            )
-        }
-        _ => return None,
-    };
-    expression
-        .is_valid()
-        .then_some((statement_index, expression, path))
-}
+pub(crate) use validation::receiving_value;
 
 pub(crate) fn call_result_origin_rewrites(
     program: &dyn ::validation::CheckingInput,

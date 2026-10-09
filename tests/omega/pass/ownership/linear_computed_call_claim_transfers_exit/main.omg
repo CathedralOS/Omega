@@ -47,5 +47,6 @@ machine main() crashes Trap {
     let member: Receipt = Receipt { code: 6 };
     let paired: i32 = ((settle(Pair { left: member, right: Receipt { code: 7 } }) as i32 in Wrapping) + (3 as i32 in Wrapping)) as i32;
     let nested: i32 = consume(make(8));
-    verify(inline == 6 && named == 6 && paired == 16 && nested == 8);
+    let produced: i32 = ((settle(Pair { left: make(9), right: make(10) }) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    verify(inline == 6 && named == 6 && paired == 16 && nested == 8 && produced == 20);
 }
