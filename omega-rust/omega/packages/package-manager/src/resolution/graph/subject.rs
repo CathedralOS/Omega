@@ -85,7 +85,10 @@ impl CanonicalSourceClosureSubject {
         &self.packages
     }
 
-    pub(crate) fn package_navigation(&self, package: &PackageKey) -> Option<&PackageSourceNavigation> {
+    pub(crate) fn package_navigation(
+        &self,
+        package: &PackageKey,
+    ) -> Option<&PackageSourceNavigation> {
         self.packages
             .binary_search_by(|source| source.key().cmp(package))
             .ok()
@@ -260,7 +263,6 @@ impl CanonicalSourceClosureSubjectError {
     pub(super) fn new(message: &'static str) -> Self {
         Self { message }
     }
-
 }
 
 impl fmt::Display for CanonicalSourceClosureSubjectError {
@@ -329,5 +331,13 @@ impl CanonicalSourceClosureSubjectLimits {
                 .min(ABSOLUTE_IDENTITY_BYTE_LIMIT),
             maximum_request_bytes: self.maximum_request_bytes.min(ABSOLUTE_REQUEST_BYTE_LIMIT),
         }
+    }
+}
+
+/// Hex digit count for an object id under the repository's hash algorithm.
+fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
+    match algorithm {
+        package_source::GitObjectIdAlgorithm::Sha1 => 40,
+        package_source::GitObjectIdAlgorithm::Sha256 => 64,
     }
 }

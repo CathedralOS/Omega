@@ -22,9 +22,11 @@ pub(super) fn write_source(
             tree,
             content,
         } => {
-            writer
-                .budget
-                .charge(hex_length(commit.algorithm()) + hex_length(tree.algorithm()) + 64)?;
+            writer.budget.charge(
+                super::super::hex_length(commit.algorithm())
+                    + super::super::hex_length(tree.algorithm())
+                    + 64,
+            )?;
             writer.row(
                 "resolution git",
                 &[
@@ -259,11 +261,4 @@ fn join(reader: &mut Reader<'_>, parts: &[&str]) -> Result<String, Error> {
         bytes.extend_from_slice(part.as_bytes());
     }
     Ok(String::from_utf8(bytes).expect("joined UTF-8 locator"))
-}
-
-fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
-    match algorithm {
-        package_source::GitObjectIdAlgorithm::Sha1 => 40,
-        package_source::GitObjectIdAlgorithm::Sha256 => 64,
-    }
 }

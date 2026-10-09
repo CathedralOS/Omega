@@ -16,7 +16,6 @@ pub(super) fn encode_source_identity(
     encode_resolution(encoder, source.resolution())
 }
 
-
 pub(super) fn encode_package_key(
     encoder: &mut Encoder,
     key: &PackageKey,
@@ -26,7 +25,6 @@ pub(super) fn encode_package_key(
     encoder.bytes_bounded(key.name().as_str().as_bytes(), maximum_identity_bytes)?;
     encode_source_lineage(encoder, key.source_lineage(), maximum_identity_bytes)
 }
-
 
 pub(super) fn encode_source_lineage(
     encoder: &mut Encoder,
@@ -96,8 +94,6 @@ pub(super) fn encode_source_lineage(
     Ok(())
 }
 
-
-
 fn encode_resolution(
     encoder: &mut Encoder,
     resolution: &ImmutableSourceResolution,
@@ -109,9 +105,9 @@ fn encode_resolution(
             content,
         } => {
             encoder.byte(0);
-            encoder.scratch(hex_length(commit.algorithm()))?;
+            encoder.scratch(super::super::hex_length(commit.algorithm()))?;
             encoder.bytes_bounded(commit.to_hex().as_bytes(), 64)?;
-            encoder.scratch(hex_length(tree.algorithm()))?;
+            encoder.scratch(super::super::hex_length(tree.algorithm()))?;
             encoder.bytes_bounded(tree.to_hex().as_bytes(), 64)?;
             encoder.fixed(content.digest());
         }
@@ -125,12 +121,4 @@ fn encode_resolution(
         }
     }
     Ok(())
-}
-
-
-fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
-    match algorithm {
-        package_source::GitObjectIdAlgorithm::Sha1 => 40,
-        package_source::GitObjectIdAlgorithm::Sha256 => 64,
-    }
 }
