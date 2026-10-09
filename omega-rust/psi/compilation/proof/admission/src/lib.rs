@@ -42,7 +42,8 @@ pub use admission::evidence::{
 };
 pub use classicality::ProofRuleFoundation;
 pub use integer_rules::closed_integer::{
-    ClosedIntegerEvaluationError, ClosedIntegerEvaluator, compare_integer_math_terms,
+    ClosedIntegerEvaluationError, ClosedIntegerEvaluator, big_integer_literal,
+    compare_integer_math_terms,
 };
 pub use integer_rules::integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitness,

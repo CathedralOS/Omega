@@ -233,7 +233,7 @@ pub(crate) fn check_integer_math_term_size(
     evaluator.check_term_size(right)
 }
 
-pub(crate) fn big_integer_literal(literal: IntegerMathLiteral) -> BigInt {
+pub fn big_integer_literal(literal: IntegerMathLiteral) -> BigInt {
     let magnitude = BigInt::from_u128(literal.magnitude());
     if literal.negative() {
         magnitude.negate()
