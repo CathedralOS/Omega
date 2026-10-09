@@ -143,7 +143,7 @@ pub(super) fn resolve<'a>(
             return false;
         };
         crate::execution::terminal_unit::control::reference_captures::plan(
-            program, machine, state, declared, local,
+            program, facts, machine, state, declared, local,
         )
         .is_some()
     };

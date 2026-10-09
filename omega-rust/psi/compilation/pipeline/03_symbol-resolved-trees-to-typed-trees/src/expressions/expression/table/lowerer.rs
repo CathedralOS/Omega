@@ -113,8 +113,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let Some(program) = self.program else {
             return;
         };
-        let Some(owner) = program.data_definition_by_symbol(symbol)
-        else {
+        let Some(owner) = program.data_definition_by_symbol(symbol) else {
             return;
         };
         if !owner.type_parameters.is_empty()
@@ -1213,7 +1212,7 @@ fn quotient_zero_value_target(
         .map(|definition| definition.name.as_str().to_owned())
 }
 
-fn resolved_data_definition_for_type<'program>(
+pub(super) fn resolved_data_definition_for_type<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     type_reference: &'program resolved::types::TypeReference,
 ) -> Option<&'program resolved::data::DataDefinition> {

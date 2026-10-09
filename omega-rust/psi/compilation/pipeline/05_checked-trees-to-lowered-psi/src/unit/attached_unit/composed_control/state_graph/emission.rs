@@ -700,7 +700,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    loaned_local_homes::finish(&mut machine, &loaned_local_homes)?;
+    loaned_local_homes::finish(&mut machine, &loaned_local_homes, &catalogs.structural_types)?;
     loan_chains.finish(&mut machine, &state_ids, &live_states)?;
     // Authored entry/local cleanup already belongs to the composed emitter.
     // Complete only unscheduled carrier results after private loans and their

@@ -11,6 +11,147 @@ use crate::statement::{StatementNode, TableAssignment, TableCall};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
 
+fn shared_case_subject_syntax() -> (SyntaxTrees, ExpressionHandle, ExpressionHandle) {
+    use crate::expression::{TableIndexedExpression, TableMembershipExpression};
+    let mut source = SyntaxTrees::new(Default::default());
+    let collection = source.expressions.insert(ExpressionNode::Boolean(false));
+    let selector = source.expressions.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(1),
+    ));
+    let subject = source
+        .expressions
+        .insert(ExpressionNode::Indexed(TableIndexedExpression {
+            collection,
+            index: selector,
+        }));
+    let classifier = source
+        .expressions
+        .append_identifier_path_member(Identifier::generated("Both"));
+    let membership =
+        source
+            .expressions
+            .insert(ExpressionNode::Membership(TableMembershipExpression {
+                value: subject,
+                domain: HandleSpan::from_parts(classifier, 1),
+            }));
+    let payload = source
+        .expressions
+        .insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: subject,
+            member: Identifier::generated("a"),
+            case_variant: Some(Identifier::generated("Both")),
+        }));
+    (source, membership, payload)
+}
+
+fn copied_case_subject(
+    destination: &SyntaxTrees,
+    membership: ExpressionHandle,
+    payload: ExpressionHandle,
+) -> ExpressionHandle {
+    let ExpressionNode::Membership(membership) = destination.expressions.expression(membership)
+    else {
+        panic!("copied membership");
+    };
+    let ExpressionNode::Member(payload) = destination.expressions.expression(payload) else {
+        panic!("copied payload");
+    };
+    assert_eq!(membership.value, payload.receiver);
+    membership.value
+}
+
+#[test]
+fn expression_copy_preserves_shared_subject_and_isolates_transactions() {
+    let (mut source, membership, payload) = shared_case_subject_syntax();
+    let ExpressionNode::Membership(observation) = source.expressions.expression(membership) else {
+        panic!("source membership");
+    };
+    let independent = source.expressions.expression(observation.value).clone();
+    let independent = source.expressions.insert(independent);
+    let independent_payload =
+        source
+            .expressions
+            .insert(ExpressionNode::Member(TableMemberExpression {
+                receiver: independent,
+                member: Identifier::generated("a"),
+                case_variant: Some(Identifier::generated("Both")),
+            }));
+    let children =
+        source
+            .expressions
+            .insert_expression_handles([membership, payload, independent_payload]);
+    let root = source
+        .expressions
+        .insert(ExpressionNode::ArrayLiteral(children));
+    let mut destination = SyntaxTrees::new(Default::default());
+    let first = destination.copy_expression_from(&source, root);
+    let second = destination.copy_expression_from(&source, root);
+    let subject = |copied| {
+        let ExpressionNode::ArrayLiteral(children) = destination.expressions.expression(copied)
+        else {
+            panic!("copied array root");
+        };
+        let children = destination.expressions.expression_handles(*children);
+        let subject = copied_case_subject(&destination, children[0], children[1]);
+        let ExpressionNode::Member(independent) = destination.expressions.expression(children[2])
+        else {
+            panic!("copied independent payload");
+        };
+        assert_ne!(subject, independent.receiver);
+        subject
+    };
+    assert_ne!(subject(first), subject(second));
+}
+
+#[test]
+fn item_copy_preserves_shared_body_subject_and_isolates_instances() {
+    let (mut source, membership, payload) = shared_case_subject_syntax();
+    let statement = source
+        .statements
+        .insert(StatementNode::Assignment(TableAssignment {
+            target: payload,
+            value: membership,
+        }));
+    let statement = source.items.append_statement_handle(statement);
+    let state = source.items.insert_state(&State {
+        name: Identifier::generated("entry"),
+        parameters: HandleSpan::empty(),
+        return_type: TypeReferenceHandle::invalid(),
+        contracts: HandleSpan::empty(),
+        statements: HandleSpan::from_parts(statement, 1),
+    });
+    let state = source.items.append_state_handle(state);
+    let fact = source
+        .items
+        .append_proof_fact(crate::item::ProofFact::Expression(membership));
+    let mut machine = single_state_machine(state);
+    machine.where_facts = HandleSpan::from_parts(fact, 1);
+    let item = Item::Machine(machine);
+    let mut destination = SyntaxTrees::new(Default::default());
+    let first = destination.copy_item_from(&source, &item);
+    let second = destination.copy_item_from(&source, &item);
+    let subject = |copied: &Item| {
+        let Item::Machine(machine) = copied else {
+            panic!("copied machine");
+        };
+        let state = destination.items.state_handles(machine.states)[0];
+        let statements = destination.items.state(state).statements;
+        let statement = destination.items.statements(statements)[0];
+        let StatementNode::Assignment(assignment) = destination.statements.statement(statement)
+        else {
+            panic!("copied assignment");
+        };
+        let crate::item::ProofFact::Expression(fact) =
+            destination.items.proof_fact(machine.where_facts.start())
+        else {
+            panic!("copied expression fact");
+        };
+        assert_eq!(*fact, assignment.value);
+        copied_case_subject(&destination, assignment.value, assignment.target)
+    };
+    assert_ne!(subject(&first), subject(&second));
+}
+
 /// A bodyless `main` machine whose only state is `state` — the shared
 /// root-item fixture both extend-from tests push.
 /// Assemble `file` through `extend_from` and return the machine root's

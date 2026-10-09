@@ -180,7 +180,7 @@ impl SyntaxTrees {
     }
 
     fn push_copied_root_item(&mut self, other: &SyntaxTrees, handle: ItemHandle) -> ItemHandle {
-        let item = self.copy_item(other, other.root_item(handle));
+        let item = self.copy_item_from(other, other.root_item(handle));
         self.push_root_item(item)
     }
 }

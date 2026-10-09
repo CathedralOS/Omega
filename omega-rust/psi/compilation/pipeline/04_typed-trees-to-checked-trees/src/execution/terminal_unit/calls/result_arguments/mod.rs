@@ -29,6 +29,9 @@ mod bounded_owner;
 mod reference;
 
 pub(crate) use anonymous_shared::validate as validate_shared_temporary;
+pub(crate) use reference::{
+    argument as retained_reference_argument, is_carrier as is_stored_reference,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(

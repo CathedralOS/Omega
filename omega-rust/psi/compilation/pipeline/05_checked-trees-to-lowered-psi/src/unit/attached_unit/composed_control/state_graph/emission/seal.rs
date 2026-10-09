@@ -254,6 +254,7 @@ impl StateGraphEmission<'_, '_> {
             &mut self.catalogs.temporary_places,
         )?;
         evaluation.blocks.extend(edge_blocks);
+        super::super::cleanup::retire_captured_subjects(state, &operations, &mut evaluation.blocks);
         crate::emission::private_borrow_transport::forward_private_state_borrows(
             self.state_ids[position],
             &mut evaluation.blocks,

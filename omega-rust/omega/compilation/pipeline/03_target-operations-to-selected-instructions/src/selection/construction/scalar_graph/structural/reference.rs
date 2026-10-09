@@ -229,20 +229,53 @@ pub(in crate::selection::construction::scalar_graph) fn load(
     place: semantic_vocabulary::PlaceId,
     home: selected_instructions::VirtualRegisterId,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
-    let pointer = transport_register(builder, place, 0)?;
-    memory(
+    load_pointer_word(
         builder,
-        row,
         place,
+        home,
         0,
-        8,
-        SelectedMemoryAccessRole::ReadPlace,
-    )?;
-    builder.emit(
-        SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or(invalid())?,
-        &[home, pointer],
+        selected_instructions::SelectedMemoryAccessOrigin::Operation(row.operation),
         provenance(row),
+    )
+}
+
+/// Read one descriptor word with its actual semantic owner. Terminator-owned
+/// observations have block footprints, never an invented producer operation.
+pub(in crate::selection::construction::scalar_graph) fn load_pointer_word(
+    builder: &mut Builder<'_>,
+    place: semantic_vocabulary::PlaceId,
+    home: selected_instructions::VirtualRegisterId,
+    byte_offset: u32,
+    origin: selected_instructions::SelectedMemoryAccessOrigin,
+    provenance: selected_instructions::SelectedInstructionProvenance,
+) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
+    let (address, displacement) =
+        super::displaced_memory_pointer(builder, place, home, byte_offset, 8, provenance.clone())?;
+    let pointer = transport_register(builder, place, byte_offset)?;
+    builder
+        .transport
+        .memory
+        .push(selected_instructions::SelectedMemoryAccess {
+            instruction: selected_instructions::SelectedInstructionId(
+                builder
+                    .instructions
+                    .len()
+                    .try_into()
+                    .map_err(|_| invalid())?,
+            ),
+            origin,
+            place,
+            byte_offset,
+            byte_count: 8,
+            role: SelectedMemoryAccessRole::ReadPlace,
+        });
+    builder.emit(
+        SelectedInstructionKind::Load64 {
+            byte_offset: displacement,
+        },
+        builder.constraints.keys.load64.ok_or(invalid())?,
+        &[address, pointer],
+        provenance,
     )?;
     Ok(pointer)
 }

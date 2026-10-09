@@ -34,6 +34,13 @@ pub(super) fn observe(
     let identity = live
         .structural_observation_type(function, *source)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    if path.contains(&StructuralPathSegment::Referent)
+        && super::references::check_projected_shared_access(
+            function, live, types, *source, path, None,
+        )
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
     let (tag_byte_offset, case_tag, runs) = case_projection(identity, path, *case, types)?;
     if result.scalar_type != ScalarType::Boolean {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -169,28 +176,25 @@ fn case_projection(
     types: &StructuralTypeLookup<'_>,
 ) -> Result<(u32, u32, Vec<(semantic_vocabulary::ValueId, u32)>), LoweringError> {
     let invalid = || LoweringError::UnknownStructuralType(identity);
-    let (identity, tag_byte_offset, runs) = if path.is_empty() {
-        (identity, 0, Vec::new())
-    } else if terminal_psi::is_static_structural_path(path) {
-        let (endpoint, _, offset) =
-            crate::lowering::structural_layout::resolve_structural_projection_path(
-                identity,
-                path,
-                types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )?;
-        (endpoint, offset, Vec::new())
-    } else {
-        let (endpoint, _, offset, runs) = crate::lowering::structural_layout::runtime_projection(
-            identity,
-            path,
+    let regions =
+        crate::lowering::structural_layout::reference_projection_regions(identity, path, types)
+            .ok_or_else(invalid)?;
+    let (identity, _, tag_byte_offset, leaf_runs) =
+        crate::lowering::structural_layout::runtime_projection(
+            regions.root,
+            regions.path,
             types,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
         )?;
-        (endpoint, offset, runs)
-    };
+    // The operation owns selectors on both sides of every pointer load. Keep
+    // them in authored region order; offsets belong to the final region only.
+    let mut runs = regions
+        .pointer_slots
+        .into_iter()
+        .flat_map(|slot| slot.indices)
+        .collect::<Vec<_>>();
+    runs.extend(leaf_runs);
     let declaration = types.get(&identity).ok_or_else(invalid)?;
     // A mixed shape's tag sits at the same carrier offset as a sum's: its
     // common fields follow the tag, so the case ordinal alone selects.
@@ -224,10 +228,33 @@ pub(super) fn lower(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let home = case_source(function, prepared, live, structural_types, *source)?;
+    let regions = crate::lowering::structural_layout::reference_projection_regions(
+        home.structural_type(),
+        path,
+        structural_types,
+    )
+    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    if regions
+        .pointer_slots
+        .iter()
+        .any(|slot| !slot.indices.is_empty())
+        || !regions.pointer_slots.is_empty()
+            && !super::references::case_reference_source_live(
+                function,
+                live,
+                structural_types,
+                *source,
+                path,
+            )
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    // The result home remains the reference descriptor. Payload offsets start
+    // anew after a pointer crossing and belong to the final backing region.
     let (selected_type, _, byte_offset) =
         crate::lowering::structural_layout::resolve_structural_projection_path(
-            home.structural_type(),
-            path,
+            regions.root,
+            regions.path,
             structural_types,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),

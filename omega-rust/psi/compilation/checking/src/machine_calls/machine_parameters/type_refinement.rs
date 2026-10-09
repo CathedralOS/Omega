@@ -73,6 +73,13 @@ fn required_type_matches_inner<const EXACT: bool>(
                 .iter()
                 .find(|binding| binding.symbol == parameter.symbol)
             {
+                if matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Const { .. }
+                ) {
+                    return program.normalized_type_identity(actual)
+                        == program.normalized_type_identity(binding.actual);
+                }
                 return required_type_matches_inner::<EXACT>(
                     program,
                     actual,
@@ -287,6 +294,7 @@ fn fixed_array_lengths_match(
 pub(in crate::machine_calls) fn infer_call_type_arguments(
     program: &dyn crate::CheckingInput,
     parameters: &[TypeParameter],
+    caller_parameters: &[TypeParameter],
     mut required: TypeReferenceHandle,
     mut actual: TypeReferenceHandle,
     bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
@@ -303,7 +311,13 @@ pub(in crate::machine_calls) fn infer_call_type_arguments(
     }
     let generic_types = parameters
         .iter()
-        .filter(|parameter| matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type))
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Type
+                    | typed_trees::data::TypeParameterKind::Const { .. }
+            )
+        })
         .collect::<Vec<_>>();
     let mut inferred = bindings
         .iter()
@@ -312,7 +326,25 @@ pub(in crate::machine_calls) fn infer_call_type_arguments(
             actual: *actual,
         })
         .collect::<Vec<_>>();
-    if required_type_matches_exact(program, actual, required, &generic_types, &mut inferred) {
+    if required_type_matches_exact(program, actual, required, &generic_types, &mut inferred)
+        && inferred.iter().all(|binding| {
+            let Some(parameter) = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == binding.symbol)
+            else {
+                return false;
+            };
+            !matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Const { .. }
+            ) || crate::value_custody::type_references::const_argument_matches_parameter(
+                program,
+                parameter,
+                binding.actual,
+                caller_parameters,
+            )
+        })
+    {
         *bindings = inferred
             .into_iter()
             .map(|binding| (binding.symbol, binding.actual))

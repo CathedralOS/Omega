@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 validation = { path = "../../checking" }
+facts = { path = "../../representations/checked-trees/facts" }
 arena = { path = "../../../foundation/arena" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
@@ -21,4 +22,3 @@ symbols = { path = "../../../foundation/symbols" }
 symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
 typed-trees = { path = "../../representations/typed-trees" }
-

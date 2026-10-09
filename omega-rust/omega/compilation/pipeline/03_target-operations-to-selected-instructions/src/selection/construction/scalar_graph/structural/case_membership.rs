@@ -25,7 +25,7 @@ pub(in crate::selection) fn observe(
         return Err(invalid());
     };
     let result = row.result.ok_or_else(|| invalid())?;
-    let Some((expected_tag, expected_offset, elements)) =
+    let Some((expected_tag, expected_offset, geometry)) =
         crate::selection::aggregate_result_input::membership_layout(source, *place, path, *case)
     else {
         return Err(invalid());
@@ -33,7 +33,8 @@ pub(in crate::selection) fn observe(
     if result.scalar_type != ScalarType::Boolean
         || (expected_tag, expected_offset) != (*case_tag, *tag_byte_offset)
         || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices, &elements,
+            indices,
+            &geometry.elements,
         )
     {
         return Err(invalid());
@@ -52,6 +53,15 @@ pub(in crate::selection) fn observe(
         // A runtime element joins the place pointer before the tag load
         // (`runtime_address`), and its footprint names the element's
         // certificate; a static tag reads its exact place extent.
+        let (pointer, leaf_index) = super::runtime_address::cross_references(
+            builder,
+            row,
+            place,
+            pointer,
+            indices,
+            &geometry.pointer_slots,
+        )?;
+        let indices = indices.get(leaf_index..).ok_or(invalid())?;
         let pointer =
             super::runtime_address::scale(builder, row, place, *tag_byte_offset, pointer, indices)?;
         // A tag deep inside a large home lies past the target's direct

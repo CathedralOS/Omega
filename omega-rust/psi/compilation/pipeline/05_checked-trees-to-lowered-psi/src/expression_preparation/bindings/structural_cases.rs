@@ -39,9 +39,10 @@ impl StructuralCaseBinding {
     }
 }
 
-/// Resolve static case observation from any established readable place.
-/// The source binding owns custody; this walk owns declared field, extent and
-/// case identity. Locals do not need a separately reconstructed case catalog.
+/// Resolve an executable observation at an established readable place. Its
+/// captured address path may cross reference descriptors; that is not a
+/// predicate's canonical owned-place path. Selectors still require their real
+/// emitting operand frame, and source bindings retain live custody.
 pub(crate) fn resolve_at(
     declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
@@ -54,23 +55,45 @@ pub(crate) fn resolve_at(
     ),
     LoweringError,
 > {
-    let steps = steps
-        .iter()
-        .map(|step| match step {
-            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Ok(
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
-            ),
-            checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => Ok(
-                checked_trees::CheckedStructuralPredicatePathSegment::Case(identity.clone()),
-            ),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                Ok(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
+    let prepared =
+        super::structural_paths::prepare_argument_path(steps, structural_type, declarations)?;
+    let path = super::structural_paths::emit_argument_path(
+        &prepared,
+        None,
+        &mut std::iter::empty(),
+        None,
+    )?;
+    for (position, segment) in path.iter().enumerate() {
+        if *segment != terminal_psi::StructuralPathSegment::Referent {
+            continue;
+        }
+        let reference = terminal_semantics::runtime_structural_path_tip(
+            declarations.iter(),
+            structural_type,
+            &path[..position],
+        )
+        .ok_or(LoweringError::Unsupported(
+            "case observation lost its exact reference carrier",
+        ))?;
+        if !matches!(
+            reference.shape,
+            StructuralTypeShape::Reference {
+                access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+                ..
             }
-            _ => unsupported("static case observation requires fields, cases and fixed indices"),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let (sum, path) = walk(declarations, structural_type, &steps)?;
-    Ok((path, selected_case(declarations, sum, identity)?))
+        ) {
+            return unsupported("case observation requires a readable reference crossing");
+        }
+    }
+    let sum = terminal_semantics::runtime_structural_path_tip(
+        declarations.iter(),
+        structural_type,
+        &path,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "case observation has no exact declared carrier",
+    ))?;
+    Ok((path, selected_case(declarations, sum.id, identity)?))
 }
 
 pub(crate) fn resolve(
@@ -159,8 +182,8 @@ pub(crate) fn resolve_runtime_element(
     ))
 }
 
-/// Walk relevant structural record fields and in-range literal indexes from
-/// `structural_type`, lowering each step.
+/// Walk a proof predicate's owned-place coordinates. Reference crossings and
+/// evaluated selectors belong to executable address preparation, not this walk.
 fn walk(
     declarations: &[StructuralTypeDeclaration],
     mut structural_type: StructuralTypeId,

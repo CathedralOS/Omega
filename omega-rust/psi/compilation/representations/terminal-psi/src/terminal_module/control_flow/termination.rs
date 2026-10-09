@@ -105,6 +105,40 @@ pub enum CrashCause {
 }
 
 impl Terminator {
+    /// Rewrite runtime structural root operands, excluding cleanup and proof
+    /// identities. This inventory describes uses, not authority to consume them.
+    pub fn map_structural_uses(&mut self, map: &mut impl FnMut(PlaceId) -> PlaceId) {
+        match self {
+            Self::Jump {
+                structural_arguments,
+                ..
+            }
+            | Self::ExternalCompletion {
+                structural_arguments,
+                ..
+            } => {
+                for argument in structural_arguments {
+                    argument.place = map(argument.place);
+                }
+            }
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for edge in [when_true, when_false] {
+                    for argument in &mut edge.structural_arguments {
+                        argument.place = map(argument.place);
+                    }
+                }
+            }
+            Self::StructuralCase { source, .. } | Self::ReturnStructural { source, .. } => {
+                *source = map(*source);
+            }
+            Self::Return { .. } | Self::ReturnUnit { .. } | Self::Crash { .. } => {}
+        }
+    }
+
     /// Enumerate edge-owned cleanup dependencies without selecting or executing
     /// a branch. Each roster keeps its authored action order and edge identity.
     pub fn cleanup_rosters(

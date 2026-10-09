@@ -1,6 +1,7 @@
 //! Case terminators inspect exact sums. An owned subject is consumed and its
-//! disposal obligation retained; a shared or mutable loan parameter is read in
-//! place and stays the caller's.
+//! disposal obligation retained; a shared or mutable loan is read in place.
+//! Captured locals retain their real descriptor result and cross its referee,
+//! never re-evaluating the reference's formation or borrowing its owned custody.
 //! A field or fixed-index subject observes a subtree of that same carrier;
 //! it neither transfers the carrier nor turns a one-case sum into a guard.
 //!
@@ -16,8 +17,8 @@ use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventSource,
-    ScalarCalleeClosure, ShapeCollector, Signature, StatementNode, TransitionExit,
-    TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, returns, terminal_calls,
+    ScalarCalleeClosure, ShapeCollector, Signature, TransitionExit, TransitionGuardNode,
+    TransitionTargetNode, TypeReferenceNode, returns, terminal_calls,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
@@ -148,33 +149,72 @@ pub(super) fn build(
         } else {
             let mut matching = operations
                 .iter()
-                .filter_map(super::retained_structural_result)
-                .filter_map(|result| {
+                .filter_map(|operation| {
+                    Some((operation, super::retained_structural_result(operation)?))
+                })
+                .filter_map(|(operation, result)| {
                     let local = statements
                         .get(result.statement_index as usize)?
                         .as_local_data()?;
                     (dispatch.is_symbol(local.symbol)
                         && !local.is_mutable
                         && result.statement_index < transition_start as u32)
-                        .then_some((result, local))
+                        .then_some((operation, result, local))
                 });
-            let (result, local) = matching.next()?;
+            let (operation, result, local) = matching.next()?;
             if matching.next().is_some()
                 || !matches!(
                     result.multiplicity,
                     Multiplicity::Affine | Multiplicity::Unrestricted
                 )
-                || result.multiplicity != program.type_multiplicity(local.type_reference)
             {
                 return None;
             }
+            let (subject, inspected) = if let Some(shell) =
+                validation::reference_shell(program, local.type_reference)
+            {
+                // The descriptor's affine custody belongs to its producer,
+                // not to the unrestricted shared-reference source type.
+                if !matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                ) || result.multiplicity != Multiplicity::Affine
+                    || shell.access == language_semantics::ReferenceAccess::WriteOnly
+                {
+                    return None;
+                }
+                shapes.add_type(shell.referee, &[], &[])?;
+                (
+                    CheckedUnitStructuralArgumentPlan {
+                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: result.binding_ordinal,
+                        },
+                        path: vec![checked_trees::CheckedUnitStructuralPathSegment::Referent],
+                        type_identity: crate::execution::terminal_unit::types::base_type_identity(
+                            program,
+                            shell.referee,
+                            &[],
+                        )?,
+                        access: CheckedStructuralAccess::SharedBorrow,
+                    },
+                    shell.referee,
+                )
+            } else {
+                if result.multiplicity != program.type_multiplicity(local.type_reference) {
+                    return None;
+                }
+                (
+                    CheckedUnitStructuralArgumentPlan::structural_result(
+                        result.binding_ordinal,
+                        result.type_identity.clone(),
+                        CheckedStructuralAccess::Owned,
+                    ),
+                    local.type_reference,
+                )
+            };
             (
-                CheckedUnitStructuralArgumentPlan::structural_result(
-                    result.binding_ordinal,
-                    result.type_identity.clone(),
-                    CheckedStructuralAccess::Owned,
-                ),
-                local.type_reference,
+                subject,
+                inspected,
                 language_semantics::PermissionProvenance::Established {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
@@ -193,7 +233,7 @@ pub(super) fn build(
             transition_start,
             place,
         )?;
-        subject.path = path;
+        subject.path.extend(path);
         subject.type_identity =
             crate::execution::terminal_unit::types::base_type_identity(program, projected, &[])?;
         // Dispatch observes a subtree, not an owned move of its enclosing
@@ -238,46 +278,6 @@ pub(super) fn build(
     // complete coverage (see below).
     if variants.is_empty() || statements.len() - transition_start > variants.len() + 1 {
         return None;
-    }
-    let marker_start = statements[..transition_start].iter().rposition(|statement| !matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#V="))).map_or(0, |index| index + 1);
-    // Destructure markers re-read a place subject. A computed subject has no
-    // place to re-read: its payload reads are the parser's copies below.
-    if matches!(dispatch, DispatchSubject::Computed(_)) && marker_start != transition_start {
-        return None;
-    }
-    let mut destructures = Vec::new();
-    for (index, statement) in statements[marker_start..transition_start]
-        .iter()
-        .enumerate()
-    {
-        let local = statement.as_local_data()?;
-        let encoded = local.name.as_str().strip_prefix("__arm_destructure#V=")?;
-        let (variant, encoded) = encoded.split_once('#')?;
-        let (fields, _) = encoded.split_once("#~subject=")?;
-        let selected_variant = variants
-            .iter()
-            .find(|candidate| candidate.name.as_str() == variant)?;
-        let place = validation::contextual_canonical_place_from_expression(
-            program,
-            state.symbol,
-            marker_start + index,
-            local.initial_value,
-        )?;
-        if local.is_mutable || !dispatch.is_symbol_place(&place) {
-            return None;
-        }
-        for field in fields.split('#') {
-            if field.is_empty()
-                || destructures.contains(&(variant, field))
-                || !program
-                    .data_payload_fields(selected_variant)
-                    .iter()
-                    .any(|candidate| candidate.name.as_str() == field)
-            {
-                return None;
-            }
-            destructures.push((variant, field));
-        }
     }
     let mut cases = Vec::new();
     let mut count = returns::next_result_ordinal(operations.as_slice())?;
@@ -420,7 +420,6 @@ pub(super) fn build(
                                     ordinal as usize,
                                     expression,
                                     variant,
-                                    &destructures,
                                     &mut subject_reads,
                                 )?
                                 .is_some()
@@ -481,7 +480,6 @@ pub(super) fn build(
                             ordinal as usize,
                             argument,
                             variant,
-                            &destructures,
                             &mut subject_reads,
                         )?
                         else {
@@ -581,10 +579,10 @@ pub(super) fn build(
     {
         return None;
     }
-    // Destructuring makes a payload available; it does not require forwarding
-    // every binding. The subject's contents are plain owned storage, so unused
-    // fields carry no separate ownership obligation. Validate their declared
-    // identities above and retain the whole subject's disposal below.
+    // The selected case makes its checked payload observations available; it
+    // does not require forwarding every field. Payload transfers retain the
+    // exact subject, case and field identities, independent of generated
+    // destructure markers or preparations preceding the dispatch.
     // Affine dispatch requires the actual source exit disposition. Copyable
     // subjects have no disposal debt; do not invent an affine-drop receipt.
     // Parameter-origin carriers and fresh results have different provenance.
@@ -721,8 +719,8 @@ impl DispatchSubject<'_> {
         }
     }
 
-    /// The selected case's payload field `argument` reads, `Ok(None)` when
-    /// the argument does not read this subject at all, and `Err` when it
+    /// The selected case's payload field `argument` reads, `Some(None)` when
+    /// the argument does not read this subject at all, and `None` when it
     /// reads the subject in a way a case edge cannot transfer.
     #[allow(clippy::too_many_arguments)]
     fn payload_field<'program>(
@@ -732,7 +730,6 @@ impl DispatchSubject<'_> {
         statement_index: usize,
         argument: typed_trees::expression::ExpressionHandle,
         variant: &'program typed_trees::data::DataVariant,
-        destructures: &[(&str, &str)],
         subject_reads: &mut Vec<typed_trees::expression::ExpressionHandle>,
     ) -> Option<Option<&'program typed_trees::data::DataField>> {
         match self {
@@ -758,10 +755,11 @@ impl DispatchSubject<'_> {
                 if *selected != variant.symbol {
                     return None;
                 }
+                // Semantic checking authorized this projection at the arm.
+                // Rejoin its canonical identities to the exact selected case,
+                // not to the parser's generated marker names or their order.
                 let field = program.data_payload_field_by_symbol(variant, *symbol)?;
-                destructures
-                    .contains(&(variant.name.as_str(), field.name.as_str()))
-                    .then_some(Some(field))
+                Some(Some(field))
             }
             // The parser rewrites a bound payload name to a case-qualified
             // member read of its own subject copy; only that spelling reads

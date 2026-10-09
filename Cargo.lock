@@ -1942,6 +1942,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
+ "facts",
  "language-core",
  "language-semantics",
  "numerics",

@@ -25,11 +25,21 @@ pub(crate) fn lower_expression_into_table(
     expression: syntax::expression::ExpressionHandle,
 ) -> Result<ExpressionHandle, Diagnostic> {
     let source_span = syntax_trees.expressions.source_span(expression);
-    let lowered = lower_expression_node_into_table(
-        lowerer,
-        syntax_trees,
-        syntax_trees.expressions.expression(expression),
-    )?;
+    // Parser-created payload receivers share the dispatch subject's exact
+    // syntax handle. Once that occurrence has a capture, every later use reads
+    // the capture, never a new evaluation of its collection or selector.
+    let lowered = if let Some(name) = lowerer.match_subject_temp(expression.arena_index()) {
+        crate::lowering::statement::hoist_temps::reference_temp(
+            lowerer,
+            symbol_resolved_trees::name::DiagnosticName::generated(name),
+        )
+    } else {
+        lower_expression_node_into_table(
+            lowerer,
+            syntax_trees,
+            syntax_trees.expressions.expression(expression),
+        )?
+    };
     expression_table(lowerer).set_source_span(lowered, source_span);
     if let syntax::expression::ExpressionNode::Call(call) =
         syntax_trees.expressions.expression(expression)

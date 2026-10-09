@@ -571,13 +571,11 @@ impl TerminalExecution<'_> {
                     // primitive-scalar leaf. The loan moves no custody —
                     // the root either stays untracked or is still held as
                     // one whole frontier entry.
-                    let view = resolve_structural_arguments(
-                        &self.program.structural_types(),
-                        &self.structural_values,
-                        std::slice::from_ref(argument),
-                    )?
-                    .pop()
-                    .ok_or(malformed())?;
+                    let view = self.resolve_live_projection(
+                        argument.place,
+                        &argument.path,
+                        argument.access,
+                    )?;
                     if view.structural_type != parameter.structural_type {
                         return Err(TerminalInterpretError::StructuralArgumentType {
                             place: parameter.place,

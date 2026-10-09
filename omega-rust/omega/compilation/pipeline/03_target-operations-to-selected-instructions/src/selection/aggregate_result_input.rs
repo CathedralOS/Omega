@@ -218,7 +218,7 @@ pub(super) fn membership_layout(
 ) -> Option<(
     u32,
     u32,
-    Vec<crate::structural_inputs::structural_reference_input::RuntimeElement>,
+    crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry,
 )> {
     let signature = source.structural.as_ref()?;
     let parameter = signature
@@ -251,26 +251,21 @@ pub(super) fn membership_layout(
         }
         result.structural_type
     };
-    // Whole sums keep their existing payload-layout admission. Resolving a
-    // nonempty path additionally requires the supported enclosing storage shape.
-    let (identity, byte_offset, elements) = if path.is_empty() {
-        (identity, 0, Vec::new())
-    } else if terminal_psi::is_static_structural_path(path) {
-        let (identity, byte_offset) =
-            crate::structural_inputs::structural_reference_input::project(
-                identity,
-                path,
-                &signature.structural_types,
-            )?;
-        (identity, byte_offset, Vec::new())
-    } else {
-        crate::structural_inputs::structural_reference_input::runtime_projection(
-            identity,
-            path,
-            &signature.structural_types,
-        )?
-    };
-    let declaration = signature.structural_type(identity)?;
+    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+        identity,
+        path,
+        &signature.structural_types,
+    )?;
+    if !geometry.readable
+        || geometry
+            .pointer_slots
+            .iter()
+            .any(|slot| slot.scalar_descriptor)
+    {
+        return None;
+    }
+    let byte_offset = geometry.byte_offset;
+    let declaration = signature.structural_type(geometry.selected)?;
     // A mixed shape keeps the sum's tag word at offset 0; its runtime common
     // fields follow the tag, so they take part in the layout the tag guards.
     let (common, cases) = match &declaration.shape {
@@ -294,7 +289,7 @@ pub(super) fn membership_layout(
         .iter()
         .position(|candidate| candidate.id == case)
         .and_then(|ordinal| u32::try_from(ordinal).ok())
-        .map(|tag| (tag, byte_offset, elements))
+        .map(|tag| (tag, byte_offset, geometry))
 }
 
 /// Physical completion storage is shared by internal and foreign calls. Their

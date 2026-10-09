@@ -39,7 +39,6 @@ pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 pub(crate) use computed_results::retain_computed_result_types;
 pub(crate) use generic_origins::validate_range_arguments;
 
-pub(crate) use constraints::lower_element_applicable_constraints;
 use direct::lower_type_reference_handle_with_context;
 use table::lower_type_reference_handle_from_table_with_context;
 

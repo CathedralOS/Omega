@@ -153,7 +153,7 @@ fn result_source<'a>(
             let result = state
                 .operations
                 .iter()
-                .filter_map(super::result_custody::result)
+                .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
                 .find(|result| result.binding_ordinal == binding_ordinal)
                 .ok_or(LoweringError::Unsupported(
                     "Unit case result producer missing",

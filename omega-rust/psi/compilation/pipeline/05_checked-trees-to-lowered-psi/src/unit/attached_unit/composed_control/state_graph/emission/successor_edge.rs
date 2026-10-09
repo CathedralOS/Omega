@@ -719,10 +719,7 @@ impl StateGraphEmission<'_, '_> {
                         .any(|cleanup| cleanup.sources.contains(&action.place()))
             }));
         }
-        if case_edge {
-            let consumed = case_subject.ok_or(LoweringError::Unsupported(
-                "Unit graph case edge lost its consumed subject",
-            ))?;
+        if case_edge && let Some(consumed) = case_subject {
             cleanup_actions.retain(|action| action.place() != consumed);
         }
         // Proof-only actuals never evaluate: each checked erased row

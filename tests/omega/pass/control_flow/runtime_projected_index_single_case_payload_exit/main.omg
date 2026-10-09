@@ -1,0 +1,26 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Pair { case Both(a: u64 in Wrapping, b: u64 in Wrapping); }
+data Main {
+    console: Binding<Console>;
+    items: [Pair; 2];
+    selected: u64 [0..=1];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.items[0] = Pair::Both { a: 1, b: 2 };
+    main.items[1] = Pair::Both { a: 30, b: 40 };
+    main.selected = 1;
+    transition main.items[main.selected] {
+        Pair::Both { a, b } -> total(main, a + b)
+    }
+    state total(main: &mut Main, value: u64 in Wrapping) {
+        transition value == 70 {
+            true -> good(main)
+            false -> bad(main)
+        }
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
+}

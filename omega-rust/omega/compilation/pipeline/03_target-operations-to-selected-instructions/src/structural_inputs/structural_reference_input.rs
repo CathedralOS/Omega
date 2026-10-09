@@ -126,6 +126,10 @@ pub(crate) struct PointerSlot {
 /// Address formation regions retain selectors on the side of each pointer
 /// crossing where they were authored. Construction scratch, not another IR.
 pub(crate) struct ReferenceSourceGeometry {
+    /// The final contiguous storage region, distinct from the descriptor root.
+    pub(crate) region_root: StructuralTypeId,
+    /// Declared read permission at every crossing, not a liveness judgment.
+    pub(crate) readable: bool,
     pub(crate) selected: StructuralTypeId,
     pub(crate) byte_offset: u32,
     pub(crate) pointer_slots: Vec<PointerSlot>,
@@ -140,6 +144,7 @@ pub(crate) fn reference_source_geometry(
     let mut segment_start = 0;
     let mut elements = Vec::new();
     let mut pointer_slots = Vec::new();
+    let mut readable = true;
     for (position, segment) in path.iter().enumerate() {
         if *segment != StructuralPathSegment::Referent {
             continue;
@@ -147,12 +152,30 @@ pub(crate) fn reference_source_geometry(
         let (reference, byte_offset, region_elements) =
             runtime_projection(root, &path[segment_start..position], declarations)?;
         let referent = declared_referent(declarations, reference)?;
+        let StructuralTypeShape::Reference { access, .. } =
+            find_structural_type(declarations, reference)?.shape
+        else {
+            return None;
+        };
+        readable &= matches!(
+            access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        );
+        let scalar_descriptor = scalar_storage_type(referent, declarations).is_some();
+        let descriptor_size = if scalar_descriptor { 16 } else { 8 };
+        // Projection traversal checks inline coordinates; view selectors keep
+        // their operation-owned bounds. A view's descriptor extent is never
+        // the bound of the backing region its projection addresses.
+        if shape(reference, declarations)? != ValueShape::integer(descriptor_size, 8) {
+            return None;
+        }
         let first_index = elements.len();
         elements.extend(region_elements);
         pointer_slots.push(PointerSlot {
             byte_offset,
             indices: first_index..elements.len(),
-            scalar_descriptor: scalar_storage_type(referent, declarations).is_some(),
+            scalar_descriptor,
         });
         root = referent;
         segment_start = position + 1;
@@ -161,6 +184,8 @@ pub(crate) fn reference_source_geometry(
         runtime_projection(root, &path[segment_start..], declarations)?;
     elements.extend(leaf_elements);
     Some(ReferenceSourceGeometry {
+        region_root: root,
+        readable,
         selected,
         byte_offset,
         pointer_slots,

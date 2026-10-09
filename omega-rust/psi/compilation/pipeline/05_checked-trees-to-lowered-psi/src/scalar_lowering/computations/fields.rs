@@ -1286,9 +1286,10 @@ fn observe(
         path
     });
 
-    if !crosses_reference
-        && let Some((semantic_vocabulary::CanonicalStructuralPathSegment::Case(case), prefix)) =
-            canonical_path.as_deref().and_then(|path| path.split_last())
+    if let Some((terminal_psi::StructuralPathSegment::Field(_), carrier)) =
+        primitive_path.split_last()
+        && let Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) =
+            carrier.split_last()
         && let Some(payload) =
             bindings.established_case_payload(source, prefix, *case, binding.field, scalar_type)?
     {

@@ -7,8 +7,8 @@ use super::super::super::{
     PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration, terminal_scalar_type,
     unsupported,
 };
-use super::super::{CheckedTrees, LoweringError, catalogs};
-use super::{CheckedComposedUnitControlStatePlan, scalars};
+use super::super::{LoweringError, catalogs};
+use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 
 pub(super) struct PreparedCase<'a> {
@@ -21,13 +21,11 @@ pub(super) struct PreparedCase<'a> {
 pub(super) struct PreparedCases<'a> {
     pub source: PlaceId,
     pub path: Vec<terminal_psi::StructuralPathSegment>,
-    pub payload_path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     pub discard_subject: bool,
     pub cases: Vec<PreparedCase<'a>>,
 }
 
 pub(super) fn prepare<'a>(
-    checked: &CheckedTrees,
     state: &'a CheckedComposedUnitControlStatePlan,
     catalogs: &catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -42,19 +40,6 @@ pub(super) fn prepare<'a>(
     // `cases::validate` admitted the original carrier. Its path selects the
     // inspected sum without transferring that carrier's ownership or loan.
     let owned = subject.access == checked_trees::CheckedStructuralAccess::Owned;
-    let subject_position = match subject.source {
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            Some(
-                parameters
-                    .get(parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph case parameter missing",
-                    ))?
-                    .position,
-            )
-        }
-        _ => None,
-    };
     let (place, structural_type, multiplicity) = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let parameter =
@@ -94,7 +79,9 @@ pub(super) fn prepare<'a>(
             _ => unsupported("case dispatch runtime projection requires a selector evidence owner"),
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let (payload_path, declaration) = terminal_semantics::canonical_static_projection(
+    // A captured reference starts a new storage region, not a canonical owned
+    // subtree. Keep its explicit crossing as the selected payload's identity.
+    let declaration = terminal_semantics::runtime_structural_path_tip(
         catalogs.structural_types.iter(),
         structural_type,
         &path,
@@ -132,93 +119,39 @@ pub(super) fn prepare<'a>(
                     crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
                 ));
             }
-            // The checker records a payload row only for a verbatim parameter
-            // forward; a successor argument expression that reads this case's
-            // payload (a `[Case, Field]` scalar leaf below the subject) binds
-            // the field as an extra staged-block formal the expression reads
-            // back through the edge's namespace tail. A returning arm uses
-            // the same selected payload namespace for its value and operands.
-            let successor = match &case.outcome {
-                checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => successor,
-                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => {
-                    // An arm covering several cases (a wildcard or a
-                    // case-union domain) cannot name a payload, since payload
-                    // bindings need a known case shape. It binds none, so its
-                    // completion runs once in a block each covered case
-                    // enters.
-                    let shared = fields.is_empty()
-                        && cases
-                            .iter()
-                            .filter(|other| other.outcome == case.outcome)
-                            .count()
-                            > 1;
-                    // As with a guard dispatch, bind relevant scalar payloads
-                    // on the selected edge before any completion operand runs.
-                    // The whole subject may be disposed on that edge; these
-                    // copied values remain available in its dominated block.
-                    for field in declared.fields.iter().filter(|_| !shared) {
-                        if field.relevance.is_erased() || fields.contains(&field.id) {
-                            continue;
-                        }
-                        let Some(scalar_type) = field.field_type.scalar_type() else {
-                            continue;
-                        };
-                        fields.push(field.id);
-                        values.push((
-                            u32::MAX,
-                            crate::terminal_identities::fresh_scalar_declaration(
-                                next_value,
-                                scalar_type,
-                            )?,
-                        ));
-                    }
-                    return Ok(PreparedCase {
-                        outcome: &case.outcome,
-                        identity: declared.id,
-                        fields,
-                        values,
-                    });
+            // A wildcard returning arm shared by several cases cannot name
+            // a case-specific payload. Its common completion block therefore
+            // receives no payload formals. All other arms use one snapshot
+            // namespace, independent of pure expressions versus computations.
+            let shared_return = matches!(
+                case.outcome,
+                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_)
+            ) && fields.is_empty()
+                && cases
+                    .iter()
+                    .filter(|other| other.outcome == case.outcome)
+                    .count()
+                    > 1;
+            for field in declared.fields.iter().filter(|_| !shared_return) {
+                if field.relevance.is_erased() || fields.contains(&field.id) {
+                    continue;
                 }
-            };
-            for transfer in &successor.scalar_arguments {
-                if !matches!(
-                    transfer.source,
-                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                // Atomic representation is scalar, but observing it is an
+                // authored access event, never an implicit payload snapshot.
+                if matches!(
+                    field.field_type,
+                    terminal_psi::StructuralFieldType::Atomic(_)
                 ) {
                     continue;
                 }
-                let argument = scalars::successor_value(checked, state, successor, transfer)?;
-                let Some(expression) = argument.as_pure() else {
+                let Some(scalar_type) = field.field_type.scalar_type() else {
                     continue;
                 };
-                let mut reads = Vec::new();
-                scalars::case_payload_reads(expression, &mut reads);
-                for (position, prefix, case_name, field_name) in reads {
-                    if Some(position) != subject_position
-                        || prefix != subject.path
-                        || case_name != declared.identity.as_str()
-                    {
-                        continue;
-                    }
-                    let field = terminal_psi::field_by_identity(&declared.fields, field_name)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph case argument reads an undeclared payload",
-                        ))?;
-                    if fields.contains(&field.id) {
-                        continue;
-                    }
-                    let Some(scalar_type) = field.field_type.scalar_type() else {
-                        return unsupported("Unit graph case argument reads a non-scalar payload");
-                    };
-                    fields.push(field.id);
-                    values.push((
-                        u32::MAX,
-                        crate::terminal_identities::fresh_scalar_declaration(
-                            next_value,
-                            scalar_type,
-                        )?,
-                    ));
-                }
+                fields.push(field.id);
+                values.push((
+                    u32::MAX,
+                    crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
+                ));
             }
             Ok(PreparedCase {
                 outcome: &case.outcome,
@@ -231,7 +164,9 @@ pub(super) fn prepare<'a>(
     Ok(Some(PreparedCases {
         source: place,
         path,
-        payload_path,
+        // An owned case is consumed by selection. A borrowed descriptor is
+        // not: the arm may still forward or reborrow it. Its checked deferred
+        // release stays on the selected exit, after operand evaluation.
         discard_subject: owned && multiplicity == StructuralMultiplicity::Affine,
         cases,
     }))

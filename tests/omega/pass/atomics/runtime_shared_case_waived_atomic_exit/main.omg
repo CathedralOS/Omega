@@ -1,0 +1,25 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Choice { case Cell(counter: AtomicU32, n: u64 in Wrapping); case Empty; }
+data Main { console: Binding<Console>; }
+
+machine inspect(choice: &Choice) -> u64 in Wrapping {
+    transition choice {
+        Choice::Cell { counter as _, n } -> (n)
+        Choice::Empty -> (0)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let full: Choice = Choice::Cell { counter: 3, n: 70 };
+    let empty: Choice = Choice::Empty;
+    let present: u64 in Wrapping = inspect(&full);
+    let absent: u64 in Wrapping = inspect(&empty);
+    transition present == 70 && absent == 0 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
+}

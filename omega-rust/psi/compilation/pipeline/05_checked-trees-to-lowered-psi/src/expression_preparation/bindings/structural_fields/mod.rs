@@ -130,7 +130,7 @@ impl StructuralFieldBindings {
     pub(crate) fn established_payload(
         &self,
         source: PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        path: &[terminal_psi::StructuralPathSegment],
         case: StructuralCaseId,
         field: StructuralFieldId,
     ) -> Result<Option<usize>, LoweringError> {
@@ -174,7 +174,9 @@ enum CasePayloadAccess {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct EstablishedCasePayload {
     pub(crate) source: PlaceId,
-    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    // This is an observation identity, not an owned-place proposition. Retain
+    // pointer crossings so two reference leaves cannot share a snapshot key.
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
     pub(crate) case: StructuralCaseId,
     pub(crate) field: StructuralFieldId,
     pub(crate) position: usize,
@@ -427,8 +429,29 @@ fn resolved_field_read(
     scalar_type: ScalarType,
     crosses_reference: bool,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    if let Some((semantic_vocabulary::CanonicalStructuralPathSegment::Case(case), prefix)) =
-        canonical_path.split_last()
+    let (explicit, _) = observation_paths::explicit_path(
+        binding.structural_type,
+        authored_path,
+        &binding.declarations,
+    )?;
+    // Resolve identity before deciding whether a memory read is needed. A
+    // selected case already supplied a scalar snapshot; it is not a primitive
+    // memory path (that grammar deliberately grants no payload authority).
+    let physical_path = super::structural_paths::prepare_argument_path(
+        &explicit,
+        binding.structural_type,
+        &binding.declarations,
+    )?
+    .into_iter()
+    .map(|step| match step {
+        super::structural_paths::PreparedStructuralPathSegment::Static(step) => Ok(step),
+        _ => unsupported("static payload binding requires a captured selector"),
+    })
+    .collect::<Result<Vec<_>, LoweringError>>()?;
+    if let Some((terminal_psi::StructuralPathSegment::Field(_), carrier)) =
+        physical_path.split_last()
+        && let Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) =
+            carrier.split_last()
         && let CasePayloadAccess::Established(rows) = &binding.case_payloads
         && let Some(row) = rows
             .iter()
@@ -440,11 +463,6 @@ fn resolved_field_read(
         });
     }
     if crosses_reference {
-        let (explicit, _) = observation_paths::explicit_path(
-            binding.structural_type,
-            authored_path,
-            &binding.declarations,
-        )?;
         let (path, declared) = crate::emission::primitive_store::lower_path(
             binding.structural_type,
             &explicit,

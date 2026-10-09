@@ -154,7 +154,7 @@ pub(super) fn plan(
         return None;
     }
     let reference_capture =
-        super::super::reference_captures::plan(program, machine, state, index, local);
+        super::super::reference_captures::plan(program, facts, machine, state, index, local);
     if (reference_capture.is_none() && erased_locals.contains(&local.symbol))
         || is_record_pattern_marker(local)
     {
@@ -694,16 +694,6 @@ pub(super) fn plan(
             result,
             elements,
         });
-        return Some(LocalPlan::Planned);
-    }
-    // A runtime-indexed dispatch subject is erased: each arm observes the
-    // borrowed element itself (`case_observation_alias`).
-    local_phase("statement sequence: local data: erased dispatch subject");
-    if crate::execution::terminal_unit::control::case_observation_alias::erased_subject(
-        program, state, index, local,
-    )
-    .is_some()
-    {
         return Some(LocalPlan::Planned);
     }
     local_phase("statement sequence: local data: exclusive place loan");

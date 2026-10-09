@@ -9,6 +9,7 @@ use crate::lowering::statement::match_subject_hoisting::{
     guard_hoists_operands, hoist_comparison_match_subject, hoist_membership_match_subject,
     is_reference_struct_parameter_member,
 };
+use crate::lowering::statement::reference_initializer_selectors::capture_reference_initializer_selectors;
 use crate::lowering::statement::value_call_hoisting::{
     hoist_scalar_value_call_comparison, hoist_terminal_value_machine_call,
     is_scalar_return_computation,
@@ -348,11 +349,27 @@ pub(crate) fn lower_statement_node(
                 initial_value
             };
             declaration.initial_value = initial_value;
+            if initial_value.is_valid() {
+                capture_reference_initializer_selectors(lowerer, initial_value, &mut hoisted);
+            }
             hoisted.push(Statement::LocalData(declaration));
             Ok(hoisted)
         }
         syntax::statement::StatementNode::Transition(transition) => {
             let mut hoisted = Vec::new();
+            // Establish a match's shared subject before lowering its payload
+            // receivers. Target expressions remain guarded; only the subject
+            // address is evaluated before selection, once for the whole match.
+            let guard = lower_transition_guard_node(lowerer, syntax_trees, transition.guard)?;
+            if let TransitionGuard::When(expression) = guard {
+                hoist_membership_match_subject(
+                    lowerer,
+                    syntax_trees,
+                    transition.guard,
+                    expression,
+                    &mut hoisted,
+                );
+            }
             // An Always fallback is selected only after earlier arms fail.
             // Its target work cannot join the pre-dispatch hoist prefix.
             let unconditional = !has_preceding_transition
@@ -398,7 +415,6 @@ pub(crate) fn lower_statement_node(
             } else {
                 None
             };
-            let guard = lower_transition_guard_node(lowerer, syntax_trees, transition.guard)?;
             // Hoist runtime-indexed reads out of the FIRST arm's guard operands, exactly as for
             // assignment values and let initializers above, so `transition self.arr[i] > 5`
             // becomes `let __hoist = self.arr[i]; transition __hoist > 5`. A later arm keeps its
@@ -460,17 +476,6 @@ pub(crate) fn lower_statement_node(
                             OperandHoisting::Guard,
                         );
                     }
-                } else {
-                    // A `Membership` root is an enum-variant match arm (`grid[i] { Wall -> .. }`);
-                    // the comparison hoist above skips it (not a `Binary`). Hoist its runtime-indexed
-                    // subject into a SHARED temp so all arms of the match test one plain local.
-                    hoist_membership_match_subject(
-                        lowerer,
-                        syntax_trees,
-                        transition.guard,
-                        expression,
-                        &mut hoisted,
-                    );
                 }
             }
             hoisted.push(Statement::Transition(Transition {

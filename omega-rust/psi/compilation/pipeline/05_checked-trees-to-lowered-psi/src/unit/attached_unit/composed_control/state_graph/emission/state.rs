@@ -438,7 +438,6 @@ impl StateGraphEmission<'_, '_> {
         };
         let body_end = operations.len();
         let prepared_cases = case_emission::prepare(
-            checked,
             state,
             self.catalogs,
             &state_parameters,
@@ -710,7 +709,7 @@ impl StateGraphEmission<'_, '_> {
                             .enumerate()
                             .map(|(ordinal, field)| EstablishedCasePayload {
                                 source: prepared.source,
-                                path: prepared.payload_path.clone(),
+                                path: prepared.path.clone(),
                                 case: case.identity,
                                 field: *field,
                                 position: values.len() + ordinal,
@@ -855,7 +854,10 @@ impl StateGraphEmission<'_, '_> {
             bindings: &bindings,
             current_rank,
             rank_ceiling,
-            case_subject: prepared_cases.as_ref().map(|prepared| prepared.source),
+            case_subject: prepared_cases
+                .as_ref()
+                .filter(|prepared| prepared.discard_subject)
+                .map(|prepared| prepared.source),
             inherited_lengths: &inherited_lengths,
             inherited_field_lengths: &inherited_field_lengths,
         };
@@ -1246,7 +1248,7 @@ impl StateGraphEmission<'_, '_> {
                                     .map(|(ordinal, ((_, _), field))| {
                                         crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload {
                                             source: prepared.source,
-                                            path: prepared.payload_path.clone(),
+                                            path: prepared.path.clone(),
                                             case: case.identity,
                                             field: *field,
                                             position: values.len() + ordinal,

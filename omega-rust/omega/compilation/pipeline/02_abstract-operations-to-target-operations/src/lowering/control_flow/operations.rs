@@ -64,31 +64,14 @@ pub(super) fn lower_operation(
         AbstractOperation::PrimitiveScalarRead { source, .. }
         | AbstractOperation::StructuralScalarFieldRead { source, .. }
         | AbstractOperation::StructuralCaseMembership { source, .. } => (Some(*source), false),
-        AbstractOperation::StructuralCase { source, .. } => {
-            // A case operation spelled on a live reference carrier reads
-            // through that loan's authority, not owned carrier storage.
-            // A write-only loan has no read authority.
-            let referent_read = live.references.iter().any(|((carrier, path), custody)| {
-                *carrier == *source
-                    && path.is_empty()
-                    && !live
-                        .references
-                        .values()
-                        .any(|child| child.parents.contains(&custody.identity))
-                    && structural_types
-                        .get(&custody.result.structural_type)
-                        .is_some_and(|declaration| {
-                            matches!(
-                                declaration.shape,
-                                StructuralTypeShape::Reference {
-                                    access: terminal_psi::StructuralAccess::SharedBorrow
-                                        | terminal_psi::StructuralAccess::MutableBorrow,
-                                    ..
-                                }
-                            )
-                        })
-            });
-            (Some(*source), referent_read)
+        AbstractOperation::StructuralCase { source, path, .. } => {
+            // Explicit reference crossings use the case lowerer's general
+            // live descriptor walk, not the whole root's owned-access rule.
+            // A descriptor's source arrangement never grants read authority.
+            (
+                Some(*source),
+                path.contains(&terminal_psi::StructuralPathSegment::Referent),
+            )
         }
         AbstractOperation::StructuralLeafCopy { source, .. } => (Some(*source), false),
         AbstractOperation::PrimitiveLocalStore { destination, .. } => (Some(*destination), false),

@@ -1,6 +1,10 @@
 //! Copying items between syntax trees: data, operators, measures, machines,
 //! traits, capabilities and their member spans.
+//! Each public entrance starts one independent transaction. Recursive body,
+//! type and proof copies share its exact expression-handle rejoin; source
+//! spelling and equal-looking subtrees never establish expression identity.
 
+use crate::expression::ExpressionHandle;
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember, DataVariant,
@@ -11,6 +15,38 @@ use crate::item::{
 };
 use crate::syntax_trees::SyntaxTrees;
 use arena::{Handle, HandleSpan};
+use std::ops::{Deref, DerefMut};
+
+/// One copy invocation owns the source-to-destination expression relation.
+/// Shared source handles stay shared inside that item or subtree, while a new
+/// invocation gives another generic instance independent mutable syntax.
+pub(super) struct SyntaxCopy<'destination> {
+    destination: &'destination mut SyntaxTrees,
+    pub(super) expression_copies: Vec<(ExpressionHandle, ExpressionHandle)>,
+}
+
+impl<'destination> SyntaxCopy<'destination> {
+    fn new(destination: &'destination mut SyntaxTrees) -> Self {
+        Self {
+            destination,
+            expression_copies: Vec::new(),
+        }
+    }
+}
+
+impl Deref for SyntaxCopy<'_> {
+    type Target = SyntaxTrees;
+
+    fn deref(&self) -> &Self::Target {
+        self.destination
+    }
+}
+
+impl DerefMut for SyntaxCopy<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.destination
+    }
+}
 
 impl SyntaxTrees {
     /// Deep-copy a single item from `other` into this tree's tables (the
@@ -18,7 +54,7 @@ impl SyntaxTrees {
     /// the tree being extended). Returns the copied item; the caller pushes
     /// it as a root item after any post-copy rewrites.
     pub fn copy_item_from(&mut self, other: &SyntaxTrees, item: &Item) -> Item {
-        self.copy_item(other, item)
+        SyntaxCopy::new(self).copy_item(other, item)
     }
 
     /// Deep-copy one expression from a snapshot of this tree. Generic-instance
@@ -31,13 +67,59 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         handle: crate::expression::ExpressionHandle,
     ) -> crate::expression::ExpressionHandle {
-        self.copy_expression_handle(other, handle)
+        SyntaxCopy::new(self).copy_expression_handle(other, handle)
     }
 
+    /// Copy a proof fact and its expression graph in one independent transaction.
+    pub fn copy_proof_fact_from(
+        &mut self,
+        other: &SyntaxTrees,
+        source: Handle<ProofFact>,
+    ) -> Handle<ProofFact> {
+        SyntaxCopy::new(self).copy_proof_fact(other, source)
+    }
+
+    /// Copy a signature and default body without splitting shared occurrences.
+    pub fn copy_state_signature_node_from(
+        &mut self,
+        other: &SyntaxTrees,
+        signature: &crate::item::StateSignatureNode,
+    ) -> crate::item::StateSignatureNode {
+        SyntaxCopy::new(self).copy_state_signature_node_from(other, signature)
+    }
+
+    /// Copy an application and all nested arguments in one independent transaction.
+    pub fn copy_static_machine_argument(
+        &mut self,
+        other: &SyntaxTrees,
+        argument: &crate::expression::StaticMachineArgument,
+    ) -> crate::expression::StaticMachineArgument {
+        SyntaxCopy::new(self).copy_static_machine_argument(other, argument)
+    }
+
+    pub(crate) fn copy_mathematical_definition(
+        &mut self,
+        other: &SyntaxTrees,
+        definition: &MathematicalDefinition,
+    ) -> MathematicalDefinition {
+        SyntaxCopy::new(self).copy_mathematical_definition(other, definition)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn copy_type_reference_handle(
+        &mut self,
+        other: &SyntaxTrees,
+        handle: crate::types::TypeReferenceHandle,
+    ) -> crate::types::TypeReferenceHandle {
+        SyntaxCopy::new(self).copy_type_reference_handle(other, handle)
+    }
+}
+
+impl SyntaxCopy<'_> {
     /// Deep-copy one proof fact from another syntax tree. Generic-instance
     /// synthesis uses this to retain field-dependent default-domain facts
     /// while discharging facts that depend only on concrete const arguments.
-    pub fn copy_proof_fact_from(
+    fn copy_proof_fact(
         &mut self,
         other: &SyntaxTrees,
         source: Handle<ProofFact>,
@@ -705,7 +787,7 @@ impl SyntaxTrees {
     ) -> HandleSpan<ProofFact> {
         let mut copied = HandleSpan::empty();
         for source in span.handles() {
-            copied.push_contiguous(self.copy_proof_fact_from(other, source));
+            copied.push_contiguous(self.copy_proof_fact(other, source));
         }
         copied
     }

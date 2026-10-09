@@ -224,7 +224,8 @@ pub(crate) fn projected_borrowed_path(
 /// element, whose selector may also be an immutable scalar local:
 /// `local_selector` resolves one selector expression to its `Local` position
 /// in the observing computation's own scalar namespace. Only the observation
-/// owner holds that namespace, so no other lane admits local selectors.
+/// owner holds that namespace. A retained local descriptor is crossed here;
+/// a borrowed parameter already denotes its referee's storage.
 pub(crate) fn projected_observed_path(
     program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
@@ -238,7 +239,7 @@ pub(crate) fn projected_observed_path(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
-    projected_argument_path_impl(
+    let (mut projected, mut path) = projected_argument_path_impl(
         program,
         state_symbol,
         statement_index,
@@ -247,7 +248,40 @@ pub(crate) fn projected_observed_path(
         Some(&|expression| {
             local_selector(expression).map(CheckedUnitStructuralPathSegment::RuntimeIndex)
         }),
-    )
+    )?;
+    if let facts::PlaceRoot::Symbol(root) = place.root
+        && let Some(state) = program.state_by_symbol(state_symbol)
+        && let Some((ordinal, local)) = program.state_local_declaration(state, root)
+        && ordinal < statement_index
+    {
+        let mut reference = local.type_reference;
+        let mut crossings = Vec::new();
+        while let Some(shell) = validation::reference_shell(program, reference) {
+            if shell.access == language_semantics::ReferenceAccess::WriteOnly {
+                return None;
+            }
+            crossings.push(CheckedUnitStructuralPathSegment::Referent);
+            reference = shell.referee;
+        }
+        crossings.append(&mut path);
+        path = crossings;
+    }
+    while let Some(shell) = validation::reference_shell(program, projected) {
+        if shell.access == language_semantics::ReferenceAccess::WriteOnly {
+            return None;
+        }
+        // The local root crossing above already reaches its direct referee.
+        // A projected stored reference is a distinct descriptor at the leaf.
+        if place
+            .segments
+            .iter()
+            .any(|segment| !matches!(segment, facts::PlaceSegment::Case { .. }))
+        {
+            path.push(CheckedUnitStructuralPathSegment::Referent);
+        }
+        projected = shell.referee;
+    }
+    Some((projected, path))
 }
 
 /// A computation owner supplies executable selectors at the same projected

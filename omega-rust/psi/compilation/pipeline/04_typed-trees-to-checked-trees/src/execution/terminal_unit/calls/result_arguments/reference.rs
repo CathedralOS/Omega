@@ -19,14 +19,14 @@ use typed_trees::types::TypeReferenceHandle;
 use validation::reference_result_custody;
 
 /// Slice views have their own descriptor argument route.
-pub(super) fn is_carrier(
+pub(crate) fn is_carrier(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     reference_result_custody::stored_loan_parts(program, reference).is_some()
 }
 
-pub(super) fn argument(
+pub(crate) fn argument(
     program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
     state: &State,

@@ -14,6 +14,9 @@ use checked_trees::{
 };
 use terminal_psi::{StructuralParameterDeclaration, TerminalAffineCleanupAction};
 
+mod case_capture;
+pub(super) use case_capture::retire_captured_subjects;
+
 pub(super) fn destination(
     _checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,

@@ -196,6 +196,42 @@ pub fn validate_closed_const_argument(
     }
 }
 
+/// Deriving an ordinary call substitution does not admit a const by shape.
+/// Reuse constructor admission with the caller's exact lexical telescope;
+/// runtime value binders cannot fill compile-time const slots.
+pub(crate) fn const_argument_matches_parameter(
+    program: &dyn crate::CheckingInput,
+    parameter: &TypeParameter,
+    argument: TypeReferenceHandle,
+    caller_parameters: &[TypeParameter],
+) -> bool {
+    let TypeParameterKind::Const { type_reference } = parameter.kind else {
+        return false;
+    };
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(argument)
+        && caller_parameters.iter().any(|candidate| {
+            candidate.symbol == *symbol && matches!(candidate.kind, TypeParameterKind::Value { .. })
+        })
+    {
+        return false;
+    }
+    let mut diagnostics = Vec::new();
+    validate_const_data_argument(
+        program,
+        "call",
+        parameter,
+        type_reference,
+        argument,
+        TypeParameterScope {
+            type_parameters: caller_parameters,
+            lifetime_parameters: &[],
+        },
+        &mut diagnostics,
+    );
+    !diagnostics.iter().any(Diagnostic::is_error)
+}
+
 pub(super) fn validate_const_data_argument(
     program: &dyn crate::CheckingInput,
     base_name: &str,

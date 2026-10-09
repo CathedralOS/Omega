@@ -47,6 +47,7 @@ pub(super) fn explicit_path<'a>(
 > {
     use checked_trees::CheckedStructuralPredicatePathSegment as Source;
     let mut selected = Some(structural_type);
+    let mut selected_case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
     let mut result = Vec::with_capacity(path.len());
     for segment in path {
         let (declaration, crossings) = readable_carrier(
@@ -61,10 +62,24 @@ pub(super) fn explicit_path<'a>(
         ));
         selected = match (segment, &declaration.shape) {
             (
-                Source::Field(identity),
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. },
-            ) => {
+                Source::Case(identity),
+                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
+            ) if selected_case_fields.is_none() => {
+                let mut matching = cases.iter().filter(|case| case.identity == *identity);
+                let (Some(case), None) = (matching.next(), matching.next()) else {
+                    return unsupported("field observation requires one declared case");
+                };
+                selected_case_fields = Some(&case.fields);
+                result.push(CheckedUnitStructuralPathSegment::Case(identity.clone()));
+                Some(declaration.id)
+            }
+            (Source::Field(identity), _) => {
+                let fields = selected_case_fields
+                    .take()
+                    .or_else(|| declaration.shape.direct_fields())
+                    .ok_or(LoweringError::Unsupported(
+                        "field observation requires a field carrier",
+                    ))?;
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let (Some(field), None) = (matching.next(), matching.next()) else {
                     return unsupported("field observation requires one declared field");

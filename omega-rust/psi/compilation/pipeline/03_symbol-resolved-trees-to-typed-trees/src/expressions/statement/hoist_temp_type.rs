@@ -13,9 +13,15 @@
 //! hoisted compound indices as Unit and breaks otherwise supported reads and
 //! stores after bounds checking; the shared member walk preserves the same
 //! field type through normalization without inferring authored local types.
+//!
+//! Field/index inference lowers the declared root once and replays its complete
+//! path through the typed projection owner. A generic application carries the
+//! binder environment for later hops: restarting at a template field type
+//! loses that environment, so an otherwise ordinary captured indexed subject
+//! incorrectly keeps Unit. Projection retains declaration and selector handles;
+//! it does not evaluate the subject or manufacture bounds or active-case proof.
 
 use crate::lowerer::Lowerer;
-use crate::type_reference::lower_element_applicable_constraints;
 use crate::type_reference::lower_type_reference_into_table;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -236,64 +242,15 @@ pub(super) fn infer_hoist_temp_type(
         return Ok(Some(lower_type_reference_into_table(lowerer, &place_type)?));
     }
 
-    // A member read hoisted through a SHARED reference-to-named param
-    // (`let __hoist = table.con_out` with `table: &EfiSystemTable`): the temp's
-    // type is the FIELD's declared type in the referee data definition. The
-    // guard/assignment hoists synthesize exactly this shape so the read routes
-    // through the pointee-deref path; the temp is slot-backed and must carry a
-    // concrete type.
-    if let ExpressionNode::Member(member) = expressions.expression(initial_value)
-        && let ExpressionNode::Name(path) = expressions.expression(member.receiver)
-        && let [only] = expressions.name_path_members(path.members)
-        && let Some(TypeReference::Reference(reference)) =
-            parameter_type(lowerer.source_trees, state, only.as_str())
-        && reference.access == language_semantics::ReferenceAccess::Shared
-        && let TypeReference::Named { name, .. } =
-            lowerer.source_trees.child_type_reference(reference.referee)
-    {
-        let data_name = name.clone();
-        let member_name = member.member.as_str().to_string();
-        if let Some(field_type) =
-            attached_field_type(lowerer.source_trees, &data_name, &member_name)
-        {
-            return Ok(Some(lower_type_reference_into_table(lowerer, &field_type)?));
-        }
-        return Ok(None);
-    }
-
-    // A FIELD read of a runtime-indexed ELEMENT (`cells[k].v`, hoisted whole):
-    // the temp's type is the FIELD's declared type on the element's Named data
-    // type. (Single-level member only -- deeper chains keep Unit and fall back
-    // to the pre-existing behavior.)
-    if let ExpressionNode::Member(member) = expressions.expression(initial_value)
-        && let ExpressionNode::Indexed(inner) = expressions.expression(member.receiver)
-    {
-        let member_name = member.member.as_str().to_string();
-        let inner_collection = inner.collection;
-        if let Some(collection_type) =
-            collection_type_reference(lowerer, attached_data, state, inner_collection)
-            && let Some((element_type, _)) = element_type_of(lowerer.source_trees, &collection_type)
-            && let TypeReference::Named { name, .. } = &element_type
-        {
-            let data_name = name.clone();
-            if let Some(field_type) =
-                attached_field_type(lowerer.source_trees, &data_name, &member_name)
-            {
-                return Ok(Some(lower_type_reference_into_table(lowerer, &field_type)?));
-            }
-        }
-        return Ok(None);
-    }
-
-    // A FIELD-CHAIN read (`self.pair.x`, `p.inner.x`): the per-field locals a
-    // record pattern desugars to (`let { x, y } = self.pair;` binds
-    // `let x = self.pair.x`) carry the inference sentinel like a hoist temp.
-    // The local's type is the declared type of the last field, found by
-    // walking the chain from its root place through each Named data type.
-    if let ExpressionNode::Member(_) = expressions.expression(initial_value)
-        && let Some(field_type) = member_chain_type(lowerer, attached_data, state, initial_value)
-    {
-        return Ok(Some(lower_type_reference_into_table(lowerer, &field_type)?));
+    // Scalar-place snapshots, fields and indexed elements follow the same
+    // declared projection owner.
+    // Retain the reaching application through every hop rather than selecting
+    // a field from a receiver's diagnostic name and losing its arguments.
+    if matches!(
+        expressions.expression(initial_value),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+    ) {
+        return declared_projection_type(lowerer, attached_data, state, initial_value);
     }
 
     // A COMPUTED-INDEX temp (`let __hoist = self.k + 1`, hoisted by the
@@ -392,114 +349,166 @@ pub(super) fn infer_hoist_temp_type(
         return Ok(None);
     }
 
-    let Some(indexed) = expressions.indexed_node(initial_value) else {
-        return Ok(None);
-    };
-    // A NESTED indexed read (`grid[i][j]`, `rows[i].data[j]` -- the
-    // double-indexed hoist temps) descends one ELEMENT level per `Indexed`
-    // layer and one FIELD level per `Member` link. Walk the chain to the base
-    // place collecting the steps (they come out innermost-last, so apply them
-    // in reverse), then re-derive the leaf type from the base.
-    enum NestedStep<'walk> {
-        Element,
-        Field(&'walk resolved::name::DiagnosticName),
+    Ok(None)
+}
+
+/// Recover a projected place's type from its declared root. Replaying the
+/// complete path keeps the generic binding environment across field/index
+/// hops; restarting at a field's template type would strand its type binders.
+/// Selector expressions are lowered to retain their handles, never evaluated.
+fn declared_projection_type(
+    lowerer: &mut Lowerer,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    state: &resolved::state::State,
+    place: ExpressionHandle,
+) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
+    enum ProjectionStep<'source> {
+        Element(ExpressionHandle),
+        Field(&'source resolved::expression::TableMemberExpression),
     }
-    let mut steps: Vec<NestedStep<'_>> = vec![NestedStep::Element];
-    let mut collection = indexed.collection;
+    let expressions = &lowerer.source_trees.tables.bodies.expressions;
+    let mut steps = Vec::new();
+    let mut root = place;
     loop {
-        match expressions.expression(collection) {
-            ExpressionNode::Indexed(inner) => {
-                steps.push(NestedStep::Element);
-                collection = inner.collection;
+        match expressions.expression(root) {
+            ExpressionNode::Indexed(indexed) => {
+                if matches!(
+                    expressions.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) {
+                    return Ok(None);
+                }
+                steps.push(ProjectionStep::Element(indexed.index));
+                root = indexed.collection;
             }
             ExpressionNode::Member(member) => {
-                // The base place itself may be a `self.<field>` member --
-                // stop when the receiver is `self` (collection_type_reference
-                // resolves that shape directly).
+                // The declared attached field is the root for the legacy
+                // receiver spelling; ordinary receiver fields are path hops.
                 if matches!(
                     expressions.expression(member.receiver),
-                    ExpressionNode::Name(path)
-                        if expressions
-                            .name_path_members(path.members)
-                            .first()
-                            .is_some_and(|name| name.is_self_receiver())
+                    ExpressionNode::Name(path) if expressions.name_path_members(path.members)
+                        .first().is_some_and(|name| name.is_self_receiver())
                 ) {
                     break;
                 }
-                steps.push(NestedStep::Field(&member.member));
-                collection = member.receiver;
+                steps.push(ProjectionStep::Field(member));
+                root = member.receiver;
             }
-            ExpressionNode::Borrow(inner) => collection = inner.target,
+            ExpressionNode::Borrow(borrow) => root = borrow.target,
             _ => break,
         }
     }
-
-    let Some(collection_type) =
-        collection_type_reference(lowerer, attached_data, state, collection)
-    else {
+    let Some(declared_root) = collection_type_reference(lowerer, attached_data, state, root) else {
         return Ok(None);
     };
-
-    // Re-apply the steps outermost-base-first. Element steps keep the LAST
-    // non-empty collection-level constraint span (the innermost declared
-    // domain characterizes the scalar element); a Field step replaces the
-    // type wholly (the field's declared type carries its own constraints).
-    let mut element_type = collection_type;
-    let mut constraints = HandleSpan::empty();
-    for step in steps.iter().rev() {
+    let root_type = lower_type_reference_into_table(lowerer, &declared_root)?;
+    let mut current = root_type;
+    let mut path = Vec::with_capacity(steps.len());
+    let mut element_constraints = HandleSpan::empty();
+    for step in steps.into_iter().rev() {
         match step {
-            NestedStep::Element => {
-                let Some((next_element, next_constraints)) =
-                    element_type_of(lowerer.source_trees, &element_type)
-                else {
-                    return Ok(None);
-                };
-                element_type = next_element;
-                if !next_constraints.is_empty() {
-                    constraints = next_constraints;
+            ProjectionStep::Element(selector) => {
+                let constraints = collection_constraints(&lowerer.typed_trees, current);
+                if !constraints.is_empty() {
+                    element_constraints = constraints;
                 }
+                let selector =
+                    crate::expressions::expression::lower_expression_handle(lowerer, selector)?;
+                path.push(facts::PlaceSegment::Index {
+                    expression: selector,
+                });
             }
-            NestedStep::Field(field_name) => {
-                // Field projection observes the record through references and
-                // constraints, just as an unhoisted member chain does. Keeping
-                // that rule shared prevents normalization from losing the type
-                // when an ordinary parameter supplies the collection.
-                let Some(data_name) = named_data_of(lowerer.source_trees, &element_type) else {
-                    return Ok(None);
-                };
-                let Some(field_type) =
-                    attached_field_type(lowerer.source_trees, &data_name, field_name.as_str())
+            ProjectionStep::Field(member) => {
+                let Some(symbol) = declared_projection_field(&lowerer.typed_trees, current, member)
                 else {
                     return Ok(None);
                 };
-                element_type = field_type;
-                constraints = HandleSpan::empty();
+                path.push(facts::PlaceSegment::Field { symbol });
+                element_constraints = HandleSpan::empty();
             }
         }
+        let Some(projected) = validation::project_type_reference_from_segments(
+            &lowerer.typed_trees,
+            root_type,
+            &path,
+        ) else {
+            return Ok(None);
+        };
+        current = projected;
     }
-
-    let element_handle = lower_type_reference_into_table(lowerer, &element_type)?;
-    if constraints.is_empty() {
-        return Ok(Some(element_handle));
+    // Collection arithmetic/range constraints characterize each element;
+    // encoding domains instead describe the collection storage as a whole.
+    let applicable: Vec<_> = lowerer
+        .typed_trees
+        .type_reference_table
+        .constraints(element_constraints)
+        .iter()
+        .filter(|constraint| !matches!(constraint, typed::types::TypeConstraintNode::Domain(_)))
+        .cloned()
+        .collect();
+    if applicable.is_empty() {
+        return Ok(Some(current));
     }
-
-    // Re-apply only the collection constraints that characterize the ELEMENT
-    // (arithmetic domains like `Trapping`); an encoding `Domain` (`[u8] in Utf8`)
-    // is bound to the collection's storage type, not to `u8`, so it is dropped.
-    let constraints = lower_element_applicable_constraints(
-        lowerer.source_trees,
-        &mut lowerer.typed_trees,
-        constraints,
-    )?;
-    if constraints.is_empty() {
-        return Ok(Some(element_handle));
-    }
+    let constraints = lowerer
+        .typed_trees
+        .type_reference_table
+        .insert_constraints(applicable);
     Ok(Some(lowerer.typed_trees.type_reference_table.insert(
         typed::types::TypeReferenceNode::Constrained {
-            base_type: element_handle,
+            base_type: current,
             constraints,
         },
     )))
+}
+
+fn collection_constraints(
+    program: &typed::TypedTrees,
+    reference: typed::types::TypeReferenceHandle,
+) -> HandleSpan<typed::types::TypeConstraintNode> {
+    match program.type_reference_table.type_reference(reference) {
+        typed::types::TypeReferenceNode::Reference { referee, .. } => {
+            collection_constraints(program, *referee)
+        }
+        typed::types::TypeReferenceNode::Constrained { constraints, .. } => *constraints,
+        _ => HandleSpan::empty(),
+    }
+}
+
+fn declared_projection_field(
+    program: &typed::TypedTrees,
+    reference: typed::types::TypeReferenceHandle,
+    member: &resolved::expression::TableMemberExpression,
+) -> Option<symbols::SymbolHandle> {
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    let owner = program.closed_data_definition(reference).or_else(|| {
+        let symbol = program.type_reference_table.type_head_symbol(reference)?;
+        validation::unique_data_definition_by_symbol(program, symbol)
+    })?;
+    // Closed applications translate template selections only through their
+    // retained instance correspondence, never through a same-spelled sibling.
+    if owner.generic_instance.is_some() {
+        return program
+            .closed_data_member_field(reference, member.member_symbol, member.member.as_str())
+            .map(|field| field.symbol);
+    }
+    let mut fields = program
+        .data_members(owner)
+        .iter()
+        .filter_map(|row| match row {
+            typed::data::DataMember::Field(field) if member.case_variant.is_none() => Some(field),
+            _ => None,
+        })
+        .filter(|field| field.name.as_str() == member.member.as_str());
+    let field = fields.next()?;
+    if fields.next().is_some()
+        || !field.symbol.is_valid()
+        || (member.member_symbol.is_valid() && member.member_symbol != field.symbol)
+    {
+        return None;
+    }
+    Some(field.symbol)
 }
 
 fn static_conformance_requirement_return(
@@ -1104,47 +1113,6 @@ fn local_type(
             (symbol_matches || (symbols_are_absent && local.name.as_str() == name))
                 .then(|| local.type_reference.clone())
         })
-}
-
-/// The element type of an indexable collection type plus the COLLECTION-LEVEL
-/// constraint span to re-apply to it.
-///
-/// `[T; N]` / `&[T]` / `[T]` yield `(T, empty)`. A leading reference (`&[T]`) is
-/// looked through. A `Constrained{inner, [c..]}` collection (`[i32; N] in
-/// Trapping`) yields the element type of `inner` paired with `[c..]`, so an
-/// element read inherits the collection's arithmetic/encoding domain -- exactly
-/// as a runtime read of one element does.
-fn element_type_of(
-    source_trees: &resolved::SymbolResolvedTrees,
-    type_reference: &TypeReference,
-) -> Option<(TypeReference, HandleSpan<TypeConstraint>)> {
-    match type_reference {
-        TypeReference::FixedArray(fixed_array) => Some((
-            source_trees
-                .child_type_reference(fixed_array.element_type)
-                .clone(),
-            HandleSpan::empty(),
-        )),
-        TypeReference::Slice(slice) => Some((
-            source_trees
-                .child_type_reference(slice.element_type)
-                .clone(),
-            HandleSpan::empty(),
-        )),
-        TypeReference::Reference(reference) => element_type_of(
-            source_trees,
-            source_trees.child_type_reference(reference.referee),
-        ),
-        TypeReference::Constrained(constrained) => {
-            let base = source_trees.child_type_reference(constrained.base_type);
-            let (element, _inner_constraints) = element_type_of(source_trees, base)?;
-            // The collection's own constraints (`in Trapping`) apply to each
-            // element read; an inner element does not carry collection-level
-            // constraints, so this span fully describes the element's domain.
-            Some((element, constrained.constraints))
-        }
-        _ => None,
-    }
 }
 
 /// R3b: `a * self.Fb + c` with STRICT dependent params (`a < self.Fa`,

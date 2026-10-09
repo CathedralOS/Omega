@@ -9,7 +9,8 @@
 //!
 //! An address join (see `abstract_operations::control_flow::address_joins`)
 //! is the borrowed arrival an edge may bind through a projected path:
-//! its carrier is the address of that static place, so `&a.left` and
+//! its carrier is the address of the selected storage, including explicit
+//! crossings through retained reference descriptors, so `&a.left` and
 //! `&b.right` can meet in one shared parameter, and `&mut a.left` and
 //! `&mut b.right` in one mutable parameter, without copying either leaf. A
 //! projected argument transfers exactly its join's access, as every later
@@ -150,7 +151,7 @@ fn unsupported_argument(
             | terminal_psi::StructuralAccess::MutableBorrow
             | terminal_psi::StructuralAccess::WriteOnlyBorrow
     )
-        && abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        && abstract_operations::control_flow::address_joins::is_address_projection(&argument.path)
         && parameter.is_some_and(|parameter| {
             parameter.access == argument.access
                 && abstract_operations::control_flow::address_joins::is_address_join_in(

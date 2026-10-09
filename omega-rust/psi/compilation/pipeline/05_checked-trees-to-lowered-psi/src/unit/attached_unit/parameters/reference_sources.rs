@@ -1,6 +1,8 @@
 //! Reference provenance uses an ending `Referent` marker for the borrowed
 //! leaf, including a borrow formed at non-reference storage. Ordinary call
 //! projections instead cross an actual reference carrier at that segment.
+//! Logical borrowed-local roots already join their published carrier through
+//! that owner; an endpoint marker must not cross the same descriptor again.
 
 use super::{
     LoweringError, StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
@@ -80,7 +82,62 @@ pub(crate) fn lower_reference_source(
     )?;
     let [mut argument] = <[StructuralArgument; 1]>::try_from(arguments)
         .map_err(|_| LoweringError::Unsupported("reference source is not one argument"))?;
-    if has_leaf_marker {
+    let retains_leaf_marker = if has_leaf_marker && source.borrowed_root_type_identity().is_some() {
+        let mut roots = parameters
+            .iter()
+            .filter(|parameter| parameter.place == argument.place)
+            .map(|parameter| parameter.structural_type)
+            .chain(structural_results.iter().filter_map(|(declaration, _)| {
+                let declaration = declaration
+                    .as_ref()
+                    .filter(|row| row.id == argument.place)?;
+                match declaration.kind {
+                    semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        structural_type, ..
+                    }
+                    | semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type,
+                        ..
+                    } => Some(structural_type),
+                    _ => None,
+                }
+            }))
+            .chain(structural_locals.iter().filter_map(|binding| {
+                (binding.argument.place == argument.place && binding.argument.path.is_empty())
+                    .then_some(binding.structural_type)
+            }));
+        let root = roots.next().ok_or(LoweringError::Unsupported(
+            "reference source lost its published home type",
+        ))?;
+        if !roots.all(|candidate| candidate == root) {
+            return unsupported("reference source has conflicting published home types");
+        }
+        let endpoint = terminal_semantics::runtime_structural_path_tip(
+            structural_types.iter(),
+            root,
+            &argument.path,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "reference source has no selected published endpoint",
+        ))?;
+        if matches!(
+            endpoint.shape,
+            terminal_psi::StructuralTypeShape::Reference { .. }
+        ) {
+            true
+        } else {
+            // The ordinary argument join already crossed the retained carrier
+            // to the checked referent. Keeping another marker would instead
+            // declare storage beneath that descriptor and lose parent lineage.
+            if endpoint.identity != source.type_identity {
+                return unsupported("reference source changes its checked endpoint type");
+            }
+            false
+        }
+    } else {
+        has_leaf_marker
+    };
+    if retains_leaf_marker {
         argument
             .path
             .push(terminal_psi::StructuralPathSegment::Referent);

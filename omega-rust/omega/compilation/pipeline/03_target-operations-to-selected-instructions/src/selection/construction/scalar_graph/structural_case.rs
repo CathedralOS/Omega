@@ -30,6 +30,7 @@ pub(super) fn build(
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
     let LegalizedScalarTerminator::StructuralCase {
         source: subject,
+        path,
         root_shape,
         byte_offset,
         layout,
@@ -54,7 +55,7 @@ pub(super) fn build(
     {
         return Err(invalid());
     }
-    let dispatch_source = match subject {
+    let mut dispatch_source = match subject {
         legalized_operations::LegalizedStructuralCaseSource::OperationResult {
             operation,
             result,
@@ -138,6 +139,69 @@ pub(super) fn build(
                 return Err(invalid());
             }
         }
+    }
+    let declarations = &source
+        .structural
+        .as_ref()
+        .ok_or(invalid())?
+        .structural_types;
+    let root =
+        crate::selection::reference_input::root_type(source, subject.place()).ok_or(invalid())?;
+    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+        root,
+        path,
+        declarations,
+    )
+    .ok_or(invalid())?;
+    let region_shape = crate::structural_inputs::structural_reference_input::shape(
+        geometry.region_root,
+        declarations,
+    )
+    .ok_or(invalid())?;
+    if !geometry.elements.is_empty()
+        || !geometry.readable
+        || geometry.byte_offset != *byte_offset
+        || byte_offset
+            .checked_add(layout.shape.byte_size)
+            .is_none_or(|end| end > region_shape.byte_size)
+    {
+        return Err(invalid());
+    }
+    if !geometry.pointer_slots.is_empty() {
+        // Keep the original descriptor slot and its extent intact. Resolve the
+        // address words once, before any branch or edge cleanup, even when a
+        // sole case needs no tag test. The final pointer addresses backing,
+        // whose extent can exceed the descriptor's eight-byte home.
+        let mut pointer = match dispatch_source {
+            selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+                frame_address_pointer(
+                    builder,
+                    block.id,
+                    subject.place(),
+                    slot,
+                    root_shape.byte_size,
+                )?
+            }
+            selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => pointer,
+        };
+        for slot in &geometry.pointer_slots {
+            if slot.scalar_descriptor || !slot.indices.is_empty() {
+                return Err(invalid());
+            }
+            pointer = super::structural::reference::load_pointer_word(
+                builder,
+                subject.place(),
+                pointer,
+                slot.byte_offset,
+                SelectedMemoryAccessOrigin::Block(block.id),
+                Default::default(),
+            )?;
+        }
+        dispatch_source = selected_instructions::SelectedCaseDispatchSource::Borrowed {
+            place: subject.place(),
+            pointer,
+            byte_size: region_shape.byte_size,
+        };
     }
     // Payload loads and cleanup belong to the selected case edge, so the
     // unconditional transfer carries the same edge a tested leg would.

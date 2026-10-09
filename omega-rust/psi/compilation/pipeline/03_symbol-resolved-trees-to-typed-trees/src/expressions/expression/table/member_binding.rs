@@ -151,11 +151,9 @@ fn declared_field<'program>(
     if member.case_variant.is_some() {
         return None;
     }
-    let symbol = match peel(program, receiver) {
-        TypeReference::Named { symbol, .. } => *symbol,
-        _ => return None,
-    };
-    declared_data_field(program, symbol, member)
+    let definition =
+        super::lowerer::resolved_data_definition_for_type(program, peel(program, receiver))?;
+    declared_data_field(program, definition.symbol, member)
 }
 
 fn declared_data_field<'program>(

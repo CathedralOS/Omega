@@ -9,7 +9,6 @@
 mod boundary_machine;
 mod call_occurrences;
 mod call_results;
-pub(crate) mod case_observation_alias;
 mod checked_machine;
 mod construction_trace;
 pub(super) mod reference_captures;

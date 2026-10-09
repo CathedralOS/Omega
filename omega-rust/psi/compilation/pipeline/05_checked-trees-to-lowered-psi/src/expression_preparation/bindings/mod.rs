@@ -1348,7 +1348,7 @@ impl ScalarBindings {
     pub(crate) fn established_case_payload(
         &self,
         source: PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        path: &[terminal_psi::StructuralPathSegment],
         case: semantic_vocabulary::StructuralCaseId,
         field: semantic_vocabulary::StructuralFieldId,
         scalar_type: ScalarType,

@@ -7,6 +7,7 @@
 //! (`infer_hoist_temp_type`). Any other declared type is the temp's
 //! annotation.
 
+use super::reference_initializer_selectors::capture_reference_initializer_selectors;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
@@ -48,6 +49,7 @@ pub(crate) fn mint_hoist_temp(
         Some(existing) => DiagnosticName::generated(existing),
         None => {
             let initial_value = initial(lowerer, hoisted);
+            capture_reference_initializer_selectors(lowerer, initial_value, hoisted);
             let fresh = lowerer.next_hoist_name();
             if let Some(subject) = shared_subject {
                 lowerer.record_match_subject_temp(subject, fresh.clone());
@@ -68,6 +70,16 @@ pub(crate) fn mint_hoist_temp(
             name
         }
     };
+    reference_temp(lowerer, name)
+}
+
+/// A fresh source occurrence of an already established temporary. Its symbol
+/// is resolved normally; the syntax occurrence selects the capture, not text
+/// similarity between two independently authored expressions.
+pub(in crate::lowering) fn reference_temp(
+    lowerer: &mut Lowerer,
+    name: DiagnosticName,
+) -> ExpressionHandle {
     let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let mut members = HandleSpan::empty();
     expressions.push_name_path_member(&mut members, name);

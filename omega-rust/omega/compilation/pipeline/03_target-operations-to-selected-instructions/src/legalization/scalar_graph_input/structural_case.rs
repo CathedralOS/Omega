@@ -158,9 +158,9 @@ fn source_identity(
     Ok(parameter.structural_type)
 }
 
-/// Resolve a static dispatch projection under the root's existing custody.
-/// The carrier's extent bounds the selected sum, but is not its sum layout:
-/// sibling fields and array elements keep distinct absolute byte coordinates.
+/// Resolve a captured dispatch projection under the root's existing custody.
+/// A reference root retains its descriptor extent; the sum is bounded by the
+/// final backing region, with offsets restarting after each pointer crossing.
 #[allow(clippy::type_complexity)]
 pub(in crate::legalization) fn dispatch_projection(
     function: &PsiOptimizationFunction,
@@ -177,17 +177,30 @@ pub(in crate::legalization) fn dispatch_projection(
     LegalizationError,
 > {
     let root = source_identity(function, source)?;
-    let (selected, byte_offset) = crate::structural_inputs::structural_reference_input::project(
+    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
         root,
         path,
         &plan.structural_types,
     )
     .ok_or(LegalizationError::custody())?;
+    if !geometry.elements.is_empty()
+        || !geometry.readable
+        || geometry
+            .pointer_slots
+            .iter()
+            .any(|slot| slot.scalar_descriptor)
+    {
+        return Err(LegalizationError::custody());
+    }
+    let selected = geometry.selected;
+    let byte_offset = geometry.byte_offset;
     let root_shape = super::aggregate_results::type_home_layout(root, plan)?.shape();
+    let region_shape =
+        super::aggregate_results::type_home_layout(geometry.region_root, plan)?.shape();
     let layout = super::aggregate_results::sum_type_layout(selected, plan)?;
     if byte_offset
         .checked_add(layout.shape.byte_size)
-        .is_none_or(|end| end > root_shape.byte_size)
+        .is_none_or(|end| end > region_shape.byte_size)
     {
         return Err(LegalizationError::custody());
     }
@@ -210,25 +223,22 @@ pub(in crate::legalization) fn membership_layout(
     LegalizationError,
 > {
     let identity = source_identity(function, source)?;
-    let (identity, byte_offset, elements) = if path.is_empty() {
-        (identity, 0, Vec::new())
-    } else if terminal_psi::is_static_structural_path(path) {
-        let (identity, byte_offset) =
-            crate::structural_inputs::structural_reference_input::project(
-                identity,
-                path,
-                &plan.structural_types,
-            )
-            .ok_or(LegalizationError::custody())?;
-        (identity, byte_offset, Vec::new())
-    } else {
-        crate::structural_inputs::structural_reference_input::runtime_projection(
-            identity,
-            path,
-            &plan.structural_types,
-        )
-        .ok_or(LegalizationError::custody())?
-    };
+    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
+        identity,
+        path,
+        &plan.structural_types,
+    )
+    .ok_or(LegalizationError::custody())?;
+    if !geometry.readable
+        || geometry
+            .pointer_slots
+            .iter()
+            .any(|slot| slot.scalar_descriptor)
+    {
+        return Err(LegalizationError::custody());
+    }
+    let identity = geometry.selected;
+    let byte_offset = geometry.byte_offset;
     let layout = super::aggregate_results::sum_type_layout(identity, plan)?;
     if layout.tag_byte_offset != 0
         || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
@@ -246,7 +256,7 @@ pub(in crate::legalization) fn membership_layout(
         .iter()
         .position(|candidate| candidate.id == case)
         .and_then(|ordinal| u32::try_from(ordinal).ok())
-        .map(|tag| (tag, byte_offset, elements))
+        .map(|tag| (tag, byte_offset, geometry.elements))
         .ok_or(LegalizationError::custody())
 }
 

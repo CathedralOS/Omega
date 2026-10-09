@@ -337,10 +337,16 @@ fn bound_position(
     let Some((CanonicalStructuralPathSegment::Case(case), prefix)) = path.split_last() else {
         return None;
     };
+    // Guard planning above binds whole-root cases only. A projected case has
+    // its own exact dispatch path and is resolved by the storage binding, not
+    // by erasing that path into this guard's root namespace.
+    if !prefix.is_empty() {
+        return None;
+    }
     bound
         .iter()
         .find(|row| {
-            row.source == *source && row.path == prefix && row.case == *case && row.field == field
+            row.source == *source && row.path.is_empty() && row.case == *case && row.field == field
         })
         .map(|row| row.position)
 }

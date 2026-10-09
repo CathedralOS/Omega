@@ -29,17 +29,7 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
-        // Dispatch aliases and authored observations resolve to the same place.
-        // A transition arm spells its case as a payload-free constructor;
-        // an authored test spells it as a name.
-        let observed =
-            crate::execution::terminal_unit::control::case_observation_alias::observed_place(
-                self.program,
-                state,
-                binary.left,
-            )
-            .unwrap_or((binary.left, self.statement_index));
-        if let Some((_, subject)) = self.readable_case_subject(observed.0, observed.1) {
+        if let Some((_, subject)) = self.readable_case_subject(binary.left, self.statement_index) {
             let case = match self.program.expression_table.expression(binary.right) {
                 ExpressionNode::Name(selected) => selected.symbol,
                 ExpressionNode::StructLiteral(literal)
@@ -107,17 +97,17 @@ impl Builder<'_, '_> {
                 .program
                 .state_local_declaration(state, root)
                 .filter(|(ordinal, _)| *ordinal < statement_index)?;
-            if validation::reference_shell(self.program, local.type_reference).is_some()
-                || !(validation::has_contents(
-                    self.program,
-                    local.type_reference,
-                    validation::ContentsRequirement::NumericOwned,
-                ) || validation::has_contents(
-                    self.program,
-                    local.type_reference,
-                    validation::ContentsRequirement::OwnedOrSharedView,
-                ))
-            {
+            let inspected =
+                validation::unwrapped_type_reference(self.program, local.type_reference)?;
+            if !(validation::has_contents(
+                self.program,
+                inspected,
+                validation::ContentsRequirement::NumericOwned,
+            ) || validation::has_contents(
+                self.program,
+                inspected,
+                validation::ContentsRequirement::OwnedOrSharedView,
+            )) {
                 return None;
             }
             local.symbol

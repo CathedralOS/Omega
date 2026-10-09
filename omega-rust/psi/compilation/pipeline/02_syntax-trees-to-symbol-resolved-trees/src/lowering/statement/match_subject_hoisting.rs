@@ -2,14 +2,14 @@
 
 use crate::lowering::statement::hoist_temps::mint_hoist_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
-    OperandHoisting, hoist_index, hoist_operand_indexed_reads, is_hoistable_builtin_guard_call,
+    OperandHoisting, hoist_operand_indexed_reads, is_hoistable_builtin_guard_call,
     is_runtime_indexed_read,
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
 use symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableBorrowExpression,
-    TableIndexedExpression, TableMembershipExpression,
+    TableMembershipExpression,
 };
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::statement::Statement;
@@ -87,34 +87,7 @@ pub(crate) fn hoist_membership_match_subject(
         hoisted,
         TypeReference::Unit,
         Some(subject_key),
-        |lowerer, hoisted| {
-            // The subject's INDEX may itself be a hoistable COMPUTED
-            // expression (`grid[r * 6 + c]` as a match subject -- the
-            // dungeon_render shape): hoist it into its own temp FIRST,
-            // exactly as operand positions do, so the emitted subject let
-            // indexes a slotted plain place (otherwise the #40 computed-
-            // index fence refuses the initializer). Only on the minting
-            // arm: sibling arms' lowered reads are orphaned anyway.
-            if let ExpressionNode::Indexed(indexed) = lowerer
-                .symbol_resolved_trees
-                .tables
-                .bodies
-                .expressions
-                .expression(membership.value)
-                .clone()
-            {
-                let index = hoist_index(lowerer, indexed.index, hoisted, OperandHoisting::Value);
-                set_expression(
-                    lowerer,
-                    membership.value,
-                    ExpressionNode::Indexed(TableIndexedExpression {
-                        collection: indexed.collection,
-                        index,
-                    }),
-                );
-            }
-            borrow_membership_subject(lowerer, membership.value)
-        },
+        |lowerer, _| borrow_membership_subject(lowerer, membership.value),
     );
 
     // Rewrite this arm's Membership to test the shared temp instead of the raw indexed read.

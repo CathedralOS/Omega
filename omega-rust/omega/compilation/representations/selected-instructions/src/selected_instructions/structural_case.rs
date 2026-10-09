@@ -14,10 +14,12 @@ pub struct SelectedStructuralCaseEdge {
 }
 
 /// Where a selected case edge reads the dispatched sum. An activation-local
-/// home is a frame slot; an address-backed source borrows the entry-retained
-/// pointer for observation. The pointer may name either an owned ABI value
-/// copy or a loan's referent. This physical transport does not grant ownership:
-/// independent source replay retains the legalized subject's access and owner.
+/// home is a frame slot; an address-backed source borrows a retained pointer
+/// for observation. It may address an owned ABI value copy, a loan's referent,
+/// or backing reached through the subject's explicit reference path. The
+/// original descriptor home keeps its own storage extent and identity. This
+/// physical transport grants no ownership: independent source replay retains
+/// the legalized subject's path, access, owner, and ordered pointer loads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedCaseDispatchSource {
     Local {

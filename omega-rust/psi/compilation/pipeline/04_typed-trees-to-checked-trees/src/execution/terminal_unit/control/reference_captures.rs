@@ -26,6 +26,7 @@ pub(in crate::execution::terminal_unit) struct ReferenceCapture {
 
 pub(in crate::execution::terminal_unit) fn plan(
     program: &dyn validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -55,12 +56,44 @@ pub(in crate::execution::terminal_unit) fn plan(
         target,
     )?;
     let root = place.root.as_symbol()?;
-    let (backing_type, mut path) = calls::projected_borrowed_path(
+    let selector = |expression| {
+        let reference = validation::expression_type_reference_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            expression,
+        )?;
+        let primitive = program.primitive_type_reference(reference)?;
+        if !primitive.is_fixed_integer() {
+            return None;
+        }
+        let checked_trees::CheckedScalarExpression::Local { position, .. } =
+            crate::values::lower_unit_scalar_argument(
+                program,
+                &facts.operators,
+                state,
+                statement_index,
+                expression,
+                primitive,
+            )?
+        else {
+            return None;
+        };
+        Some(
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::Local {
+                    position: u32::try_from(position).ok()?,
+                },
+            ),
+        )
+    };
+    let (backing_type, mut path) = calls::projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
         statement_index,
         &place,
+        Some(&selector),
     )?;
     // A field restricted by its type or its owner's `where` facts has no
     // borrowed shape: Terminal keeps the restriction on the record field, not

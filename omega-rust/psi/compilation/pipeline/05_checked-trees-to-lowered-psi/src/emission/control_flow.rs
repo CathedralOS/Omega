@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 /// Every path into a block passes through each member of its dominator set.
 /// The caller supplies exact graph positions. An absent entry or unreachable
 /// block retains the universal set, as in the observation-unification owner.
-pub(super) fn block_dominators(
+pub(crate) fn block_dominators(
     entry: Option<usize>,
     successors: &[Vec<usize>],
 ) -> Vec<BTreeSet<usize>> {

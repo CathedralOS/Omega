@@ -34,9 +34,9 @@ pub(super) fn retained(
             && successors
                 .iter()
                 .any(|case| case.psi_edge == first.psi_edge))
-        .then_some(successors)
+        .then_some((root, successors))
     });
-    let Some(target_cases) = matching.next() else {
+    let Some((target_source, target_cases)) = matching.next() else {
         return false;
     };
     if matching.next().is_some() || target_cases.len() != cases.len() {
@@ -84,7 +84,14 @@ pub(super) fn retained(
             };
             matching.next().is_none()
                 && successor.source_target == case.target
-                && source_slot_matches(&retained.source, source, source_blocks, source_parameters)
+                && projected_source_matches(
+                    &function.local_storage_slots,
+                    &retained.source,
+                    target_source,
+                    path,
+                    source_blocks,
+                    source_parameters,
+                )
                 && retained.case == case.case
                 && retained.case_tag == target_case.case_tag
                 && retained.cleanup_actions == case.cleanup_actions
@@ -103,6 +110,59 @@ pub(super) fn retained(
                             && retained.semantic.parameter.scalar_type == expected.scalar_type
                     })
         })
+}
+
+/// An addressed projection still belongs to its original descriptor home or
+/// arrival. The source path must actually cross a reference, and the exact
+/// target owner and storage extent stay retained beside the resolved pointer.
+/// Selected-source replay independently reconstructs every address-word load.
+fn projected_source_matches(
+    slots: &[selected_instructions::SelectedLocalStorageSlot],
+    dispatch: &selected_instructions::SelectedCaseDispatchSource,
+    target: &target_operations::TargetStructuralCaseSource,
+    path: &[terminal_psi::StructuralPathSegment],
+    blocks: &[AbstractBlockEntry],
+    parameters: &[StructuralParameterDeclaration],
+) -> bool {
+    if !path.contains(&terminal_psi::StructuralPathSegment::Referent) {
+        return source_slot_matches(dispatch, target.place(), blocks, parameters);
+    }
+    let selected_instructions::SelectedCaseDispatchSource::Borrowed { place, .. } = dispatch else {
+        return false;
+    };
+    if *place != target.place() || !terminal_psi::is_static_structural_path(path) {
+        return false;
+    }
+    let target_operations::TargetStructuralCaseSource::Home(home) = target else {
+        return source_slot_matches(dispatch, target.place(), blocks, parameters);
+    };
+    let slot = match &home.origin {
+        target_operations::TargetStructuralHomeOrigin::OperationResult { operation, result } => {
+            LocalStorageSlotId::Structural {
+                operation: *operation,
+                place: result.place,
+            }
+        }
+        target_operations::TargetStructuralHomeOrigin::BlockParameter { block, declaration } => {
+            LocalStorageSlotId::StructuralBlockParameter {
+                block: *block,
+                place: declaration.place,
+            }
+        }
+    };
+    let shape = home.layout.shape();
+    source_slot_matches(
+        &selected_instructions::SelectedCaseDispatchSource::Local { slot },
+        *place,
+        blocks,
+        parameters,
+    ) && slots
+        .iter()
+        .filter(|row| {
+            row.id == slot && row.byte_size == shape.byte_size && row.alignment == shape.alignment
+        })
+        .count()
+        == 1
 }
 
 // Full instruction correspondence belongs to selected-source replay. This

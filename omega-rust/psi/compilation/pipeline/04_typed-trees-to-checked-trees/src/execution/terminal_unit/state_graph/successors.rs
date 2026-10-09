@@ -733,6 +733,43 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                             return Some(transfer);
                         }
                     } else if let Some((local, result)) = local_subject() {
+                        if calls::is_stored_reference(program, local.type_reference) {
+                            // A stored result owns a descriptor, not the value
+                            // its borrowed successor presents. Calls and state
+                            // edges retain the same authenticated crossing;
+                            // failed reference admission cannot lend descriptor
+                            // storage through the ordinary owner-loan route.
+                            let subject = calls::retained_reference_argument(
+                                program,
+                                machine.symbol,
+                                source,
+                                ordinal as usize,
+                                &place,
+                                local,
+                                result,
+                                target_parameters.get(target.position as usize)?,
+                                &target.type_identity,
+                            )?;
+                            if subject.access != expected_access
+                                || !subject.path.iter().all(|segment| {
+                                    matches!(
+                                        segment,
+                                        CheckedUnitStructuralPathSegment::Field(_)
+                                            | CheckedUnitStructuralPathSegment::Case(_)
+                                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                            | CheckedUnitStructuralPathSegment::Referent
+                                    )
+                                })
+                            {
+                                return None;
+                            }
+                            return Some(CheckedStructuralControlTransferPlan {
+                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                                    subject,
+                                },
+                                target_parameter_index: u32::try_from(target_index).ok()?,
+                            });
+                        }
                         // A mutable loan keeps the local's exact constrained
                         // type: a bounded byte owner's represented predicates
                         // (`[u8; N] in Utf8`) travel with it, and the

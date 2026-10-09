@@ -1,7 +1,9 @@
 //! Ordinary calls compare callee types in the caller's exact static application.
 //!
-//! Type selections are fixed first. Inference fills only missing slots through
-//! the existing callable type matcher; it cannot overwrite an explicit choice.
+//! Type selections and forwarded const selections are fixed first. Inference
+//! fills only missing slots through the existing callable type matcher. Closed
+//! const selections retain their admitted value identity as an independent
+//! fence: an inferred receiver argument cannot overwrite an explicit choice.
 //! The two namespaces stay separate even for recursive calls.
 
 use super::*;
@@ -29,7 +31,13 @@ pub fn call_type_arguments(
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
         .collect::<Vec<_>>();
+    let const_parameters = parameters
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
+        .collect::<Vec<_>>();
     let mut bindings = Vec::new();
+    let mut type_ordinal = 0;
+    let mut const_selections = Vec::new();
     for selected in selected {
         let actual = if selected.type_reference.is_valid() {
             Some(selected.type_reference)
@@ -68,14 +76,50 @@ pub fn call_type_arguments(
             if !program.type_reference_table.contains_type_reference(actual) {
                 return None;
             }
-            let parameter = type_parameters.get(bindings.len())?;
+            let parameter = type_parameters.get(type_ordinal)?;
             if !parameter.symbol.is_valid() {
                 return None;
             }
             bindings.push((parameter.symbol, actual));
+            type_ordinal += 1;
+        } else if program.static_const_argument_identity(selected).is_some()
+            || (selected.symbol.is_valid()
+                && program.data_type_parameters.iter().any(|(_, parameter)| {
+                    parameter.symbol == selected.symbol
+                        && matches!(parameter.kind, TypeParameterKind::Const { .. })
+                }))
+        {
+            let parameter = const_parameters.get(const_selections.len())?;
+            if !parameter.symbol.is_valid() {
+                return None;
+            }
+            if selected.symbol.is_valid()
+                && program.static_const_argument_identity(selected).is_none()
+                && let Some(actual) = program
+                    .type_reference_table
+                    .find_named_type_reference(selected.symbol)
+            {
+                if !crate::value_custody::type_references::const_argument_matches_parameter(
+                    program,
+                    parameter,
+                    actual,
+                    program.machine_type_parameters(caller),
+                ) {
+                    return None;
+                }
+                bindings.push((parameter.symbol, actual));
+            }
+            const_selections.push((*parameter, selected));
         }
     }
-    if bindings.len() < type_parameters.len() {
+    if parameters.iter().any(|parameter| {
+        matches!(
+            parameter.kind,
+            TypeParameterKind::Type | TypeParameterKind::Const { .. }
+        ) && !bindings
+            .iter()
+            .any(|(symbol, _)| *symbol == parameter.symbol)
+    }) {
         for (parameter, argument) in program.state_parameters(entry).iter().zip(arguments) {
             let actual = crate::value_custody::places::declared_place_type_raw(
                 program, caller, state, *argument,
@@ -91,6 +135,7 @@ pub fn call_type_arguments(
                 super::super::machine_parameters::infer_call_type_arguments(
                     program,
                     parameters,
+                    program.machine_type_parameters(caller),
                     parameter.type_reference,
                     actual,
                     &mut bindings,
@@ -98,7 +143,33 @@ pub fn call_type_arguments(
             }
         }
     }
+    for (parameter, selected) in const_selections {
+        let Some((_, actual)) = bindings
+            .iter()
+            .find(|(symbol, _)| *symbol == parameter.symbol)
+        else {
+            // An unused const has no carrier occurrence to instantiate. Its
+            // retained authored operand remains with static-call admission.
+            continue;
+        };
+        if !const_selection_matches(program, selected, *actual) {
+            return None;
+        }
+    }
     Some(bindings)
+}
+
+fn const_selection_matches(
+    program: &dyn crate::CheckingInput,
+    selected: &StaticMachineArgument,
+    actual: TypeReferenceHandle,
+) -> bool {
+    if let Some(identity) = program.static_const_argument_identity(selected) {
+        return program.normalized_type_identity(actual).as_str() == identity;
+    }
+    matches!(program.type_reference_table.type_reference(actual),
+        TypeReferenceNode::Named { symbol, .. }
+            if symbol.is_valid() && *symbol == selected.symbol)
 }
 
 #[allow(clippy::too_many_arguments)]

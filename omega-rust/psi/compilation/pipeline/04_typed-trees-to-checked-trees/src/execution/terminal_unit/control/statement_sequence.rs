@@ -183,7 +183,8 @@ fn erased_alias_locals(
         let Some((statement_index, local)) = program.state_local_declaration(state, *symbol) else {
             return true;
         };
-        super::reference_captures::plan(program, machine, state, statement_index, local).is_none()
+        super::reference_captures::plan(program, facts, machine, state, statement_index, local)
+            .is_none()
     });
     erased
 }

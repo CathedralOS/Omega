@@ -1,6 +1,7 @@
 //! Copying states, statements, transitions, type references, expressions
 //! and spans between syntax trees.
 
+use super::item_copies::SyntaxCopy;
 use crate::expression::{
     ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
     TableCastExpression, TableIndexedExpression, TableMemberExpression, TableStructLiteral,
@@ -19,7 +20,7 @@ use crate::syntax_trees::SyntaxTrees;
 use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use arena::{Handle, HandleSpan};
 
-impl SyntaxTrees {
+impl SyntaxCopy<'_> {
     pub fn copy_static_machine_argument(
         &mut self,
         other: &SyntaxTrees,
@@ -468,6 +469,13 @@ impl SyntaxTrees {
             return ExpressionHandle::invalid();
         }
 
+        let source_position = handle.arena_index() as usize;
+        if let Some((source, copied)) = self.expression_copies.get(source_position)
+            && *source == handle
+        {
+            return *copied;
+        }
+
         let expression = match other.expressions.expression(handle) {
             ExpressionNode::Match(dispatch) => {
                 let subject = self.copy_expression_handle(other, dispatch.subject);
@@ -597,6 +605,13 @@ impl SyntaxTrees {
         let source_span = other.expressions.source_span(handle);
         let copied = self.expressions.insert(expression);
         self.expressions.set_source_span(copied, source_span);
+        if self.expression_copies.len() <= source_position {
+            self.expression_copies.resize(
+                source_position + 1,
+                (ExpressionHandle::invalid(), ExpressionHandle::invalid()),
+            );
+        }
+        self.expression_copies[source_position] = (handle, copied);
         copied
     }
 

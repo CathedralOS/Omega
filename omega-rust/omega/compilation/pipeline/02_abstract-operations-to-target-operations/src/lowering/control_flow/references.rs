@@ -788,6 +788,28 @@ pub(super) fn reference_loan_source_live(
     access_paths::call_reference_custody(function, live, types, source).is_ok()
 }
 
+/// A case observation reads through the same live descriptor chain as other
+/// nonescaping accesses, without imposing a call argument's endpoint grammar.
+pub(super) fn case_reference_source_live(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    access_paths::access_reference_custody(
+        function,
+        live,
+        types,
+        &StructuralArgument {
+            place,
+            path: path.to_vec(),
+            access: StructuralAccess::SharedBorrow,
+        },
+    )
+    .is_ok()
+}
+
 // A new shared loan may coexist only with authenticated shared carrier leaves.
 // The original roots and parent identities remain live until every loan ends.
 fn shared_source_compatible(

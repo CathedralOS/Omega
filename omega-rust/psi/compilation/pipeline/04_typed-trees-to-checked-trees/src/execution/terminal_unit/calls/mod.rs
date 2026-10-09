@@ -30,7 +30,9 @@ mod trait_boundary_call;
 pub(crate) mod view_subslice;
 
 pub(crate) use call_operations::completes_in_machine_body;
-pub(crate) use result_arguments::validate_shared_temporary;
+pub(crate) use result_arguments::{
+    is_stored_reference, retained_reference_argument, validate_shared_temporary,
+};
 
 /// The callee as argument planning reads it: formals, result and supply.
 ///
