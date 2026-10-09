@@ -528,21 +528,29 @@ fn selected_expression<'program>(
         ExpressionNode::Unary(_) => return None,
         _ => return None,
     };
-    let machine = program.machine_by_symbol(frame.machine)?;
-    let state = program.state_in_machine(machine, frame.state)?;
-    for operand in &operands {
-        if matches!(
-            program.expression_table.expression(*operand),
-            ExpressionNode::Float(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
-        ) {
-            continue;
-        }
-        let reference =
-            validation::expression_result_type_reference(program, machine, state, *operand)?;
-        if program.arithmetic_domain_for_type_reference(reference)
-            != numerics::arithmetic::ArithmeticDomain::Exact
-        {
-            return None;
+    // Qualification adapts float-producing operations. A total Boolean query
+    // observes its argument's denotation without adapting that argument; its
+    // public semantic equation remains valid for qualified source values.
+    if matches!(
+        program.primitive_type_reference(operator.return_type),
+        Some(typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64)
+    ) {
+        let machine = program.machine_by_symbol(frame.machine)?;
+        let state = program.state_in_machine(machine, frame.state)?;
+        for operand in &operands {
+            if matches!(
+                program.expression_table.expression(*operand),
+                ExpressionNode::Float(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
+            ) {
+                continue;
+            }
+            let reference =
+                validation::expression_result_type_reference(program, machine, state, *operand)?;
+            if program.arithmetic_domain_for_type_reference(reference)
+                != numerics::arithmetic::ArithmeticDomain::Exact
+            {
+                return None;
+            }
         }
     }
     Some((operator, operands, CheckedArithmeticPolicyAdapter::None))

@@ -17,7 +17,12 @@ crashes Trap false {
     (1.5f32 as f32 in Trapping) * 2.0f32
 }
 
+// A Boolean wellness query does not adapt its qualified input value.
+machine finite_qualified(value: f32 in Trapping)
+requires F32::is_finite(value) {}
+
 machine main() crashes Trap {
+    finite_qualified(1.5f32 as f32 in Trapping);
     let result: f32 in Trapping = closed_scale();
     let scaled: f32 in Trapping = scale(1.5f32 as f32 in Trapping);
     let narrowed: f32 in Trapping = finite_narrow(2.5f64 as f64 in Trapping);
