@@ -1242,27 +1242,7 @@ fn scalar_result_normalization_kind(
 /// Object custody derives the same fixed ABI shape from semantic type, never
 /// from the width of a scratch register or a producer-supplied placement.
 fn scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
-    use calling_conventions::ValueShape;
-    match scalar_type {
-        // The retained hosted address model uses a 64-bit integer-class
-        // slot, while its semantic carrier remains an address throughout
-        // replay.
-        ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
-            Some(ValueShape::integer(8, 8))
-        }
-        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::IeeeFloat(format) => Some(ValueShape::float(format.byte_size())),
-        ScalarType::Integer(integer)
-            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-        {
-            Some(ValueShape::integer(
-                u32::from(integer.bits() / 8),
-                integer.bits() / 8,
-            ))
-        }
-        _ => None,
-    }
+    calling_conventions::ValueShape::for_scalar(scalar_type)
 }
 
 /// The emitted interval one integer-immediate argument occupies: the register

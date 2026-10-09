@@ -493,25 +493,7 @@ pub(super) fn validate(
 }
 
 pub(crate) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
-    match scalar_type {
-        // The retained hosted address model uses a 64-bit integer-class slot,
-        // while its semantic carrier remains an address throughout replay.
-        ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
-            Some(ValueShape::integer(8, 8))
-        }
-        ScalarType::IeeeFloat(format) => Some(ValueShape::float(format.byte_size())),
-        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::Integer(integer)
-            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-        {
-            Some(ValueShape::integer(
-                u32::from(integer.bits() / 8),
-                integer.bits() / 8,
-            ))
-        }
-        _ => None,
-    }
+    ValueShape::for_scalar(scalar_type)
 }
 
 /// Normalize the scalar's low bits to its full-register signed/unsigned value.

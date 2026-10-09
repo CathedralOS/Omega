@@ -3,6 +3,7 @@
 //! plan, machine states and regimes, entry stacks and preemption.
 
 use crate::callback_materializations::CallbackMaterialization;
+use semantic_vocabulary::ScalarType;
 use target::Architecture;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -169,6 +170,29 @@ pub struct ValueShape {
 }
 
 impl ValueShape {
+    /// The carried shape of a scalar for foreign-call transport: the retained
+    /// hosted address model uses a 64-bit integer-class slot, while its
+    /// semantic carrier remains an address throughout replay.
+    pub fn for_scalar(scalar_type: ScalarType) -> Option<Self> {
+        match scalar_type {
+            ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
+                Some(Self::integer(8, 8))
+            }
+            ScalarType::Boolean => Some(Self::integer(1, 1)),
+            ScalarType::IeeeFloat(format) => Some(Self::float(format.byte_size())),
+            ScalarType::Integer(integer)
+                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                    && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+            {
+                Some(Self::integer(
+                    u32::from(integer.bits() / 8),
+                    integer.bits() / 8,
+                ))
+            }
+            _ => None,
+        }
+    }
+
     pub const fn borrowed_scalar_reference() -> Self {
         Self {
             class: ValueClass::BorrowedScalarReference,
