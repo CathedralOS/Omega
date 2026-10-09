@@ -11,6 +11,9 @@
 mod field_stores;
 mod windows;
 
+#[cfg(test)]
+mod tests;
+
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::LiveClaim;
 use crate::reference;

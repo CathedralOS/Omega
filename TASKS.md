@@ -998,20 +998,33 @@ defines the complete product bar.
     occurrences) and 441e8f33f8c (scalar case payload reads) are the likely
     sources and are not yet bisected.
   - Terminal interpreter declines on programs that pass natively
-    (`omega run --both` status 201), not yet traced to a site:
-    `pass/calls/runtime_constructed_payload_arguments_exit`,
-    `pass/control_flow/{element_view_enum_equality,indexed_record_state_argument,single_case_result_dispatch}_exit`,
-    `pass/drops/runtime_projected_reference_siblings_exit`,
-    `pass/memory/runtime_large_{entry_record_field,frame_console_byte_homes,local_record}_exit`,
-    `pass/ownership/{copied_parameter_case_field_store,linear_call_result_place_assignment,linear_result_member_projection_arguments,linear_result_owners_residual_cleanup}_exit`,
-    `pass/slices/{runtime_qualified_record_copy_local,runtime_view_index_copied_argument}_exit`,
-    `pass/storage/large_zero_initialized_local_exit`,
-    `pass/wire/wire_preserving_decode_relay_exit`, `run/contained_health_loop_command_branch`.
-    Find a site with an env-gated `std::backtrace::Backtrace::force_capture()` in
-    `errors::malformed()`; the last trace before the failure is the refusing site.
-    Known limits that still fail closed: aggregate re-views refuse case path
-    segments, `ViewByte` storage is read-only, and a literal byte place cannot be
-    lent mutably.
+    (`omega run --both` status 201):
+    - `pass/ownership/linear_result_{member_projection_arguments,owners_residual_cleanup}_exit`
+      fail with ClaimTransferMismatch in `rebind_structural_result_claims`:
+      two live results of the same callee get the same caller ClaimIds,
+      because checking's `claim_outcomes.rs` (`call_result_origin_rewrites`,
+      `claim_origin_for_source`) gives every invocation's receipt the callee's
+      static claim identity and stage 05's roster then maps both to one id.
+      Keeping the caller's identity instead makes `linear_validation.rs`
+      reject them ("no unique conserved claim mapping"); the repair needs
+      per-invocation claim identities in checking and a per-occurrence roster.
+    - `pass/calls/runtime_constructed_payload_arguments_exit` and
+      `pass/wire/wire_preserving_decode_relay_exit` read a dispatched sum's
+      payload after the case edge disposed the subject
+      (`VerifiedStructuralPlaceMissing`); `pass/structs/affine_result_constructor`
+      fails stage 05 with "projected transfer histories disagree at a control
+      join". A candidate repair (disposing the subject at the arm's exit after
+      its payload reads, 330bec73b42 in the session that found it) conflicts
+      with 9e2500f1ff9/3f3847cdd77, which keep disposal on the case edge with
+      payload snapshots; port it onto that design or extend the snapshots.
+    - `run/contained_health_loop_command_branch` has no build.omg or
+      ProgramEntry binding and declares its own `Console` boundary trait, so
+      it needs a host adapter (**TERMINAL-RUNTIME-DRIVERS**).
+    Find a site with an env-gated `std::backtrace::Backtrace::force_capture()`
+    in `errors::malformed()`; the last trace before the failure is the refusing
+    site. Known limits that still fail closed: aggregate re-views refuse case
+    path segments, `ViewByte` storage is read-only, and a literal byte place
+    cannot be lent mutably.
   - A restricted scalar field passed by reference as a call argument
     (`take(&byte.value)` into a `&u8` formal, where `byte.value` carries a
     record `where` bound) fails Terminal validation with "structural path must
@@ -2556,6 +2569,9 @@ crash and native exit behavior.
   - `interrupt_table_canary` and `secondary_processor_canary` now select
     providers but lack an executable intrinsic:
     **CHECKED-ASM-LABEL-CONTRACTS** owns that dependency.
+  - `pass/control_flow/indexed_record_state_argument_exit` (recorded built,
+    exit 70) is incomplete natively at stage 04's "state graph: result custody
+    accounting" (`state_graph/result_custody.rs`).
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded
