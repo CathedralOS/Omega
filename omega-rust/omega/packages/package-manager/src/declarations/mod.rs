@@ -9,7 +9,6 @@ mod identity;
 pub(crate) mod roles;
 
 pub(crate) use identity::{AliasName, PackageKey, PackageName};
-
 pub(crate) use dependencies::edit::{
     plan_dependency_addition_from_source, plan_dependency_replacement_from_source,
 };

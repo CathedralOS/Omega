@@ -10,17 +10,9 @@ mod source_literal;
 pub(crate) use aliases::DependencyAliasError;
 pub(crate) use error::DependencyProjectionError;
 pub(crate) use extraction::{extract_build_dependency_projection};
-
 use crate::declarations::roles::BuildDeclaration;
 use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
-/// Which authorized context one direct dependency edge serves.
-///
-/// `depend`/`depend_as` rows authorize product imports. `build_depend`/
-/// `build_depend_as` rows authorize the host build context. The two scopes
-/// are distinct: an alias or a package may appear in both, and neither scope
-/// falls back to the other. The vocabulary lives in `build_declarations`
-/// so package management and the compiler share one grammar.
 pub use build_declarations::DependencyPurpose;
 pub(crate) use extraction::extract_scoped_from_source;
 pub(crate) use projection::{extract_build_projection_from_source, validate_static_dependency_source};

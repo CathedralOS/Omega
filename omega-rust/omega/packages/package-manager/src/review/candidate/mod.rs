@@ -16,7 +16,7 @@ pub use compilation::{
 };
 pub(crate) use compilation::{
     CandidateCompilation, SemanticBindingReview,
-    compile_resolved_package_reviews, compile_resolved_package_reviews_reusing};
+    compile_resolved_package_reviews_reusing};
 pub(crate) use compilation::{ CandidateSourcePreparation};
 pub(crate) use custody::verify_transitive_source_custody;
 pub use error::CompileResolvedPackageReviewsError;
@@ -29,4 +29,4 @@ pub(crate) use rows::ReviewOnlySourceConsumptionCommitment;
 pub use semantic_bindings::{
 };
 pub(crate) use semantic_bindings::{
-    ConsumerScopedSemanticBindingReviewInput, SemanticBindingReviewCandidate};
+    ConsumerScopedSemanticBindingReviewInput};

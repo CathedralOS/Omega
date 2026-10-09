@@ -9,7 +9,7 @@ mod risk;
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
-pub(crate) use locked_policy::{LockedPolicyComparisonError, compare_locked_package_policies};
+pub(crate) use locked_policy::{LockedPolicyComparisonError};
 pub(crate) use policy::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
     PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath, PackagePolicyReplacementSite, compare_package_policy_changes};
@@ -57,9 +57,5 @@ impl ReviewOnlyRootRoleChange {
 
     pub const fn broken_contract(&self) -> ReviewOnlyRootRoleContract {
         self.broken_contract
-    }
-
-    pub const fn is_blocking(&self) -> bool {
-        true
     }
 }

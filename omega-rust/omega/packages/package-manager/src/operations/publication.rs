@@ -6,7 +6,7 @@ mod error;
 mod journal;
 mod transaction;
 
-pub(crate) use checked::{PublishReviewedPackageChangeError, publish_reviewed_package_change};
+pub(crate) use checked::{publish_reviewed_package_change};
 pub(crate) use error::PackagePublicationError;
 pub(crate) use transaction::PackageFileTransaction;
 

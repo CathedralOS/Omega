@@ -18,7 +18,6 @@ use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use crate::review::timings;
 use artifacts::compile_timings::counters;
 use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
-
 pub(crate) use crate::build_session::PackageSourcePreparation as CandidateSourcePreparation;
 
 /// How this invocation obtains consumer-scoped semantic bindings.
@@ -58,22 +57,6 @@ impl<'request, 'closure> CandidateCompilation<'request, 'closure> {
         }
     }
 }
-
-/// Compile the exact dependency closure and return its compiler-issued reviews.
-/// Borrow the invoking operation's resource owner. Binding discovery is not acceptance.
-pub(crate) fn compile_resolved_package_reviews(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    session: &mut PackageBuildSession,
-    bindings: SemanticBindingReview<'_>,
-) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    compile_resolved_package_reviews_reusing(
-        CandidateCompilation::new(target_closure),
-        bindings,
-        session,
-        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
-    )
-}
-
 /// The same candidate review under an explicit [`CandidateCompilation`],
 /// retaining binding-independent source preparation in the caller's store. A
 /// command reviewing several targets of one resolved closure prepares each
