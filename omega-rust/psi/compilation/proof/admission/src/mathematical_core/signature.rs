@@ -180,15 +180,19 @@ pub fn check_signature_with_attribution(
 ) -> Result<Signature, SignatureCheckError> {
     let mut signature = Signature::new();
     for (position, declaration) in declarations.iter().enumerate() {
-        let context =
-            Context::with_level_arity(declaration.level_arity).with_signature(signature.clone());
-        let formed = (|| {
-            infer_sort(arena, &context, declaration.ty, budget)?;
-            if let Some(body) = declaration.body {
-                check_type(arena, &context, body, declaration.ty, budget)?;
-            }
-            Ok::<_, CoreError>(())
-        })();
+        let formed = {
+            let context = Context::with_level_arity(declaration.level_arity)
+                .with_signature(signature.clone());
+            (|| {
+                infer_sort(arena, &context, declaration.ty, budget)?;
+                if let Some(body) = declaration.body {
+                    check_type(arena, &context, body, declaration.ty, budget)?;
+                }
+                Ok::<_, CoreError>(())
+            })()
+        };
+        // Release the borrowed prefix before appending, so Rc::make_mut can
+        // retain the signature allocation instead of copying it per declaration.
         formed.map_err(|error| SignatureCheckError {
             declaration: position,
             error,
