@@ -473,15 +473,27 @@ crashes Trap
 }
 
 // The type a store into `place` must meet: an indexed element's own carrier,
-// or the place's type.
+// a loaned name's referent, or the place's type.
 pub machine Typer::place_type(typer: &Typer, syntax: &SyntaxTrees, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, place);
     let typed: u64 in Trapping = Typing::expression_type(&typer.output, place);
-    transition expression.kind == ExpressionKind::Index {
-        true -> indexed(typer, expression)
+    transition expression.kind {
+        ExpressionKind::Index -> indexed(typer, expression)
+        ExpressionKind::Name -> named(typer, typed)
         _ -> result(typed)
+    }
+
+    // A name holding an exclusive loan denotes the original storage
+    // (wiki/spec/language/ownership.md, Borrows and aliases): assigning it
+    // writes the referent.
+    state named(typer: &Typer, typed: u64 in Trapping) -> u64 in Trapping {
+        let row: TypeRow = TypeTable::row(&typer.output.types, typed);
+        transition row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable {
+            true -> result(row.inner)
+            _ -> result(typed)
+        }
     }
 
     state indexed(typer: &Typer, expression: Expression) -> u64 in Trapping {

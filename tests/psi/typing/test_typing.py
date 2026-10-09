@@ -850,6 +850,24 @@ def main() -> None:
         b"P<u8>(x)",
     )
 
+    # Assigning a name that holds an exclusive loan writes its referent
+    # (a borrowed argument denotes the original storage); a shared loan is
+    # not writable storage.
+    accepted(
+        program,
+        "assignment-through-an-exclusive-loan",
+        b"data P { x: u8; }\nmachine set(n: &mut u64, p: &mut P) { n = 99; p = P { x: 1 }; }",
+        ((b"99", "u64"), (b"P { x: 1 }", "D0")),
+        adaptations=((b"99", "landed"),),
+    )
+    rejected(
+        program,
+        "assignment-through-a-shared-loan",
+        b"machine set(n: &u64) { n = 99; }",
+        "MismatchedTypes",
+        b"99",
+    )
+
     # A case's own `where` fact types over its payload fields and the
     # declaration's fields, and is a Boolean.
     accepted(
