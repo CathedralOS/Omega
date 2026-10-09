@@ -66,13 +66,6 @@ impl PlaceAliasesAnalysis {
 
 impl PlaceAliasFunction {
 
-    #[cfg(any(test, feature = "test-support"))]
-    fn root_kind(&self, place: PlaceId) -> Option<StructuralPlaceKind> {
-        self.roots
-            .binary_search_by_key(&place, |root| root.place)
-            .ok()
-            .and_then(|index| self.roots[index].kind)
-    }
 }
 
 #[cfg(any(test, feature = "test-support"))]

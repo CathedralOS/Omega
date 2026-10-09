@@ -317,10 +317,6 @@ impl AppliedLoopInvariantScalarMotion {
         (self.session, self.candidate, self.ledger)
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn into_session(self) -> VerifiedPsiOptimizationSession {
-        self.session
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

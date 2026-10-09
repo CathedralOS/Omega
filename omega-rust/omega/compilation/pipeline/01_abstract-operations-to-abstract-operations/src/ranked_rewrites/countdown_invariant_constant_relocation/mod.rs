@@ -120,9 +120,6 @@ impl AppliedCountdownInvariantConstantRelocation {
         &self.ledger
     }
 
-    pub(crate) fn into_session(self) -> VerifiedPsiOptimizationSession {
-        self.session
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

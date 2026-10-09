@@ -302,10 +302,6 @@ mod link_custody {
         Ok(information)
     }
 
-    pub(super) fn has_single_hard_link(path: &Path) -> io::Result<bool> {
-        Ok(information(path)?.number_of_links == 1)
-    }
-
     pub(super) fn filesystem_object_identity(path: &Path) -> io::Result<(u64, u64)> {
         let information = information(path)?;
         let index =

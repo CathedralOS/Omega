@@ -80,17 +80,6 @@ impl AnalysisManager {
         self.revision
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn require(
-        &mut self,
-        unit: &PsiOptimizationUnit,
-        kind: AnalysisKind,
-    ) -> Result<&AnalysisProduct, AnalysisManagerError> {
-        self.require_revision(unit)?;
-        self.compute_with_dependencies(unit, kind)?;
-        Ok(&self.cache[&kind])
-    }
-
     /// Resolve a request set in canonical `AnalysisKind::ALL` order. Caller
     /// insertion order cannot influence dependency or output order.
     #[cfg(any(test, feature = "test-support"))]
