@@ -24,23 +24,19 @@ pub use boundary_entry::{
     evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
-pub(crate) use boundary_entry::{
-    evaluate_darwin_aapcs64_variadic_boundary_entry_plan, evaluate_freestanding_program_entry_plan};
 pub use call_plan_evaluation::{
     evaluate_call_plan,
 };
-pub(crate) use call_plan_evaluation::{ evaluate_darwin_aapcs64_variadic_call_plan, validate_call_plan};
+pub(crate) use call_plan_evaluation::{ validate_call_plan};
 pub use diagnostics::{ PlanDiagnostic};
 pub use diagnostics::{BoundaryPlanDiagnostic};
 pub use state_footprints::{ StateFootprintEvidence,
 };
 pub(crate) use state_footprints::{
-    ProviderExitRealization, compose_state_footprints,
-    validate_provider_exit_realization};
+    ProviderExitRealization};
 pub use vocabulary::{
     CallPlan, CallSignature, CallingPolicy, EntryControl,
     EntryStack, IndirectPointerLocation, MachineRegime, MachineRegister, MachineState,
     MachineStateSet, Preemption, RegisterSet, StatePlan, SystemVEightbyteClass, ValueClass,
     ValueLocation, ValuePlacement, ValueShape, encode_state_plan_identity, gpr_code,
 };
-pub(crate) use vocabulary::{ ConcreteVariadicCallSignature};

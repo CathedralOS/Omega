@@ -9,9 +9,8 @@ use crate::plans::call_plan_evaluation::validate_call_plan_structure;
 use crate::plans::plan_identity::Fnv1a;
 use crate::plans::state_footprints::machine_state_for_registers;
 use crate::plans::{
-    BoundaryPlanDiagnostic, CallPlan, CallSignature, CallingPolicy, ConcreteVariadicCallSignature,
-    EntryStack, MachineRegime, MachineState, MachineStateSet, PlanDiagnostic, Preemption,
-    StatePlan, ValueLocation, evaluate_call_plan, evaluate_darwin_aapcs64_variadic_call_plan,
+    BoundaryPlanDiagnostic, CallPlan, CallSignature, CallingPolicy, EntryStack, MachineRegime, MachineState, MachineStateSet, PlanDiagnostic, Preemption,
+    StatePlan, ValueLocation, evaluate_call_plan,
     validate_call_plan,
 };
 use target::Architecture;
@@ -97,29 +96,7 @@ pub fn evaluate_ordinary_boundary_entry_plan(
 /// instruction, stack, and control state in addition to the ordinary ABI
 /// volatile banks. An explicit source-selected boundary plan remains
 /// authoritative and must not be widened through this compatibility path.
-pub(crate) fn evaluate_freestanding_program_entry_plan(
-    policy: CallingPolicy,
-    signature: &CallSignature,
-) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
-    let ordinary = evaluate_ordinary_boundary_entry_plan(policy, signature)?;
-    let mut plan = ordinary.plan().clone();
-    plan.state.permitted_transitive_use =
-        plan.state
-            .permitted_transitive_use
-            .union(MachineStateSet::new([
-                MachineState::InstructionPointer,
-                MachineState::StackPointer,
-                MachineState::ControlState,
-            ]));
-    validate_boundary_entry_plan(plan, signature)
-}
 
-pub(crate) fn evaluate_darwin_aapcs64_variadic_boundary_entry_plan(
-    signature: &ConcreteVariadicCallSignature,
-) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
-    let call = evaluate_darwin_aapcs64_variadic_call_plan(signature)?;
-    evaluate_ordinary_boundary_entry_plan_from_call(call, &signature.flattened())
-}
 
 fn evaluate_ordinary_boundary_entry_plan_from_call(
     call: CallPlan,

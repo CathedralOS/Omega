@@ -1,13 +1,11 @@
 use super::{integer_signature, strict_x86_entry};
-use crate::plans::compose_state_footprints;
 use crate::plans::{
     BoundaryPlanDiagnostic, BoundaryPlanResult, CallSignature, CallingPolicy,
     CallingPolicyRejection, EntryControl, EntryStack, MachineRegime, MachineRegister, MachineState,
     MachineStateSet, Preemption, ProviderExitRealization, RegisterSet, StateFootprintEvidence,
     StatePlan, SystemVEightbyteClass, ValueShape, encode_state_plan_identity,
-    evaluate_freestanding_program_entry_plan, evaluate_ordinary_boundary_entry_plan,
+evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan, validate_boundary_plan_result,
-    validate_provider_exit_realization,
 };
 
 #[test]
@@ -40,83 +38,7 @@ fn ordinary_firmware_entry_has_no_interrupted_state_obligation() {
     );
 }
 
-#[test]
-fn implicit_freestanding_entry_admits_boot_root_machine_state() {
-    let signature = integer_signature(1);
-    let hosted = evaluate_ordinary_boundary_entry_plan(CallingPolicy::SystemVAMD64, &signature)
-        .expect("ordinary entry");
-    let freestanding =
-        evaluate_freestanding_program_entry_plan(CallingPolicy::SystemVAMD64, &signature)
-            .expect("implicit freestanding entry");
-    let boot_root_state = MachineStateSet::new([
-        MachineState::InstructionPointer,
-        MachineState::StackPointer,
-        MachineState::ControlState,
-    ]);
 
-    assert!(
-        !hosted
-            .plan()
-            .state
-            .permitted_transitive_use
-            .contains_all(boot_root_state)
-    );
-    assert!(
-        freestanding
-            .plan()
-            .state
-            .permitted_transitive_use
-            .contains_all(boot_root_state)
-    );
-    assert_eq!(
-        hosted.plan().state.interrupted_state,
-        freestanding.plan().state.interrupted_state
-    );
-    assert_eq!(
-        hosted.plan().state.saved_state,
-        freestanding.plan().state.saved_state
-    );
-    assert_eq!(
-        hosted.plan().state.restored_state,
-        freestanding.plan().state.restored_state
-    );
-}
-
-#[test]
-fn provider_exit_realization_must_match_the_complete_boundary_exit() {
-    let validated = validate_boundary_entry_plan(strict_x86_entry(), &integer_signature(1))
-        .expect("strict interrupt boundary");
-    let expected = ProviderExitRealization {
-        control: validated.plan().call.entry_control,
-        restored_state: validated.plan().state.restored_state,
-    };
-    validate_provider_exit_realization(validated.plan(), &expected)
-        .expect("exact provider exit realization");
-
-    for (realization, expected_diagnostic) in [
-        (
-            ProviderExitRealization {
-                control: EntryControl::CallReturn,
-                ..expected
-            },
-            "exit control",
-        ),
-        (
-            ProviderExitRealization {
-                restored_state: MachineStateSet::empty(),
-                ..expected
-            },
-            "restored-state set",
-        ),
-    ] {
-        let error = validate_provider_exit_realization(validated.plan(), &realization)
-            .expect_err("drifted provider exit must reject");
-        assert!(
-            error.0.contains(expected_diagnostic),
-            "expected `{expected_diagnostic}`, got `{error}`"
-        );
-    }
-}
 
 #[test]
 fn boundary_entry_validation_rejects_unsaved_permitted_state() {
@@ -152,38 +74,6 @@ fn emitted_evidence_is_firewalled_from_contract_identity() {
     assert_eq!(identity, validated.contract_report_fingerprint());
 }
 
-#[test]
-fn fragment_footprints_compose_deterministically() {
-    let entry = StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86R11, MachineRegister::X86Rax]),
-        MachineStateSet::empty(),
-    );
-    let body = StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Rcx, MachineRegister::X86R11]),
-        MachineStateSet::new([MachineState::Flags]),
-    );
-
-    let first = compose_state_footprints([&entry, &body, &entry]);
-    let second = compose_state_footprints([&body, &entry]);
-
-    assert_eq!(first, second);
-    assert_eq!(
-        first.registers().as_slice(),
-        &[
-            MachineRegister::X86Rax,
-            MachineRegister::X86Rcx,
-            MachineRegister::X86R11,
-        ]
-    );
-    assert_eq!(
-        first.machine_state(),
-        MachineStateSet::new([MachineState::GeneralRegisters, MachineState::Flags])
-    );
-    assert_eq!(
-        first.evidence_report_fingerprint(),
-        second.evidence_report_fingerprint()
-    );
-}
 
 #[test]
 fn evaluated_state_plan_changes_contract_identity() {

@@ -1,8 +1,8 @@
 use super::integer_signature;
 use crate::plans::{
-    CallSignature, CallingPolicy, ConcreteVariadicCallSignature, EntryControl,
+    CallSignature, CallingPolicy, EntryControl,
     IndirectPointerLocation, MachineRegister, ValueLocation, ValueShape, evaluate_call_plan,
-    evaluate_darwin_aapcs64_variadic_call_plan, validate_call_plan,
+    validate_call_plan,
 };
 
 #[test]
@@ -160,49 +160,6 @@ fn system_v_and_aapcs_use_independent_float_register_banks() {
     ));
 }
 
-#[test]
-fn darwin_aapcs64_variadic_scalars_start_on_the_stack() {
-    let word = ValueShape::integer(8, 8);
-    let mode = ValueShape::integer(4, 4);
-    let signature = ConcreteVariadicCallSignature {
-        fixed_parameters: vec![word, ValueShape::integer(4, 4)],
-        variadic_parameters: vec![mode],
-        result: Some(ValueShape::integer(4, 4)),
-    };
-    let plan =
-        evaluate_darwin_aapcs64_variadic_call_plan(&signature).expect("Darwin arm64 variadic plan");
-
-    assert!(matches!(
-        plan.parameters[0].locations.as_slice(),
-        [ValueLocation::Register {
-            register: MachineRegister::Aarch64X(0),
-            ..
-        }]
-    ));
-    assert!(matches!(
-        plan.parameters[1].locations.as_slice(),
-        [ValueLocation::Register {
-            register: MachineRegister::Aarch64X(1),
-            ..
-        }]
-    ));
-    assert_eq!(
-        plan.parameters[2].locations,
-        vec![ValueLocation::Stack {
-            stack_byte_offset: 0,
-            value_byte_offset: 0,
-            byte_size: 4,
-            alignment: 8,
-        }]
-    );
-    assert!(matches!(
-        plan.result.expect("result placement").locations.as_slice(),
-        [ValueLocation::Register {
-            register: MachineRegister::Aarch64X(0),
-            ..
-        }]
-    ));
-}
 
 #[test]
 fn system_v_small_integer_aggregates_use_consecutive_registers_and_results() {

@@ -2,5 +2,4 @@
 //! for Darwin, Linux and Windows.
 
 pub(crate) mod darwin;
-pub(crate) mod linux;
 pub(crate) mod windows;

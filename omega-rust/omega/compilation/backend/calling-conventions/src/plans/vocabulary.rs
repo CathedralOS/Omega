@@ -269,29 +269,6 @@ impl CallSignature {
     }
 }
 
-/// One concrete call to a C variadic function after default argument
-/// promotion. The fixed/anonymous boundary is ABI-significant even though all
-/// parameters have already acquired exact machine shapes.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) struct ConcreteVariadicCallSignature {
-    pub fixed_parameters: Vec<ValueShape>,
-    pub variadic_parameters: Vec<ValueShape>,
-    pub result: Option<ValueShape>,
-}
-
-impl ConcreteVariadicCallSignature {
-    pub fn flattened(&self) -> CallSignature {
-        CallSignature {
-            parameters: self
-                .fixed_parameters
-                .iter()
-                .chain(&self.variadic_parameters)
-                .copied()
-                .collect(),
-            result: self.result,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueLocation {

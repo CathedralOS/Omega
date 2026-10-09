@@ -50,39 +50,12 @@ pub struct ProviderExitRealization {
 /// through the wrong control mechanism or restore set. The plan's
 /// `initial_regime` is an entry fact, so this evidence deliberately does not
 /// invent a same-regime exit promise.
-pub(crate) fn validate_provider_exit_realization(
-    plan: &BoundaryEntryPlan,
-    realization: &ProviderExitRealization,
-) -> Result<(), PlanDiagnostic> {
-    if realization.control != plan.call.entry_control {
-        return Err(PlanDiagnostic(
-            "provider exit control does not match the admitted CallPlan".into(),
-        ));
-    }
-    if realization.restored_state != plan.state.restored_state {
-        return Err(PlanDiagnostic(
-            "provider exit restored-state set does not match the admitted StatePlan".into(),
-        ));
-    }
-    Ok(())
-}
 
 /// Compose implementation evidence from independently derived code fragments.
 /// Register sets and machine-state classes are mathematical unions, so the
 /// result is deterministic across fragment ordering and repeated evidence.
 /// This remains implementation evidence: it does not enter boundary contract
 /// identity and does not claim to be a final placed-artifact certificate.
-pub(crate) fn compose_state_footprints<'a>(
-    fragments: impl IntoIterator<Item = &'a StateFootprintEvidence>,
-) -> StateFootprintEvidence {
-    let mut registers = Vec::new();
-    let mut machine_state = MachineStateSet::empty();
-    for fragment in fragments {
-        registers.extend_from_slice(fragment.registers().as_slice());
-        machine_state = machine_state.union(fragment.machine_state());
-    }
-    StateFootprintEvidence::new(RegisterSet::new(registers), machine_state)
-}
 
 impl StateFootprintEvidence {
     /// Non-authoritative report coordinate over the retained exact register
