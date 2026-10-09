@@ -37,16 +37,8 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 obligation: *obligation,
                 support: *psi_operation,
             }),
-            O::EstablishCase {
-                psi_operation,
-                fields,
-                ..
-            }
-            | O::EstablishRecord {
-                psi_operation,
-                fields,
-                ..
-            } => {
+            abstract_operations::establish_record_or_case_pattern!(psi_operation,
+                fields, ..) => {
                 expected.extend(fields.iter().filter_map(|initializer| {
                     let terminal_psi::RecordFieldValue::Scalar {
                         range_obligation, ..

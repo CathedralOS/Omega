@@ -154,17 +154,9 @@ pub(crate) fn establishment_fields(
     function
         .block_nodes()
         .find_map(|node| match &node.operation {
-            O::EstablishRecord {
-                psi_operation,
+            abstract_operations::establish_record_or_case_pattern!(psi_operation,
                 result,
-                fields,
-            }
-            | O::EstablishCase {
-                psi_operation,
-                result,
-                fields,
-                ..
-            } if *psi_operation == producer && result.place == place => Some(fields.as_slice()),
+                fields, ..) if *psi_operation == producer && result.place == place => Some(fields.as_slice()),
             _ => None,
         })
 }

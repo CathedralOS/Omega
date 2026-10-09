@@ -421,8 +421,7 @@ pub(super) fn validate_current_ownership_cfg(
                 .cloned()
                 .collect::<Vec<_>>();
             let structural_arguments = match &node.operation {
-                O::EstablishCase { .. }
-                | O::EstablishRecord { .. }
+                abstract_operations::establish_record_or_case_pattern!(..)
                 | O::EstablishStructuralArray { .. } => record_arguments.as_slice(),
                 abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments.as_slice(),
                 // A window repair consumes its value exactly like one owned
@@ -431,8 +430,7 @@ pub(super) fn validate_current_ownership_cfg(
                 _ => &[],
             };
             let parameter_multiplicities = match &node.operation {
-                O::EstablishCase { .. }
-                | O::EstablishRecord { .. }
+                abstract_operations::establish_record_or_case_pattern!(..)
                 | O::EstablishStructuralArray { .. } => record_arguments
                     .iter()
                     .map(|argument| {

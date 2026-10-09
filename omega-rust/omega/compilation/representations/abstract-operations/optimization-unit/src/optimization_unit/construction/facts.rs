@@ -23,16 +23,8 @@ pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<Optimi
         );
     }
     match operation {
-        AbstractOperation::EstablishCase {
-            psi_operation,
-            fields,
-            ..
-        }
-        | AbstractOperation::EstablishRecord {
-            psi_operation,
-            fields,
-            ..
-        } => {
+        abstract_operations::establish_record_or_case_pattern!(psi_operation,
+            fields, ..) => {
             facts.extend(fields.iter().filter_map(|initializer| {
                 let terminal_psi::RecordFieldValue::Scalar {
                     range_obligation, ..

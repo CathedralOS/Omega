@@ -1281,3 +1281,11 @@ macro_rules! integer_widen_or_exact_cast_pattern {
             | $crate::AbstractOperation::IntegerExactCast { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! establish_record_or_case_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::EstablishRecord { $($fields)* }
+            | $crate::AbstractOperation::EstablishCase { $($fields)* }
+    };
+}

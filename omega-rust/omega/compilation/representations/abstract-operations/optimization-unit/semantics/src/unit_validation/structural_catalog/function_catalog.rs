@@ -148,16 +148,8 @@ pub(crate) fn validate_function_structural_catalog(
                                     ..
                                 }
                                 | O::EstablishScalarArray { psi_operation, result, .. } | O::EstablishStructuralArray { psi_operation, result, .. }
-                                | O::EstablishCase {
-                                    psi_operation,
-                                    result,
-                                    ..
-                                }
-                                | O::EstablishRecord {
-                                    psi_operation,
-                                    result,
-                                    ..
-                                }
+                                | abstract_operations::establish_record_or_case_pattern!(psi_operation,
+                                    result, ..)
                                 | O::EstablishZeroedStructural { psi_operation, result }
                                 | O::EstablishStructuralLocal { psi_operation, result }
                                 | O::EstablishReference {
@@ -311,16 +303,8 @@ pub(crate) fn validate_function_structural_catalog(
                 result,
                 ..
             }
-            | O::EstablishCase {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::EstablishRecord {
-                psi_operation,
-                result,
-                ..
-            }
+            | abstract_operations::establish_record_or_case_pattern!(psi_operation,
+                result, ..)
             | O::EstablishZeroedStructural {
                 psi_operation,
                 result,

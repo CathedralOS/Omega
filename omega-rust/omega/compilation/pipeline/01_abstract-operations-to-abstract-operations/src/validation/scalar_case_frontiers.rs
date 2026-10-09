@@ -265,7 +265,7 @@ fn operation_consumes_place(operation: &O, place: PlaceId) -> bool {
                 && argument.access == terminal_psi::StructuralAccess::Owned
                 && argument.path.is_empty()
         }),
-        O::EstablishRecord { fields, .. } | O::EstablishCase { fields, .. } => {
+        abstract_operations::establish_record_or_case_pattern!(fields, ..) => {
             fields.iter().any(|field| match &field.value {
                 terminal_psi::RecordFieldValue::Structural(argument) => {
                     argument.place == place

@@ -761,7 +761,7 @@ fn scan_operation(
                 pending.attribute_argument(context, argument, reads, writes);
             }
         }
-        O::EstablishRecord { fields, .. } | O::EstablishCase { fields, .. } => {
+        abstract_operations::establish_record_or_case_pattern!(fields, ..) => {
             for field in fields {
                 if let Some(argument) = field.value.as_structural() {
                     let (reads, writes) = declared_access(argument.access);

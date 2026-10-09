@@ -483,8 +483,7 @@ fn adapt(
                         }
                     }
                 }
-                O::EstablishRecord { result, fields, .. }
-                | O::EstablishCase { result, fields, .. } => {
+                abstract_operations::establish_record_or_case_pattern!(result, fields, ..) => {
                     if let O::EstablishCase { result_case, .. } = operation {
                         let shape = &types
                             .iter()

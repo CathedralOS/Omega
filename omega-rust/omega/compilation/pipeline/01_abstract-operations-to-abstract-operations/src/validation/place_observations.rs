@@ -203,8 +203,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::EstablishPrimitiveLocal { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishStructuralArray { .. }
-        | O::EstablishCase { .. }
-        | O::EstablishRecord { .. }
+        | abstract_operations::establish_record_or_case_pattern!(..)
         | O::Call { .. } => true,
         O::CallStructural {
             structural_arguments,
@@ -490,7 +489,7 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         O::EstablishScalarArray { result, .. } | O::EstablishPrimitiveLocal { result, .. } => {
             references.insert(result.place);
         }
-        O::EstablishCase { result, fields, .. } | O::EstablishRecord { result, fields, .. } => {
+        abstract_operations::establish_record_or_case_pattern!(result, fields, ..) => {
             references.insert(result.place);
             for field in fields {
                 if let terminal_psi::RecordFieldValue::Structural(argument) = &field.value {
@@ -706,8 +705,7 @@ pub(super) fn copyable_owned_argument_root(
         })
         || function.block_nodes().any(|node| {
             let result = match &node.operation {
-                O::EstablishRecord { result, .. }
-                | O::EstablishCase { result, .. }
+                abstract_operations::establish_record_or_case_pattern!(result, ..)
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishStructuralArray { result, .. }
                 | O::CallStructural {

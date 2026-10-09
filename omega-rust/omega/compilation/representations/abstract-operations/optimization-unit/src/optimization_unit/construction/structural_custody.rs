@@ -21,7 +21,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(result.place);
             places.extend(elements.iter().map(|argument| argument.place));
         }
-        O::EstablishCase { result, fields, .. } | O::EstablishRecord { result, fields, .. } => {
+        abstract_operations::establish_record_or_case_pattern!(result, fields, ..) => {
             places.insert(result.place);
             places.extend(
                 fields
@@ -190,16 +190,8 @@ pub(super) fn collect_operation_structural_places(
             result,
             ..
         }
-        | AbstractOperation::EstablishCase {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::EstablishRecord {
-            psi_operation,
-            result,
-            ..
-        }
+        | abstract_operations::establish_record_or_case_pattern!(psi_operation,
+            result, ..)
         | AbstractOperation::EstablishZeroedStructural { psi_operation, result }
         | AbstractOperation::EstablishStructuralLocal { psi_operation, result }
         | AbstractOperation::EstablishReference {

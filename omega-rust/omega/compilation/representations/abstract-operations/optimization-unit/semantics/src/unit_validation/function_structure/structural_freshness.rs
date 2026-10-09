@@ -173,8 +173,7 @@ pub(super) fn structural_metadata_may_change(
         | O::PrimitiveScalarRead { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishStructuralArray { .. }
-        | O::EstablishCase { .. }
-        | O::EstablishRecord { .. }
+        | abstract_operations::establish_record_or_case_pattern!(..)
         | O::StructuralCaseMembership { .. }
         | O::StructuralScalarFieldRead { .. }
         | O::IntegerConstant { .. }

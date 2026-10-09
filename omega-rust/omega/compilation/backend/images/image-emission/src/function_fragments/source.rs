@@ -58,8 +58,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::AtomicEvent { .. }
                 | AbstractOperation::EstablishByteSequenceConcatenation { .. }
                 | AbstractOperation::EstablishPrimitiveLocal { .. }
-                | AbstractOperation::EstablishCase { .. }
-                | AbstractOperation::EstablishRecord { .. }
+                | abstract_operations::establish_record_or_case_pattern!(..)
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishStructuralArray { .. }
                 | AbstractOperation::EstablishZeroedStructural { .. }
@@ -307,8 +306,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
                 AbstractOperation::StructuralCaseMembership { .. }
-                | AbstractOperation::EstablishCase { .. }
-                | AbstractOperation::EstablishRecord { .. }
+                | abstract_operations::establish_record_or_case_pattern!(..)
                 | AbstractOperation::StructuralLeafCopy { .. }
                 | abstract_operations::move_or_store_structural_field_pattern!()
                 | AbstractOperation::EstablishTrivialAffineLocal { .. }

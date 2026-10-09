@@ -98,16 +98,8 @@ pub(crate) fn partial_affine_root_type(
                 result,
                 ..
             }
-            | O::EstablishRecord {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::EstablishCase {
-                psi_operation,
-                result,
-                ..
-            } if *psi_operation == producer
+            | abstract_operations::establish_record_or_case_pattern!(psi_operation,
+                result, ..) if *psi_operation == producer
                 && result.place == place
                 && result.structural_type == structural_type
                 && result.multiplicity == StructuralMultiplicity::Affine
