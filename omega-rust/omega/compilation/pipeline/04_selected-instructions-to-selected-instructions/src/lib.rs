@@ -15,6 +15,38 @@
 //! [`SelectedInstructionOptimizationOutput`] from
 //! `selected_optimization::optimization_output`.
 
+/// The six analysis identities every validation receipt and analysis input
+/// in this stage carries: live ranges, allocation legality, the register
+/// environment, allocator availability, the optimization unit and the fuel
+/// schedule. Expanded inside each receipt's `impl` so `self.<field>`
+/// resolves on the receiver's own field names.
+macro_rules! shared_analysis_identity_accessors {
+    ($visibility:vis) => {
+        $visibility const fn ranges(self) -> LiveRangeIdentity {
+            self.ranges
+        }
+        $visibility const fn legality(self) -> AllocationLegalityIdentity {
+            self.legality
+        }
+        $visibility const fn register_environment(
+            self,
+        ) -> TargetRegisterEnvironmentIdentity {
+            self.register_environment
+        }
+        $visibility const fn allocator_availability(
+            self,
+        ) -> AllocatorAvailabilityIdentity {
+            self.allocator_availability
+        }
+        $visibility const fn optimization_unit(self) -> OptimizationUnitIdentity {
+            self.optimization_unit
+        }
+        $visibility const fn fuel_schedule(self) -> FuelScheduleIdentity {
+            self.fuel_schedule
+        }
+    };
+}
+
 mod analyses;
 mod rewrites;
 mod selected_optimization;
