@@ -775,8 +775,7 @@ pub(crate) fn encode_unchecked(
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
-        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | selected_instructions::exact_shift_i64_pair_pattern!()
         | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
             // D3 /digit shifts r/m64 by CL: the count source must be the
             // pinned RCX view (code 1), the result takes a copy of the value

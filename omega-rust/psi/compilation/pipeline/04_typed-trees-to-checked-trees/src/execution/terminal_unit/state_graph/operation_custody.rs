@@ -50,8 +50,7 @@ pub(super) fn admit(
             }
             // A view-subslice local owns nothing: its shared view ends
             // with the loan, on every selected edge alike.
-            | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+            | checked_trees::byte_sequence_establishment_pattern!()
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             // Fixed-array, mutable-primitive, and trivial-affine locals mint
             // storage at the authored statement the same way: the binding's

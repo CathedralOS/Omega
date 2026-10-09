@@ -372,8 +372,7 @@ pub(super) fn validate_source(
             matches!(
                 declaration.shape,
                 StructuralTypeShape::ByteSequence(
-                    ByteSequenceCarrier::BorrowedView { .. }
-                        | ByteSequenceCarrier::BoundedView { .. }
+                    terminal_psi::byte_sequence_view_carrier_pattern!()
                 )
             ) || (declaration.shape.is_bounded_owned_byte_sequence()
                 && (owned_byte_result(function, source_kind, source, |identity| {

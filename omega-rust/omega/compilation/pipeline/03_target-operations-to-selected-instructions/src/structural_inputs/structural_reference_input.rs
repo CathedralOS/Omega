@@ -498,7 +498,7 @@ pub(crate) fn parameter_shape<'declaration>(
                 declaration.id == parameter.structural_type
                     && matches!(
                         declaration.shape,
-                        StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+                        terminal_psi::record_or_fixed_array_shape_pattern!()
                     )
             }) =>
         {

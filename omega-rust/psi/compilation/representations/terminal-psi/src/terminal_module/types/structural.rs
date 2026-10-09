@@ -134,8 +134,7 @@ impl StructuralTypeShape {
     pub fn is_composite_shape(&self) -> bool {
         matches!(
             self,
-            StructuralTypeShape::Record { .. }
-                | StructuralTypeShape::FixedArray { .. }
+            crate::record_or_fixed_array_shape_pattern!()
                 | StructuralTypeShape::Sum { .. }
                 | StructuralTypeShape::Mixed { .. }
         )
@@ -219,7 +218,7 @@ impl StructuralTypeShape {
         matches!(
             self,
             Self::ByteSequence(
-                ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. }
+                crate::byte_sequence_view_carrier_pattern!()
             )
         )
     }
@@ -682,7 +681,25 @@ mod tests {
 #[macro_export]
 macro_rules! record_or_mixed_shape_pattern {
     ($fields:ident) => {
-        $crate::StructuralTypeShape::Record { $fields, .. }
-            | $crate::StructuralTypeShape::Mixed { $fields, .. }
+        $crate::StructuralTypeShape::Record { fields: $fields, .. }
+            | $crate::StructuralTypeShape::Mixed { fields: $fields, .. }
+    };
+}
+
+/// The record-or-fixed-array shape roster and the two byte-sequence view
+/// carriers: verbatim or-pattern pairs consumers match with no bindings.
+#[macro_export]
+macro_rules! record_or_fixed_array_shape_pattern {
+    () => {
+        $crate::StructuralTypeShape::Record { .. }
+            | $crate::StructuralTypeShape::FixedArray { .. }
+    };
+}
+
+#[macro_export]
+macro_rules! byte_sequence_view_carrier_pattern {
+    () => {
+        $crate::ByteSequenceCarrier::BorrowedView { .. }
+            | $crate::ByteSequenceCarrier::BoundedView { .. }
     };
 }

@@ -915,7 +915,7 @@ fn derivations_reject_wrong_judgments_and_malformed_descriptions() {
     .unwrap_err();
     assert!(matches!(
         error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+        proof_admission::argument_error_pair_pattern!()
     ));
 
     // An *ill-typed* `next` is malformed outright: answering the minor

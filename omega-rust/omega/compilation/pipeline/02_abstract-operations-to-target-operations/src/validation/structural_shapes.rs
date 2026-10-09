@@ -63,7 +63,7 @@ pub fn classified_boundary_shape(
         &mut BTreeSet::new(),
     )?;
     let class = match &declaration.shape {
-        StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. } => {
+        terminal_psi::record_or_fixed_array_shape_pattern!() => {
             let mut leaves = Vec::new();
             collect_scalar_leaves(
                 structural_type,
@@ -197,11 +197,11 @@ fn collect_field_leaves(
             leaves.push((base_offset, leaf.byte_size, false));
         }
         StructuralFieldType::ByteSequence(
-            ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+            terminal_psi::byte_sequence_view_carrier_pattern!(),
         )
         | StructuralFieldType::PredicateByteSequence {
             carrier:
-                ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+                terminal_psi::byte_sequence_view_carrier_pattern!(),
             ..
         } => {
             let leaf = field_shape(field, declarations, cache, active)?;

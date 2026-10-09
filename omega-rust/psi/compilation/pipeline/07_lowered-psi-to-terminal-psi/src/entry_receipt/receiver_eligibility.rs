@@ -276,14 +276,7 @@ fn collect_determined_evidence_fields(
                 if nested.next().is_some() {
                     return None;
                 }
-                let (StructuralTypeShape::Record {
-                    fields: nested_fields,
-                    ..
-                }
-                | StructuralTypeShape::Mixed {
-                    fields: nested_fields,
-                    ..
-                }) = &declaration.shape
+                let (terminal_psi::record_or_mixed_shape_pattern!(nested_fields)) = &declaration.shape
                 else {
                     continue;
                 };

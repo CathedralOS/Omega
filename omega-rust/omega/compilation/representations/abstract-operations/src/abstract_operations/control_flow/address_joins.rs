@@ -334,11 +334,11 @@ fn plain_fields<'a>(
             // have to relocate rather than payload it addresses through, and an
             // erased field has no runtime carrier to project at all.
             StructuralFieldType::ByteSequence(
-                ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+                terminal_psi::byte_sequence_view_carrier_pattern!(),
             )
             | StructuralFieldType::PredicateByteSequence {
                 carrier:
-                    ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+                    terminal_psi::byte_sequence_view_carrier_pattern!(),
                 ..
             }
             | StructuralFieldType::Erased { .. } => false,

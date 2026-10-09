@@ -540,7 +540,7 @@ fn indexed_elimination_reaches_a_strict_target_through_boxing() {
     assert!(
         matches!(
             infer_type(&mut arena, &strict_context, refused, &mut measure_budget()),
-            Err(CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. })
+            Err(proof_admission::argument_error_pair_pattern!())
         ),
         "the eliminator's motive must land at a relevant sort"
     );

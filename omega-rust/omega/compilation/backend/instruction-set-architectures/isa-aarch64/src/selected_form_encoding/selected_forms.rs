@@ -516,8 +516,7 @@ fn encode_unchecked(
             // first source field fixed to 31.
             words.push(0xaa20_03e0 | (u32::from(registers[0]) << 16) | u32::from(registers[1]));
         }
-        SelectedInstructionKind::SaturatingAdd { .. }
-        | SelectedInstructionKind::SaturatingSubtract { .. }
+        selected_instructions::saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingDivide { .. }
         | SelectedInstructionKind::SaturatingRemainder { .. }
         | SelectedInstructionKind::SaturatingMultiply { .. } => {
@@ -590,8 +589,7 @@ fn encode_unchecked(
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
-        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | selected_instructions::exact_shift_i64_pair_pattern!()
         | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
             // The register-form shifts `LSLV`/`LSRV`/`ASRV Xd, Xn, Xm` read
             // the low six count bits themselves, so the upstream modulo

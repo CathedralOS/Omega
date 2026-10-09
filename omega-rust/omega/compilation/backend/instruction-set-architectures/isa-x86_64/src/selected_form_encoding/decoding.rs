@@ -1426,8 +1426,7 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
-        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | selected_instructions::exact_shift_i64_pair_pattern!()
         | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
             // The count source must resolve to the pinned RCX view; the
             // realization is the unconditional value copy into the result
@@ -2088,8 +2087,7 @@ pub(crate) fn footprint(
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
-        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | selected_instructions::exact_shift_i64_pair_pattern!()
         | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
@@ -2103,8 +2101,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::ReturnUnit => (vec![], vec![], false),
         selected_instructions::layout_dependent_selected_transfers!()
         | selected_instructions::dedicated_selected_forms!() => (vec![], vec![], false),
-        SelectedInstructionKind::SaturatingAdd { .. }
-        | SelectedInstructionKind::SaturatingSubtract { .. }
+        selected_instructions::saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingDivide { .. }
         | SelectedInstructionKind::SaturatingRemainder { .. }
         | SelectedInstructionKind::SaturatingMultiply { .. } => {
@@ -2214,8 +2211,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::WrappingShiftLeftI64
                 | SelectedInstructionKind::WrappingShiftRightI64
                 | SelectedInstructionKind::WrappingShiftRightU64
-                | SelectedInstructionKind::ExactShiftLeftI64 { .. }
-                | SelectedInstructionKind::ExactShiftRightI64 { .. }
+                | selected_instructions::exact_shift_i64_pair_pattern!()
                 | SelectedInstructionKind::ExactShiftRightU64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseOrI64
@@ -2248,8 +2244,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::WrappingShiftLeftI64
                 | SelectedInstructionKind::WrappingShiftRightI64
                 | SelectedInstructionKind::WrappingShiftRightU64
-                | SelectedInstructionKind::ExactShiftLeftI64 { .. }
-                | SelectedInstructionKind::ExactShiftRightI64 { .. }
+                | selected_instructions::exact_shift_i64_pair_pattern!()
                 | SelectedInstructionKind::ExactShiftRightU64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. }
                 | SelectedInstructionKind::WrappingSubtractI64 => vec![2],
@@ -2285,8 +2280,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::WrappingShiftLeftI64
                 | SelectedInstructionKind::WrappingShiftRightI64
                 | SelectedInstructionKind::WrappingShiftRightU64
-                | SelectedInstructionKind::ExactShiftLeftI64 { .. }
-                | SelectedInstructionKind::ExactShiftRightI64 { .. }
+                | selected_instructions::exact_shift_i64_pair_pattern!()
                 | SelectedInstructionKind::ExactShiftRightU64 { .. }
                 | SelectedInstructionKind::BitwiseAndI64
                 | SelectedInstructionKind::BitwiseOrI64

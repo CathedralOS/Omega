@@ -211,8 +211,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                | checked_trees::byte_sequence_establishment_pattern!()
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)

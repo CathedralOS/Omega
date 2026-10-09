@@ -51,8 +51,7 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
                 // A view-subslice local narrows a view the state holds.
-                | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                | checked_trees::byte_sequence_establishment_pattern!()
                 // Frame-local storage minted at an authored statement names no
                 // callee; borrowed references bind storage already owned here.
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }

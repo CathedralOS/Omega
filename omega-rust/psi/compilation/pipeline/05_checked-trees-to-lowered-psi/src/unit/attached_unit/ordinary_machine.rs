@@ -1462,8 +1462,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+            | checked_trees::byte_sequence_establishment_pattern!()
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishReference { .. }

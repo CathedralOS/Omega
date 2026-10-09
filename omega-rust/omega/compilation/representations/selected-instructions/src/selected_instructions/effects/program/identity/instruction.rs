@@ -363,8 +363,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | SelectedInstructionKind::SaturatingAdd { .. }
-        | SelectedInstructionKind::SaturatingSubtract { .. }
+        | crate::saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingMultiply { .. }
         | SelectedInstructionKind::Float32ToBits
         | SelectedInstructionKind::Float64ToBits

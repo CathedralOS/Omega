@@ -1106,14 +1106,7 @@ fn validate_receiver_fields(
                         return Err(invalid());
                     };
                     match &nested_declaration.shape {
-                        StructuralTypeShape::Record {
-                            fields: nested_fields,
-                            ..
-                        }
-                        | StructuralTypeShape::Mixed {
-                            fields: nested_fields,
-                            ..
-                        } => {
+                        terminal_psi::record_or_mixed_shape_pattern!(nested_fields) => {
                             visiting.push(structural_type);
                             field_path.push(field.identity.clone());
                             let outcome = validate_receiver_fields(

@@ -282,8 +282,7 @@ pub(crate) fn build_checked_machine_residual_parts(
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
             | CheckedUnitEffectOperationPlan::EstablishReference { .. }
             | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+            | checked_trees::byte_sequence_establishment_pattern!()
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::Store(_)
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)

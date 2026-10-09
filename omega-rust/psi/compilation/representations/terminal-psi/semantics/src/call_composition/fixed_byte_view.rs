@@ -123,8 +123,7 @@ pub fn fixed_byte_array_window<'types, 'path>(
                 && matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
-                        ByteSequenceCarrier::BorrowedView { .. }
-                            | ByteSequenceCarrier::BoundedView { .. }
+                        terminal_psi::byte_sequence_view_carrier_pattern!()
                     )
                 )
         })

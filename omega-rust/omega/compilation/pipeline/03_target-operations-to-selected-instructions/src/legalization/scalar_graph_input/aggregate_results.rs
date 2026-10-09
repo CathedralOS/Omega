@@ -768,8 +768,7 @@ pub(in crate::legalization) fn type_home_layout(
         declaration.id == structural_type
             && matches!(
                 declaration.shape,
-                StructuralTypeShape::Record { .. }
-                    | StructuralTypeShape::FixedArray { .. }
+                terminal_psi::record_or_fixed_array_shape_pattern!()
                     | StructuralTypeShape::Reference { .. }
                     | StructuralTypeShape::PrimitiveScalar(_)
                     | StructuralTypeShape::ByteSequence(_)

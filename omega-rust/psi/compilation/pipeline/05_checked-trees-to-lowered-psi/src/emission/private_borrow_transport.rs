@@ -82,7 +82,7 @@ pub(crate) fn forward_private_state_borrows(
                 && structural_types.iter().any(|declaration| {
                     declaration.id == parameter.structural_type
                         && matches!(declaration.shape,
-                            StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. })
+                            terminal_psi::record_or_fixed_array_shape_pattern!())
                 })
         })
         .cloned()

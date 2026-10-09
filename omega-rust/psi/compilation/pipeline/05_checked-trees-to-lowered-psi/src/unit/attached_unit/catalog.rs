@@ -1173,8 +1173,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                | checked_trees::byte_sequence_establishment_pattern!()
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }

@@ -581,3 +581,19 @@ macro_rules! dedicated_selected_forms {
             | $crate::SelectedInstructionKind::CallScalar { .. }
     };
 }
+
+#[macro_export]
+macro_rules! exact_shift_i64_pair_pattern {
+    () => {
+        $crate::SelectedInstructionKind::ExactShiftLeftI64 { .. }
+            | $crate::SelectedInstructionKind::ExactShiftRightI64 { .. }
+    };
+}
+
+#[macro_export]
+macro_rules! saturating_add_or_subtract_pattern {
+    () => {
+        $crate::SelectedInstructionKind::SaturatingAdd { .. }
+            | $crate::SelectedInstructionKind::SaturatingSubtract { .. }
+    };
+}

@@ -31,8 +31,7 @@ impl ViewCarrier {
         let declaration = find_structural_type(types, structural_type)?;
         match declaration.shape {
             StructuralTypeShape::ByteSequence(
-                ByteSequenceCarrier::BorrowedView { .. }
-                | ByteSequenceCarrier::BoundedView { .. }
+                terminal_psi::byte_sequence_view_carrier_pattern!()
                 | ByteSequenceCarrier::BoundedOwned { .. },
             ) => Some(Self::Bytes),
             StructuralTypeShape::ElementView { element } => Some(Self::Elements {

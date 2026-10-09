@@ -384,7 +384,7 @@ pub(crate) fn assert_type_mismatch(
     let error = infer_type(arena, context, term, budget).unwrap_err();
     assert!(matches!(
         error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+        proof_admission::argument_error_pair_pattern!()
     ));
 }
 
@@ -399,6 +399,6 @@ pub(crate) fn assert_check_type_mismatch(
     let error = check_type(arena, context, term, expected, budget).unwrap_err();
     assert!(matches!(
         error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+        proof_admission::argument_error_pair_pattern!()
     ));
 }

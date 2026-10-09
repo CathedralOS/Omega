@@ -835,8 +835,7 @@ pub(crate) fn validate_decoded(
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::SaturatingAdd { .. }
-        | SelectedInstructionKind::SaturatingSubtract { .. }
+        selected_instructions::saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingDivide { .. }
         | SelectedInstructionKind::SaturatingMultiply { .. } => {
             let realization = SaturatingRealization::of_kind(kind)
@@ -946,8 +945,7 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
-        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | selected_instructions::exact_shift_i64_pair_pattern!()
         | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
             let shift = match kind {
                 SelectedInstructionKind::WrappingShiftLeftI64
@@ -1073,8 +1071,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::ExactDivideI64 { .. }
         | SelectedInstructionKind::ExactRemainderI64 { .. } => (vec![0, 1], vec![2], false),
         SelectedInstructionKind::CompareI64 => (vec![0, 1], vec![], true),
-        SelectedInstructionKind::SaturatingAdd { .. }
-        | SelectedInstructionKind::SaturatingSubtract { .. }
+        selected_instructions::saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingDivide { .. }
         | SelectedInstructionKind::SaturatingRemainder { .. }
         | SelectedInstructionKind::SaturatingMultiply { .. } => {
@@ -1097,8 +1094,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
-        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | selected_instructions::exact_shift_i64_pair_pattern!()
         | SelectedInstructionKind::ExactShiftRightU64 { .. }
         | SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactMultiplyI64 { .. }

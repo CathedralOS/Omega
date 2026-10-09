@@ -203,7 +203,7 @@ fn indexed_applications_reject_wrong_descriptions_and_indices() {
     let error = check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap_err();
     assert!(matches!(
         error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+        crate::argument_error_pair_pattern!()
     ));
 
     // A value where the index type belongs is malformed, not a type.
@@ -214,7 +214,7 @@ fn indexed_applications_reject_wrong_descriptions_and_indices() {
     let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
     assert!(matches!(
         error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+        crate::argument_error_pair_pattern!()
     ));
 
     // A strict index type is a malformed universe for `I : Type l`.
@@ -225,7 +225,7 @@ fn indexed_applications_reject_wrong_descriptions_and_indices() {
     let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
     assert!(matches!(
         error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+        crate::argument_error_pair_pattern!()
     ));
 
     // Wrong instantiation arity is rejected at the constant itself.

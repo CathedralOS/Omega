@@ -148,7 +148,7 @@ pub fn reference_storage_source_compatible<'types>(
                 || scalar_reference_view_is_total(*source, *logical))
                 && reference_storage_view_is_compatible(stored, *logical)
         }
-        (None, StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
+        (None, terminal_psi::record_or_fixed_array_shape_pattern!()) => {
             byte_endpoint
                 || plain_storage(types.clone(), source, &mut Vec::new())
                     && plain_storage(types.clone(), *referent, &mut Vec::new())

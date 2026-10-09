@@ -495,7 +495,7 @@ fn mutual_constructions_reject_wrong_sorts_and_malformed_descriptions() {
         check_type(&mut arena, &context, captured_fcons, expected, &mut budget).unwrap_err();
     assert!(matches!(
         error,
-        CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+        proof_admission::argument_error_pair_pattern!()
     ));
 
     // A branching family into `Strict` is an illegal strict elimination,

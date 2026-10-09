@@ -377,7 +377,7 @@ fn quotient_scheme_rejects_a_wrong_derived_body() {
     assert!(
         matches!(
             error,
-            CoreError::TypeMismatch { .. } | CoreError::ArgumentTypeMismatch { .. }
+            crate::argument_error_pair_pattern!()
         ),
         "a wrong body never passes as the law: {error:?}"
     );

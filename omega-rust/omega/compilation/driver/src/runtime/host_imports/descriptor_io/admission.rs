@@ -122,8 +122,7 @@ pub(super) fn admit(
             DescriptorBuffer::Bytes
         }
         Some(
-            StructuralTypeShape::Record { .. }
-            | StructuralTypeShape::FixedArray { .. }
+            terminal_psi::record_or_fixed_array_shape_pattern!()
             | StructuralTypeShape::Sum { .. }
             | StructuralTypeShape::Mixed { .. },
         ) => {

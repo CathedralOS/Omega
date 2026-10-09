@@ -78,8 +78,7 @@ pub(super) fn value_home_layout(
             .get(&structural_type)
             .map(|declaration| &declaration.shape),
         Some(
-            StructuralTypeShape::Record { .. }
-                | StructuralTypeShape::FixedArray { .. }
+            terminal_psi::record_or_fixed_array_shape_pattern!()
                 | StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::PrimitiveScalar(_)
                 | StructuralTypeShape::ByteSequence(_)

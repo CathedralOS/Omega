@@ -393,8 +393,7 @@ pub(super) fn validate(
                             operation,
                             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                                | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-                                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                                | checked_trees::byte_sequence_establishment_pattern!()
                         ) {
                             return unsupported("Unit case return arm lost its producer");
                         }

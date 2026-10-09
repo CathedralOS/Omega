@@ -1327,3 +1327,12 @@ pub fn check_type(
         };
     }
 }
+
+/// The two argument-count error spellings consumers reject together.
+#[macro_export]
+macro_rules! argument_error_pair_pattern {
+    () => {
+        $crate::CoreError::TypeMismatch { .. }
+            | $crate::CoreError::ArgumentTypeMismatch { .. }
+    };
+}

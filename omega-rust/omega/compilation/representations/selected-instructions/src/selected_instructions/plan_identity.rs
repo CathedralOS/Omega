@@ -392,8 +392,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
-        | SelectedInstructionKind::SaturatingAdd { .. }
-        | SelectedInstructionKind::SaturatingSubtract { .. }
+        | crate::saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingMultiply { .. }
         | SelectedInstructionKind::TrappingInteger { .. }
         | SelectedInstructionKind::AtomicAccess { .. }

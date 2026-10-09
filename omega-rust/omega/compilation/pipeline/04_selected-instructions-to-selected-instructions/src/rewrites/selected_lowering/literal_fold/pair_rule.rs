@@ -1374,8 +1374,7 @@ impl SelectedInstructionPairRule {
                 kind @ (SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::BitwiseAndI64
-                | SelectedInstructionKind::SaturatingAdd { .. }
-                | SelectedInstructionKind::SaturatingSubtract { .. }
+                | selected_instructions::saturating_add_or_subtract_pattern!()
                 | SelectedInstructionKind::SaturatingDivide { .. }),
             ) if machine_semantic_kind(kind) == self.consumer => {
                 Some(SelectedInstructionKind::CopyI64)

@@ -877,3 +877,12 @@ impl CheckedComposedUnitControlMachinePlan {
         })
     }
 }
+
+/// The two byte-sequence establishment plans consumers step over together.
+#[macro_export]
+macro_rules! byte_sequence_establishment_pattern {
+    () => {
+        $crate::CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
+            | $crate::CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+    };
+}
