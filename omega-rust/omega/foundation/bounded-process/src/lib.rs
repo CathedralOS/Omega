@@ -14,8 +14,9 @@ mod preparation;
 mod process_child;
 
 pub use bounded_process::{
-    BoundedCaptureBudget, BoundedCaptureBudgetExceeded, BoundedCaptureLimits, BoundedProcessInput,
-    BoundedProcessOutput, BoundedProcessRunError, BoundedProcessStream, run_bounded_process,
+    BoundedCaptureBudget, BoundedCaptureLimits, BoundedProcessInput,
+    BoundedProcessOutput, BoundedProcessRunError, run_bounded_process,
 };
+pub(crate) use bounded_process::{ BoundedCaptureBudgetExceeded, BoundedProcessStream};
 pub use preparation::{BoundedProcessLimits, BoundedProcessPrepared};
 pub use process_child::{BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus};

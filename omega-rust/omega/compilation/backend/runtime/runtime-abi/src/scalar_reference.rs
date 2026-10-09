@@ -93,7 +93,7 @@ impl ScalarStorageCodec {
 /// Native internal scalar-reference storage: original address plus codec word.
 /// Foreign thin-pointer calling conventions remain a separate ABI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ScalarReferenceDescriptorAbi {
+pub(crate) struct ScalarReferenceDescriptorAbi {
     pointer_size: usize,
     pointer_alignment: usize,
 }
