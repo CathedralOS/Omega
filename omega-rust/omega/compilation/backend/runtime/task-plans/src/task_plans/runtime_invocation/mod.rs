@@ -41,35 +41,6 @@ pub(crate) struct TaskRuntimeActivationBinding {
     pub activation_plan: ActivationPlanId,
 }
 
-/// Exact static/dynamic binding retained for one provider-accepted task start.
-/// The retained carrier is independent of checked-tree symbol handles: only
-/// normalized Omega realization identity crosses into runtime accounting.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedTaskRuntimeInvocationReceipt {
-    identity: TaskRuntimeInvocationBindingId,
-    pub(crate) candidate: TaskRuntimeInvocationReceiptCandidate,
-    activation: TaskRuntimeActivationBinding,
-    executor_selection: ValidatedExecutorSelection,
-}
-
-impl ValidatedTaskRuntimeInvocationReceipt {
-    pub const fn identity(&self) -> TaskRuntimeInvocationBindingId {
-        self.identity
-    }
-
-    pub const fn candidate(&self) -> &TaskRuntimeInvocationReceiptCandidate {
-        &self.candidate
-    }
-
-    pub const fn activation(&self) -> &TaskRuntimeActivationBinding {
-        &self.activation
-    }
-
-    pub const fn executor_selection(&self) -> &ValidatedExecutorSelection {
-        &self.executor_selection
-    }
-}
-
 pub(crate) const fn axis_label(axis: ExecutorPreservationAxis) -> &'static str {
     match axis {
         ExecutorPreservationAxis::Cpu => "CPU",
