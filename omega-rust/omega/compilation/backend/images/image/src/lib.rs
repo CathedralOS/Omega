@@ -137,6 +137,8 @@ mod aarch64_relocations;
 mod builder;
 pub mod codec_bytes;
 mod final_image;
+mod digest_encoder;
+mod function_linkage;
 mod output;
 mod patch_bytes;
 mod relocation_envelope;

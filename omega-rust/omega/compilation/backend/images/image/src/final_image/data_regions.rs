@@ -13,7 +13,6 @@
 
 use crate::{FinalImage, FinalImageLayout};
 use diagnostics::Diagnostic;
-use sha2::{Digest, Sha256};
 
 use super::executable_regions::{byte_report_fingerprint, digest_bytes, fingerprint_bytes};
 
@@ -391,45 +390,32 @@ fn data_inventory_digest(
     regions: &[PlacedDataRegion],
     gaps: &[PlacedDataGap],
 ) -> PlacedDataRegionInventoryDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.placed-data-region-inventory.sha256.v1\0");
-    digest.update(data_address.to_le_bytes());
-    digest.update(
-        u64::try_from(data_byte_count)
-            .expect("final initialized-data length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(data_digest.as_bytes());
-    digest.update(
-        u64::try_from(regions.len())
-            .expect("placed initialized-data region count fits u64")
-            .to_le_bytes(),
-    );
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.placed-data-region-inventory.sha256.v1\0");
+    digest.raw(&data_address.to_le_bytes());
+    digest.raw(&u64::try_from(data_byte_count) .expect("final initialized-data length fits u64") .to_le_bytes(),);
+    digest.raw(data_digest.as_bytes());
+    digest.raw(&u64::try_from(regions.len()) .expect("placed initialized-data region count fits u64") .to_le_bytes(),);
     for region in regions {
-        digest.update([match region.origin {
+        digest.byte(match region.origin {
             FinalDataRegionOrigin::CompilerData => 1,
             FinalDataRegionOrigin::ImportBindingSlot => 2,
             FinalDataRegionOrigin::AlignmentPadding => 3,
-        }]);
-        digest.update((region.section_offset as u64).to_le_bytes());
-        digest.update(region.address.to_le_bytes());
-        digest.update((region.byte_count as u64).to_le_bytes());
-        digest.update(region.byte_digest.as_bytes());
-        digest.update((region.symbol.len() as u64).to_le_bytes());
-        digest.update(region.symbol.as_bytes());
+        });
+        digest.u64(region.section_offset as u64);
+        digest.raw(&region.address.to_le_bytes());
+        digest.u64(region.byte_count as u64);
+        digest.raw(region.byte_digest.as_bytes());
+        digest.u64(region.symbol.len() as u64);
+        digest.raw(region.symbol.as_bytes());
     }
-    digest.update(
-        u64::try_from(gaps.len())
-            .expect("placed initialized-data gap count fits u64")
-            .to_le_bytes(),
-    );
+    digest.raw(&u64::try_from(gaps.len()) .expect("placed initialized-data gap count fits u64") .to_le_bytes(),);
     for gap in gaps {
-        digest.update((gap.section_offset as u64).to_le_bytes());
-        digest.update(gap.address.to_le_bytes());
-        digest.update((gap.byte_count as u64).to_le_bytes());
-        digest.update(gap.byte_digest.as_bytes());
+        digest.u64(gap.section_offset as u64);
+        digest.raw(&gap.address.to_le_bytes());
+        digest.u64(gap.byte_count as u64);
+        digest.raw(gap.byte_digest.as_bytes());
     }
-    PlacedDataRegionInventoryDigest::from_digest(digest.finalize().into())
+    PlacedDataRegionInventoryDigest::from_digest(digest.finish())
 }
 
 fn data_inventory_report_fingerprint(

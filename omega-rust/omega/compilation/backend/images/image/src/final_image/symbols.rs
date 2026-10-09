@@ -1,7 +1,6 @@
 use crate::final_image::FinalImage;
 use arena::{Arena, Handle};
 use object_file::SymbolKind;
-use sha2::{Digest, Sha256};
 use target::NormalizedForeignLocator;
 
 /// Domain-separated commitment to the exact object-owned symbol table copied
@@ -18,46 +17,45 @@ impl FinalImageSymbolDigest {
 }
 
 pub fn final_image_symbol_digest(image: &FinalImage) -> FinalImageSymbolDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.final-image-symbol-table.sha256.v1\0");
-    digest.update([match image.target.architecture {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.final-image-symbol-table.sha256.v1\0");
+    digest.byte(match image.target.architecture {
         target::Architecture::Aarch64 => 1,
         target::Architecture::X86_64 => 2,
-    }]);
-    digest.update([match image.target.object_format {
+    });
+    digest.byte(match image.target.object_format {
         target::ObjectFormat::Elf => 1,
         target::ObjectFormat::MachO => 2,
         target::ObjectFormat::Coff => 3,
-    }]);
-    digest.update((image.target.pointer_size as u64).to_le_bytes());
-    digest.update((image.target.pointer_alignment as u64).to_le_bytes());
+    });
+    digest.u64(image.target.pointer_size as u64);
+    digest.u64(image.target.pointer_alignment as u64);
     digest_handle(&mut digest, image.symbol_table.entry_symbol);
-    digest.update((image.symbol_table.symbols.len() as u64).to_le_bytes());
+    digest.u64(image.symbol_table.symbols.len() as u64);
     for (handle, symbol) in image.symbol_table.symbols.iter() {
         digest_handle(&mut digest, handle);
-        digest.update((symbol.name.len() as u64).to_le_bytes());
-        digest.update(symbol.name.as_bytes());
-        digest.update([match symbol.section {
+        digest.u64(symbol.name.len() as u64);
+        digest.raw(symbol.name.as_bytes());
+        digest.byte(match symbol.section {
             FinalImageSection::Text => 1,
             FinalImageSection::Data => 2,
             FinalImageSection::Bss => 3,
             FinalImageSection::None => 0,
-        }]);
-        digest.update((symbol.offset as u64).to_le_bytes());
-        digest.update((symbol.size as u64).to_le_bytes());
-        digest.update([match symbol.kind {
+        });
+        digest.u64(symbol.offset as u64);
+        digest.u64(symbol.size as u64);
+        digest.byte(match symbol.kind {
             SymbolKind::Function => 1,
             SymbolKind::Import => 2,
             SymbolKind::Object => 3,
-        }]);
+        });
     }
-    FinalImageSymbolDigest(digest.finalize().into())
+    FinalImageSymbolDigest(digest.finish())
 }
 
-fn digest_handle(digest: &mut Sha256, handle: FinalImageSymbolHandle) {
-    digest.update([u8::from(handle.is_valid())]);
-    digest.update(u64::from(handle.arena_index()).to_le_bytes());
-    digest.update(u64::from(handle.generation()).to_le_bytes());
+fn digest_handle(digest: &mut crate::digest_encoder::DomainDigestEncoder, handle: FinalImageSymbolHandle) {
+    digest.byte(u8::from(handle.is_valid()));
+    digest.u64(u64::from(handle.arena_index()));
+    digest.u64(u64::from(handle.generation()));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

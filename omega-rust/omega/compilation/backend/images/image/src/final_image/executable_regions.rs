@@ -4,7 +4,6 @@
 use crate::{FinalImage, FinalImageLayout};
 use calling_conventions::StateFootprintEvidence;
 use diagnostics::Diagnostic;
-use sha2::{Digest, Sha256};
 
 image_digest!(FinalExecutableTextDigest);
 image_digest!(PlacedExecutableRegionBytesDigest);
@@ -372,75 +371,60 @@ pub(crate) fn executable_inventory_digest(
     regions: &[PlacedExecutableRegion],
     gaps: &[PlacedExecutableGap],
 ) -> PlacedExecutableRegionInventoryDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.placed-executable-region-inventory.sha256.v1\0");
-    digest.update(text_address.to_le_bytes());
-    digest.update(
-        u64::try_from(text_byte_count)
-            .expect("final executable text length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(text_digest.as_bytes());
-    digest.update(
-        u64::try_from(regions.len())
-            .expect("placed executable region count fits u64")
-            .to_le_bytes(),
-    );
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.placed-executable-region-inventory.sha256.v1\0");
+    digest.raw(&text_address.to_le_bytes());
+    digest.raw(&u64::try_from(text_byte_count) .expect("final executable text length fits u64") .to_le_bytes(),);
+    digest.raw(text_digest.as_bytes());
+    digest.raw(&u64::try_from(regions.len()) .expect("placed executable region count fits u64") .to_le_bytes(),);
     for region in regions {
-        digest.update([match region.origin {
+        digest.byte(match region.origin {
             FinalExecutableRegionOrigin::CompilerFunction => 1,
             FinalExecutableRegionOrigin::ImportThunk => 2,
             FinalExecutableRegionOrigin::CompilerReadOnlyData => 3,
-        }]);
-        digest.update((region.section_offset as u64).to_le_bytes());
-        digest.update(region.address.to_le_bytes());
-        digest.update((region.byte_count as u64).to_le_bytes());
-        digest.update(region.byte_digest.as_bytes());
-        digest.update((region.symbol.len() as u64).to_le_bytes());
-        digest.update(region.symbol.as_bytes());
+        });
+        digest.u64(region.section_offset as u64);
+        digest.raw(&region.address.to_le_bytes());
+        digest.u64(region.byte_count as u64);
+        digest.raw(region.byte_digest.as_bytes());
+        digest.u64(region.symbol.len() as u64);
+        digest.raw(region.symbol.as_bytes());
         match &region.footprint {
             Some(footprint) => {
-                digest.update([1]);
-                digest.update(state_footprint_evidence_digest(footprint).as_bytes());
+                digest.byte(1);
+                digest.raw(state_footprint_evidence_digest(footprint).as_bytes());
             }
-            None => digest.update([0]),
+            None => digest.byte(0),
         }
     }
-    digest.update(
-        u64::try_from(gaps.len())
-            .expect("placed executable gap count fits u64")
-            .to_le_bytes(),
-    );
+    digest.raw(&u64::try_from(gaps.len()) .expect("placed executable gap count fits u64") .to_le_bytes(),);
     for gap in gaps {
-        digest.update((gap.section_offset as u64).to_le_bytes());
-        digest.update(gap.address.to_le_bytes());
-        digest.update((gap.byte_count as u64).to_le_bytes());
-        digest.update(gap.byte_digest.as_bytes());
+        digest.u64(gap.section_offset as u64);
+        digest.raw(&gap.address.to_le_bytes());
+        digest.u64(gap.byte_count as u64);
+        digest.raw(gap.byte_digest.as_bytes());
     }
-    PlacedExecutableRegionInventoryDigest::from_digest(digest.finalize().into())
+    PlacedExecutableRegionInventoryDigest::from_digest(digest.finish())
 }
 
 pub(crate) fn state_footprint_evidence_digest(
     footprint: &StateFootprintEvidence,
 ) -> StateFootprintEvidenceDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.state-footprint-evidence.sha256.v1\0");
-    digest.update((footprint.registers().as_slice().len() as u64).to_le_bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.state-footprint-evidence.sha256.v1\0");
+    digest.u64(footprint.registers().as_slice().len() as u64);
     for register in footprint.registers().as_slice() {
         let (class, index) = register.wire_class_index();
-        digest.update([class]);
-        digest.update(index.to_le_bytes());
+        digest.byte(class);
+        digest.raw(&index.to_le_bytes());
     }
-    digest.update(footprint.machine_state().bits().to_le_bytes());
-    StateFootprintEvidenceDigest::from_digest(digest.finalize().into())
+    digest.raw(&footprint.machine_state().bits().to_le_bytes());
+    StateFootprintEvidenceDigest::from_digest(digest.finish())
 }
 
 pub(crate) fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(domain);
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
-    digest.finalize().into()
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
+    digest.u64(bytes.len() as u64);
+    digest.raw(&bytes);
+    digest.finish()
 }
 
 pub(crate) fn byte_report_fingerprint(bytes: &[u8]) -> u64 {
