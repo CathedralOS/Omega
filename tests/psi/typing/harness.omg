@@ -591,8 +591,8 @@ crashes Trap
     TypingHarness::write_u64(typing_harness, expression.source_span.span.end);
 }
 
-// A selection: its tag (0 none, 1 machine, 2 state, 3 field, 4 length) and
-// handle.
+// A selection: its tag (0 none, 1 machine, 2 state, 3 field, 4 length,
+// 5 machine binder) and handle.
 machine TypingHarness::write_selection(typing_harness: &mut TypingHarness, selection: Selection) reaches Console {
     transition selection {
         Selection::None -> write(typing_harness, 0, 0)
@@ -600,6 +600,7 @@ machine TypingHarness::write_selection(typing_harness: &mut TypingHarness, selec
         Selection::State { handle } -> write(typing_harness, 2, handle)
         Selection::Field { field } -> write(typing_harness, 3, field)
         Selection::Length -> write(typing_harness, 4, 0)
+        Selection::Binder { parameter } -> write(typing_harness, 5, parameter)
     }
 
     state write(typing_harness: &mut TypingHarness, tag: u8, handle: u64 in Trapping) {

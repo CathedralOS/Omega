@@ -69,6 +69,9 @@ pub data Selection [copy] {
     case State(handle: u64 in Trapping);
     case Field(field: u64 in Trapping);
     case Length;
+    // A call of a machine binder through its `where machine` contract, by
+    // generic parameter handle.
+    case Binder(parameter: u64 in Trapping);
 }
 
 // How an expression meets its destination. `Landed` marks the root of an

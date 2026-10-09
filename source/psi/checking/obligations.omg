@@ -225,7 +225,8 @@ crashes Trap
 
     state recorded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
         let selection: Selection = Typing::selection(typing, node);
-        Checker::record_call(checker, selection);
+        Checker::record_call(checker, syntax, resolution, selection);
+        Checker::record_supply(checker, syntax, selection, node);
         Checker::require_callee_facts(checker, syntax, resolution, typing, selection, expression);
         transition { _ -> effects(checker, syntax, resolution, typing, node, expression, row) }
     }
@@ -239,17 +240,15 @@ crashes Trap
         }
     }
 
+    // A machine binder may be any machine meeting its contract, so whatever
+    // its exclusive arguments reach may change, and no guarantee follows.
     state released(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
         let selection: Selection = Typing::selection(typing, node);
+        Checker::release_exclusive_arguments(checker, syntax, typing, expression, selection);
         transition selection {
-            Selection::Machine { handle } -> lent(checker, syntax, resolution, typing, node, expression, row, handle)
+            Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, node, expression, row, handle)
             _ -> typed(checker, node, row)
         }
-    }
-
-    state lent(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, machine: u64 in Trapping) {
-        Checker::release_exclusive_arguments(checker, syntax, typing, expression, machine);
-        transition { _ -> callee(checker, syntax, resolution, typing, node, expression, row, machine) }
     }
 
     state callee(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, machine: u64 in Trapping) {
@@ -357,18 +356,19 @@ crashes Trap
     }
 }
 
-// A callee's `requires` facts must hold at the call.
+// A callee's `requires` facts must hold at the call; a machine binder's
+// call owes its `where machine` contract's.
 machine Checker::require_callee_facts(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, expression: Expression)
 crashes Trap
 {
-    transition selection {
-        Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, handle, expression)
+    let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
+    transition clauses.clause_count > 0 {
+        true -> owed(checker, syntax, resolution, typing, clauses, expression)
         _ -> done()
     }
 
-    state callee(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, expression: Expression) {
-        let item: MachineItem = SyntaxTrees::machine_item(syntax, machine);
-        let held: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, item.first_parameter, expression, ClauseKind::Requires, true);
+    state owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, clauses: CallClauses, expression: Expression) {
+        let held: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, clauses.first_clause, clauses.clause_count, clauses.first_parameter, expression, ClauseKind::Requires, true);
         transition held {
             true -> done()
             _ -> unproven(checker, expression)
@@ -449,10 +449,12 @@ crashes Trap
     }
 }
 
-// Whether typing selected a machine.
+// Whether typing selected a machine, or a machine binder through its
+// contract.
 pub machine Checker::selects_machine(selection: Selection) -> bool {
     transition selection {
         Selection::Machine { handle } -> yes()
+        Selection::Binder { parameter } -> yes()
         _ -> no()
     }
 

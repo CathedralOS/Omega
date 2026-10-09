@@ -7,7 +7,8 @@ use psi::typing::typer;
 
 // Facts type like any expression, and each one is a Boolean: a machine's
 // `requires` and `ensures` facts and each state's `requires` facts over
-// their parameters (`result` is the machine's result), a data
+// their parameters (`result` is the machine's result), each `where
+// machine` contract's `requires` facts over its own parameters, a data
 // declaration's `where` facts over its fields, and each case's own `where`
 // facts over its payload fields and those fields. A proposition
 // application, a whole fact, is a Boolean statement (calls.omg).
@@ -27,7 +28,20 @@ crashes Trap
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Requires);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Ensures);
-        transition { _ -> next_state(typer, sources, syntax, resolution, index, item, 0) }
+        transition { _ -> next_contract(typer, sources, syntax, resolution, index, item, 0) }
+    }
+
+    state next_contract(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        transition offset < item.contract_count && typer.output.accepted {
+            true -> contract_facts(typer, sources, syntax, resolution, index, item, offset)
+            _ -> next_state(typer, sources, syntax, resolution, index, item, 0)
+        }
+    }
+
+    state contract_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        let written: Contract = SyntaxTrees::contract(syntax, item.first_contract + offset);
+        Typer::type_clause_facts(typer, sources, syntax, resolution, written.first_clause, written.clause_count, ClauseKind::Requires);
+        transition { _ -> next_contract(typer, sources, syntax, resolution, index, item, offset + 1) }
     }
 
     state next_state(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {

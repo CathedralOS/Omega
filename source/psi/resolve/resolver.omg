@@ -1,6 +1,7 @@
 use psi::resolution::resolution;
 use psi::resolve::clauses;
 use psi::resolve::containers;
+use psi::resolve::contracts;
 use psi::resolve::domains;
 use psi::resolve::forms;
 use psi::resolve::identities;
@@ -91,6 +92,14 @@ crashes Trap
 
     state declaration_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_declaration_namespaces(resolver, sources, syntax);
+        transition resolver.output.accepted {
+            true -> contracts(resolver, sources, syntax)
+            _ -> done()
+        }
+    }
+
+    state contracts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+        Resolver::bind_machine_contracts(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> identities(resolver, sources, syntax)
             _ -> done()
@@ -984,11 +993,39 @@ crashes Trap
             type_reference.name.source_span
         );
         transition binding {
-            TypeBinding::Unresolved -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, type_reference.name)
+            TypeBinding::Unresolved -> unnamed(resolver, sources, syntax, scope, row, is_root, role, type_reference)
             TypeBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, type_reference.name)
             TypeBinding::Trait { item } -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, type_reference.name, binding, BoundKind::Trait)
             TypeBinding::Conformance { item } -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, type_reference.name, binding, BoundKind::Conformance)
             _ -> placed(resolver, sources, syntax, scope, row, is_root, role, type_reference, type_reference.name, binding, BoundKind::Type)
+        }
+    }
+
+    // A name no type spells: a static argument may name a machine, for a
+    // callee's machine binder (wiki/spec/language/generics.md, Static
+    // machine binder categories); anything else is unknown.
+    state unnamed(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        scope: TypeScope,
+        row: u64 in Trapping,
+        is_root: bool,
+        role: TypeRole,
+        type_reference: TypeReference
+    ) {
+        transition is_root && role == TypeRole::StaticArgument && !type_reference.has_domain {
+            true -> machine_argument(resolver, sources, syntax, scope, row, type_reference)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, type_reference.name)
+        }
+    }
+
+    state machine_argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
+        let lookup: Lookup = Resolver::machine_named(&resolver.output, sources, syntax, false, type_reference.name.source_span, type_reference.name.source_span);
+        transition lookup {
+            Lookup::Found { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle })
+            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, type_reference.name)
+            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, type_reference.name)
         }
     }
 
@@ -1479,8 +1516,9 @@ crashes Trap
 }
 
 // Machine signatures: each machine's generic annotations, its parameter and
-// return types, then each state's, all in the machine's scope (a trait or
-// conformance member's includes its container's generic parameters).
+// return types, its `where machine` contracts', then each state's, all in
+// the machine's scope (a trait or conformance member's includes its
+// container's generic parameters).
 machine Resolver::bind_machine_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
@@ -1515,9 +1553,41 @@ crashes Trap
             item.has_return_type, item.return_type
         );
         transition resolver.output.accepted {
-            true -> state_signature(resolver, sources, syntax, index, item, 0)
+            true -> contract_signature(resolver, sources, syntax, index, item, scope, 0)
             _ -> done()
         }
+    }
+
+    // Each `where machine` contract's signature, in the machine's scope.
+    state contract_signature(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        scope: TypeScope,
+        offset: u64 in Trapping
+    ) {
+        transition offset < item.contract_count && resolver.output.accepted {
+            true -> bind_contract(resolver, sources, syntax, index, item, scope, offset)
+            _ -> state_signature(resolver, sources, syntax, index, item, 0)
+        }
+    }
+
+    state bind_contract(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: MachineItem,
+        scope: TypeScope,
+        offset: u64 in Trapping
+    ) {
+        let written: Contract = SyntaxTrees::contract(syntax, item.first_contract + offset);
+        Resolver::bind_signature(resolver, sources, syntax, scope, written.first_parameter, written.parameter_count,
+            written.has_return_type, written.return_type
+        );
+        transition { _ -> contract_signature(resolver, sources, syntax, index, item, scope, offset + 1) }
     }
 
     state state_signature(
@@ -2170,6 +2240,7 @@ crashes Trap
             TypeBinding::GenericParameter { parameter } -> generic_binding(left_scope, parameter, right_scope, right)
             TypeBinding::Trait { item } -> trait_binding(item, right)
             TypeBinding::Conformance { item } -> conformance_binding(item, right)
+            TypeBinding::Machine { handle } -> machine_binding(handle, right)
             TypeBinding::Unresolved -> different()
             TypeBinding::Ambiguous -> different()
             _ -> formed()
@@ -2186,6 +2257,13 @@ crashes Trap
     state conformance_binding(left_item: u64 in Trapping, right: TypeBinding) {
         transition right {
             TypeBinding::Conformance { item } -> same_handle(left_item, item)
+            _ -> different()
+        }
+    }
+
+    state machine_binding(left_handle: u64 in Trapping, right: TypeBinding) {
+        transition right {
+            TypeBinding::Machine { handle } -> same_handle(left_handle, handle)
             _ -> different()
         }
     }

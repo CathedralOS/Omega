@@ -123,6 +123,10 @@ pub data Checker {
     callers: [u64; 32768];
     callees: [u64; 32768];
     call_count: u64;
+    // Calls supplying static machine arguments, refined against their
+    // binders' contracts once crash routes settle (supply.omg).
+    supplied: [SuppliedCall; 1024];
+    supplied_count: u64;
     // Write frames (frames.omg): per parameter, whether its body may replace
     // an exclusive parameter's whole referent; per machine, whether its
     // writes are unknown, and the data fields it may write, a row of 1,024
@@ -178,6 +182,7 @@ crashes Trap
     checker.output.obligation_count = 0;
     checker.output.machine_count = syntax.machine_count;
     checker.call_count = 0;
+    checker.supplied_count = 0;
     transition { _ -> next(checker, syntax, 0) }
 
     state next(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
@@ -202,31 +207,39 @@ crashes Trap
 machine Checker::declared_routes(syntax: &SyntaxTrees, item: MachineItem) -> CrashRoutes
 crashes Trap
 {
-    transition { _ -> next(syntax, item, 0, false, false, false) }
+    let causes: CrashRoutes = Checker::declared_causes(syntax, item.first_clause, item.clause_count);
+    CrashRoutes {
+        declares_trap: causes.declares_trap,
+        declares_abort: causes.declares_abort,
+        inferred: !(causes.declares_trap || causes.declares_abort) && !item.is_public && item.has_body,
+        trap: false,
+        abort: false
+    }
+}
 
-    state next(syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping, trap: bool, abort: bool, any: bool) -> CrashRoutes {
-        transition offset < item.clause_count {
-            true -> clause(syntax, item, offset, trap, abort, any)
-            _ -> finished(item, trap, abort, any)
+// The causes a clause run's `crashes` clauses declare.
+pub machine Checker::declared_causes(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> CrashRoutes
+crashes Trap
+{
+    transition { _ -> next(syntax, first, first + count, false, false) }
+
+    state next(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
+        transition index < end {
+            true -> clause(syntax, index, end, trap, abort)
+            _ -> finished(trap, abort)
         }
     }
 
-    state clause(syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping, trap: bool, abort: bool, any: bool) -> CrashRoutes {
-        let clause: Clause = SyntaxTrees::clause(syntax, item.first_clause + offset);
+    state clause(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
+        let clause: Clause = SyntaxTrees::clause(syntax, index);
         let crashes: bool = clause.kind == ClauseKind::Crashes;
         let traps: bool = crashes && clause.cause == CrashCause::Trap;
         let aborts: bool = crashes && clause.cause == CrashCause::Abort;
-        transition { _ -> next(syntax, item, offset + 1, trap || traps, abort || aborts, any || crashes) }
+        transition { _ -> next(syntax, index + 1, end, trap || traps, abort || aborts) }
     }
 
-    state finished(item: MachineItem, trap: bool, abort: bool, any: bool) -> CrashRoutes {
-        CrashRoutes {
-            declares_trap: trap,
-            declares_abort: abort,
-            inferred: !any && !item.is_public && item.has_body,
-            trap: false,
-            abort: false
-        }
+    state finished(trap: bool, abort: bool) -> CrashRoutes {
+        CrashRoutes { declares_trap: trap, declares_abort: abort, inferred: false, trap: false, abort: false }
     }
 }
 
@@ -814,13 +827,22 @@ crashes Trap
     }
 }
 
-// Record a call to a machine for crash-route settlement.
-pub machine Checker::record_call(checker: &mut Checker, selection: Selection)
+// Record a call to a machine for crash-route settlement. A machine binder's
+// call derives the causes its `where machine` contract declares.
+pub machine Checker::record_call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection)
 crashes Trap
 {
     transition selection {
         Selection::Machine { handle } -> machine(checker, handle)
+        Selection::Binder { parameter } -> binder(checker, syntax, resolution, selection)
         _ -> done()
+    }
+
+    state binder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection) {
+        let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
+        let causes: CrashRoutes = Checker::declared_causes(syntax, clauses.first_clause, clauses.clause_count);
+        checker.trap_route = checker.trap_route || causes.declares_trap;
+        checker.abort_route = checker.abort_route || causes.declares_abort;
     }
 
     state machine(checker: &mut Checker, callee: u64 in Trapping) {
@@ -845,33 +867,127 @@ crashes Trap
     state done() {}
 }
 
-// After a machine call, what the callee may write through an exclusive
-// argument may have changed (frames.omg): everything below the argument when
-// the callee may replace its parameter's whole referent or its writes are
-// unknown, else each field place below it whose field the callee may write.
-pub machine Checker::release_exclusive_arguments(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping)
+// A call of machine `callee` from machine `caller` that supplies its
+// machine binders static arguments.
+pub data SuppliedCall [copy] {
+    caller: u64;
+    call: u64;
+    callee: u64;
+}
+
+// Record a call whose selected machine has machine binders: its static
+// arguments must refine their contracts, which supply.omg decides once
+// crash routes settle.
+pub machine Checker::record_supply(checker: &mut Checker, syntax: &SyntaxTrees, selection: Selection, call: u64 in Trapping)
 crashes Trap
 {
-    let item: MachineItem = SyntaxTrees::machine_item(syntax, callee);
-    let unknown: bool = Checker::writes_unknown(checker, callee);
-    transition { _ -> next(checker, syntax, typing, expression, callee, item, unknown, 0) }
+    transition selection {
+        Selection::Machine { handle } -> selected(checker, syntax, call, handle)
+        _ -> done()
+    }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, item: MachineItem, unknown: bool, offset: u64 in Trapping) {
-        let count: u64 in Trapping = Checker::operand_count(expression);
-        transition offset < count {
-            true -> argument(checker, syntax, typing, expression, callee, item, unknown, offset)
+    state selected(checker: &mut Checker, syntax: &SyntaxTrees, call: u64 in Trapping, callee: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, callee);
+        let binds: bool = Checker::binds_machines(syntax, item.first_generic_parameter, item.generic_parameter_count);
+        transition binds {
+            true -> supplying(checker, call, callee)
             _ -> done()
         }
     }
 
-    state argument(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, item: MachineItem, unknown: bool, offset: u64 in Trapping) {
+    state supplying(checker: &mut Checker, call: u64 in Trapping, callee: u64 in Trapping) {
+        transition checker.supplied_count < 1024 {
+            true -> write(checker, checker.supplied_count, call, callee)
+            _ -> full(checker)
+        }
+    }
+
+    state write(checker: &mut Checker, index: u64, call: u64 in Trapping, callee: u64 in Trapping)
+    requires index < 1024
+    {
+        checker.supplied[index] = SuppliedCall { caller: checker.machine as u64, call: call as u64, callee: callee as u64 };
+        checker.supplied_count = index + 1;
+    }
+
+    state full(checker: &mut Checker) {
+        checker.overflowed = true;
+    }
+
+    state done() {}
+}
+
+// Whether any generic parameter in `first .. first + count` is a machine
+// binder.
+pub machine Checker::binds_machines(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> next(syntax, first, count, 0) }
+
+    state next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        transition offset < count {
+            true -> parameter(syntax, first, count, offset)
+            _ -> none()
+        }
+    }
+
+    state parameter(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
+        transition generic.kind == GenericParameterKind::Machine {
+            true -> found()
+            _ -> next(syntax, first, count, offset + 1)
+        }
+    }
+
+    state found() -> bool {
+        true
+    }
+
+    state none() -> bool {
+        false
+    }
+}
+
+// After a call, what the callee may write through an exclusive argument may
+// have changed (frames.omg): everything below the argument when the callee
+// may replace its parameter's whole referent or its writes are unknown (a
+// machine binder's always are), else each field place below it whose field
+// the callee may write.
+pub machine Checker::release_exclusive_arguments(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, selection: Selection)
+crashes Trap
+{
+    transition selection {
+        Selection::Machine { handle } -> framed(checker, syntax, typing, expression, handle)
+        _ -> unframed(checker, syntax, typing, expression)
+    }
+
+    state framed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, callee);
+        let unknown: bool = Checker::writes_unknown(checker, callee);
+        transition { _ -> next(checker, syntax, typing, expression, callee, item.first_parameter, item.parameter_count, unknown, 0) }
+    }
+
+    // Unknown writes release every exclusive argument whole, so no callee
+    // frame is read.
+    state unframed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression) {
+        transition { _ -> next(checker, syntax, typing, expression, 0, 0, 0, true, 0) }
+    }
+
+    state next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
+        let count: u64 in Trapping = Checker::operand_count(expression);
+        transition offset < count {
+            true -> argument(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset)
+            _ -> done()
+        }
+    }
+
+    state argument(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
         let handle: u64 in Trapping = Checker::operand(syntax, expression, offset);
         let value: Value = Checker::value_at(checker, handle);
         let exclusive: bool = Checker::exclusive_value(typing, handle);
-        let whole: bool = Checker::writes_whole(checker, item.first_parameter + offset);
+        let whole: bool = Checker::writes_whole(checker, first_parameter + offset);
         transition exclusive && value.place > 0 {
-            true -> lent(checker, syntax, typing, expression, callee, item, unknown, offset, value.place, unknown || whole || offset >= item.parameter_count)
-            _ -> next(checker, syntax, typing, expression, callee, item, unknown, offset + 1)
+            true -> lent(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, value.place, unknown || whole || offset >= parameter_count)
+            _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1)
         }
     }
 
@@ -881,26 +997,27 @@ crashes Trap
         typing: &Typing,
         expression: Expression,
         callee: u64 in Trapping,
-        item: MachineItem,
+        first_parameter: u64 in Trapping,
+        parameter_count: u64 in Trapping,
         unknown: bool,
         offset: u64 in Trapping,
         place: u64 in Trapping,
         whole: bool
     ) {
         transition whole {
-            true -> released(checker, syntax, typing, expression, callee, item, unknown, offset, place)
-            _ -> narrowed(checker, syntax, typing, expression, callee, item, unknown, offset, place)
+            true -> released(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
+            _ -> narrowed(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
         }
     }
 
-    state released(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, item: MachineItem, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
+    state released(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
         Checker::forget_place(checker, typing, place);
-        transition { _ -> next(checker, syntax, typing, expression, callee, item, unknown, offset + 1) }
+        transition { _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1) }
     }
 
-    state narrowed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, item: MachineItem, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
+    state narrowed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
         Checker::forget_written_fields(checker, typing, place, callee);
-        transition { _ -> next(checker, syntax, typing, expression, callee, item, unknown, offset + 1) }
+        transition { _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1) }
     }
 
     state done() {}

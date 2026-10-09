@@ -4,6 +4,7 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::admission;
+use psi::typing::binders;
 use psi::typing::clauses;
 use psi::typing::expressions;
 use psi::typing::facts;
@@ -29,6 +30,10 @@ pub data Typer {
     bound: [u64; 256];
     bound_stamps: [u64; 256];
     binding_generation: u64 in Wrapping;
+    // Each machine binder's selected static argument (binders.omg), live
+    // while its stamp equals `binding_generation`.
+    machine_bound: [MachineArgument; 256];
+    machine_stamps: [u64; 256];
     // Substitution memo per type handle, live while its stamp equals
     // `memo_generation`, and the work stack substitution and unification share.
     memo: [u64; 8192];

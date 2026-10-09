@@ -150,16 +150,30 @@ crashes Trap
         _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedOperatorToken, item.token.source_span)
     }
 
+    // A structural callable contract (`where machine F(...) -> T` with
+    // `requires`, `crashes`, `suspends` and `blocks` clauses) binds; a
+    // nominal one (`satisfies`), one with its own binders, a proposition
+    // contract, and `ensures`, `reaches` or `invokes` clauses reject as
+    // unsupported (wiki/spec/language/generics.md, Static machine binder
+    // categories).
     state contracts(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem) {
-        transition item.contract_count == 0 {
-            true -> generic(resolver, syntax, item, 0)
-            _ -> contract(resolver, syntax, item)
+        transition { _ -> contract(resolver, syntax, item, 0) }
+    }
+
+    state contract(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+        transition offset < item.contract_count && resolver.output.accepted {
+            true -> shaped(resolver, syntax, item, offset)
+            _ -> generic(resolver, syntax, item, 0)
         }
     }
 
-    state contract(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem) {
-        let first: Contract = SyntaxTrees::contract(syntax, item.first_contract);
-        transition { _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedMachineContract, first.source_span) }
+    state shaped(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+        let written: Contract = SyntaxTrees::contract(syntax, item.first_contract + offset);
+        let clauses: bool = Resolver::callable_contract_clauses(syntax, written.first_clause, written.clause_count);
+        transition written.kind == ContractKind::Machine && written.generic_parameter_count == 0 && clauses {
+            true -> contract(resolver, syntax, item, offset + 1)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedMachineContract, written.source_span)
+        }
     }
 
     state generic(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
@@ -183,6 +197,40 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// Whether a structural contract's clauses are ones this resolver binds:
+// `requires` facts and the operational `crashes`, `suspends` and `blocks`.
+machine Resolver::callable_contract_clauses(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> next(syntax, first, first + count) }
+
+    state next(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
+        transition index < end {
+            true -> clause(syntax, index, end)
+            _ -> admitted()
+        }
+    }
+
+    state clause(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
+        let written: Clause = SyntaxTrees::clause(syntax, index);
+        transition written.kind {
+            ClauseKind::Requires -> next(syntax, index + 1, end)
+            ClauseKind::Crashes -> next(syntax, index + 1, end)
+            ClauseKind::Suspends -> next(syntax, index + 1, end)
+            ClauseKind::Blocks -> next(syntax, index + 1, end)
+            _ -> refused()
+        }
+    }
+
+    state admitted() -> bool {
+        true
+    }
+
+    state refused() -> bool {
+        false
+    }
 }
 
 // Whether resolution binds a direct machine's `token`: the arithmetic and

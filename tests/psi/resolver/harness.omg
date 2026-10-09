@@ -484,6 +484,8 @@ crashes Trap
             ResolveDiagnosticCode::NotARequirement -> diagnostic_tag(resolver_harness, output, 27)
             ResolveDiagnosticCode::ForeignOperatorHome -> diagnostic_tag(resolver_harness, output, 29)
             ResolveDiagnosticCode::ProofOnlyApplication -> diagnostic_tag(resolver_harness, output, 30)
+            ResolveDiagnosticCode::ContractNamesNoBinder -> diagnostic_tag(resolver_harness, output, 31)
+            ResolveDiagnosticCode::DuplicateContract -> diagnostic_tag(resolver_harness, output, 32)
         }
     }
 
@@ -620,6 +622,7 @@ crashes Trap
             TypeBinding::Literal -> type_row(resolver_harness, output, index, 7, 0)
             TypeBinding::Trait { item } -> type_row(resolver_harness, output, index, 9, item)
             TypeBinding::Conformance { item } -> type_row(resolver_harness, output, index, 10, item)
+            TypeBinding::Machine { handle } -> type_row(resolver_harness, output, index, 11, handle)
         }
     }
 

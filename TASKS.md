@@ -5875,8 +5875,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  459 parser cases, `tests/psi/resolver/test-resolver.sh` all 262 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 88 typing cases; run
+  459 parser cases, `tests/psi/resolver/test-resolver.sh` all 267 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 93 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -5944,12 +5944,17 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `satisfies` clause binds its trait, the trait's static arguments, the
   requirement it names and its `via` payload (in the machine's static scope,
   without parameters); a trait named through a module path rejects. A
-  `terminates by` witness binds in the body's parameter scope. `let`
-  definitions and trait refinements reject as unsupported declarations, and
-  a `where machine` or `where proposition` contract, a proposition or
-  evidence binder and an operator token other than an owned machine's
-  arithmetic or order token reject at the form, on any declaration; an owned
-  machine's token binds at the data its owner names, in its own package.
+  `terminates by` witness binds in the body's parameter scope. A machine's
+  structural `where machine` contract (no generic parameters; `requires`,
+  `crashes`, `suspends` and `blocks` clauses) binds the `machine` binder it
+  names, its signature in the machine's scope and its `requires` facts over
+  its own parameters, and a static argument names a machine for such a
+  binder or forwards one. `let` definitions and trait refinements reject as
+  unsupported declarations, and a nominal `where machine ... satisfies`
+  contract, a `where proposition` contract, a proposition or evidence binder
+  and an operator token other than an owned machine's arithmetic or order
+  token reject at the form, on any declaration; an owned machine's token
+  binds at the data its owner names, in its own package.
   Typing interns
   every written type, gives every expression and
   pattern binder a type, selects each call's machine among its visible
@@ -5973,7 +5978,11 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   construction infers its data's arguments from its fields; value-position
   matches, memberships, trait requirement calls, generic conformance members,
   target-scoped family calls, declared and case domain qualifiers and equality
-  needing a declared conformance reject as unsupported. The typing gate types the
+  needing a declared conformance reject as unsupported. A machine binder's
+  call is typed through its contract, and a generic call's static machine
+  arguments bind its machine binders, each argument's signature refining its
+  contract under the call's bindings and binding the callee's other generic
+  parameters the contract names. The typing gate types the
   whole psi package, its 60 units, as one source set (65,381 expressions, 280
   interned types). Checking (`source/psi/checking/`) walks each body
   over one difference-bound zone of its integer places, joining each
@@ -5987,7 +5996,11 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   each construction of that case (assumed in a chosen arm). A call forgets
   below an exclusive argument only what its callee's derived write frame may
   write; crash routes settle over the call graph, a `satisfies` machine
-  publishing only causes its requirement declares. A proposition application
+  publishing only causes its requirement declares. A machine binder's call
+  owes its contract's `requires` facts, derives the crash causes it declares
+  and releases its exclusive arguments, and each static machine argument
+  publishes only causes its contract declares (one with premises of its own
+  rejects as unsupported). A proposition application
   owed at a call, return or construction (assumed, one establishes nothing),
   a store into a field a case's own fact names, contract refinement beyond
   crash causes and termination promises reject as unsupported; checking
@@ -6009,14 +6022,14 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   their collection's slice place and check within its length. Of the 52 std
   and core files outside target and test directories, 42 parse whole; with
   the transitive closure of their imports (std as package
-  `omega_language_std`, core as the toolchain package), 20 of the 35 measured
-  before `core/{array,fixed_vec,ptr,slice,vec}.omg` parsed resolve. The others stop first at 7 imports that do not parse,
-  2 at `where machine` contracts, `std/process_exit.omg` at a provider type
+  `omega_language_std`, core as the toolchain package), 27 of the 41
+  measured (`std/build.omg` aside) resolve. The others stop first at 8
+  imports that do not parse, `std/process_exit.omg` at a provider type
   its target implementations name without importing `process_exit` (imports
-  are not transitive), `core/numeric_conversion.omg` and the 3 device-group
-  files (`core/device.omg` with `arena` and `extent`) at the compiler builtin
-  functions `clamp` and `embed`, which resolution does not install, and
-  `core/option.omg` at
+  are not transitive), the 3 device-group files (`core/device.omg` with
+  `arena` and `extent`) at the compiler builtin function `embed`, which
+  resolution does not install, `core/slice.omg` at its `boundary machine []`
+  index token, and `core/option.omg` at
   `zero_value<Optional<T>>()`, a proof-only observation the Rust parser
   recognizes contextually and no spec page defines (the product parser reads
   it as a call to an unknown machine). The 73 std and core files that parse

@@ -142,11 +142,19 @@ ambiguous. Every root kind the parser accepts binds but
 mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet
-([`resolve/forms.omg`](resolve/forms.omg)), at that form: a `where machine`
-or `where proposition` contract, a proposition or evidence binder, or an
+([`resolve/forms.omg`](resolve/forms.omg)), at that form: a nominal `where
+machine ... satisfies` contract, a structural one with generic parameters or
+clauses other than `requires`, `crashes`, `suspends` and `blocks`, a `where
+proposition` contract, a proposition or evidence binder, or an
 operator token anywhere but on an ordinary owned machine binding an
 arithmetic or order token (a trait requirement's token, an unqualified
-machine's, `==`, `!=`, `[]` and `[..]`), on any machine or declaration. An
+machine's, `==`, `!=`, `[]` and `[..]`), on any machine or declaration. A
+structural `where machine` contract binds its machine's `machine` binder of
+its name, one contract per binder
+([`resolve/contracts.omg`](resolve/contracts.omg)), its parameter and result
+types in the machine's scope and its `requires` facts over its own
+parameters; a static argument names a machine for a machine binder or
+forwards one of the caller's. An
 ordinary owned machine's token binds at its semantic home, the data
 declaration its owner names, which must belong to the machine's own
 package; one token with the same parameters twice at one home rejects
@@ -304,7 +312,8 @@ a static argument and a declared or case domain qualifier reject as
 unsupported.
 Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
 `requires` and `ensures` fact and each state's `requires` fact over its
-parameters (`result` has the machine's result type) and each data
+parameters (`result` has the machine's result type), each `where machine`
+contract's `requires` fact over its own parameters, and each data
 declaration's `where` fact over its fields, and each case's own `where` fact
 over its payload fields and those fields, is a Boolean. A proposition
 application is a Boolean statement that selects nothing: its arguments meet
@@ -317,7 +326,12 @@ requirement must have the requirement's signature with the trait's type
 parameters replaced by the clause's arguments, and its `via` payload and a
 `terminates by` witness type like expressions
 ([`typing/clauses.omg`](typing/clauses.omg)); a requirement with generic
-parameters of its own rejects as unsupported. An arithmetic or order
+parameters of its own rejects as unsupported. A machine binder's call is
+typed through its contract, and a generic call's static machine arguments
+match its machine binders in order, each argument's signature refining its
+binder's contract under the call's bindings and binding the callee's other
+generic parameters the contract names
+([`typing/binders.omg`](typing/binders.omg)). An arithmetic or order
 operator with a data operand selects, by its operands, the one visible
 non-generic machine binding its token at an operand's data, admitting both
 operands as a call admits arguments, and records the selection
@@ -376,11 +390,15 @@ a machine for is a call of it, its operands the arguments)
 body's end, a terminal value or call, `{}`) must prove its machine's
 `ensures` facts with `result` standing for the returned value, a call to a
 machine that `ensures` facts gives its result a place they hold of, and a
-field store must leave the facts naming that field true. After crash routes settle, each
+field store must leave the facts naming that field true. A machine binder's
+call owes its contract's `requires` facts, derives the crash causes the
+contract declares and releases its exclusive arguments whole. After crash routes settle, each
 `satisfies` clause's satisfier must publish only crash causes its
 requirement declares, and a requirement with `requires` or `ensures` facts,
 or a satisfier with `requires` facts, rejects as unsupported rather than
-passing unrefined; a body promising termination rejects as unsupported
+passing unrefined; each static machine argument must publish only crash
+causes its binder's contract declares, and one with `requires` facts of its
+own rejects as unsupported; a body promising termination rejects as unsupported
 ([`checking/supply.omg`](checking/supply.omg)). Facts evaluate without effects or
 obligations ([`checking/fact_values.omg`](checking/fact_values.omg)). Crash
 routes settle over the call graph: a private machine without crash clauses

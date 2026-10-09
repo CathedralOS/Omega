@@ -55,6 +55,17 @@ pub data TypeBinding [copy] {
     case Literal;
     case Trait(item: u64 in Trapping);
     case Conformance(item: u64 in Trapping);
+    // A static argument naming a machine (the first declaration of its
+    // overload family), for a callee's machine binder.
+    case Machine(handle: u64 in Trapping);
+}
+
+// A machine binder's callable contract, `where machine F(...) -> T`
+// (wiki/spec/language/generics.md, Static machine binder categories): the
+// contract row the binder carries, when it has one.
+pub data BinderContract [copy] {
+    present: bool;
+    contract: u64 in Trapping;
 }
 
 // What a name or path in an expression denotes, indexed like
@@ -203,6 +214,11 @@ pub data ResolveDiagnosticCode [copy] {
     // proposition names a statement, not an executable condition
     // (wiki/spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand).
     case ProofOnlyApplication;
+    // A `where machine` contract whose name is none of its machine's
+    // `machine` binders.
+    case ContractNamesNoBinder;
+    // A second `where machine` contract for one binder.
+    case DuplicateContract;
 }
 
 pub data ResolveDiagnostic [copy] {
@@ -237,6 +253,9 @@ where
     // a token-bound machine's owner names; `Unresolved` for a machine
     // binding no token.
     operator_homes: [TypeBinding; 2048];
+    // Each generic parameter's callable contract, by generic parameter
+    // handle.
+    binder_contracts: [BinderContract; 256];
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }
@@ -278,6 +297,78 @@ crashes Trap
     }
 
     state invalid() -> ValueBinding {
+        crash Trap;
+    }
+}
+
+// A machine binder's static argument: a declared machine (the first
+// declaration of the family its name binds), or a binder of the caller's
+// forwarded.
+pub data MachineArgument [copy] {
+    case Absent;
+    case Declared(machine: u64 in Trapping);
+    case Forwarded(parameter: u64 in Trapping);
+}
+
+// What static argument row `row` names for a machine binder
+// (wiki/spec/language/generics.md#static-machine-binder-categories).
+pub machine NameResolution::machine_argument(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping) -> MachineArgument
+crashes Trap
+{
+    let binding: TypeBinding = NameResolution::type_binding_at(resolution, row);
+    transition binding {
+        TypeBinding::Machine { handle } -> chosen(MachineArgument::Declared { machine: handle })
+        TypeBinding::GenericParameter { parameter } -> generic(syntax, parameter)
+        _ -> chosen(MachineArgument::Absent)
+    }
+
+    state generic(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> MachineArgument {
+        let declared: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
+        transition declared.kind == GenericParameterKind::Machine {
+            true -> chosen(MachineArgument::Forwarded { parameter: parameter })
+            _ -> chosen(MachineArgument::Absent)
+        }
+    }
+
+    state chosen(argument: MachineArgument) -> MachineArgument {
+        argument
+    }
+}
+
+// The callable contract generic parameter `parameter` carries; none for a
+// parameter beyond the table.
+pub machine NameResolution::binder_contract(resolution: &NameResolution, parameter: u64 in Trapping) -> BinderContract {
+    transition parameter < 256 {
+        true -> read(resolution, parameter)
+        _ -> none()
+    }
+
+    state read(resolution: &NameResolution, parameter: u64 in Trapping) -> BinderContract
+    requires parameter < 256
+    {
+        resolution.binder_contracts[parameter]
+    }
+
+    state none() -> BinderContract {
+        BinderContract { present: false, contract: 0 }
+    }
+}
+
+pub machine NameResolution::set_binder_contract(resolution: &mut NameResolution, parameter: u64 in Trapping, contract: BinderContract)
+crashes Trap
+{
+    transition parameter < 256 {
+        true -> write(resolution, parameter, contract)
+        _ -> invalid()
+    }
+
+    state write(resolution: &mut NameResolution, parameter: u64 in Trapping, contract: BinderContract)
+    requires parameter < 256
+    {
+        resolution.binder_contracts[parameter] = contract;
+    }
+
+    state invalid() {
         crash Trap;
     }
 }

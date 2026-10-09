@@ -2,6 +2,7 @@ use psi::resolution::resolution;
 use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
+use psi::typing::binders;
 use psi::typing::references;
 use psi::typing::typer;
 
@@ -107,7 +108,8 @@ crashes Trap
 }
 
 // Whether every non-lifetime generic parameter in `first .. first + count`
-// is bound in the live set.
+// is bound in the live set: a machine binder to a static argument
+// (binders.omg), any other to a type.
 pub machine Typer::all_bound(typer: &Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
 crashes Trap
 {
@@ -123,7 +125,10 @@ crashes Trap
     state parameter(typer: &Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
         let bound: u64 in Trapping = Typer::bound_type(typer, first + offset);
-        transition generic.kind == GenericParameterKind::Lifetime || bound > 0 {
+        let argument: MachineArgument = Typer::machine_bound(typer, first + offset);
+        let selected: bool = Typer::selects_machine_argument(argument);
+        let machine: bool = generic.kind == GenericParameterKind::Machine && selected;
+        transition generic.kind == GenericParameterKind::Lifetime || bound > 0 || machine {
             true -> next(typer, syntax, first, count, offset + 1)
             _ -> no()
         }

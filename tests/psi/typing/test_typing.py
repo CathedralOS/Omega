@@ -33,7 +33,7 @@ DIAGNOSTICS = (
     "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
     "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
 )
-SELECTIONS = ("none", "machine", "state", "field", "length")
+SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
 ADAPTATIONS = ("", "landed", "lent")
 
 
@@ -457,6 +457,43 @@ def main() -> None:
         ),
         selections=((b"id(5u8)", "machine", 0), (b"id<u16>(7)", "machine", 0), (b"Box::get(&b)", "machine", 1)),
     )
+    # A `where machine` contract types a call through its binder; a static
+    # machine argument selects a machine whose signature refines the
+    # contract, and a type binder the contract alone names is inferred from
+    # the selected machine.
+    accepted(
+        program,
+        "machine-binders-call-through-contracts",
+        b"machine double(x: u8) -> u8 { x }\n"
+        b"machine zero() -> u8 { 0 }\n"
+        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x) }\n"
+        b"machine again<machine G>(x: u8) -> u8\nwhere machine G(value: u8) -> u8;\n{ apply<G>(x) }\n"
+        b"machine pick<T, machine K>(x: T) -> T\nwhere machine K(value: T) -> T;\n{ K(x) }\n"
+        b"machine make<U, machine M>() -> U\nwhere machine M() -> U;\n{ M() }\n"
+        b"machine g() -> u8 {\n"
+        b"    let a: u8 = apply<double>(3);\n"
+        b"    let b: u8 = again<double>(a);\n"
+        b"    let c: u8 = make<zero>();\n"
+        b"    pick<double>(b)\n"
+        b"}",
+        (
+            (b"F(x)", "u8"),
+            (b"K(x)", "G2"),
+            (b"M()!2", "G4"),
+            (b"apply<double>(3)", "u8"),
+            (b"again<double>(a)", "u8"),
+            (b"make<zero>()", "u8"),
+            (b"pick<double>(b)", "u8"),
+        ),
+        selections=(
+            (b"F(x)", "binder", 0),
+            (b"apply<G>(x)", "machine", 2),
+            (b"K(x)", "binder", 3),
+            (b"M()!2", "binder", 5),
+            (b"apply<double>(3)", "machine", 2),
+            (b"make<zero>()", "machine", 5),
+        ),
+    )
     accepted(
         program,
         "generic-data-constructions-and-patterns",
@@ -641,6 +678,36 @@ def main() -> None:
         b"machine id<T>(x: T) -> T { x }\nmachine f() -> u8 { id<u8, u8>(5) }",
         "NoMatchingMachine",
         b"id<u8, u8>(5)",
+    )
+    rejected(
+        program,
+        "machine-binders-need-a-contract",
+        b"machine apply<machine F>(x: u8) -> u8 { F(x) }",
+        "NotCallable",
+        b"F!2",
+    )
+    rejected(
+        program,
+        "binder-calls-match-their-contract",
+        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x, x) }",
+        "NoMatchingMachine",
+        b"F(x, x)",
+    )
+    rejected(
+        program,
+        "static-machine-arguments-refine-the-contract",
+        b"machine widen(x: u8) -> u16 { x as u16 }\n"
+        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x) }\n"
+        b"machine g() -> u8 { apply<widen>(3) }",
+        "NoMatchingMachine",
+        b"apply<widen>(3)",
+    )
+    rejected(
+        program,
+        "machine-arguments-need-machine-binders",
+        b"machine double(x: u8) -> u8 { x }\nmachine id<T>(x: T) -> T { x }\nmachine g() -> u8 { id<double>(5) }",
+        "NoMatchingMachine",
+        b"id<double>(5)",
     )
     rejected(
         program,

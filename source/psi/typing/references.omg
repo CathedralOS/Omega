@@ -36,13 +36,14 @@ crashes Trap
             TypeBinding::Slice -> slice(typer, sources, syntax, resolution, index, reference, domain)
             TypeBinding::Literal -> literal(typer, sources, syntax, resolution, index, reference)
             TypeBinding::Trait { item } -> application(typer, sources, syntax, resolution, index)
+            TypeBinding::Machine { handle } -> application(typer, sources, syntax, resolution, index)
             _ -> unsupported(typer, reference)
         }
     }
 
     // A trait application (a trait's parent, a conformance's satisfied
-    // trait) is not a type: its row takes none, and its arguments' rows
-    // intern as ever.
+    // trait) and a static argument naming a machine are not types: the row
+    // takes none, and an application's arguments' rows intern as ever.
     state application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         Typing::set_reference_type(&mut typer.output, index, 0);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }

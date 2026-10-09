@@ -18,6 +18,49 @@ use psi::types::types;
 // #returns-and-proof-use). Only a typed fact
 // carries its meaning, so an untyped one is neither assumed nor proved.
 
+// The clauses and parameters a call's callee declares: a machine's own, or
+// a machine binder's `where machine` contract's (wiki/spec/language/
+// generics.md#static-machine-binder-categories). A binder without a contract
+// and every other selection declare none.
+pub data CallClauses [copy] {
+    first_clause: u64 in Trapping;
+    clause_count: u64 in Trapping;
+    first_parameter: u64 in Trapping;
+    parameter_count: u64 in Trapping;
+}
+
+pub machine Checker::call_clauses(syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection) -> CallClauses
+crashes Trap
+{
+    transition selection {
+        Selection::Machine { handle } -> declared(syntax, handle)
+        Selection::Binder { parameter } -> bound(syntax, resolution, parameter)
+        _ -> none()
+    }
+
+    state declared(syntax: &SyntaxTrees, handle: u64 in Trapping) -> CallClauses {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        CallClauses { first_clause: item.first_clause, clause_count: item.clause_count, first_parameter: item.first_parameter, parameter_count: item.parameter_count }
+    }
+
+    state bound(syntax: &SyntaxTrees, resolution: &NameResolution, parameter: u64 in Trapping) -> CallClauses {
+        let contract: BinderContract = NameResolution::binder_contract(resolution, parameter);
+        transition contract.present {
+            true -> contracted(syntax, contract.contract)
+            _ -> none()
+        }
+    }
+
+    state contracted(syntax: &SyntaxTrees, handle: u64 in Trapping) -> CallClauses {
+        let written: Contract = SyntaxTrees::contract(syntax, handle);
+        CallClauses { first_clause: written.first_clause, clause_count: written.clause_count, first_parameter: written.first_parameter, parameter_count: written.parameter_count }
+    }
+
+    state none() -> CallClauses {
+        CallClauses { first_clause: 0, clause_count: 0, first_parameter: 0, parameter_count: 0 }
+    }
+}
+
 // Whether a clause run holds a clause of `kind`.
 pub machine Checker::declares(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, kind: ClauseKind) -> bool
 crashes Trap
