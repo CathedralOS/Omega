@@ -628,7 +628,9 @@ defines the complete product bar.
     The ordinary cases below still need Windows x86-64 and matching-host
     Linux x86-64 execution; the bounded
     [Linux qualification](wiki/drafts/reference/rust_compiler_completion.md#borrowed-storage-linux-qualification)
-    does not cover the unfinished failure/suspension paths.
+    qualifies native ARM64 normal paths, including direct and nested consuming
+    replacements and operand ordering, but does not cover the unfinished
+    failure/suspension paths.
     Keep `pass/ownership/runtime_{captured_replacement_selector,captured_construction_selector,captured_selector_call,borrowed_captured_selector}_exit`
     (exit 0) for pre-RHS destination capture and exact-once target computation
     through old-value cleanup and store despite later out-of-range selectors.

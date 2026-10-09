@@ -324,6 +324,58 @@ cancellation or every referent shape. Windows x86-64 and matching-host Linux
 x86-64 remain unqualified for these four programs; the emulated observations
 do not close either release row.
 
+The 2026-10-09 follow-on qualification used clean, published producer
+`9b656be387602ca5eed691fff28bbcd217a2cb91`, the same pinned toolchain,
+macOS/Colima/Ubuntu/kernel/QEMU versions above, and
+`CARGO_PROFILE_DEV_OPT_LEVEL=1`. The fresh CLI build took 2 minutes 13 seconds.
+The following five authored programs matched their exits directly on Linux
+ARM64 and under Linux x86-64 QEMU: ten observations, no skips or mismatches.
+No compiler or fixture change was required for this qualification.
+
+| Fixture under `tests/omega/pass/` | Authored exit |
+| --- | --- |
+| `ownership/runtime_borrowed_sum_retag_exit` | 0 |
+| `ownership/runtime_nested_borrowed_consumption_exit` | 0 |
+| `ownership/runtime_borrowed_operand_order_exit` | 0 |
+| `ownership/runtime_borrowed_record_transform_exit` | 42 |
+| `calls/runtime_qualified_owned_result_argument_exit` | 0 |
+
+The first two restore a consumed sum directly or through nested calls, keeping
+the caller's disjoint sibling and exact linear custody. The nested program
+uses both projected-field and whole-referent destinations. The ordering
+program reads a scalar before extraction and cleanup; the record program
+checks both fresh and identity replacements. The final program retains a
+declared scalar range when passing an established affine result to another
+machine.
+
+Each project was prepared with `omega update --project <fixture> --target
+linux_arm64 --target linux_x86_64`. The console-backed record fixture required
+acceptance of 570 first-party review decisions across those targets; its local
+proposal was resumed with `--dangerously-accept-all`. That is not evidence of
+a manual audit or approval of an external dependency. The other four projects
+had no pending decisions. Emission used the authored Build declarations:
+
+```sh
+omega --target linux_arm64 --target linux_x86_64 \
+  --build-dir "$fixture/build/linux-qualification" "$fixture/main.omg"
+```
+
+The guest assertions above were applied to the separately emitted products at
+`build/linux-qualification/linux_arm64/omega-program` and
+`build/linux-qualification/linux_x86_64/omega-program`, using the table's
+authored exit. The nested program's SHA-256 identities are:
+
+- `main.omg`: `c4526756da8a58315e820d759ff5c43ffa4bce68789bdea4e5108220a5e3d644`.
+- ARM64 ELF: `e15e47316f020ed1926124951a7bac08cb0f7c99acb8d277cf358569f6773aaa`.
+- x86-64 ELF: `4615338ec590d0e2391feab662f5b2a4494f7546efe9a4df4f330230ef5a4696`.
+
+The existing VM started stopped and returned to that state. This record covers
+ordinary consuming replacements, operand ordering and constrained result
+transfer only. It does not qualify suspension, resume, cancellation or every
+referent shape. Windows x86-64 and matching-host Linux x86-64 remain open;
+emulation does not close either release row, and this was not an unfiltered
+Linux ARM64 release gate.
+
 ## Closure rule
 
 The contract closes only when all six named gates pass from a clean checkout
