@@ -1,5 +1,5 @@
 use crate::identity::encode_fixed_constraint_site_identity;
-use sha2::{Digest, Sha256};
+
 use target::{Architecture, ObjectFormat};
 
 use crate::{
@@ -36,7 +36,7 @@ pub fn fixed_precolored_split_requirement_plan_identity(
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    FixedPrecoloredSplitRequirementPlanIdentity(Sha256::digest(bytes).into())
+    FixedPrecoloredSplitRequirementPlanIdentity(crate::digest_encoder::content_identity(&bytes).into())
 }
 
 fn encode_family(

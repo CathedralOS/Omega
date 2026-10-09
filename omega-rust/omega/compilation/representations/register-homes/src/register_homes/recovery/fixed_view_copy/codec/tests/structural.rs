@@ -11,7 +11,7 @@ use selected_instructions::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{MachineId, ObligationId, OperationId, PlaceId};
-use sha2::{Digest, Sha256};
+
 use terminal_psi::{CrashCause, CrashRouteBucket, CrashRouteGuard};
 fn call_plan(clobbers: &[MachineRegister], shadow_bytes: u16) -> CallPlan {
     CallPlan {
@@ -378,7 +378,7 @@ fn artifact_v15_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
     payload_and_digest_tamper[matches[0]..matches[0] + 2]
         .copy_from_slice(&0x4568_u16.to_le_bytes());
     let payload_digest =
-        <[u8; 32]>::from(Sha256::digest(&payload_and_digest_tamper[payload_offset..]));
+        <[u8; 32]>::from(crate::digest_encoder::content_identity(&payload_and_digest_tamper[payload_offset..]));
     payload_and_digest_tamper[digest_offset..digest_offset + 32].copy_from_slice(&payload_digest);
     assert_eq!(
         FixedViewCopyPlan::decode(&payload_and_digest_tamper),
@@ -396,7 +396,7 @@ fn artifact_v15_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
     assert_eq!(matches.len(), 1, "call clobber marker must be unique");
     let mut noncanonical = plan.encode().unwrap();
     noncanonical[matches[0] + 8..matches[0] + 12].copy_from_slice(&[1, 0, 0, 0]);
-    let payload_digest = <[u8; 32]>::from(Sha256::digest(&noncanonical[payload_offset..]));
+    let payload_digest = <[u8; 32]>::from(crate::digest_encoder::content_identity(&noncanonical[payload_offset..]));
     noncanonical[digest_offset..digest_offset + 32].copy_from_slice(&payload_digest);
     assert_eq!(
         FixedViewCopyPlan::decode(&noncanonical),

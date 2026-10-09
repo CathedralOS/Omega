@@ -1,4 +1,4 @@
-use sha2::{Digest, Sha256};
+
 use target::{Architecture, ObjectFormat};
 
 use crate::{
@@ -36,7 +36,7 @@ pub fn fixed_precolored_segment_home_plan_identity(
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    FixedPrecoloredSegmentHomePlanIdentity(Sha256::digest(bytes).into())
+    FixedPrecoloredSegmentHomePlanIdentity(crate::digest_encoder::content_identity(&bytes).into())
 }
 
 fn encode_family(bytes: &mut Vec<u8>, functions: &[crate::FunctionFixedPrecoloredSegmentHomes]) {

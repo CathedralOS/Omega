@@ -5,7 +5,6 @@ use checked_trees::{
     FlowConstraintKind, FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
 };
 use semantic_vocabulary::MachineId;
-use sha2::{Digest, Sha256};
 use terminal_psi::{
     StructuralAccess, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
     TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalReborrowRootHandoff,
@@ -26,12 +25,20 @@ pub(crate) fn identity(
     if !symbol.is_valid() {
         return unsupported("reborrow custody contains an unresolved symbol");
     }
-    let mut digest = Sha256::new();
-    digest.update(b"omega-terminal-reborrow-symbol-v1");
-    digest.update(checked.typed.symbols.display_path(symbol, "::").as_bytes());
-    digest.update(symbol.arena_index().to_le_bytes());
-    digest.update(symbol.generation().to_le_bytes());
-    Ok(format!("terminal-borrow:{:x}", digest.finalize()))
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega-terminal-reborrow-symbol-v1",
+    );
+    digest.raw(checked.typed.symbols.display_path(symbol, "::").as_bytes());
+    digest.raw(&symbol.arena_index().to_le_bytes());
+    digest.raw(&symbol.generation().to_le_bytes());
+    Ok(format!(
+        "terminal-borrow:{}",
+        digest
+            .finish()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    ))
 }
 
 fn ordinal(value: usize) -> Result<u64, LoweringError> {

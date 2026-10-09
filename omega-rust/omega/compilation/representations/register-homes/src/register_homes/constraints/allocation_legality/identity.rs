@@ -1,5 +1,5 @@
 use crate::identity::encode_fixed_constraint_site_identity;
-use sha2::{Digest, Sha256};
+
 
 use crate::{AllocationLegalityIdentity, AllocationLegalityPlan, FunctionAllocationLegality};
 
@@ -23,7 +23,7 @@ pub fn allocation_legality_identity_from_digests(
     for digest in digests {
         bytes.extend_from_slice(digest);
     }
-    AllocationLegalityIdentity::from_bytes(Sha256::digest(bytes).into())
+    AllocationLegalityIdentity::from_bytes(crate::digest_encoder::content_identity(&bytes).into())
 }
 
 /// One function's share of `allocation_legality_identity`.
@@ -63,7 +63,7 @@ pub fn allocation_legality_function_digest(function: &FunctionAllocationLegality
             bytes.extend_from_slice(&transition.to_view.0.to_le_bytes());
         }
     }
-    Sha256::digest(bytes).into()
+    crate::digest_encoder::content_identity(&bytes).into()
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {

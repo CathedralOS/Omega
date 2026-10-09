@@ -7,7 +7,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BlockId, EdgeId};
 use semantic_vocabulary::{CycleComponentId, PsiSemanticId};
-use sha2::{Digest, Sha256};
 use terminal_psi::{TerminalMachine, TerminalNaturalCycle};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -298,15 +297,16 @@ fn topology_identity(
     machine: &TerminalMachine,
     edges: impl IntoIterator<Item = (EdgeId, BlockId, BlockId)>,
 ) -> CycleComponentId {
-    let mut digest = Sha256::new();
-    digest.update(b"psi.control-cycle.topology.v1\0");
-    digest.update(machine.id.get().to_le_bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"psi.control-cycle.topology.v1\0",
+    );
+    digest.u64(machine.id.get());
     for (edge, source, target) in edges {
-        digest.update(edge.get().to_le_bytes());
-        digest.update(source.get().to_le_bytes());
-        digest.update(target.get().to_le_bytes());
+        digest.u64(edge.get());
+        digest.u64(source.get());
+        digest.u64(target.get());
     }
-    semantic_id(&digest.finalize().into())
+    semantic_id(&digest.finish().into())
 }
 
 fn semantic_id<Identity: PsiSemanticId>(digest: &[u8; 32]) -> Identity {

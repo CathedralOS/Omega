@@ -1,4 +1,4 @@
-//! The crate-local domain-tagged SHA-256 digest encoder every 05_checked-trees-to-lowered-psi
+//! The crate-local domain-tagged SHA-256 digest encoder every installation
 //! identity shares.
 //! methods length-frame where the protocol frames; `finish` yields the raw
 //! digest for each domains newtype to wrap.
