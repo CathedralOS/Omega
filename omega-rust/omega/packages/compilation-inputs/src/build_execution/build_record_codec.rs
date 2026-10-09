@@ -52,15 +52,15 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
             storage_schedule,
         } => {
             out.push(1);
-            out.extend_from_slice(&fuel_schedule.marker().to_le_bytes());
-            out.extend_from_slice(&storage_schedule.marker().to_le_bytes());
+            crate::codec_bytes::push_encoded(out, fuel_schedule.marker().to_le_bytes());
+            crate::codec_bytes::push_encoded(out, storage_schedule.marker().to_le_bytes());
         }
     }
-    out.extend_from_slice(&usage.usage_schema_version.to_le_bytes());
-    out.extend_from_slice(&usage.step_schedule_marker.to_le_bytes());
-    out.extend_from_slice(&usage.invocation_fuel_ceiling.to_le_bytes());
+    crate::codec_bytes::push_encoded(out, usage.usage_schema_version.to_le_bytes());
+    crate::codec_bytes::push_encoded(out, usage.step_schedule_marker.to_le_bytes());
+    crate::codec_bytes::push_encoded(out, usage.invocation_fuel_ceiling.to_le_bytes());
     encode_optional(usage.sponsor_schema_version.as_ref(), out, |value, out| {
-        out.extend_from_slice(&value.to_le_bytes())
+        crate::codec_bytes::push_encoded(out, value.to_le_bytes())
     });
     for value in [
         usage.session_fuel_ceiling,
@@ -73,7 +73,7 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
         usage.session_result_payload_byte_ceiling,
     ] {
         encode_optional(value.as_ref(), out, |value, out| {
-            out.extend_from_slice(&value.to_le_bytes())
+            crate::codec_bytes::push_encoded(out, value.to_le_bytes())
         });
     }
     for value in [
@@ -88,7 +88,7 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
         usage.result_storage_cells,
         usage.result_payload_bytes,
     ] {
-        out.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(out, value.to_le_bytes());
     }
 }
 
@@ -150,7 +150,7 @@ fn encode_source_metadata_identity(
     identity: &BuildCanonicalSourceMetadataIdentity,
     out: &mut Vec<u8>,
 ) {
-    out.extend_from_slice(&identity.policy_version().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, identity.policy_version().to_le_bytes());
     out.extend_from_slice(&identity.source_content_commitment());
 }
 
@@ -166,8 +166,8 @@ fn recover_source_metadata_identity(
 }
 
 fn encode_captured_inventory(inventory: &BuildCapturedSourceInventory, out: &mut Vec<u8>) {
-    out.extend_from_slice(&inventory.entry_count().to_le_bytes());
-    out.extend_from_slice(&inventory.file_bytes().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, inventory.entry_count().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, inventory.file_bytes().to_le_bytes());
     encode_source_metadata_identity(&inventory.source_metadata_identity(), out);
 }
 
@@ -185,10 +185,10 @@ fn recover_captured_inventory(cursor: &mut Cursor) -> Option<BuildCapturedSource
 fn encode_staged_output_tree(tree: &BuildStagedOutputTree, out: &mut Vec<u8>) {
     let commitment = tree.commitment();
     out.extend_from_slice(&commitment.digest());
-    out.extend_from_slice(&commitment.entry_count().to_le_bytes());
-    out.extend_from_slice(&commitment.file_bytes().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, commitment.entry_count().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, commitment.file_bytes().to_le_bytes());
     let entries: Vec<_> = tree.entries().collect();
-    out.extend_from_slice(&(entries.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (entries.len() as u64).to_le_bytes());
     for entry in entries {
         push_framed(out, entry.relative_path());
         match entry.kind() {
@@ -241,14 +241,14 @@ fn recover_staged_output_tree(cursor: &mut Cursor) -> Option<BuildStagedOutputTr
 }
 
 fn encode_attempt(attempt: &BuildFilesystemOperationAttempt, out: &mut Vec<u8>) {
-    out.extend_from_slice(&attempt.operation_tag().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, attempt.operation_tag().to_le_bytes());
     out.push(observation_codec::encode_observation_provider(
         attempt.provider(),
     ));
     observation_codec::encode_operation_result(attempt.result(), out);
-    out.extend_from_slice(&attempt.post_error().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, attempt.post_error().to_le_bytes());
     let authorized = attempt.authorized_paths();
-    out.extend_from_slice(&(authorized.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (authorized.len() as u64).to_le_bytes());
     for path in authorized {
         out.push(path.operand_ordinal());
         out.push(observation_codec::encode_grant_access(path.access()));
@@ -257,13 +257,13 @@ fn encode_attempt(attempt: &BuildFilesystemOperationAttempt, out: &mut Vec<u8>) 
             BuildFilesystemRoot::Output => out.push(1),
             BuildFilesystemRoot::NamedInput(identity) => {
                 out.push(2);
-                out.extend_from_slice(&identity.to_le_bytes());
+                crate::codec_bytes::push_encoded(out, identity.to_le_bytes());
             }
         }
         push_framed(out, path.relative_path());
     }
     let inputs = attempt.logical_handle_inputs();
-    out.extend_from_slice(&(inputs.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (inputs.len() as u64).to_le_bytes());
     for input in inputs {
         observation_codec::encode_logical_handle_input(*input, out);
     }
@@ -275,12 +275,12 @@ fn encode_attempt(attempt: &BuildFilesystemOperationAttempt, out: &mut Vec<u8>) 
         None => out.push(0),
     }
     let retired = attempt.retired_logical_handles();
-    out.extend_from_slice(&(retired.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (retired.len() as u64).to_le_bytes());
     for identity in retired {
-        out.extend_from_slice(&identity.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(out, identity.get().to_le_bytes());
     }
     let refusals = attempt.grant_refusals();
-    out.extend_from_slice(&(refusals.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (refusals.len() as u64).to_le_bytes());
     for refusal in refusals {
         observation_codec::encode_grant_refusal(refusal, out);
     }
@@ -350,11 +350,14 @@ fn recover_attempt(cursor: &mut Cursor) -> Option<BuildFilesystemOperationAttemp
 
 /// Encode the observation summary a retained review carries.
 pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut Vec<u8>) {
-    out.extend_from_slice(&summary.schema_version().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, summary.schema_version().to_le_bytes());
     out.push(summary.filesystem_host_observed() as u8);
-    out.extend_from_slice(&summary.filesystem_operation_schema_version().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        out,
+        summary.filesystem_operation_schema_version().to_le_bytes(),
+    );
     let attempts = summary.filesystem_operation_attempts();
-    out.extend_from_slice(&(attempts.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (attempts.len() as u64).to_le_bytes());
     for attempt in attempts {
         encode_attempt(attempt, out);
     }
@@ -391,23 +394,23 @@ pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut V
         None => out.push(0),
     }
     let named = summary.named_input_inventories();
-    out.extend_from_slice(&(named.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (named.len() as u64).to_le_bytes());
     for inventory in named {
         push_framed(out, inventory.name());
-        out.extend_from_slice(&inventory.root_identity().to_le_bytes());
+        crate::codec_bytes::push_encoded(out, inventory.root_identity().to_le_bytes());
         encode_captured_inventory(&inventory.inventory(), out);
     }
     let handoffs = summary.included_source_handoffs();
-    out.extend_from_slice(&(handoffs.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (handoffs.len() as u64).to_le_bytes());
     for handoff in handoffs {
         push_framed(out, handoff.relative_path());
-        out.extend_from_slice(&handoff.filesystem_attempt_ordinal().to_le_bytes());
+        crate::codec_bytes::push_encoded(out, handoff.filesystem_attempt_ordinal().to_le_bytes());
     }
     let settlements = summary.required_output_settlements();
-    out.extend_from_slice(&(settlements.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (settlements.len() as u64).to_le_bytes());
     for settlement in settlements {
         push_framed(out, settlement.relative_path());
-        out.extend_from_slice(&settlement.sealed_attempt_ordinal().to_le_bytes());
+        crate::codec_bytes::push_encoded(out, settlement.sealed_attempt_ordinal().to_le_bytes());
     }
     match summary.staged_output_tree() {
         Some(tree) => {
@@ -525,9 +528,9 @@ pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservati
 }
 
 fn encode_sponsor_limits(limits: &FilesystemSponsorLimits, out: &mut Vec<u8>) {
-    out.extend_from_slice(&limits.maximum_entries.to_le_bytes());
-    out.extend_from_slice(&limits.maximum_total_logical_bytes.to_le_bytes());
-    out.extend_from_slice(&limits.maximum_object_extent.to_le_bytes());
+    crate::codec_bytes::push_encoded(out, limits.maximum_entries.to_le_bytes());
+    crate::codec_bytes::push_encoded(out, limits.maximum_total_logical_bytes.to_le_bytes());
+    crate::codec_bytes::push_encoded(out, limits.maximum_object_extent.to_le_bytes());
 }
 
 fn recover_sponsor_limits(cursor: &mut Cursor) -> Option<FilesystemSponsorLimits> {
@@ -549,7 +552,7 @@ fn encode_evaluation_sponsor_limits(limits: &BuildEvaluationSponsorLimits, out: 
         limits.maximum_result_storage_cells(),
         limits.maximum_result_payload_bytes(),
     ] {
-        out.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(out, value.to_le_bytes());
     }
 }
 
@@ -572,7 +575,7 @@ fn encode_grant(grant: &RestrictedBuildGrant, out: &mut Vec<u8>) {
         RestrictedBuildGrantRoot::StagedOutput => out.push(1),
         RestrictedBuildGrantRoot::Other(identity) => {
             out.push(2);
-            out.extend_from_slice(&identity.to_le_bytes());
+            crate::codec_bytes::push_encoded(out, identity.to_le_bytes());
         }
     }
     out.push(grant.narrowed() as u8);
@@ -614,12 +617,12 @@ pub fn encode_restricted_build_request(request: &RestrictedBuildRequest, out: &m
         RestrictedBuildOperation::UnscopedFilesystemExecution => 1,
     });
     let reads = request.read_grants();
-    out.extend_from_slice(&(reads.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (reads.len() as u64).to_le_bytes());
     for grant in reads {
         encode_grant(grant, out);
     }
     let writes = request.write_grants();
-    out.extend_from_slice(&(writes.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (writes.len() as u64).to_le_bytes());
     for grant in writes {
         encode_grant(grant, out);
     }
@@ -639,7 +642,7 @@ pub fn encode_restricted_build_request(request: &RestrictedBuildRequest, out: &m
         None => out.push(0),
     }
     let required = bounds.required_outputs();
-    out.extend_from_slice(&(required.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (required.len() as u64).to_le_bytes());
     for output in required {
         push_framed(out, output);
     }

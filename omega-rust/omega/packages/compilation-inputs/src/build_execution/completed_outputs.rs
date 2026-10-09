@@ -45,12 +45,15 @@ impl RetainedBuildOutputs {
         let mut manifest = b"OMEGA-COMPLETED-BUILD-OUTPUTS-V1\0".to_vec();
         manifest.extend_from_slice(observation.as_bytes());
         manifest.extend_from_slice(&tree.digest());
-        manifest.extend_from_slice(&(names.len() as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut manifest, (names.len() as u64).to_le_bytes());
         for entry in tree.entries() {
             if let BuildStagedOutputEntryKind::File { bytes, .. } = entry.kind() {
-                manifest.extend_from_slice(&(entry.relative_path().len() as u64).to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut manifest,
+                    (entry.relative_path().len() as u64).to_le_bytes(),
+                );
                 manifest.extend_from_slice(entry.relative_path());
-                manifest.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut manifest, (bytes.len() as u64).to_le_bytes());
                 manifest.extend_from_slice(&Sha256::digest(bytes));
             }
         }

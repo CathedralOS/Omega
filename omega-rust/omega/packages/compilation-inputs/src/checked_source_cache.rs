@@ -48,6 +48,7 @@
 use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
 #[cfg(unix)]
 use crate::canonical_fs::require_canonical_mode;
+use crate::codec_bytes::{push_bytes, push_u64};
 use crate::cursor::{Cursor, TakeError, Truncated};
 use filesystem_authority::{
     CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT, CanonicalFilesystemMetadataIndex,
@@ -660,7 +661,7 @@ fn encode_record(
         }
     }
     payload.extend_from_slice(index.source_content_commitment());
-    payload.extend_from_slice(&index.policy_version().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut payload, index.policy_version().to_le_bytes());
     let digest: [u8; 32] = Sha256::digest(&payload).into();
     payload.extend_from_slice(&digest);
     Ok(payload)
@@ -741,15 +742,6 @@ fn decode_record(
     }
     CanonicalFilesystemMetadataIndex::new(policy_version, commitment, rows)
         .map_err(|error| format!("checked-source cache record rows are not canonical: {error}"))
-}
-
-fn push_u64(buffer: &mut Vec<u8>, value: u64) {
-    buffer.extend_from_slice(&value.to_le_bytes());
-}
-
-fn push_bytes(buffer: &mut Vec<u8>, bytes: &[u8]) {
-    push_u64(buffer, bytes.len() as u64);
-    buffer.extend_from_slice(bytes);
 }
 
 fn hex(bytes: &[u8]) -> String {
