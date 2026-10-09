@@ -7,7 +7,7 @@ use super::{
     provenance, transport_register,
 };
 use crate::SelectedInstructionError;
-use semantic_vocabulary::{IeeeFloatFormat, PlaceId, ScalarType};
+use semantic_vocabulary::{PlaceId, ScalarType};
 
 pub(super) fn backing_address(
     builder: &mut Builder<'_>,
@@ -57,16 +57,14 @@ pub(super) fn read(
     ) {
         return Err(invalid());
     }
+    // The decoded payload is already the scalar graph's value: IEEE values
+    // travel as their bits in the general class, exactly as an exact-width
+    // load leaves them. Float registers appear only at an ABI transfer.
     let output = builder.register(
         definition.value,
         definition.definition_site,
         definition.scalar_type,
     )?;
-    let payload = if matches!(definition.scalar_type, ScalarType::IeeeFloat(_)) {
-        transport_register(builder, place, 0)?
-    } else {
-        output
-    };
     let cursor = transport_register(builder, place, 0)?;
     let count = transport_register(builder, place, 8)?;
     let byte = transport_register(builder, place, 0)?;
@@ -77,27 +75,9 @@ pub(super) fn read(
             .keys
             .load_encoded_scalar
             .ok_or(invalid())?,
-        &[address, codec, cursor, count, byte, payload],
+        &[address, codec, cursor, count, byte, output],
         provenance(row),
     )?;
-    if let Some(format) = definition.scalar_type.as_ieee_float() {
-        let (kind, key) = match format {
-            IeeeFloatFormat::Binary32 => (
-                SelectedInstructionKind::BitsToFloat32,
-                builder.constraints.keys.bits_to_float32,
-            ),
-            IeeeFloatFormat::Binary64 => (
-                SelectedInstructionKind::BitsToFloat64,
-                builder.constraints.keys.bits_to_float64,
-            ),
-        };
-        builder.emit(
-            kind,
-            key.ok_or(invalid())?,
-            &[payload, output],
-            provenance(row),
-        )?;
-    }
     Ok(output)
 }
 
@@ -122,28 +102,7 @@ pub(super) fn write(
     if !operation_provenance.values.contains(&value.value) {
         operation_provenance.values.push(value.value);
     }
-    let value_register = if let Some(format) = scalar.as_ieee_float() {
-        let bits = transport_register(builder, place, 0)?;
-        let (kind, key) = match format {
-            IeeeFloatFormat::Binary32 => (
-                SelectedInstructionKind::Float32ToBits,
-                builder.constraints.keys.float32_to_bits,
-            ),
-            IeeeFloatFormat::Binary64 => (
-                SelectedInstructionKind::Float64ToBits,
-                builder.constraints.keys.float64_to_bits,
-            ),
-        };
-        builder.emit(
-            kind,
-            key.ok_or(invalid())?,
-            &[value_register, bits],
-            operation_provenance.clone(),
-        )?;
-        bits
-    } else {
-        value_register
-    };
+    // An IEEE value register already holds the bits the codec stores.
     let cursor = transport_register(builder, place, 0)?;
     let count = transport_register(builder, place, 8)?;
     let payload = transport_register(builder, place, 0)?;

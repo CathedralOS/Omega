@@ -330,6 +330,7 @@ pass/calls/runtime_atomic_case_shared_argument_exit built 2282ms exit:0 @aea569c
 pass/calls/runtime_authored_numeric_guard_result_exit built 1809ms exit:0 @6979b7c65a9e+wt
 pass/calls/runtime_authored_numeric_names_exit built 1809ms exit:0 @6979b7c65a9e+wt
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 966ms exit:70 stdout:match @bea382792161+wt
+pass/calls/runtime_borrowed_float_formal_exchange_exit built 6432ms exit:70 @0fbb0c88da07+wt
 pass/calls/runtime_boundary_computed_selector_order_exit built 2770ms exit:70 @cba4afbf6f2f+wt
 pass/calls/runtime_boundary_loop_projected_subslice_exit built 1367ms exit:70 @6197860b335c+wt
 pass/calls/runtime_boundary_projected_mutable_subslice_exit built 957ms exit:70 @6197860b335c+wt

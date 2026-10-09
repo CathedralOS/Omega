@@ -145,6 +145,7 @@ pass/calls/nested_call_tail_roots_exit built 12707ms exit:0 interpreter-exit:0 i
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 7164ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/calls/runtime_atomic_case_shared_argument_exit built 1638ms exit:0 interpreter-exit:0 interpreter:agrees @aea569c35b63
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 14775ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
+pass/calls/runtime_borrowed_float_formal_exchange_exit built 7091ms exit:70 interpreter-exit:70 interpreter:agrees @0fbb0c88da07+wt
 pass/calls/runtime_call_carrier_partition_exit built 14438ms exit:0 interpreter-exit:0 interpreter:agrees @b6ec5f4824ac+wt
 pass/calls/runtime_case_payload_indexed_calls_exit built 11916ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/runtime_case_terminal_payload_result_exit built 1414ms exit:0 interpreter-exit:0 interpreter:agrees @9d538dd9a056
