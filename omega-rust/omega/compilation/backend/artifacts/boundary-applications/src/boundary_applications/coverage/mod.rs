@@ -13,7 +13,6 @@ use super::realization::{
     TerminalBoundaryApplicationRealizations,
 };
 use semantic_vocabulary::OperationId;
-use sha2::{Digest, Sha256};
 
 const COVERAGE_IDENTITY_DOMAIN: &[u8] = b"omega.d29-operator-application-coverage.sha256.v1\0";
 
@@ -80,36 +79,35 @@ fn coverage_identity(
     demand: &TerminalBoundaryApplicationDemand,
     companion: &BoundaryApplicationRealizationCompanion,
 ) -> BoundaryApplicationCoverageIdentity {
-    let mut digest = Sha256::new();
-    digest.update(COVERAGE_IDENTITY_DOMAIN);
-    digest.update(terminal.vocabulary_marker.get().to_le_bytes());
-    digest.update(terminal.program_fingerprint.as_bytes());
-    digest.update(demand.terminal_operation().get().to_le_bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(COVERAGE_IDENTITY_DOMAIN);
+    digest.u16(terminal.vocabulary_marker.get());
+    digest.raw(terminal.program_fingerprint.as_bytes());
+    digest.u64(demand.terminal_operation().get());
     hash_bytes(
         &mut digest,
         demand.requirement().declaration().canonical().as_bytes(),
     );
     hash_bytes(&mut digest, demand.requirement().overload().as_bytes());
     encode_application(&mut digest, demand.application());
-    digest.update(companion.selected_plan_digest());
+    digest.raw(companion.selected_plan_digest());
     encode_realization(&mut digest, companion.realization());
-    BoundaryApplicationCoverageIdentity(digest.finalize().into())
+    BoundaryApplicationCoverageIdentity(digest.finish().into())
 }
 
-fn encode_application(digest: &mut Sha256, application: &BoundaryApplication) {
+fn encode_application(digest: &mut crate::digest_encoder::DomainDigestEncoder, application: &BoundaryApplication) {
     match application {
-        BoundaryApplication::Empty => digest.update([0]),
+        BoundaryApplication::Empty => digest.byte(0),
         BoundaryApplication::Exact(arguments) => {
-            digest.update([1]);
-            digest.update(canonical_usize(arguments.len()));
+            digest.byte(1);
+            digest.u64(arguments.len() as u64);
             for argument in arguments {
                 match argument {
                     BoundaryApplicationArgument::Type {
                         binder_ordinal,
                         type_identity,
                     } => {
-                        digest.update([0]);
-                        digest.update(binder_ordinal.to_le_bytes());
+                        digest.byte(0);
+                        digest.raw(&binder_ordinal.to_le_bytes());
                         hash_bytes(digest, type_identity.canonical().as_bytes());
                     }
                     BoundaryApplicationArgument::Const {
@@ -118,8 +116,8 @@ fn encode_application(digest: &mut Sha256, application: &BoundaryApplication) {
                         value_type,
                         value_encoding,
                     } => {
-                        digest.update([1]);
-                        digest.update(binder_ordinal.to_le_bytes());
+                        digest.byte(1);
+                        digest.raw(&binder_ordinal.to_le_bytes());
                         hash_bytes(digest, declared_carrier.canonical().as_bytes());
                         hash_bytes(digest, value_type.as_bytes());
                         hash_bytes(digest, value_encoding.as_bytes());
@@ -130,17 +128,17 @@ fn encode_application(digest: &mut Sha256, application: &BoundaryApplication) {
     }
 }
 
-fn encode_realization(digest: &mut Sha256, realization: &BoundaryApplicationRealization) {
+fn encode_realization(digest: &mut crate::digest_encoder::DomainDigestEncoder, realization: &BoundaryApplicationRealization) {
     match realization {
         BoundaryApplicationRealization::NongenericCheckedBody {
             realization_machine,
             realization_state,
             realization_contract_commitment,
         } => {
-            digest.update([0]);
+            digest.byte(0);
             hash_bytes(digest, realization_machine.canonical().as_bytes());
             hash_bytes(digest, realization_state.canonical().as_bytes());
-            digest.update(realization_contract_commitment);
+            digest.raw(realization_contract_commitment);
         }
         BoundaryApplicationRealization::SpecializedCheckedBody {
             realization_template,
@@ -149,31 +147,24 @@ fn encode_realization(digest: &mut Sha256, realization: &BoundaryApplicationReal
             specialization_commitment,
             realization_contract_commitment,
         } => {
-            digest.update([1]);
+            digest.byte(1);
             hash_bytes(digest, realization_template.canonical().as_bytes());
             hash_bytes(digest, realization_machine.canonical().as_bytes());
             hash_bytes(digest, realization_state.canonical().as_bytes());
-            digest.update(specialization_commitment);
-            digest.update(realization_contract_commitment);
+            digest.raw(specialization_commitment);
+            digest.raw(realization_contract_commitment);
         }
         BoundaryApplicationRealization::ExactCompilerIntrinsic { execution } => {
-            digest.update([2]);
-            digest.update(effects::compiler_intrinsic_execution_identity_bytes(
+            digest.byte(2);
+            digest.raw(&effects::compiler_intrinsic_execution_identity_bytes(
                 *execution,
             ));
         }
     }
 }
 
-fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update(canonical_usize(bytes.len()));
-    digest.update(bytes);
-}
-
-fn canonical_usize(value: usize) -> [u8; 8] {
-    u64::try_from(value)
-        .expect("canonical D29 identity length fits u64")
-        .to_le_bytes()
+fn hash_bytes(digest: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
+    digest.bytes(bytes);
 }
 
 #[cfg(test)]

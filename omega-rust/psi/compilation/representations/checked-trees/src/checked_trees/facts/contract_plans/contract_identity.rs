@@ -13,7 +13,6 @@ use super::{CrashInterface, MachineContractCommitment, MachineContractIdentity};
 use language_semantics::{
     BlockingInterface, MachineSupplyMode, SuspensionInterface, SynchronousInvocationInterface,
 };
-use sha2::{Digest, Sha256};
 use std::hash::{Hash, Hasher};
 use typed_trees::type_identity::NormalizedTypeIdentity;
 
@@ -159,14 +158,14 @@ pub fn contract_identity(
 
 pub(super) struct ContractHasher {
     report: semantic_vocabulary::Fnv1a,
-    commitment: Sha256,
+    commitment: crate::digest_encoder::DomainDigestEncoder,
 }
 
 impl ContractHasher {
     pub(super) fn new(domain: &[u8]) -> Self {
         let mut identity = Self {
             report: semantic_vocabulary::Fnv1a::new(),
-            commitment: Sha256::new(),
+            commitment: crate::digest_encoder::DomainDigestEncoder::new(b""),
         };
         identity.write(domain);
         identity
@@ -175,7 +174,7 @@ impl ContractHasher {
     pub(super) fn complete(self) -> MachineContractIdentity {
         MachineContractIdentity {
             report_fingerprint: self.report.finish(),
-            commitment: MachineContractCommitment::from_digest(self.commitment.finalize().into()),
+            commitment: MachineContractCommitment::from_digest(self.commitment.finish().into()),
         }
     }
 }
@@ -192,7 +191,7 @@ impl Hasher for ContractHasher {
     }
 
     fn write(&mut self, bytes: &[u8]) {
-        self.commitment.update(bytes);
+        self.commitment.raw(bytes);
         self.report.bytes(bytes);
     }
 
