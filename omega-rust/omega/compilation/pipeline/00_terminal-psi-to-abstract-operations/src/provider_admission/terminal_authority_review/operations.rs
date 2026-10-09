@@ -69,8 +69,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | abstract_operations::bitwise_not_or_less_pair_pattern!(..)
         | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
-        | AbstractOperation::ScalarRepresentationView { .. }
-        | AbstractOperation::IntegerBitwiseAnd { .. }
+        | abstract_operations::bitwise_and_or_view_pair_pattern!(..)
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | AbstractOperation::IntegerShift { .. }
         | AbstractOperation::IntegerArithmetic { .. }

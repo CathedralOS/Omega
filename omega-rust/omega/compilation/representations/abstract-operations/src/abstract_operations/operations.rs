@@ -1358,3 +1358,11 @@ macro_rules! bitwise_not_or_less_pair_pattern {
             | $crate::AbstractOperation::IntegerLessOrEqual { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! bitwise_and_or_view_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::IntegerBitwiseAnd { $($fields)* }
+            | $crate::AbstractOperation::ScalarRepresentationView { $($fields)* }
+    };
+}

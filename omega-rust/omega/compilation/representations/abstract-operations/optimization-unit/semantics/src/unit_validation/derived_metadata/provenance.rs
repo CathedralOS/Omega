@@ -71,8 +71,7 @@ pub(crate) fn expected_provenance(
         | abstract_operations::integer_equal_less_pair_pattern!(psi_operation, ..)
         | abstract_operations::bitwise_not_or_less_pair_pattern!(psi_operation, ..)
         | abstract_operations::integer_widen_or_exact_cast_pattern!(psi_operation, ..)
-        | O::ScalarRepresentationView { psi_operation, .. }
-        | O::IntegerBitwiseAnd { psi_operation, .. }
+        | abstract_operations::bitwise_and_or_view_pair_pattern!(psi_operation, ..)
         | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation, ..)
         | O::IntegerShift { psi_operation, .. }
         | O::IntegerArithmetic { psi_operation, .. }
