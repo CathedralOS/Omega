@@ -3,6 +3,8 @@
 //! Selection may clear a body's mutable target marker. A specialization may
 //! instead hold a fresh machine symbol outside the family roster. Both readers
 //! need the same exact family/origin join, never a target guessed from names.
+//! Families bind only Product declarations; a Build-scope body keeps the
+//! marker it was authored with, because no family selection reaches it.
 
 use super::TypedTrees;
 use symbols::SymbolHandle;
@@ -53,11 +55,26 @@ impl TypedTrees {
                     continue;
                 }
             }
-            if machine.target.is_some() {
+            if let Some(target) = machine.target.as_ref() {
+                // Families bind only Product declarations. A Build-scope
+                // checked instance enters no family selection, so no
+                // admission cleared its marker: the marker is its tag.
+                if self.declared_outside_product_scope(machine.symbol) {
+                    return Ok(Some(target.as_str()));
+                }
                 return Err("target-tagged machine has no authored family member");
             }
             return Ok(None);
         }
         Err("authored target specialization origins contain a cycle")
+    }
+
+    /// Whether `symbol` was declared in a non-Product dependency scope, the
+    /// complement of the declarations whose target families stage 02 binds.
+    fn declared_outside_product_scope(&self, symbol: SymbolHandle) -> bool {
+        self.symbols
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| self.symbols.source_file(span))
+            .is_some_and(|file| file.dependency_scope != source::DependencyScope::Product)
     }
 }

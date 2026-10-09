@@ -504,7 +504,7 @@ fail/build/artifact_only_unsealed_output_refused rejected 1440ms expected publis
 	required output `manifest.txt` of `build` failed: staged output never sealed
 fail/build/boundary_acceptance_fabricated_activation rejected 877ms expected @b429d3348cac+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
-fail/build/build_effects_undeclared rejected 97ms expected @d491b0cca867+wt
+fail/build/build_effects_undeclared rejected 97ms expected @a2a00c05481a+wt
 	`build` reaches boundary service `Console` -- build.omg may not reach runtime boundary services; use the compiler-owned Build facets
 fail/build/build_fuel_exhausted rejected 1367ms expected @a7d5ff53f2ca
 	build-time evaluation of `build` failed: build-evaluation aggregate fuel sponsor exhausted at 1 fuel units

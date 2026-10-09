@@ -2607,8 +2607,6 @@ crash and native exit behavior.
     of `source/library/alloc/bump.omg` reports
     `retained_buffer::Held.storage` already transferred and three
     `Extent::Granted` call-result qualifications unproved.
-  - `fail/build/build_effects_undeclared` reports "target-tagged machine has no
-    authored family member" instead of its effect refusal.
   - `interrupt_table_canary` and `secondary_processor_canary` select providers
     but lack an executable intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that
     dependency.
