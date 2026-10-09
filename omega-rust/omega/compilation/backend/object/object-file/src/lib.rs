@@ -52,16 +52,15 @@
 //! `object_target_policy`, and an undeclared pair answers `None` there rather
 //! than matching a format wildcard.
 
-//! The architecture and object-format tag mappings are written out three times:
-//! as `u32` in `object_plan/container/ids.rs`, as `u8` in the relocation-free object codec,
-//! and in the machine-code representation's text-section identity. A shared
+//! The architecture and object-format tag mappings are written out twice:
+//! as `u8` in the relocation-free object codec and in the machine-code
+//! representation's text-section identity. A shared
 //! `to_tag()` on the enums is the obvious
-//! cleanup and would be wrong. These are three independently versioned wire
-//! formats - OMGOBJ v6, OMGTRO v2, and the v3 text-section hash schema - so one
-//! shared table means a change made for one format silently changes the other
-//! two, and silently reinterprets every text-section identity already hashed and
-//! stored. The duplication is the version boundary. Worth knowing before you
-//! trust it: only the `object_plan/container/ids.rs` copy is pinned by a test.
+//! cleanup and would be wrong. These are independently versioned wire
+//! formats, so one
+//! shared table means a change made for one format silently changes the
+//! other, and silently reinterprets every text-section identity already hashed and
+//! stored. The duplication is the version boundary.
 //!
 //! `RelocationOrigin::SemanticOperation` and `RelocationOrigin::SemanticEdge`
 //! carry byte-identical payloads - a symbol handle and a `u64` - and still get
@@ -97,12 +96,7 @@
 //! `RelocationPlan` into its final image) and by the optimization pipeline
 //! through the relocation-free lane.
 //!
-//! @Note: `OBJECT_CONTAINER_VERSION` is 6 and the constant says nothing about
-//! why. The only surviving record is the name of the test beside it,
-//! `object_container_version_covers_semantic_edge_relocation_origins`: version 6
-//! is the one that added the `SemanticEdge` origin, so an older reader cannot
-//! mistake tag 4 for something it knows. Do not bump it without leaving the same
-//! kind of trace. OMGTRO version 2 has its own trace beside the constant:
+//! @Note: OMGTRO version 2 carries a trace beside the constant:
 //! it is the version that added the normalized-foreign import plan
 //! (`normalized_imports` plus `unresolved_normalized_foreign_calls`), and the
 //! test `omgtro_version_2_covers_normalized_foreign_imports` pins it.
@@ -139,7 +133,6 @@ pub use names::{
     object_function_symbol, object_symbol_handle_by_foreign_locator,
     object_symbol_name, section_name,
 };
-pub(crate) use names::symbol_section_name;
 pub use object_plan::container::{ ObjectContainerOutput,
 };
 pub use object_plan::relocations::{

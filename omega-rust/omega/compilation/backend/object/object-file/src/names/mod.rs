@@ -89,13 +89,6 @@ pub fn object_function_symbol(
         .then_some((binding.symbol, symbol))
 }
 
-/// Stable object-local symbol for a non-entry lowered function.
-///
-/// Source spelling is deliberately absent: independently selected source and
-/// import names may coincide, while compiler-private identity cannot.
-pub(crate) fn private_function_symbol_name(identity: MachineFunctionIdentity) -> Option<String> {
-    identity.private_symbol()
-}
 
 pub fn entry_symbol_name(target: NativeTarget) -> String {
     object_target_policy(target)
@@ -115,6 +108,7 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
     .to_owned()
 }
 
+
 pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
     match section {
         SymbolSection::None => String::new(),
@@ -125,8 +119,8 @@ pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) 
 #[cfg(test)]
 mod tests {
     use super::{
-        entry_symbol_name, object_symbol_handle_by_foreign_locator, private_function_symbol_name,
-        section_name, symbol_section_name,
+        entry_symbol_name, object_symbol_handle_by_foreign_locator, section_name,
+        symbol_section_name,
     };
     use crate::{NormalizedImportPlan, ObjectPlan, SectionKind, SymbolSection};
     use function_identity::MachineFunctionIdentity;
@@ -135,21 +129,6 @@ mod tests {
         normalize_foreign_locator,
     };
 
-    #[test]
-    fn private_function_names_bind_terminal_program_and_placement() {
-        let caller = terminal_psi::TerminalPsiIdentity {
-            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
-            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
-        };
-        let first = MachineFunctionIdentity::callback_thunk(caller, 0).unwrap();
-        let second = MachineFunctionIdentity::callback_thunk(caller, 1).unwrap();
-        assert_eq!(private_function_symbol_name(first), first.private_symbol());
-        assert_ne!(
-            private_function_symbol_name(first),
-            private_function_symbol_name(second)
-        );
-        assert!(private_function_symbol_name(MachineFunctionIdentity::default()).is_none());
-    }
 
     #[test]
     fn foreign_locator_lookup_joins_exact_coordinates_and_rejects_duplicates() {
