@@ -18,14 +18,6 @@ impl DomainDigestEncoder {
         self.0.finalize().into()
     }
 
-    pub(crate) fn byte(&mut self, value: u8) {
-        self.0.update([value]);
-    }
-
-    pub(crate) fn len(&mut self, value: usize) {
-        self.0.update((value as u64).to_le_bytes());
-    }
-
     pub(crate) fn u64(&mut self, value: u64) {
         self.0.update(value.to_le_bytes());
     }

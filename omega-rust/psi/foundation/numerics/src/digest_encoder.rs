@@ -22,10 +22,6 @@ impl DomainDigestEncoder {
         self.0.update([value]);
     }
 
-    pub(crate) fn len(&mut self, value: usize) {
-        self.0.update((value as u64).to_le_bytes());
-    }
-
     pub(crate) fn u64(&mut self, value: u64) {
         self.0.update(value.to_le_bytes());
     }
@@ -33,11 +29,6 @@ impl DomainDigestEncoder {
     /// Feeds bytes with no length frame — for callers whose protocol feeds
     /// fixed-width or self-delimiting content.
     pub(crate) fn raw(&mut self, bytes: &[u8]) {
-        self.0.update(bytes);
-    }
-
-    pub(crate) fn bytes(&mut self, bytes: &[u8]) {
-        self.len(bytes.len());
         self.0.update(bytes);
     }
 }
