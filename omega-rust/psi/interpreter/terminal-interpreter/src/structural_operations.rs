@@ -515,43 +515,19 @@ impl TerminalExecution<'_> {
                         zero(*scalar_type).ok_or_else(malformed)?,
                     );
                 }
-                terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { path, scalar_type } => {
+                terminal_semantics::ZeroedStructuralLeaf::ByteArray { length, .. } => {
                     // Byte views and scalar indexing must share one backing.
                     // Storing these bytes as separate scalar cells would make
                     // writes through a borrowed byte view invisible to the owner.
-                    if let Some((StructuralPathSegment::FixedIndex(_), parent)) = path.split_last()
-                        && let Some(array_type) =
-                            crate::structural_inputs::byte_arrays::array_path_type(
-                                &self.program.structural_types(),
-                                value.structural_type,
-                                parent,
-                            )
-                        && let Some(length) =
-                            crate::structural_inputs::byte_arrays::byte_array_length(
-                                &self.program.structural_types(),
-                                array_type,
-                            )
-                    {
-                        let length = usize::try_from(length).map_err(|_| malformed())?;
-                        self.structural_byte_storage
-                            .entry(StructuralRuntimePlace {
-                                opaque_identity: value.opaque_identity,
-                                path: {
-                                    let mut path = value.path.clone();
-                                    path.extend(
-                                        parent
-                                            .iter()
-                                            .filter(|segment| {
-                                                !matches!(segment, StructuralPathSegment::Case(_))
-                                            })
-                                            .cloned(),
-                                    );
-                                    path
-                                },
-                            })
-                            .or_insert_with(|| ByteSequenceView::new(vec![0; length]));
-                        continue;
-                    }
+                    let length = usize::try_from(*length).map_err(|_| malformed())?;
+                    self.structural_byte_storage
+                        .entry(StructuralRuntimePlace {
+                            opaque_identity: value.opaque_identity,
+                            path: storage_path(),
+                        })
+                        .or_insert_with(|| ByteSequenceView::new(vec![0; length]));
+                }
+                terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. } => {
                     self.structural_primitive_storage.insert(
                         StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,

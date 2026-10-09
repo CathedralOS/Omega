@@ -15,14 +15,16 @@ use terminal_psi::{
 /// Resource ceiling for expanded cells and pending work. Shape admission does
 /// not use this ceiling: large valid types can need another materialization
 /// strategy. Aggregate visits are bounded too, including empty element shapes.
-/// A root with 65,536 scalar array cells also needs room for its record fields
-/// and traversal work. This execution budget is not a language validity limit;
+/// A fixed byte array is one run leaf whatever its extent; a root with 65,536
+/// other scalar array cells also needs room for its record fields and
+/// traversal work. This execution budget is not a language validity limit;
 /// 131,072 keeps materialization bounded without rejecting that ordinary root.
 const MAX_ZEROED_LEAVES: usize = 131_072;
 
 /// One zero-initialized leaf cell of a zero-constructible structural type,
 /// addressed the way runtime storage keys it: a record/common or selected case field
-/// under its parent path, or a scalar array element at its full indexed path.
+/// under its parent path, a scalar array element at its full indexed path, or
+/// a whole fixed byte array at the array's own path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ZeroedStructuralLeaf {
     RecordField {
@@ -50,6 +52,15 @@ pub enum ZeroedStructuralLeaf {
     ArrayScalar {
         path: Vec<StructuralPathSegment>,
         scalar_type: ScalarType,
+    },
+    /// A non-empty fixed array of unsigned 8-bit integers: `length`
+    /// contiguous zero bytes at `path`. Byte storage is one backing per
+    /// array, so the run is one leaf whatever its extent; a consumer that
+    /// stores bytes individually expands it to the elements `length - 1`
+    /// down to `0`, the order a per-element walk visits them.
+    ByteArray {
+        path: Vec<StructuralPathSegment>,
+        length: u64,
     },
     /// The case-tag cell of a sum whose zeroed image selects its first
     /// declared case — the tag stores the case ordinal and all-zero bits
@@ -99,18 +110,8 @@ impl ZeroedStructuralLeaf {
             | ZeroedStructuralLeaf::ByteSequenceField { path, .. }
             | ZeroedStructuralLeaf::CaseField { path, .. }
             | ZeroedStructuralLeaf::ArrayScalar { path, .. }
+            | ZeroedStructuralLeaf::ByteArray { path, .. }
             | ZeroedStructuralLeaf::SumSelection { path, .. } => path,
-        }
-    }
-
-    /// The leaf's scalar storage type, including a byte field's length cell.
-    pub fn scalar_type(&self) -> ScalarType {
-        match self {
-            ZeroedStructuralLeaf::RecordField { scalar_type, .. }
-            | ZeroedStructuralLeaf::ByteSequenceField { scalar_type, .. }
-            | ZeroedStructuralLeaf::CaseField { scalar_type, .. }
-            | ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. }
-            | ZeroedStructuralLeaf::SumSelection { scalar_type, .. } => *scalar_type,
         }
     }
 }
@@ -359,6 +360,22 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                 leaves.push(ZeroedStructuralLeaf::ArrayScalar {
                     path,
                     scalar_type: *scalar_type,
+                });
+            }
+            StructuralTypeShape::FixedArray { element, length }
+                if *length != 0
+                    && declarations.iter().any(|declaration| {
+                        declaration.id == *element
+                            && matches!(declaration.shape,
+                                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                                    if integer.sign() == IntegerSign::Unsigned
+                                        && integer.bits() == 8
+                                        && !integer.is_address())
+                    }) =>
+            {
+                leaves.push(ZeroedStructuralLeaf::ByteArray {
+                    path,
+                    length: *length,
                 });
             }
             StructuralTypeShape::FixedArray { element, length } => {

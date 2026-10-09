@@ -4,10 +4,12 @@ use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
-use semantic_vocabulary::{ScalarType, StructuralCaseId, StructuralFieldId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, ScalarType, StructuralCaseId, StructuralFieldId,
+};
 use terminal_psi::{
-    StructuralMultiplicity, StructuralOperationResult, StructuralTypeDeclaration,
-    StructuralTypeShape, find_structural_type,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 
 /// Admit a zeroed establishment and reconstruct its exact home shape. The
@@ -126,6 +128,27 @@ pub(super) fn storage(
                     *scalar_type,
                     declarations,
                 )?
+            }
+            terminal_semantics::ZeroedStructuralLeaf::ByteArray { path, length } => {
+                // One store per byte, last element first: the canonical
+                // order of the run's elements.
+                let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).ok()?);
+                for index in (0..*length).rev() {
+                    let mut element = path.clone();
+                    element.push(StructuralPathSegment::FixedIndex(index));
+                    let (offset, width, elements) =
+                        crate::structural_inputs::structural_reference_input::primitive_geometry(
+                            result.structural_type,
+                            &element,
+                            byte,
+                            declarations,
+                        )?;
+                    if !elements.is_empty() {
+                        return None;
+                    }
+                    stores.push((offset, u8::try_from(width).ok()?));
+                }
+                continue;
             }
             terminal_semantics::ZeroedStructuralLeaf::SumSelection {
                 path,
