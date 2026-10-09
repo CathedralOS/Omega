@@ -1,9 +1,14 @@
 //! Deriving claim outcomes: which claim each state result, named
 //! transition and call argument settles, and the rewrites that follow call
 //! result origins.
+//!
+//! Input outcomes forward the caller's held identity. Callee establishments
+//! instead name templates: each receiving occurrence keeps its locally
+//! allocated identity, while `joins` retains the complete call/return
+//! correspondence. A result binding is not new resource authority.
 
 mod joins;
-pub(crate) use joins::{publish_conditional_claim_joins, validate_conditional_claim_joins};
+pub(crate) use joins::{publish_call_claim_joins, validate_call_claim_joins};
 
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
@@ -1086,6 +1091,11 @@ pub(crate) fn call_result_origin_rewrites(
             .entries
             .iter()
             .filter(|entry| entry.output_path == receiving_path)
+            // Only an input correspondence forwards a caller-held identity.
+            // A callee establishment is a template shared by all invocations;
+            // its completed result keeps the receiving occurrence's identity
+            // and joins its exact return source through a call receipt.
+            .filter(|entry| matches!(entry.source, CheckedClaimOutcomeSource::Input { .. }))
             .filter_map(|entry| {
                 bind_claim_outcome_source_at_call(
                     program,
@@ -1112,43 +1122,6 @@ pub(crate) fn call_result_origin_rewrites(
         else {
             continue;
         };
-        // A callee-local result of an unresolved checked call is not an
-        // established root. Wait for its exact correspondence; otherwise a
-        // wrapper would share that unresolved occurrence across invocations.
-        if let CheckedClaimOutcomeSource::Established { provenance, .. } = source {
-            match provenance {
-                PermissionProvenance::Joined { .. } => continue,
-                PermissionProvenance::Established {
-                    state_symbol,
-                    source: PermissionEventSource::Statement { statement_index },
-                    ..
-                } => {
-                    if let Some(source_state) = program.state_by_symbol(*state_symbol)
-                        && let Some(statement) = program
-                            .statement_table
-                            .statements(source_state.statement_nodes)
-                            .get(*statement_index)
-                    {
-                        let expression = match statement {
-                            StatementNode::LocalData(local) => local.initial_value,
-                            StatementNode::Assignment(assignment) => assignment.value,
-                            _ => typed_trees::expression::ExpressionHandle::invalid(),
-                        };
-                        if expression.is_valid()
-                            && let typed_trees::expression::ExpressionNode::Call(call) =
-                                program.expression_table.expression(expression)
-                            && validation::call_target_state(program, call.target_symbol).is_some()
-                            && !maps
-                                .iter()
-                                .any(|map| map.state_symbol == call.target_symbol)
-                        {
-                            continue;
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
         rewrites.push((
             locally_minted,
             event.claim_identity,

@@ -34,7 +34,6 @@ pub(crate) fn structural_call_arguments(
     callee: super::CallTarget<'_>,
     call_site: &validation::CallSite<'_>,
     statement_index: usize,
-    allow_field_path_projection: bool,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     caller_operations: &[checked_trees::CheckedUnitEffectOperationPlan],
     trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
@@ -245,7 +244,6 @@ pub(crate) fn structural_call_arguments(
                 result,
                 target,
                 &target_identity,
-                allow_field_path_projection && callee.supply_mode == MachineSupplyMode::CheckedBody,
                 caller_operations,
             )?);
             continue;
@@ -386,12 +384,7 @@ pub(crate) fn structural_call_arguments(
         let path = if callee.supply_mode.is_boundary_declaration() && !callee.body_is_present {
             boundary_parameter_path(argument, custody, &[])
         } else {
-            ordinary_parameter_path(
-                argument,
-                custody,
-                callee.supply_mode,
-                allow_field_path_projection,
-            )
+            ordinary_parameter_path(argument, custody, callee.supply_mode)
         }?;
         arm("call operation: structural arguments: parameter identity");
         if path.is_empty()

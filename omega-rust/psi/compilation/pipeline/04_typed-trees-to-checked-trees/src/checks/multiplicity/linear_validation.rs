@@ -41,7 +41,7 @@ pub(crate) fn validate_linear_permission_events(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    super::claim_outcomes::validate_conditional_claim_joins(
+    super::claim_outcomes::validate_call_claim_joins(
         program,
         &facts.borrow,
         &facts.flow.ownership,

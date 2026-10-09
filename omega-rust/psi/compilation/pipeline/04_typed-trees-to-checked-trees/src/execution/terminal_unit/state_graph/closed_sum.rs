@@ -888,7 +888,6 @@ fn subject_call(
         &[],
         entry_claims,
         call,
-        false,
         Some(crate::execution::terminal_unit::calls::ExpectedCallValueResult::Structural(&result)),
         &structural_results,
         operations,

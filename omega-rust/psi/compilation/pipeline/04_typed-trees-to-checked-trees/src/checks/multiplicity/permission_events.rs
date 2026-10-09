@@ -4,7 +4,7 @@
 use super::cleanup_dispositions::RemainingCustody;
 use crate::checks::multiplicity::claim_outcomes::{
     apply_claim_origin_rewrites, call_result_origin_rewrites, derive_checked_claim_outcome_maps,
-    publish_claim_outcome_maps, publish_conditional_claim_joins,
+    publish_call_claim_joins, publish_claim_outcome_maps,
 };
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeMap, ClaimIdentityAllocator, LinearPlace,
@@ -336,7 +336,7 @@ pub(crate) fn prepare_permission_events(
         .permissions
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
-    publish_conditional_claim_joins(program, facts);
+    publish_call_claim_joins(program, facts);
     let joined_events = facts
         .flow
         .ownership
@@ -770,17 +770,10 @@ pub(crate) fn exclude_case_alternative(
     }
 }
 
-/// Join a state call's receiving establishment to the unique claim and
-/// root-lineage provenance that the target state transferred through its
-/// result.
-///
-/// Intra-state production can propagate provenance directly through source
-/// expressions. A zero-argument state call has no caller-side source place,
-/// though: without this join, binding a locally-created linear result in the
-/// caller would mint a second identity and origin even when the target has one
-/// unambiguous outgoing obligation. Direct aggregate construction and
-/// path-aligned results publish structural output paths; opaque multi-output
-/// calls remain conservative until they publish an explicit result mapping.
+/// Forward an invariant input/result correspondence to the caller's held
+/// claim. A callee-local establishment instead retains the receiving
+/// occurrence's identity; the later call join records its exact return
+/// correspondence without copying a template identity across invocations.
 fn reconcile_state_call_result_origins(
     program: &dyn ::validation::CheckingInput,
     ownership: &checked_trees::FlowOwnershipFacts,

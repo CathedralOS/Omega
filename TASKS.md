@@ -995,15 +995,6 @@ defines the complete product bar.
   Shared failures, by owner (rerun the unchanged fixture after each repair):
   - Terminal interpreter declines on programs that pass natively
     (`omega run --both` status 201):
-    - `pass/ownership/linear_result_{member_projection_arguments,owners_residual_cleanup}_exit`
-      fail with ClaimTransferMismatch in `rebind_structural_result_claims`:
-      two live results of the same callee get the same caller ClaimIds,
-      because checking's `claim_outcomes.rs` (`call_result_origin_rewrites`,
-      `claim_origin_for_source`) gives every invocation's receipt the callee's
-      static claim identity and stage 05's roster then maps both to one id.
-      Keeping the caller's identity instead makes `linear_validation.rs`
-      reject them ("no unique conserved claim mapping"); the repair needs
-      per-invocation claim identities in checking and a per-occurrence roster.
     - `pass/calls/runtime_constructed_payload_arguments_exit` and
       `pass/wire/wire_preserving_decode_relay_exit` read a dispatched sum's
       payload after the case edge disposed the subject

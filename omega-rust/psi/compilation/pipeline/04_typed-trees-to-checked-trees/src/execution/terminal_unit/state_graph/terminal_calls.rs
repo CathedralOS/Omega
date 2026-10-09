@@ -313,7 +313,6 @@ pub(super) fn arm_call(
         &[],
         entry_claims,
         call,
-        false,
         structural_result
             .as_ref()
             .map(ExpectedCallValueResult::Structural)

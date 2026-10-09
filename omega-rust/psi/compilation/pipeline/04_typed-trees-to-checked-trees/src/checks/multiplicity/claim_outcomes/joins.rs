@@ -1,7 +1,8 @@
-//! A result may continue different exact claims on different normal exits.
-//! Keep that correspondence separate from unconditional content equalities.
-//! Requiring every exit to have the same source would reject ordinary case
-//! elimination; selecting one source would manufacture a false lineage.
+//! Bind returned custody to an exact call occurrence, separately from lineage.
+//! A callee-local establishment needs this correspondence even with one exit:
+//! its static identity cannot identify two simultaneously live invocations.
+//! Input forwarding keeps the caller's held identity; differing exit sources
+//! retain every alternative rather than manufacturing an unconditional lineage.
 
 use super::{
     argument_for_parameter, bind_claim_outcome_source_at_arguments,
@@ -446,6 +447,18 @@ fn expand_joined_frontier(
                 &ownership.segments,
                 events,
             )?;
+            // Expansion explains lineage; it must not replace the exact
+            // caller occurrence with a shared callee establishment template.
+            // The child frontier already rejects duplicate return sources.
+            // Input forwarding still binds the caller's actual held claim.
+            if matches!(source, CheckedClaimOutcomeSource::Established { .. })
+                && let CheckedClaimOutcomeSource::Established {
+                    claim_identity: expanded_identity,
+                    ..
+                } = &mut entry.source
+            {
+                *expanded_identity = claim_identity;
+            }
             if matches!(entry.source, CheckedClaimOutcomeSource::Established { provenance:
                 PermissionProvenance::Joined { machine_symbol: rebound_machine, state_symbol: rebound_state,
                     source: PermissionEventSource::Call { statement_index: rebound_statement, call_ordinal: rebound_ordinal, .. }, .. }, .. }
@@ -768,22 +781,28 @@ fn derive_receipts(
                 excluded_input,
             });
         }
-        // An ordinary origin rewrite carries one conserved active claim, but
-        // cannot carry authenticated absence. Preserve that disposition even
-        // when every exit agrees or the callee has just one return: forwarding
-        // a known sum must not mint the other case's payload obligation.
+        if !complete || alternatives.is_empty() {
+            continue;
+        }
+        let first = &alternatives[0];
+        let shared_source = alternatives.iter().all(|alternative| {
+            alternative.source.as_ref().map(|(source, _)| source)
+                == first.source.as_ref().map(|(source, _)| source)
+                && alternative.excluded_input == first.excluded_input
+        });
+        // An invariant input source forwards the existing caller claim.
+        // A callee-local source instead needs an occurrence-local binding,
+        // even when every exit agrees. Active versus excluded custody also
+        // keeps its complete frontier, not just the one active source.
+        let callee_establishment = first.source.as_ref().is_some_and(|(source, _)| {
+            matches!(source, CheckedClaimOutcomeSource::Established { .. })
+        });
+        // Authenticated absence is a disposition, never an active claim an
+        // ordinary origin rewrite could forward, even on a uniform exit set.
         let carries_absence = alternatives
             .iter()
             .any(|alternative| alternative.source.is_none());
-        if !complete
-            || alternatives.is_empty()
-            || (!carries_absence
-                && alternatives.iter().all(|alternative| {
-                    alternative.source.as_ref().map(|(source, _)| source)
-                        == alternatives[0].source.as_ref().map(|(source, _)| source)
-                        && alternative.excluded_input == alternatives[0].excluded_input
-                }))
-        {
+        if shared_source && !callee_establishment && !carries_absence {
             continue;
         }
         // Only the result occurrence allocated at this call can name its join.
@@ -857,7 +876,7 @@ fn store_source(
     }
 }
 
-pub(crate) fn publish_conditional_claim_joins(
+pub(crate) fn publish_call_claim_joins(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) {
@@ -951,7 +970,7 @@ fn read_source(
     })
 }
 
-pub(crate) fn validate_conditional_claim_joins(
+pub(crate) fn validate_call_claim_joins(
     program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     ownership: &FlowOwnershipFacts,
@@ -1031,7 +1050,7 @@ pub(crate) fn validate_conditional_claim_joins(
         });
     if !valid {
         diagnostics.push(Diagnostic::error(
-            "conditional claim joins differ from exact source exit and call replay",
+            "call claim joins differ from exact source exit and call replay",
         ));
     }
 }

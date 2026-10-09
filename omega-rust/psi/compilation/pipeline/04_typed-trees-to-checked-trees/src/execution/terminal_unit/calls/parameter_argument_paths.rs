@@ -155,7 +155,6 @@ pub(crate) fn ordinary_parameter_path(
     argument: ParameterArgument<'_>,
     custody: ArgumentCustody,
     supply_mode: MachineSupplyMode,
-    allow_field_path_projection: bool,
 ) -> Option<ArgumentPath> {
     let checked_body = supply_mode == MachineSupplyMode::CheckedBody;
     let unrestricted = custody.multiplicity == Multiplicity::Unrestricted;
@@ -233,7 +232,7 @@ pub(crate) fn ordinary_parameter_path(
         }
         ArgumentPathShape::Static {
             fixed_indexes: 0, ..
-        } if allow_field_path_projection => argument.exact_projection_path(),
+        } => argument.exact_projection_path(),
         // A runtime index loans one element of a borrowed subtree without
         // transferring ownership, the same subloan the receiver lane admits;
         // a shared source cannot lend mutation.

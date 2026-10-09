@@ -1,4 +1,6 @@
 //! Result operands retain exact source access, ownership, and projected storage.
+//! Projection admission belongs to that source/formal correspondence and its
+//! custody, not whether the consuming call is a statement or a value operand.
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
@@ -45,7 +47,6 @@ pub(super) fn argument(
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
     target_identity: &str,
-    allow_projection: bool,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let mut argument = argument_contract(
@@ -59,7 +60,6 @@ pub(super) fn argument(
         result,
         parameter,
         target_identity,
-        allow_projection,
     )?;
     // Bind producer operands to the current home without replacing an explicit
     // loan descriptor: its source already retains captured geometry and access.
@@ -87,7 +87,6 @@ fn argument_contract(
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
     target_identity: &str,
-    allow_projection: bool,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let (source_machine, source_state) = validation::find_state_with_machine(program, state)?;
     if let Some(argument) = super::super::reference_results::record_argument(
@@ -149,8 +148,7 @@ fn argument_contract(
     // A projected borrow — shared, mutable or write-only — lends a subtree of
     // a result binding that stays live after the call. The loan evidence
     // comes from the borrow record below, rejoined per access kind, rather
-    // than from an owned-projection permission, so this lane is separate
-    // from `allow_projection`: no custody moves.
+    // than from an owned-projection permission: no custody moves.
     let projected_borrow = projected && access != CheckedStructuralAccess::Owned;
     // A range lends the original array's window, not the element type that
     // generic indexing projects. Reuse the parameter operand's range walk,
@@ -441,9 +439,6 @@ fn argument_contract(
         return None;
     }
     let path = if projected {
-        if !projected_borrow && !(allow_projection || owned_reference_record) {
-            return None;
-        }
         projected_path?
     } else {
         Vec::new()

@@ -269,7 +269,6 @@ pub(super) fn plan(
         trivial_affine_locals,
         entry_claims,
         call,
-        true,
         result
             .as_ref()
             .map(|result| ExpectedCallValueResult::Scalar(result.primitive_type))
