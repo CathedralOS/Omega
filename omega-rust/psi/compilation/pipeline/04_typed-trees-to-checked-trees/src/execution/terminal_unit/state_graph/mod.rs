@@ -512,32 +512,24 @@ pub(super) fn build_traced(
                 | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
         ) {
-            // A ClosedSum subject's state-exit disposal is the case
+            // A consumed ClosedSum subject's state-exit disposal is the case
             // dispatch's own consumption, already proved inside the
             // terminator build; exclude it from the result-local roster.
-            let case_subject_local = match &terminator {
-                CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } => {
-                    match &subject.source {
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal,
-                        } => operations
-                            .iter()
-                            .find_map(|operation| {
-                                let (result, _) = operation.discardable_structural_result()?;
-                                (result.binding_ordinal == *binding_ordinal)
-                                    .then_some(result.statement_index)
-                            })
-                            .and_then(|statement_index| {
-                                match statements.get(statement_index as usize) {
-                                    Some(StatementNode::LocalData(local)) => Some(local.symbol),
-                                    _ => None,
-                                }
-                            }),
+            // The root of a projected subject stays on it.
+            let case_subject_local = result_custody::consumed_case_subject(&terminator)
+                .and_then(|binding_ordinal| {
+                    operations.iter().find_map(|operation| {
+                        let (result, _) = operation.discardable_structural_result()?;
+                        (result.binding_ordinal == binding_ordinal)
+                            .then_some(result.statement_index)
+                    })
+                })
+                .and_then(
+                    |statement_index| match statements.get(statement_index as usize) {
+                        Some(StatementNode::LocalData(local)) => Some(local.symbol),
                         _ => None,
-                    }
-                }
-                _ => None,
-            };
+                    },
+                );
             crate::execution::terminal_cleanup::state_exit_result_locals(
                 program,
                 facts,

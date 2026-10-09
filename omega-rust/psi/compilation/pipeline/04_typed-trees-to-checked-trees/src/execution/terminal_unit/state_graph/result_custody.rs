@@ -12,7 +12,10 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
     PermissionEventSource, StatementNode, control, local_results,
 };
-use checked_trees::CheckedUnitStructuralParameterPlan;
+use checked_trees::{
+    CheckedConditionalReturnArm, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralParameterPlan,
+};
 
 pub(super) fn account(
     program: &dyn ::validation::CheckingInput,
@@ -273,6 +276,31 @@ pub(super) fn account(
         let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
             !release_owned_view && edge.result_moves(result) == 1
         };
+        // A returning arm owns the result when its call or construction
+        // consumes it, or when the return retires it. Abnormal completion
+        // abandons custody; it must not invent a normal disposal obligation
+        // or run cleanup.
+        let return_arm_owns =
+            |arm: &CheckedConditionalReturnArm,
+             uses: &[(usize, &CheckedUnitStructuralArgumentPlan)]| {
+                matches!(arm, CheckedConditionalReturnArm::Crash { .. })
+                    || arm
+                        .operation_dependencies()
+                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                        .any(|operation| {
+                            terminator_call_consumes_result(operation, result.binding_ordinal)
+                        })
+                    || uses
+                        .iter()
+                        .any(|(_, argument)| construction_owns_result(argument))
+                    || permits_disposal(&[])
+            };
+        // With no normal exit there is no transfer/disposal owner here to
+        // count beside an earlier in-sequence consumption.
+        let has_normal_exit = !terminator.successors().is_empty()
+            || return_arms
+                .iter()
+                .any(|arm| !matches!(arm, CheckedConditionalReturnArm::Crash { .. }));
         let mut closed_sum_all_reference_returns = false;
         let consumed = match terminator {
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
@@ -309,47 +337,18 @@ pub(super) fn account(
                 // conversely, a moving arm cannot cover an uncovered sibling.
                 // The source checker owns move validity; normal-edge cleanup
                 // retains the exact disposal schedule for each coordinate.
-                let successors = terminator.successors();
-                // With no normal exit there is no transfer/disposal owner
-                // here to count beside an earlier in-sequence consumption.
-                let has_normal_exit = !successors.is_empty()
-                    || return_arms.iter().any(|arm| {
-                        !matches!(
-                            arm,
-                            checked_trees::CheckedConditionalReturnArm::Crash { .. }
-                        )
-                    });
                 has_normal_exit
-                    && successors
+                    && terminator
+                        .successors()
                         .iter()
                         .all(|edge| transferred(edge) || permits_disposal(&[edge]))
                     && return_arms
                         .iter()
                         .zip(&return_construction_uses)
-                        .all(|(arm, uses)| {
-                            // Abnormal completion abandons custody; it must not
-                            // invent a normal disposal obligation or run cleanup.
-                            matches!(
-                                arm,
-                                checked_trees::CheckedConditionalReturnArm::Crash { .. }
-                            ) || arm
-                                .operation_dependencies()
-                                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                                .any(|operation| {
-                                    terminator_call_consumes_result(
-                                        operation,
-                                        result.binding_ordinal,
-                                    )
-                                })
-                                || uses
-                                    .iter()
-                                    .any(|(_, argument)| construction_owns_result(argument))
-                                || permits_disposal(&[])
-                        })
+                        .all(|(arm, uses)| return_arm_owns(arm, uses))
             }
-            CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases, .. } => {
-                if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)
-                {
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
+                if consumed_case_subject(terminator) == Some(result.binding_ordinal) {
                     case_successors.iter().all(|edge| !transferred(edge))
                 } else {
                     // Every reachable case must own this result on its own
@@ -402,7 +401,23 @@ pub(super) fn account(
                         result.multiplicity == Multiplicity::Unrestricted
                             && reference_reborrows == 0
                     } else {
-                        complete_partition || permits_disposal(&case_successors)
+                        // Otherwise each case owns the result on its own
+                        // exit, as a guarded arm does: a successor moves it
+                        // or leaves it to that edge's cleanup, and a
+                        // returning arm consumes or retires it.
+                        let mut return_uses = return_construction_uses.iter();
+                        complete_partition
+                            || has_normal_exit
+                                && cases.iter().all(|case| match &case.outcome {
+                                    checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(
+                                        successor,
+                                    ) => transferred(successor) || permits_disposal(&[successor]),
+                                    checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) => {
+                                        return_uses
+                                            .next()
+                                            .is_some_and(|uses| return_arm_owns(arm, uses))
+                                    }
+                                })
                     }
                 }
             }
@@ -596,6 +611,26 @@ pub(super) fn account(
         *discard_result_on_return = true;
     }
     Some(())
+}
+
+/// The state-local result a closed-sum dispatch consumes: an owned subject
+/// read whole. A field or fixed-index subject only observes a subtree of its
+/// root, which keeps the custody of any other local: each case moves it on,
+/// leaves it to that edge's cleanup, or retires it at a return.
+pub(super) fn consumed_case_subject(
+    terminator: &CheckedComposedUnitControlTerminatorPlan,
+) -> Option<u32> {
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } = terminator else {
+        return None;
+    };
+    match subject.source {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
+            if subject.access == CheckedStructuralAccess::Owned =>
+        {
+            Some(binding_ordinal)
+        }
+        _ => None,
+    }
 }
 
 /// Borrow whole local operands once per supplied construction sequence. The
