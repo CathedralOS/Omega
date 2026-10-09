@@ -353,6 +353,26 @@ pub(crate) fn selected_operator_has_closed_value_denotation(
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> bool {
     use crate::proof_contracts::float_projection_bindings;
+    // A published crash ceiling describes possible abnormal completion, not
+    // a total proof value. Closed kernel result equations describe normal
+    // results only and cannot erase that separate selected interface effect.
+    if program.operator_contracts(operator).iter().any(|contract| {
+        matches!(
+            contract.kind,
+            typed_trees::signature::SignatureContractKind::Crashes { .. }
+        )
+    }) || program.machine(operator.symbol).is_some_and(|machine| {
+        machine.suspends
+            || machine.blocks
+            || program.machine_declares_crash(machine)
+            || !program
+                .service_reach_rows
+                .services(machine.service_reach_row)
+                .is_empty()
+            || !program.machine_owned_data(machine).is_empty()
+    }) {
+        return false;
+    }
     if program
         .operator_parameters(operator)
         .iter()
