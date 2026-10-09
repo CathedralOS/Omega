@@ -121,9 +121,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::ByteSequenceWrite { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | abstract_operations::byte_view_triple_pattern!(..)
-        | O::ByteSequenceLength { .. }
-        | O::EstablishElementView { .. }
-        | O::ElementViewLength { .. }
+        | abstract_operations::byte_view_length_triple_pattern!(..)
         | abstract_operations::element_view_read_write_pair_pattern!(..)
         | O::ElementViewSubslice { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)

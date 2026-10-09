@@ -58,9 +58,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::BooleanConstant { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | AbstractOperation::ByteSequenceSubslice { .. }
-        | AbstractOperation::ByteSequenceLength { .. }
-        | AbstractOperation::EstablishElementView { .. }
-        | AbstractOperation::ElementViewLength { .. }
+        | abstract_operations::byte_view_length_triple_pattern!(..)
         | abstract_operations::element_view_read_write_pair_pattern!(..)
         | AbstractOperation::ElementViewSubslice { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)

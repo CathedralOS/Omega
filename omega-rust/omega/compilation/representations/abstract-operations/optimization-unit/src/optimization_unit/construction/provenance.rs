@@ -58,9 +58,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::ByteSequenceWrite { psi_operation, .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( psi_operation, .. )
         | abstract_operations::byte_view_triple_pattern!(psi_operation, ..)
-        | O::ByteSequenceLength { psi_operation, .. }
-        | O::EstablishElementView { psi_operation, .. }
-        | O::ElementViewLength { psi_operation, .. }
+        | abstract_operations::byte_view_length_triple_pattern!(psi_operation, ..)
         | abstract_operations::element_view_read_write_pair_pattern!(psi_operation, ..)
         | O::ElementViewSubslice { psi_operation, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(psi_operation, ..)

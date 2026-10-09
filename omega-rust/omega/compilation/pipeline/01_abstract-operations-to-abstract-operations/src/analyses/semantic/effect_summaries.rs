@@ -309,9 +309,7 @@ fn operation_effect(
         | O::ReleaseReference { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceSubslice { .. }
-        | O::ByteSequenceLength { .. }
-        | O::EstablishElementView { .. }
-        | O::ElementViewLength { .. }
+        | abstract_operations::byte_view_length_triple_pattern!(..)
         | abstract_operations::element_view_read_write_pair_pattern!(..)
         | O::ElementViewSubslice { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)

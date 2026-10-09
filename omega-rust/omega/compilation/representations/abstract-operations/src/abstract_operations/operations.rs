@@ -1382,3 +1382,12 @@ macro_rules! boundary_or_structural_call_pair_pattern {
             | $crate::AbstractOperation::CallStructural { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! byte_view_length_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::ByteSequenceLength { $($fields)* }
+            | $crate::AbstractOperation::ElementViewLength { $($fields)* }
+            | $crate::AbstractOperation::EstablishElementView { $($fields)* }
+    };
+}
