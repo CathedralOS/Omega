@@ -10,6 +10,7 @@ use calling_conventions::{MachineRegister, RegisterSet};
 use target::NativeTarget;
 
 use crate::X86_64ScalarCallFixupState;
+use crate::cursor::{Cursor, Truncated};
 
 pub const X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT: usize = 90;
 pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH: u8 = 4;
@@ -360,15 +361,15 @@ pub fn validate_x86_64_semantic_unit_wrapper_template(
     if bytes.len() != expected_function_byte_count(request) {
         return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
     }
-    let mut cursor = Cursor { bytes, offset: 0 };
-    cursor.expect(&[0x48, 0x83, 0xec])?;
+    let mut cursor = Cursor::new(bytes);
+    expect(&mut cursor, &[0x48, 0x83, 0xec])?;
     let reserved = u32::from(cursor.byte()?);
     let mut copies = Vec::with_capacity(4);
     for _ in 0..4 {
-        cursor.expect(&[0x48, 0x8b])?;
+        expect(&mut cursor, &[0x48, 0x8b])?;
         let source_register = source_register(cursor.byte()?)?;
         let source_byte_offset = cursor.u32()?;
-        cursor.expect(&[0x48, 0x89, 0x84, 0x24])?;
+        expect(&mut cursor, &[0x48, 0x89, 0x84, 0x24])?;
         copies.push(X86_64SemanticUnitWrapperCopy {
             source_register,
             source_byte_offset,
@@ -378,13 +379,13 @@ pub fn validate_x86_64_semantic_unit_wrapper_template(
     let mut bindings = Vec::with_capacity(3);
     if let Some(receiver) = request.receiver {
         for word in 0..receiver.slot_byte_count / 8 {
-            cursor.expect(&[0x48, 0xc7, 0x84, 0x24])?;
+            expect(&mut cursor, &[0x48, 0xc7, 0x84, 0x24])?;
             if cursor.u32()? != receiver.outgoing_stack_byte_offset + word * 8 || cursor.u32()? != 0
             {
                 return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
             }
         }
-        cursor.expect(&address_prefix(receiver.register)?)?;
+        expect(&mut cursor, &address_prefix(receiver.register)?)?;
         bindings.push(X86_64SemanticUnitWrapperArgumentBinding {
             register: receiver.register,
             outgoing_stack_byte_offset: cursor.u32()?,
@@ -395,7 +396,7 @@ pub fn validate_x86_64_semantic_unit_wrapper_template(
         .iter()
         .map(|binding| binding.register);
     for register in expected_registers {
-        cursor.expect(&address_prefix(register)?)?;
+        expect(&mut cursor, &address_prefix(register)?)?;
         bindings.push(X86_64SemanticUnitWrapperArgumentBinding {
             register,
             outgoing_stack_byte_offset: cursor.u32()?,
@@ -405,19 +406,19 @@ pub fn validate_x86_64_semantic_unit_wrapper_template(
     if cursor.offset != usize::from(relocation.opcode_function_byte_offset) {
         return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
     }
-    cursor.expect(&[0xe8])?;
+    expect(&mut cursor, &[0xe8])?;
     if cursor.offset != usize::from(relocation.field_function_byte_offset)
         || cursor.u32()? != 0
         || cursor.offset != usize::from(relocation.next_instruction_function_byte_offset)
     {
         return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
     }
-    cursor.expect(&[0x48, 0x83, 0xc4])?;
+    expect(&mut cursor, &[0x48, 0x83, 0xc4])?;
     let released = u32::from(cursor.byte()?);
     if cursor.offset != usize::from(relocation.next_instruction_function_byte_offset) + 4 {
         return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
     }
-    cursor.expect(&[0xc3])?;
+    expect(&mut cursor, &[0xc3])?;
     let decoded_copies: [X86_64SemanticUnitWrapperCopy; 4] = copies
         .try_into()
         .map_err(|_| X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?;
@@ -710,51 +711,6 @@ fn address_prefix(
     }
 }
 
-struct Cursor<'bytes> {
-    bytes: &'bytes [u8],
-    offset: usize,
-}
-
-impl Cursor<'_> {
-    fn expect(&mut self, expected: &[u8]) -> Result<(), X86_64SemanticUnitWrapperEncodingError> {
-        let end = self
-            .offset
-            .checked_add(expected.len())
-            .ok_or(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?;
-        if self.bytes.get(self.offset..end) != Some(expected) {
-            return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
-        }
-        self.offset = end;
-        Ok(())
-    }
-
-    fn byte(&mut self) -> Result<u8, X86_64SemanticUnitWrapperEncodingError> {
-        let byte = *self
-            .bytes
-            .get(self.offset)
-            .ok_or(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?;
-        self.offset = self
-            .offset
-            .checked_add(1)
-            .ok_or(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?;
-        Ok(byte)
-    }
-
-    fn u32(&mut self) -> Result<u32, X86_64SemanticUnitWrapperEncodingError> {
-        let end = self
-            .offset
-            .checked_add(4)
-            .ok_or(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?;
-        let bytes = self
-            .bytes
-            .get(self.offset..end)
-            .and_then(|bytes| bytes.try_into().ok())
-            .ok_or(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?;
-        self.offset = end;
-        Ok(u32::from_le_bytes(bytes))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
@@ -976,5 +932,25 @@ mod tests {
                 "resolved byte {index} escaped replay"
             );
         }
+    }
+}
+
+fn expect(
+    cursor: &mut Cursor<'_>,
+    expected: &[u8],
+) -> Result<(), X86_64SemanticUnitWrapperEncodingError> {
+    if cursor
+        .take(expected.len())
+        .map_err(|_| X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?
+        != expected
+    {
+        return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
+    }
+    Ok(())
+}
+
+impl From<Truncated> for X86_64SemanticUnitWrapperEncodingError {
+    fn from(_: Truncated) -> Self {
+        Self::MalformedTemplate
     }
 }
