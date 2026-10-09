@@ -16,9 +16,6 @@ impl<'a> Cursor<'a> {
         Self { encoded, offset: 0 }
     }
 
-    pub(crate) fn remaining(&self) -> usize {
-        self.encoded.len().saturating_sub(self.offset)
-    }
 
     pub(crate) fn take(&mut self, count: usize) -> Result<&'a [u8], Truncated> {
         let end = self.offset.checked_add(count).ok_or(Truncated)?;
