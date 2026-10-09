@@ -142,6 +142,24 @@ impl CheckedIntegerAffineForm {
     }
 }
 
+
+/// The degree-1/offset-0 form returned whenever the witness root meets a
+/// direct fixed-integer leaf pair: no axioms or endpoint steps are needed
+/// and the target is retained whole.
+fn trivial_affine_form(
+    witness: &IntegerAffineWitness,
+    integer_type: IntegerType,
+) -> CheckedIntegerAffineForm {
+    CheckedIntegerAffineForm {
+        root: witness.root.clone(),
+        target: witness.target.clone(),
+        integer_type,
+        coefficient: 1,
+        offset: 0,
+        endpoint_steps: Vec::new(),
+    }
+}
+
 pub fn check_integer_affine_witness(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
@@ -236,14 +254,7 @@ pub fn check_integer_affine_witness(
         && direct_math_leaf(left, *scalar_type).is_some()
         && direct_math_leaf(right, *scalar_type).is_some()
     {
-        return Ok(CheckedIntegerAffineForm {
-            root: witness.root.clone(),
-            target: witness.target.clone(),
-            integer_type: *scalar_type,
-            coefficient: 1,
-            offset: 0,
-            endpoint_steps: Vec::new(),
-        });
+        return Ok(trivial_affine_form(witness, *scalar_type));
     }
     if witness.definition_axioms.is_empty()
         && witness.literal_axioms.is_empty()
@@ -257,14 +268,7 @@ pub fn check_integer_affine_witness(
         && direct_math_leaf(left, *scalar_type).is_some()
         && direct_math_leaf(right, *scalar_type).is_some()
     {
-        return Ok(CheckedIntegerAffineForm {
-            root: witness.root.clone(),
-            target: witness.target.clone(),
-            integer_type: *scalar_type,
-            coefficient: 1,
-            offset: 0,
-            endpoint_steps: Vec::new(),
-        });
+        return Ok(trivial_affine_form(witness, *scalar_type));
     }
     if witness.definition_axioms.is_empty()
         && witness.literal_axioms.is_empty()
@@ -278,14 +282,7 @@ pub fn check_integer_affine_witness(
         && direct_math_leaf(left, *scalar_type).is_some()
         && direct_math_leaf(right, *scalar_type).is_some()
     {
-        return Ok(CheckedIntegerAffineForm {
-            root: witness.root.clone(),
-            target: witness.target.clone(),
-            integer_type: *scalar_type,
-            coefficient: 1,
-            offset: 0,
-            endpoint_steps: Vec::new(),
-        });
+        return Ok(trivial_affine_form(witness, *scalar_type));
     }
     if witness.definition_axioms.is_empty()
         && witness.literal_axioms.is_empty()
