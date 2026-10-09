@@ -139,17 +139,12 @@ impl RouteTerms<'_> {
                 let Some(integer_type) = left.scalar_type().as_integer() else {
                     return unsupported("structural crash comparison operand is not an integer");
                 };
-                match kind {
-                    CheckedIntegerComparisonKind::Equal => {
-                        ScalarTerm::integer_equal(integer_type, left, right)
-                    }
-                    CheckedIntegerComparisonKind::LessThan => {
-                        ScalarTerm::integer_less_than(integer_type, left, right)
-                    }
-                    CheckedIntegerComparisonKind::LessOrEqual => {
-                        ScalarTerm::integer_less_or_equal(integer_type, left, right)
-                    }
-                }
+                super::scalar_terms::checked_integer_comparison(
+                    *kind,
+                    integer_type,
+                    left,
+                    right,
+                )
                 .map_err(LoweringError::InvalidCrashPredicate)
             }
             CheckedBooleanExpression::IeeeFloatComparison { .. } => {

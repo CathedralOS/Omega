@@ -68,17 +68,7 @@ pub(crate) fn checked_boolean_scalar_term(
             let Some(integer_type) = left.scalar_type().as_integer() else {
                 return unsupported("crash comparison operand is not an integer");
             };
-            match kind {
-                CheckedIntegerComparisonKind::Equal => {
-                    ScalarTerm::integer_equal(integer_type, left, right)
-                }
-                CheckedIntegerComparisonKind::LessThan => {
-                    ScalarTerm::integer_less_than(integer_type, left, right)
-                }
-                CheckedIntegerComparisonKind::LessOrEqual => {
-                    ScalarTerm::integer_less_or_equal(integer_type, left, right)
-                }
-            }
+            checked_integer_comparison(*kind, integer_type, left, right)
             .map_err(LoweringError::InvalidCrashPredicate)?
         }
         CheckedBooleanExpression::ScalarIeeeFloatComparison { .. } => {
@@ -97,6 +87,26 @@ pub(crate) fn checked_boolean_scalar_term(
             );
         }
     })
+}
+
+/// The integer-comparison ScalarTerm for a checked comparison kind.
+pub(super) fn checked_integer_comparison(
+    kind: CheckedIntegerComparisonKind,
+    integer_type: semantic_vocabulary::IntegerType,
+    left: ScalarTerm,
+    right: ScalarTerm,
+) -> Result<ScalarTerm, semantic_vocabulary::PropositionError> {
+    match kind {
+        CheckedIntegerComparisonKind::Equal => {
+            ScalarTerm::integer_equal(integer_type, left, right)
+        }
+        CheckedIntegerComparisonKind::LessThan => {
+            ScalarTerm::integer_less_than(integer_type, left, right)
+        }
+        CheckedIntegerComparisonKind::LessOrEqual => {
+            ScalarTerm::integer_less_or_equal(integer_type, left, right)
+        }
+    }
 }
 
 pub(crate) fn checked_scalar_term(
