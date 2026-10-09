@@ -422,16 +422,7 @@ pub(crate) fn control(
             when_nonzero,
             when_zero,
         } => (instruction, [Some(when_nonzero), Some(when_zero)]),
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            instruction,
-            when_less,
-            when_not_less,
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            instruction,
-            when_less,
-            when_not_less,
-        } => (instruction, [Some(when_less), Some(when_not_less)]),
+        selected_instructions::conditional_branch_less_pair_pattern!(instruction,when_less,when_not_less, ..) => (instruction, [Some(when_less), Some(when_not_less)]),
     }
 }
 
@@ -459,16 +450,7 @@ pub(crate) fn control_successors_mut(
             when_zero,
             ..
         } => [Some(when_nonzero), Some(when_zero)],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => [Some(when_less), Some(when_not_less)],
+        selected_instructions::conditional_branch_less_pair_pattern!(when_less,when_not_less, ..) => [Some(when_less), Some(when_not_less)],
     }
 }
 

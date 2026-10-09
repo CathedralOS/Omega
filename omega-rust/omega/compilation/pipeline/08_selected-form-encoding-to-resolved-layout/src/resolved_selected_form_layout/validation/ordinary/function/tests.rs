@@ -229,8 +229,7 @@ fn pre_layout_rows(
         let terminator = terminator_row(&block.terminator);
         rows.push(match &block.terminator {
             SelectedTerminator::ConditionalBranch { .. }
-            | SelectedTerminator::ConditionalBranchU64LessThan { .. }
-            | SelectedTerminator::ConditionalBranchI64LessThan { .. }
+            | selected_instructions::conditional_branch_less_pair_pattern!(..)
             | SelectedTerminator::Jump { .. } => deferred_row(terminator, alternatives),
             _ => encoded_row(terminator, footprint, encoded),
         });

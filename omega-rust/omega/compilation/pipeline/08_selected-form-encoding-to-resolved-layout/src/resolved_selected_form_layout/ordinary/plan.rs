@@ -111,16 +111,7 @@ pub(crate) fn conditional_branch(block: &SelectedBlock) -> Option<(&SelectedInst
             when_nonzero,
             ..
         } => Some((instruction, when_nonzero)),
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            instruction,
-            when_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            instruction,
-            when_less,
-            ..
-        } => Some((instruction, when_less)),
+        selected_instructions::conditional_branch_less_pair_pattern!(instruction,when_less, ..) => Some((instruction, when_less)),
         SelectedTerminator::Jump { .. }
         | selected_instructions::terminator_exit_triple_pattern!(..) => None,
     }

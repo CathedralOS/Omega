@@ -372,3 +372,11 @@ macro_rules! terminator_exit_triple_pattern {
             | $crate::SelectedTerminator::Return { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! conditional_branch_less_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::SelectedTerminator::ConditionalBranchI64LessThan { $($fields)* }
+            | $crate::SelectedTerminator::ConditionalBranchU64LessThan { $($fields)* }
+    };
+}

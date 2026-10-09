@@ -481,16 +481,7 @@ fn terminator_successors_mut(terminator: &mut SelectedTerminator) -> Vec<&mut Se
             when_zero,
             ..
         } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
+        selected_instructions::conditional_branch_less_pair_pattern!(when_less,when_not_less, ..) => vec![when_less, when_not_less],
         selected_instructions::terminator_exit_triple_pattern!(..) => Vec::new(),
     }
 }

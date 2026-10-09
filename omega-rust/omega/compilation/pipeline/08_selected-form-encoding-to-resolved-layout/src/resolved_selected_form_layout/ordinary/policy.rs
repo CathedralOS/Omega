@@ -29,8 +29,7 @@ pub(in super::super) fn select(
             matches!(
                 function.blocks.first().map(|block| &block.terminator),
                 Some(
-                    SelectedTerminator::ConditionalBranchU64LessThan { .. }
-                        | SelectedTerminator::ConditionalBranchI64LessThan { .. }
+                    selected_instructions::conditional_branch_less_pair_pattern!(..)
                 )
             )
         })

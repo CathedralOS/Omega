@@ -36,8 +36,7 @@ pub(in crate::selection) fn prepare(
         let conditional = matches!(
             source.terminator,
             SelectedTerminator::ConditionalBranch { .. }
-                | SelectedTerminator::ConditionalBranchU64LessThan { .. }
-                | SelectedTerminator::ConditionalBranchI64LessThan { .. }
+                | selected_instructions::conditional_branch_less_pair_pattern!(..)
         );
         for (position, successor) in terminator_successors_mut(&mut source.terminator)
             .into_iter()

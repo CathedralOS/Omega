@@ -12,16 +12,7 @@ pub(super) fn successors(
             when_zero,
             ..
         } => [Some(when_nonzero), Some(when_zero)],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => [Some(when_less), Some(when_not_less)],
+        selected_instructions::conditional_branch_less_pair_pattern!(when_less,when_not_less, ..) => [Some(when_less), Some(when_not_less)],
         SelectedTerminator::Jump { successor, .. } => [Some(successor), None],
         selected_instructions::terminator_exit_triple_pattern!(..) => [None, None],
     };

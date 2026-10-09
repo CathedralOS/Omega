@@ -66,8 +66,7 @@ pub(super) fn derive(
 fn fallthrough(block: &SelectedBlock) -> Option<SelectedBlockId> {
     match &block.terminator {
         SelectedTerminator::ConditionalBranch { when_zero, .. } => Some(when_zero.block),
-        SelectedTerminator::ConditionalBranchU64LessThan { when_not_less, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { when_not_less, .. } => {
+        selected_instructions::conditional_branch_less_pair_pattern!(when_not_less, ..) => {
             Some(when_not_less.block)
         }
         SelectedTerminator::Jump { .. }
