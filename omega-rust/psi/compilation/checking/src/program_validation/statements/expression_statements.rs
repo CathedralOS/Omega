@@ -63,12 +63,8 @@ pub(super) fn validate(
                 .len(),
         )
     {
-        let result_type = crate::expression_result_type_reference(
-            program,
-            machine.symbol,
-            Some(state.symbol),
-            *expression,
-        );
+        let result_type =
+            crate::expression_result_type_reference(program, machine, state, *expression);
         let permits_statement = result_type.is_some_and(|result| {
             let carrier = crate::value_custody::places::peel_declared_constraints(program, result);
             match program.type_reference_table.type_reference(carrier) {
