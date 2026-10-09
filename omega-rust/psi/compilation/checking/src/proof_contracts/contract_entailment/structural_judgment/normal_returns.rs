@@ -194,7 +194,9 @@ impl<'program> StructuralJudge<'program> {
             }
             return Some(outcomes);
         }
-        if matches!(node, ExpressionNode::Call(_)) {
+        if let ExpressionNode::Call(call) = node
+            && !call_has_mathematical_denotation(program, call)
+        {
             let machine = program.machine(scope.0.symbol)?;
             let writes = crate::machine_calls::calls::CallFrameResolver::new(program)?
                 .expression_may_write_paths(machine, expression)?;
@@ -327,6 +329,12 @@ impl<'program> StructuralJudge<'program> {
         let Some(owner) = selected_call_contract(program, call) else {
             return;
         };
+        // Computed proof machines are erased mathematical applications. Their
+        // definitions and induction remain with the existing term owner;
+        // replacing them with opaque runtime occurrences loses that denotation.
+        if call_has_mathematical_denotation(program, call) {
+            return;
+        }
         if !call.machine_arguments.is_empty()
             || !call.evidence_arguments.is_empty()
             || call.quotient_operation.is_some()
@@ -483,6 +491,17 @@ fn boolean_term(value: bool) -> StructuralTerm {
         case: value.to_string(),
         fields: Vec::new(),
     }
+}
+
+/// The shared proof-only classifier, rather than a carrier spelling or
+/// source position, establishes which calls have no runtime observation or
+/// caller-storage event. Runtime calls still require complete write frames.
+fn call_has_mathematical_denotation(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+) -> bool {
+    matches!(selected_call_contract(program, call), Some(SelectedCallContract::Concrete(machine, _))
+        if crate::proof_only_classification(program).is_proof_machine(program, machine))
 }
 
 fn program_expression_is_live(
