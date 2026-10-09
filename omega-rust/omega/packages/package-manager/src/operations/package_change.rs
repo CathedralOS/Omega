@@ -4,7 +4,7 @@ use crate::build_session::PackageBuildSession;
 use crate::review::SemanticBindingReview;
 
 mod error;
-pub use error::PackageChangeError;
+pub(crate) use error::PackageChangeError;
 
 use crate::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockTarget,

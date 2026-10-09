@@ -3,13 +3,13 @@ use crate::review::{PackageSourcePatchError, TriageRenderError};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageSourceReviewCustodyRole {
+pub(crate) enum PackageSourceReviewCustodyRole {
     Baseline,
     Candidate,
 }
 
 #[derive(Debug)]
-pub enum PackageSourceReviewError {
+pub(crate) enum PackageSourceReviewError {
     MissingCustody {
         role: PackageSourceReviewCustodyRole,
         package: PackageKey,
@@ -119,7 +119,7 @@ impl fmt::Display for PackageSourceReviewError {
 impl std::error::Error for PackageSourceReviewError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageSourceReviewRenderError {
+pub(crate) enum PackageSourceReviewRenderError {
     Triage(TriageRenderError),
     TotalExceeded {
         maximum_bytes: usize,

@@ -5,7 +5,7 @@ mod comparison;
 mod errors;
 mod paths;
 
-pub use errors::ResolveLockedPackageClosureError;
+pub(crate) use errors::ResolveLockedPackageClosureError;
 
 use super::super::reconcile::resolve_package_source_closure_with_indexed_limits;
 use super::super::{
@@ -28,7 +28,7 @@ use std::path::PathBuf;
 /// The caller selects the exact lock target before invoking this source owner.
 /// Local roots must still exist: no cache-only local custody issuer is implied.
 #[allow(clippy::too_many_arguments)]
-pub fn resolve_locked_package_source_closure(
+pub(crate) fn resolve_locked_package_source_closure(
     subject: &CanonicalSourceClosureSubject,
     root_request: &PackageRootSourceRequest,
     acquisition: GitExactRevisionAcquisition,
@@ -59,7 +59,7 @@ pub fn resolve_locked_package_source_closure(
 /// never by decoding recorded path bytes. The strict entrance still requires
 /// the original exact request spelling as well as immutable root content.
 #[allow(clippy::too_many_arguments)]
-pub fn resolve_locked_local_project_closure(
+pub(crate) fn resolve_locked_local_project_closure(
     subject: &CanonicalSourceClosureSubject,
     root_request: &PackageRootSourceRequest,
     acquisition: GitExactRevisionAcquisition,

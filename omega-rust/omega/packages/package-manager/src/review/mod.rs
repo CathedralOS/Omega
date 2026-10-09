@@ -10,31 +10,35 @@ mod timings;
 pub(crate) use candidate::verify_transitive_source_custody;
 
 pub use audit::{
+};
+pub(crate) use audit::{
     CompilerReviewTriage, PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits,
     PackageSourcePatchSide, PackageSourceReviewCustodyRole, PackageSourceReviewError,
     PackageSourceReviewInput, PackageSourceReviewLimits, PackageSourceReviewRenderError,
     PackageTriageDecision, PackageTriageDisposition, PackageTriageReason, TriageRenderError,
     assemble_initial_source_review, assemble_update_source_review, render_package_source_patch,
-    triage_initial_install, triage_review_update, triage_update_without_admission_baseline,
+    triage_initial_install, triage_review_update, triage_update_without_admission_baseline};
+pub use candidate::{ CompileResolvedPackageReviewsError,
 };
-pub use candidate::{
-    CandidateCompilation, CandidateSourcePreparation, CompileResolvedPackageReviewsError,
+pub(crate) use candidate::{
+    CandidateCompilation, CandidateSourcePreparation,
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
     ConsumerScopedSemanticBindingReviewInput, PackageSourceVerificationPhase,
     ReviewOnlySourceConsumptionCommitment, SemanticBindingReview, SemanticBindingReviewCandidate,
-    compile_resolved_package_reviews, compile_resolved_package_reviews_reusing,
-};
+    compile_resolved_package_reviews, compile_resolved_package_reviews_reusing};
 pub use compare::{
+};
+pub(crate) use compare::{
     LockedPolicyComparisonError, PackagePolicyChangeError, PackagePolicyChangeFingerprint,
     PackagePolicyChangeKind, PackagePolicyChangeLimits, PackagePolicyChangeSet,
     PackagePolicyDependencyPath, PackagePolicyDependencyPathStep, PackagePolicyPackageChange,
     PackagePolicyReplacementSite, PackagePolicyRowChange, PackagePolicySourceReplacement,
     ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract, compare_locked_package_policies,
-    compare_package_policy_changes,
-};
+    compare_package_policy_changes};
 pub use decision::{
+};
+pub(crate) use decision::{
     PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionSubject,
     PackagePolicyResolution, PackagePolicyReviewError, ReviewOnlyRootPolicyDisposition,
-    recover_package_policy_review, render_package_policy_review, resolve_package_policy_decisions,
-};
-pub use restricted_build_grants::{RestrictedBuildCheckpoint, UngrantedRestrictedBuildRequest};
+    recover_package_policy_review, render_package_policy_review, resolve_package_policy_decisions};
+pub(crate) use restricted_build_grants::{RestrictedBuildCheckpoint, UngrantedRestrictedBuildRequest};

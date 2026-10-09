@@ -80,7 +80,7 @@ impl HistoricalPackagePolicyDecisions {
     /// Recover historical project policy using only the retained source graph.
     /// No old checkout, compiler, conflict set, or proof of acceptance is needed.
     /// The result cannot be supplied as a fresh root-policy resolution.
-    pub fn recover_text(
+    pub(crate) fn recover_text(
         text: &str,
         subject: &CanonicalSourceClosureSubject,
         limits: HistoricalPackagePolicyLimits,

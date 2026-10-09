@@ -55,7 +55,7 @@ pub(crate) fn capture_external_local_project_source(
 
 /// Bind a proposed project tree to its original live path and consuming context.
 /// The caller retains the stage for later transaction checks and publication.
-pub fn bind_staged_external_local_project_source(
+pub(crate) fn bind_staged_external_local_project_source(
     stage: &StagedLocalSnapshot,
     limits: LocalSourceLimits,
     source_context: ExternalSourceContext,
@@ -125,7 +125,7 @@ pub(crate) fn resolve_external_local_project_source_in_lane(
     )
 }
 
-pub fn resolve_external_local_package_source(
+pub(crate) fn resolve_external_local_package_source(
     source_root: impl AsRef<Path>,
     storage: &SourceResolver,
     limits: LocalSourceLimits,
@@ -142,7 +142,7 @@ pub fn resolve_external_local_package_source(
     result
 }
 
-pub fn resolve_external_local_project_source(
+pub(crate) fn resolve_external_local_project_source(
     source_root: impl AsRef<Path>,
     storage: &SourceResolver,
     limits: LocalSourceLimits,

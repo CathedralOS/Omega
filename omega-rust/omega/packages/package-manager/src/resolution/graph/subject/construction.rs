@@ -43,7 +43,7 @@ impl CanonicalSourceClosureSubject {
         )
     }
 
-    pub fn from_resolved(
+    pub(crate) fn from_resolved(
         target_closure: &ExactTargetPackageSourceClosure<'_>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
@@ -171,7 +171,7 @@ impl CanonicalSourceClosureSubject {
     /// Require a recovered subject to equal a fresh projection from the exact
     /// current resolver custody. Decode or fingerprint equality alone is never
     /// enough for this comparison.
-    pub fn matches_resolved(
+    pub(crate) fn matches_resolved(
         &self,
         target_closure: &ExactTargetPackageSourceClosure<'_>,
         limits: CanonicalSourceClosureSubjectLimits,

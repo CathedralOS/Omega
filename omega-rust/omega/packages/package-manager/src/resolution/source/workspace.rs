@@ -66,7 +66,7 @@ fn resolve_workspace_member_declared_source_in_lane(
     )
 }
 
-pub fn resolve_workspace_member_package_source(
+pub(crate) fn resolve_workspace_member_package_source(
     workspace_root_source: &SourceLineage,
     member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
@@ -85,7 +85,7 @@ pub fn resolve_workspace_member_package_source(
     result
 }
 
-pub fn resolve_workspace_member_project_source(
+pub(crate) fn resolve_workspace_member_project_source(
     workspace_root_source: &SourceLineage,
     member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,

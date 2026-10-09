@@ -9,9 +9,9 @@ mod paths;
 mod projection;
 mod replacements;
 
-pub use error::PackagePolicyChangeError;
-pub use limits::PackagePolicyChangeLimits;
-pub use replacements::{PackagePolicyReplacementSite, PackagePolicySourceReplacement};
+pub(crate) use error::PackagePolicyChangeError;
+pub(crate) use limits::PackagePolicyChangeLimits;
+pub(crate) use replacements::{PackagePolicyReplacementSite, PackagePolicySourceReplacement};
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
@@ -36,7 +36,7 @@ use sha2::Digest;
 ///
 /// Candidate verification and obligation discharge remain independent. This
 /// function does not reinterpret historical decisions or authorize a transaction.
-pub fn compare_package_policy_changes(
+pub(crate) fn compare_package_policy_changes(
     accepted: Option<&PackageLockTarget>,
     candidate: &CompilerIssuedPackageReviewSet,
     candidate_sources: &ExactTargetPackageSourceClosure<'_>,
@@ -116,7 +116,7 @@ fn role_change(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyChangeKind {
+pub(crate) enum PackagePolicyChangeKind {
     Added,
     Removed,
     Changed,
@@ -124,7 +124,7 @@ pub enum PackagePolicyChangeKind {
 
 /// A versioned identity of exact comparison context, never review certification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PackagePolicyChangeFingerprint([u8; 32]);
+pub(crate) struct PackagePolicyChangeFingerprint([u8; 32]);
 impl PackagePolicyChangeFingerprint {
     pub const fn digest(self) -> [u8; 32] {
         self.0
@@ -132,7 +132,7 @@ impl PackagePolicyChangeFingerprint {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyRowChange {
+pub(crate) struct PackagePolicyRowChange {
     baseline_context: Option<PackageCheckedContext>,
     candidate_context: Option<PackageCheckedContext>,
     baseline: Option<PackageAcceptanceRow>,
@@ -183,7 +183,7 @@ impl PackagePolicyRowChange {
 
 /// Source-qualified path from one side's root, without old filesystem custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyDependencyPath {
+pub(crate) struct PackagePolicyDependencyPath {
     root: PackageKeyIdentity,
     steps: Vec<PackagePolicyDependencyPathStep>,
 }
@@ -196,7 +196,7 @@ impl PackagePolicyDependencyPath {
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyDependencyPathStep {
+pub(crate) struct PackagePolicyDependencyPathStep {
     requester: PackageKeyIdentity,
     purpose: DependencyPurpose,
     dependency_index: usize,
@@ -222,7 +222,7 @@ impl PackagePolicyDependencyPathStep {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyPackageChange {
+pub(crate) struct PackagePolicyPackageChange {
     key: PackageKey,
     baseline_resolution: Option<ImmutableSourceResolution>,
     candidate_resolution: Option<ImmutableSourceResolution>,
@@ -277,15 +277,15 @@ impl PackagePolicyPackageChange {
         &self.restricted_build_requests
     }
     /// Exact retained checked occurrences; empty when the package has no baseline.
-    pub fn baseline_occurrence_contexts(&self) -> &[PackageCheckedContext] {
+    pub(crate) fn baseline_occurrence_contexts(&self) -> &[PackageCheckedContext] {
         &self.baseline_occurrence_contexts
     }
     /// Exact candidate checked occurrences; empty when the package left the closure.
-    pub fn candidate_occurrence_contexts(&self) -> &[PackageCheckedContext] {
+    pub(crate) fn candidate_occurrence_contexts(&self) -> &[PackageCheckedContext] {
         &self.candidate_occurrence_contexts
     }
     /// Context changes remain audit-visible even when benign policy has no rows.
-    pub fn occurrence_contexts_changed(&self) -> bool {
+    pub(crate) fn occurrence_contexts_changed(&self) -> bool {
         self.baseline_occurrence_contexts != self.candidate_occurrence_contexts
     }
     pub const fn audit_recommended(&self) -> bool {
@@ -307,7 +307,7 @@ impl PackagePolicyPackageChange {
 /// Complete package-key union. Unchanged candidates remain visible for audit.
 /// Historical resolutions cannot consume this type through a legacy adapter.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyChangeSet {
+pub(crate) struct PackagePolicyChangeSet {
     baseline_source_subject: Option<CanonicalSourceClosureSubjectFingerprint>,
     candidate_source_subject: CanonicalSourceClosureSubjectFingerprint,
     fingerprint: PackagePolicyChangeFingerprint,
@@ -349,7 +349,7 @@ impl PackagePolicyChangeSet {
                 .iter()
                 .any(PackagePolicyPackageChange::requires_decision)
     }
-    pub fn audit_recommended(&self) -> bool {
+    pub(crate) fn audit_recommended(&self) -> bool {
         self.source_subject_changed
             || self
                 .packages
@@ -357,7 +357,7 @@ impl PackagePolicyChangeSet {
                 .any(PackagePolicyPackageChange::audit_recommended)
     }
 
-    pub fn source_replacements(&self) -> &[PackagePolicySourceReplacement] {
+    pub(crate) fn source_replacements(&self) -> &[PackagePolicySourceReplacement] {
         &self.source_replacements
     }
 }

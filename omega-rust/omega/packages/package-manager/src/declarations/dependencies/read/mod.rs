@@ -7,9 +7,9 @@ mod policy;
 mod projection;
 mod source_literal;
 
-pub use aliases::DependencyAliasError;
-pub use error::DependencyProjectionError;
-pub use extraction::{extract_build_dependency_projection, extract_dependency_projection};
+pub(crate) use aliases::DependencyAliasError;
+pub(crate) use error::DependencyProjectionError;
+pub(crate) use extraction::{extract_build_dependency_projection, extract_dependency_projection};
 pub(crate) use projection::extract_build_projection_from_source;
 
 use crate::declarations::roles::BuildDeclaration;
@@ -38,7 +38,7 @@ pub enum PackageSelection {
 
 /// One source request projected without evaluating `build.omg`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DependencySourceRequest {
+pub(crate) enum DependencySourceRequest {
     Path {
         explicit_alias: Option<AliasName>,
         location: String,
@@ -54,22 +54,22 @@ pub enum DependencySourceRequest {
 /// The one ordered set of unconditional direct dependency rows within a
 /// single purpose scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectedDependencies {
+pub(crate) struct ProjectedDependencies {
     authored_dependencies: Vec<DependencySourceRequest>,
 }
 
 impl ProjectedDependencies {
-    pub fn authored_dependencies(&self) -> &[DependencySourceRequest] {
+    pub(crate) fn authored_dependencies(&self) -> &[DependencySourceRequest] {
         &self.authored_dependencies
     }
 
-    pub fn into_authored_dependencies(self) -> Vec<DependencySourceRequest> {
+    pub(crate) fn into_authored_dependencies(self) -> Vec<DependencySourceRequest> {
         self.authored_dependencies
     }
 
     /// Validate requester-local aliases after every selected package name is
     /// known. Names follow [`Self::authored_dependencies`] order.
-    pub fn validate_aliases(
+    pub(crate) fn validate_aliases(
         &self,
         selected_package_names: &[PackageName],
     ) -> Result<(), DependencyAliasError> {
@@ -91,7 +91,7 @@ impl From<Vec<DependencySourceRequest>> for ProjectedDependencies {
 /// alias scopes. One package may appear in both scopes, and each scope's
 /// aliases are validated independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DependencyProjections {
+pub(crate) struct DependencyProjections {
     product: ProjectedDependencies,
     build: ProjectedDependencies,
 }
@@ -116,7 +116,7 @@ impl DependencyProjections {
         }
     }
 
-    pub fn into_product(self) -> ProjectedDependencies {
+    pub(crate) fn into_product(self) -> ProjectedDependencies {
         self.product
     }
 
@@ -124,7 +124,7 @@ impl DependencyProjections {
         self.projections(purpose).authored_dependencies()
     }
 
-    pub fn authored_request_count(&self) -> usize {
+    pub(crate) fn authored_request_count(&self) -> usize {
         self.product.authored_dependencies().len() + self.build.authored_dependencies().len()
     }
 
@@ -188,7 +188,7 @@ impl DependencySourceRequest {
 /// One authoritative project role and its direct dependency requests,
 /// projected from the same parsed `build.omg` tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildDependencyProjection {
+pub(crate) struct BuildDependencyProjection {
     declaration: BuildDeclaration,
     dependencies: DependencyProjections,
 }

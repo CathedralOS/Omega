@@ -6,9 +6,9 @@ mod error;
 mod journal;
 mod transaction;
 
-pub use checked::{PublishReviewedPackageChangeError, publish_reviewed_package_change};
-pub use error::PackagePublicationError;
-pub use transaction::PackageFileTransaction;
+pub(crate) use checked::{PublishReviewedPackageChangeError, publish_reviewed_package_change};
+pub(crate) use error::PackagePublicationError;
+pub(crate) use transaction::PackageFileTransaction;
 
 /// Bounded project-file and recovery-journal I/O. These are storage limits,
 /// not compiler policy or a claim about total allocator usage.

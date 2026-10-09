@@ -8,7 +8,7 @@ use crate::resolution::graph::{
     ExactTargetPackageSourceClosure,
 };
 
-pub(crate) fn compiler_input_identity() -> Result<[u8; 32], String> {
+pub fn compiler_input_identity() -> Result<[u8; 32], String> {
     let library = package_compilation::toolchain_library::identity()?;
     let mut digest = Sha256::new();
     digest.update(b"omega-accepted-compiler-inputs-v1\0");

@@ -16,7 +16,7 @@ use std::path::Path;
 /// A fully traversed and graph-validated source closure plus exact custody for
 /// every package source root.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedPackageSourceClosure {
+pub(crate) struct ResolvedPackageSourceClosure {
     pub(super) root_request: PackageRootSourceRequest,
     pub(super) graph: ResolvedPackageClosure,
     pub(super) custodies: Vec<PackageSourceCustody>,
@@ -30,7 +30,7 @@ pub struct ResolvedPackageSourceClosure {
 /// consume an explicit child so source custody cannot be confused with target
 /// identity.
 #[derive(Debug, Clone, Copy)]
-pub struct ExactTargetPackageSourceClosure<'a> {
+pub(crate) struct ExactTargetPackageSourceClosure<'a> {
     source_closure: &'a ResolvedPackageSourceClosure,
     target_profile: TargetProfile,
 }
@@ -47,7 +47,7 @@ impl<'a> ExactTargetPackageSourceClosure<'a> {
 
 /// One exact root request joined to the source identity it selected.
 #[derive(Debug, Clone, Copy)]
-pub struct ResolvedRootPackageSourceRequest<'a> {
+pub(crate) struct ResolvedRootPackageSourceRequest<'a> {
     request: &'a PackageRootSourceRequest,
     selected: &'a ResolvedSourceIdentity,
 }
@@ -68,7 +68,7 @@ impl<'a> ResolvedRootPackageSourceRequest<'a> {
 /// binds it to the graph edge and target resolution without copying hostile
 /// locator strings or choosing one primary request in a diamond graph.
 #[derive(Debug, Clone, Copy)]
-pub struct ResolvedDependencySourceRequest<'a> {
+pub(crate) struct ResolvedDependencySourceRequest<'a> {
     requester: &'a PackageKey,
     purpose: DependencyPurpose,
     dependency_index: usize,
@@ -111,7 +111,7 @@ impl<'a> ResolvedDependencySourceRequest<'a> {
 /// This is source custody only. It is not compiler evidence, package admission,
 /// a lock record, or a package instance.
 #[derive(Debug, Clone, Copy)]
-pub struct ResolvedPackageSourceRequestSet<'a> {
+pub(crate) struct ResolvedPackageSourceRequestSet<'a> {
     closure: &'a ResolvedPackageSourceClosure,
 }
 
@@ -162,7 +162,7 @@ impl<'a> ResolvedPackageSourceRequestSet<'a> {
 }
 
 impl ResolvedPackageSourceClosure {
-    pub fn source_requests(&self) -> ResolvedPackageSourceRequestSet<'_> {
+    pub(crate) fn source_requests(&self) -> ResolvedPackageSourceRequestSet<'_> {
         ResolvedPackageSourceRequestSet { closure: self }
     }
 
@@ -205,7 +205,7 @@ impl ResolvedPackageSourceClosure {
     /// exponential set of every path through a diamond-shaped DAG. Breadth-
     /// first traversal follows each requester's authored dependency order and
     /// visits every package at most once.
-    pub fn dependency_path(&self, target: &PackageKey) -> Option<DependencyRequestPath> {
+    pub(crate) fn dependency_path(&self, target: &PackageKey) -> Option<DependencyRequestPath> {
         self.custody(target)?;
         if target == self.graph.root() {
             return Some(DependencyRequestPath {

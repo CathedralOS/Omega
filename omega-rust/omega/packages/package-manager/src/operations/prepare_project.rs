@@ -18,7 +18,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
-pub(crate) const LOCAL_PROJECT_CONTEXT: &[u8] = b"omega-local-project-v1";
+pub const LOCAL_PROJECT_CONTEXT: &[u8] = b"omega-local-project-v1";
 
 /// Invocation-local source acquisition choices; never stored as lock policy.
 #[derive(Debug, Clone, Copy)]

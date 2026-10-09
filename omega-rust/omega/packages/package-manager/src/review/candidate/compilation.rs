@@ -19,12 +19,12 @@ use crate::review::timings;
 use artifacts::compile_timings::counters;
 use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
 
-pub use crate::build_session::PackageSourcePreparation as CandidateSourcePreparation;
+pub(crate) use crate::build_session::PackageSourcePreparation as CandidateSourcePreparation;
 
 /// How this invocation obtains consumer-scoped semantic bindings.
 /// Explicit input is checked as supplied; it does not trigger discovery or admission.
 #[derive(Clone, Copy)]
-pub enum SemanticBindingReview<'a> {
+pub(crate) enum SemanticBindingReview<'a> {
     /// Discover package-owned surfaces, then recheck with the proposed bindings.
     Discover,
     /// Compile once with exactly these bindings, including an explicitly empty set.
@@ -42,7 +42,7 @@ pub enum SemanticBindingReview<'a> {
 /// A supplied snapshot selects only the root activation's inputs and required
 /// outputs in every review pass; dependencies keep their own inventories.
 #[derive(Clone, Copy)]
-pub struct CandidateCompilation<'request, 'closure> {
+pub(crate) struct CandidateCompilation<'request, 'closure> {
     pub target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
     pub root_build_snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
     pub restricted_build_checkpoint: Option<&'request RestrictedBuildCheckpoint>,
@@ -61,7 +61,7 @@ impl<'request, 'closure> CandidateCompilation<'request, 'closure> {
 
 /// Compile the exact dependency closure and return its compiler-issued reviews.
 /// Borrow the invoking operation's resource owner. Binding discovery is not acceptance.
-pub fn compile_resolved_package_reviews(
+pub(crate) fn compile_resolved_package_reviews(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     session: &mut PackageBuildSession,
     bindings: SemanticBindingReview<'_>,
@@ -82,7 +82,7 @@ pub fn compile_resolved_package_reviews(
 /// from a broader input view than the invocation it is reviewing.
 /// The invocation's owner lends the same session to every target and round;
 /// this operation neither reserves a new sponsor nor disposes that owner.
-pub fn compile_resolved_package_reviews_reusing(
+pub(crate) fn compile_resolved_package_reviews_reusing(
     candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
     session: &mut PackageBuildSession,

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 /// Dependency requests belong to a requester package. The graph root has no
 /// requester, so its exact source request is retained separately.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageRootSourceRequest {
+pub(crate) enum PackageRootSourceRequest {
     Git(GitPackageSourceRequest),
     WorkspaceMember {
         workspace_root_source: SourceLineage,

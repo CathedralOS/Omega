@@ -32,7 +32,7 @@ use crate::resolution::graph::DependencyRequestPath;
 /// record carries the occurrence's shortest root-to-package route alongside
 /// its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UngrantedRestrictedBuildRequest {
+pub(crate) struct UngrantedRestrictedBuildRequest {
     package: PackageKeyIdentity,
     context: PackageCheckedContext,
     request_meaning: String,
@@ -84,7 +84,7 @@ impl UngrantedRestrictedBuildRequest {
 
     /// The complete normalized request meaning the accepted policy did not
     /// grant, in the same canonical row form the decision document renders.
-    pub fn request_meaning(&self) -> &str {
+    pub(crate) fn request_meaning(&self) -> &str {
         &self.request_meaning
     }
 
@@ -146,7 +146,7 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
 /// acceptance recorded for one purpose or target never authorizes a different
 /// occurrence's restricted action on the same package.
 #[derive(Debug, Clone)]
-pub struct RestrictedBuildCheckpoint {
+pub(crate) struct RestrictedBuildCheckpoint {
     grants: Vec<(PackageKeyIdentity, PackageCheckedContext, BTreeSet<String>)>,
 }
 
@@ -217,7 +217,7 @@ impl RestrictedBuildCheckpoint {
 /// A refusal fails the compile with the pending meaning attached. A review
 /// carried from the persisted cache ran no Build, so the candidate pass admits
 /// its retained requests through this same binding.
-pub struct CheckpointRestrictedBuildGrants {
+pub(crate) struct CheckpointRestrictedBuildGrants {
     package: PackageKeyIdentity,
     context: PackageCheckedContext,
     request_path: Option<DependencyRequestPath>,
