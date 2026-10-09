@@ -288,15 +288,7 @@ pub(super) fn fact_span_mentions_field(
         .proof_facts
         .span_or_empty(facts)
         .iter()
-        .any(|fact| match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
-                expression_mentions_name(program, *expression, field)
-            }
-            typed_trees::domain::ProofFact::Membership(membership) => {
-                membership_field_name(program, membership.value) == Some(field)
-            }
-            typed_trees::domain::ProofFact::Proposition(_) => false,
-        })
+        .any(|fact| fact_names_field(program, fact, field))
 }
 
 /// Whether a single fact names any FIELD of `definition`. A `where` fact that
@@ -317,15 +309,23 @@ pub(super) fn fact_mentions_any_field(
             typed_trees::data::DataMember::Field(field) => Some(field.name.as_str()),
             _ => None,
         })
-        .any(|field| match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
-                expression_mentions_name(program, *expression, field)
-            }
-            typed_trees::domain::ProofFact::Membership(membership) => {
-                membership_field_name(program, membership.value) == Some(field)
-            }
-            typed_trees::domain::ProofFact::Proposition(_) => false,
-        })
+        .any(|field| fact_names_field(program, fact, field))
+}
+
+fn fact_names_field(
+    program: &dyn crate::CheckingInput,
+    fact: &typed_trees::domain::ProofFact,
+    field: &str,
+) -> bool {
+    match fact {
+        typed_trees::domain::ProofFact::Expression(expression) => {
+            expression_mentions_name(program, *expression, field)
+        }
+        typed_trees::domain::ProofFact::Membership(membership) => {
+            membership_field_name(program, membership.value) == Some(field)
+        }
+        typed_trees::domain::ProofFact::Proposition(_) => false,
+    }
 }
 
 pub(super) fn membership_field_name(
