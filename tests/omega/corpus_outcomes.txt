@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "4", "load1_end": 0.49, "load1_start": 0.49, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 1.65, "load1_start": 1.65, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -3732,6 +3732,7 @@ pass/modules/comparison_machine_indices checked 347ms @2d8ed253669f
 pass/modules/compound_constant_indices checked 323ms @2d8ed253669f
 pass/modules/computed_constant_initializers checked 395ms @2d8ed253669f
 pass/modules/computed_nominal_constants checked 326ms @2d8ed253669f
+pass/modules/direct_file_import_process_exit checked 4827ms check-target:linux_x86_64 @3c3253465d1c
 pass/modules/direct_file_imports checked 968ms @30eb6513ae80+wt
 pass/modules/domain_constant_indices checked 315ms @2d8ed253669f
 pass/modules/fixed_array_machine_indices checked 308ms @2d8ed253669f

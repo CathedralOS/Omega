@@ -4832,7 +4832,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     `fail/build/package_local_calling_copy` do not exercise the loose route.
     Open: what the negative should pin once loose roots carry owners (for
     example, a policy built from copied types must not select as `std::calling`).
-  - Runtime direct-import witness:
+  - Direct-import runtime acceptance: the supplemental no-Console
+    `pass/modules/direct_file_import_process_exit` constructs the directly
+    imported `A`, observes its value, and exits 7 in native and Terminal
+    execution. The original Console witness remains pending:
     `tests/omega/pending/modules/direct_file_import_exit` retains native and
     interpreter exit 7. Reviewed fixture compilation stops at missing portable
     target-family contracts for Console byte operations, also reproduced on
