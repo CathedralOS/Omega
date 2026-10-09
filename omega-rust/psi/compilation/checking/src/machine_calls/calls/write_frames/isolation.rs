@@ -232,12 +232,13 @@ pub(super) fn struct_literal_matches_expected_type(
         }
 }
 
-pub(super) fn type_is_caller_isolated_local(
+fn type_is_caller_isolated(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
+    proof_value: bool,
 ) -> bool {
     if let Some(verdict) = with_isolation_cache(program, |cache| {
-        cache.isolation.get(&(handle, false)).copied()
+        cache.isolation.get(&(handle, proof_value)).copied()
     }) {
         return verdict;
     }
@@ -245,15 +246,22 @@ pub(super) fn type_is_caller_isolated_local(
         program,
         handle,
         &mut Vec::<TypeReferenceHandle>::new(),
-        false,
+        proof_value,
         &mut Vec::new(),
         &mut Vec::new(),
         &mut TypeIdentityMemo::default(),
     );
     with_isolation_cache(program, |cache| {
-        cache.isolation.insert((handle, false), verdict);
+        cache.isolation.insert((handle, proof_value), verdict);
     });
     verdict
+}
+
+pub(super) fn type_is_caller_isolated_local(
+    program: &dyn crate::CheckingInput,
+    handle: TypeReferenceHandle,
+) -> bool {
+    type_is_caller_isolated(program, handle, false)
 }
 
 /// Under an active substitution, the declared members of a generic
@@ -283,24 +291,7 @@ pub(super) fn type_is_caller_isolated_proof_value(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
-    if let Some(verdict) = with_isolation_cache(program, |cache| {
-        cache.isolation.get(&(handle, true)).copied()
-    }) {
-        return verdict;
-    }
-    let verdict = type_is_caller_isolated_local_inner(
-        program,
-        handle,
-        &mut Vec::<TypeReferenceHandle>::new(),
-        true,
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &mut TypeIdentityMemo::default(),
-    );
-    with_isolation_cache(program, |cache| {
-        cache.isolation.insert((handle, true), verdict);
-    });
-    verdict
+    type_is_caller_isolated(program, handle, true)
 }
 
 /// `visiting` records instantiated containers, not bare definition symbols:
