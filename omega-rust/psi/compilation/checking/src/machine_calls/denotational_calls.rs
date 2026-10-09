@@ -422,7 +422,7 @@ pub(crate) fn has_no_crash_routes(
 /// A selected runtime slot must retain its exact sealed declaration and a
 /// complete catalog result equation. Ordinary boundary admission or a matching
 /// function-shaped guarantee is not denotational authority.
-pub(crate) fn selected_operator_has_closed_value_denotation(
+pub fn selected_operator_has_closed_value_denotation(
     program: &dyn crate::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> bool {

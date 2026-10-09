@@ -169,6 +169,10 @@ pub(crate) struct SelectedCallProgress<'a> {
     build_bound_demands: &'a [BuildBoundProgressDemand],
 }
 
+static CLOSED_VALUE_TERMINATION: TerminationGuarantee = TerminationGuarantee::Terminates {
+    premises: Vec::new(),
+};
+
 pub(crate) fn selected_call_summary<'a>(
     program: &'a dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
@@ -186,6 +190,18 @@ pub(crate) fn selected_call_summary<'a>(
     {
         return Some(SelectedCallProgress {
             guarantee: &signature.termination_guarantee,
+            build_bound_demands: &[],
+        });
+    }
+    // Exact compiler-owned value semantics independently establish totality.
+    // Their generated boundary machine is an execution shell, not the owner
+    // of this meaning. Ordinary public signatures above still consume only
+    // their authored promise; a matching operator name supplies no authority.
+    if typed_trees::operator::declaration_by_symbol(program, target_symbol).is_some_and(
+        |operator| validation::selected_operator_has_closed_value_denotation(program, operator),
+    ) {
+        return Some(SelectedCallProgress {
+            guarantee: &CLOSED_VALUE_TERMINATION,
             build_bound_demands: &[],
         });
     }
