@@ -208,7 +208,7 @@ pub(crate) fn lower_sequence_extent_term(
         return unsupported("closed sequence extent requires readable access");
     }
     let integer = crate::emission::scalar_types::terminal_scalar_type(
-        language_semantics::PrimitiveType::U64,
+        checked_trees::types::PrimitiveType::U64,
     )?
     .as_integer()
     .ok_or(LoweringError::Unsupported(
