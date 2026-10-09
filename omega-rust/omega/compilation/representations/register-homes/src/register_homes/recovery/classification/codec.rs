@@ -43,9 +43,9 @@ impl RecoveryClassificationPlan {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, RecoveryClassificationDecodeError> {
-        let mut cursor = RecoveryClassificationCursor::new(encoded);
+        let mut cursor = crate::cursor::Cursor::new(encoded);
         crate::codec_bytes::decode_header(
-            cursor.inner(),
+            &mut cursor,
             RECOVERY_CLASSIFICATION_MAGIC,
             RECOVERY_CLASSIFICATION_VERSION,
             || RecoveryClassificationDecodeError::WrongMagic,
@@ -76,10 +76,10 @@ impl RecoveryClassificationPlan {
         let function_count = cursor.length()?;
         let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
         for _ in 0..function_count {
-            let machine = cursor.machine()?;
+            let machine = machine(&mut cursor)?;
             let classification = match cursor.byte()? {
                 0 => None,
-                1 => Some(cursor.classification_row()?),
+                1 => Some(classification_row(&mut cursor)?),
                 tag => {
                     return Err(RecoveryClassificationDecodeError::UnknownOption(tag));
                 }
@@ -113,326 +113,288 @@ impl RecoveryClassificationPlan {
     }
 }
 
-struct RecoveryClassificationCursor<'encoded> {
-    cursor: crate::cursor::Cursor<'encoded>,
+fn machine(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<MachineId, RecoveryClassificationDecodeError> {
+    let raw = cursor.u64()?;
+    MachineId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidMachineId(raw))
 }
 
-impl<'encoded> RecoveryClassificationCursor<'encoded> {
-    const fn new(encoded: &'encoded [u8]) -> Self {
-        Self {
-            cursor: crate::cursor::Cursor::new(encoded),
+fn block_id(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<BlockId, RecoveryClassificationDecodeError> {
+    let raw = cursor.u64()?;
+    BlockId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidBlockId(raw))
+}
+
+fn operation_id(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<OperationId, RecoveryClassificationDecodeError> {
+    let raw = cursor.u64()?;
+    OperationId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidOperationId(raw))
+}
+
+fn value_id(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<ValueId, RecoveryClassificationDecodeError> {
+    let raw = cursor.u64()?;
+    ValueId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidValueId(raw))
+}
+
+fn edge_id(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<EdgeId, RecoveryClassificationDecodeError> {
+    let raw = cursor.u64()?;
+    EdgeId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidEdgeId(raw))
+}
+
+fn obligation_id(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<ObligationId, RecoveryClassificationDecodeError> {
+    let raw = cursor.u64()?;
+    ObligationId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidObligationId(raw))
+}
+
+fn classification_row(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<PressureRecoveryClassification, RecoveryClassificationDecodeError> {
+    let block = SelectedBlockId(cursor.u32()?);
+    let point = LiveRangePoint(cursor.u32()?);
+    let victim = VirtualRegisterId(cursor.u32()?);
+    let role = match cursor.byte()? {
+        0 => RecoveryVictimRole::Incoming,
+        1 => RecoveryVictimRole::ActiveResident {
+            current_view: RegisterViewId(cursor.u16()?),
+            reclaimed_view: RegisterViewId(cursor.u16()?),
+        },
+        tag => {
+            return Err(RecoveryClassificationDecodeError::UnknownVictimRole(tag));
         }
-    }
-
-    fn inner(&mut self) -> &mut crate::cursor::Cursor<'encoded> {
-        &mut self.cursor
-    }
-
-    fn take(&mut self, length: usize) -> Result<&'encoded [u8], RecoveryClassificationDecodeError> {
-        Ok(self.cursor.take(length)?)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], RecoveryClassificationDecodeError> {
-        Ok(self.cursor.array()?)
-    }
-
-    fn byte(&mut self) -> Result<u8, RecoveryClassificationDecodeError> {
-        Ok(self.cursor.byte()?)
-    }
-
-    fn u16(&mut self) -> Result<u16, RecoveryClassificationDecodeError> {
-        Ok(self.cursor.u16()?)
-    }
-
-    fn u32(&mut self) -> Result<u32, RecoveryClassificationDecodeError> {
-        Ok(self.cursor.u32()?)
-    }
-
-    fn u64(&mut self) -> Result<u64, RecoveryClassificationDecodeError> {
-        Ok(self.cursor.u64()?)
-    }
-
-    fn u128(&mut self) -> Result<u128, RecoveryClassificationDecodeError> {
-        Ok(self.cursor.u128()?)
-    }
-
-    fn i128(&mut self) -> Result<i128, RecoveryClassificationDecodeError> {
-        Ok(self.cursor.i128()?)
-    }
-
-    fn length(&mut self) -> Result<usize, RecoveryClassificationDecodeError> {
-        Ok(self.cursor.length()?)
-    }
-
-    fn remaining(&self) -> usize {
-        self.cursor.remaining()
-    }
-
-    fn machine(&mut self) -> Result<MachineId, RecoveryClassificationDecodeError> {
-        let raw = self.u64()?;
-        MachineId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidMachineId(raw))
-    }
-
-    fn block_id(&mut self) -> Result<BlockId, RecoveryClassificationDecodeError> {
-        let raw = self.u64()?;
-        BlockId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidBlockId(raw))
-    }
-
-    fn operation_id(&mut self) -> Result<OperationId, RecoveryClassificationDecodeError> {
-        let raw = self.u64()?;
-        OperationId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidOperationId(raw))
-    }
-
-    fn value_id(&mut self) -> Result<ValueId, RecoveryClassificationDecodeError> {
-        let raw = self.u64()?;
-        ValueId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidValueId(raw))
-    }
-
-    fn edge_id(&mut self) -> Result<EdgeId, RecoveryClassificationDecodeError> {
-        let raw = self.u64()?;
-        EdgeId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidEdgeId(raw))
-    }
-
-    fn obligation_id(&mut self) -> Result<ObligationId, RecoveryClassificationDecodeError> {
-        let raw = self.u64()?;
-        ObligationId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidObligationId(raw))
-    }
-
-    fn classification_row(
-        &mut self,
-    ) -> Result<PressureRecoveryClassification, RecoveryClassificationDecodeError> {
-        let block = SelectedBlockId(self.u32()?);
-        let point = LiveRangePoint(self.u32()?);
-        let victim = VirtualRegisterId(self.u32()?);
-        let role = match self.byte()? {
-            0 => RecoveryVictimRole::Incoming,
-            1 => RecoveryVictimRole::ActiveResident {
-                current_view: RegisterViewId(self.u16()?),
-                reclaimed_view: RegisterViewId(self.u16()?),
-            },
-            tag => {
-                return Err(RecoveryClassificationDecodeError::UnknownVictimRole(tag));
-            }
-        };
-        let scalar_type = self.scalar_type()?;
-        let class = RegisterClassId(self.u16()?);
-        let origin = self.origin()?;
-        let definition_site = match self.byte()? {
-            0 => None,
-            1 => Some(self.definition_site()?),
-            tag => {
-                return Err(RecoveryClassificationDecodeError::UnknownDefinitionSite(
-                    tag,
-                ));
-            }
-        };
-        let classification = match self.byte()? {
-            0 => {
-                let defining_instruction = SelectedInstructionId(self.u32()?);
-                let source_value = self.value_id()?;
-                let value = self.integer_value()?;
-                let provenance = self.provenance()?;
-                let use_count = self.length()?;
-                let mut future_uses = Vec::with_capacity(use_count.min(self.remaining()));
-                for _ in 0..use_count {
-                    future_uses.push(RecoveryFutureUse {
-                        block: SelectedBlockId(self.u32()?),
-                        point: LiveRangePoint(self.u32()?),
-                        instruction: SelectedInstructionId(self.u32()?),
-                        operand: self.u16()?,
-                    });
-                }
-                RecoveryClassification::ImmediateU64RematerializationCandidate {
-                    defining_instruction,
-                    source_value,
-                    value,
-                    provenance,
-                    future_uses,
-                }
-            }
-            1 => RecoveryClassification::NoAdmittedRecovery {
-                reason: match self.byte()? {
-                    0 => NoAdmittedRecoveryReason::UnsupportedScalarType,
-                    1 => NoAdmittedRecoveryReason::EntryParameter,
-                    2 => NoAdmittedRecoveryReason::UnsupportedRangeShape,
-                    3 => NoAdmittedRecoveryReason::FutureFixedUse,
-                    4 => NoAdmittedRecoveryReason::NonMaterializeDefinition,
-                    5 => NoAdmittedRecoveryReason::ProofBearingDefinition,
-                    6 => NoAdmittedRecoveryReason::NoFutureUse,
-                    tag => {
-                        return Err(RecoveryClassificationDecodeError::UnknownReason(tag));
-                    }
-                },
-            },
-            tag => {
-                return Err(RecoveryClassificationDecodeError::UnknownClassification(
-                    tag,
-                ));
-            }
-        };
-        Ok(PressureRecoveryClassification {
-            block,
-            point,
-            victim,
-            role,
-            scalar_type,
-            class,
-            origin,
-            definition_site,
-            classification,
-        })
-    }
-
-    fn scalar_type(&mut self) -> Result<ScalarType, RecoveryClassificationDecodeError> {
-        let scalar = match self.byte()? {
-            0 => ScalarType::Boolean,
-            1 => ScalarType::Integer(
-                IntegerType::new(IntegerSign::Signed, self.u16()?)
-                    .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
-            ),
-            2 => ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, self.u16()?)
-                    .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
-            ),
-            3 => ScalarType::Integer(
-                IntegerType::address(self.u16()?)
-                    .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
-            ),
-            tag => return Err(RecoveryClassificationDecodeError::UnknownScalarType(tag)),
-        };
-        Ok(scalar)
-    }
-
-    fn integer_value(&mut self) -> Result<IntegerValue, RecoveryClassificationDecodeError> {
-        match self.byte()? {
-            0 => Ok(IntegerValue::Signed(self.i128()?)),
-            1 => Ok(IntegerValue::Unsigned(self.u128()?)),
-            tag => Err(RecoveryClassificationDecodeError::UnknownIntegerValue(tag)),
-        }
-    }
-
-    fn origin(&mut self) -> Result<VirtualRegisterOrigin, RecoveryClassificationDecodeError> {
-        match self.byte()? {
-            9 => Ok(VirtualRegisterOrigin::InstructionScratch {
-                instruction: SelectedInstructionId(self.u32()?),
-                operand: self.u16()?,
-            }),
-            7 => Ok(VirtualRegisterOrigin::ScalarAbiAddress {
-                instruction: SelectedInstructionId(self.u32()?),
-                source_value: self.value_id()?,
-            }),
-            6 => Ok(VirtualRegisterOrigin::SpillAddress {
-                instruction: SelectedInstructionId(self.u32()?),
-                register: selected_instructions::VirtualRegisterId(self.u32()?),
-            }),
-            4 => {
-                let raw = self.u64()?;
-                Ok(VirtualRegisterOrigin::StructuralParameter {
-                    place: semantic_vocabulary::PlaceId::new(raw)
-                        .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
-                    parameter_index: self.length()?,
-                })
-            }
-            8 => {
-                let instruction = SelectedInstructionId(self.u32()?);
-                let raw = self.u64()?;
-                Ok(VirtualRegisterOrigin::StructuralObservation {
-                    instruction,
-                    place: semantic_vocabulary::PlaceId::new(raw)
-                        .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
-                    byte_offset: self.u32()?,
-                })
-            }
-            5 => {
-                let instruction = SelectedInstructionId(self.u32()?);
-                let raw = self.u64()?;
-                Ok(VirtualRegisterOrigin::AbiTransport {
-                    instruction,
-                    place: semantic_vocabulary::PlaceId::new(raw)
-                        .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
-                    byte_offset: self.u32()?,
-                })
-            }
-            3 => Ok(VirtualRegisterOrigin::BlockParameter {
-                source_value: self.value_id()?,
-                block: selected_instructions::SelectedBlockId(self.u32()?),
-                parameter_index: self.length()?,
-            }),
-            0 => Ok(VirtualRegisterOrigin::EntryParameter {
-                source_value: self.value_id()?,
-                parameter_index: self.length()?,
-            }),
-            1 => Ok(VirtualRegisterOrigin::InstructionResult {
-                instruction: SelectedInstructionId(self.u32()?),
-                source_value: self.value_id()?,
-            }),
-            tag => Err(RecoveryClassificationDecodeError::UnknownOrigin(tag)),
-        }
-    }
-
-    fn definition_site(
-        &mut self,
-    ) -> Result<ValueDefinitionSite, RecoveryClassificationDecodeError> {
-        match self.byte()? {
-            0 => Ok(ValueDefinitionSite::FunctionParameter(self.u32()?)),
-            1 => Ok(ValueDefinitionSite::BlockParameter {
-                block: self.block_id()?,
-                position: self.u32()?,
-            }),
-            2 => Ok(ValueDefinitionSite::Node {
-                block: self.block_id()?,
-                node: self.u32()?,
-            }),
-            tag => Err(RecoveryClassificationDecodeError::UnknownDefinitionSite(
+    };
+    let scalar_type = scalar_type(cursor)?;
+    let class = RegisterClassId(cursor.u16()?);
+    let origin = origin(cursor)?;
+    let definition_site = match cursor.byte()? {
+        0 => None,
+        1 => Some(definition_site(cursor)?),
+        tag => {
+            return Err(RecoveryClassificationDecodeError::UnknownDefinitionSite(
                 tag,
-            )),
+            ));
         }
-    }
-
-    fn provenance(
-        &mut self,
-    ) -> Result<SelectedInstructionProvenance, RecoveryClassificationDecodeError> {
-        let operation_count = self.length()?;
-        let mut operations = Vec::with_capacity(operation_count.min(self.remaining()));
-        for _ in 0..operation_count {
-            operations.push(self.operation_id()?);
+    };
+    let classification = match cursor.byte()? {
+        0 => {
+            let defining_instruction = SelectedInstructionId(cursor.u32()?);
+            let source_value = value_id(cursor)?;
+            let value = integer_value(cursor)?;
+            let provenance = provenance(cursor)?;
+            let use_count = cursor.length()?;
+            let mut future_uses = Vec::with_capacity(use_count.min(cursor.remaining()));
+            for _ in 0..use_count {
+                future_uses.push(RecoveryFutureUse {
+                    block: SelectedBlockId(cursor.u32()?),
+                    point: LiveRangePoint(cursor.u32()?),
+                    instruction: SelectedInstructionId(cursor.u32()?),
+                    operand: cursor.u16()?,
+                });
+            }
+            RecoveryClassification::ImmediateU64RematerializationCandidate {
+                defining_instruction,
+                source_value,
+                value,
+                provenance,
+                future_uses,
+            }
         }
-        let value_count = self.length()?;
-        let mut values = Vec::with_capacity(value_count.min(self.remaining()));
-        for _ in 0..value_count {
-            values.push(self.value_id()?);
-        }
-        let edge_count = self.length()?;
-        let mut edges = Vec::with_capacity(edge_count.min(self.remaining()));
-        for _ in 0..edge_count {
-            edges.push(self.edge_id()?);
-        }
-        let obligation_count = self.length()?;
-        let mut obligations = Vec::with_capacity(obligation_count.min(self.remaining()));
-        for _ in 0..obligation_count {
-            obligations.push(self.obligation_id()?);
-        }
-        let fuel_count = self.length()?;
-        let mut fuel = Vec::with_capacity(fuel_count.min(self.remaining()));
-        for _ in 0..fuel_count {
-            let site = match self.byte()? {
-                0 => optimization_unit::PsiProvenance::Operation(self.operation_id()?),
-                1 => optimization_unit::PsiProvenance::Edge(self.edge_id()?),
+        1 => RecoveryClassification::NoAdmittedRecovery {
+            reason: match cursor.byte()? {
+                0 => NoAdmittedRecoveryReason::UnsupportedScalarType,
+                1 => NoAdmittedRecoveryReason::EntryParameter,
+                2 => NoAdmittedRecoveryReason::UnsupportedRangeShape,
+                3 => NoAdmittedRecoveryReason::FutureFixedUse,
+                4 => NoAdmittedRecoveryReason::NonMaterializeDefinition,
+                5 => NoAdmittedRecoveryReason::ProofBearingDefinition,
+                6 => NoAdmittedRecoveryReason::NoFutureUse,
                 tag => {
-                    return Err(RecoveryClassificationDecodeError::UnknownProvenance(tag));
+                    return Err(RecoveryClassificationDecodeError::UnknownReason(tag));
                 }
-            };
-            fuel.push(optimization_unit::FuelSettlement {
-                site,
-                units: self.u64()?,
-            });
+            },
+        },
+        tag => {
+            return Err(RecoveryClassificationDecodeError::UnknownClassification(
+                tag,
+            ));
         }
-        Ok(SelectedInstructionProvenance {
-            operations,
-            values,
-            edges,
-            obligations,
-            fuel,
-        })
+    };
+    Ok(PressureRecoveryClassification {
+        block,
+        point,
+        victim,
+        role,
+        scalar_type,
+        class,
+        origin,
+        definition_site,
+        classification,
+    })
+}
+
+fn scalar_type(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<ScalarType, RecoveryClassificationDecodeError> {
+    let scalar = match cursor.byte()? {
+        0 => ScalarType::Boolean,
+        1 => ScalarType::Integer(
+            IntegerType::new(IntegerSign::Signed, cursor.u16()?)
+                .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
+        ),
+        2 => ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, cursor.u16()?)
+                .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
+        ),
+        3 => ScalarType::Integer(
+            IntegerType::address(cursor.u16()?)
+                .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
+        ),
+        tag => return Err(RecoveryClassificationDecodeError::UnknownScalarType(tag)),
+    };
+    Ok(scalar)
+}
+
+fn integer_value(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<IntegerValue, RecoveryClassificationDecodeError> {
+    match cursor.byte()? {
+        0 => Ok(IntegerValue::Signed(cursor.i128()?)),
+        1 => Ok(IntegerValue::Unsigned(cursor.u128()?)),
+        tag => Err(RecoveryClassificationDecodeError::UnknownIntegerValue(tag)),
     }
+}
+
+fn origin(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<VirtualRegisterOrigin, RecoveryClassificationDecodeError> {
+    match cursor.byte()? {
+        9 => Ok(VirtualRegisterOrigin::InstructionScratch {
+            instruction: SelectedInstructionId(cursor.u32()?),
+            operand: cursor.u16()?,
+        }),
+        7 => Ok(VirtualRegisterOrigin::ScalarAbiAddress {
+            instruction: SelectedInstructionId(cursor.u32()?),
+            source_value: value_id(cursor)?,
+        }),
+        6 => Ok(VirtualRegisterOrigin::SpillAddress {
+            instruction: SelectedInstructionId(cursor.u32()?),
+            register: selected_instructions::VirtualRegisterId(cursor.u32()?),
+        }),
+        4 => {
+            let raw = cursor.u64()?;
+            Ok(VirtualRegisterOrigin::StructuralParameter {
+                place: semantic_vocabulary::PlaceId::new(raw)
+                    .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
+                parameter_index: cursor.length()?,
+            })
+        }
+        8 => {
+            let instruction = SelectedInstructionId(cursor.u32()?);
+            let raw = cursor.u64()?;
+            Ok(VirtualRegisterOrigin::StructuralObservation {
+                instruction,
+                place: semantic_vocabulary::PlaceId::new(raw)
+                    .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
+                byte_offset: cursor.u32()?,
+            })
+        }
+        5 => {
+            let instruction = SelectedInstructionId(cursor.u32()?);
+            let raw = cursor.u64()?;
+            Ok(VirtualRegisterOrigin::AbiTransport {
+                instruction,
+                place: semantic_vocabulary::PlaceId::new(raw)
+                    .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
+                byte_offset: cursor.u32()?,
+            })
+        }
+        3 => Ok(VirtualRegisterOrigin::BlockParameter {
+            source_value: value_id(cursor)?,
+            block: selected_instructions::SelectedBlockId(cursor.u32()?),
+            parameter_index: cursor.length()?,
+        }),
+        0 => Ok(VirtualRegisterOrigin::EntryParameter {
+            source_value: value_id(cursor)?,
+            parameter_index: cursor.length()?,
+        }),
+        1 => Ok(VirtualRegisterOrigin::InstructionResult {
+            instruction: SelectedInstructionId(cursor.u32()?),
+            source_value: value_id(cursor)?,
+        }),
+        tag => Err(RecoveryClassificationDecodeError::UnknownOrigin(tag)),
+    }
+}
+
+fn definition_site(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<ValueDefinitionSite, RecoveryClassificationDecodeError> {
+    match cursor.byte()? {
+        0 => Ok(ValueDefinitionSite::FunctionParameter(cursor.u32()?)),
+        1 => Ok(ValueDefinitionSite::BlockParameter {
+            block: block_id(cursor)?,
+            position: cursor.u32()?,
+        }),
+        2 => Ok(ValueDefinitionSite::Node {
+            block: block_id(cursor)?,
+            node: cursor.u32()?,
+        }),
+        tag => Err(RecoveryClassificationDecodeError::UnknownDefinitionSite(
+            tag,
+        )),
+    }
+}
+
+fn provenance(
+    cursor: &mut crate::cursor::Cursor<'_>,
+) -> Result<SelectedInstructionProvenance, RecoveryClassificationDecodeError> {
+    let operation_count = cursor.length()?;
+    let mut operations = Vec::with_capacity(operation_count.min(cursor.remaining()));
+    for _ in 0..operation_count {
+        operations.push(operation_id(cursor)?);
+    }
+    let value_count = cursor.length()?;
+    let mut values = Vec::with_capacity(value_count.min(cursor.remaining()));
+    for _ in 0..value_count {
+        values.push(value_id(cursor)?);
+    }
+    let edge_count = cursor.length()?;
+    let mut edges = Vec::with_capacity(edge_count.min(cursor.remaining()));
+    for _ in 0..edge_count {
+        edges.push(edge_id(cursor)?);
+    }
+    let obligation_count = cursor.length()?;
+    let mut obligations = Vec::with_capacity(obligation_count.min(cursor.remaining()));
+    for _ in 0..obligation_count {
+        obligations.push(obligation_id(cursor)?);
+    }
+    let fuel_count = cursor.length()?;
+    let mut fuel = Vec::with_capacity(fuel_count.min(cursor.remaining()));
+    for _ in 0..fuel_count {
+        let site = match cursor.byte()? {
+            0 => optimization_unit::PsiProvenance::Operation(operation_id(cursor)?),
+            1 => optimization_unit::PsiProvenance::Edge(edge_id(cursor)?),
+            tag => {
+                return Err(RecoveryClassificationDecodeError::UnknownProvenance(tag));
+            }
+        };
+        fuel.push(optimization_unit::FuelSettlement {
+            site,
+            units: cursor.u64()?,
+        });
+    }
+    Ok(SelectedInstructionProvenance {
+        operations,
+        values,
+        edges,
+        obligations,
+        fuel,
+    })
 }
