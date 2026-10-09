@@ -16,7 +16,9 @@ use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
 
+mod rank_relevance;
 pub(crate) mod runtime_ranking;
+pub use rank_relevance::{RankRelevance, rank_relevance};
 pub use runtime_ranking::{
     ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
     internal_state_index,

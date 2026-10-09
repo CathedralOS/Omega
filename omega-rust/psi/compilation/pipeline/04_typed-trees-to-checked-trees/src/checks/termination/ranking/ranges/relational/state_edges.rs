@@ -111,6 +111,9 @@ pub(super) fn prove<'program>(
     ) else {
         return false;
     };
+    let Some(relevance) = validation::rank_relevance(program, &[machine.symbol]) else {
+        return false;
+    };
     let components = graph::strongly_connected_components(&adjacency);
     for (source_position, source) in states.iter().enumerate() {
         // The same telescope that aliases entry roles onto this state's slots
@@ -147,6 +150,12 @@ pub(super) fn prove<'program>(
                     .iter()
                     .map(|guard| (guard.expression, guard.holds))
                     .collect::<Vec<_>>();
+                // Prefix formation and write-frame preservation still apply.
+                // Only the rank arrival ends at a suffix that cannot return
+                // to recurrence, including through an ordinary value call.
+                if !relevance.requires_rank(target.symbol) {
+                    continue;
+                }
                 if !validation::prove_ranking_range_transition(
                     program,
                     machine,

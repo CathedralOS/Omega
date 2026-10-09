@@ -293,7 +293,14 @@ pub(super) fn project_component(
         }
         member_mappings.push(filtered);
     }
-    let mut natural = projection::natural_component(program, component, &ranks, &member_mappings);
+    let ranked_machines = component
+        .iter()
+        .map(|position| program.machines()[*position].symbol)
+        .collect::<Vec<_>>();
+    let relevance = super::rank_relevance(program, &ranked_machines)
+        .ok_or("the ranking needs exact state recurrence topology")?;
+    let mut natural =
+        projection::natural_component(program, component, &ranks, &member_mappings, &relevance);
     // A prefix store is judged against the premise carriers the call-site
     // judgment actually reads (subjects, endpoints, requires facts, and
     // constrained entries), located in each state through the same telescope,
@@ -473,6 +480,7 @@ pub(super) fn project_component(
                                 && !projection::retain_internal_transfer(
                                     program,
                                     retained,
+                                    &relevance,
                                     state.symbol,
                                     target_symbol,
                                     arguments,

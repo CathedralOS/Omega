@@ -149,11 +149,11 @@ pub use crate::declarations::selection_authority::{
     DeclarationSelectionAuthority, validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
-    ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
+    RankRelevance, ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, ValidatedRuntimeNaturalComponent,
     ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState, internal_state_index,
-    machine_call_dependency_symbols, validated_runtime_natural_components,
+    machine_call_dependency_symbols, rank_relevance, validated_runtime_natural_components,
     validated_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{

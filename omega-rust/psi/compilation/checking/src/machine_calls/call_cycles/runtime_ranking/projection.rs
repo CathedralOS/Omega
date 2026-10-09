@@ -629,6 +629,7 @@ pub(super) fn natural_component(
     component: &[usize],
     ranks: &[RankProjection],
     mappings: &[Vec<Vec<SymbolHandle>>],
+    relevance: &super::super::RankRelevance,
 ) -> Option<super::ValidatedRuntimeNaturalComponent> {
     let mut states = Vec::new();
     for ((machine_position, rank), mappings) in component.iter().zip(ranks).zip(mappings) {
@@ -640,6 +641,9 @@ pub(super) fn natural_component(
             .iter()
             .zip(mappings)
         {
+            if !relevance.requires_rank(state.symbol) {
+                continue;
+            }
             let argument_position = roles.iter().position(|role| *role == rank.parameter)?;
             let (position, parameter) = program
                 .state_parameters(state)
@@ -669,6 +673,7 @@ pub(super) fn natural_component(
 pub(super) fn retain_internal_transfer(
     program: &dyn crate::CheckingInput,
     component: &mut super::ValidatedRuntimeNaturalComponent,
+    relevance: &super::super::RankRelevance,
     source: SymbolHandle,
     target: SymbolHandle,
     arguments: &[ExpressionHandle],
@@ -678,6 +683,11 @@ pub(super) fn retain_internal_transfer(
         .machine(target)
         .and_then(|machine| program.machine_states(machine).first())
         .map_or(target, |state| state.symbol);
+    // An exit suffix cannot consume this rank again. Its ordinary admission
+    // remains checked, but it needs no incoming rank comparison.
+    if !relevance.requires_rank(target) {
+        return true;
+    }
     let Some(source_rank) = component.states.iter().find(|rank| rank.state == source) else {
         return false;
     };
