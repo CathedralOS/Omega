@@ -130,7 +130,10 @@ pub fn resolved_machine_layout_identity(
     ResolvedSelectedFormLayoutIdentity(hasher.finish())
 }
 
-fn encode_internal_fixup(hasher: &mut crate::digest_encoder::DomainDigestEncoder, fixup: Option<SelectedFormInternalMachineFixup>) {
+fn encode_internal_fixup(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    fixup: Option<SelectedFormInternalMachineFixup>,
+) {
     let Some(fixup) = fixup else {
         hasher.byte(0);
         return;
@@ -151,7 +154,10 @@ fn encode_internal_fixup(hasher: &mut crate::digest_encoder::DomainDigestEncoder
     hasher.raw(&fixup.addend.to_le_bytes());
 }
 
-fn encode_views(hasher: &mut crate::digest_encoder::DomainDigestEncoder, values: &[register_model::RegisterViewId]) {
+fn encode_views(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    values: &[register_model::RegisterViewId],
+) {
     hasher.u64(values.len() as u64);
     for value in values {
         hasher.raw(&value.0.to_le_bytes());

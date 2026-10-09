@@ -545,7 +545,11 @@ impl std::error::Error for DescriptionDecodeRejection {}
 /// Collision-resistant identity of one exact encoded description.
 pub(crate) fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(DESCRIPTION_IDENTITY_DOMAIN);
-    digest.raw(&u64::try_from(canonical_bytes.len()) .unwrap_or(0) .to_le_bytes(),);
+    digest.raw(
+        &u64::try_from(canonical_bytes.len())
+            .unwrap_or(0)
+            .to_le_bytes(),
+    );
     digest.raw(&canonical_bytes);
     digest.finish()
 }
@@ -553,7 +557,11 @@ pub(crate) fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32]
 /// Collision-resistant contract identity of one requirement spelling.
 pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(REQUIREMENT_CONTRACT_DOMAIN);
-    digest.raw(&u64::try_from(requirement_identity.len()) .unwrap_or(0) .to_le_bytes(),);
+    digest.raw(
+        &u64::try_from(requirement_identity.len())
+            .unwrap_or(0)
+            .to_le_bytes(),
+    );
     digest.raw(requirement_identity.as_bytes());
     digest.finish()
 }
@@ -565,7 +573,8 @@ pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 
 /// domain and cannot collide with any [`requirement_contract_identity`]
 /// output.
 pub(crate) fn canonical_entry_contract_identity(entry: MachineId) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(CANONICAL_ENTRY_CONTRACT_DOMAIN);
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(CANONICAL_ENTRY_CONTRACT_DOMAIN);
     digest.raw(&entry.get().to_le_bytes());
     digest.finish()
 }

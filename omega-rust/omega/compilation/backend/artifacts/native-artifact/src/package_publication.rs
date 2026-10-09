@@ -37,7 +37,9 @@ use crate::{NativePackageEvidenceDigest, PackageComponentDigest};
 
 /// Digest one installed package member's exact bytes under its own domain.
 fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.published-package-component.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.published-package-component.sha256.v1\0",
+    );
     digest.u64(bytes.len() as u64);
     digest.raw(&bytes);
     PackageComponentDigest::from_digest(digest.finish())
@@ -55,7 +57,9 @@ fn native_package_evidence_digest(
     executable_container_digest: ExecutableContainerDigest,
     components: &[PackagePublicationComponent],
 ) -> NativePackageEvidenceDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-package-evidence.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.native-package-evidence.sha256.v1\0",
+    );
     let root = package_root.as_os_str().as_encoded_bytes();
     digest.u64(root.len() as u64);
     digest.raw(&root);
@@ -199,7 +203,6 @@ impl NativePackagePublicationReceipt {
         self.executable_component()
             .map(|component| self.package_root.join(component.relative_path()))
     }
-
 }
 
 /// The deterministic v1 `Contents/Info.plist` for one authored application.

@@ -112,7 +112,9 @@ pub(crate) fn derive_scope(
         coverage,
         coverage_identity,
     )?;
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-artifact.fragment-publication-binding.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.native-artifact.fragment-publication-binding.sha256.v1\0",
+    );
     digest.raw(&source.custody().manifest().bytes());
     digest.raw(&source.custody().source_text_section_manifest().bytes());
     digest.raw(&source.custody().object().bytes());
@@ -128,7 +130,9 @@ pub(crate) fn derive_scope(
         selected,
         identity: digest.finish(),
     };
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-artifact.validated-fragment-physical-scope.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.native-artifact.validated-fragment-physical-scope.sha256.v1\0",
+    );
     digest.raw(scope.identity());
     digest.raw(publication.identity());
     Ok(super::validated_fragment_native_physical_evidence_scope(

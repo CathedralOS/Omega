@@ -213,7 +213,8 @@ fn optimized_scope_identity(
     boundary_application_coverage: [u8; 32],
     projection: NativeOptimizationProjectionIdentity,
 ) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(OPTIMIZED_SCOPE_IDENTITY_DOMAIN);
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(OPTIMIZED_SCOPE_IDENTITY_DOMAIN);
     digest.raw(&validated_authority_bytes(authority));
     digest.raw(&boundary_application_coverage);
     digest.raw(&projection.bytes());
@@ -267,7 +268,10 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
 
 fn terminal_identity_bytes(terminal: TerminalPsiIdentity) -> Vec<u8> {
     let mut canonical = Vec::with_capacity(40);
-    crate::codec_bytes::push_encoded(&mut canonical, terminal.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut canonical,
+        terminal.vocabulary_marker.get().to_le_bytes(),
+    );
     canonical.extend_from_slice(terminal.program_fingerprint.as_bytes());
     canonical
 }

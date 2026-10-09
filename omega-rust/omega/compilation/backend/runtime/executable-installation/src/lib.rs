@@ -19,6 +19,7 @@
 
 mod artifacts;
 mod authority_digests;
+mod codec_bytes;
 mod digest_encoder;
 mod entry_references;
 mod executable_installation;

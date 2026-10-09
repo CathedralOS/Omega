@@ -49,7 +49,9 @@ pub fn executable_installation_evidence_digest(
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
 ) -> ExecutableInstallationEvidenceDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.installed-executable-publication-evidence.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.installed-executable-publication-evidence.sha256.v1\0",
+    );
     digest.raw(publication_evidence_digest.as_bytes());
     digest.raw(&callback_placement_identity_report_fingerprint.to_le_bytes());
     // The fixed v1 flat-destination tag preserves existing installation digests.
@@ -77,7 +79,9 @@ pub(crate) fn native_publication_certificate_digest(
     inventory_digest: image::PlacedExecutableRegionInventoryDigest,
     inventory_report_fingerprint: u64,
 ) -> NativePublicationCertificateDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-publication-certificate.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.native-publication-certificate.sha256.v1\0",
+    );
     digest.raw(native_artifact_identity);
     digest.u64(semantic_bytes.len() as u64);
     digest.raw(&semantic_bytes);
@@ -94,7 +98,11 @@ pub(crate) fn native_publication_certificate_digest(
     digest.u64(target.pointer_alignment as u64);
     digest.raw(final_image_symbol_digest.as_bytes());
     digest.byte(u8::from(boundary_contract_report_fingerprint.is_some()));
-    digest.raw(&boundary_contract_report_fingerprint .unwrap_or_default() .to_le_bytes(),);
+    digest.raw(
+        &boundary_contract_report_fingerprint
+            .unwrap_or_default()
+            .to_le_bytes(),
+    );
     digest.raw(text_validation_digest.as_bytes());
     digest.raw(function_validation_digest.as_bytes());
     digest.raw(&function_validation_report_fingerprint.to_le_bytes());
@@ -116,7 +124,9 @@ pub(crate) fn native_publication_evidence_digest(
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
 ) -> NativePublicationEvidenceDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-publication-evidence.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.native-publication-evidence.sha256.v1\0",
+    );
     digest.raw(native_artifact_identity);
     digest.raw(certificate_digest.as_bytes());
     digest.raw(function_validation_digest.as_bytes());
@@ -135,7 +145,9 @@ pub(crate) fn native_publication_evidence_digest(
 }
 
 pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.published-executable-container.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.published-executable-container.sha256.v1\0",
+    );
     digest.u64(bytes.len() as u64);
     digest.raw(&bytes);
     ExecutableContainerDigest::from_digest(digest.finish())

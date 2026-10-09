@@ -31,7 +31,8 @@ impl TargetFrameProtocolEncodingIdentity {
 use crate::{ReturnAddressFrameCustody, TargetFrameLayoutPlan, TargetFrameLayoutPolicy};
 
 pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"omega.target-frame-layout.v10");
+    let mut hasher =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.target-frame-layout.v10");
     hasher.raw(&plan.post_allocation_machine.bytes());
     hasher.raw(&plan.callee_saved_requirements.bytes());
     hasher.raw(&plan.callee_save_storage.bytes());
@@ -92,7 +93,10 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
     TargetFrameLayoutIdentity::from_bytes(hasher.finish())
 }
 
-fn encode_return_address(hasher: &mut crate::digest_encoder::DomainDigestEncoder, custody: ReturnAddressFrameCustody) {
+fn encode_return_address(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    custody: ReturnAddressFrameCustody,
+) {
     match custody {
         ReturnAddressFrameCustody::CallerActivationStack {
             post_prologue_offset_bytes,

@@ -645,7 +645,8 @@ pub(crate) fn physical_child_identity(
     final_image_bytes_digest: [u8; 32],
     relocation: &PhysicalRelocationDisposition,
 ) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-physical-child.sha256.v3\0");
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-physical-child.sha256.v3\0");
     digest.byte(parent.role_tag());
     digest.raw(&parent.identity());
     digest.raw(&projection.bytes());
@@ -733,7 +734,9 @@ fn physical_evidence_identity(
     projection: NativeOptimizationProjectionIdentity,
     children: &[NativePhysicalChild],
 ) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-physical-evidence.sha256.v2\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.native-physical-evidence.sha256.v2\0",
+    );
     digest.raw(&projection.bytes());
     digest.raw(&canonical_usize(children.len()));
     for child in children {

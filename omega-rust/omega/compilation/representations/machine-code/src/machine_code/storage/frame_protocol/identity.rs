@@ -6,7 +6,8 @@ use super::{
 pub fn target_frame_protocol_encoding_identity(
     plan: &TargetFrameProtocolEncodingPlan,
 ) -> TargetFrameProtocolEncodingIdentity {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"omega.target-frame-protocol-encoding.v1");
+    let mut hasher =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.target-frame-protocol-encoding.v1");
     hasher.raw(&plan.frame_layout.bytes());
     hasher.raw(&plan.register_environment.bytes());
     hasher.raw(&plan.physical_register_model.bytes());

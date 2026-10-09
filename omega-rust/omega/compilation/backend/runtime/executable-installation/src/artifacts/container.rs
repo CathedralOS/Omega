@@ -549,13 +549,12 @@ pub(crate) fn derive_artifact_content_commitments(
     ),
     InstallationDiagnostic,
 > {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        if authority_commitments.is_some() {
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(if authority_commitments.is_some() {
             b"omega.executable-content.sha256.v2\0".as_slice()
         } else {
             b"omega.executable-content.sha256.v1\0".as_slice()
-        },
-    );
+        });
     let mut fingerprint = crate::fnv1a::Fnv1a::new();
     fingerprint_bytes(&mut fingerprint, b"omega-executable-content-v1");
     content_commitment_bytes(

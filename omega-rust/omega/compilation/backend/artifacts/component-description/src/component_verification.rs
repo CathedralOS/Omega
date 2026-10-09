@@ -56,7 +56,8 @@ impl ComponentVerificationRequest {
     /// Collision-resistant identity of this exact request, binding the
     /// verification result to the profile that admitted it.
     pub fn profile_identity(&self) -> [u8; 32] {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(VERIFICATION_PROFILE_DOMAIN);
+        let mut digest =
+            crate::digest_encoder::DomainDigestEncoder::new(VERIFICATION_PROFILE_DOMAIN);
         digest.raw(&self.expected_subject.vocabulary_marker.get().to_le_bytes());
         digest.raw(self.expected_subject.program_fingerprint.as_bytes());
         digest.u64(self.accepted_schemas.len() as u64);
@@ -644,7 +645,8 @@ pub fn verify_component(
     check_obligations(&description, &inventory)?;
 
     let description_identity = component_description_identity(description_bytes);
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(VERIFIED_COMPONENT_CLOSURE_DOMAIN);
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(VERIFIED_COMPONENT_CLOSURE_DOMAIN);
     digest.raw(&description_identity);
     digest.raw(&request.profile_identity());
     let closure = digest.finish();

@@ -101,7 +101,10 @@ fn encode_optional_internal_machine_fixup(
     }
 }
 
-fn encode_internal_machine_fixup(hasher: &mut crate::digest_encoder::DomainDigestEncoder, fixup: FunctionFragmentInternalMachineFixup) {
+fn encode_internal_machine_fixup(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    fixup: FunctionFragmentInternalMachineFixup,
+) {
     hasher.byte(match fixup.kind {
         FunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 1,
         FunctionFragmentInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 2,
@@ -173,12 +176,18 @@ fn encode_bytes(hasher: &mut crate::digest_encoder::DomainDigestEncoder, bytes: 
     hasher.raw(&bytes);
 }
 
-fn encode_function_provenance(hasher: &mut crate::digest_encoder::DomainDigestEncoder, provenance: &TerminalPsiProvenance) {
+fn encode_function_provenance(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    provenance: &TerminalPsiProvenance,
+) {
     encode_semantic_ids(hasher, provenance.operations.iter().map(|id| id.get()));
     encode_semantic_ids(hasher, provenance.edges.iter().map(|id| id.get()));
 }
 
-fn encode_instruction_provenance(hasher: &mut crate::digest_encoder::DomainDigestEncoder, provenance: &SelectedInstructionProvenance) {
+fn encode_instruction_provenance(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    provenance: &SelectedInstructionProvenance,
+) {
     encode_semantic_ids(hasher, provenance.operations.iter().map(|id| id.get()));
     encode_semantic_ids(hasher, provenance.values.iter().map(|id| id.get()));
     encode_semantic_ids(hasher, provenance.edges.iter().map(|id| id.get()));
@@ -186,7 +195,10 @@ fn encode_instruction_provenance(hasher: &mut crate::digest_encoder::DomainDiges
     encode_fuel(hasher, &provenance.fuel);
 }
 
-fn encode_semantic_ids(hasher: &mut crate::digest_encoder::DomainDigestEncoder, ids: impl ExactSizeIterator<Item = u64>) {
+fn encode_semantic_ids(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    ids: impl ExactSizeIterator<Item = u64>,
+) {
     hasher.u64(ids.len() as u64);
     for id in ids {
         hasher.raw(&id.to_le_bytes());
@@ -210,7 +222,10 @@ fn encode_fuel(hasher: &mut crate::digest_encoder::DomainDigestEncoder, fuel: &[
     }
 }
 
-fn encode_control(hasher: &mut crate::digest_encoder::DomainDigestEncoder, control: &FunctionFragmentControlProvenance) {
+fn encode_control(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    control: &FunctionFragmentControlProvenance,
+) {
     match control {
         FunctionFragmentControlProvenance::Crash { psi_edge, cause } => {
             hasher.byte(7);
@@ -270,7 +285,10 @@ fn encode_control(hasher: &mut crate::digest_encoder::DomainDigestEncoder, contr
     }
 }
 
-fn encode_successor(hasher: &mut crate::digest_encoder::DomainDigestEncoder, successor: &FunctionFragmentSuccessorProvenance) {
+fn encode_successor(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    successor: &FunctionFragmentSuccessorProvenance,
+) {
     hasher.byte(match successor.role {
         selected_instructions::SelectedSuccessorRole::Semantic => 0,
         selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation => 1,
@@ -309,7 +327,10 @@ fn encode_successor(hasher: &mut crate::digest_encoder::DomainDigestEncoder, suc
     encode_fuel(hasher, &successor.fuel);
 }
 
-fn encode_branch(hasher: &mut crate::digest_encoder::DomainDigestEncoder, branch: Option<&super::FunctionFragmentBranchEvidence>) {
+fn encode_branch(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    branch: Option<&super::FunctionFragmentBranchEvidence>,
+) {
     let Some(branch) = branch else {
         hasher.byte(0);
         return;

@@ -1,12 +1,12 @@
 //! Proof after the fact that patching touched only relocation fields, by masking
 //! every slot the plan declared and comparing everything that is left.
 
+use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
 use crate::{
     CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
     CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,
 };
 use diagnostics::Diagnostic;
-use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
 use object_file::{RelocationKind, RelocationPlan, SectionKind, relocation_kind_tag};
 
 /// Prove that final initialized data preserves every encoded byte except the
@@ -155,14 +155,16 @@ pub fn validate_final_text_relocation_envelope(
     }
 
     text_relocations.sort_unstable();
-    let encoded_text_digest = EncodedCompilerTextDigest::from_digest(crate::final_image::digest_bytes(
-        b"omega.encoded-compiler-text.sha256.v1\0",
-        encoded_text_bytes,
-    ));
-    let final_compiler_text_digest = FinalCompilerTextDigest::from_digest(crate::final_image::digest_bytes(
-        b"omega.final-compiler-text.sha256.v1\0",
-        final_compiler_text,
-    ));
+    let encoded_text_digest =
+        EncodedCompilerTextDigest::from_digest(crate::final_image::digest_bytes(
+            b"omega.encoded-compiler-text.sha256.v1\0",
+            encoded_text_bytes,
+        ));
+    let final_compiler_text_digest =
+        FinalCompilerTextDigest::from_digest(crate::final_image::digest_bytes(
+            b"omega.final-compiler-text.sha256.v1\0",
+            final_compiler_text,
+        ));
     let encoded_text_report_fingerprint = report_fingerprint_bytes(encoded_text_bytes);
     let final_compiler_text_report_fingerprint = report_fingerprint_bytes(final_compiler_text);
     let mut relocation_digest = crate::digest_encoder::DomainDigestEncoder::new(
@@ -226,15 +228,11 @@ pub fn validate_final_text_relocation_envelope(
     Ok(evidence)
 }
 
-
-
 fn report_fingerprint_bytes(bytes: &[u8]) -> u64 {
     let mut fingerprint = FNV_OFFSET;
     fingerprint_bytes(&mut fingerprint, bytes);
     fingerprint
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -263,8 +261,16 @@ mod tests {
     fn initialized_data_envelope_accepts_only_declared_slot_mutation() {
         let encoded = vec![0x5a; 24];
         let mut final_data = encoded.clone();
-        crate::codec_bytes::patch_encoded(final_data, 0, 0x1122_3344_5566_7788u64.to_le_bytes());
-        crate::codec_bytes::patch_encoded(final_data, 16, 0x8877_6655_4433_2211u64.to_le_bytes());
+        crate::codec_bytes::patch_encoded(
+            &mut final_data,
+            0,
+            0x1122_3344_5566_7788u64.to_le_bytes(),
+        );
+        crate::codec_bytes::patch_encoded(
+            &mut final_data,
+            16,
+            0x8877_6655_4433_2211u64.to_le_bytes(),
+        );
         let mut relocations = RelocationPlan::with_target(NativeTarget::host());
         relocations.push_record(data_relocation(0));
         relocations.push_record(data_relocation(16));

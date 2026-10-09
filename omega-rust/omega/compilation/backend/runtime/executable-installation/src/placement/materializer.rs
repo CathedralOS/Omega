@@ -1,9 +1,6 @@
 use crate::artifacts::AdmittedArtifact;
 use crate::artifacts::container::{ArtifactRelocationKind, DecodedArtifactRelocation};
-use crate::authority_digests::{
-    ArtifactContentDigest, FinalBytesDigest,
-    PlacementPlanId,
-};
+use crate::authority_digests::{ArtifactContentDigest, FinalBytesDigest, PlacementPlanId};
 use crate::installation::InstallationDiagnostic;
 use crate::placement::CodePlacement;
 use crate::placement::CodePlacementEvidence;
@@ -23,12 +20,9 @@ pub(crate) struct MaterializedArtifactBytes {
 }
 
 impl MaterializedArtifactBytes {
-
     pub(crate) const fn admission_evidence(&self) -> &AdmittedArtifact {
         &self.admission
     }
-
-
 
     pub(crate) const fn placement_evidence(&self) -> &CodePlacementEvidence {
         &self.placement
@@ -282,7 +276,9 @@ fn normalized_final_bytes_identity(
     architecture: Architecture,
     bytes: &[u8],
 ) -> Result<FinalBytesDigest, InstallationDiagnostic> {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.materialized-final-bytes.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.materialized-final-bytes.sha256.v1\0",
+    );
     digest.raw(&content.digest());
     digest.raw(&base_address.to_le_bytes());
     digest.byte(match architecture {

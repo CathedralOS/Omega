@@ -324,9 +324,17 @@ fn installed_artifact_occurrence_digest(
     let validated = &evidence.validated;
     let admitted = &validated.admission_evidence;
     let constraints = validated.constraints;
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.installed-artifact-occurrence.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.installed-artifact-occurrence.sha256.v1\0",
+    );
     digest.raw(&admitted.artifact.content().digest());
-    digest.raw(&admitted .artifact .identity() .normalized_identity() .to_le_bytes(),);
+    digest.raw(
+        &admitted
+            .artifact
+            .identity()
+            .normalized_identity()
+            .to_le_bytes(),
+    );
     digest.raw(&admitted.admission.normalized_identity().to_le_bytes());
     digest.raw(&evidence.installed.normalized_identity().to_le_bytes());
     digest.raw(&validated.placement.normalized_identity().to_le_bytes());
@@ -373,7 +381,12 @@ fn installed_artifact_occurrence_digest(
     digest.raw(&validated.era.normalized_identity().to_le_bytes());
     digest.raw(&validated.lineage.normalized_identity().to_le_bytes());
     bytes(&mut digest, &validated.final_bytes);
-    digest.raw(&validated .realized_footprint .normalized_identity() .to_le_bytes(),);
+    digest.raw(
+        &validated
+            .realized_footprint
+            .normalized_identity()
+            .to_le_bytes(),
+    );
     digest.raw(&validated.validation.normalized_identity().to_le_bytes());
     digest.byte(match evidence.wx {
         WxEnforcement::HardwareEnforced => 1,

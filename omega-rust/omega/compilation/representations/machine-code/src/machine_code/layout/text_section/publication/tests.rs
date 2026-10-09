@@ -16,7 +16,7 @@ fn prior_wire_versions_with_route_taxonomy_reject() {
     let encoded = record().encode();
     for version in 0..16_u32 {
         let mut stale = encoded.clone();
-        crate::codec_bytes::patch_encoded(stale, 8, version.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut stale, 8, version.to_le_bytes());
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&stale),
             Err(FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(version))

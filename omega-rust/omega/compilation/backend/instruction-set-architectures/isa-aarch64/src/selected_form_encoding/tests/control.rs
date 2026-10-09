@@ -407,14 +407,14 @@ fn widened_branch_forms_decode_and_reject_corruption() {
         // A skip word carrying the non-inverted condition is not this form.
         let wrong_skip = 0x5400_0000_u32 | (2 << 5) | (inverted_condition ^ 0xf);
         let mut corrupt = encoded.bytes().to_vec();
-        crate::codec_bytes::patch_encoded(corrupt, 0, wrong_skip.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut corrupt, 0, wrong_skip.to_le_bytes());
         assert_eq!(
             validate(&physical, alternative, row_displacement, &corrupt),
             Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
         );
         // A second word that is not an unconditional `B` rejects.
         let mut corrupt = encoded.bytes().to_vec();
-        crate::codec_bytes::patch_encoded(corrupt, 4, 0x5400_000b_u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut corrupt, 4, 0x5400_000b_u32.to_le_bytes());
         assert_eq!(
             validate(&physical, alternative, row_displacement, &corrupt),
             Err(Aarch64SelectedFormEncodingError::MalformedEncoding)

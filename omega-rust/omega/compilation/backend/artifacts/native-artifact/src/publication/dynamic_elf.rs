@@ -104,7 +104,6 @@ impl DynamicElfPublicationReceipt {
     pub const fn container_digest(&self) -> ExecutableContainerDigest {
         self.container_digest
     }
-
 }
 
 /// Domain-separated installation commitment. The dynamic domain keeps equal
@@ -116,7 +115,9 @@ fn dynamic_elf_installation_evidence_digest(
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
 ) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.installed-dynamic-elf-publication-evidence.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.installed-dynamic-elf-publication-evidence.sha256.v1\0",
+    );
     digest.raw(dynamic_elf_artifact_identity);
     digest.raw(text_validation_digest.as_bytes());
     let path = output_path.as_os_str().as_encoded_bytes();

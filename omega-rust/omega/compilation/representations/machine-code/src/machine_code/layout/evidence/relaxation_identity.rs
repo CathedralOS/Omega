@@ -92,7 +92,10 @@ fn encode_roots(hasher: &mut crate::digest_encoder::DomainDigestEncoder, roots: 
     hasher.raw(&roots.target.identity_bytes());
 }
 
-fn encode_functions(hasher: &mut crate::digest_encoder::DomainDigestEncoder, functions: &[ResolvedSelectedFunctionLayout]) {
+fn encode_functions(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    functions: &[ResolvedSelectedFunctionLayout],
+) {
     hasher.u64(functions.len() as u64);
     for function in functions {
         hasher.raw(&function.machine.get().to_le_bytes());

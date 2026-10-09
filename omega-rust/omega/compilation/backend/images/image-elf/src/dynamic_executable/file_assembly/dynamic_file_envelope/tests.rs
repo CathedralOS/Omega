@@ -9,8 +9,8 @@ use super::{
 };
 use crate::{
     apply_elf_dynamic_address_fixups, apply_elf_section_header_placements,
-    plan_elf_dynamic_load_layout,
-    plan_elf_indexed_section_payloads, plan_elf_relative_section_payload_layout,
+    plan_elf_dynamic_load_layout, plan_elf_indexed_section_payloads,
+    plan_elf_relative_section_payload_layout,
 };
 use arena::Handle;
 use image::{
@@ -123,8 +123,7 @@ fn resolved(
             kind,
         });
     let linkage = crate::test_support::resolved_linkage(image, target);
-    let headers =
-        crate::test_support::section_header_table_from_linkage(linkage);
+    let headers = crate::test_support::section_header_table_from_linkage(linkage);
     let payloads = plan_elf_indexed_section_payloads(headers).unwrap();
     let relative = plan_elf_relative_section_payload_layout(payloads).unwrap();
     let load = plan_elf_dynamic_load_layout(relative).unwrap();
@@ -284,7 +283,11 @@ fn exact_header_and_table_substitutions_are_rejected_with_custody() {
     assert_rejected_with_custody(identity);
 
     let mut target = candidate(TargetProfile::LinuxX64);
-    crate::codec_bytes::patch_encoded(target.contents.header_prefix_bytes, 18, EM_AARCH64.to_le_bytes());
+    crate::codec_bytes::patch_encoded(
+        &mut target.contents.header_prefix_bytes,
+        18,
+        EM_AARCH64.to_le_bytes(),
+    );
     assert_rejected_with_custody(target);
 
     let mut program_header = candidate(TargetProfile::LinuxX64);

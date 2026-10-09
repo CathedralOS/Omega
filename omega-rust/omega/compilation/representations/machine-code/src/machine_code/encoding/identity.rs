@@ -306,7 +306,11 @@ pub(super) fn encode_normalized_foreign_fixup(
     hasher.raw(&fixup.reference_row_offset.to_le_bytes());
     hasher.byte(fixup.patch_byte_width);
     hasher.raw(&fixup.addend.to_le_bytes());
-    hasher.raw(&u64::try_from(fixup.callbacks.len()) .unwrap_or(0) .to_le_bytes(),);
+    hasher.raw(
+        &u64::try_from(fixup.callbacks.len())
+            .unwrap_or(0)
+            .to_le_bytes(),
+    );
     for callback in &fixup.callbacks {
         crate::machine_code::calls::callbacks::encode_callback_destination_identity(
             hasher,
@@ -333,7 +337,10 @@ pub(super) fn encode_normalized_foreign_fixup(
     }
 }
 
-pub(super) fn encode_internal_fixup(hasher: &mut crate::digest_encoder::DomainDigestEncoder, fixup: SelectedFormInternalMachineFixup) {
+pub(super) fn encode_internal_fixup(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    fixup: SelectedFormInternalMachineFixup,
+) {
     hasher.byte(match fixup.kind {
         SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 0,
         SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 1,
@@ -349,7 +356,10 @@ pub(super) fn encode_internal_fixup(hasher: &mut crate::digest_encoder::DomainDi
     hasher.raw(&fixup.addend.to_le_bytes());
 }
 
-fn encode_counts(hasher: &mut crate::digest_encoder::DomainDigestEncoder, counts: SelectedFormEncodingCounts) {
+fn encode_counts(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    counts: SelectedFormEncodingCounts,
+) {
     for count in [
         counts.ordinary_encoded,
         counts.ordinary_deferred_control,
@@ -367,7 +377,10 @@ fn encode_counts(hasher: &mut crate::digest_encoder::DomainDigestEncoder, counts
     }
 }
 
-fn encode_machine_disposition(hasher: &mut crate::digest_encoder::DomainDigestEncoder, disposition: &SelectedFormMachineDisposition) {
+fn encode_machine_disposition(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    disposition: &SelectedFormMachineDisposition,
+) {
     match disposition {
         SelectedFormMachineDisposition::RetainedV1 => hasher.byte(0),
         SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { consumer } => {

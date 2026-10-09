@@ -227,7 +227,7 @@ mod tests {
         let callee = MachineId::new(12).unwrap();
         let mut bytes = vec![0; 91];
         bytes[80] = 0xe8;
-        crate::codec_bytes::patch_encoded(bytes, 81, 5_i32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut bytes, 81, 5_i32.to_le_bytes());
         bytes[89] = 0xc3;
         bytes[90] = 0xc3;
         let returned = |instruction, function_offset, section_offset| PlacedInstructionSpan {

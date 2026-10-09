@@ -95,9 +95,8 @@
 //! entry and groups its stages by phase, and `bytes.rs`, `constants.rs`,
 //! `entry_symbol.rs` and `imports.rs` hold what both lanes share.
 
-mod codec_bytes;
-
 mod bytes;
+mod codec_bytes;
 mod constants;
 mod dynamic_executable;
 mod entry_symbol;
@@ -107,39 +106,24 @@ mod static_executable;
 pub use dynamic_executable::{ElfDynamicExecutableEmissionError, emit_elf_dynamic_executable};
 pub use static_executable::{emit_elf_aarch64_executable, emit_elf_x86_64_executable};
 
-
-
-pub use dynamic_executable::file_assembly::assembled_dynamic_file::{
-    ValidatedElfDynamicExecutable,
-};
-
+pub use dynamic_executable::file_assembly::assembled_dynamic_file::ValidatedElfDynamicExecutable;
 
 pub(crate) use dynamic_executable::file_assembly::resolved_procedure_linkage::ElfAppliedProcedureLinkageKind;
 
-
-
-
-
 pub(crate) use dynamic_executable::load_placement::load_layout::{
-    ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind};
-
+    ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind,
+};
 
 pub(crate) use dynamic_executable::load_placement::resolved_dynamic_table::ElfDynamicAddressApplicationTarget;
-
-
-
-
-
-
-
-
 
 #[cfg(test)]
 pub(crate) use dynamic_executable::dynamic_table::dynamic_table_descriptor::plan_elf_dynamic_table_section_descriptor;
 #[cfg(test)]
 pub(crate) use dynamic_executable::dynamic_table::dynamic_tag_bytes::serialize_elf_dynamic_table;
 #[cfg(test)]
-pub(crate) use dynamic_executable::dynamic_table::dynamic_tags::{ValidatedElfDynamicTagPlan, plan_elf_dynamic_tags};
+pub(crate) use dynamic_executable::dynamic_table::dynamic_tags::{
+    ValidatedElfDynamicTagPlan, plan_elf_dynamic_tags,
+};
 #[cfg(test)]
 pub(crate) use dynamic_executable::file_assembly::dynamic_file_envelope::{
     ValidatedElfDynamicFileEnvelope, serialize_elf_dynamic_file_envelope,
@@ -242,12 +226,8 @@ pub(crate) mod test_support {
         interpreter_expect: &'static str,
     ) -> crate::PlannedElfDynamicLinkInputs {
         use arena::Handle;
-        use image::{
-            FinalImageMemory, FinalImageRelocation,
-            FinalImageSection,
-        };
+        use image::{FinalImageMemory, FinalImageRelocation, FinalImageSection};
         use object_file::RelocationKind;
-        
 
         let relocation_count = imports
             .iter()
@@ -355,10 +335,7 @@ pub(crate) mod test_support {
         interpreter_expect: &str,
     ) -> crate::PlannedElfDynamicLinkInputs {
         use arena::Handle;
-        use image::{
-            FinalImage, FinalImageMemory,
-            FinalImageRelocation, FinalImageSection,
-        };
+        use image::{FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection};
         use object_file::RelocationKind;
         use target::NativeTarget;
 
@@ -416,8 +393,8 @@ pub(crate) mod test_support {
         let base = plan_elf_dynamic_section_descriptors(payloads).expect("valid base descriptors");
         let linkage =
             plan_elf_procedure_linkage_relocations(base).expect("valid procedure linkage");
-        let templates = crate::plan_elf_procedure_linkage_templates(linkage)
-            .expect("valid linkage templates");
+        let templates =
+            crate::plan_elf_procedure_linkage_templates(linkage).expect("valid linkage templates");
         crate::plan_elf_procedure_linkage_section_descriptors(templates)
             .expect("valid linkage descriptors")
     }
@@ -450,18 +427,17 @@ pub(crate) mod test_support {
     pub(crate) fn section_header_table_from_linkage(
         linkage: crate::ValidatedElfProcedureLinkageRelocationPlan,
     ) -> crate::ValidatedElfSectionHeaderTableTemplate {
-        let templates = crate::plan_elf_procedure_linkage_templates(linkage)
-            .expect("valid linkage templates");
+        let templates =
+            crate::plan_elf_procedure_linkage_templates(linkage).expect("valid linkage templates");
         let descriptors = crate::plan_elf_procedure_linkage_section_descriptors(templates)
             .expect("valid linkage descriptors");
         let tags = crate::plan_elf_dynamic_tags(descriptors).expect("valid dynamic tags");
         let dynamic = crate::serialize_elf_dynamic_table(tags).expect("valid dynamic table");
         let descriptor = crate::plan_elf_dynamic_table_section_descriptor(dynamic)
             .expect("valid dynamic descriptor");
-        let names = crate::plan_elf_section_name_table(descriptor)
-            .expect("valid section-name table");
-        let roster =
-            crate::plan_elf_dynamic_section_roster(names).expect("valid section roster");
+        let names =
+            crate::plan_elf_section_name_table(descriptor).expect("valid section-name table");
+        let roster = crate::plan_elf_dynamic_section_roster(names).expect("valid section roster");
         crate::serialize_elf_section_header_table(roster).expect("valid section headers")
     }
 

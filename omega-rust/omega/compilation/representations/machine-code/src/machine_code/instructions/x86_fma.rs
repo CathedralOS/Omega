@@ -106,9 +106,17 @@ pub(crate) fn x86_scalar_fma_fragment_identity(
     let destination = xmm_index(fragment.destination)?;
     let addend = xmm_index(fragment.addend)?;
     let multiplicand = xmm_index(fragment.multiplicand)?;
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(X86_SCALAR_FMA_FRAGMENT_SCHEMA);
+    let mut hasher =
+        crate::digest_encoder::DomainDigestEncoder::new(X86_SCALAR_FMA_FRAGMENT_SCHEMA);
     hasher.raw(&fragment.requirement.identity());
-    hasher.raw(&fragment .requirement .profile() .identity() .as_str() .as_bytes(),);
+    hasher.raw(
+        &fragment
+            .requirement
+            .profile()
+            .identity()
+            .as_str()
+            .as_bytes(),
+    );
     hasher.byte(match fragment.target.architecture {
         Architecture::Aarch64 => 0,
         Architecture::X86_64 => 1,
@@ -124,7 +132,9 @@ pub(crate) fn x86_scalar_fma_fragment_identity(
         X86ScalarFmaFormat::Binary32 => 1,
         X86ScalarFmaFormat::Binary64 => 2,
     });
-    hasher.byte(destination); hasher.byte(addend); hasher.byte(multiplicand);
+    hasher.byte(destination);
+    hasher.byte(addend);
+    hasher.byte(multiplicand);
     hasher.u64(fragment.code_offset as u64);
     hasher.u64(fragment.byte_count as u64);
     Some(hasher.finish())
