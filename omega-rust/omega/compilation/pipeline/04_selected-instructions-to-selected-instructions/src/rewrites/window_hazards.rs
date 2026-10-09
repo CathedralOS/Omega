@@ -6,7 +6,6 @@
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedInstruction, SelectedInstructionKind,
 };
-
 /// What an instruction without a roster row can reach. Private work is
 /// register-only or touches a compiler-owned spill/boundary slot that no
 /// referent place aliases. A store or byte copy outside that set could write

@@ -170,11 +170,6 @@ mod rewrite;
 mod slot;
 mod validation;
 
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) mod test_support;
-#[cfg(test)]
-mod tests;
-
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
@@ -188,8 +183,6 @@ use selected_instructions::{
 use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, PlaceId, ScalarType, ValueId};
 
 pub use rewrite::{spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy};
-#[cfg(test)]
-pub(crate) use validation::validate_runtime_spill_with_span_policy;
 
 /// How far a block's still-open shared reload interval may reach. The
 /// entrypoint fixes this once per rewrite so the proposal and the
