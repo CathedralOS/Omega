@@ -182,43 +182,6 @@ impl ArtifactAuthorityCommitments {
         self.installation_scope
     }
 
-    pub(crate) fn from_decoded_digests(
-        contracts: MachineContractSetId,
-        footprint: MachineFootprintId,
-        placement: PlacementConstraints,
-        imported_contracts: [u8; 32],
-        declared_footprint: [u8; 32],
-        machine_regime: [u8; 32],
-        installation_scope: [u8; 32],
-    ) -> Result<Self, InstallationDiagnostic> {
-        if [
-            imported_contracts,
-            declared_footprint,
-            machine_regime,
-            installation_scope,
-        ]
-        .contains(&[0; 32])
-        {
-            return Err(InstallationDiagnostic(
-                "executable-container authority commitments cannot be zero".into(),
-            ));
-        }
-        Ok(Self {
-            imported_contract_report_identity: contracts.normalized_identity(),
-            imported_contracts: ImportedContractSetDigest::from_digest(imported_contracts),
-            declared_footprint_report_identity: footprint.normalized_identity(),
-            declared_footprint: DeclaredFootprintDigest::from_digest(declared_footprint),
-            machine_regime_report_identity: placement
-                .machine_regime()
-                .map_or(0, |identity| identity.normalized_identity()),
-            machine_regime: MachineRegimeDigest::from_digest(machine_regime),
-            installation_scope_report_identity: placement
-                .installation_scope()
-                .map_or(0, |identity| identity.normalized_identity()),
-            installation_scope: InstallationScopeDigest::from_digest(installation_scope),
-        })
-    }
-
     pub(crate) fn matches_report_coordinates(
         &self,
         contracts: MachineContractSetId,

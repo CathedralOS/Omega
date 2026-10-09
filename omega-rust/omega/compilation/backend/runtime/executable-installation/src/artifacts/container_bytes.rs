@@ -11,38 +11,6 @@ use crate::authority_digests::NonAuthoritativeInformationalFingerprint64;
 use crate::installation::InstallationDiagnostic;
 
 
-pub(crate) const OMEGA_EXECUTABLE_CONTAINER_MAGIC: [u8; 8] = *b"OMEGAXE!";
-
-pub(crate) const OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES: u64 = 64;
-
-pub(crate) const OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES: u64 = 32;
-
-const RELOCATION_COUNT_BYTES: u64 = 8;
-
-const RELOCATION_RECORD_BYTES: u64 = 32;
-
-const ENTRY_RECORD_BYTES: u64 = 16;
-
-const PLACEMENT_RECORD_BYTES: u64 = 64;
-
-const SECTION_CODE: u16 = 1;
-
-const SECTION_RELOCATIONS: u16 = 2;
-
-const SECTION_CONTRACTS: u16 = 3;
-
-const SECTION_FOOTPRINT: u16 = 4;
-
-const SECTION_PLACEMENT: u16 = 5;
-
-const SECTION_ENTRIES: u16 = 6;
-
-const SECTION_INFORMATIONAL: u16 = 8;
-
-const SECTION_AUTHORITY_COMMITMENTS: u16 = 9;
-
-const AUTHORITY_COMMITMENT_BYTES: u64 = 128;
-
 pub(crate) fn non_authoritative_informational_section_fingerprint(
     kind: u16,
     payload: &[u8],

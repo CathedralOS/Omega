@@ -238,14 +238,6 @@ impl Artifact {
         self.0.content
     }
 
-    /// Legacy container-v1 checksum retained only for wire compatibility. It
-    /// is never sufficient for admission, replay, or installation authority.
-    pub(crate) fn non_authoritative_container_fingerprint(
-        &self,
-    ) -> NonAuthoritativeContainerFingerprint64 {
-        self.0.container_fingerprint
-    }
-
     pub fn architecture(&self) -> Architecture {
         self.0.architecture
     }
