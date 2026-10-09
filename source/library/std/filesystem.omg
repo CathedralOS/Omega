@@ -1066,9 +1066,8 @@ invokes
 // recurse in the ENTRY -- the only shape the `Nat::BoundedDistance` decreases
 // proof accepts. `path`'s domain survives the interleaved `mkall_step` call
 // because a SHARED parameter's declared domain is invariant (checker grant).
-machine Filesystem::mkall_walk(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64)
+machine Filesystem::mkall_walk(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64) -> UnitResult
 terminates by (i, path.len) -> Nat::BoundedDistance;
--> UnitResult
 reaches FilesystemHost
 {
     filesystem.walk_rc = Filesystem::mkall_step(filesystem, path, i);
@@ -1125,9 +1124,8 @@ machine Filesystem::mkall_step(filesystem: &mut Filesystem, path: &[u8] in Path,
 // chain selects arms correctly; value-call arm effects would be a compile
 // error by design). The byte writer also lays the C-string NUL at j == i,
 // so the mkdir fires on a complete prefix.
-machine Filesystem::mkall_copy(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64, j: u64)
+machine Filesystem::mkall_copy(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64, j: u64) -> i32
 terminates by (j, i) -> Nat::BoundedDistance;
--> i32
 {
     Filesystem::mkall_put(filesystem, path, i, j);
     transition j < i {

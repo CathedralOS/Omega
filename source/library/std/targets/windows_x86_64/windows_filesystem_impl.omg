@@ -121,9 +121,8 @@ windows_x86_64 machine windows_wide_path(path: &[u8], out: &mut [u8]) -> i64 {
     windows_wide_copy(path, out, 0, 0, path.len)
 }
 
-windows_x86_64 machine windows_wide_copy(path: &[u8], out: &mut [u8], i: u64, o: u64, fuel: u64)
+windows_x86_64 machine windows_wide_copy(path: &[u8], out: &mut [u8], i: u64, o: u64, fuel: u64) -> i64
 terminates by fuel;
--> i64
 {
     let step: WindowsWideStep = windows_wide_step(path, out, i, o);
     transition step.rc == 0 && fuel > 0 {

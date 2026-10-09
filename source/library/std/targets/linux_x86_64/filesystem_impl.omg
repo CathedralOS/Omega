@@ -568,9 +568,8 @@ invokes
 // a statement call from a dispatched state, verdict read from a field).
 // Returns 0 on success, the preserved negative syscall result on host failure,
 // or -5 (canonical Other/EIO) for a structural/fuel/depth failure.
-linux_x86_64 machine Filesystem::rda_drain(filesystem: &mut Filesystem, fuel: u64)
+linux_x86_64 machine Filesystem::rda_drain(filesystem: &mut Filesystem, fuel: u64) -> i32
 terminates by fuel;
--> i32
 {
     Filesystem::rda_step(filesystem, 0);
     // The re-entry is the ENTRY's OWN single-comparison transition -- the only

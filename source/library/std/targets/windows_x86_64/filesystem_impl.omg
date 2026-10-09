@@ -358,9 +358,8 @@ invokes
 // prover accepts; the loop runs its full fuel and no-ops once drained, the
 // documented provable trade). Returns 0 on success, -1 on
 // error/fuel-exhaustion/depth overflow (> 16).
-windows_x86_64 machine Filesystem::rda_drain(filesystem: &mut Filesystem, fuel: u64)
+windows_x86_64 machine Filesystem::rda_drain(filesystem: &mut Filesystem, fuel: u64) -> i32
 terminates by fuel;
--> i32
 {
     Filesystem::rda_step(filesystem, 0);
     transition fuel > 0 { true -> rda_drain(filesystem, fuel - 1) false -> rdd_settle(filesystem) }
@@ -737,9 +736,8 @@ windows_x86_64 machine Filesystem::w_capture_name(filesystem: &mut Filesystem, s
 
 // The fueled scan loop -- rda_drain's exact shape over w_scan_step (full
 // fuel, no-op once done; verdict protocol). Returns 0 clean / -1 error.
-windows_x86_64 machine Filesystem::w_scan_drain(filesystem: &mut Filesystem, fuel: u64)
+windows_x86_64 machine Filesystem::w_scan_drain(filesystem: &mut Filesystem, fuel: u64) -> i32
 terminates by fuel;
--> i32
 {
     Filesystem::w_scan_step(filesystem, 0);
     transition fuel > 0 { true -> w_scan_drain(filesystem, fuel - 1) false -> wsd_settle(filesystem) }

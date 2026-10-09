@@ -584,9 +584,8 @@ invokes
 // is one `rda_step` STATEMENT call (the fence doctrine's prescribed shape:
 // a statement call from a dispatched state, verdict read from a field).
 // Returns 0 on success, -1 on error/fuel-exhaustion/depth overflow (> 16).
-macos_x86_64 machine Filesystem::rda_drain(filesystem: &mut Filesystem, fuel: u64)
+macos_x86_64 machine Filesystem::rda_drain(filesystem: &mut Filesystem, fuel: u64) -> i32
 terminates by fuel;
--> i32
 {
     Filesystem::rda_step(filesystem, 0);
     // The re-entry is the ENTRY's OWN single-comparison transition -- the only
