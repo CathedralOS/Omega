@@ -335,10 +335,11 @@ impl<'program> StructuralJudge<'program> {
             else {
                 return;
             };
-            if let Some(subject) = self.declaration_term(binary.left) {
-                self.case_facts
-                    .push((subject, definition.symbol, variant.symbol));
-            }
+            let Some(subject) = self.declaration_term(binary.left) else {
+                return;
+            };
+            self.case_facts
+                .push((subject.clone(), definition.symbol, variant.symbol));
             // A tag fact alone establishes a complete value only when there
             // are no common or payload fields. Other arm refinements retain
             // their symbolic fields at the case-flow owner.
@@ -350,6 +351,14 @@ impl<'program> StructuralJudge<'program> {
             {
                 return;
             }
+            let value = StructuralTerm::Constructor {
+                data: definition.name.as_str().to_owned(),
+                case: variant.name.as_str().to_owned(),
+                fields: Vec::new(),
+            };
+            self.intake_case_equation(subject.clone(), value.clone(), 0);
+            self.intake_equation(subject, value, 0);
+            return;
         }
         match binary.operator {
             BinaryOperator::And => {
