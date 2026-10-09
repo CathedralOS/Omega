@@ -46,8 +46,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::BooleanNot { result, .. }
         | O::BooleanEqual { result, .. }
         | O::IeeeFloatCompare { result, .. }
-        | O::IntegerEqual { result, .. }
-        | O::IntegerLessThan { result, .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(result, ..)
         | O::IntegerLessOrEqual { result, .. } => Some((*result, ScalarType::Boolean)),
         O::IntegerBitwiseNot {
             result,
@@ -185,8 +184,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::IntegerExactCast { operand, .. }
         | O::ScalarRepresentationView { operand, .. } => vec![*operand],
         O::BooleanEqual { left, right, .. }
-        | O::IntegerEqual { left, right, .. }
-        | O::IntegerLessThan { left, right, .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)
         | O::IntegerLessOrEqual { left, right, .. }
         | O::IntegerBitwiseAnd { left, right, .. }
         | abstract_operations::bitwise_or_xor_pair_pattern!(left, right, ..)

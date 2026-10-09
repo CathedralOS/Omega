@@ -544,8 +544,7 @@ pub(super) fn project(
             scalar_instructions::project_shift(node, optimized, unit)?
         }
         AbstractOperation::BooleanEqual { .. }
-        | AbstractOperation::IntegerEqual { .. }
-        | AbstractOperation::IntegerLessThan { .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(..)
         | AbstractOperation::IntegerLessOrEqual { .. } => {
             scalar_instructions::project_boolean_equal(node, optimized)?
         }

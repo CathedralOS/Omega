@@ -13,8 +13,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         O::IntegerConstant { .. } | O::BooleanConstant { .. } => Some(DeadScalarFamily::Literal),
         O::BooleanNot { .. }
         | O::BooleanEqual { .. }
-        | O::IntegerEqual { .. }
-        | O::IntegerLessThan { .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
         | O::IntegerBitwiseNot { .. }
         | O::IntegerWiden { .. }
@@ -139,16 +138,8 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 result,
                 ..
             }
-            | O::IntegerEqual {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::IntegerLessThan {
-                psi_operation,
-                result,
-                ..
-            }
+            | abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
+                result, ..)
             | O::IntegerLessOrEqual {
                 psi_operation,
                 result,

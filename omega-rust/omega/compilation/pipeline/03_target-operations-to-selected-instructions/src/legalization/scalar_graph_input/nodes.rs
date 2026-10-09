@@ -269,16 +269,8 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         } if trapping_form(*scalar_type, *operand_type, operation.primitive()).is_some() => {
             Ok((*psi_operation, *result))
         }
-        AbstractOperation::IntegerEqual {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::IntegerLessThan {
-            psi_operation,
-            result,
-            ..
-        }
+        abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
+            result, ..)
         | AbstractOperation::IntegerLessOrEqual {
             psi_operation,
             result,
@@ -945,8 +937,7 @@ pub(super) fn validate(
                 }
                 ScalarType::Integer(*shift_value_type)
             }
-            AbstractOperation::IntegerEqual { left, right, .. }
-            | AbstractOperation::IntegerLessThan { left, right, .. }
+            abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)
             | AbstractOperation::IntegerLessOrEqual { left, right, .. } => {
                 for operand in [*left, *right] {
                     let Some(ScalarType::Integer(carrier)) = value_type(optimized, operand) else {

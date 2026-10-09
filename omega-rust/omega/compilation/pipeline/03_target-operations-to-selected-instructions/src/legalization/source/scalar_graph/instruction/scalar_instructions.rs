@@ -431,8 +431,7 @@ pub(super) fn project_boolean_equal(
     optimized: &optimization_unit::PsiOptimizationFunction,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let (AbstractOperation::BooleanEqual { left, right, .. }
-    | AbstractOperation::IntegerEqual { left, right, .. }
-    | AbstractOperation::IntegerLessThan { left, right, .. }
+    | abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)
     | AbstractOperation::IntegerLessOrEqual { left, right, .. }) = &node.operation
     else {
         unreachable!("dispatched project_boolean_equal")

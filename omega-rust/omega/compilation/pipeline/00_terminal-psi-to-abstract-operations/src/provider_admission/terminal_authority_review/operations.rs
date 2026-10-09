@@ -77,8 +77,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::StructuralScalarFieldRead { .. }
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BooleanEqual { .. }
-        | AbstractOperation::IntegerEqual { .. }
-        | AbstractOperation::IntegerLessThan { .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(..)
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::IntegerBitwiseNot { .. }
         | AbstractOperation::IntegerWiden { .. }

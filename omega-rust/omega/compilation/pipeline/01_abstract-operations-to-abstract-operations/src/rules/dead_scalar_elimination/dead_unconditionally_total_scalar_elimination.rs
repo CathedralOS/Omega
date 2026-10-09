@@ -54,16 +54,8 @@ pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
             result,
             ..
         }
-        | O::IntegerEqual {
-            psi_operation,
-            result,
-            ..
-        }
-        | O::IntegerLessThan {
-            psi_operation,
-            result,
-            ..
-        }
+        | abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
+            result, ..)
         | O::IntegerLessOrEqual {
             psi_operation,
             result,

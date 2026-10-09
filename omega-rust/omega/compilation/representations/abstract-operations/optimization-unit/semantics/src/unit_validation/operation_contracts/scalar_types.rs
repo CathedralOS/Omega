@@ -191,8 +191,7 @@ pub(crate) fn operation_scalar_types_match(
             scalar(*left) == Some(ScalarType::Boolean)
                 && scalar(*right) == Some(ScalarType::Boolean)
         }
-        O::IntegerEqual { left, right, .. }
-        | O::IntegerLessThan { left, right, .. }
+        abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)
         | O::IntegerLessOrEqual { left, right, .. } => {
             match (scalar(*left), scalar(*right)) {
                 (Some(ScalarType::Integer(left)), Some(ScalarType::Integer(right))) =>

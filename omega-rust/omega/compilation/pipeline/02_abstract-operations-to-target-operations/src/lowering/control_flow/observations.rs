@@ -447,18 +447,10 @@ pub(super) fn lower(
                 }),
             )
         }
-        AbstractOperation::IntegerEqual {
-            psi_operation,
+        abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
             result,
             left,
-            right,
-        }
-        | AbstractOperation::IntegerLessThan {
-            psi_operation,
-            result,
-            left,
-            right,
-        }
+            right, ..)
         | AbstractOperation::IntegerLessOrEqual {
             psi_operation,
             result,

@@ -685,8 +685,7 @@ pub(super) fn lower_operation(
         | AbstractOperation::ElementViewLength { .. }
         | AbstractOperation::ElementViewRead { .. }
         | AbstractOperation::ElementViewSubslice { .. }
-        | AbstractOperation::IntegerEqual { .. }
-        | AbstractOperation::IntegerLessThan { .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(..)
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BooleanEqual { .. }

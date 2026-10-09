@@ -31,7 +31,7 @@ pub(super) fn evaluate(
         O::BooleanNot { .. } | O::BooleanEqual { .. } => {
             boolean_literals::evaluate(function, node, candidate)
         }
-        O::IntegerEqual { .. } | O::IntegerLessThan { .. } | O::IntegerLessOrEqual { .. } => {
+        abstract_operations::integer_equal_less_pair_pattern!(..) | O::IntegerLessOrEqual { .. } => {
             integer_comparisons::evaluate(input, function, node, candidate, location)
         }
         _ => Err(OptimizationUnitValidationError::CandidatePatchMismatch),

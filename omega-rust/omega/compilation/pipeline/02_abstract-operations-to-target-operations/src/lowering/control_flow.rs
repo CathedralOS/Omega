@@ -265,8 +265,7 @@ pub(super) fn lower(
             | AbstractOperation::IntegerWiden { result, .. }
             | AbstractOperation::IntegerExactCast { result, .. }
             | AbstractOperation::ScalarRepresentationView { result, .. }
-            | AbstractOperation::IntegerEqual { result, .. }
-            | AbstractOperation::IntegerLessThan { result, .. }
+            | abstract_operations::integer_equal_less_pair_pattern!(result, ..)
             | AbstractOperation::IntegerLessOrEqual { result, .. }
             | AbstractOperation::BooleanNot { result, .. }
             | AbstractOperation::BooleanEqual { result, .. } => Some(*result),

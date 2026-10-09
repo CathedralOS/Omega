@@ -180,8 +180,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::BooleanConstant { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }
-        | O::IntegerEqual { .. }
-        | O::IntegerLessThan { .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
         | O::IntegerBitwiseNot { .. }
         | O::IntegerWiden { .. }
@@ -514,8 +513,7 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         | O::BooleanConstant { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }
-        | O::IntegerEqual { .. }
-        | O::IntegerLessThan { .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
         | O::IntegerBitwiseNot { .. }
         | O::IntegerBitwiseAnd { .. }

@@ -71,8 +71,7 @@ pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -
     let psi_operation = match &node.operation {
         O::BooleanNot { psi_operation, .. }
         | O::BooleanEqual { psi_operation, .. }
-        | O::IntegerEqual { psi_operation, .. }
-        | O::IntegerLessThan { psi_operation, .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(psi_operation, ..)
         | O::IntegerLessOrEqual { psi_operation, .. }
         | O::IntegerBitwiseNot { psi_operation, .. }
         | O::IntegerBitwiseAnd { psi_operation, .. }

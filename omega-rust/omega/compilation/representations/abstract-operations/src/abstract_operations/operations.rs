@@ -1213,3 +1213,11 @@ macro_rules! bitwise_or_xor_pair_pattern {
             | $crate::AbstractOperation::IntegerBitwiseXor { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! integer_equal_less_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::IntegerEqual { $($fields)* }
+            | $crate::AbstractOperation::IntegerLessThan { $($fields)* }
+    };
+}

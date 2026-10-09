@@ -153,8 +153,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::IntegerExactCast { operand, .. }
         | O::ScalarRepresentationView { operand, .. } => replace(operand),
         O::BooleanEqual { left, right, .. }
-        | O::IntegerEqual { left, right, .. }
-        | O::IntegerLessThan { left, right, .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)
         | O::IntegerLessOrEqual { left, right, .. }
         | O::IntegerBitwiseAnd { left, right, .. }
         | abstract_operations::bitwise_or_xor_pair_pattern!(left, right, ..)

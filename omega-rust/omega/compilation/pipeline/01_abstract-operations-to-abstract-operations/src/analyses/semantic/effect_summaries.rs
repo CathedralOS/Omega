@@ -279,8 +279,7 @@ fn operation_effect(
         | O::BooleanConstant { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }
-        | O::IntegerEqual { .. }
-        | O::IntegerLessThan { .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
         | O::IntegerBitwiseNot { .. }
         | O::IntegerWiden { .. }

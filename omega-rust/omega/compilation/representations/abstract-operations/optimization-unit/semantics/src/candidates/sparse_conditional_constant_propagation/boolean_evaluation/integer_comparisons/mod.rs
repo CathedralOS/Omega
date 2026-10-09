@@ -30,18 +30,10 @@ pub(super) fn evaluate(
     location: NodeLocation,
 ) -> Result<BooleanEvaluation, OptimizationUnitValidationError> {
     let shape = match node.operation {
-        O::IntegerEqual {
-            psi_operation,
+        abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
             result,
             left,
-            right,
-        }
-        | O::IntegerLessThan {
-            psi_operation,
-            result,
-            left,
-            right,
-        }
+            right, ..)
         | O::IntegerLessOrEqual {
             psi_operation,
             result,

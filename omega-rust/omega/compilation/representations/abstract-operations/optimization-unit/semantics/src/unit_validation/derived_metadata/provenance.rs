@@ -80,8 +80,7 @@ pub(crate) fn expected_provenance(
         | O::StructuralScalarFieldRead { psi_operation, .. }
         | O::BooleanNot { psi_operation, .. }
         | O::BooleanEqual { psi_operation, .. }
-        | O::IntegerEqual { psi_operation, .. }
-        | O::IntegerLessThan { psi_operation, .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(psi_operation, ..)
         | O::IntegerLessOrEqual { psi_operation, .. }
         | O::IntegerBitwiseNot { psi_operation, .. }
         | O::IntegerWiden { psi_operation, .. }

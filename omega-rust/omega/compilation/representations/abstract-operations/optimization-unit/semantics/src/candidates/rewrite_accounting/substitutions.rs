@@ -60,8 +60,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::IntegerExactCast { operand, .. }
         | O::ScalarRepresentationView { operand, .. } => replace(operand),
         O::BooleanEqual { left, right, .. }
-        | O::IntegerEqual { left, right, .. }
-        | O::IntegerLessThan { left, right, .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)
         | O::IntegerLessOrEqual { left, right, .. }
         | O::IntegerBitwiseAnd { left, right, .. }
         | abstract_operations::bitwise_or_xor_pair_pattern!(left, right, ..)

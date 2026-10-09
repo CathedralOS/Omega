@@ -468,8 +468,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 // Like the other pure comparisons, source/selection replay
                 // above checks every operand and the complete realization.
                 | AbstractOperation::IeeeFloatCompare { .. }
-                | AbstractOperation::IntegerEqual { .. }
-                | AbstractOperation::IntegerLessThan { .. }
+                | abstract_operations::integer_equal_less_pair_pattern!(..)
                 | AbstractOperation::IntegerLessOrEqual { .. }
                 | AbstractOperation::BooleanNot { .. }
                 | AbstractOperation::IntegerWiden { .. }

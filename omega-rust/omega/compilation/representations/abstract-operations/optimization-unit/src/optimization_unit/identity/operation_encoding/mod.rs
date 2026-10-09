@@ -70,8 +70,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::StructuralByteSequenceFieldRead { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }
-        | O::IntegerEqual { .. }
-        | O::IntegerLessThan { .. }
+        | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
         | O::IntegerBitwiseNot { .. }
         | O::IntegerWiden { .. }

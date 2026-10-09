@@ -135,8 +135,7 @@ pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
             | AbstractOperation::ByteSequenceEqual { .. }
             | AbstractOperation::ElementViewLength { .. }
             | AbstractOperation::ElementViewRead { .. }
-            | AbstractOperation::IntegerEqual { .. }
-            | AbstractOperation::IntegerLessThan { .. }
+            | abstract_operations::integer_equal_less_pair_pattern!(..)
             | AbstractOperation::IntegerLessOrEqual { .. }
             | AbstractOperation::BooleanNot { .. }
             | AbstractOperation::BooleanEqual { .. }
@@ -369,16 +368,8 @@ pub(super) fn observation(
             result,
             ..
         } => (*psi_operation, result.value, result.scalar_type),
-        AbstractOperation::IntegerEqual {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::IntegerLessThan {
-            psi_operation,
-            result,
-            ..
-        }
+        abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
+            result, ..)
         | AbstractOperation::IntegerLessOrEqual {
             psi_operation,
             result,
