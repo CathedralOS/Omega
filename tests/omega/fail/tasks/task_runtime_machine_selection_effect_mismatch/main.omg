@@ -5,7 +5,7 @@ use omega::language::core::task;
 // contract at specialization; whole-program inference cannot widen it.
 boundary trait DiskIo {
 }
-boundary data Disk;
+pub boundary data Disk;
 boundary machine Disk::touch(value: i32) reaches DiskIo;
 
 data Job {
@@ -19,15 +19,15 @@ machine Worker::run(job: Job) -> i32 reaches DiskIo {
     value
 }
 
-machine Task::settle<T>(task: &Task) -> TaskOutcome<T> {
-    suspend block task.finish()
+machine Task::settle<T>(task: Task<T>) -> TaskOutcome<T> {
+    suspend block Task::finish(task)
 }
 
 data Main {
     runtime: &TaskRuntime;
 }
 
-machine Main::probe(main: &mut Main) {
+machine Main::probe(main: &mut Main) reaches TaskRuntime {
     let job: Job = Job { value: 7 };
     let task: Task<i32> = main.runtime.start<Worker::run>(job);
     _ = suspend block Task::settle(task);

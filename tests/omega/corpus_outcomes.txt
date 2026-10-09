@@ -2114,7 +2114,7 @@ fail/targets/unrealized_conformance_rejected rejected 929ms expected @20ecc46e08
 	machine `Helper::value` state `value` does not satisfy trait `Predicate` machine `value`: expected return `bool`, got `u32`
 fail/targets/unrealized_family_signature_rejected rejected 17ms expected @2740301f86f2+wt
 	machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature
-fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 145ms expected @2d8ed253669f
+fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 145ms expected @e5560874d7d4+wt
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
 fail/tasks/task_runtime_provider_contract_narrowing rejected 332ms expected @d83ae44b78cd
 	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` narrows `Target` by omitting `blocks;`

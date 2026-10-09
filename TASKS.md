@@ -2606,9 +2606,7 @@ crash and native exit behavior.
   - `pass/tasks/task_runtime_machine_selection_compile` reads a `StartOutcome`
     payload without case knowledge, which checking now refuses
     ([data and literals](wiki/spec/language/data_and_literals.md)); the lawful
-    case transition hits the linear-payload cleanup refusal above. Its sibling
-    `fail/tasks/task_runtime_machine_selection_effect_mismatch` stops at
-    `Task::settle` specialization before its effect-ceiling fragment.
+    case transition hits the linear-payload cleanup refusal above.
   - `fail/build/build_effects_undeclared` reports "target-tagged machine has no
     authored family member" instead of its effect refusal.
   - `interrupt_table_canary` and `secondary_processor_canary` select providers
