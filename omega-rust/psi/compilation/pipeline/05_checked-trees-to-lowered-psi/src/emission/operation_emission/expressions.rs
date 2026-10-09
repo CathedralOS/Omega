@@ -110,6 +110,8 @@ pub(crate) enum LoweredDirectExpression {
     },
     ByteSequenceLength {
         source: PlaceId,
+        path: Vec<LoweredElementPathSegment>,
+        access: terminal_psi::StructuralAccess,
         scalar_type: ScalarType,
     },
     ByteSequenceFieldLength {
@@ -149,6 +151,8 @@ pub(crate) enum LoweredDirectExpression {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
+        /// A live descriptor's exact count; fixed arrays use their declaration.
+        extent: Option<Box<LoweredDirectExpression>>,
         element_path: Vec<LoweredElementPathSegment>,
         scalar_type: ScalarType,
         /// Checking proved the outer `[]` index within the declared extent;
@@ -606,14 +610,24 @@ pub(crate) fn emit_direct_expression(
                 operations,
             )
         }
-        LoweredDirectExpression::ByteSequenceLength { source, .. } => emit_byte_length(
-            terminal_psi::StructuralArgument::whole(
-                *source,
-                terminal_psi::StructuralAccess::SharedBorrow,
-            ),
-            next_value_identity,
-            operations,
-        ),
+        LoweredDirectExpression::ByteSequenceLength {
+            source,
+            path,
+            access,
+            ..
+        } => {
+            let path = emit_prepared_path(path, 0, parameters, next_value_identity, operations);
+            let path = path_with_current_bounds(&path, operations.next_identity);
+            emit_byte_length(
+                terminal_psi::StructuralArgument {
+                    place: *source,
+                    path,
+                    access: *access,
+                },
+                next_value_identity,
+                operations,
+            )
+        }
         LoweredDirectExpression::ByteSequenceFieldLength {
             source,
             path,
@@ -740,10 +754,14 @@ pub(crate) fn emit_direct_expression(
             source,
             path,
             index,
+            extent,
             element_path,
             scalar_type,
             bound_decided,
         } => {
+            if let Some(extent) = extent {
+                emit_direct_expression(extent, parameters, next_value_identity, operations);
+            }
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             let element_path =
                 emit_prepared_path(element_path, 0, parameters, next_value_identity, operations);

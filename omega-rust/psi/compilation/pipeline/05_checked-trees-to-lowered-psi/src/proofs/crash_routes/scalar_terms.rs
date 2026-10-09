@@ -178,8 +178,15 @@ pub(crate) fn lowered_direct_scalar_term(
         }
         LoweredDirectExpression::ByteSequenceLength {
             source,
+            path,
             scalar_type,
+            ..
         } => {
+            if !path.is_empty() {
+                return unsupported(
+                    "projected crash extent requires its canonical descriptor path",
+                );
+            }
             let Some(extent_type) = scalar_type.as_integer() else {
                 return unsupported("view extent observation has a non-integer carrier");
             };

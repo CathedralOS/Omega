@@ -109,6 +109,7 @@ pub(crate) fn captured_observation(
             source,
             path: capture.carrier_path.clone(),
             index,
+            extent: None,
             element_path: observation.element_path.iter().cloned().map(
                 crate::emission::operation_emission::expressions::LoweredElementPathSegment::Static,
             ).collect(),
@@ -156,6 +157,7 @@ pub(crate) fn captured_observation(
                 value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
                 scalar_type: super::terminal_scalar_type(typed_trees::types::PrimitiveType::U64)?,
             }),
+            extent: None,
             element_path: Vec::new(),
             scalar_type: observation.scalar_type,
             bound_decided: false,

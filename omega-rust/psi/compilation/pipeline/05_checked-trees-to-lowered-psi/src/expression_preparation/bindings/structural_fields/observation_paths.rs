@@ -97,7 +97,18 @@ pub(super) fn explicit_path<'a>(
                 result.push(CheckedUnitStructuralPathSegment::FixedIndex(*index));
                 Some(*element)
             }
-            (Source::RuntimeIndex(index), StructuralTypeShape::FixedArray { element, .. }) => {
+            (Source::FixedIndex(index), StructuralTypeShape::ElementView { element, .. }) => {
+                // The declaration selects the element type, not a live bound.
+                // Preparation retains its descriptor count and the read owes
+                // a dominating index obligation at the concrete operation.
+                result.push(CheckedUnitStructuralPathSegment::FixedIndex(*index));
+                Some(*element)
+            }
+            (
+                Source::RuntimeIndex(index),
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element, .. },
+            ) => {
                 result.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     index.clone(),
                 ));

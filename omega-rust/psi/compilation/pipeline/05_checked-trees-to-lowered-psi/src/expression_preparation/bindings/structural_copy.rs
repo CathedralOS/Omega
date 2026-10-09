@@ -101,6 +101,8 @@ impl ScalarBindings {
                 ) if requested_extent != Some(false) => {
                     Some(LoweredDirectExpression::ByteSequenceLength {
                         source: place,
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
                         scalar_type,
                     })
                 }

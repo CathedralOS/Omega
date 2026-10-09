@@ -514,6 +514,7 @@ pub(crate) fn substitute_direct(
             source,
             path,
             index,
+            extent,
             element_path,
             scalar_type,
             bound_decided,
@@ -522,6 +523,7 @@ pub(crate) fn substitute_direct(
             source,
             path,
             index: Box::new(substitute_direct(*index, bound)),
+            extent: extent.map(|extent| Box::new(substitute_direct(*extent, bound))),
             element_path: substitute_path(element_path, bound),
             scalar_type,
         },
@@ -606,6 +608,17 @@ pub(crate) fn substitute_direct(
         Direct::Boolean { expression } => Direct::Boolean {
             expression: Box::new(substitute_boolean(*expression, bound)),
         },
+        Direct::ByteSequenceLength {
+            source,
+            path,
+            access,
+            scalar_type,
+        } => Direct::ByteSequenceLength {
+            source,
+            path: substitute_path(path, bound),
+            access,
+            scalar_type,
+        },
         Direct::ElementViewLength {
             source,
             path,
@@ -618,7 +631,6 @@ pub(crate) fn substitute_direct(
             scalar_type,
         },
         expression @ (Direct::PrimitiveRead { .. }
-        | Direct::ByteSequenceLength { .. }
         | Direct::Parameter { .. }
         | Direct::ErasedParameter { .. }
         | Direct::Local { .. }
@@ -772,9 +784,13 @@ fn collect_direct_case_reads(
         }
         Direct::IndexedPrimitiveRead {
             index,
+            extent,
             element_path,
             ..
         } => {
+            if let Some(extent) = extent {
+                collect_direct_case_reads(extent, reads);
+            }
             collect_direct_case_reads(index, reads);
             collect_path_case_reads(element_path, reads);
         }
@@ -782,9 +798,9 @@ fn collect_direct_case_reads(
             collect_path_case_reads(path, reads);
             collect_direct_case_reads(index, reads);
         }
-        Direct::ByteSequenceFieldLength { path, .. } | Direct::ElementViewLength { path, .. } => {
-            collect_path_case_reads(path, reads)
-        }
+        Direct::ByteSequenceLength { path, .. }
+        | Direct::ByteSequenceFieldLength { path, .. }
+        | Direct::ElementViewLength { path, .. } => collect_path_case_reads(path, reads),
         Direct::IntegerBinary { left, right, .. }
         | Direct::SaturatingShiftLeft { left, right, .. } => {
             collect_direct_case_reads(left, reads);
@@ -795,8 +811,7 @@ fn collect_direct_case_reads(
         | Direct::IntegerExactCast { operand, .. }
         | Direct::RepresentationView { operand, .. } => collect_direct_case_reads(operand, reads),
         Direct::Boolean { expression } => case_reads(expression, reads),
-        Direct::ByteSequenceLength { .. }
-        | Direct::Parameter { .. }
+        Direct::Parameter { .. }
         | Direct::ErasedParameter { .. }
         | Direct::Local { .. }
         | Direct::IntegerLiteral { .. }

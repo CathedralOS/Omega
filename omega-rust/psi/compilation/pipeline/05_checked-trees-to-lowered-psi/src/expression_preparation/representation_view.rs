@@ -114,6 +114,7 @@ fn byte_region(
         source,
         path,
         index,
+        extent,
         element_path,
         scalar_type,
         ..
@@ -154,6 +155,7 @@ fn byte_region(
                 source,
                 path: path.clone(),
                 index: byte_index,
+                extent: extent.clone(),
                 element_path: Vec::new(),
                 scalar_type,
                 bound_decided: false,

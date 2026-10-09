@@ -196,6 +196,8 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             Ok(match carrier {
                 ViewCarrier::Bytes => LoweredDirectExpression::ByteSequenceLength {
                     source,
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
                     scalar_type: count_type,
                 },
                 ViewCarrier::Elements { .. } => LoweredDirectExpression::ElementViewLength {
@@ -294,18 +296,12 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 path.last(),
                 Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
             ) {
-                let (source, path) =
-                    crate::expression_preparation::bindings::structural_fields::resolve_primitive(
+                return crate::expression_preparation::bindings::structural_fields::resolve_primitive(
                         structural_fields,
                         *parameter_position,
                         path,
                         scalar_type,
-                    )?;
-                return Ok(LoweredDirectExpression::PrimitiveRead {
-                    source,
-                    path,
-                    scalar_type,
-                });
+                    );
             }
             crate::expression_preparation::bindings::structural_fields::resolve(
                 structural_fields,
@@ -722,6 +718,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     source,
                     path,
                     index,
+                    extent: None,
                     element_path,
                     scalar_type,
                     bound_decided,
@@ -888,14 +885,14 @@ fn lower_checked_boolean_expression_with_parameters(
                     path.last(),
                     Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
                 ) {
-                    let (source, path) =
+                    let observation =
                         crate::expression_preparation::bindings::structural_fields::resolve_primitive(
                             structural_fields,
                             *parameter_position,
                             path,
                             ScalarType::Boolean,
                         )?;
-                    return Ok(LoweredBooleanReturnExpression::PrimitiveRead { source, path });
+                    return Ok(crate::expression_preparation::bindings::structural_fields::boolean_observation(observation));
                 }
                 let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve(
@@ -1119,6 +1116,8 @@ fn captured_sequence_length(
             terminal_psi::StructuralTypeShape::ByteSequence(_) => {
                 Ok(LoweredDirectExpression::ByteSequenceLength {
                     source: home.place,
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
                     scalar_type,
                 })
             }

@@ -100,17 +100,21 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
-        | LoweredDirectExpression::ImplementationSelection { .. }
-        | LoweredDirectExpression::ByteSequenceLength { .. } => Ok(()),
+        | LoweredDirectExpression::ImplementationSelection { .. } => Ok(()),
         LoweredDirectExpression::IndexedPrimitiveRead {
             index,
+            extent,
             element_path,
             ..
         } => {
+            if let Some(extent) = extent {
+                validate_direct_parameter_types(extent, parameter_types)?;
+            }
             validate_direct_parameter_types(index, parameter_types)?;
             validate_path_parameter_types(element_path, parameter_types)
         }
-        LoweredDirectExpression::ByteSequenceFieldLength { path, .. }
+        LoweredDirectExpression::ByteSequenceLength { path, .. }
+        | LoweredDirectExpression::ByteSequenceFieldLength { path, .. }
         | LoweredDirectExpression::ElementViewLength { path, .. } => {
             validate_path_parameter_types(path, parameter_types)
         }

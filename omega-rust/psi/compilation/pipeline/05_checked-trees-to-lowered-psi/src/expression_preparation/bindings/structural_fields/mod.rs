@@ -908,13 +908,9 @@ pub(crate) fn resolve_primitive(
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     scalar_type: ScalarType,
-) -> Result<
-    (
-        crate::emission::operation_emission::expressions::PrimitiveReadSource,
-        Vec<terminal_psi::StructuralPathSegment>,
-    ),
-    LoweringError,
-> {
+) -> Result<LoweredDirectExpression, LoweringError> {
+    use super::structural_paths::PreparedStructuralPathSegment as Prepared;
+    use crate::emission::operation_emission::expressions::LoweredElementPathSegment;
     let mut matching = fields
         .iter()
         .filter(|field| field.source_position == position);
@@ -930,10 +926,85 @@ pub(crate) fn resolve_primitive(
             checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
         )
     }) {
-        return resolve_case_primitive(binding, path, scalar_type);
+        let (source, path) = resolve_case_primitive(binding, path, scalar_type)?;
+        return Ok(LoweredDirectExpression::PrimitiveRead {
+            source,
+            path,
+            scalar_type,
+        });
     }
-    let (path, _) =
+    let (path, selected) =
         observation_paths::explicit_path(binding.structural_type, path, &binding.declarations)?;
+    let prepared = super::structural_paths::prepare_argument_path(
+        &path,
+        binding.structural_type,
+        &binding.declarations,
+    )?;
+    if let Some(extent_position) = prepared
+        .iter()
+        .position(|segment| matches!(segment, Prepared::ViewExtent { .. }))
+    {
+        let Some(StructuralTypeShape::PrimitiveScalar(declared_type)) =
+            selected.map(|declaration| &declaration.shape)
+        else {
+            return unsupported("indexed observation requires a primitive element carrier");
+        };
+        if *declared_type != scalar_type {
+            return unsupported("primitive observation changes its declared scalar type");
+        }
+        let prefix = prepared[..extent_position]
+            .iter()
+            .map(|segment| match segment {
+                Prepared::Static(segment) => Ok(segment.clone()),
+                _ => unsupported("indexed observation prefix requires captured selectors"),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let Prepared::ViewExtent { bytes } = prepared[extent_position] else {
+            unreachable!()
+        };
+        let [Prepared::Static(terminal_psi::StructuralPathSegment::FixedIndex(index))] =
+            &prepared[extent_position + 1..]
+        else {
+            return unsupported("indexed observation requires its retained selector expression");
+        };
+        let count_type = crate::emission::scalar_types::terminal_scalar_type(
+            typed_trees::types::PrimitiveType::U64,
+        )?;
+        let count_path = prefix
+            .iter()
+            .cloned()
+            .map(LoweredElementPathSegment::Static)
+            .collect();
+        let extent = if bytes {
+            LoweredDirectExpression::ByteSequenceLength {
+                source: binding.source,
+                path: count_path,
+                access: StructuralAccess::SharedBorrow,
+                scalar_type: count_type,
+            }
+        } else {
+            LoweredDirectExpression::ElementViewLength {
+                source: binding.source,
+                path: count_path,
+                access: StructuralAccess::SharedBorrow,
+                scalar_type: count_type,
+            }
+        };
+        // Source checking admitted this read. Preserve the live bound as an
+        // ordinary operation rather than granting a literal an array bound.
+        return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+            source: binding.source,
+            path: prefix,
+            index: Box::new(LoweredDirectExpression::IntegerLiteral {
+                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
+                scalar_type: count_type,
+            }),
+            extent: Some(Box::new(extent)),
+            element_path: Vec::new(),
+            scalar_type,
+            bound_decided: false,
+        });
+    }
     let (path, declared_type) = crate::emission::primitive_store::lower_path(
         binding.structural_type,
         &path,
@@ -942,7 +1013,11 @@ pub(crate) fn resolve_primitive(
     if declared_type != scalar_type {
         return unsupported("primitive observation changes its declared scalar type");
     }
-    Ok((binding.source.into(), path))
+    Ok(LoweredDirectExpression::PrimitiveRead {
+        source: binding.source.into(),
+        path,
+        scalar_type,
+    })
 }
 
 /// Resolve each declared projection independently; no source arrangement grants

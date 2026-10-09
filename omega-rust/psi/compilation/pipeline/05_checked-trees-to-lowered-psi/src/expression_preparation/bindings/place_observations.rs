@@ -306,6 +306,7 @@ pub(crate) fn byte_overlay_read(
         source,
         path: path.to_vec(),
         index: Box::new(index),
+        extent: None,
         element_path: Vec::new(),
         scalar_type: byte_type,
         bound_decided: false,

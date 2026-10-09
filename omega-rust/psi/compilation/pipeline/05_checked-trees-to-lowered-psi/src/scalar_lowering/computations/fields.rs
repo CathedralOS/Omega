@@ -1355,6 +1355,7 @@ fn observe(
                 source,
                 path: carrier_path.clone(),
                 index: Box::new(index),
+                extent: None,
                 element_path: binding
                     .element_path
                     .iter()
