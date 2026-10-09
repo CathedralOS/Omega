@@ -5,7 +5,7 @@
 //! deployment profile; it does not claim that the selected hardware provides
 //! either feature.
 
-use sha2::{Digest, Sha256};
+use crate::digest_encoder::DomainDigestEncoder;
 
 use crate::{Architecture, TargetProfile};
 
@@ -342,45 +342,43 @@ pub enum X86ScalarFmaAdmissionError {
 }
 
 fn requirement_identity(profile: TargetProfile, features: &[X86TargetFeature; 2]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(X86_FEATURE_REQUIREMENT_SCHEMA);
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(X86_FEATURE_REQUIREMENT_SCHEMA);
     let profile = profile.identity().as_str().as_bytes();
-    hasher.update((profile.len() as u64).to_le_bytes());
-    hasher.update(profile);
-    hasher.update((features.len() as u64).to_le_bytes());
+    digest.bytes(profile);
+    digest.u64(features.len() as u64);
     for feature in features {
-        hasher.update([match feature {
+        digest.byte(match feature {
             X86TargetFeature::Avx => 1,
             X86TargetFeature::Fma3 => 2,
-        }]);
+        });
     }
-    hasher.finalize().into()
+    digest.finish()
 }
 
 fn deployment_features_identity(
     profile: TargetProfile,
     features: &[X86TargetFeature; 2],
 ) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(X86_DEPLOYMENT_FEATURES_SCHEMA);
-    hash_profile_and_features(&mut hasher, profile, features);
-    hasher.finalize().into()
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(X86_DEPLOYMENT_FEATURES_SCHEMA);
+    hash_profile_and_features(&mut digest, profile, features);
+    digest.finish()
 }
 
 fn hash_profile_and_features(
-    hasher: &mut Sha256,
+    digest: &mut DomainDigestEncoder,
     profile: TargetProfile,
     features: &[X86TargetFeature; 2],
 ) {
     let profile = profile.identity().as_str().as_bytes();
-    hasher.update((profile.len() as u64).to_le_bytes());
-    hasher.update(profile);
-    hasher.update((features.len() as u64).to_le_bytes());
+    digest.bytes(profile);
+    digest.u64(features.len() as u64);
     for feature in features {
-        hasher.update([match feature {
+        digest.byte(match feature {
             X86TargetFeature::Avx => 1,
             X86TargetFeature::Fma3 => 2,
-        }]);
+        });
     }
 }
 
@@ -405,15 +403,15 @@ fn differential_identity(
     fused_result_bits: u64,
     multiply_then_add_result_bits: u64,
 ) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(X86_SCALAR_FMA_DIFFERENTIAL_SCHEMA);
-    hasher.update([slot_tag(slot)]);
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(X86_SCALAR_FMA_DIFFERENTIAL_SCHEMA);
+    digest.byte(slot_tag(slot));
     for bits in operand_bits {
-        hasher.update(bits.to_le_bytes());
+        digest.u64(*bits);
     }
-    hasher.update(fused_result_bits.to_le_bytes());
-    hasher.update(multiply_then_add_result_bits.to_le_bytes());
-    hasher.finalize().into()
+    digest.u64(fused_result_bits);
+    digest.u64(multiply_then_add_result_bits);
+    digest.finish()
 }
 
 fn provider_identity(
@@ -421,17 +419,17 @@ fn provider_identity(
     deployment: X86DeploymentFeatures,
     differential_receipts: &[X86ScalarFmaDifferentialReceipt; 2],
 ) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(X86_SCALAR_FMA_PROVIDER_SCHEMA);
-    hasher.update(requirement.identity());
-    hasher.update(deployment.identity());
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(X86_SCALAR_FMA_PROVIDER_SCHEMA);
+    digest.raw(&requirement.identity());
+    digest.raw(&deployment.identity());
     for (slot, receipt) in X86ScalarFmaSlot::ALL.into_iter().zip(differential_receipts) {
-        hasher.update([slot_tag(slot)]);
-        hasher.update(slot.requirement_identity().as_bytes());
-        hasher.update(slot.realization_identity().as_bytes());
-        hasher.update(receipt.identity());
+        digest.byte(slot_tag(slot));
+        digest.raw(slot.requirement_identity().as_bytes());
+        digest.raw(slot.realization_identity().as_bytes());
+        digest.raw(&receipt.identity());
     }
-    hasher.finalize().into()
+    digest.finish()
 }
 
 const fn slot_tag(slot: X86ScalarFmaSlot) -> u8 {

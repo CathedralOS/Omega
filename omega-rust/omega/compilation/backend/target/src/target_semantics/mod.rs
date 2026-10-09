@@ -7,7 +7,6 @@
 //! a selected target contract and conformance of a physical invocation.
 
 use crate::compatibility_fingerprint::Fnv1a;
-use sha2::{Digest, Sha256};
 
 use crate::TargetProfile;
 
@@ -242,16 +241,13 @@ fn report_identity(subject: &str, profile: TargetProfile) -> u64 {
 }
 
 fn commitment(subject: &str, profile: TargetProfile) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    hash_field(
-        &mut digest,
-        b"omega.target-semantics.observation-application.v1",
-    );
-    hash_field(&mut digest, GUARANTEED_ENTRY_STACK_PROJECTION.as_bytes());
-    hash_field(&mut digest, subject.as_bytes());
-    hash_field(&mut digest, &PROJECTION_SEMANTICS_VERSION.to_le_bytes());
-    hash_field(&mut digest, profile.identity().as_str().as_bytes());
-    digest.finalize().into()
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    digest.bytes(b"omega.target-semantics.observation-application.v1");
+    digest.bytes(GUARANTEED_ENTRY_STACK_PROJECTION.as_bytes());
+    digest.bytes(subject.as_bytes());
+    digest.bytes(&PROJECTION_SEMANTICS_VERSION.to_le_bytes());
+    digest.bytes(profile.identity().as_str().as_bytes());
+    digest.finish()
 }
 
 fn closed_report_identity<Subject>(application: &SymbolicTargetObservationApplication) -> u64
@@ -274,23 +270,12 @@ fn closed_commitment<Subject>(application: &SymbolicTargetObservationApplication
 where
     Subject: TargetEntryStackSubject,
 {
-    let mut digest = Sha256::new();
-    hash_field(
-        &mut digest,
-        b"omega.target-semantics.closed-entry-stack-guarantee.v1",
-    );
-    hash_field(&mut digest, application.compatibility_commitment());
-    hash_field(
-        &mut digest,
-        &Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes(),
-    );
-    hash_field(&mut digest, &Subject::REQUIRED_ALIGNMENT.to_le_bytes());
-    digest.finalize().into()
-}
-
-fn hash_field(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    digest.bytes(b"omega.target-semantics.closed-entry-stack-guarantee.v1");
+    digest.bytes(application.compatibility_commitment());
+    digest.bytes(&Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes());
+    digest.bytes(&Subject::REQUIRED_ALIGNMENT.to_le_bytes());
+    digest.finish()
 }
 
 #[cfg(test)]

@@ -7,7 +7,6 @@
 
 use crate::TargetProfile;
 use crate::compatibility_fingerprint::Fnv1a;
-use sha2::{Digest, Sha256};
 use std::fmt;
 
 /// Untrusted owned coordinates produced by future ordinary `Binding` value
@@ -83,11 +82,12 @@ pub fn evaluated_syscall_identity_digest(
     target: TargetProfile,
     number: u32,
 ) -> ForeignLocatorIdentityDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.evaluated-syscall-binding.sha256.v1\0");
-    hash_bytes(&mut digest, target.target_name().as_bytes());
-    digest.update(number.to_le_bytes());
-    ForeignLocatorIdentityDigest(digest.finalize().into())
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.evaluated-syscall-binding.sha256.v1\0",
+    );
+    digest.bytes(target.target_name().as_bytes());
+    digest.raw(&number.to_le_bytes());
+    ForeignLocatorIdentityDigest(digest.finish())
 }
 
 impl NormalizedForeignLocator {
@@ -312,49 +312,40 @@ fn identity_digest(
     locator: &ForeignLocatorCandidate,
     target: TargetProfile,
 ) -> ForeignLocatorIdentityDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.foreign-locator.sha256.v1\0");
-    hash_bytes(&mut digest, target.target_name().as_bytes());
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.foreign-locator.sha256.v1\0");
+    digest.bytes(target.target_name().as_bytes());
     match locator {
         ForeignLocatorCandidate::PeByName { library, export } => {
-            digest.update([1]);
-            hash_bytes(&mut digest, library);
-            hash_bytes(&mut digest, export);
+            digest.byte(1);
+            digest.bytes(library);
+            digest.bytes(export);
         }
         ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
-            digest.update([2]);
-            hash_bytes(&mut digest, library);
-            hash_bytes(&mut digest, &ordinal.to_le_bytes());
+            digest.byte(2);
+            digest.bytes(library);
+            digest.bytes(&ordinal.to_le_bytes());
         }
         ForeignLocatorCandidate::ElfVersioned {
             object,
             symbol,
             version,
         } => {
-            digest.update([3]);
-            hash_bytes(&mut digest, object);
-            hash_bytes(&mut digest, symbol);
-            hash_bytes(&mut digest, version);
+            digest.byte(3);
+            digest.bytes(object);
+            digest.bytes(symbol);
+            digest.bytes(version);
         }
         ForeignLocatorCandidate::MachODylibSymbol {
             install_name,
             symbol,
         } => {
-            digest.update([4]);
-            hash_bytes(&mut digest, install_name);
-            hash_bytes(&mut digest, symbol);
+            digest.byte(4);
+            digest.bytes(install_name);
+            digest.bytes(symbol);
         }
     }
-    ForeignLocatorIdentityDigest(digest.finalize().into())
-}
-
-fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update(
-        u64::try_from(bytes.len())
-            .expect("normalized foreign-locator coordinate length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(bytes);
+    ForeignLocatorIdentityDigest(digest.finish())
 }
 
 #[cfg(test)]
