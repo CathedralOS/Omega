@@ -31,9 +31,7 @@ pub(super) fn lower(
 ) -> Result<(), LoweringError> {
     let mut values = scalar_values(live, &prepared.scalar_parameters)?;
     match operation {
-        AbstractOperation::ByteSequenceLength { source, .. }
-        | AbstractOperation::ByteSequenceRead { source, .. }
-        | AbstractOperation::ByteSequenceSubslice { source, .. } => {
+        abstract_operations::byte_read_subslice_triple_pattern!(source, ..) => {
             // A live byte-owner address join observes its own storage. The
             // semantic operation, not the pointer layout, determines whether
             // this is a metadata or payload observation.

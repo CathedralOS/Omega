@@ -196,9 +196,7 @@ pub(crate) fn scalar_case_result_contained(
                 | O::StructuralCaseMembership { source, .. }
                 | O::StructuralScalarFieldRead { source, .. }
                 | O::PrimitiveScalarRead { source, .. }
-                | O::ByteSequenceRead { source, .. }
-                | O::ByteSequenceSubslice { source, .. }
-                | O::ByteSequenceLength { source, .. }
+                | abstract_operations::byte_read_subslice_triple_pattern!(source, ..)
                 | O::StructuralByteSequenceFieldLength { source, .. }
                     if *source == picked =>
                 {
@@ -667,9 +665,7 @@ pub(crate) fn substitute_invariant_place_root(
 ) -> bool {
     let source = match operation {
         abstract_operations::scalar_read_or_membership_pattern!(source, ..)
-        | O::ByteSequenceRead { source, .. }
-        | O::ByteSequenceSubslice { source, .. }
-        | O::ByteSequenceLength { source, .. }
+        | abstract_operations::byte_read_subslice_triple_pattern!(source, ..)
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. } => source,
         _ => return false,

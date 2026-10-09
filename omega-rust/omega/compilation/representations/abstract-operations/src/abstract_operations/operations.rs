@@ -1391,3 +1391,12 @@ macro_rules! byte_view_length_triple_pattern {
             | $crate::AbstractOperation::EstablishElementView { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! byte_read_subslice_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::ByteSequenceLength { $($fields)* }
+            | $crate::AbstractOperation::ByteSequenceRead { $($fields)* }
+            | $crate::AbstractOperation::ByteSequenceSubslice { $($fields)* }
+    };
+}

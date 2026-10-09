@@ -162,9 +162,7 @@ pub(super) fn structural_metadata_may_change(
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldStore { .. }
         | O::ByteSequenceWrite { .. }
-        | O::ByteSequenceRead { .. }
-        | O::ByteSequenceLength { .. }
-        | O::ByteSequenceSubslice { .. }
+        | abstract_operations::byte_read_subslice_triple_pattern!(..)
         | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }

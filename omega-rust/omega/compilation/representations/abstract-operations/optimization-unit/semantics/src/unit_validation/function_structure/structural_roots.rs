@@ -307,9 +307,7 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
-                O::ByteSequenceSubslice { source, .. }
-                | O::ByteSequenceLength { source, .. }
-                | O::ByteSequenceRead { source, .. } => {
+                abstract_operations::byte_read_subslice_triple_pattern!(source, ..) => {
                     super::byte_views::validate_byte_view_source(
                         function,
                         block.id,

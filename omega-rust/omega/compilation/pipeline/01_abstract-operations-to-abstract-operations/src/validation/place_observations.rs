@@ -189,9 +189,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::IeeeFloatCompare { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | abstract_operations::scalar_read_or_membership_pattern!(..)
-        | O::ByteSequenceRead { .. }
-        | O::ByteSequenceSubslice { .. }
-        | O::ByteSequenceLength { .. }
+        | abstract_operations::byte_read_subslice_triple_pattern!(..)
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldRead { .. }
         | abstract_operations::jump_or_conditional_pattern!()
@@ -433,9 +431,7 @@ fn borrowed_roots_exclusive(
 pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<PlaceId>) -> bool {
     match operation {
         abstract_operations::scalar_read_or_membership_pattern!(source, ..)
-        | O::ByteSequenceRead { source, .. }
-        | O::ByteSequenceSubslice { source, .. }
-        | O::ByteSequenceLength { source, .. }
+        | abstract_operations::byte_read_subslice_triple_pattern!(source, ..)
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }
         | O::StructuralCase { source, .. } => {
