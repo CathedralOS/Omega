@@ -7,6 +7,9 @@
 //! operand, never one of the arguments the selected implementation receives.
 //! The Unit operation frame emits a statement-level selector call the same
 //! way (`unit/attached_unit/operation_frame/dynamic_calls.rs`).
+//! Owned operands transfer their checked claims under that slot's typed
+//! relative paths, exactly like a static call. Choosing an implementation
+//! neither creates custody nor changes which data arguments are consumed.
 
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::calls::{CallEmissionContext, PreparedStructuralArgument};
@@ -32,6 +35,7 @@ pub(crate) struct LoweredDynamicCallBinding {
     pub(crate) selector: LoweredDirectExpression,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
     pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
+    pub(crate) claim_transfers: Vec<crate::emission::claim_bindings::PreparedClaimTransfer>,
 }
 
 pub(super) fn emit_dynamic_call_binding(
@@ -70,6 +74,10 @@ pub(super) fn emit_dynamic_call_binding(
         .iter()
         .map(|argument| argument.emit(parameters, call_emission, next_value_identity, operations))
         .collect::<Result<Vec<_>, _>>()?;
+    let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
+        &call.claim_transfers,
+        call_emission.claims.bindings(),
+    )?;
     let result = value_id(*next_value_identity);
     *next_value_identity = next_value_identity
         .checked_add(1)
@@ -103,7 +111,7 @@ pub(super) fn emit_dynamic_call_binding(
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments,
-            claim_transfers: Vec::new(),
+            claim_transfers,
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },

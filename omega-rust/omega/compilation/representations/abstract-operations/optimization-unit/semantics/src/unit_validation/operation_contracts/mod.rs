@@ -15,6 +15,7 @@ mod affine_calls;
 mod atomic_coherence;
 mod boundaries;
 mod claim_transfers;
+pub(crate) use claim_transfers::{function_entry_claim_paths, validate_slot_claim_transfers};
 mod node_contracts;
 mod payloadless_cases;
 mod records;

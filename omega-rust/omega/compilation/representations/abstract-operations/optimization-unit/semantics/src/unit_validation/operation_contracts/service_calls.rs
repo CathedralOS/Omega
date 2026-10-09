@@ -97,9 +97,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 AbstractStructuralCallResult::Scalar(_) => StructuralProjectionPolicy::Projected,
                 AbstractStructuralCallResult::Structural { .. } => return false,
             };
-            // Requirement slots carry no implementation-private claim IDs.
-            // Ordinary caller ownership still checks every actual projection.
-            claim_transfers.is_empty()
+            super::validate_slot_claim_transfers(signature, structural_arguments, claim_transfers)
                 && structural_arguments_match(
                     caller,
                     operation.psi_operation(),

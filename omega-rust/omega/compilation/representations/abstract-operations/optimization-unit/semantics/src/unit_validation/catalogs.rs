@@ -166,6 +166,66 @@ fn validate_dynamic_catalog(
             {
                 return Err(invalid());
             }
+            if slot
+                .entry_claim_paths
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            {
+                return Err(invalid());
+            }
+            for (claim_position, claim) in slot.entry_claim_paths.iter().enumerate() {
+                let Some(formal) = slot
+                    .structural_parameters
+                    .get(claim.argument_index as usize)
+                else {
+                    return Err(invalid());
+                };
+                if formal.access != terminal_psi::StructuralAccess::Owned
+                    || formal.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    || (claim.path.is_empty()
+                        && formal.multiplicity != terminal_psi::StructuralMultiplicity::Linear)
+                    || claim.path.iter().any(|segment| {
+                        !matches!(
+                            segment,
+                            terminal_psi::StructuralPathSegment::Field(_)
+                                | terminal_psi::StructuralPathSegment::Case(_)
+                                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                        )
+                    })
+                    || crate::unit_validation::structural_catalog::resolve_structural_path(
+                        types,
+                        formal.structural_type,
+                        &claim.path,
+                    )
+                    .is_none()
+                    || slot.entry_claim_paths[..claim_position]
+                        .iter()
+                        .any(|previous| {
+                            previous.argument_index == claim.argument_index
+                                && (previous.path.starts_with(&claim.path)
+                                    || claim.path.starts_with(&previous.path))
+                        })
+                {
+                    return Err(invalid());
+                }
+            }
+            // Even a slot without any executable rows must describe complete
+            // disposal custody; table absence cannot authorize a malformed shape.
+            if slot
+                .structural_parameters
+                .iter()
+                .enumerate()
+                .any(|(argument_index, formal)| {
+                    formal.access == terminal_psi::StructuralAccess::Owned
+                        && formal.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                        && !slot
+                            .entry_claim_paths
+                            .iter()
+                            .any(|claim| claim.argument_index as usize == argument_index)
+                })
+            {
+                return Err(invalid());
+            }
         }
     }
     for (ordinal, table) in unit.dynamic_dispatch.tables.iter().enumerate() {
@@ -192,12 +252,9 @@ fn validate_dynamic_catalog(
                 abstract_operations::AbstractFunctionResult::Structural(_) => false,
             };
             if !result_matches
-                // The public requirement currently has no entry-claim schema.
-                // An implementation's private ingress evidence cannot become
-                // an implicit obligation of a selector caller.
-                || !function.entry_claim_declarations.is_empty()
-                || !function.content_entry_claims.is_empty()
-                || !function.entry_claims.is_empty()
+                || crate::unit_validation::operation_contracts::function_entry_claim_paths(function)
+                    .as_ref()
+                    != Some(&slot.entry_claim_paths)
                 || function.parameters.len() != slot.scalar_parameters.len()
                 || !function
                     .parameters
@@ -348,10 +405,13 @@ fn validate_structural_field_range_authority(
                     return Err(invalid);
                 }
             }
-            abstract_operations::byte_sequence_write_pair_pattern!(psi_operation,
+            abstract_operations::byte_sequence_write_pair_pattern!(
+                psi_operation,
                 index,
                 length,
-                obligation, ..)
+                obligation,
+                ..
+            )
             | O::StructuralByteSequenceFieldRead {
                 psi_operation,
                 index,
@@ -628,8 +688,7 @@ fn validate_structural_field_range_authority(
                 // A mixed shape's common fields are stored directly, like
                 // record fields.
                 let Some(terminal_psi::StructuralTypeDeclaration {
-                    shape:
-                        terminal_psi::record_or_mixed_shape_pattern!(fields),
+                    shape: terminal_psi::record_or_mixed_shape_pattern!(fields),
                     ..
                 }) = types.get(&parent).copied()
                 else {

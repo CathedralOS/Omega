@@ -122,6 +122,62 @@ pub(super) fn validate_call_dynamic(
     {
         return malformed("dynamic call disagrees with its slot's call shape");
     }
+    if shape
+        .entry_claim_paths
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return malformed("dynamic slot claim paths are not canonical");
+    }
+    for (position, expected) in shape.entry_claim_paths.iter().enumerate() {
+        let Some(formal) = shape
+            .structural_parameters
+            .get(expected.argument_index as usize)
+        else {
+            return malformed("dynamic slot claim has no structural formal");
+        };
+        if formal.access != terminal_psi::StructuralAccess::Owned
+            || formal.multiplicity == StructuralMultiplicity::Unrestricted
+            || (expected.path.is_empty() && formal.multiplicity != StructuralMultiplicity::Linear)
+            || expected.path.iter().any(|segment| {
+                !matches!(
+                    segment,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::Case(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                )
+            })
+            || shape.entry_claim_paths[..position].iter().any(|prior| {
+                prior.argument_index == expected.argument_index
+                    && expected.path.starts_with(&prior.path)
+            })
+        {
+            return malformed("dynamic slot claim is not an independent owned path");
+        }
+        validate_structural_path(module, formal.structural_type, &expected.path)?;
+    }
+    if shape
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .any(|(argument_index, formal)| {
+            formal.access == terminal_psi::StructuralAccess::Owned
+                && formal.multiplicity == StructuralMultiplicity::Linear
+                && !shape
+                    .entry_claim_paths
+                    .iter()
+                    .any(|claim| claim.argument_index as usize == argument_index)
+        })
+    {
+        return malformed("dynamic slot linear formal has no entry claim path");
+    }
+    for transfer in claim_transfers {
+        if !shape.entry_claim_paths.iter().any(|expected| {
+            expected.argument_index == transfer.argument_index && expected.path == transfer.path
+        }) {
+            return malformed("dynamic call claim path disagrees with its slot");
+        }
+    }
     for row in module
         .dynamic_dispatch
         .tables
@@ -132,6 +188,29 @@ pub(super) fn validate_call_dynamic(
         let Some(callee) = module.machine(row) else {
             return malformed("dynamic table row references an unknown machine");
         };
+        let mut entry_claim_paths = callee
+            .entry_claims
+            .iter()
+            .map(|claim| {
+                Some(terminal_psi::TerminalDynamicClaimPath {
+                    argument_index: u32::try_from(
+                        callee
+                            .structural_parameters
+                            .iter()
+                            .position(|parameter| parameter.place == claim.input)?,
+                    )
+                    .ok()?,
+                    path: claim.path.clone(),
+                })
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "dynamic row entry claim has no parameter",
+            ))?;
+        entry_claim_paths.sort();
+        if entry_claim_paths != shape.entry_claim_paths {
+            return malformed("dynamic row claim frontier disagrees with its slot");
+        }
         validate_structural_arguments(
             module,
             machine,
@@ -192,11 +271,14 @@ pub(super) fn validate_call_structural(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let (terminal_psi::call_structural_pair_pattern!(callee,
+    let (terminal_psi::call_structural_pair_pattern!(
+        callee,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
-        crash_continuations, ..)) = &operation.kind
+        crash_continuations,
+        ..
+    )) = &operation.kind
     else {
         unreachable!("dispatched validate_call_structural")
     };

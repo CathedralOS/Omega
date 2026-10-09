@@ -26,8 +26,17 @@ pub struct CheckedDynamicSlotPlan {
     /// Structural formals after the selector, positioned in the call's
     /// operand order (the selector is operand 0).
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Requirement-owned disposal frontier, independent of implementation
+    /// claim identities. Indices name the dense structural argument lane.
+    pub entry_claim_paths: Vec<CheckedDynamicClaimPath>,
     /// Scalar formals in operand order; the selector is the first, at
     /// position 0, and every implementation receives the rest.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub result: CheckedBoundaryMachineResultPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicClaimPath {
+    pub argument_index: u32,
+    pub path: Vec<crate::CheckedUnitStructuralPathSegment>,
 }

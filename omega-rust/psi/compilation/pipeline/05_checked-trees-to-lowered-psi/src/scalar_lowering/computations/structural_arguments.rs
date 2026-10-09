@@ -72,9 +72,15 @@ pub(super) fn lower(
                     });
             }
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
-                return bindings
-                    .owned_argument(argument)
-                    .and_then(PreparedStructuralArgument::from_static);
+                let source = bindings.owned_argument_home(argument)?;
+                let selected_root = bindings.structural_argument_type(&source).ok_or(
+                    LoweringError::Unsupported("computed owned argument lost its published carrier"),
+                )?;
+                let mut prepared = PreparedStructuralArgument::from_static(source)?;
+                prepared.path.extend(crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+                    &argument.path, selected_root, structural_types,
+                )?);
+                return Ok(prepared);
             }
             // The callee's plan row names the primitive a borrowed formal
             // lends; any other referent binds a structural place.

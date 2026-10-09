@@ -234,15 +234,18 @@ impl Builder<'_, '_> {
                 }
                 // The resolved callee owns both the result carrier and its policy.
                 // A destination carrier is not evidence for either one.
-                let (_, state) =
-                    validation::find_machine_by_entry_state(self.program, call.target_symbol)?;
-                let primitive_type = self.program.primitive_type_reference(state.return_type)?;
+                // Static bodies, boundary requirements and implementation
+                // slots all own their declared result. An entry-state lookup
+                // incorrectly excludes calls without an authored body state.
+                let returned = validation::call_target_return_type(
+                    self.program,
+                    validation::call_target_symbol(self.program, &call),
+                )?;
+                let primitive_type = self.program.primitive_type_reference(returned)?;
                 if !is_integer(primitive_type) {
                     return None;
                 }
-                let domain = self
-                    .program
-                    .arithmetic_domain_for_type_reference(state.return_type);
+                let domain = self.program.arithmetic_domain_for_type_reference(returned);
                 let computation = self.expression(expression, primitive_type)?;
                 Some(IntegerOperand {
                     value: parameter(0, primitive_type),

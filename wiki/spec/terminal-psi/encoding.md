@@ -592,7 +592,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 133 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 134 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -629,6 +629,15 @@ the declaration order below and ending with boundary-application candidates.
 | 28 | boundary application demands | counted exact requirement/application rows |
 | 29 | callback applications | counted checked registrar occurrences |
 | 30 | boundary application candidates | counted checked bodies for closed applications |
+
+A dynamic slot encodes its id, declaring-trait and requirement identity strings,
+counted family tuple, counted scalar formals and counted structural formals.
+Immediately after the structural formals, it encodes counted entry-claim paths:
+each row is a structural-lane `u32` argument index followed by a counted static
+structural path. Rows are strictly ordered by `(index, path)`, with no overlap
+within an argument. They contain no implementation-local claim id. The optional
+scalar result follows (presence `u8`, then scalar type). Every available table
+row must realize the slot's signature and complete claim-path roster.
 
 A boundary-application row carries its nonzero operation id, counted UTF-8
 exact-owner declaration identity, counted overload identity, optional package

@@ -165,6 +165,46 @@ fn claims_sit_at_owned_arguments(
     })
 }
 
+/// Only independent discriminator evidence can remove a conditional ingress
+/// row. A missing live identity is not evidence that its Case is inactive.
+#[allow(clippy::too_many_arguments)]
+fn claim_path_is_inactive(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    block: BlockId,
+    node: usize,
+    argument: &terminal_psi::StructuralArgument,
+    path: &[StructuralPathSegment],
+) -> bool {
+    let Some(block_position) = function
+        .blocks
+        .iter()
+        .position(|candidate| candidate.id == block)
+    else {
+        return false;
+    };
+    let mut projection = argument.path.clone();
+    for segment in path {
+        if let StructuralPathSegment::Case(case) = segment
+            && crate::unit_validation::function_structure::membership_on_every_path(
+                function,
+                structural_types,
+                predecessors,
+                (block_position, node),
+                argument.place,
+                &projection,
+                *case,
+                false,
+            )
+        {
+            return true;
+        }
+        projection.push(segment.clone());
+    }
+    false
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,
@@ -423,7 +463,9 @@ pub(super) fn validate_current_ownership_cfg(
             let structural_arguments = match &node.operation {
                 abstract_operations::establish_record_or_case_pattern!(..)
                 | O::EstablishStructuralArray { .. } => record_arguments.as_slice(),
-                abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => structural_arguments.as_slice(),
+                abstract_operations::call_structural_or_boundary_call_pattern!(
+                    structural_arguments
+                ) => structural_arguments.as_slice(),
                 // A window repair consumes its value exactly like one owned
                 // whole call argument: live-owned custody in, once.
                 O::StoreStructuralField { value, .. } => std::slice::from_ref(value),
@@ -563,37 +605,85 @@ pub(super) fn validate_current_ownership_cfg(
             }
 
             if let O::CallStructural {
-                callee: abstract_operations::AbstractCallTarget::Machine(callee),
+                callee,
                 structural_arguments,
                 claim_transfers,
                 ..
             } = &node.operation
             {
-                let target = functions.get(callee).expect("validated call target");
                 let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
                     machine: function.machine,
                     block: block_id,
                 };
-                for (argument_index, (argument, parameter)) in structural_arguments
+                let expected_by_argument = match callee {
+                    abstract_operations::AbstractCallTarget::Machine(callee) => {
+                        let target = functions.get(callee).ok_or_else(invalid)?;
+                        target
+                            .structural_parameters
+                            .iter()
+                            .map(|parameter| {
+                                let mut expected = target
+                                    .entry_claim_declarations
+                                    .iter()
+                                    .filter(|claim| claim.input == parameter.place)
+                                    .map(|claim| (claim.claim, claim.path.as_slice()))
+                                    .collect::<BTreeMap<_, _>>();
+                                for claim in &target.content_entry_claims {
+                                    if claim.input.root == parameter.place {
+                                        expected.entry(claim.claim).or_insert(&[]);
+                                    }
+                                }
+                                expected.into_values().collect::<Vec<_>>()
+                            })
+                            .collect::<Vec<_>>()
+                    }
+                    abstract_operations::AbstractCallTarget::Dynamic {
+                        interface, slot, ..
+                    } => {
+                        let signature = dynamic_dispatch
+                            .interface(*interface)
+                            .and_then(|interface| interface.slots.get(*slot as usize))
+                            .ok_or_else(invalid)?;
+                        signature
+                            .structural_parameters
+                            .iter()
+                            .enumerate()
+                            .map(|(argument_index, _)| {
+                                signature
+                                    .entry_claim_paths
+                                    .iter()
+                                    .filter(|claim| claim.argument_index as usize == argument_index)
+                                    .map(|claim| claim.path.as_slice())
+                                    .collect::<Vec<_>>()
+                            })
+                            .collect::<Vec<_>>()
+                    }
+                };
+                if expected_by_argument.len() != structural_arguments.len() {
+                    return Err(invalid());
+                }
+                for (argument_index, (argument, expected_paths)) in structural_arguments
                     .iter()
-                    .zip(&target.structural_parameters)
+                    .zip(expected_by_argument)
                     .enumerate()
                 {
                     if argument.access != StructuralAccess::Owned {
                         continue;
                     }
-                    let mut expected = target
-                        .entry_claim_declarations
-                        .iter()
-                        .filter(|claim| claim.input == parameter.place)
-                        .map(|claim| (claim.claim, claim.path.as_slice()))
-                        .collect::<BTreeMap<_, _>>();
-                    for claim in &target.content_entry_claims {
-                        if claim.input.root == parameter.place {
-                            expected.entry(claim.claim).or_insert(&[]);
-                        }
-                    }
-                    let mut expected_paths = expected.into_values().collect::<Vec<_>>();
+                    let mut expected_paths = expected_paths
+                        .into_iter()
+                        .filter(|expected| {
+                            !claim_path_is_inactive(
+                                function,
+                                structural_types,
+                                predecessors,
+                                block_id,
+                                node_index as usize,
+                                argument,
+                                expected,
+                            )
+                        })
+                        .collect::<Vec<_>>();
                     let mut actual_paths = Vec::new();
                     for (identity, claim) in &frontier.claims {
                         if claim.input == Some(argument.place)
@@ -629,30 +719,6 @@ pub(super) fn validate_current_ownership_cfg(
                 ) {
                     return Err(invalid());
                 }
-            }
-            // Requirement slots carry no implementation-private entry claim
-            // identities. An owned caller claim therefore cannot cross this
-            // boundary until the public signature describes that evidence;
-            // never infer it from one possible implementation body.
-            if let O::CallStructural {
-                callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
-                structural_arguments,
-                claim_transfers,
-                ..
-            } = &node.operation
-                && (!claim_transfers.is_empty()
-                    || structural_arguments.iter().any(|argument| {
-                        argument.access == StructuralAccess::Owned
-                            && frontier.claims.values().any(|claim| {
-                                claim.input == Some(argument.place)
-                                    && claim.path.starts_with(&argument.path)
-                            })
-                    }))
-            {
-                return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
-                    machine: function.machine,
-                    block: block_id,
-                });
             }
             // A boundary completion ends exactly the claims its owned
             // arguments carry, whether the caller received them as entry

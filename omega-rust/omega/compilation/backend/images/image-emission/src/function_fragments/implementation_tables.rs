@@ -401,6 +401,7 @@ mod tests {
                         family_tuple: Vec::new(),
                         scalar_parameters: Vec::new(),
                         structural_parameters: Vec::new(),
+                        entry_claim_paths: Vec::new(),
                         result: None,
                     })
                     .collect(),

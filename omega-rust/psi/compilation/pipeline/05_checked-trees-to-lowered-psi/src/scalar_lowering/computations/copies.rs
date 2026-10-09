@@ -51,9 +51,11 @@ pub(crate) fn prepare(
         }) {
             continue;
         }
-        let Some((target_machine, target_state)) = callee.static_target() else {
-            return unsupported("dynamic scalar call awaits its emission route");
-        };
+        // Copy versus transfer is decided by the checked call shape, not by
+        // whether its callable is selected statically or through a slot.
+        let (target_machine, target_state) = callee
+            .static_target()
+            .unwrap_or((callee.called_signature(), callee.called_signature()));
         let parameters =
             super::call_signature::structural_parameters(checked, target_machine, target_state)?;
         if parameters.len() != arguments.len() {

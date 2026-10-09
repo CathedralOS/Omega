@@ -341,8 +341,8 @@ helper that passes does not close an item.
     closed-row member must restate each non-law conclusion and add no premise
     (`contract_entailment/contract_refinement.rs`). That correspondence is
     exact spelling, not entailment, and does not unfold proposition premises.
-  - Next: a suspending requirement, a structural result through a selector, a
-    selector call inside a staged argument group and a finite-family selector
+  - Next: a suspending requirement, a structural result through a selector and a
+    finite-family selector
     call (which keeps its requirement target, unslotted) each decline at
     planning; a requirement with published crash routes keeps no
     crash-refinement row because its operands lead with the selector.
@@ -539,8 +539,7 @@ defines the complete product bar.
     `linear_computed_call_claim_transfers_exit` pins computed operands.
     Reject second use, missing child consumption and wrong array type/extent
     in `fail/ownership/linear_{constructor_call_member_second_use,array_constructor_duplicate_operand,array_member_scope_loss,array_call_argument_wrong_element,array_call_argument_wrong_extent}`.
-    Remaining: a computed boundary or
-    selector call has no claim-transfer lane;
+    Remaining: a computed boundary call has no completion-receipt lane;
     the qualified-result
     boundary/reseated-field combination in
     `pass/ownership/linear_qualified_call_result_claims` still needs boundary

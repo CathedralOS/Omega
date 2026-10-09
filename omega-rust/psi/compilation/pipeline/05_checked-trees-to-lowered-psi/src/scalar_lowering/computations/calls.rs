@@ -428,11 +428,8 @@ impl Expansion<'_> {
             statement_index: source.statement_index,
             call_ordinal: source.call_ordinal,
         };
-        if !claim_transfers.is_empty()
-            && (signature.boundary
-                || matches!(callee, checked_trees::CheckedScalarCallee::Dynamic { .. }))
-        {
-            return unsupported("computed boundary or selector call has no claim transfer lane");
+        if !claim_transfers.is_empty() && signature.boundary {
+            return unsupported("computed boundary call has no completion receipt lane");
         }
         let (_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
         let loan_completions = crate::emission::loan_completions::prepare(
@@ -477,6 +474,12 @@ impl Expansion<'_> {
                     ))?,
                     arguments: scalar_actuals,
                     structural_arguments,
+                    claim_transfers:
+                        crate::emission::claim_bindings::prepare_checked_claim_transfers(
+                            &claim_transfers,
+                            parameters,
+                            self.structural_types,
+                        )?,
                 },
             )
         } else if signature.boundary {
@@ -705,8 +708,15 @@ impl Expansion<'_> {
                     None, &mut std::iter::empty(), None,
                 )?;
                 let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
-                    &self.checked.facts.flow.terminal_unit_effects.cleanup_control,
-                    action.case_conditions(), self.structural_types, |condition_path| {
+                    &self
+                        .checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .cleanup_control,
+                    action.case_conditions(),
+                    self.structural_types,
+                    |condition_path| {
                         let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                             condition_path, slot.structural_type, self.structural_types,
                             None, &mut std::iter::empty(), None,
@@ -724,22 +734,30 @@ impl Expansion<'_> {
                 ))?;
                 actions.push(match action {
                     checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
-                        PreparedNormalCleanupAction::Resolved(crate::unit::unit_cleanup::CleanupRegion::unconditional(
-                            terminal_psi::TerminalAffineCleanupAction::RetireHome(slot.place),
-                        ))
+                        PreparedNormalCleanupAction::Resolved(
+                            crate::unit::unit_cleanup::CleanupRegion::unconditional(
+                                terminal_psi::TerminalAffineCleanupAction::RetireHome(slot.place),
+                            ),
+                        )
                     }
-                    checked_trees::CheckedNormalCleanupAction::Discard(_) if path.is_empty() && conditions.is_empty() => {
+                    checked_trees::CheckedNormalCleanupAction::Discard(_)
+                        if path.is_empty() && conditions.is_empty() =>
+                    {
                         PreparedNormalCleanupAction::discard_root(slot.place)
                     }
                     checked_trees::CheckedNormalCleanupAction::Discard(_) => {
-                        PreparedNormalCleanupAction::Resolved(crate::unit::unit_cleanup::CleanupRegion {
-                            conditions,
-                            action: terminal_psi::TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard {
-                                place: slot.place,
-                                path,
-                                structural_type,
-                            }),
-                        })
+                        PreparedNormalCleanupAction::Resolved(
+                            crate::unit::unit_cleanup::CleanupRegion {
+                                conditions,
+                                action: terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                                    terminal_psi::StructuralAffineDiscard {
+                                        place: slot.place,
+                                        path,
+                                        structural_type,
+                                    },
+                                ),
+                            },
+                        )
                     }
                     checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
                         let consumed_claims = claims

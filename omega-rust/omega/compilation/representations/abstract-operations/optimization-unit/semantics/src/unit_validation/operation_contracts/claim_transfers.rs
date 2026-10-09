@@ -2,6 +2,68 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{ClaimId, ContentTerm, PlaceId, Proposition, ScalarTerm};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Project private entry identities into the public argument-relative custody
+/// geometry. Identity namespaces never participate in slot agreement.
+pub(crate) fn function_entry_claim_paths(
+    function: &PsiOptimizationFunction,
+) -> Option<Vec<terminal_psi::TerminalDynamicClaimPath>> {
+    if !function.content_entry_claims.is_empty() {
+        return None;
+    }
+    let mut paths = Vec::new();
+    for claim in &function.entry_claim_declarations {
+        let argument_index = function
+            .structural_parameters
+            .iter()
+            .position(|parameter| parameter.place == claim.input)?;
+        paths.push(terminal_psi::TerminalDynamicClaimPath {
+            argument_index: u32::try_from(argument_index).ok()?,
+            path: claim.path.clone(),
+        });
+    }
+    paths.sort();
+    if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+        return None;
+    }
+    Some(paths)
+}
+
+pub(crate) fn validate_slot_claim_transfers(
+    slot: &terminal_psi::TerminalDynamicSlot,
+    arguments: &[terminal_psi::StructuralArgument],
+    transfers: &[terminal_psi::ClaimTransfer],
+) -> bool {
+    let paths = transfers
+        .iter()
+        .map(|transfer| (transfer.argument_index, &transfer.path))
+        .collect::<BTreeSet<_>>();
+    transfers.windows(2).all(|pair| pair[0] < pair[1])
+        && transfers
+            .iter()
+            .map(|transfer| transfer.claim)
+            .collect::<BTreeSet<_>>()
+            .len()
+            == transfers.len()
+        && paths.len() == transfers.len()
+        && transfers.iter().all(|transfer| {
+            arguments
+                .get(transfer.argument_index as usize)
+                .is_some_and(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
+                && slot.entry_claim_paths.iter().any(|expected| {
+                    expected.argument_index == transfer.argument_index
+                        && expected.path == transfer.path
+                })
+        })
+        && slot.entry_claim_paths.iter().all(|expected| {
+            // Guarded absence needs discriminator evidence in current replay.
+            paths.contains(&(expected.argument_index, &expected.path))
+                || expected
+                    .path
+                    .iter()
+                    .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Case(_)))
+        })
+}
+
 pub(crate) fn validate_internal_claim_transfers(
     caller: &PsiOptimizationFunction,
     callee: &PsiOptimizationFunction,

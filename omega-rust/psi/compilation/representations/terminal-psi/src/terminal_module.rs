@@ -27,9 +27,9 @@ pub use boundary::{
     ContentConservationGuarantee, InstallationReachDependency, ProgramLocalRootIntroductionSchema,
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, ServiceDeclaration, StructuralDomainRequirement,
-    TerminalBoundaryApplicationDemand, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
-    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
-    TerminalRootServiceReach, closed_conformance_application_commitment,
+    TerminalBoundaryApplicationDemand, TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog,
+    TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
+    TerminalDynamicTable, TerminalRootServiceReach, closed_conformance_application_commitment,
     closed_conformance_application_report_fingerprint, find_boundary_machine,
     program_local_root_introduction_compatibility_report_identity,
 };

@@ -5,9 +5,13 @@ use super::super::CodecError;
 use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::super::structural_signature_wire::{decode_structural_access, encode_structural_access};
 use super::super::wire::{Reader, Writer, decode_counted};
+use crate::sections::semantic_module::structural_place_wire::{
+    decode_structural_path, encode_structural_path,
+};
 use terminal_psi::{
-    StructuralMultiplicity, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
-    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
+    StructuralMultiplicity, TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog,
+    TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
+    TerminalDynamicTable,
 };
 
 pub(super) fn encode_dynamic_dispatch(
@@ -47,6 +51,14 @@ pub(super) fn encode_dynamic_dispatch(
                     StructuralMultiplicity::Affine => 2,
                     StructuralMultiplicity::Linear => 3,
                 });
+            }
+            writer.len(
+                "dynamic slot entry claim paths",
+                slot.entry_claim_paths.len(),
+            )?;
+            for claim in &slot.entry_claim_paths {
+                writer.u32(claim.argument_index);
+                encode_structural_path(writer, "dynamic slot claim path", &claim.path)?;
             }
             match slot.result {
                 None => writer.u8(0),
@@ -109,6 +121,12 @@ pub(super) fn decode_dynamic_dispatch(
                                     ));
                                 }
                             },
+                        })
+                    })?,
+                    entry_claim_paths: decode_counted(reader, |reader| {
+                        Ok(TerminalDynamicClaimPath {
+                            argument_index: reader.u32()?,
+                            path: decode_structural_path(reader)?,
                         })
                     })?,
                     result: match reader.u8()? {

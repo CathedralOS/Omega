@@ -10,6 +10,70 @@ data Receipt [linear] { code: i32; }
 machine Receipt::drop(receipt: &mut Receipt) {}
 
 data Pair { left: Receipt; right: Receipt; }
+data Choice { case Empty; case Value(receipt: Receipt); }
+data Sample [copy] { code: i32; }
+
+// A selector owns no data: the selected slot receives the same ordered
+// scalar/owned/scalar stream and typed claim paths as a static call.
+trait Settlement<T> {
+    machine settle(prefix: i32, value: T, suffix: i32) -> i32;
+}
+
+Observed satisfies Settlement<Receipt> {
+    machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 {
+        let code: i32 = value.code;
+        drop(value);
+        (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
+    }
+}
+
+Scaled satisfies Settlement<Receipt> {
+    machine settle(prefix: i32, value: Receipt, suffix: i32) -> i32 {
+        let code: i32 = value.code;
+        drop(value);
+        (((prefix as i32 in Wrapping) + ((code as i32 in Wrapping) * (10 as i32 in Wrapping))) + (suffix as i32 in Wrapping)) as i32
+    }
+}
+
+Paired satisfies Settlement<Pair> {
+    machine settle(prefix: i32, value: Pair, suffix: i32) -> i32 {
+        let left: Receipt = value.left;
+        let right: Receipt = value.right;
+        let total: i32 = ((left.code as i32 in Wrapping) + (right.code as i32 in Wrapping)) as i32;
+        drop(left);
+        drop(right);
+        (((prefix as i32 in Wrapping) + (total as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
+    }
+}
+
+Chosen satisfies Settlement<Choice> {
+    machine settle(prefix: i32, value: Choice, suffix: i32) -> i32 {
+        let code: i32 = consume_choice(value);
+        (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
+    }
+}
+
+Copied satisfies Settlement<Sample> {
+    machine settle(prefix: i32, value: Sample, suffix: i32) -> i32 {
+        (((prefix as i32 in Wrapping) + (value.code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
+    }
+}
+
+machine replace_sample(sample: &mut Sample) -> i32 {
+    sample.code = 25;
+    25
+}
+
+machine consume_choice(choice: Choice) -> i32 {
+    transition choice {
+        Choice::Empty {} -> 0
+        Choice::Value { receipt } -> consume(receipt)
+    }
+}
+
+machine dispatch(selected: dyn Settlement<Receipt>, receipt: Receipt) -> i32 {
+    ((Settlement::settle(selected, 2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
+}
 
 machine make(code: i32) -> Receipt {
     let issued: Receipt = Receipt { code: code };
@@ -58,5 +122,26 @@ machine main() crashes Trap {
     let nested: i32 = consume(make(8));
     let produced: i32 = ((settle(Pair { left: make(9), right: make(10) }) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
     let array: i32 = ((settle_array([make(1), make(2)]) as i32 in Wrapping) + (3 as i32 in Wrapping)) as i32;
-    verify(inline == 6 && named == 6 && paired == 16 && nested == 8 && produced == 20 && array == 15);
+    let mut selected: dyn Settlement<Receipt> = Observed as dyn Settlement<Receipt>;
+    let owned: Receipt = make(7);
+    let observed: i32 = ((Settlement::settle(selected, 2, owned, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    selected = Scaled as dyn Settlement<Receipt>;
+    let scaled: i32 = dispatch(selected, make(7));
+    let pair_selector: dyn Settlement<Pair> = Paired as dyn Settlement<Pair>;
+    let multi_claim: i32 = ((Settlement::settle(pair_selector, 2, Pair { left: make(4), right: make(5) }, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let projected: Pair = Pair { left: make(6), right: make(8) };
+    let projection: i32 = ((Settlement::settle(selected, 2, projected.left, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let sibling: i32 = consume(projected.right);
+    let choice_selector: dyn Settlement<Choice> = Chosen as dyn Settlement<Choice>;
+    let absent: i32 = ((Settlement::settle(choice_selector, 2, Choice::Empty {}, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let present: i32 = ((Settlement::settle(choice_selector, 2, Choice::Value { receipt: make(9) }, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let copy_selector: dyn Settlement<Sample> = Copied as dyn Settlement<Sample>;
+    let mut sample: Sample = Sample { code: 17 };
+    let snapshot: i32 = ((Settlement::settle(copy_selector, 2, sample, replace_sample(&mut sample)) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    // A selector invocation can itself be a computed operand of an outer
+    // call; the enclosing argument group does not acquire its moved owner.
+    verify(Settlement::settle(selected, 2, make(1), 3) == 15);
+    verify(inline == 6 && named == 6 && paired == 16 && nested == 8 && produced == 20 && array == 15
+        && observed == 13 && scaled == 76 && multi_claim == 15 && projection == 66 && sibling == 8
+        && absent == 6 && present == 15 && snapshot == 45 && sample.code == 25);
 }

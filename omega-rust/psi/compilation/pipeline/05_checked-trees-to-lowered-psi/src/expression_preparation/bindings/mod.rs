@@ -1143,6 +1143,28 @@ impl ScalarBindings {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
+        let mut source = self.owned_argument_home(argument)?;
+        let selected_root =
+            self.structural_argument_type(&source)
+                .ok_or(LoweringError::Unsupported(
+                    "owned argument lost its published carrier",
+                ))?;
+        source
+            .path
+            .extend(structural_paths::lower_static_argument_path(
+                &argument.path,
+                selected_root,
+                self.structural_fields.declarations(),
+            )?);
+        Ok(source)
+    }
+
+    /// Resolve storage before lowering a path. Computed selectors belong to
+    /// the operand evaluator; static consumers resolve against the same home.
+    pub(crate) fn owned_argument_home(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<StructuralArgument, LoweringError> {
         let root = argument.structural_storage_root();
         let ordinal = argument.source_structural_result_binding_ordinal();
         if root.is_some() || ordinal.is_some() {
@@ -1157,7 +1179,6 @@ impl ScalarBindings {
             ))?;
             if root.is_some_and(|root| !valid_structural_root(root))
                 || locals.next().is_some()
-                || !argument.path.is_empty()
                 || argument.access != checked_trees::CheckedStructuralAccess::Owned
                 || source.access != StructuralAccess::Owned
             {
@@ -1176,8 +1197,7 @@ impl ScalarBindings {
             .ok_or(LoweringError::Unsupported(
                 "computed owned operand lost its source parameter",
             ))?;
-        if !argument.path.is_empty()
-            || argument.access != checked_trees::CheckedStructuralAccess::Owned
+        if argument.access != checked_trees::CheckedStructuralAccess::Owned
             || parameter.access != StructuralAccess::Owned
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
@@ -1394,7 +1414,7 @@ impl ScalarBindings {
                 return unsupported("Boolean storage read names no established storage");
             }
             CheckedBooleanExpression::Not(operand) => self.boolean(operand)?,
-            facts::checked_boolean_triple_pattern!(left,right, ..) => {
+            facts::checked_boolean_triple_pattern!(left, right, ..) => {
                 self.boolean(left)?;
                 self.boolean(right)?;
             }

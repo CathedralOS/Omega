@@ -101,6 +101,23 @@ pub(crate) fn structural_computation_argument(
     ) {
         return Some(argument);
     }
+    if target_access == CheckedStructuralAccess::Owned {
+        if named != expression {
+            return None;
+        }
+        // Whole and projected operands name the same established home. The
+        // typed path, not name-expression syntax, selects the transferred
+        // subtree; ownership events separately supply its live claims.
+        return owned_argument(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            &place,
+            target,
+            selectors,
+        );
+    }
     let name = program.expression_table.name_path_node(named)?;
     if !name.symbol.is_valid()
         || name.head_symbol != name.symbol
@@ -113,14 +130,6 @@ pub(crate) fn structural_computation_argument(
         || !place.segments.is_empty()
     {
         return None;
-    }
-    if target_access == CheckedStructuralAccess::Owned {
-        if named != expression {
-            return None;
-        }
-        // This retains authored actual identity. Graph publication rejoins
-        // affine transfers after multiplicity checking produces permissions.
-        return owned_argument(program, state, call.statement_index, name.symbol, target);
     }
     let target_type = plain_primitive_referent(program, target.type_reference)?;
     let parameters = program.state_parameters(state);
@@ -711,15 +720,22 @@ fn dense_structural_index(
 /// Neither operation acquires disposal authority from its storage classification.
 fn owned_argument(
     program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: usize,
-    source_symbol: SymbolHandle,
+    place: &validation::CanonicalPlace,
     target: &StateParameter,
+    selectors: Option<
+        &dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
+    >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     if target.is_mutable {
         return None;
     }
     let parameters = program.state_parameters(state);
+    let source_symbol = place.root.as_symbol()?;
     let (source, source_type) = if let Some(position) = parameters
         .iter()
         .position(|source| source.symbol == source_symbol)
@@ -751,8 +767,30 @@ fn owned_argument(
             local.type_reference,
         )
     };
+    // Owned projection cannot cross a reference to acquire someone else's
+    // referent. The root and endpoint both retain owned storage contracts.
+    if structural_access_for_type_reference(program, source_type)? != CheckedStructuralAccess::Owned
+    {
+        return None;
+    }
+    let (selected_type, path) = projected_evaluated_path(
+        program,
+        machine,
+        state.symbol,
+        statement_index,
+        place,
+        selectors,
+    )?;
+    if path.iter().any(|segment| {
+        matches!(
+            segment,
+            checked_trees::CheckedUnitStructuralPathSegment::Referent
+        )
+    }) {
+        return None;
+    }
     let mut shapes = ShapeCollector::new(program);
-    for reference in [source_type, target.type_reference] {
+    for reference in [selected_type, target.type_reference] {
         // Linear claims and nominal cleanup stay explicit obligations of the
         // consuming call: the operand transfers them with its storage.
         let contents = if crate::checks::type_carries_linear_obligation(program, reference) {
@@ -770,16 +808,16 @@ fn owned_argument(
             return None;
         }
     }
-    let type_identity = shapes.add_type(source_type, &[], &[])?;
+    let type_identity = shapes.add_type(selected_type, &[], &[])?;
     if type_identity != shapes.add_type(target.type_reference, &[], &[])?
-        || crate::checks::type_multiplicity(program, source_type)
+        || crate::checks::type_multiplicity(program, selected_type)
             != crate::checks::type_multiplicity(program, target.type_reference)
     {
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
         source,
-        path: Vec::new(),
+        path,
         type_identity,
         access: CheckedStructuralAccess::Owned,
     })

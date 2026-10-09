@@ -21,8 +21,9 @@ use crate::LoweringError;
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedDynamicSlotPlan, CheckedTrees};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    TerminalDynamicDispatchCatalog, TerminalDynamicInterface, TerminalDynamicSlot,
-    TerminalDynamicStructuralFormal, TerminalDynamicTable, TerminalMachineResult, TerminalModule,
+    TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
+    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
+    TerminalMachineResult, TerminalModule,
 };
 
 /// Identity-to-id maps for one program's interfaces and tables.
@@ -173,6 +174,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                 u32::try_from(slot)
                     .map_err(|_| LoweringError::Unsupported("dynamic slot id overflows"))?,
                 &type_ids,
+                &module.structural_types,
             )?);
         }
         catalog.interfaces.push(TerminalDynamicInterface {
@@ -222,10 +224,9 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
             }
             let id =
                 crate::terminal_identities::lookup_machine_id(&owners, row.realization_machine)?;
-            let realization = module.machine(id)
-                .ok_or(LoweringError::Unsupported(
-                    "dynamic table row names a machine outside the lowered closure",
-                ))?;
+            let realization = module.machine(id).ok_or(LoweringError::Unsupported(
+                "dynamic table row names a machine outside the lowered closure",
+            ))?;
             if !realizes_slot(realization, slot) {
                 return unsupported("implementation row does not realize its slot's call shape");
             }
@@ -252,6 +253,7 @@ fn lower_slot(
     plan: &CheckedDynamicSlotPlan,
     slot: u32,
     type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<TerminalDynamicSlot, LoweringError> {
     let Some((selector, scalars)) = plan.scalar_parameters.split_first() else {
         return unsupported("dynamic slot lost its selector operand");
@@ -292,6 +294,18 @@ fn lower_slot(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut entry_claim_paths = plan.entry_claim_paths.iter().map(|claim| {
+        let formal = structural_parameters.get(claim.argument_index as usize).ok_or(
+            LoweringError::Unsupported("dynamic slot claim has no structural formal"),
+        )?;
+        Ok(TerminalDynamicClaimPath {
+            argument_index: claim.argument_index,
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                &claim.path, formal.structural_type, structural_types,
+            )?,
+        })
+    }).collect::<Result<Vec<_>, LoweringError>>()?;
+    entry_claim_paths.sort();
     let result = match plan.result {
         CheckedBoundaryMachineResultPlan::Unit => None,
         CheckedBoundaryMachineResultPlan::Scalar(primitive) => Some(
@@ -306,6 +320,7 @@ fn lower_slot(
         family_tuple: Vec::new(),
         scalar_parameters,
         structural_parameters,
+        entry_claim_paths,
         result,
     })
 }
@@ -335,7 +350,28 @@ fn realizes_slot(machine: &terminal_psi::TerminalMachine, slot: &TerminalDynamic
         (TerminalMachineResult::Scalar(result), Some(expected)) => result.scalar_type == expected,
         _ => false,
     };
-    scalars_match && structurals_match && result_matches
+    let Some(mut entry_claim_paths) = machine
+        .entry_claims
+        .iter()
+        .map(|claim| {
+            let argument_index = machine
+                .structural_parameters
+                .iter()
+                .position(|parameter| parameter.place == claim.input)?;
+            Some(TerminalDynamicClaimPath {
+                argument_index: u32::try_from(argument_index).ok()?,
+                path: claim.path.clone(),
+            })
+        })
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    entry_claim_paths.sort();
+    scalars_match
+        && structurals_match
+        && result_matches
+        && entry_claim_paths == slot.entry_claim_paths
 }
 
 fn unsupported<T>(reason: &'static str) -> Result<T, LoweringError> {

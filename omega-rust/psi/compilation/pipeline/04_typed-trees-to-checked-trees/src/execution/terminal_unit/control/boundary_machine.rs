@@ -180,6 +180,35 @@ pub(crate) fn build_dynamic_slot_plans(
         else {
             continue;
         };
+        // The instantiated requirement owns the complete disposal frontier.
+        // An affine formal may contain linear descendants: its root
+        // multiplicity alone cannot describe the claims every row receives.
+        let entry_claim_paths = structural_parameters.iter().enumerate().try_fold(
+            Vec::new(),
+            |mut paths,
+             (argument_index, parameter)|
+             -> Option<Vec<checked_trees::CheckedDynamicClaimPath>> {
+                if parameter.access != checked_trees::CheckedStructuralAccess::Owned {
+                    return Some(paths);
+                }
+                let source = slot.parameters.get(parameter.position as usize)?;
+                for claim in validation::linear_claim_frontier(program, source.type_reference) {
+                    paths.push(checked_trees::CheckedDynamicClaimPath {
+                        argument_index: u32::try_from(argument_index).ok()?,
+                        path: validation::structural_claim_path(
+                            program,
+                            source.type_reference,
+                            &claim.path,
+                        )
+                        .ok()?,
+                    });
+                }
+                Some(paths)
+            },
+        );
+        let Some(entry_claim_paths) = entry_claim_paths else {
+            continue;
+        };
         plans.push(checked_trees::CheckedDynamicSlotPlan {
             slot: slot.symbol,
             interface_identity: slot.interface_identity.clone(),
@@ -188,6 +217,7 @@ pub(crate) fn build_dynamic_slot_plans(
             requirement_identity: program
                 .trait_requirement_callable_identity_text(definition, requirement),
             structural_parameters,
+            entry_claim_paths,
             scalar_parameters,
             result,
         });

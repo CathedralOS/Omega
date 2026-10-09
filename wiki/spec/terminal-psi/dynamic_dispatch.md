@@ -192,6 +192,22 @@ the selector as its first operand, so argument custody, borrows and write
 frames treat the call like any call to a bodyless checked callee. Every row
 of every table realizes the shape exactly.
 
+Each slot also retains the requirement's complete owned disposal-claim
+frontier as canonical `(structural argument index, typed relative path)` rows.
+The index is structural-lane-local; neither the selector nor preceding scalar
+formals occupy it. An affine record can contain several linear descendants,
+and case paths retain guards, so root multiplicity cannot replace this roster.
+Every selectable implementation realizes these paths under its own private
+entry claim identities. Those identities are not part of the public slot.
+
+Statement and computed selector calls carry the caller's actual live claims
+through the same exact paths. Copies, projections and operand staging retain
+their established owners; selection grants no data custody. Independent
+ownership checking matches the live frontier and consumes each transferred
+identity once. An omitted guarded row requires independent discriminator
+evidence of inactivity, not an absent claim. Runtime dispatch checks the
+selected callee's active paths against captured arguments before transfer.
+
 Unit calls have `OperationResult::Unit`: no invented value ID or result home.
 Scalar results bind an exactly typed value through the ordinary caller;
 Boolean results do not become integer-shaped placeholders.

@@ -16,7 +16,7 @@
 
 use semantic_vocabulary::{MachineId, ScalarType, StructuralTypeId};
 
-use crate::{StructuralAccess, StructuralMultiplicity};
+use crate::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
 
 /// Every interface and table one module can select at runtime.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -51,8 +51,17 @@ pub struct TerminalDynamicSlot {
     pub scalar_parameters: Vec<ScalarType>,
     /// Runtime structural formals, separate from scalar values.
     pub structural_parameters: Vec<TerminalDynamicStructuralFormal>,
+    /// Requirement-owned disposal paths. Every realization receives this
+    /// frontier under its private entry claim IDs; caller IDs stay local.
+    pub entry_claim_paths: Vec<TerminalDynamicClaimPath>,
     /// The scalar result; `None` for a Unit requirement.
     pub result: Option<ScalarType>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalDynamicClaimPath {
+    pub argument_index: u32,
+    pub path: Vec<StructuralPathSegment>,
 }
 
 /// One structural formal of a slot: what every row's parameter at

@@ -25,8 +25,8 @@ pub use declarations::{
     program_local_root_introduction_compatibility_report_identity,
 };
 pub use dynamic_dispatch::{
-    TerminalDynamicDispatchCatalog, TerminalDynamicInterface, TerminalDynamicSlot,
-    TerminalDynamicStructuralFormal, TerminalDynamicTable,
+    TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
+    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
 };
 pub use providers::{
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
