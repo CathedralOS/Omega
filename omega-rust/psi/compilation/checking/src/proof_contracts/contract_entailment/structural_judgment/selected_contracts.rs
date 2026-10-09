@@ -211,30 +211,24 @@ pub(super) fn independent_callee(
     caller: SymbolHandle,
     callee: SymbolHandle,
 ) -> bool {
-    crate::machine_calls::effect_inference::with_operational_plan(program, |operational| {
-        let mut pending = vec![callee];
-        let mut visited = Vec::new();
-        while let Some(machine) = pending.pop() {
-            if machine == caller {
-                return false;
-            }
-            if visited.contains(&machine) {
-                continue;
-            }
-            visited.push(machine);
-            let Some(summary) = operational.machine_by_symbol(machine) else {
-                return false;
-            };
-            for state in operational.states.span_or_empty(summary.states) {
-                for call in operational.calls.span_or_empty(state.calls) {
-                    if call.target_machine_symbol.is_valid() {
-                        pending.push(call.target_machine_symbol);
-                    }
-                }
-            }
+    let mut pending = vec![callee];
+    let mut visited = Vec::new();
+    while let Some(declaration) = pending.pop() {
+        let Some((owner, dependencies)) =
+            crate::machine_calls::call_cycles::declaration_call_dependencies(program, declaration)
+        else {
+            return false;
+        };
+        if owner == caller {
+            return false;
         }
-        true
-    })
+        if visited.contains(&owner) {
+            continue;
+        }
+        visited.push(owner);
+        pending.extend(dependencies);
+    }
+    true
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -9,7 +9,6 @@ pub(crate) use invocations::full_parameter_invocation;
 pub(crate) mod operational;
 mod prepared_effects;
 pub use prepared_effects::PreparedEffectPlans;
-pub(crate) use prepared_effects::with_operational_plan;
 pub(crate) mod service_reach;
 
 pub use invocations::{

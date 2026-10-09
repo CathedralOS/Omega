@@ -126,6 +126,100 @@ pub fn machine_call_dependency_symbols(
     symbols
 }
 
+/// Direct source dependencies of one exact callable or transparent term.
+/// The returned owner canonicalizes a named state to its machine. Proof
+/// independence follows authored contracts as well as bodies; operational
+/// effect closure deliberately answers a different question. Mathematical
+/// indirection cannot hide a dependency on the theorem being established.
+pub(crate) fn declaration_call_dependencies(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<(SymbolHandle, Vec<SymbolHandle>)> {
+    // Compiler-owned functions and core type formers have no authored body
+    // that can depend on the caller. This is dependency classification only;
+    // their invocation, effects and arithmetic still require formation.
+    if program
+        .symbols
+        .builtin_function_for_symbol(symbol)
+        .is_some()
+        || symbols::FixedCoreDeclaration::ALL
+            .into_iter()
+            .any(|declaration| {
+                program.symbols.fixed_core_declaration_symbol(declaration) == Some(symbol)
+            })
+    {
+        return Some((symbol, Vec::new()));
+    }
+    let machine = program.machine_by_symbol(symbol).or_else(|| {
+        crate::machine_calls::calls::machine_state_by_symbol(program, symbol)
+            .map(|(machine, _)| machine)
+    });
+    if let Some(machine) = machine {
+        return Some((
+            machine.symbol,
+            machine_call_dependency_symbols(program, machine),
+        ));
+    }
+    let mut dependencies = Vec::new();
+    if let Some(definition) = program
+        .mathematical_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol)
+    {
+        for root in crate::mathematical_applications::definition_roots(program, definition) {
+            collect_expression_dependency_symbols(program, root, &mut dependencies);
+        }
+    } else if let Some(operator) = typed_trees::operator::declaration_by_symbol(program, symbol) {
+        collect_contract_dependency_symbols(
+            program,
+            program.operator_contracts(operator),
+            &mut dependencies,
+        );
+    } else if let Some(signature) = program
+        .trait_machine_signature(symbol)
+        .map(|(_, signature)| signature)
+        .or_else(|| {
+            program
+                .machine_parameter_signature(symbol)
+                .map(|(_, signature)| signature)
+        })
+        .or_else(|| {
+            program
+                .retained_static_machine_contract(symbol)
+                .map(|contract| contract.signature())
+        })
+    {
+        collect_contract_dependency_symbols(
+            program,
+            program.state_signature_contracts(signature),
+            &mut dependencies,
+        );
+    } else if let Some(proposition) = program
+        .propositions()
+        .iter()
+        .find(|proposition| proposition.symbol == symbol)
+    {
+        if let typed_trees::proposition::PropositionBody::Transparent { proposition } =
+            &proposition.body
+        {
+            match proposition {
+                typed_trees::proposition::PropositionFormula::BooleanExpression(expression) => {
+                    collect_expression_dependency_symbols(program, *expression, &mut dependencies);
+                }
+                typed_trees::proposition::PropositionFormula::Application(application) => {
+                    collect_proposition_dependency_symbols(program, application, &mut dependencies);
+                }
+            }
+        }
+    } else {
+        return None;
+    }
+    dependencies
+        .sort_unstable_by_key(|dependency| (dependency.arena_index(), dependency.generation()));
+    dependencies.dedup();
+    Some((symbol, dependencies))
+}
+
 fn collect_contract_dependency_symbols(
     program: &dyn crate::CheckingInput,
     contracts: &[typed_trees::signature::SignatureContract],
@@ -143,13 +237,27 @@ fn collect_contract_dependency_symbols(
                 collect_expression_dependency_symbols(program, membership.value, symbols);
             }
             typed_trees::domain::ProofFact::Proposition(application) => {
-                for argument in program
-                    .expression_table
-                    .expression_handles(application.arguments)
-                {
-                    collect_expression_dependency_symbols(program, *argument, symbols);
-                }
+                collect_proposition_dependency_symbols(program, application, symbols);
             }
+        }
+    }
+}
+
+fn collect_proposition_dependency_symbols(
+    program: &dyn crate::CheckingInput,
+    application: &typed_trees::proposition::PropositionApplication,
+    symbols: &mut Vec<SymbolHandle>,
+) {
+    push_dependency_symbol(symbols, application.proposition);
+    for argument in program
+        .expression_table
+        .expression_handles(application.arguments)
+    {
+        collect_expression_dependency_symbols(program, *argument, symbols);
+    }
+    for argument in &application.binder_arguments {
+        if argument.kind == typed_trees::proposition::PropositionBinderArgumentKind::Machine {
+            push_dependency_symbol(symbols, argument.symbol);
         }
     }
 }
