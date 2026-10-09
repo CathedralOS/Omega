@@ -682,6 +682,20 @@ fn hinted_named_value_type_reference(
                     .find(|parameter| matches_symbol(parameter.symbol))
                     .map(|parameter| parameter.type_reference)
             }),
+        // Measures keep their formal inline rather than in the state
+        // parameter arena. Its retained declaration and symbol still supply
+        // the same declared carrier to selected computation queries.
+        symbols::SymbolKind::Measure => program
+            .measures()
+            .iter()
+            .find(|measure| measure.symbol == parent)
+            .and_then(|measure| measure.parameter.as_ref())
+            .filter(|parameter| {
+                path.symbol.is_valid()
+                    && path.head_symbol == path.symbol
+                    && parameter.symbol == path.symbol
+            })
+            .map(|parameter| parameter.type_reference),
         // State binders: the binder's parent is a state whose own retained
         // parent names its machine.
         symbols::SymbolKind::State => {

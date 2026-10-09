@@ -1200,26 +1200,14 @@ pub(super) fn computed_rank(
     parameter: symbols::SymbolHandle,
     body: ExpressionHandle,
 ) -> Option<Polynomial> {
-    const PARAMETER_ATOM: &str = "\0ranking:view:parameter";
     let subject = engine.normalize(subject)?;
-    let mut template = Engine::strict_with_symbol_bindings(
-        program,
-        machine,
-        &[StrictArithmeticSymbolBinding {
-            symbol: parameter,
-            value: StrictArithmeticBindingValue::Atom {
-                identity: PARAMETER_ATOM.to_owned(),
-                unsigned: true,
-            },
-        }],
-    );
-    if !template.strict_symbol_bindings_are_valid() {
-        return None;
-    }
-    let body = template.normalize(body)?;
+    let body = identity_views::computed_measure_polynomial(program, machine, parameter, body)?;
     inductive_judgment::apply_argument_map(
         &body,
-        &BTreeMap::from([(PARAMETER_ATOM.to_owned(), subject)]),
+        &BTreeMap::from([(
+            identity_views::COMPUTATION_PARAMETER_ATOM.to_owned(),
+            subject,
+        )]),
     )
 }
 

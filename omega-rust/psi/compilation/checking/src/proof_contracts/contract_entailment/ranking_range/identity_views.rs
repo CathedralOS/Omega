@@ -6,8 +6,10 @@
 //! runtime call-component judgment read one classification here so a member
 //! admitted by either reader carries the same produced rank.
 
-use super::super::{Engine, StrictArithmeticBindingValue, StrictArithmeticSymbolBinding};
-use language_core::operator_spelling::OperatorSpelling;
+use super::super::{
+    Engine, ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+    ScopedArithmeticValue,
+};
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use typed_trees::data::DataMember;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -125,8 +127,8 @@ pub fn computation_body_shape(
 
 /// Resolve `view_path` to a unique declared scalar measure and admit it for
 /// `subject` in `state`: an identity forward exactly as `declared_identity_view`,
-/// or a computation whose every operator has builtin meaning in the selecting
-/// machine's scope and whose normalized polynomial is strictly increasing on
+/// or a computation whose every operator has builtin meaning in the measure's
+/// declaration and whose normalized polynomial is strictly increasing on
 /// the naturals (every coefficient positive, some term of degree at least
 /// one). Strict monotonicity is what lets a subject's descent stand for the
 /// produced rank's descent; formation inside the carrier is a separate
@@ -173,31 +175,11 @@ pub fn declared_scalar_view(
                 return None;
             }
             let machine = owning_machine(program, state)?;
-            let parameter_type = measure
-                .parameter
-                .as_ref()
-                .filter(|binder| binder.symbol == parameter)?
-                .type_reference;
-            computation_meaning(program, machine, parameter, parameter_type, body, 0)?;
             // The syntactic shape admits only `+`, `*`, literals and the
             // parameter, so the polynomial has no negative coefficient unless a
             // literal is negative; monotonicity still needs a term the
             // parameter actually reaches.
-            let mut engine = Engine::strict_with_symbol_bindings(
-                program,
-                machine,
-                &[StrictArithmeticSymbolBinding {
-                    symbol: parameter,
-                    value: StrictArithmeticBindingValue::Atom {
-                        identity: "\0ranking:view:parameter".to_owned(),
-                        unsigned: true,
-                    },
-                }],
-            );
-            if !engine.strict_symbol_bindings_are_valid() {
-                return None;
-            }
-            let polynomial = engine.normalize(body)?;
+            let polynomial = computed_measure_polynomial(program, machine, parameter, body)?;
             let strictly_increasing = polynomial
                 .terms
                 .values()
@@ -212,77 +194,51 @@ pub fn declared_scalar_view(
     }
 }
 
-/// Admit the computation body's operators through the same builtin-meaning
-/// owner the machine-scope readers use: `+` and `*` on the parameter, on
-/// non-negative literals, and on already-admitted subterms, selected as
-/// builtin in `machine`'s scope. Returns the subterm's carrier the way
-/// `meanings::builtin` does (literals stay wildcard operands).
-fn computation_meaning(
+/// A private template coordinate shared by classification and rank application.
+pub(super) const COMPUTATION_PARAMETER_ATOM: &str = "\0ranking:view:parameter";
+
+/// Normalize a measure body under its own declared formal and selected meaning.
+/// The selecting machine supplies proof context, not the measure's operand
+/// types or operator namespace. Rejoin the exact declaration before publishing
+/// the scoped roster; rank membership and carrier formation remain separate.
+pub(super) fn computed_measure_polynomial(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     parameter: SymbolHandle,
-    parameter_type: TypeReferenceHandle,
-    expression: ExpressionHandle,
-    depth: usize,
-) -> Option<Option<TypeReferenceHandle>> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
-    match node {
-        ExpressionNode::Integer(literal) => {
-            (!literal.value_bignum()?.is_negative()).then_some(None)
-        }
-        ExpressionNode::Name(_) => {
-            is_parameter(program, expression, parameter).then_some(Some(parameter_type))
-        }
-        ExpressionNode::Atomic(atomic) => computation_meaning(
-            program,
-            machine,
-            parameter,
-            parameter_type,
-            atomic.value,
-            depth + 1,
-        ),
-        ExpressionNode::Binary(binary) => {
-            let spelling = match binary.operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                _ => return None,
-            };
-            let left = computation_meaning(
-                program,
-                machine,
-                parameter,
-                parameter_type,
-                binary.left,
-                depth + 1,
-            )?;
-            let right = computation_meaning(
-                program,
-                machine,
-                parameter,
-                parameter_type,
-                binary.right,
-                depth + 1,
-            )?;
-            if !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                program,
-                machine.symbol,
-                expression,
-                spelling,
-                &[left, right],
-            ) {
-                return None;
-            }
-            if left.zip(right).is_some_and(|(left, right)| {
-                program.primitive_type_reference(left) != program.primitive_type_reference(right)
-            }) {
-                return None;
-            }
-            Some(left.or(right))
-        }
-        _ => None,
+    body: ExpressionHandle,
+) -> Option<super::Polynomial> {
+    if !parameter.is_valid() {
+        return None;
     }
+    let formal = program.symbols.get(parameter);
+    let owner = formal.parent;
+    if formal.kind != SymbolKind::Parameter
+        || !owner.is_valid()
+        || program.symbols.get(owner).kind != SymbolKind::Measure
+    {
+        return None;
+    }
+    let measure = program
+        .measures()
+        .iter()
+        .find(|measure| measure.symbol == owner)?;
+    if measure.parameter.as_ref()?.symbol != parameter
+        || program.expression_table.expression_handles(measure.body) != [body]
+    {
+        return None;
+    }
+    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    engine.normalize_scoped_value(&ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+        owner,
+        expression: body,
+        bindings: vec![ScopedArithmeticBinding {
+            binder: ScopedArithmeticBinder::Symbol(parameter),
+            value: ScopedArithmeticValue::Atom {
+                identity: COMPUTATION_PARAMETER_ATOM.to_owned(),
+                unsigned: true,
+            },
+        }],
+    }))
 }
 
 /// Classify only bodies whose projection is justified by resolved declarations.
