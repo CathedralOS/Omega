@@ -94,11 +94,12 @@ pub(super) fn emit(
 
     let source_value_count = values.len();
     let mut calls = catalogs.scalar_calls.emission_context();
+    let result_type = source.structural_type;
     let result = view_ranges::emit(
         checked,
         site,
         source,
-        source.structural_type,
+        result_type,
         destination,
         evaluation,
         source_value_count,

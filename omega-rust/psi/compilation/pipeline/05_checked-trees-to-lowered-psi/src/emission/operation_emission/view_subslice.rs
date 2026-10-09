@@ -37,8 +37,7 @@ pub(crate) enum ViewFamily {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
     family: ViewFamily,
-    source: PlaceId,
-    access: terminal_psi::StructuralAccess,
+    source: terminal_psi::StructuralArgument,
     start: Option<&LoweredDirectExpression>,
     end: Option<&LoweredDirectExpression>,
     destination: PlaceId,
@@ -47,7 +46,7 @@ pub(crate) fn emit(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let multiplicity = match access {
+    let multiplicity = match source.access {
         terminal_psi::StructuralAccess::SharedBorrow => StructuralMultiplicity::Unrestricted,
         terminal_psi::StructuralAccess::MutableBorrow => StructuralMultiplicity::Affine,
         _ => return unsupported("view subslice requires readable borrowed access"),
@@ -79,17 +78,17 @@ pub(crate) fn emit(
     // The length names the exact source; the length emitters reuse the
     // dominating observation already on this emission path.
     let length = match family {
-        ViewFamily::Bytes => emit_byte_length(source, next_value, operations),
-        ViewFamily::Elements => emit_element_length(
-            terminal_psi::StructuralArgument::whole(
-                source,
-                terminal_psi::StructuralAccess::SharedBorrow,
-            ),
-            next_value,
-            operations,
-        ),
+        ViewFamily::Bytes => emit_byte_length(source.clone(), next_value, operations),
+        ViewFamily::Elements => emit_element_length(source.clone(), next_value, operations),
     };
     let end = end.unwrap_or(length);
+    let source = terminal_psi::StructuralArgument {
+        path: crate::emission::operation_emission::expressions::path_with_current_bounds(
+            &source.path,
+            operations.next_identity,
+        ),
+        ..source
+    };
     let producer = operations.allocate();
     let obligation = obligation_id(producer.get().checked_add(1).ok_or(
         LoweringError::Unsupported("view subslice obligation identity overflows"),

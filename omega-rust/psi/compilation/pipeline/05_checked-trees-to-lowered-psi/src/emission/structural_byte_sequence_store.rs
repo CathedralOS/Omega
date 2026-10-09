@@ -798,7 +798,12 @@ impl ByteEmission<'_> {
         )?;
         let capacity = u64::try_from(bytes.len())
             .map_err(|_| LoweringError::Unsupported("byte literal length overflow"))?;
-        let length = self.length(OperationKind::ByteSequenceLength { source })?;
+        let length = self.length(OperationKind::ByteSequenceLength {
+            source: terminal_psi::StructuralArgument::whole(
+                source,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            ),
+        })?;
         Ok((ByteSequenceOperand::Whole { source, length }, capacity))
     }
 
@@ -978,7 +983,10 @@ impl ValueEmitter<'_> {
                 .concatenate(left, right, structural_type, Vec::new())?;
         self.emission.places.push(declaration);
         let length = self.emission.length(OperationKind::ByteSequenceLength {
-            source: result.place,
+            source: terminal_psi::StructuralArgument::whole(
+                result.place,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            ),
         })?;
         Ok((result.place, length))
     }
@@ -1018,9 +1026,12 @@ impl ValueEmitter<'_> {
                     return unsupported("byte call result lost exact completed owned custody");
                 }
                 let source = produced.place;
-                let length = self
-                    .emission
-                    .length(OperationKind::ByteSequenceLength { source })?;
+                let length = self.emission.length(OperationKind::ByteSequenceLength {
+                    source: terminal_psi::StructuralArgument::whole(
+                        source,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    ),
+                })?;
                 Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
             }
             ByteValue::Whole { root, capacity } => {
@@ -1071,9 +1082,12 @@ impl ValueEmitter<'_> {
                 }) {
                     return unsupported("whole byte source has a different capacity");
                 }
-                let length = self
-                    .emission
-                    .length(OperationKind::ByteSequenceLength { source })?;
+                let length = self.emission.length(OperationKind::ByteSequenceLength {
+                    source: terminal_psi::StructuralArgument::whole(
+                        source,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    ),
+                })?;
                 Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
             }
             ByteValue::Field {

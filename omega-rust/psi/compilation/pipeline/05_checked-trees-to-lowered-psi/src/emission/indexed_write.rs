@@ -408,7 +408,12 @@ impl Destination {
         operations: &mut OperationBuffer,
     ) -> Result<ValueId, LoweringError> {
         let kind = match &self.shape {
-            DestinationShape::ByteView => OperationKind::ByteSequenceLength { source: self.place },
+            DestinationShape::ByteView => OperationKind::ByteSequenceLength {
+                source: terminal_psi::StructuralArgument::whole(
+                    self.place,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ),
+            },
             DestinationShape::ByteField { path, field } => {
                 if let Some(length) = operations.field_byte_lengths.iter().rev().find_map(
                     |(place, carrier, named, value)| {

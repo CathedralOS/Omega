@@ -365,7 +365,14 @@ fn byte_sequence_operand(
         }
         None => terminal_psi::control_flow::ByteSequenceOperand::Whole {
             source,
-            length: super::expressions::emit_byte_length(source, next_value_identity, operations),
+            length: super::expressions::emit_byte_length(
+                terminal_psi::StructuralArgument::whole(
+                    source,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ),
+                next_value_identity,
+                operations,
+            ),
         },
     }
 }

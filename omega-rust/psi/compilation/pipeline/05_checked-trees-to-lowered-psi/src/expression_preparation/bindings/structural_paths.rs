@@ -550,7 +550,14 @@ pub(crate) fn emit_captured_argument_path(
                 ));
             };
             if *bytes {
-                emit_byte_length(source, next_value, operations);
+                emit_byte_length(
+                    terminal_psi::StructuralArgument::whole(
+                        source,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    ),
+                    next_value,
+                    operations,
+                );
             } else {
                 emit_element_length(
                     terminal_psi::StructuralArgument::whole(

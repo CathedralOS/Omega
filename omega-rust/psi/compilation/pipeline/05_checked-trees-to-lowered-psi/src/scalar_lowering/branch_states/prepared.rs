@@ -295,20 +295,9 @@ pub(crate) enum LoweredScalarEffect {
         structural_type: StructuralTypeId,
         bytes: Vec<u8>,
     },
-    /// Derive a borrowed byte window on the edge for the successor's
-    /// structural slot; `end` absent is the source's own length observation.
-    ByteSequenceSubslice {
-        source: PlaceId,
-        access: terminal_psi::StructuralAccess,
-        start: LoweredDirectExpression,
-        end: Option<LoweredDirectExpression>,
-        place: PlaceId,
-        structural_type: StructuralTypeId,
-    },
-    /// Derive a borrowed element window over the same contiguous elements.
-    ElementViewSubslice {
-        source: PlaceId,
-        access: terminal_psi::StructuralAccess,
+    /// Narrow either descriptor family through the same captured operand schedule.
+    ViewSubslice {
+        source: crate::unit::attached_unit::view_ranges::ViewRangeSource,
         start: LoweredDirectExpression,
         end: Option<LoweredDirectExpression>,
         place: PlaceId,

@@ -96,7 +96,6 @@ pub(crate) fn range(argument: &CheckedUnitStructuralArgumentPlan) -> Option<Rang
 #[derive(Clone)]
 pub(crate) struct RangeStorage {
     symbol: symbols::SymbolHandle,
-    root: checked_trees::CheckedStorageRoot,
     collection: Vec<CheckedUnitStructuralPathSegment>,
     structural_type: StructuralTypeId,
     family: ViewFamily,
@@ -131,60 +130,61 @@ impl RangeStorage {
         declarations: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
         let (machine, authored) = crate::declarations::state_declaration(checked, state)?;
-        let (place, establishment) =
-            if let Some(element) = self.collection_element {
-                let destination = destination.ok_or(LoweringError::Unsupported(
-                    "collection range has no reserved whole-view descriptor",
-                ))?;
-                let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
-                    source:
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                            symbol: self.symbol,
-                        },
-                    path: self.collection.clone(),
-                    access: self.access,
-                    type_identity: String::new(),
-                };
-                let source = bindings.borrowed_structural_home(
-                    &argument,
-                    machine,
-                    checked.state_parameters(authored),
-                )?;
-                let root = bindings.structural_argument_type(&source).ok_or(
-                    LoweringError::Unsupported("collection view lost its storage type"),
-                )?;
-                (
+        let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: self.symbol,
+            },
+            path: self.collection.clone(),
+            access: self.access,
+            type_identity: String::new(),
+        };
+        let source = bindings.borrowed_structural_home(
+            &argument,
+            machine,
+            checked.state_parameters(authored),
+        )?;
+        let root = bindings
+            .structural_argument_type(&source)
+            .ok_or(LoweringError::Unsupported(
+                "range source lost its published storage type",
+            ))?;
+        let path = source
+            .path
+            .into_iter()
+            .map(LoweredElementPathSegment::Static)
+            .chain(collection_path(
+                &self.collection,
+                bindings,
+                root,
+                declarations,
+            )?)
+            .collect::<Vec<_>>();
+        let (place, path, establishment) = if let Some(element) = self.collection_element {
+            let destination = destination.ok_or(LoweringError::Unsupported(
+                "collection range has no reserved whole-view descriptor",
+            ))?;
+            (
                 destination,
+                Vec::new(),
                 Some(CollectionView {
                     source: source.place,
                     access:
                         crate::expression_preparation::bindings::structural_paths::terminal_access(
                             self.access,
                         ),
-                    path: source.path.into_iter().map(LoweredElementPathSegment::Static)
-                        .chain(collection_path(&self.collection, bindings, root, declarations)?)
-                        .collect(),
+                    path,
                     element,
                     place: destination,
                     structural_type: self.structural_type,
                 }),
             )
-            } else {
-                let (_, place) = bindings.borrowed_view_source(
-                    self.root,
-                    checked.state_parameters(authored),
-                    checked,
-                    self.structural_type,
-                    self.family == ViewFamily::Bytes,
-                    crate::expression_preparation::bindings::structural_paths::terminal_access(
-                        self.access,
-                    ),
-                )?;
-                (place, None)
-            };
+        } else {
+            (source.place, path, None)
+        };
         Ok((
             ViewRangeSource {
                 place,
+                path,
                 structural_type: self.structural_type,
                 family: self.family,
                 access: crate::expression_preparation::bindings::structural_paths::terminal_access(
@@ -331,20 +331,19 @@ pub(crate) fn storage(
                     ))?,
             )
         }
-        _ if collection.id == view.id
-            && argument.path.is_empty()
-            && !matches!(
-                range.root,
-                checked_trees::CheckedStorageRoot::OwnedLocal { .. }
-            ) =>
+        terminal_psi::StructuralTypeShape::ElementView { element }
+            if range.family == ViewFamily::Elements
+                && view.shape == (terminal_psi::StructuralTypeShape::ElementView { element }) =>
         {
             None
         }
+        terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::byte_sequence_view_carrier_pattern!(),
+        ) if range.family == ViewFamily::Bytes && view.shape.is_borrowed_byte_view() => None,
         _ => return unsupported("range collection is neither backing nor its exact descriptor"),
     };
     Ok(RangeStorage {
         symbol,
-        root: range.root,
         collection: argument.path.clone(),
         structural_type: view.id,
         family: range.family,
@@ -411,9 +410,10 @@ pub(crate) fn establish(
 }
 
 /// The established view a range narrows, as the emitting route found it.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ViewRangeSource {
     pub(crate) place: PlaceId,
+    pub(crate) path: Vec<LoweredElementPathSegment>,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) family: ViewFamily,
     pub(crate) access: terminal_psi::StructuralAccess,
@@ -427,8 +427,9 @@ pub(crate) struct ViewRangeSite<'a> {
     pub(crate) range: Range<'a>,
 }
 
-/// Evaluate the authored endpoints in order, then narrow the established descriptor.
-/// Completed endpoint slots survive control splits and retire after formation.
+/// Complete the selected collection path before evaluating authored endpoints,
+/// then narrow that exact descriptor. Endpoint slots survive control splits and
+/// retire after formation; the source loan prevents replacement meanwhile.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
     checked: &CheckedTrees,
@@ -447,6 +448,9 @@ pub(crate) fn emit(
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let (start, end) = (site.range.start.clone(), site.range.end.clone());
     let (machine, _) = crate::declarations::state_declaration(checked, site.state)?;
+    // Complete the collection selectors before any endpoint can call or write.
+    // The checked loan retains the selected descriptor through those effects.
+    let path = emit_prepared_path(&source.path, 0, values, next_value, operations);
     let retained_count = values.len();
     let mut positions = [None, None];
     for (ordinal, (value, role)) in [
@@ -498,8 +502,11 @@ pub(crate) fn emit(
     let end = exclusive_end(site.range.end_inclusive, end)?;
     let declaration = view_subslice::emit(
         source.family,
-        evaluation.current_structural_place(source.place),
-        source.access,
+        terminal_psi::StructuralArgument {
+            place: evaluation.current_structural_place(source.place),
+            access: source.access,
+            path,
+        },
         start.as_ref(),
         end.as_ref(),
         destination,

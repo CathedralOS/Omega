@@ -135,7 +135,7 @@ impl super::Expansion<'_> {
         if slot.expression != range.expression || slot.bytes != bytes {
             return unsupported("computed range disagrees with its descriptor reservation");
         }
-        let (source, establishment) = slot.storage.bind(
+        let (mut source, establishment) = slot.storage.bind(
             self.checked,
             site.state,
             site.bindings,
@@ -147,6 +147,22 @@ impl super::Expansion<'_> {
             super::super::terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
         let mut endpoints = Vec::with_capacity(2);
         let mut endpoint_types = input_types.to_vec();
+        // Preserve the selected collection before start/end evaluation. Every
+        // dynamic selector becomes an ordinary completed scalar operand in the
+        // same prefix telescope used for endpoint values.
+        for segment in &mut source.path {
+            if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex {
+                selector, extent, ..
+            } = segment {
+                for value in std::iter::once(selector).chain(extent.iter_mut()) {
+                    let operand = super::Argument::Value(value.clone());
+                    let value_type = self.argument_type(&operand, site, input_types)?;
+                    *value = super::parameter(endpoint_types.len(), value_type);
+                    endpoints.push(operand);
+                    endpoint_types.push(value_type);
+                }
+            }
+        }
         let mut completed = [None, None];
         for (index, endpoint) in [start, end].into_iter().enumerate() {
             let Some(endpoint) = endpoint else {
@@ -180,24 +196,12 @@ impl super::Expansion<'_> {
         use crate::scalar_lowering::branch_states::prepared::{
             LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
         };
-        let effect = if bytes {
-            LoweredScalarEffect::ByteSequenceSubslice {
-                source: source.place,
-                access: source.access,
-                start,
-                end,
-                place: slot.place,
-                structural_type: slot.structural_type,
-            }
-        } else {
-            LoweredScalarEffect::ElementViewSubslice {
-                source: source.place,
-                access: source.access,
-                start,
-                end,
-                place: slot.place,
-                structural_type: slot.structural_type,
-            }
+        let effect = LoweredScalarEffect::ViewSubslice {
+            source,
+            start,
+            end,
+            place: slot.place,
+            structural_type: slot.structural_type,
         };
         let finish = self.push(LoweredScalarBranchState {
             structural_parameters: Vec::new(),

@@ -143,39 +143,27 @@ pub(crate) fn emit(
                     view, values, next_value, operations,
                 );
             }
-            LoweredScalarEffect::ByteSequenceSubslice {
+            LoweredScalarEffect::ViewSubslice {
                 source,
-                access,
                 start,
                 end,
                 place,
                 structural_type,
             } => {
-                view_subslice::emit(
-                    view_subslice::ViewFamily::Bytes,
-                    *source,
-                    *access,
-                    Some(start),
-                    end.as_ref(),
-                    *place,
-                    *structural_type,
+                let path = crate::emission::operation_emission::expressions::emit_prepared_path(
+                    &source.path,
+                    0,
                     values,
                     next_value,
                     operations,
-                )?;
-            }
-            LoweredScalarEffect::ElementViewSubslice {
-                source,
-                access,
-                start,
-                end,
-                place,
-                structural_type,
-            } => {
+                );
                 view_subslice::emit(
-                    view_subslice::ViewFamily::Elements,
-                    *source,
-                    *access,
+                    source.family,
+                    terminal_psi::StructuralArgument {
+                        place: source.place,
+                        path,
+                        access: source.access,
+                    },
                     Some(start),
                     end.as_ref(),
                     *place,

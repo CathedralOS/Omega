@@ -21,7 +21,6 @@ use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralParameterPlan;
 
-use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::TypeReferenceHandle;
@@ -56,8 +55,8 @@ enum ViewStorage {
 pub(in crate::execution) struct ViewRange {
     pub(in crate::execution) root: CheckedStorageRoot,
     storage: ViewStorage,
-    /// Projection to the collection. Whole arrays and established views both
-    /// have an empty path; storage kind comes from the declared type.
+    /// Exact ordered projection to the collection or established descriptor.
+    /// Storage kind comes from the selected declaration, never path length.
     pub(in crate::execution) collection: Vec<CheckedUnitStructuralPathSegment>,
     /// Exact Terminal type identity of the collection's storage carrier,
     /// enrolled in the checked structural type table.
@@ -419,7 +418,7 @@ fn shape_of_kind(
     let expression = validation::subslice_expression(program, expression)?;
     let indexed = program.expression_table.indexed_node(expression)?;
     let type_identity = view_identity(program, kind, target)?;
-    if let Some((root, collection, storage)) = array_collection(
+    let (root, collection, storage, storage_kind) = collection_storage(
         program,
         machine,
         state,
@@ -427,94 +426,27 @@ fn shape_of_kind(
         target,
         indexed.collection,
         statement_index,
-    ) {
-        return validation::has_builtin_subslice_meaning(program, machine, Some(state), expression)
-            .then_some(ViewRange {
-                root,
-                storage: ViewStorage::FixedArray,
-                collection,
-                // The collection's storage carrier, as the structural type
-                // table enrolls it.
-                storage_type_identity: validation::structural_type_identity(
-                    program,
-                    storage,
-                    &[],
-                    &[],
-                ),
-                kind,
-                access,
-                type_identity,
-            });
-    }
-    let path = program
-        .expression_table
-        .name_path_node(indexed.collection)?;
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
-    let authored = program.state_parameters(state);
-    let root = if let Some(position) =
-        typed_trees::signature::state_parameter_position(authored, path.symbol)
-    {
-        let parameter_index = parameters
-            .iter()
-            .position(|parameter| parameter.position as usize == position)?;
-        let parameter = &parameters[parameter_index];
-        let source_kind = view_kind(program, authored[position].type_reference);
-        if parameter.access != access
-            || parameter.multiplicity != Multiplicity::Unrestricted
-            || !parameter.projected_qualifications.is_empty()
-            || parameter.type_identity != type_identity
-            || source_kind != Some(kind)
-        {
-            return None;
-        }
-        CheckedStorageRoot::Parameter {
-            index: u32::try_from(parameter_index).ok()?,
-        }
-    } else {
-        let local = view_local_before(program, state, statement_index, path.symbol)?;
-        if structural_access_for_type_reference(program, local.type_reference) != Some(access)
-            || view_kind(program, local.type_reference) != Some(kind)
-            || view_identity(program, kind, local.type_reference)? != type_identity
-        {
-            return None;
-        }
-        CheckedStorageRoot::ViewLocal {
-            symbol: local.symbol,
-        }
-    };
-    if !validation::has_builtin_subslice_meaning(program, machine, Some(state), expression) {
-        return None;
-    }
-    Some(ViewRange {
-        root,
-        storage: ViewStorage::Established,
-        collection: Vec::new(),
-        // An established view's own type is its collection's storage
-        // carrier: the range narrows a descriptor, not array backing.
-        storage_type_identity: type_identity.clone(),
-        kind,
-        access,
-        type_identity,
-    })
+    )?;
+    validation::has_builtin_subslice_meaning(program, machine, Some(state), expression).then_some(
+        ViewRange {
+            root,
+            storage: storage_kind,
+            collection,
+            storage_type_identity: validation::structural_type_identity(program, storage, &[], &[]),
+            kind,
+            access,
+            type_identity,
+        },
+    )
 }
 
-/// Resolve readable fixed-array storage, including a whole parameter or an
-/// earlier owned local and their record-field projections. The array's
-/// elements must be exactly the target view's elements. The existing
-/// collection-view establishment also lends exact `u8` arrays as byte views;
-/// it does not reinterpret other element types or copy the backing. Both
-/// families retain the local's exact checked loan and endpoint evidence.
+/// Resolve the canonical borrowed collection operand once. Its declared
+/// carrier decides whether storage must lend a descriptor or an existing
+/// descriptor narrows directly; local/formal origins and member projections
+/// do not select another range producer. Source access, exact element type,
+/// local loan admission and endpoint formation remain independent obligations.
 #[allow(clippy::too_many_arguments)]
-fn array_collection(
+fn collection_storage(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -526,6 +458,7 @@ fn array_collection(
     CheckedStorageRoot,
     Vec<CheckedUnitStructuralPathSegment>,
     TypeReferenceHandle,
+    ViewStorage,
 )> {
     let target_view = validation::slice_view_shell(program, target, &[])?;
     let element = target_view.element;
@@ -564,16 +497,23 @@ fn array_collection(
         let (_, local) = program
             .state_local_declaration(state, symbol)
             .filter(|&(ordinal, _)| ordinal < statement_index)?;
-        // The earlier declaration owns its storage whether its establishment
-        // was explicit or zero-initialized. Body sequencing publishes that
-        // backing; an initializer expression is not storage authority.
-        if (mutable && !local.is_mutable)
-            || structural_access_for_type_reference(program, local.type_reference)
-                != Some(CheckedStructuralAccess::Owned)
+        let source_access = structural_access_for_type_reference(program, local.type_reference)?;
+        if !matches!(
+            source_access,
+            CheckedStructuralAccess::Owned
+                | CheckedStructuralAccess::SharedBorrow
+                | CheckedStructuralAccess::MutableBorrow
+        ) || mutable
+            && (source_access == CheckedStructuralAccess::SharedBorrow
+                || source_access == CheckedStructuralAccess::Owned && !local.is_mutable)
         {
             return None;
         }
-        CheckedStorageRoot::OwnedLocal { symbol }
+        if source_access == CheckedStructuralAccess::Owned {
+            CheckedStorageRoot::OwnedLocal { symbol }
+        } else {
+            CheckedStorageRoot::ViewLocal { symbol }
+        }
     };
     // Forming a view lends its selected collection; it does not move an
     // array element. Reuse the borrowed projection's runtime selector and
@@ -585,6 +525,16 @@ fn array_collection(
         statement_index,
         &place,
     )?;
+    if let Some(source_view) = validation::slice_view_shell(program, projected, &[]) {
+        if source_view.access == language_core::ReferenceAccess::WriteOnly
+            || mutable && source_view.access != language_core::ReferenceAccess::Mutable
+            || program.normalized_type_identity(source_view.element)
+                != program.normalized_type_identity(element)
+        {
+            return None;
+        }
+        return Some((root, path, projected, ViewStorage::Established));
+    }
     // The declared reference shell stays on the storage handle: byte
     // carriers enroll in the checked type table under that shell's spelling
     // (`ref-mut(array(u8,3))` for a `&mut [u8;3]` parameter), so peeling
@@ -615,7 +565,7 @@ fn array_collection(
         }
     };
     (program.normalized_type_identity(array_element) == program.normalized_type_identity(element))
-        .then_some((root, path, storage))
+        .then_some((root, path, storage, ViewStorage::FixedArray))
 }
 
 /// The whole-extent spelling of the same range: `let v: &T = coll` lends
@@ -636,7 +586,7 @@ pub(in crate::execution) fn whole_extent(
     })?;
     let access = borrowed_view_access(program, target, expression)?;
     let type_identity = view_identity(program, kind, target)?;
-    let (root, collection, storage) = array_collection(
+    let (root, collection, storage, storage_kind) = collection_storage(
         program,
         machine,
         state,
@@ -645,6 +595,9 @@ pub(in crate::execution) fn whole_extent(
         expression,
         statement_index,
     )?;
+    if storage_kind != ViewStorage::FixedArray {
+        return None;
+    }
     Some((
         ViewSubslice {
             range: ViewRange {

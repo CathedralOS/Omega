@@ -324,30 +324,40 @@ pub(crate) fn emit_scalar_leaf(
 }
 
 pub(crate) fn emit_byte_length(
-    source: PlaceId,
+    source: terminal_psi::StructuralArgument,
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
 ) -> ValueId {
-    // Immutable descriptor extent is unchanged on this emission path. Reuse
-    // its dominating observation so later bounds retain the selected guard's
-    // exact value identity; branch emitters scope this cache to their path.
-    if let Some(value) = operations
-        .byte_lengths
-        .iter()
-        .rev()
-        .find_map(|(place, value)| (*place == source).then_some(*value))
+    // Only whole descriptor values retain a captured extent. Projected slots
+    // are live storage and must not reuse a root or sibling's earlier count.
+    if source.path.is_empty()
+        && source.access == terminal_psi::StructuralAccess::SharedBorrow
+        && let Some(value) = operations
+            .byte_lengths
+            .iter()
+            .rev()
+            .find_map(|(place, value)| (*place == source.place).then_some(*value))
     {
         return value;
     }
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    let cache =
+        source.path.is_empty() && source.access == terminal_psi::StructuralAccess::SharedBorrow;
+    let place = source.place;
+    let source = terminal_psi::StructuralArgument {
+        path: path_with_current_bounds(&source.path, operations.next_identity),
+        ..source
+    };
     let value = emit_scalar_leaf(
         OperationKind::ByteSequenceLength { source },
         scalar_type,
         next_value_identity,
         operations,
     );
-    operations.byte_lengths.push((source, value));
+    if cache {
+        operations.byte_lengths.push((place, value));
+    }
     value
 }
 
@@ -374,7 +384,10 @@ pub(crate) fn emit_element_length(
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
     let value = emit_scalar_leaf(
         OperationKind::ElementViewLength {
-            source: source.clone(),
+            source: terminal_psi::StructuralArgument {
+                path: path_with_current_bounds(&source.path, operations.next_identity),
+                ..source.clone()
+            },
         },
         scalar_type,
         next_value_identity,
@@ -593,9 +606,14 @@ pub(crate) fn emit_direct_expression(
                 operations,
             )
         }
-        LoweredDirectExpression::ByteSequenceLength { source, .. } => {
-            emit_byte_length(*source, next_value_identity, operations)
-        }
+        LoweredDirectExpression::ByteSequenceLength { source, .. } => emit_byte_length(
+            terminal_psi::StructuralArgument::whole(
+                *source,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            ),
+            next_value_identity,
+            operations,
+        ),
         LoweredDirectExpression::ByteSequenceFieldLength {
             source,
             path,
@@ -635,7 +653,16 @@ pub(crate) fn emit_direct_expression(
                 .iter()
                 .rev()
                 .find_map(|(place, value)| (*place == *source).then_some(*value))
-                .unwrap_or_else(|| emit_byte_length(*source, next_value_identity, operations));
+                .unwrap_or_else(|| {
+                    emit_byte_length(
+                        terminal_psi::StructuralArgument::whole(
+                            *source,
+                            terminal_psi::StructuralAccess::SharedBorrow,
+                        ),
+                        next_value_identity,
+                        operations,
+                    )
+                });
             // A missing dominating observation may still form a valid read
             // shape. Its canonical bounds certificate must then be produced;
             // constructing a fresh length does not prove the read is in bounds.
