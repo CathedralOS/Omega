@@ -20,7 +20,7 @@ pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Ve
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
-    encode_len(&mut bytes, plan.functions.len());
+    crate::codec_bytes::length(&mut bytes, plan.functions.len(), "spill-choice identity");
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
         bytes.push(u8::from(function.choice.is_some()));
@@ -29,11 +29,19 @@ pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Ve
             bytes.extend_from_slice(&choice.point.0.to_le_bytes());
             bytes.extend_from_slice(&choice.incoming.0.to_le_bytes());
             bytes.extend_from_slice(&choice.incoming_class.0.to_le_bytes());
-            encode_len(&mut bytes, choice.incoming_common_candidates.len());
+            crate::codec_bytes::length(
+                &mut bytes,
+                choice.incoming_common_candidates.len(),
+                "spill-choice identity",
+            );
             for view in &choice.incoming_common_candidates {
                 bytes.extend_from_slice(&view.0.to_le_bytes());
             }
-            encode_len(&mut bytes, choice.active_residents.len());
+            crate::codec_bytes::length(
+                &mut bytes,
+                choice.active_residents.len(),
+                "spill-choice identity",
+            );
             for resident in &choice.active_residents {
                 bytes.extend_from_slice(&resident.virtual_register.0.to_le_bytes());
                 bytes.extend_from_slice(&resident.class.0.to_le_bytes());
@@ -41,30 +49,22 @@ pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Ve
                 bytes.extend_from_slice(&resident.exclusive_end.0.to_le_bytes());
                 bytes.extend_from_slice(&resident.view.0.to_le_bytes());
             }
-            encode_len(&mut bytes, choice.contenders.len());
+            crate::codec_bytes::length(
+                &mut bytes,
+                choice.contenders.len(),
+                "spill-choice identity",
+            );
             for contender in &choice.contenders {
                 bytes.extend_from_slice(&contender.virtual_register.0.to_le_bytes());
                 bytes.extend_from_slice(&contender.exclusive_end.0.to_le_bytes());
-                match contender.reclaimed_view {
-                    None => bytes.push(0),
-                    Some(view) => {
-                        bytes.push(1);
-                        bytes.extend_from_slice(&view.0.to_le_bytes());
-                    }
-                }
+                crate::codec_bytes::option(&mut bytes, contender.reclaimed_view, |bytes, view| {
+                    bytes.extend_from_slice(&view.0.to_le_bytes());
+                });
             }
             bytes.extend_from_slice(&choice.selected_victim.0.to_le_bytes());
         }
     }
     bytes
-}
-
-fn encode_len(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("spill-choice identity length fits u64")
-            .to_le_bytes(),
-    );
 }
 
 #[cfg(test)]

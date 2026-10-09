@@ -35,13 +35,7 @@ pub(super) fn decode_option_u16(
 }
 
 fn encode_option<T>(bytes: &mut Vec<u8>, value: Option<T>, encode: impl FnOnce(&mut Vec<u8>, T)) {
-    match value {
-        None => bytes.push(0),
-        Some(value) => {
-            bytes.push(1);
-            encode(bytes, value);
-        }
-    }
+    crate::codec_bytes::option(bytes, value, encode);
 }
 
 pub(super) fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
@@ -98,9 +92,5 @@ pub(super) fn decode_accepted_fact(
 }
 
 pub(super) fn length(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("fixed-view-copy artifact length fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::length(bytes, value, "fixed-view-copy artifact");
 }

@@ -5,6 +5,7 @@
 //! Start at [`register_homes`]. Decode and identity checks establish canonical
 //! representation only; allocation validity belongs to the independent verifier.
 
+pub(crate) mod codec_bytes;
 pub(crate) mod cursor;
 pub mod register_homes;
 pub use register_homes::{

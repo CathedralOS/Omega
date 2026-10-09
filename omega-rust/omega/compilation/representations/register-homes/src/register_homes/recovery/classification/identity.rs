@@ -34,7 +34,11 @@ pub(crate) fn encode_terminal_recovery_classification_content(
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
-    encode_len(&mut bytes, plan.functions.len());
+    crate::codec_bytes::length(
+        &mut bytes,
+        plan.functions.len(),
+        "recovery-classification identity",
+    );
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
         bytes.push(u8::from(function.classification.is_some()));
@@ -76,7 +80,11 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                     bytes.extend_from_slice(&source_value.get().to_le_bytes());
                     legalized_operations::encode_integer(&mut bytes, *value);
                     encode_provenance(&mut bytes, provenance);
-                    encode_len(&mut bytes, future_uses.len());
+                    crate::codec_bytes::length(
+                        &mut bytes,
+                        future_uses.len(),
+                        "recovery-classification identity",
+                    );
                     for future_use in future_uses {
                         bytes.extend_from_slice(&future_use.block.0.to_le_bytes());
                         bytes.extend_from_slice(&future_use.point.0.to_le_bytes());
@@ -169,7 +177,7 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
         } => {
             bytes.push(4);
             bytes.extend_from_slice(&place.get().to_le_bytes());
-            encode_len(bytes, parameter_index);
+            crate::codec_bytes::length(bytes, parameter_index, "recovery-classification identity");
         }
         VirtualRegisterOrigin::AbiTransport {
             instruction,
@@ -190,7 +198,7 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
             bytes.push(3);
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
             bytes.extend_from_slice(&block.0.to_le_bytes());
-            encode_len(bytes, parameter_index);
+            crate::codec_bytes::length(bytes, parameter_index, "recovery-classification identity");
         }
         VirtualRegisterOrigin::EntryParameter {
             source_value,
@@ -198,7 +206,7 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
         } => {
             bytes.push(0);
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
-            encode_len(bytes, parameter_index);
+            crate::codec_bytes::length(bytes, parameter_index, "recovery-classification identity");
         }
         VirtualRegisterOrigin::InstructionResult {
             instruction,
@@ -212,26 +220,27 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
 }
 
 fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionProvenance) {
-    encode_len(bytes, provenance.operations.len());
-    for operation in &provenance.operations {
+    const LABEL: &str = "recovery-classification identity";
+    crate::codec_bytes::list(bytes, &provenance.operations, LABEL, |bytes, operation| {
         bytes.extend_from_slice(&operation.get().to_le_bytes());
-    }
-    encode_len(bytes, provenance.values.len());
-    for value in &provenance.values {
+    });
+    crate::codec_bytes::list(bytes, &provenance.values, LABEL, |bytes, value| {
         bytes.extend_from_slice(&value.get().to_le_bytes());
-    }
-    encode_len(bytes, provenance.edges.len());
-    for edge in &provenance.edges {
+    });
+    crate::codec_bytes::list(bytes, &provenance.edges, LABEL, |bytes, edge| {
         bytes.extend_from_slice(&edge.get().to_le_bytes());
-    }
-    encode_len(bytes, provenance.obligations.len());
-    for obligation in &provenance.obligations {
-        bytes.extend_from_slice(&obligation.get().to_le_bytes());
-    }
-    encode_len(bytes, provenance.fuel.len());
-    for settlement in &provenance.fuel {
+    });
+    crate::codec_bytes::list(
+        bytes,
+        &provenance.obligations,
+        LABEL,
+        |bytes, obligation| {
+            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+        },
+    );
+    crate::codec_bytes::list(bytes, &provenance.fuel, LABEL, |bytes, settlement| {
         encode_fuel(bytes, *settlement);
-    }
+    });
 }
 
 fn encode_fuel(bytes: &mut Vec<u8>, settlement: FuelSettlement) {
@@ -246,14 +255,6 @@ fn encode_fuel(bytes: &mut Vec<u8>, settlement: FuelSettlement) {
         }
     }
     bytes.extend_from_slice(&settlement.units.to_le_bytes());
-}
-
-fn encode_len(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("recovery-classification identity length fits u64")
-            .to_le_bytes(),
-    );
 }
 
 #[cfg(test)]

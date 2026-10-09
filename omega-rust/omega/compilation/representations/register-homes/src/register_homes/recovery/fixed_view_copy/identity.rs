@@ -1,5 +1,5 @@
-use crate::identity::encode_fixed_constraint_site_identity;
 use super::codec::evidence::encode_source_evidence;
+use crate::identity::encode_fixed_constraint_site_identity;
 use optimization_unit::encode_value_definition_site_identity;
 use selected_instructions::{FixedViewCopyIdentity, selected_instruction_plan_identity};
 
@@ -22,7 +22,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
-    encode_len(&mut bytes, plan.copies.len());
+    crate::codec_bytes::length(&mut bytes, plan.copies.len(), "fixed-view copy identity");
     for copy in &plan.copies {
         bytes.extend_from_slice(&copy.function.to_le_bytes());
         bytes.extend_from_slice(&copy.machine.get().to_le_bytes());
@@ -33,7 +33,11 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         bytes.extend_from_slice(&copy.to_view.0.to_le_bytes());
         bytes.extend_from_slice(&copy.insertion_block.0.to_le_bytes());
         bytes.extend_from_slice(&copy.before_instruction.0.to_le_bytes());
-        encode_len(&mut bytes, copy.destinations.len());
+        crate::codec_bytes::length(
+            &mut bytes,
+            copy.destinations.len(),
+            "fixed-view copy identity",
+        );
         for destination in &copy.destinations {
             encode_fixed_constraint_site_identity(&mut bytes, destination.site);
             bytes.extend_from_slice(&destination.block.0.to_le_bytes());
@@ -46,15 +50,6 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     }
     bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
     FixedViewCopyIdentity::from_canonical_bytes(&bytes)
-}
-
-
-fn encode_len(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("fixed-view copy identity length fits u64")
-            .to_le_bytes(),
-    );
 }
 
 #[cfg(test)]
