@@ -65,7 +65,6 @@ fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
         .unwrap()
     };
     let first = publish();
-    assert!(first.has_consistent_package_identity());
     assert_eq!(
         first.inner_executable_path().unwrap(),
         directory
@@ -100,13 +99,10 @@ fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
     assert_eq!(std::fs::read(plist_path).unwrap(), first_plist);
     let mut changed = first.clone();
     changed.application_identifier = target::ApplicationIdentifier::new(b"org.other").unwrap();
-    assert!(!changed.has_consistent_package_identity());
     let mut changed = first.clone();
     changed.components.reverse();
-    assert!(!changed.has_consistent_package_identity());
     let mut changed = first;
     changed.package_root = directory.0.join("different.app");
-    assert!(!changed.has_consistent_package_identity());
 }
 
 #[test]

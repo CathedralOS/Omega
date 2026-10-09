@@ -203,24 +203,6 @@ impl NativePackagePublicationReceipt {
             .map(|component| self.package_root.join(component.relative_path()))
     }
 
-    /// Recompute the package commitment from this receipt's own fields. Any
-    /// edited field — root, name, identifier, executable commitment, member
-    /// set, order, or per-member data — stops the receipt from replaying.
-    /// The executable component must also sit exactly at
-    /// `Contents/MacOS/<name>` and carry the retained byte count.
-    pub(crate) fn has_consistent_package_identity(&self) -> bool {
-        self.package_evidence_digest
-            == native_package_evidence_digest(
-                &self.package_root,
-                &self.application_name,
-                &self.application_identifier,
-                self.executable_container_digest,
-                &self.components,
-            )
-            && self
-                .executable_component()
-                .is_some_and(|component| component.byte_count == self.executable_byte_count)
-    }
 }
 
 /// The deterministic v1 `Contents/Info.plist` for one authored application.

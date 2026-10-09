@@ -159,7 +159,6 @@ fn external_local_lineage_is_canonical_nonportable_and_context_bound() {
         unreachable!()
     };
     assert!(lineage.canonical_absolute_path().is_absolute());
-    assert!(!lineage.is_portable());
 }
 
 #[test]

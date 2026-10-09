@@ -145,10 +145,6 @@ impl ExternalLocalLineage {
     pub fn source_context(&self) -> &ExternalSourceContext {
         &self.source_context
     }
-
-    pub(crate) fn is_portable(&self) -> bool {
-        false
-    }
 }
 
 domain_digest!(WorkspaceLineageIdentity, b"omega-workspace-lineage-v1");
