@@ -23,15 +23,15 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     bytes.extend_from_slice(&plan.usage.encode());
     crate::codec_bytes::length(&mut bytes, plan.copies.len(), "fixed-view copy identity");
     for copy in &plan.copies {
-        bytes.extend_from_slice(&copy.function.to_le_bytes());
-        bytes.extend_from_slice(&copy.machine.get().to_le_bytes());
-        bytes.extend_from_slice(&copy.source_virtual_register.0.to_le_bytes());
-        bytes.extend_from_slice(&copy.source_value.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.function.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.source_virtual_register.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.source_value.get().to_le_bytes());
         encode_value_definition_site_identity(&mut bytes, copy.source_definition_site);
-        bytes.extend_from_slice(&copy.from_view.0.to_le_bytes());
-        bytes.extend_from_slice(&copy.to_view.0.to_le_bytes());
-        bytes.extend_from_slice(&copy.insertion_block.0.to_le_bytes());
-        bytes.extend_from_slice(&copy.before_instruction.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.from_view.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.to_view.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.insertion_block.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.before_instruction.0.to_le_bytes());
         crate::codec_bytes::length(
             &mut bytes,
             copy.destinations.len(),
@@ -39,13 +39,13 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         );
         for destination in &copy.destinations {
             encode_fixed_constraint_site_identity(&mut bytes, destination.site);
-            bytes.extend_from_slice(&destination.block.0.to_le_bytes());
-            bytes.extend_from_slice(&destination.view.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, destination.block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, destination.view.0.to_le_bytes());
         }
-        bytes.extend_from_slice(&copy.copy_instruction.0.to_le_bytes());
-        bytes.extend_from_slice(&copy.result_virtual_register.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.copy_instruction.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.result_virtual_register.0.to_le_bytes());
         bytes.push(copy.copy_constraint.family.tag());
-        bytes.extend_from_slice(&copy.copy_constraint.variant.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, copy.copy_constraint.variant.to_le_bytes());
     }
     bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
     FixedViewCopyIdentity::from_bytes(crate::codec_bytes::domain_identity(

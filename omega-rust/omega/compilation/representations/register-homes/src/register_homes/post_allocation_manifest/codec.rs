@@ -310,7 +310,7 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
         });
     }
     for value in statistics_values(manifest.statistics) {
-        canonical.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, value.to_le_bytes());
     }
     canonical
 }

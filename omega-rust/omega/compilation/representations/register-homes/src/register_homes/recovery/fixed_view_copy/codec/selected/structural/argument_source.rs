@@ -17,24 +17,24 @@ pub(super) fn encode_argument_source(bytes: &mut Vec<u8>, source: &TargetStructu
         }
         TargetStructuralArgumentSource::EstablishedByteView { psi_operation } => {
             bytes.push(1);
-            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
         TargetStructuralArgumentSource::BlockParameter { block, place } => {
             bytes.push(2);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
         }
         TargetStructuralArgumentSource::EstablishedPrimitiveLocal { psi_operation } => {
             bytes.push(3);
-            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
         TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             bytes.push(4);
-            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
         TargetStructuralArgumentSource::EstablishedElementView { psi_operation } => {
             bytes.push(5);
-            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
     }
 }

@@ -25,16 +25,16 @@ pub(crate) fn encode_terminal_allocator_availability_content(
             bytes.push(1);
             length(&mut bytes, views.len());
             for view in views {
-                bytes.extend_from_slice(&view.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, view.0.to_le_bytes());
             }
         }
     }
     length(&mut bytes, plan.classes.len());
     for row in &plan.classes {
-        bytes.extend_from_slice(&row.class.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, row.class.0.to_le_bytes());
         length(&mut bytes, row.unconstrained_views.len());
         for view in &row.unconstrained_views {
-            bytes.extend_from_slice(&view.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, view.0.to_le_bytes());
         }
     }
     bytes

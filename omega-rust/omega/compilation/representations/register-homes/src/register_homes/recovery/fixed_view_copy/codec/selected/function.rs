@@ -16,7 +16,7 @@ pub(super) fn encode_function(
     bytes: &mut Vec<u8>,
     function: &SelectedFunction,
 ) -> Result<(), terminal_codec::CodecError> {
-    bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     encode_option_u64(bytes, function.attachment.map(|value| value.get()));
     encode_option_u64(
         bytes,
@@ -34,7 +34,7 @@ pub(super) fn encode_function(
         bytes,
         function.provenance.edges.iter().map(|value| value.get()),
     );
-    bytes.extend_from_slice(&function.entry_block.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, function.entry_block.0.to_le_bytes());
     length(bytes, function.virtual_registers.len());
     for register in &function.virtual_registers {
         encode_register(bytes, register);

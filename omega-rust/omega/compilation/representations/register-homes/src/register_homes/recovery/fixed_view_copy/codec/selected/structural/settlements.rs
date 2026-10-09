@@ -40,8 +40,8 @@ pub(super) fn encode_boundary_settlement(
             layout,
         } => {
             bytes.push(3);
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
-            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             super::read_result::encode(bytes, result, layout);
             return Ok(());
         }
@@ -52,7 +52,7 @@ pub(super) fn encode_boundary_settlement(
             source,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             match execution {
                 target_operations::BoundaryExecutionBinding::AdmittedProvider(provider) => {
                     bytes.push(0);
@@ -67,8 +67,8 @@ pub(super) fn encode_boundary_settlement(
                     ));
                 }
             }
-            bytes.extend_from_slice(&boundary.get().to_le_bytes());
-            bytes.extend_from_slice(&source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
             return Ok(());
         }
         selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(settlement) => {
@@ -81,14 +81,14 @@ pub(super) fn encode_boundary_settlement(
             source,
         } => {
             bytes.push(1);
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
-            bytes.extend_from_slice(&boundary.get().to_le_bytes());
-            bytes.extend_from_slice(&source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
             return Ok(());
         }
     };
-    bytes.extend_from_slice(&settlement.operation.get().to_le_bytes());
-    bytes.extend_from_slice(&settlement.boundary.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, settlement.operation.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, settlement.boundary.get().to_le_bytes());
     encode_provider_execution(bytes, settlement.provider_execution);
     let _ = settlement.realization;
     bytes.push(1);
@@ -201,7 +201,7 @@ pub(super) fn encode_call_source(
             completion_receipts,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             provider::encode(bytes, provider, retain_projected_qualifications);
             length(bytes, completion_claim_sources.len());
             for source in completion_claim_sources {
@@ -258,7 +258,7 @@ pub(super) fn decode_provider_execution(
 }
 
 fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &CompletionClaimSource) {
-    bytes.extend_from_slice(&source.claim.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, source.claim.get().to_le_bytes());
     match &source.entry {
         None => bytes.push(0),
         Some(entry) => {
@@ -297,11 +297,11 @@ fn decode_completion_claim_source(
 }
 
 fn encode_content_entry_claim(bytes: &mut Vec<u8>, content: &ContentEntryClaim) {
-    bytes.extend_from_slice(&content.claim.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, content.claim.get().to_le_bytes());
     encode_content_place(bytes, &content.input);
     length(bytes, content.projections.len());
     for projection in &content.projections {
-        bytes.extend_from_slice(&projection.projection.domain.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, projection.projection.domain.get().to_le_bytes());
         bytes.extend_from_slice(
             &projection
                 .projection
@@ -340,7 +340,7 @@ fn encode_content_place(bytes: &mut Vec<u8>, place: &ContentStructuralPlace) {
         ContentPlaceVersion::Entry => 1,
         ContentPlaceVersion::Current => 2,
     });
-    bytes.extend_from_slice(&place.root.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, place.root.get().to_le_bytes());
     length(bytes, place.segments.len());
     for segment in &place.segments {
         match segment {
@@ -350,7 +350,7 @@ fn encode_content_place(bytes: &mut Vec<u8>, place: &ContentStructuralPlace) {
             }
             ContentPlaceSegment::FixedIndex(value) => {
                 bytes.push(2);
-                bytes.extend_from_slice(&value.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
             }
             ContentPlaceSegment::Case(value) => {
                 bytes.push(3);
@@ -409,8 +409,8 @@ fn decode_content_algebra(
 }
 
 fn encode_completion_receipt(bytes: &mut Vec<u8>, receipt: CompletionReceipt) {
-    bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
-    bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, receipt.claim.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, receipt.argument_index.to_le_bytes());
 }
 
 fn decode_completion_receipt(
@@ -423,8 +423,8 @@ fn decode_completion_receipt(
 }
 
 pub(super) fn encode_effect(bytes: &mut Vec<u8>, effect: EffectLink) {
-    bytes.extend_from_slice(&effect.input.to_le_bytes());
-    bytes.extend_from_slice(&effect.output.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, effect.input.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, effect.output.to_le_bytes());
 }
 
 pub(super) fn decode_effect(

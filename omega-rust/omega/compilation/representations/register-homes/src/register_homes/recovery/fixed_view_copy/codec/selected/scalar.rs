@@ -19,10 +19,10 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn encode(
     plan: &SelectedInstructionPlan,
 ) -> Result<(), terminal_codec::CodecError> {
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
-    bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
-    bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, plan.fuel_schedule.marker().to_le_bytes());
     encode_target(bytes, plan.target);
-    bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, plan.entry.get().to_le_bytes());
     length(bytes, plan.functions.len());
     for function in &plan.functions {
         encode_function(bytes, function)?;

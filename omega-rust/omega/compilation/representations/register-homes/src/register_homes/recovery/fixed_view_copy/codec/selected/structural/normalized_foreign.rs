@@ -58,15 +58,15 @@ pub(super) fn encode_normalized_foreign_call(
     bytes: &mut Vec<u8>,
     row: &SelectedNormalizedForeignCall,
 ) {
-    bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
     row.invocation_site.encode_identity(bytes);
     let call = &row.call;
-    bytes.extend_from_slice(&call.boundary.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, call.boundary.get().to_le_bytes());
     encode_provider_execution(bytes, call.provider_execution);
     encode_call_binding(bytes, &call.binding);
     length(bytes, call.scalar_arguments.len());
     for argument in &call.scalar_arguments {
-        bytes.extend_from_slice(&argument.parameter_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, argument.parameter_index.to_le_bytes());
         encode_scalar_source(bytes, argument.source);
         encode_placement(bytes, &argument.placement);
     }
@@ -92,7 +92,7 @@ pub(super) fn encode_normalized_foreign_call(
                     result,
                 } => {
                     bytes.push(0);
-                    bytes.extend_from_slice(&operation.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                     super::read_result::encode_result(bytes, result);
                 }
                 target_operations::TargetStructuralHomeOrigin::BlockParameter {
@@ -100,7 +100,7 @@ pub(super) fn encode_normalized_foreign_call(
                     declaration,
                 } => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&block.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
                     super::declarations::encode_semantic_parameter(bytes, declaration, true);
                 }
             }
@@ -448,8 +448,8 @@ fn decode_state_set(cursor: &mut Cursor<'_>) -> Result<MachineStateSet, FixedVie
 }
 
 fn encode_scalar_home(bytes: &mut Vec<u8>, home: &TargetUnitScalarHomeRequirement) {
-    bytes.extend_from_slice(&home.defining_operation.get().to_le_bytes());
-    bytes.extend_from_slice(&home.source_value.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, home.defining_operation.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, home.source_value.get().to_le_bytes());
     encode_scalar(bytes, home.scalar_type);
     encode_shape(bytes, home.shape);
 }
@@ -473,23 +473,23 @@ pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalar
             value,
         } => {
             bytes.push(1);
-            bytes.extend_from_slice(&defining_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, defining_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
             match value {
                 semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&bits.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, bits.to_le_bytes());
                 }
                 semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
                     bytes.push(2);
-                    bytes.extend_from_slice(&bits.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, bits.to_le_bytes());
                 }
             }
         }
         TargetUnitScalarArgumentSource::BlockParameter(parameter) => {
             bytes.push(2);
-            bytes.extend_from_slice(&parameter.block.get().to_le_bytes());
-            bytes.extend_from_slice(&parameter.value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, parameter.block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, parameter.value.get().to_le_bytes());
             encode_scalar(bytes, parameter.scalar_type);
         }
         TargetUnitScalarArgumentSource::Parameter {
@@ -498,8 +498,8 @@ pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalar
             scalar_type,
         } => {
             bytes.push(3);
-            bytes.extend_from_slice(&parameter_index.to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, parameter_index.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
             encode_scalar(bytes, scalar_type);
         }
         TargetUnitScalarArgumentSource::IntegerImmediate {
@@ -509,8 +509,8 @@ pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalar
             value,
         } => {
             bytes.push(4);
-            bytes.extend_from_slice(&defining_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, defining_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
             encode_scalar(bytes, ScalarType::Integer(scalar_type));
             encode_integer(bytes, value);
         }
@@ -520,8 +520,8 @@ pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalar
             value,
         } => {
             bytes.push(5);
-            bytes.extend_from_slice(&defining_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, defining_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
             bytes.push(u8::from(value));
         }
         TargetUnitScalarArgumentSource::Home(home) => {
@@ -1047,7 +1047,7 @@ mod tests {
         let mut bytes = Vec::new();
         bytes.push(1);
         for _ in 0..4 {
-            bytes.extend_from_slice(&0u16.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, 0u16.to_le_bytes());
         }
         bytes.push(9);
         assert_eq!(
@@ -1057,7 +1057,7 @@ mod tests {
         let mut bytes = Vec::new();
         bytes.push(1);
         for _ in 0..4 {
-            bytes.extend_from_slice(&0u16.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, 0u16.to_le_bytes());
         }
         bytes.push(3);
         bytes.push(9);
@@ -1067,9 +1067,9 @@ mod tests {
         );
         let mut bytes = Vec::new();
         bytes.push(1);
-        bytes.extend_from_slice(&0x0200u16.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, 0x0200u16.to_le_bytes());
         for _ in 0..3 {
-            bytes.extend_from_slice(&0u16.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, 0u16.to_le_bytes());
         }
         bytes.push(3);
         bytes.push(1);

@@ -4,7 +4,7 @@ use crate::FixedViewCopyDecodeError;
 
 pub(super) fn encode_option_u64(bytes: &mut Vec<u8>, value: Option<u64>) {
     encode_option(bytes, value, |bytes, value| {
-        bytes.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
     });
 }
 
@@ -20,7 +20,7 @@ pub(super) fn decode_option_u64(
 
 pub(super) fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
     encode_option(bytes, value, |bytes, value| {
-        bytes.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
     });
 }
 
@@ -41,7 +41,7 @@ fn encode_option<T>(bytes: &mut Vec<u8>, value: Option<T>, encode: impl FnOnce(&
 pub(super) fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
     length(bytes, values.len());
     for value in values {
-        bytes.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
     }
 }
 
@@ -67,7 +67,7 @@ pub(super) fn decode_ids<T>(
 pub(super) fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) {
     length(bytes, values.len());
     for value in values {
-        bytes.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
     }
 }
 

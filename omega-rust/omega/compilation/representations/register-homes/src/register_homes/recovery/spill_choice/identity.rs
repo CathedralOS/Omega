@@ -20,20 +20,20 @@ pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Ve
     bytes.extend_from_slice(&plan.usage.encode());
     crate::codec_bytes::length(&mut bytes, plan.functions.len(), "spill-choice identity");
     for function in &plan.functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
         bytes.push(u8::from(function.choice.is_some()));
         if let Some(choice) = &function.choice {
-            bytes.extend_from_slice(&choice.block.0.to_le_bytes());
-            bytes.extend_from_slice(&choice.point.0.to_le_bytes());
-            bytes.extend_from_slice(&choice.incoming.0.to_le_bytes());
-            bytes.extend_from_slice(&choice.incoming_class.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, choice.block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, choice.point.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, choice.incoming.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, choice.incoming_class.0.to_le_bytes());
             crate::codec_bytes::length(
                 &mut bytes,
                 choice.incoming_common_candidates.len(),
                 "spill-choice identity",
             );
             for view in &choice.incoming_common_candidates {
-                bytes.extend_from_slice(&view.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, view.0.to_le_bytes());
             }
             crate::codec_bytes::length(
                 &mut bytes,
@@ -41,11 +41,11 @@ pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Ve
                 "spill-choice identity",
             );
             for resident in &choice.active_residents {
-                bytes.extend_from_slice(&resident.virtual_register.0.to_le_bytes());
-                bytes.extend_from_slice(&resident.class.0.to_le_bytes());
-                bytes.extend_from_slice(&resident.start.0.to_le_bytes());
-                bytes.extend_from_slice(&resident.exclusive_end.0.to_le_bytes());
-                bytes.extend_from_slice(&resident.view.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, resident.virtual_register.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, resident.class.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, resident.start.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, resident.exclusive_end.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, resident.view.0.to_le_bytes());
             }
             crate::codec_bytes::length(
                 &mut bytes,
@@ -53,13 +53,13 @@ pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Ve
                 "spill-choice identity",
             );
             for contender in &choice.contenders {
-                bytes.extend_from_slice(&contender.virtual_register.0.to_le_bytes());
-                bytes.extend_from_slice(&contender.exclusive_end.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, contender.virtual_register.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, contender.exclusive_end.0.to_le_bytes());
                 crate::codec_bytes::option(&mut bytes, contender.reclaimed_view, |bytes, view| {
-                    bytes.extend_from_slice(&view.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, view.0.to_le_bytes());
                 });
             }
-            bytes.extend_from_slice(&choice.selected_victim.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, choice.selected_victim.0.to_le_bytes());
         }
     }
     bytes

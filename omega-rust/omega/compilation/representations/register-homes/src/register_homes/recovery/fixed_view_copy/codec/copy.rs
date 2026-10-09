@@ -14,23 +14,23 @@ use super::{
 };
 
 pub(super) fn encode_copy(bytes: &mut Vec<u8>, copy: &FixedViewCopy) {
-    bytes.extend_from_slice(&copy.function.to_le_bytes());
-    bytes.extend_from_slice(&copy.machine.get().to_le_bytes());
-    bytes.extend_from_slice(&copy.source_virtual_register.0.to_le_bytes());
-    bytes.extend_from_slice(&copy.source_value.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.function.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.source_virtual_register.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.source_value.get().to_le_bytes());
     encode_value_definition_site_identity(bytes, copy.source_definition_site);
-    bytes.extend_from_slice(&copy.from_view.0.to_le_bytes());
-    bytes.extend_from_slice(&copy.to_view.0.to_le_bytes());
-    bytes.extend_from_slice(&copy.insertion_block.0.to_le_bytes());
-    bytes.extend_from_slice(&copy.before_instruction.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.from_view.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.to_view.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.insertion_block.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.before_instruction.0.to_le_bytes());
     length(bytes, copy.destinations.len());
     for destination in &copy.destinations {
         encode_fixed_site(bytes, destination.site);
-        bytes.extend_from_slice(&destination.block.0.to_le_bytes());
-        bytes.extend_from_slice(&destination.view.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, destination.block.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, destination.view.0.to_le_bytes());
     }
-    bytes.extend_from_slice(&copy.copy_instruction.0.to_le_bytes());
-    bytes.extend_from_slice(&copy.result_virtual_register.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.copy_instruction.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.result_virtual_register.0.to_le_bytes());
     encode_constraint_key(bytes, copy.copy_constraint);
 }
 

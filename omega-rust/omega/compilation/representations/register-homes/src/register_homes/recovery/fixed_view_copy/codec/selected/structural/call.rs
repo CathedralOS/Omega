@@ -13,24 +13,24 @@ use selected_instructions::{SelectedCallContract, SelectedInstructionId};
 use semantic_vocabulary::{ClaimId, EdgeId, MachineId, ObligationId, OperationId, ValueId};
 use terminal_psi::ClaimTransfer;
 pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
-    bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
     match row.owner {
         target_operations::CallSiteOwner::Operation(operation) => {
             bytes.push(0);
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
         }
         target_operations::CallSiteOwner::ExternalCompletion(edge) => {
             bytes.push(2);
 
-            bytes.extend_from_slice(&edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
         }
         target_operations::CallSiteOwner::CleanupAction {
             edge,
             action_ordinal,
         } => {
             bytes.push(1);
-            bytes.extend_from_slice(&edge.get().to_le_bytes());
-            bytes.extend_from_slice(&action_ordinal.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, action_ordinal.to_le_bytes());
         }
     }
     let call = &row.call;
@@ -42,7 +42,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
         match argument {
             LegalizedScalarArgument::Scalar { source, placement } => {
                 bytes.push(0);
-                bytes.extend_from_slice(&source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                 encode_placement(bytes, placement);
             }
             LegalizedScalarArgument::Structural {
@@ -87,15 +87,15 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
             }
             legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&machine.get().to_le_bytes());
-                bytes.extend_from_slice(&place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
             }
         }
     }
     length(bytes, call.claim_transfers.len());
     for transfer in &call.claim_transfers {
-        bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
-        bytes.extend_from_slice(&transfer.argument_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, transfer.argument_index.to_le_bytes());
         encode_path(bytes, &transfer.path);
     }
     encode_ids(
@@ -238,14 +238,14 @@ pub(super) fn encode_runtime_indices(
 ) {
     length(bytes, indices.len());
     for index in indices {
-        bytes.extend_from_slice(&index.operand.value.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, index.operand.value.get().to_le_bytes());
         crate::register_homes::recovery::fixed_view_copy::codec::values::encode_scalar(
             bytes,
             index.operand.scalar_type,
         );
-        bytes.extend_from_slice(&index.stride.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
         encode_option_u64(bytes, index.extent);
-        bytes.extend_from_slice(&index.obligation.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
         bytes.extend_from_slice(&index.accepted_fact.bytes());
     }
 }

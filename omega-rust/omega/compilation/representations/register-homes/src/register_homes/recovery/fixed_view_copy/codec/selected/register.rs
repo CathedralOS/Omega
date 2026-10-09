@@ -13,9 +13,9 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
 use optimization_unit::encode_value_definition_site_identity;
 
 pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
-    bytes.extend_from_slice(&register.id.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, register.id.0.to_le_bytes());
     encode_scalar(bytes, register.scalar_type);
-    bytes.extend_from_slice(&register.class.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, register.class.0.to_le_bytes());
     match register.origin {
         VirtualRegisterOrigin::StructuralObservation {
             instruction,
@@ -23,33 +23,33 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
             byte_offset,
         } => {
             bytes.push(8);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&place.get().to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         VirtualRegisterOrigin::InstructionScratch {
             instruction,
             operand,
         } => {
             bytes.push(9);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operand.to_le_bytes());
         }
         VirtualRegisterOrigin::ScalarAbiAddress {
             instruction,
             source_value,
         } => {
             bytes.push(7);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
         }
         VirtualRegisterOrigin::SpillAddress {
             instruction,
             register,
         } => {
             bytes.push(6);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&register.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
         }
 
         VirtualRegisterOrigin::StructuralParameter {
@@ -57,7 +57,7 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
             parameter_index,
         } => {
             bytes.push(4);
-            bytes.extend_from_slice(&place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
             length(bytes, parameter_index);
         }
         VirtualRegisterOrigin::AbiTransport {
@@ -66,9 +66,9 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
             byte_offset,
         } => {
             bytes.push(5);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&place.get().to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         VirtualRegisterOrigin::BlockParameter {
             source_value,
@@ -76,8 +76,8 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
             parameter_index,
         } => {
             bytes.push(3);
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
-            bytes.extend_from_slice(&block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, block.0.to_le_bytes());
             length(bytes, parameter_index);
         }
         VirtualRegisterOrigin::EntryParameter {
@@ -85,7 +85,7 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
             parameter_index,
         } => {
             bytes.push(0);
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
             length(bytes, parameter_index);
         }
         VirtualRegisterOrigin::InstructionResult {
@@ -93,8 +93,8 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
             source_value,
         } => {
             bytes.push(1);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
         }
     }
     match register.definition_site {

@@ -27,7 +27,7 @@ pub(crate) fn encode_terminal_recovery_classification_content(
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.policy {
         RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1 => 0,
     });
@@ -39,12 +39,12 @@ pub(crate) fn encode_terminal_recovery_classification_content(
         "recovery-classification identity",
     );
     for function in &plan.functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
         bytes.push(u8::from(function.classification.is_some()));
         if let Some(row) = &function.classification {
-            bytes.extend_from_slice(&row.block.0.to_le_bytes());
-            bytes.extend_from_slice(&row.point.0.to_le_bytes());
-            bytes.extend_from_slice(&row.victim.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, row.block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, row.point.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, row.victim.0.to_le_bytes());
             match row.role {
                 RecoveryVictimRole::Incoming => bytes.push(0),
                 RecoveryVictimRole::ActiveResident {
@@ -52,12 +52,12 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                     reclaimed_view,
                 } => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&current_view.0.to_le_bytes());
-                    bytes.extend_from_slice(&reclaimed_view.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, current_view.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, reclaimed_view.0.to_le_bytes());
                 }
             }
             encode_scalar_type(&mut bytes, row.scalar_type);
-            bytes.extend_from_slice(&row.class.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, row.class.0.to_le_bytes());
             encode_origin(&mut bytes, row.origin);
             match row.definition_site {
                 Some(site) => {
@@ -75,8 +75,8 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                     future_uses,
                 } => {
                     bytes.push(0);
-                    bytes.extend_from_slice(&defining_instruction.0.to_le_bytes());
-                    bytes.extend_from_slice(&source_value.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, defining_instruction.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, source_value.get().to_le_bytes());
                     legalized_operations::encode_integer(&mut bytes, *value);
                     encode_provenance(&mut bytes, provenance);
                     crate::codec_bytes::length(
@@ -85,10 +85,10 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                         "recovery-classification identity",
                     );
                     for future_use in future_uses {
-                        bytes.extend_from_slice(&future_use.block.0.to_le_bytes());
-                        bytes.extend_from_slice(&future_use.point.0.to_le_bytes());
-                        bytes.extend_from_slice(&future_use.instruction.0.to_le_bytes());
-                        bytes.extend_from_slice(&future_use.operand.to_le_bytes());
+                        crate::codec_bytes::push_encoded(&mut bytes, future_use.block.0.to_le_bytes());
+                        crate::codec_bytes::push_encoded(&mut bytes, future_use.point.0.to_le_bytes());
+                        crate::codec_bytes::push_encoded(&mut bytes, future_use.instruction.0.to_le_bytes());
+                        crate::codec_bytes::push_encoded(&mut bytes, future_use.operand.to_le_bytes());
                     }
                 }
                 RecoveryClassification::NoAdmittedRecovery { reason } => {
@@ -114,14 +114,14 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) if integer.is_address() => {
             bytes.push(3);
-            bytes.extend_from_slice(&integer.bits().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, integer.bits().to_le_bytes());
         }
         ScalarType::Integer(integer) => {
             bytes.push(match integer.sign() {
                 IntegerSign::Signed => 1,
                 IntegerSign::Unsigned => 2,
             });
-            bytes.extend_from_slice(&integer.bits().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, integer.bits().to_le_bytes());
         }
         ScalarType::IeeeFloat(format) => {
             bytes.push(4);
@@ -141,33 +141,33 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
             byte_offset,
         } => {
             bytes.push(8);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&place.get().to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         VirtualRegisterOrigin::InstructionScratch {
             instruction,
             operand,
         } => {
             bytes.push(9);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operand.to_le_bytes());
         }
         VirtualRegisterOrigin::ScalarAbiAddress {
             instruction,
             source_value,
         } => {
             bytes.push(7);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
         }
         VirtualRegisterOrigin::SpillAddress {
             instruction,
             register,
         } => {
             bytes.push(6);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&register.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
         }
 
         VirtualRegisterOrigin::StructuralParameter {
@@ -175,7 +175,7 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
             parameter_index,
         } => {
             bytes.push(4);
-            bytes.extend_from_slice(&place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
             crate::codec_bytes::length(bytes, parameter_index, "recovery-classification identity");
         }
         VirtualRegisterOrigin::AbiTransport {
@@ -184,9 +184,9 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
             byte_offset,
         } => {
             bytes.push(5);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&place.get().to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
 
         VirtualRegisterOrigin::BlockParameter {
@@ -195,8 +195,8 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
             parameter_index,
         } => {
             bytes.push(3);
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
-            bytes.extend_from_slice(&block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, block.0.to_le_bytes());
             crate::codec_bytes::length(bytes, parameter_index, "recovery-classification identity");
         }
         VirtualRegisterOrigin::EntryParameter {
@@ -204,7 +204,7 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
             parameter_index,
         } => {
             bytes.push(0);
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
             crate::codec_bytes::length(bytes, parameter_index, "recovery-classification identity");
         }
         VirtualRegisterOrigin::InstructionResult {
@@ -212,8 +212,8 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
             source_value,
         } => {
             bytes.push(1);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
         }
     }
 }
@@ -221,20 +221,20 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
 fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionProvenance) {
     const LABEL: &str = "recovery-classification identity";
     crate::codec_bytes::list(bytes, &provenance.operations, LABEL, |bytes, operation| {
-        bytes.extend_from_slice(&operation.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
     });
     crate::codec_bytes::list(bytes, &provenance.values, LABEL, |bytes, value| {
-        bytes.extend_from_slice(&value.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
     });
     crate::codec_bytes::list(bytes, &provenance.edges, LABEL, |bytes, edge| {
-        bytes.extend_from_slice(&edge.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
     });
     crate::codec_bytes::list(
         bytes,
         &provenance.obligations,
         LABEL,
         |bytes, obligation| {
-            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
         },
     );
     crate::codec_bytes::list(bytes, &provenance.fuel, LABEL, |bytes, settlement| {
@@ -246,14 +246,14 @@ fn encode_fuel(bytes: &mut Vec<u8>, settlement: FuelSettlement) {
     match settlement.site {
         PsiProvenance::Operation(operation) => {
             bytes.push(0);
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
         }
         PsiProvenance::Edge(edge) => {
             bytes.push(1);
-            bytes.extend_from_slice(&edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
         }
     }
-    bytes.extend_from_slice(&settlement.units.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, settlement.units.to_le_bytes());
 }
 
 #[cfg(test)]

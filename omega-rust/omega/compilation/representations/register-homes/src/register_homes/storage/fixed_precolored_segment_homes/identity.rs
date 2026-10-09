@@ -18,7 +18,7 @@ pub fn fixed_precolored_segment_home_plan_identity(
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.target.architecture {
         Architecture::X86_64 => 0,
         Architecture::Aarch64 => 1,
@@ -28,8 +28,8 @@ pub fn fixed_precolored_segment_home_plan_identity(
         ObjectFormat::MachO => 1,
         ObjectFormat::Coff => 2,
     });
-    bytes.extend_from_slice(&(plan.target.pointer_size as u64).to_le_bytes());
-    bytes.extend_from_slice(&(plan.target.pointer_alignment as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_size as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_alignment as u64).to_le_bytes());
     bytes.push(match plan.policy {
         FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1 => 0,
     });
@@ -42,14 +42,14 @@ pub fn fixed_precolored_segment_home_plan_identity(
 fn encode_family(bytes: &mut Vec<u8>, functions: &[crate::FunctionFixedPrecoloredSegmentHomes]) {
     length(bytes, functions.len());
     for function in functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
         length(bytes, function.assignments.len());
         for assignment in &function.assignments {
-            bytes.extend_from_slice(&assignment.virtual_register.0.to_le_bytes());
-            bytes.extend_from_slice(&assignment.class.0.to_le_bytes());
-            bytes.extend_from_slice(&assignment.source_segment.0.to_le_bytes());
-            bytes.extend_from_slice(&assignment.allocation_domain.0.to_le_bytes());
-            bytes.extend_from_slice(&assignment.view.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, assignment.virtual_register.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, assignment.class.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, assignment.source_segment.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, assignment.allocation_domain.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, assignment.view.0.to_le_bytes());
         }
     }
 }

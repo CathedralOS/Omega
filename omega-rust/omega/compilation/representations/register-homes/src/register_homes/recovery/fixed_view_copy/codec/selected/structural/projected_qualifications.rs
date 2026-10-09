@@ -21,7 +21,7 @@ pub(super) fn encode_projected(
     length(bytes, qualifications.len());
     for qualification in qualifications {
         encode_path(bytes, &qualification.path);
-        bytes.extend_from_slice(&qualification.domain.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, qualification.domain.get().to_le_bytes());
     }
 }
 

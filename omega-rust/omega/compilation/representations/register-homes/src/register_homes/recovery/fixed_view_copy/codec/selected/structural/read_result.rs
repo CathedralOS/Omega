@@ -24,10 +24,10 @@ pub(super) fn encode(
 
 pub(super) fn encode_layout(bytes: &mut Vec<u8>, layout: &ConventionalSumLayout) {
     encode_shape(bytes, layout.shape);
-    bytes.extend_from_slice(&layout.tag_byte_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, layout.tag_byte_offset.to_le_bytes());
     encode_shape(bytes, layout.tag_shape);
     encode_fields(bytes, &layout.common_fields);
-    bytes.extend_from_slice(&layout.payload_byte_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, layout.payload_byte_offset.to_le_bytes());
     length(bytes, layout.cases.len());
     for case in &layout.cases {
         encode_fields(bytes, &case.fields);
@@ -35,8 +35,8 @@ pub(super) fn encode_layout(bytes: &mut Vec<u8>, layout: &ConventionalSumLayout)
 }
 
 pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralOperationResult) {
-    bytes.extend_from_slice(&result.place.get().to_le_bytes());
-    bytes.extend_from_slice(&result.structural_type.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, result.place.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, result.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, result.multiplicity);
     encode_ids(
         bytes,
@@ -45,7 +45,7 @@ pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralOperationRes
     encode_projected(bytes, &result.projected_qualifications, true);
     length(bytes, result.claims.len());
     for claim in &result.claims {
-        bytes.extend_from_slice(&claim.claim.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
         encode_path(bytes, &claim.path);
     }
 }
@@ -109,7 +109,7 @@ fn encode_fields(bytes: &mut Vec<u8>, fields: &[PackedFieldLayout]) {
     length(bytes, fields.len());
     for field in fields {
         encode_shape(bytes, field.shape);
-        bytes.extend_from_slice(&field.byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, field.byte_offset.to_le_bytes());
     }
 }
 

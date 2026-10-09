@@ -53,12 +53,12 @@ fn retired_split_roster_wire_rejects_before_identity_comparison() {
     }
     // Function count, machine, assignment count, then the exact home tuple.
     for value in [1_u64, 1, 1] {
-        expected.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut expected, value.to_le_bytes());
     }
     expected.extend_from_slice(&[0, 0, 0, 0, 1, 0, 2, 0]);
     // Structural-unit function count, machine, and empty assignment list.
     for value in [1_u64, 2, 0] {
-        expected.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut expected, value.to_le_bytes());
     }
     assert_eq!(expected.len(), 228);
     assert_eq!(

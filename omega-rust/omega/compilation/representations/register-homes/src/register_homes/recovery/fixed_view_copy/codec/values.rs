@@ -38,10 +38,10 @@ pub(super) fn encode_fixed_site(bytes: &mut Vec<u8>, site: VirtualFixedConstrain
             access,
         } => {
             bytes.push(1);
-            bytes.extend_from_slice(&position.0.to_le_bytes());
-            bytes.extend_from_slice(&point.0.to_le_bytes());
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, position.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, point.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operand.to_le_bytes());
             bytes.push(access_tag(access));
         }
     }
@@ -112,7 +112,7 @@ pub(super) fn encode_scalar(bytes: &mut Vec<u8>, scalar: ScalarType) {
                 IntegerSign::Signed => 0,
                 IntegerSign::Unsigned => 1,
             });
-            bytes.extend_from_slice(&integer.bits().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, integer.bits().to_le_bytes());
         }
         ScalarType::IeeeFloat(format) => {
             bytes.push(2);

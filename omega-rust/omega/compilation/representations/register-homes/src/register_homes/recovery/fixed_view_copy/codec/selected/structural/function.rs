@@ -94,15 +94,15 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
     length(bytes, function.local_storage_slots.len());
     for slot in &function.local_storage_slots {
         slot.id.encode_identity(bytes);
-        bytes.extend_from_slice(&slot.byte_size.to_le_bytes());
-        bytes.extend_from_slice(&slot.alignment.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, slot.byte_size.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, slot.alignment.to_le_bytes());
     }
     length(bytes, function.outgoing_arguments.len());
     for row in &function.outgoing_arguments {
         encode_slot(bytes, row.id);
-        bytes.extend_from_slice(&row.byte_size.to_le_bytes());
-        bytes.extend_from_slice(&row.alignment.to_le_bytes());
-        bytes.extend_from_slice(&row.abi_stack_byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.byte_size.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.alignment.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.abi_stack_byte_offset.to_le_bytes());
     }
     length(bytes, function.calls.len());
     for row in &function.calls {
@@ -114,11 +114,11 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
     }
     length(bytes, function.memory_accesses.len());
     for row in &function.memory_accesses {
-        bytes.extend_from_slice(&row.instruction.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
         row.origin.encode_identity(bytes);
-        bytes.extend_from_slice(&row.place.get().to_le_bytes());
-        bytes.extend_from_slice(&row.byte_offset.to_le_bytes());
-        bytes.extend_from_slice(&row.byte_count.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.place.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.byte_count.to_le_bytes());
         match row.role {
             SelectedMemoryAccessRole::ReadByteSpan {
                 length,
@@ -137,8 +137,8 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                         9
                     },
                 );
-                bytes.extend_from_slice(&length.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::WriteByteSequence {
@@ -150,7 +150,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
             } => {
                 bytes.push(7);
                 for identity in [index.get(), value.get(), length.get(), obligation.get()] {
-                    bytes.extend_from_slice(&identity.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                 }
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
@@ -161,9 +161,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                 accepted_fact,
             } => {
                 bytes.push(3);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&length.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::WriteIndexedPrimitive {
@@ -176,9 +176,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
             } => {
                 bytes.push(10);
                 for identity in [index.get(), value.get(), obligation.get()] {
-                    bytes.extend_from_slice(&identity.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                 }
-                bytes.extend_from_slice(&stride.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
                 encode_option_u64(bytes, extent);
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
@@ -191,9 +191,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
             } => {
                 bytes.push(13);
                 for identity in [index.get(), obligation.get()] {
-                    bytes.extend_from_slice(&identity.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                 }
-                bytes.extend_from_slice(&stride.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
                 encode_option_u64(bytes, extent);
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
@@ -206,9 +206,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
             } => {
                 bytes.push(12);
                 for identity in [index.get(), obligation.get()] {
-                    bytes.extend_from_slice(&identity.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
                 }
-                bytes.extend_from_slice(&stride.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes());
                 encode_option_u64(bytes, extent);
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
@@ -219,9 +219,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                 accepted_fact,
             } => {
                 bytes.push(11);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&length.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::WriteElementView {
@@ -231,9 +231,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                 accepted_fact,
             } => {
                 bytes.push(14);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&length.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::WriteLocal { slot }
@@ -249,11 +249,11 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
             }
             SelectedMemoryAccessRole::ReadReturnedView { producer } => {
                 bytes.push(15);
-                bytes.extend_from_slice(&producer.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
             }
             SelectedMemoryAccessRole::ReadMeasuredSpan { length } => {
                 bytes.push(16);
-                bytes.extend_from_slice(&length.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
             }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
             SelectedMemoryAccessRole::WritePlace => bytes.push(6),
@@ -269,8 +269,8 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
     }
     length(bytes, function.boundary_settlements.len());
     for row in &function.boundary_settlements {
-        bytes.extend_from_slice(&row.block.0.to_le_bytes());
-        bytes.extend_from_slice(&row.instruction_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.block.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.instruction_index.to_le_bytes());
         encode_boundary_settlement(bytes, &row.settlement)?;
     }
     Ok(())
@@ -470,8 +470,8 @@ mod local_slot_tests {
             let mut encoded = Vec::new();
             slot.encode_identity(&mut encoded);
             let mut expected = vec![5];
-            expected.extend_from_slice(&operation.to_le_bytes());
-            expected.extend_from_slice(&argument_index.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, operation.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, argument_index.to_le_bytes());
             assert_eq!(encoded, expected);
             assert!(identities.insert(encoded.clone()));
             let mut cursor = Cursor::new(&encoded);

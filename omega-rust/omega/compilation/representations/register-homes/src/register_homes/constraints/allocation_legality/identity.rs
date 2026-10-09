@@ -30,37 +30,37 @@ pub fn allocation_legality_identity_from_digests(
 pub fn allocation_legality_function_digest(function: &FunctionAllocationLegality) -> [u8; 32] {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-allocation-legality-function.v1\0");
-    bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
     length(&mut bytes, function.virtual_registers.len());
     for register in &function.virtual_registers {
-        bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
-        bytes.extend_from_slice(&register.class.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, register.virtual_register.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, register.class.0.to_le_bytes());
         length(&mut bytes, register.points.len());
         for point in &register.points {
-            bytes.extend_from_slice(&point.block.0.to_le_bytes());
-            bytes.extend_from_slice(&point.point.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, point.block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, point.point.0.to_le_bytes());
             length(&mut bytes, point.candidates.len());
             for candidate in &point.candidates {
-                bytes.extend_from_slice(&candidate.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, candidate.0.to_le_bytes());
             }
         }
         length(&mut bytes, register.early_clobber_points.len());
         for point in &register.early_clobber_points {
-            bytes.extend_from_slice(&point.block.0.to_le_bytes());
-            bytes.extend_from_slice(&point.position.0.to_le_bytes());
-            bytes.extend_from_slice(&point.instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&point.operand.to_le_bytes());
-            bytes.extend_from_slice(&point.point.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, point.block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, point.position.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, point.instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, point.operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, point.point.0.to_le_bytes());
             length(&mut bytes, point.candidates.len());
             for candidate in &point.candidates {
-                bytes.extend_from_slice(&candidate.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, candidate.0.to_le_bytes());
             }
         }
         length(&mut bytes, register.entry_transitions.len());
         for transition in &register.entry_transitions {
-            bytes.extend_from_slice(&transition.from_view.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, transition.from_view.0.to_le_bytes());
             encode_fixed_constraint_site_identity(&mut bytes, transition.to_site);
-            bytes.extend_from_slice(&transition.to_view.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, transition.to_view.0.to_le_bytes());
         }
     }
     crate::digest_encoder::content_identity(&bytes).into()

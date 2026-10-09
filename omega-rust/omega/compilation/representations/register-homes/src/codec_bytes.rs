@@ -2,6 +2,11 @@
 //! length framing, option tags, and length-prefixed element lists. Each call
 //! site names its own artifact so panic text stays authored at the domain.
 
+/// Append a fixed-width little-endian encoding (value.to_le_bytes()).
+pub(crate) fn push_encoded<const N: usize>(bytes: &mut Vec<u8>, encoded: [u8; N]) {
+    bytes.extend_from_slice(&encoded);
+}
+
 /// u64 length prefix. `artifact` keeps each encoder's own panic text.
 pub(crate) fn length(bytes: &mut Vec<u8>, value: usize, artifact: &'static str) {
     bytes.extend_from_slice(

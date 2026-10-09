@@ -18,7 +18,7 @@ pub fn fixed_precolored_split_requirement_plan_identity(
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.target.architecture {
         Architecture::X86_64 => 0,
         Architecture::Aarch64 => 1,
@@ -28,8 +28,8 @@ pub fn fixed_precolored_split_requirement_plan_identity(
         ObjectFormat::MachO => 1,
         ObjectFormat::Coff => 2,
     });
-    bytes.extend_from_slice(&(plan.target.pointer_size as u64).to_le_bytes());
-    bytes.extend_from_slice(&(plan.target.pointer_alignment as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_size as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_alignment as u64).to_le_bytes());
     bytes.push(match plan.policy {
         FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1 => 0,
     });
@@ -45,24 +45,24 @@ fn encode_family(
 ) {
     length(bytes, functions.len());
     for function in functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
         length(bytes, function.registers.len());
         for register in &function.registers {
-            bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
-            bytes.extend_from_slice(&register.class.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, register.virtual_register.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, register.class.0.to_le_bytes());
             length(bytes, register.fragments.len());
             for fragment in &register.fragments {
-                bytes.extend_from_slice(&fragment.block.0.to_le_bytes());
-                bytes.extend_from_slice(&fragment.source_start.0.to_le_bytes());
-                bytes.extend_from_slice(&fragment.source_end.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, fragment.block.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, fragment.source_start.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, fragment.source_end.0.to_le_bytes());
                 length(bytes, fragment.segments.len());
                 for segment in &fragment.segments {
-                    bytes.extend_from_slice(&segment.id.0.to_le_bytes());
-                    bytes.extend_from_slice(&segment.start.0.to_le_bytes());
-                    bytes.extend_from_slice(&segment.end.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, segment.id.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, segment.start.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, segment.end.0.to_le_bytes());
                     length(bytes, segment.candidates.len());
                     for view in &segment.candidates {
-                        bytes.extend_from_slice(&view.0.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, view.0.to_le_bytes());
                     }
                     match segment.opening {
                         FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1 => bytes.push(0),
@@ -83,7 +83,7 @@ fn encode_family(
                                 encode_connector(bytes, connector);
                             }
                             encode_fixed_constraint_site_identity(bytes, site);
-                            bytes.extend_from_slice(&destination_view.0.to_le_bytes());
+                            crate::codec_bytes::push_encoded(bytes, destination_view.0.to_le_bytes());
                         }
                     }
                 }
@@ -93,11 +93,11 @@ fn encode_family(
 }
 
 fn encode_connector(bytes: &mut Vec<u8>, connector: selected_instructions::LiveRangeEdgeConnector) {
-    bytes.extend_from_slice(&connector.source.0.to_le_bytes());
-    bytes.extend_from_slice(&connector.terminator.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, connector.source.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, connector.terminator.0.to_le_bytes());
     bytes.push(connector.polarity_ordinal);
-    bytes.extend_from_slice(&connector.psi_edge.get().to_le_bytes());
-    bytes.extend_from_slice(&connector.target.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, connector.psi_edge.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, connector.target.0.to_le_bytes());
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {

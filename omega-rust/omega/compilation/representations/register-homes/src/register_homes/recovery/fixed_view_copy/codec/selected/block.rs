@@ -20,24 +20,24 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
 };
 
 pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
-    bytes.extend_from_slice(&block.id.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, block.id.0.to_le_bytes());
     match block.origin {
         SelectedBlockOrigin::Source(source) => {
             bytes.push(0);
-            bytes.extend_from_slice(&source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
         }
         SelectedBlockOrigin::CaseDispatch {
             source,
             case_ordinal,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&source.get().to_le_bytes());
-            bytes.extend_from_slice(&case_ordinal.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, case_ordinal.to_le_bytes());
         }
         SelectedBlockOrigin::EdgeTransfer { edge, target } => {
             bytes.push(1);
-            bytes.extend_from_slice(&edge.get().to_le_bytes());
-            bytes.extend_from_slice(&target.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, target.get().to_le_bytes());
         }
     }
     length(bytes, block.instructions.len());
@@ -54,7 +54,7 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         } => {
             bytes.push(6);
             encode_instruction(bytes, instruction);
-            bytes.extend_from_slice(&psi_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
             bytes.push(match cause {
                 terminal_psi::CrashCause::Trap => 1,
                 terminal_psi::CrashCause::Abort => 2,
@@ -69,7 +69,7 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
             }
             length(bytes, frontier_lower_bound.len());
             for claim in frontier_lower_bound {
-                bytes.extend_from_slice(&claim.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, claim.get().to_le_bytes());
             }
         }
 
@@ -79,7 +79,7 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         } => {
             bytes.push(5);
             encode_instruction(bytes, instruction);
-            bytes.extend_from_slice(&completion_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, completion_edge.get().to_le_bytes());
         }
         SelectedTerminator::Jump {
             instruction,
@@ -105,7 +105,7 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         } => {
             bytes.push(1);
             encode_instruction(bytes, instruction);
-            bytes.extend_from_slice(&psi_return_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_return_edge.get().to_le_bytes());
         }
         SelectedTerminator::ConditionalBranchU64LessThan {
             instruction,
@@ -225,13 +225,13 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
         SelectedSuccessorRole::EdgeTransferContinuation => 1,
         SelectedSuccessorRole::CaseDispatchContinuation => 2,
     });
-    bytes.extend_from_slice(&successor.psi_edge.get().to_le_bytes());
-    bytes.extend_from_slice(&successor.block.0.to_le_bytes());
-    bytes.extend_from_slice(&successor.source_target.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, successor.psi_edge.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, successor.block.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, successor.source_target.get().to_le_bytes());
     length(bytes, successor.bindings.len());
     for binding in &successor.bindings {
-        bytes.extend_from_slice(&binding.semantic.parameter.get().to_le_bytes());
-        bytes.extend_from_slice(&binding.semantic.argument.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, binding.semantic.argument.get().to_le_bytes());
         encode_scalar(bytes, binding.semantic.scalar_type);
         match binding.transport {
             SelectedValueTransport::Unused => bytes.push(0),
@@ -240,8 +240,8 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 parameter,
             } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&argument.0.to_le_bytes());
-                bytes.extend_from_slice(&parameter.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, argument.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, parameter.0.to_le_bytes());
             }
         }
     }
@@ -254,7 +254,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     }
     length(bytes, successor.structural_bindings.len());
     for binding in &successor.structural_bindings {
-        bytes.extend_from_slice(&binding.semantic.parameter.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
         super::structural::encode_semantic_argument(bytes, &binding.semantic.argument);
         match binding.transport {
             selected_instructions::SelectedStructuralTransport::Unused => bytes.push(0),
@@ -268,18 +268,18 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 match base {
                     selected_instructions::SelectedAddressBase::Register(register) => {
                         bytes.push(0);
-                        bytes.extend_from_slice(&register.0.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
                     }
                     selected_instructions::SelectedAddressBase::Local(slot) => {
                         bytes.push(1);
                         slot.encode_identity(bytes);
                     }
                 }
-                bytes.extend_from_slice(&byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
                 match source {
                     selected_instructions::SelectedScalarReferenceSource::Canonical { codec } => {
                         bytes.push(0);
-                        bytes.extend_from_slice(&codec.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, codec.to_le_bytes());
                     }
                     selected_instructions::SelectedScalarReferenceSource::Descriptor => {
                         bytes.push(1)
@@ -295,11 +295,11 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 alignment,
             } => {
                 bytes.push(2);
-                bytes.extend_from_slice(&argument.0.to_le_bytes());
-                bytes.extend_from_slice(&source_byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, argument.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, source_byte_offset.to_le_bytes());
                 destination.encode_identity(bytes);
-                bytes.extend_from_slice(&byte_size.to_le_bytes());
-                bytes.extend_from_slice(&alignment.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_size.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, alignment.to_le_bytes());
             }
             selected_instructions::SelectedStructuralTransport::Address {
                 base,
@@ -311,15 +311,15 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 match base {
                     selected_instructions::SelectedAddressBase::Register(register) => {
                         bytes.push(0);
-                        bytes.extend_from_slice(&register.0.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
                     }
                     selected_instructions::SelectedAddressBase::Local(slot) => {
                         bytes.push(1);
                         slot.encode_identity(bytes);
                     }
                 }
-                bytes.extend_from_slice(&byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&byte_count.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_count.to_le_bytes());
                 destination.encode_identity(bytes);
             }
         }

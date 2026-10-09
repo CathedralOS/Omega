@@ -91,8 +91,8 @@ fn fixed_byte_range_path_round_trip_retains_exact_endpoints_and_rejects_truncati
         encode_path(&mut bytes, &path);
         let mut expected = 1_u64.to_le_bytes().to_vec();
         expected.push(4);
-        expected.extend_from_slice(&start.to_le_bytes());
-        expected.extend_from_slice(&end.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut expected, start.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut expected, end.to_le_bytes());
         assert_eq!(bytes, expected);
         let mut cursor = Cursor::new(&bytes);
         let decoded = decode_path(&mut cursor).unwrap();
@@ -144,8 +144,8 @@ fn block_parameter_place_round_trip_retains_exact_tag_block_and_position() {
         encode_place(&mut encoded, place);
         let mut expected = 7_u64.to_le_bytes().to_vec();
         expected.push(8);
-        expected.extend_from_slice(&block.to_le_bytes());
-        expected.extend_from_slice(&position.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut expected, block.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut expected, position.to_le_bytes());
         assert_eq!(encoded, expected);
         let mut cursor = Cursor::new(&encoded);
         assert_eq!(decode_place(&mut cursor).unwrap(), place);

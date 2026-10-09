@@ -24,15 +24,15 @@ pub(super) fn encode(
     provider: &ProviderCandidateConformance,
     retain_projected_qualifications: bool,
 ) {
-    bytes.extend_from_slice(&provider.boundary.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, provider.boundary.get().to_le_bytes());
     encode_string(bytes, &provider.requirement_identity);
     encode_string(bytes, &provider.provider_identity);
     encode_string(bytes, &provider.candidate_identity);
-    bytes.extend_from_slice(&provider.candidate.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, provider.candidate.get().to_le_bytes());
     length(bytes, provider.signature.parameters.len());
     for parameter in &provider.signature.parameters {
-        bytes.extend_from_slice(&parameter.position.to_le_bytes());
-        bytes.extend_from_slice(&parameter.structural_type.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, parameter.position.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, parameter.structural_type.get().to_le_bytes());
         encode_multiplicity(bytes, parameter.multiplicity);
         encode_access(bytes, parameter.access);
         encode_ids(
@@ -47,13 +47,13 @@ pub(super) fn encode(
     }
     length(bytes, provider.refinement.positional_parameters.len());
     for parameter in &provider.refinement.positional_parameters {
-        bytes.extend_from_slice(&parameter.boundary_index.to_le_bytes());
-        bytes.extend_from_slice(&parameter.candidate_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, parameter.boundary_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, parameter.candidate_index.to_le_bytes());
     }
     length(bytes, provider.refinement.required_domains.len());
     for requirement in &provider.refinement.required_domains {
-        bytes.extend_from_slice(&requirement.argument_index.to_le_bytes());
-        bytes.extend_from_slice(&requirement.domain.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, requirement.argument_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, requirement.domain.get().to_le_bytes());
     }
     encode_ids(
         bytes,

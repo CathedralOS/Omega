@@ -27,8 +27,8 @@ pub(super) fn encode_signature(
         None => bytes.push(0),
         Some(result) => {
             bytes.push(1);
-            bytes.extend_from_slice(&result.place.get().to_le_bytes());
-            bytes.extend_from_slice(&result.structural_type.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, result.place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, result.structural_type.get().to_le_bytes());
             encode_multiplicity(bytes, result.multiplicity);
             encode_ids(
                 bytes,

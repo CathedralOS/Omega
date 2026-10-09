@@ -33,16 +33,16 @@ pub(crate) fn encode_terminal_register_home_content(plan: &RegisterHomePlan) -> 
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     crate::codec_bytes::length(&mut bytes, plan.functions.len(), "register-home identity");
     for function in &plan.functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
         crate::codec_bytes::length(
             &mut bytes,
             function.assignments.len(),
             "register-home identity",
         );
         for assignment in &function.assignments {
-            bytes.extend_from_slice(&assignment.virtual_register.0.to_le_bytes());
-            bytes.extend_from_slice(&assignment.class.0.to_le_bytes());
-            bytes.extend_from_slice(&assignment.view.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, assignment.virtual_register.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, assignment.class.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, assignment.view.0.to_le_bytes());
         }
     }
     bytes
@@ -75,10 +75,10 @@ pub(crate) fn encode_fixed_constraint_site_identity(
             access,
         } => {
             bytes.push(1);
-            bytes.extend_from_slice(&position.0.to_le_bytes());
-            bytes.extend_from_slice(&point.0.to_le_bytes());
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, position.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, point.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operand.to_le_bytes());
             bytes.push(match access {
                 RegisterOperandAccess::Use => 0,
                 RegisterOperandAccess::Def => 1,
