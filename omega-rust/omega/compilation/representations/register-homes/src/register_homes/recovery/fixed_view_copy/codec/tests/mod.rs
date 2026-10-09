@@ -22,9 +22,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use super::{
-    FixedViewCopyPlan, copy::decode_copy, primitives::Cursor,
-};
+use super::{FixedViewCopyPlan, copy::decode_copy, primitives::Cursor};
 
 mod golden;
 mod rejection;

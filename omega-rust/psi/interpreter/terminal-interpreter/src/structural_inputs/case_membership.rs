@@ -30,7 +30,55 @@ pub(crate) struct StructuralCaseContents {
     pub(crate) case: StructuralCaseId,
 }
 
+/// Join a logical projection to the discriminator in its original backing.
+/// Constructors use staged backing; established values use the live store.
+/// Neither caller may substitute a Case segment's spelling for these contents.
+pub(crate) fn stored_case_at_projection(
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    root: &TerminalStructuralValue,
+    cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralCaseId> {
+    let selected = project_structural_value(types, root, path).ok()?;
+    let contents = cases.get(&StructuralRuntimePlace::from(&selected))?;
+    let declaration = types.get(&selected.structural_type)?;
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        &declaration.shape
+    else {
+        return None;
+    };
+    (contents.structural_type == selected.structural_type
+        && terminal_psi::find_structural_case(cases, contents.case).is_some())
+    .then_some(contents.case)
+}
+
 impl TerminalExecution<'_> {
+    /// A typed claim catalogue lists possible payloads, not simultaneously
+    /// resident ones. Authenticate each guard in backing storage before joining
+    /// either a return roster or the caller's receiving roster to live custody.
+    pub(crate) fn active_structural_claims(
+        &self,
+        source: PlaceId,
+        catalogue: &[terminal_psi::StructuralResultClaimBinding],
+    ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, TerminalInterpretError> {
+        catalogue
+            .iter()
+            .filter_map(|binding| {
+                match case_projection_is_active(
+                    &self.program.structural_types(),
+                    &self.structural_values,
+                    &self.structural_cases,
+                    source,
+                    &binding.path,
+                ) {
+                    Ok(true) => Some(Ok(binding.clone())),
+                    Ok(false) => None,
+                    Err(error) => Some(Err(error)),
+                }
+            })
+            .collect()
+    }
+
     /// A logical owner may retain a physical prefix after projected transfer.
     /// Recover the actual declaration from every containing live occurrence,
     /// not only an empty-path allocation root; all such owners must agree.
@@ -327,6 +375,25 @@ pub(crate) fn validate_case_projection(
     source: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Result<(), TerminalInterpretError> {
+    if case_projection_is_active(types, values, cases, source, path)? {
+        Ok(())
+    } else {
+        Err(malformed())
+    }
+}
+
+/// A typed Case path is also its payload's custody guard. A different valid
+/// stored tag makes the path inactive, not a missing permission to fabricate.
+/// Unknown contents, incompatible storage types and undeclared tags still fail.
+/// Stop at the first contrary outer guard: inner inactive payloads have no
+/// runtime contents to inspect.
+pub(crate) fn case_projection_is_active(
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+    source: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Result<bool, TerminalInterpretError> {
     let mut selected = path
         .iter()
         .enumerate()
@@ -339,7 +406,7 @@ pub(crate) fn validate_case_projection(
         })
         .peekable();
     if selected.peek().is_none() {
-        return Ok(());
+        return Ok(true);
     }
     let root =
         values
@@ -361,9 +428,25 @@ pub(crate) fn validate_case_projection(
         let contents = cases
             .get(&StructuralRuntimePlace::from(&selected))
             .ok_or_else(malformed)?;
-        if contents.structural_type != selected.structural_type || contents.case != case {
+        let declaration = types.get(&selected.structural_type).ok_or_else(malformed)?;
+        let (StructuralTypeShape::Sum {
+            cases: declared_cases,
+        }
+        | StructuralTypeShape::Mixed {
+            cases: declared_cases,
+            ..
+        }) = &declaration.shape
+        else {
+            return Err(malformed());
+        };
+        if contents.structural_type != selected.structural_type
+            || terminal_psi::find_structural_case(declared_cases, contents.case).is_none()
+        {
             return Err(malformed());
         }
+        if contents.case != case {
+            return Ok(false);
+        }
     }
-    Ok(())
+    Ok(true)
 }

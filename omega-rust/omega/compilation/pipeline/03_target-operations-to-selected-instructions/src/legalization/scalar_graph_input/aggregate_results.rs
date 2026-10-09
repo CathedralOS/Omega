@@ -70,11 +70,10 @@ pub(in crate::legalization) fn sum_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
-    if result.multiplicity == StructuralMultiplicity::Linear
-        || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-    {
+    // Claims and multiplicity remain in the retained home origin; they do not
+    // change tag or payload bytes. Layout reconstructs physical geometry,
+    // never another permission to copy or dispose the sum.
+    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
         return Err(LegalizationError::custody());
     }
     sum_type_layout(result.structural_type, plan)

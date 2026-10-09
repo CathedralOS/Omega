@@ -13,7 +13,7 @@ use semantic_vocabulary::{
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashRouteBucket, StructuralArgument,
     StructuralOperationResult, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    StructuralResultClaimBinding, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -669,7 +669,7 @@ pub enum AbstractOperation {
     ReturnStructural {
         psi_edge: EdgeId,
         source: PlaceId,
-        returned_claims: Vec<ClaimId>,
+        returned_claims: Vec<StructuralResultClaimBinding>,
         /// Exact typed no-ABI local declarations established before this
         /// return. They remain distinct from caller-supplied parameters.
         trivial_affine_locals: Vec<(

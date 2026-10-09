@@ -16,6 +16,9 @@ use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_arguments, decode_structural_path, encode_structural_arguments,
     encode_structural_path,
 };
+use crate::sections::semantic_module::structural_result_wire::{
+    decode_claim_bindings, encode_claim_bindings,
+};
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 use terminal_psi::{CrashCause, ExternalCompletionKind, StructuralCaseSuccessorEdge, Terminator};
 
@@ -117,13 +120,12 @@ pub(super) fn encode_terminator(
             returned_claims,
             cleanup_actions,
         } => {
-            writer.u8(6);
+            // Tag 18 retains typed claim paths; the retired ID-only tag 6 is
+            // never reinterpreted as a conditional payload custody envelope.
+            writer.u8(18);
             writer.id(*edge);
             writer.id(*source);
-            writer.len("structural return claims", returned_claims.len())?;
-            for claim in returned_claims {
-                writer.id(*claim);
-            }
+            encode_claim_bindings(writer, returned_claims)?;
             writer.len("structural return cleanup actions", cleanup_actions.len())?;
             for action in cleanup_actions {
                 encode_affine_cleanup_action(writer, action)?;
@@ -259,10 +261,10 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                 frontier_lower_bound,
             }
         }
-        6 => Terminator::ReturnStructural {
+        18 => Terminator::ReturnStructural {
             edge: reader.id("EdgeId")?,
             source: reader.id("PlaceId")?,
-            returned_claims: decode_ids(reader, "ClaimId")?,
+            returned_claims: decode_claim_bindings(reader)?,
             cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
         },
         13 => Terminator::ReturnUnit {

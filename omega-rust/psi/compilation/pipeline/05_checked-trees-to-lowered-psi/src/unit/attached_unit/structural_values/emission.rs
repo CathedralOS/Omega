@@ -962,15 +962,15 @@ impl Emission<'_, '_, '_> {
         Ok(completed)
     }
 
-    /// `constructor_operand` under a child field's carrier: the emission's
-    /// type and multiplicity context rebinds to `child_type` and the
-    /// reference's result multiplicity for the operand's duration.
+    /// Rebind completion custody beneath a child's complete typed prefix.
+    /// Payload prefixes retain Case as well as Field; storage overlay does not
+    /// erase the discriminator guard on an ownership obligation.
     pub(super) fn child_constructor_operand(
         &mut self,
         child_type: StructuralTypeId,
         value: CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
-        segment: terminal_psi::StructuralPathSegment,
+        prefix: &[terminal_psi::StructuralPathSegment],
     ) -> Result<StructuralArgument, LoweringError> {
         let parent_type = self.structural_type;
         let parent_multiplicity = self.multiplicity;
@@ -978,13 +978,12 @@ impl Emission<'_, '_, '_> {
             .completion_claims
             .iter()
             .filter_map(|claim| {
-                claim
-                    .path
-                    .strip_prefix(std::slice::from_ref(&segment))
-                    .map(|path| terminal_psi::StructuralResultClaimBinding {
+                claim.path.strip_prefix(prefix).map(|path| {
+                    terminal_psi::StructuralResultClaimBinding {
                         claim: claim.claim,
                         path: path.to_vec(),
-                    })
+                    }
+                })
             })
             .collect();
         let parent_claims = std::mem::replace(&mut self.completion_claims, child_claims);
@@ -2102,7 +2101,12 @@ impl Emission<'_, '_, '_> {
         self.evaluation.structural_locals.retain(
             |crate::expression_preparation::bindings::StructuralLocalBinding {
                  argument, ..
-             }| { !self.sources.iter().any(|source| source.place == argument.place) },
+             }| {
+                !self
+                    .sources
+                    .iter()
+                    .any(|source| source.place == argument.place)
+            },
         );
         for crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } in
             &mut self.evaluation.structural_locals

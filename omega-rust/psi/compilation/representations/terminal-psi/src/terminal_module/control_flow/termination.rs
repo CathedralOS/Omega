@@ -1,4 +1,7 @@
-use crate::{CrashPredicateTerm, StructuralArgument, TerminalAffineCleanupAction};
+use crate::{
+    CrashPredicateTerm, StructuralArgument, StructuralResultClaimBinding,
+    TerminalAffineCleanupAction,
+};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, ExternalCompletionKind, ObligationId, PlaceId,
     ProofTerm, ScalarTerm, StructuralCaseId, StructuralFieldId, ValueId,
@@ -79,8 +82,11 @@ pub enum Terminator {
     ReturnStructural {
         edge: EdgeId,
         source: PlaceId,
-        /// Strictly ordered exact live claims transferred with `source`.
-        returned_claims: Vec<ClaimId>,
+        /// Claim identities and exact typed paths beneath `source`, ordered by
+        /// identity. Case segments guard payload custody; inactive paths carry
+        /// no live permission. The paths make the return-to-caller join explicit
+        /// even when the selected sum has not been dispatched in this machine.
+        returned_claims: Vec<StructuralResultClaimBinding>,
         /// Exact ordered actions committed after result and claim materialization.
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },

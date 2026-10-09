@@ -259,11 +259,10 @@ impl OperationFrame<'_, '_> {
         } else {
             Vec::new()
         };
-        let mut result_claims = crate::emission::claim_bindings::emit_establishment_claims(
+        let result_claims = crate::emission::claim_bindings::emit_establishment_claims(
             &prepared_claims,
             &mut self.calls.claims,
         )?;
-        result_claims.sort();
         let mut evaluation = WindowEvaluation {
             checked: self.checked,
             machine: self.machine,

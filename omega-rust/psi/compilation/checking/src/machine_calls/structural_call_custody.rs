@@ -1394,11 +1394,28 @@ fn owned_argument_claim_transfers(
             {
                 continue;
             }
+            let root_type = crate::canonical_place_type_reference(
+                program,
+                source_state.symbol,
+                call.statement_index,
+                &crate::CanonicalPlace {
+                    root: place.root,
+                    segments: Vec::new(),
+                },
+            )
+            .ok_or("owned argument has no canonical root type")?;
+            let (event_path, _) =
+                structural_owned_path(program, root_type, segments.span_or_empty(event.segments))?;
+            let path = event_path
+                .strip_prefix(argument.path.as_slice())
+                .ok_or("claim is outside the selected owned argument")?
+                .to_vec();
             accounted[event_index] = true;
             claim_transfers.push(CheckedUnitClaimTransferPlan {
                 claim_identity: event.claim_identity,
                 argument_index: u32::try_from(argument_position)
                     .map_err(|_| "structural argument position exceeds u32")?,
+                path,
             });
         }
     }

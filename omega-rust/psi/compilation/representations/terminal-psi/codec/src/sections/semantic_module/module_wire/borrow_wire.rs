@@ -1,15 +1,13 @@
 //! Borrow boundaries, owner paths, places, accesses and reborrow handoffs
 //! on the wire.
 
+use super::super::structural_signature_wire::{decode_structural_access, encode_structural_access};
 use crate::sections::semantic_module::CodecError;
-use super::super::structural_signature_wire::{
-    decode_structural_access, encode_structural_access,
-};
 use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted};
 use terminal_psi::{
-    TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
-    TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalReborrowRestorationClass,
-    TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
+    TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment, TerminalBorrowPlace,
+    TerminalBorrowPlaceSegment, TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
+    TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
     TerminalReborrowSharedCohortMember,
 };
 
@@ -152,8 +150,6 @@ fn decode_place(reader: &mut Reader<'_>) -> Result<TerminalBorrowPlace, CodecErr
         segments: decode_place_segments(reader)?,
     })
 }
-
-
 
 pub(crate) fn encode_reborrow_root_handoff(
     writer: &mut Writer,

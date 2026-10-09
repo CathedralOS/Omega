@@ -17,11 +17,14 @@ pub(super) fn validate_structural_returns(
             InstallationError::StructuralReturnMachineMissing(installed.machine),
         )?;
         let returned = &installed.returned;
-        let expected_plan = crate::object_artifact::replay::structural::return_record::structural_return_call_plan(
-            record.target,
-            returned,
-        )
-        .ok_or(InstallationError::InvalidStructuralReturn(installed.machine))?;
+        let expected_plan =
+            crate::object_artifact::replay::structural::return_record::structural_return_call_plan(
+                record.target,
+                returned,
+            )
+            .ok_or(InstallationError::InvalidStructuralReturn(
+                installed.machine,
+            ))?;
         let expected_result = expected_plan.result.as_ref();
         let structural_attribution = record
             .semantic_code_attribution

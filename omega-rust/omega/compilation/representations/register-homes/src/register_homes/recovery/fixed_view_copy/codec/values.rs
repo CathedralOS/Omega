@@ -168,7 +168,6 @@ pub(super) fn decode_integer(
     }
 }
 
-
 pub(super) fn decode_constraint_key(
     cursor: &mut Cursor<'_>,
 ) -> Result<RegisterConstraintKey, FixedViewCopyDecodeError> {

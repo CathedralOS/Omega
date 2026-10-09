@@ -44,7 +44,8 @@ pub fn validate_placed_view_referent(
         return Err(PlacedViewReferentError::RangeUnresolved);
     }
     for domain in qualifications {
-        let declaration = module.structural_domain(*domain)
+        let declaration = module
+            .structural_domain(*domain)
             .ok_or(PlacedViewReferentError::QualificationUndeclared(*domain))?;
         if declaration.carrier != structural_type {
             return Err(PlacedViewReferentError::QualificationCarrier(*domain));

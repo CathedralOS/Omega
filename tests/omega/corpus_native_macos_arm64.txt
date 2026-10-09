@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.82, "load1_start": 3.8, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "3", "load1_end": 2.15, "load1_start": 1.82, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1229,12 +1229,14 @@ pass/ownership/linear_transparent_record_frontier built 2369ms exit:0 @e007e1d70
 pass/ownership/move_keyword_field_assignment built 606ms exit:41 @ed1fb1257faf+wt
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 252ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_captured_selector_exit built 1857ms exit:0 @fc0dd94dcf25
+pass/ownership/runtime_borrowed_case_result_restore_exit built 1663ms exit:0 @332ced10410b+wt
 pass/ownership/runtime_borrowed_projected_linear_return_exit built 1631ms exit:0 @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit built 625ms exit:42 @ed1fb1257faf+wt
 pass/ownership/runtime_borrowed_window_crash_exit built 1852ms exit:signal signal:5 @7d761e0fef5f
 pass/ownership/runtime_captured_construction_selector_exit built 1790ms exit:0 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_replacement_selector_exit built 1790ms exit:0 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit built 1790ms exit:0 @441e8f33f8c7+wt
+pass/ownership/runtime_linear_case_payload_forward_exit built 1664ms exit:0 @332ced10410b+wt
 pass/ownership/runtime_nested_projected_claim_return_exit built 1631ms exit:0 @cd27c16e2c35
 pass/ownership/runtime_retained_alias_referent_transform_exit built 1877ms exit:42 @76bbeef8b4d2
 pass/ownership/runtime_whole_borrowed_window_crash_exit built 1867ms exit:signal signal:5 @7d761e0fef5f

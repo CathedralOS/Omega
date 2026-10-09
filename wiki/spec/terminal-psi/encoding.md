@@ -179,7 +179,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | scalar term list | counted scalar terms |
 | proof term list | counted proof terms |
 | obligation id list | counted obligation ids |
-| claim transfer | claim id + `u32` argument index |
+| claim transfer | claim id + `u32` argument index + structural path relative to the selected argument; Case segments retain conditional payload guards |
 | completion receipt | claim id + `u32` argument index |
 | crash routes | counted buckets, each `u8` cause (1 Trap, 2 Abort) + counted guards; each guard `u8`: 0 truth, 1 + proposition |
 | successor edge | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
@@ -549,7 +549,7 @@ A terminator row is a `u8` tag followed by its fields.
 | 3 | Conditional | condition value id + successor edge + successor edge |
 | 4 | Crash | edge id + `u8` cause (1 Trap, 2 Abort) + counted propositions + counted claim ids |
 | 5 | ReturnUnit | edge id + counted trivial discards |
-| 6 | ReturnStructural | edge id + source place id + counted claim ids + counted trivial discards |
+| 18 | ReturnStructural | edge id + source place id + counted bindings (claim id + structural path relative to the returned value) + counted trivial discards |
 | 7 | ReturnUnitPartialAffine | edge id + counted trivial discards + counted residual discards |
 | 8 | ReturnUnitNominalAffine | edge id + counted cleanups (place id + structural type id + cleanup machine id + optional receiver place id + obligation id list) |
 | 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted affine cleanup actions) |
@@ -592,7 +592,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 126 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 127 + `u16` vocabulary
 marker 121 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -1691,7 +1691,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 126 | yes |
+| semantic module | `PSITERM\0` | 127 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

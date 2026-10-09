@@ -174,15 +174,35 @@ impl TerminalExecution<'_> {
                     }
                     _ => return Err(malformed()),
                 }
-                if result.multiplicity == StructuralMultiplicity::Affine
-                    && !self.live_affine_frontier.insert(StructuralAffineDiscard {
-                        place: result.place,
-                        path: Vec::new(),
-                        structural_type: result.structural_type,
-                    })
+                // A completed call establishes the same partition as any
+                // completed owned value. Rebound active claims own their
+                // regions; adding a whole-root debt would overlap them and
+                // make forwarding this result fail its next return.
+                let carried = crate::custody::whole_value_frontier(
+                    &self.program.structural_types(),
+                    result.place,
+                    result.structural_type,
+                    result.multiplicity,
+                    self.live_claims
+                        .values()
+                        .filter(|claim| claim.place == Some(result.place))
+                        .map(|claim| claim.path.as_slice()),
+                    &|current| {
+                        crate::structural_inputs::case_membership::stored_case_at_projection(
+                            &self.program.structural_types(),
+                            self.structural_values.get(&current.place)?,
+                            &self.structural_cases,
+                            &current.path,
+                        )
+                    },
+                )?;
+                if carried
+                    .iter()
+                    .any(|entry| self.live_affine_frontier.contains(entry))
                 {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
+                self.live_affine_frontier.extend(carried);
                 Ok(TerminatorFlow::Continue)
             }
         }

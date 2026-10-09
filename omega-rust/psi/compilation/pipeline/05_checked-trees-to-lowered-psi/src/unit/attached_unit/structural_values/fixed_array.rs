@@ -46,7 +46,9 @@ impl emission::Emission<'_, '_, '_> {
                 element,
                 *value,
                 element_reference,
-                terminal_psi::StructuralPathSegment::FixedIndex(element_index),
+                &[terminal_psi::StructuralPathSegment::FixedIndex(
+                    element_index,
+                )],
             )?);
         }
         let place = place_id(allocate_dense(self.next_place)?);

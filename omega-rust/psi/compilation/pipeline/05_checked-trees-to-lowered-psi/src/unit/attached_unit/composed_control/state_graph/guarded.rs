@@ -291,14 +291,10 @@ pub(super) fn complete_structural_return(
             "ordered return value was not established",
         ))?;
     let source = evaluation.current_structural_place(binding.place());
-    let mut returned_claims = binding
-        .claims()
-        .iter()
-        .map(|binding| binding.claim)
-        .collect::<Vec<_>>();
+    let mut returned_claims = binding.claims().to_vec();
     // The returned value carries every claim it holds; the caller binds them
     // by path.
-    returned_claims.sort();
+    returned_claims.sort_by_key(|binding| binding.claim);
     let cleanup_actions =
         super::cleanup::for_exit(state, exit, catalogs, parameters, evaluation, operations)?;
     let completion = Terminator::ReturnStructural {

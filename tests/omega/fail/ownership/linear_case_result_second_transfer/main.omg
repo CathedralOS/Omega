@@ -1,0 +1,23 @@
+use omega::language::core::drop;
+
+data Token [linear] { value: u64; }
+machine Token::drop(token: &mut Token) {}
+data Choice {
+    case Success(token: Token);
+    case Failure(token: Token);
+}
+
+machine forward(choice: Choice) -> Choice { choice }
+machine consume(choice: Choice) {
+    transition choice {
+        Choice::Success { token } -> drop(token)
+        Choice::Failure { token } -> drop(token)
+    }
+}
+
+machine main() {
+    let choice: Choice = Choice::Success { token: Token { value: 41 } };
+    let returned: Choice = forward(choice);
+    consume(returned);
+    consume(returned);
+}

@@ -392,6 +392,7 @@ impl TerminalExecution<'_> {
                 .map(|receipt| ClaimTransfer {
                     claim: receipt.claim,
                     argument_index: receipt.argument_index,
+                    path: Vec::new(),
                 })
                 .collect::<Vec<_>>();
             match &operation.result {

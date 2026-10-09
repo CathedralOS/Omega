@@ -182,7 +182,6 @@ impl DominatorTree {
             && use_block.traversal_start < definition.traversal_end
     }
 
-
     /// Number of dominators including the block itself; the entry has depth 1.
     pub fn depth(&self, block: BlockId) -> Option<usize> {
         self.positions
@@ -267,10 +266,7 @@ pub fn dominators(machine: &TerminalMachine) -> DominatorTree {
         next_start += 1;
         pending.push((child, 0));
     }
-    DominatorTree {
-        positions,
-        nodes,
-    }
+    DominatorTree { positions, nodes }
 }
 
 fn intersect_dominator_chains(mut first: usize, mut second: usize, immediate: &[usize]) -> usize {
@@ -283,7 +279,6 @@ fn intersect_dominator_chains(mut first: usize, mut second: usize, immediate: &[
     }
     first
 }
-
 
 /// Topology identity has no producer-supplied component key. Rank bindings
 /// separately enter the question commitment, so changing a witness invalidates
@@ -298,7 +293,6 @@ pub fn control_cycle_identity(
         .map(|edge| (edge.edge, edge.source, edge.target));
     topology_identity(machine, edges)
 }
-
 
 fn topology_identity(
     machine: &TerminalMachine,

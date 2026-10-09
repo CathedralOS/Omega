@@ -103,13 +103,8 @@ pub(super) fn decode_id<T>(
 /// in the fixed-view artifact.
 pub(super) fn decode_accepted_fact(
     cursor: &mut Cursor<'_>,
-) -> Result<
-    optimization_core::AcceptedObligationFactIdentity,
-    FixedViewCopyDecodeError,
-> {
-    Ok(optimization_core::AcceptedObligationFactIdentity::from_bytes(
-        cursor.array()?,
-    ))
+) -> Result<optimization_core::AcceptedObligationFactIdentity, FixedViewCopyDecodeError> {
+    Ok(optimization_core::AcceptedObligationFactIdentity::from_bytes(cursor.array()?))
 }
 
 pub(super) fn length(bytes: &mut Vec<u8>, value: usize) {
@@ -119,4 +114,3 @@ pub(super) fn length(bytes: &mut Vec<u8>, value: usize) {
             .to_le_bytes(),
     );
 }
-

@@ -419,6 +419,14 @@ impl TerminalExecution<'_> {
                                 .values()
                                 .filter(|claim| claim.place == Some(argument.place))
                                 .map(|claim| claim.path.as_slice()),
+                            &|current| {
+                                crate::structural_inputs::case_membership::stored_case_at_projection(
+                                    &self.program.structural_types(),
+                                    self.structural_values.get(&current.place)?,
+                                    &self.structural_cases,
+                                    &current.path,
+                                )
+                            },
                         )?;
                         if self
                             .live_affine_frontier
@@ -708,6 +716,14 @@ impl TerminalExecution<'_> {
             claims
                 .values()
                 .filter_map(|claim| claim.place.map(|place| (place, claim.path.as_slice()))),
+            &|current| {
+                crate::structural_inputs::case_membership::stored_case_at_projection(
+                    &self.program.structural_types(),
+                    structural.get(&current.place)?,
+                    &self.structural_cases,
+                    &current.path,
+                )
+            },
         )?;
         let mut element_views = self.bind_element_view_arguments(
             descriptor_parameters,

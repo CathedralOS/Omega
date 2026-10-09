@@ -349,20 +349,14 @@ fn owned_field_source(
         });
     let result = scalar_graph_input::structural_case::source_result(function, place)
         .ok()
-        .map(|(_, result)| {
-            (
-                result.structural_type,
-                result.multiplicity,
-                result.claims.is_empty(),
-            )
-        });
+        .map(|(_, result)| (result.structural_type, result.multiplicity, true));
     let mut sources = parameters.chain(result);
     let (structural_type, multiplicity, owned) =
         sources.next().ok_or(LegalizationError::custody())?;
-    if sources.next().is_some()
-        || !owned
-        || multiplicity == terminal_psi::StructuralMultiplicity::Linear
-    {
+    // A completed owned value retains its claims in the home origin. Moving
+    // its bytes into a field uses the checked constructor operand, not a new
+    // claim-free-copy rule based on which aggregate receives it.
+    if sources.next().is_some() || !owned {
         return Err(LegalizationError::custody());
     }
     Ok((structural_type, multiplicity))

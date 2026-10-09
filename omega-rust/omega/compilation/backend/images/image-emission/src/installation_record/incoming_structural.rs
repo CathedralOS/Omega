@@ -140,8 +140,7 @@ pub(super) fn call_is_exact(
     installed: &InstalledInternalUnitCall,
 ) -> bool {
     let call = &installed.custody;
-    let Some(callee) = record.function(call.target)
-    else {
+    let Some(callee) = record.function(call.target) else {
         return false;
     };
     if !function_is_exact(record, function)
@@ -272,7 +271,8 @@ pub(super) fn call_is_exact(
                     .iter()
                     .map(|receipt| terminal_psi::ClaimTransfer {
                         claim: receipt.claim,
-                        argument_index: receipt.argument_index,
+                    argument_index: receipt.argument_index,
+                    path: Vec::new(),
                     })
                     .collect::<Vec<_>>()
                 && crate::object_artifact::replay::boundary::completion_receipts::completion_receipts_have_exact_custody(

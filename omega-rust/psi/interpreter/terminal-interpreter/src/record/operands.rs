@@ -83,6 +83,9 @@ impl TerminalExecution<'_> {
         result: &StructuralOperationResult,
         operands: &[(&StructuralArgument, Vec<StructuralPathSegment>)],
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
+        case_membership: &impl Fn(
+            &StructuralAffineDiscard,
+        ) -> Option<semantic_vocabulary::StructuralCaseId>,
     ) -> Result<BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::ClaimTransferMismatch;
         let mut remaining = self.live_claims.clone();
@@ -130,7 +133,7 @@ impl TerminalExecution<'_> {
         if !transported.is_empty() {
             return Err(invalid());
         }
-        self.stage_result_affine_frontier(result, frontier)?;
+        self.stage_result_affine_frontier(result, frontier, case_membership)?;
         Ok(remaining)
     }
 
@@ -141,6 +144,9 @@ impl TerminalExecution<'_> {
         &self,
         result: &StructuralOperationResult,
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
+        case_membership: &impl Fn(
+            &StructuralAffineDiscard,
+        ) -> Option<semantic_vocabulary::StructuralCaseId>,
     ) -> Result<(), TerminalInterpretError> {
         if result.multiplicity == StructuralMultiplicity::Affine {
             let root = StructuralAffineDiscard {
@@ -158,6 +164,7 @@ impl TerminalExecution<'_> {
                     .claims
                     .iter()
                     .map(|claim| (result.place, claim.path.as_slice())),
+                case_membership,
             )?;
         }
         Ok(())

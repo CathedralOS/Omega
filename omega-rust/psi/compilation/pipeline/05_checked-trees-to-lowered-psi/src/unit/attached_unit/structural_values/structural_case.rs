@@ -144,11 +144,18 @@ impl emission::Emission<'_, '_, '_> {
                     let Some(child_type) = target.field_type.as_structural() else {
                         return unsupported("nested case operand has a scalar destination");
                     };
+                    let mut prefix = Vec::new();
+                    if roster.start == common.len() {
+                        prefix.push(terminal_psi::StructuralPathSegment::Case(shape_case.id));
+                    }
+                    prefix.push(terminal_psi::StructuralPathSegment::Field(
+                        target.identity.clone(),
+                    ));
                     let argument = self.child_constructor_operand(
                         child_type,
                         value,
                         field.type_reference,
-                        terminal_psi::StructuralPathSegment::Field(target.identity.clone()),
+                        &prefix,
                     )?;
                     terminal_psi::RecordFieldValue::Structural(argument)
                 }

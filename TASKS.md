@@ -655,11 +655,14 @@ defines the complete product bar.
     Keep `pass/ownership/runtime_borrowed_projected_linear_return_exit` (0)
     and `runtime_nested_projected_claim_return_exit` (0) for selected-claim
     relocation, retained siblings and by-path call binding; qualify these on
-    the remaining native hosts. Recoverable failure still needs selected-case
-    claims through checked result planning, Terminal's active payload catalog,
-    native ownership joins and interpreted result rebinding. An ordinary
-    success/failure sum carrying a detached linear token must restore it on
-    both arms; inactive cases owe no fabricated claims.
+    the remaining native hosts. Keep
+    `runtime_borrowed_case_result_restore_exit` (0) for ordinary success/failure
+    sums restoring a detached linear token on both arms through selected
+    control-flow cleanup, and `runtime_linear_case_payload_forward_exit` (0)
+    for unexamined sums and projected aggregate arguments. Keep
+    `fail/ownership/linear_case_result_second_transfer` for exact-once returned
+    payload custody. Qualify these on the remaining native hosts; inactive
+    cases owe no fabricated claims.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the

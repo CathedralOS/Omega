@@ -1,14 +1,10 @@
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
 
-use super::{selected_payload_offset, transformed_identity_offset};
 use super::{
-    super::{
-        primitives::Cursor, selected::decode_kind, values::decode_fixed_site,
-    },
+    super::{primitives::Cursor, selected::decode_kind, values::decode_fixed_site},
     plan, with_stale_version,
 };
-
-
+use super::{selected_payload_offset, transformed_identity_offset};
 
 #[test]
 fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {

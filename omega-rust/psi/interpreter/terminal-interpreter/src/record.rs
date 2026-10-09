@@ -231,7 +231,10 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let claims = self.stage_constructor_claims(result, &claim_operands, &mut frontier)?;
+        let claims =
+            self.stage_constructor_claims(result, &claim_operands, &mut frontier, &|current| {
+                storage.case_at_projection(self, &value, &current.path)
+            })?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged);
         self.structural_byte_sequence_fields.extend(staged_bytes);

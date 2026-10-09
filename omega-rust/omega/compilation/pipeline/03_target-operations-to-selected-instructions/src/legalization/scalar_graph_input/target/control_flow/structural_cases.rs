@@ -122,7 +122,7 @@ fn parameter_available(
     let Some(declaration) = optimized.structural_parameter(expected_source) else {
         return false;
     };
-    parameter_corresponds(graph, optimized, parameter, declaration, expected_source)
+    parameter_corresponds(graph, parameter, declaration, expected_source)
         && super::super::super::aggregate_results::block_home_layout(declaration, plan)
             .ok()
             .as_ref()
@@ -151,7 +151,7 @@ fn borrowed_parameter_available(
     ) && declaration.multiplicity != terminal_psi::StructuralMultiplicity::Linear
         && declaration.qualifications.is_empty()
         && declaration.projected_qualifications.is_empty()
-        && parameter_corresponds(graph, optimized, parameter, declaration, expected_source)
+        && parameter_corresponds(graph, parameter, declaration, expected_source)
         // The carrier is the pointer; the layout describes the referent.
         && parameter.shape.class == calling_conventions::ValueClass::BorrowedReference
         && super::super::super::aggregate_results::type_home_layout(
@@ -204,7 +204,6 @@ pub(super) fn matches(
                 && declaration.qualifications.is_empty()
                 && declaration.projected_qualifications.is_empty()
                 && parameter.place == expected_source
-                && optimized.entry_claims.is_empty()
                 && parameter.structural_type == declaration.structural_type
                 && parameter.access == declaration.access
                 && parameter.multiplicity == declaration.multiplicity
@@ -313,13 +312,11 @@ pub(super) fn matches(
 /// and spells `declaration`'s type, access, multiplicity, and projections.
 fn parameter_corresponds(
     graph: &TargetControlGraph,
-    optimized: &PsiOptimizationFunction,
     parameter: &TargetStructuralParameter,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     expected_source: PlaceId,
 ) -> bool {
     parameter.place == expected_source
-        && optimized.entry_claims.is_empty()
         && graph
             .parameters
             .iter()

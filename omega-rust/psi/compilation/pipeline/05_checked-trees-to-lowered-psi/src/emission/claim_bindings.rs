@@ -113,13 +113,81 @@ impl ClaimBindings<'_> {
 pub(crate) fn emitted_claim_transfers(
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<terminal_psi::ClaimTransfer>, LoweringError> {
+    let prepared = prepare_claim_transfers(transfers, types, |index| {
+        parameters
+            .get(index as usize)
+            .map(|parameter| parameter.structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "claim transfer has no structural argument type",
+            ))
+    })?;
+    emit_prepared_claim_transfers(&prepared, claim_bindings)
+}
+
+/// Preparation resolves named Case guards against the exact argument type,
+/// while emission resolves permission identities in the body's live namespace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PreparedClaimTransfer {
+    pub(crate) identity: PermissionClaimIdentity,
+    pub(crate) argument_index: u32,
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
+}
+
+pub(crate) fn prepare_checked_claim_transfers(
+    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedClaimTransfer>, LoweringError> {
+    prepare_claim_transfers(transfers, types, |index| {
+        let parameter = parameters
+            .get(index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "claim transfer has no checked structural parameter",
+            ))?;
+        let mut declarations = types
+            .iter()
+            .filter(|declaration| declaration.identity == parameter.type_identity);
+        let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+            "claim transfer has no lowered parameter type",
+        ))?;
+        if declarations.next().is_some() {
+            return unsupported("claim transfer has ambiguous parameter type");
+        }
+        Ok(declaration.id)
+    })
+}
+
+fn prepare_claim_transfers(
+    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    argument_type: impl Fn(u32) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError>,
+) -> Result<Vec<PreparedClaimTransfer>, LoweringError> {
+    transfers.iter().map(|transfer| {
+        let root = argument_type(transfer.argument_index)?;
+        Ok(PreparedClaimTransfer {
+            identity: transfer.claim_identity,
+            argument_index: transfer.argument_index,
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                &transfer.path, root, types,
+            )?,
+        })
+    }).collect()
+}
+
+pub(crate) fn emit_prepared_claim_transfers(
+    transfers: &[PreparedClaimTransfer],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
 ) -> Result<Vec<terminal_psi::ClaimTransfer>, LoweringError> {
     let mut emitted = transfers
         .iter()
         .map(|transfer| {
             Ok(terminal_psi::ClaimTransfer {
-                claim: lookup_claim_id(claim_bindings, transfer.claim_identity)?,
+                claim: lookup_claim_id(claim_bindings, transfer.identity)?,
                 argument_index: transfer.argument_index,
+                path: transfer.path.clone(),
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -229,7 +297,7 @@ pub(crate) fn emit_establishment_claims(
     claims: &[PreparedClaim],
     bindings: &mut ClaimBindings<'_>,
 ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
-    claims
+    let mut emitted = claims
         .iter()
         .map(|claim| {
             let resolved = match lookup_claim_id(bindings.bindings(), claim.identity) {
@@ -242,7 +310,9 @@ pub(crate) fn emit_establishment_claims(
                 path: claim.path.clone(),
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    emitted.sort();
+    Ok(emitted)
 }
 
 /// Rebase one completed-establishment claim occurrence onto this body's claim

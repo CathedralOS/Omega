@@ -16,7 +16,8 @@ use crate::FixedViewCopyDecodeError;
 use super::provenance::{decode_provenance, encode_provenance};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{
-        Cursor, decode_accepted_fact, decode_id, decode_option_u16, decode_u16s, encode_option_u16, encode_u16s, length,
+        Cursor, decode_accepted_fact, decode_id, decode_option_u16, decode_u16s, encode_option_u16,
+        encode_u16s, length,
     },
     values::{access_tag, decode_access, decode_bool, decode_constraint_key, decode_integer},
 };

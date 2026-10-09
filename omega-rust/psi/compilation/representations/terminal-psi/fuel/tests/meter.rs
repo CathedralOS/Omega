@@ -151,7 +151,10 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
     let structural_return_edge = Terminator::ReturnStructural {
         edge: edge_id(6),
         source: place_id(1),
-        returned_claims: vec![semantic_vocabulary::ClaimId::new(1).unwrap()],
+        returned_claims: vec![terminal_psi::StructuralResultClaimBinding {
+            claim: semantic_vocabulary::ClaimId::new(1).unwrap(),
+            path: Vec::new(),
+        }],
         cleanup_actions: Vec::new(),
     };
     let crash_edge = Terminator::Crash {

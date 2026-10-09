@@ -377,9 +377,8 @@ pub(crate) fn validate_function_structural_catalog(
         };
         if claim.claim != expected
             || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-            // Entry claims describe unconditional storage, not a selected case.
-            // Endpoint geometry alone supplies no active-payload evidence.
-            || claim.path.iter().any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Case(_)))
+            // Case rows catalogue conditional obligations. CFG replay removes
+            // contrary guards only on the actual discriminator's selected edge.
             || resolve_structural_path(types, parameter.structural_type, &claim.path).is_none()
             || claim_inputs
                 .iter()

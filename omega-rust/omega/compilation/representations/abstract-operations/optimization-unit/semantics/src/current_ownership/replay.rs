@@ -15,7 +15,8 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, MachineId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    BoundaryMachineDeclaration, StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration,
+    BoundaryMachineDeclaration, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
+    StructuralTypeDeclaration,
 };
 
 /// A member moved under an owned contract out of an exclusively borrowed
@@ -613,6 +614,7 @@ pub(super) fn validate_current_ownership_cfg(
                                 .filter(|transfer| {
                                     transfer.claim == *identity
                                         && transfer.argument_index as usize == argument_index
+                                        && transfer.path == claim.path[argument.path.len()..]
                                 })
                                 .count()
                                 != 1
@@ -970,7 +972,11 @@ pub(super) fn validate_current_ownership_cfg(
                     let expected = frontier
                         .claims
                         .iter()
-                        .filter_map(|(claim, live)| (live.input == Some(*source)).then_some(*claim))
+                        .filter(|(_, live)| live.input == Some(*source))
+                        .map(|(claim, live)| terminal_psi::StructuralResultClaimBinding {
+                            claim: *claim,
+                            path: live.path.clone(),
+                        })
                         .collect::<Vec<_>>();
                     if returned_claims != &expected {
                         return Err(
@@ -980,8 +986,8 @@ pub(super) fn validate_current_ownership_cfg(
                             },
                         );
                     }
-                    for claim in returned_claims {
-                        frontier.claims.remove(claim);
+                    for binding in returned_claims {
+                        frontier.claims.remove(&binding.claim);
                     }
                     frontier = validate_scalar_cleanup_actions(
                         function,
@@ -1047,6 +1053,43 @@ pub(super) fn validate_current_ownership_cfg(
             // custody that this edge's residual cleanup can then retire; the
             // target's roots are installed only after that cleanup.
             let mut outgoing = frontier.clone();
+            if let O::StructuralCase {
+                source,
+                path,
+                cases,
+            } = &block
+                .nodes
+                .last()
+                .ok_or(OptimizationUnitValidationError::CurrentCleanupMismatch {
+                    machine: function.machine,
+                    block: block_id,
+                })?
+                .operation
+            {
+                let selected = cases
+                    .iter()
+                    .find(|case| case.psi_edge == edge.psi_edge)
+                    .ok_or(OptimizationUnitValidationError::CurrentCleanupMismatch {
+                        machine: function.machine,
+                        block: block_id,
+                    })?;
+                // This edge authenticates one discriminator. Conditional
+                // catalogue rows for other payloads are not live obligations
+                // on the selected edge; common members remain unconditional.
+                outgoing.claims.retain(|_, claim| {
+                    if claim.input != Some(*source) {
+                        return true;
+                    }
+                    match claim
+                        .path
+                        .strip_prefix(path.as_slice())
+                        .and_then(|suffix| suffix.first())
+                    {
+                        Some(StructuralPathSegment::Case(case)) => *case == selected.case,
+                        _ => true,
+                    }
+                });
+            }
             let transfer = consume_edge_sources(
                 function,
                 structural_types,

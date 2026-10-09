@@ -1,8 +1,6 @@
 //! Ordinary structural metadata and envelope custody.
+use super::plan;
 use super::selected_payload_offset;
-use super::{
-    plan,
-};
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
@@ -105,7 +103,6 @@ fn structural_function() -> SelectedFunction {
     }];
     function
 }
-
 
 #[test]
 fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_rows() {

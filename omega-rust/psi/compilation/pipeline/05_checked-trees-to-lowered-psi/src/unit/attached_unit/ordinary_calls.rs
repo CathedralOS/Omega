@@ -170,7 +170,12 @@ pub(super) fn prepare(
     )?
     .into_iter();
 
-    let claim_transfers = emitted_claim_transfers(claim_transfers, calls.claims.bindings())?;
+    let claim_transfers = emitted_claim_transfers(
+        claim_transfers,
+        calls.claims.bindings(),
+        target.parameters,
+        structural_types,
+    )?;
     let terminal_arguments = lower_structural_arguments(
         structural_arguments,
         structural_types,
@@ -332,7 +337,7 @@ pub(super) fn emit_structural(
         id,
         *target_state,
     )?;
-    let returned = StructuralOperationResult {
+    let mut returned = StructuralOperationResult {
         qualification_establishments: Vec::new(),
         place,
         structural_type,
@@ -382,6 +387,10 @@ pub(super) fn emit_structural(
             })
             .collect::<Result<Vec<_>, LoweringError>>()?,
     };
+    // Path order describes the type's frontier; wire order describes this
+    // caller's claim namespace. Conserved and newly bound identities can
+    // interleave, so canonicalize only after all bindings have resolved.
+    returned.claims.sort();
     // Scalar values and structural custody are separate operand namespaces,
     // not different ownership rules: a mixed call retains the same checked
     // claim and content correspondence as the scalar-free encoding.

@@ -2,6 +2,7 @@
 
 use crate::optimization_unit::identity::carrier_encoding::{
     encode_abstract_result, encode_ids, encode_scalar_type, encode_structural_argument,
+    encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::structural_encoding::{
     encode_completion_claim_source, encode_crash_route_bucket,
@@ -58,6 +59,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     bytes.slice(claim_transfers, |bytes, transfer| {
                         bytes.id(transfer.claim);
                         bytes.u32(transfer.argument_index);
+                        bytes.slice(&transfer.path, encode_structural_path_segment);
                     });
                     encode_ids(bytes, requirement_obligations);
                     bytes.slice(crash_continuations, encode_crash_route_bucket);
@@ -149,6 +151,7 @@ fn encode_ordinary_call_tail(
     bytes.slice(claim_transfers, |bytes, transfer| {
         bytes.id(transfer.claim);
         bytes.u32(transfer.argument_index);
+        bytes.slice(&transfer.path, encode_structural_path_segment);
     });
     encode_ids(bytes, requirement_obligations);
     bytes.slice(crash_continuations, encode_crash_route_bucket);

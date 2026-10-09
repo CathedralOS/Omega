@@ -251,6 +251,14 @@ pub(crate) fn begin_nominal_cleanup(
                     claim.place == Some(cleanup.place) && claim.path.starts_with(&cleanup.path)
                 })
                 .map(|claim| (cleanup.place, claim.path.as_slice())),
+            &|current| {
+                crate::structural_inputs::case_membership::stored_case_at_projection(
+                    structural_types,
+                    values.get(&current.place)?,
+                    structural_cases,
+                    &current.path,
+                )
+            },
         )?;
     }
     Ok(())
@@ -685,6 +693,7 @@ pub(crate) fn whole_value_frontier<'a>(
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
     claim_paths: impl IntoIterator<Item = &'a [StructuralPathSegment]>,
+    case_membership: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
 ) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
     let mut frontier = BTreeSet::new();
     if multiplicity == StructuralMultiplicity::Affine {
@@ -697,6 +706,7 @@ pub(crate) fn whole_value_frontier<'a>(
             structural_types,
             &mut frontier,
             claim_paths.into_iter().map(|path| (place, path)),
+            case_membership,
         )?;
     }
     Ok(frontier)
@@ -709,6 +719,7 @@ pub(crate) fn exclude_linear_regions<'a>(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: impl IntoIterator<Item = (PlaceId, &'a [StructuralPathSegment])>,
+    case_membership: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
 ) -> Result<(), TerminalInterpretError> {
     let mut claims = claims.into_iter();
     let Some(first_claim) = claims.next() else {
@@ -728,11 +739,15 @@ pub(crate) fn exclude_linear_regions<'a>(
             .cloned()
             .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
         frontier.remove(&containing);
-        // Claim paths cannot enter a case namespace. Membership is separate
-        // runtime evidence; never infer it from a claim's type or spelling.
-        split_affine_frontier_at_projection(structural_types, frontier, containing, path, &|_| {
-            None
-        })?;
+        // Guarded claims split only the payload in actual stored membership.
+        // A missing discriminator is an error, never proof of an inactive row.
+        split_affine_frontier_at_projection(
+            structural_types,
+            frontier,
+            containing,
+            path,
+            case_membership,
+        )?;
     }
     Ok(())
 }
@@ -847,9 +862,12 @@ pub(crate) fn consume_affine_projection(
     }
     frontier.remove(&containing);
     let case_membership = |current: &StructuralAffineDiscard| {
-        let selected = project_structural_value(structural_types, root, &current.path).ok()?;
-        let contents = structural_cases.get(&StructuralRuntimePlace::from(&selected))?;
-        (contents.structural_type == selected.structural_type).then_some(contents.case)
+        crate::structural_inputs::case_membership::stored_case_at_projection(
+            structural_types,
+            root,
+            structural_cases,
+            &current.path,
+        )
     };
     split_affine_frontier_at_projection(
         structural_types,
@@ -1191,8 +1209,12 @@ pub(crate) fn direct_scalar_field_type(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn transfer_claims(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    structural_cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
-    _caller_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     caller_arguments: &[StructuralArgument],
     transfers: &[ClaimTransfer],
     callee_parameters: &[StructuralParameterDeclaration],
@@ -1200,7 +1222,14 @@ pub(crate) fn transfer_claims(
     callee_content_entry_claims: &[terminal_psi::ContentEntryClaim],
     callee_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
 ) -> Result<(BTreeMap<ClaimId, LiveClaim>, BTreeMap<ClaimId, LiveClaim>), TerminalInterpretError> {
-    if transfers.len() != callee_entry_claims.len() {
+    if caller_arguments.len() != callee_parameters.len()
+        || transfers
+            .iter()
+            .map(|transfer| transfer.claim)
+            .collect::<BTreeSet<_>>()
+            .len()
+            != transfers.len()
+    {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
     }
     if caller_arguments
@@ -1208,12 +1237,9 @@ pub(crate) fn transfer_claims(
         .zip(callee_parameters)
         .any(|(argument, parameter)| {
             !argument.path.is_empty()
-                && (callee_entry_claims
+                && callee_content_entry_claims
                     .iter()
-                    .any(|claim| claim.input == parameter.place && !claim.path.is_empty())
-                    || callee_content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == parameter.place))
+                    .any(|claim| claim.input.root == parameter.place)
         })
     {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
@@ -1230,6 +1256,15 @@ pub(crate) fn transfer_claims(
         {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
+        if !crate::structural_inputs::case_membership::case_projection_is_active(
+            structural_types,
+            callee_values,
+            structural_cases,
+            entry_claim.input,
+            &entry_claim.path,
+        )? {
+            continue;
+        }
         expected_by_argument
             .entry(index as u32)
             .or_default()
@@ -1237,27 +1272,37 @@ pub(crate) fn transfer_claims(
     }
     let mut actual_by_argument = BTreeMap::<u32, Vec<&ClaimTransfer>>::new();
     for transfer in transfers {
-        if transfer.argument_index as usize >= caller_arguments.len()
-            || !caller_claims.contains_key(&transfer.claim)
+        let parameter = callee_parameters
+            .get(transfer.argument_index as usize)
+            .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
+        if !callee_entry_claims
+            .iter()
+            .any(|entry| entry.input == parameter.place && entry.path == transfer.path)
         {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+        let active = crate::structural_inputs::case_membership::case_projection_is_active(
+            structural_types,
+            callee_values,
+            structural_cases,
+            parameter.place,
+            &transfer.path,
+        )?;
+        // Absence is justified by the stored tag and declared guard, never by
+        // a missing identity. A live claim cannot hide behind an inactive row.
+        if !active {
+            if caller_claims.contains_key(&transfer.claim) {
+                return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+            continue;
+        }
+        if !caller_claims.contains_key(&transfer.claim) {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
         actual_by_argument
             .entry(transfer.argument_index)
             .or_default()
             .push(transfer);
-    }
-    // Wire rows are ordered by machine-local claim identities. Those identities
-    // can differ from the callee's declaration order (for example, construction
-    // establishes a sibling before a nested field). Bind by the complete typed
-    // path set, never by coincidentally matching the two identity rosters.
-    for actual in actual_by_argument.values_mut() {
-        actual.sort_by(|left, right| {
-            caller_claims
-                .get(&left.claim)
-                .map(|claim| &claim.path)
-                .cmp(&caller_claims.get(&right.claim).map(|claim| &claim.path))
-        });
     }
     if expected_by_argument.keys().collect::<Vec<_>>()
         != actual_by_argument.keys().collect::<Vec<_>>()
@@ -1267,8 +1312,7 @@ pub(crate) fn transfer_claims(
 
     let mut remaining = caller_claims.clone();
     let mut callee_claims = BTreeMap::new();
-    for (argument_index, mut expected) in expected_by_argument {
-        expected.sort_by(|left, right| left.path.cmp(&right.path));
+    for (argument_index, expected) in expected_by_argument {
         let actual = &actual_by_argument[&argument_index];
         if actual.len() != expected.len() {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
@@ -1290,6 +1334,9 @@ pub(crate) fn transfer_claims(
                 .path
                 .strip_prefix(argument_path.as_slice())
                 .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
+            if suffix != transfer.path {
+                return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
             let position = unmatched
                 .iter()
                 .position(|entry_claim| entry_claim.path == suffix)
@@ -1317,6 +1364,18 @@ pub(crate) fn transfer_claims(
             }
         }
     }
+    for argument in caller_arguments
+        .iter()
+        .filter(|argument| argument.access == StructuralAccess::Owned)
+    {
+        if remaining.values().any(|claim| {
+            claim.place == Some(argument.place)
+                && (claim.path.starts_with(&argument.path)
+                    || argument.path.starts_with(&claim.path))
+        }) {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+    }
     for entry_claim in callee_content_entry_claims {
         callee_claims.entry(entry_claim.claim).or_insert(LiveClaim {
             place: None,
@@ -1338,9 +1397,12 @@ pub(crate) fn rebind_structural_result_claims(
     callee_claims: &BTreeMap<ClaimId, LiveClaim>,
     source: PlaceId,
     result: &StructuralOperationResult,
-    returned_claims: &[ClaimId],
+    returned_claims: &[StructuralResultClaimBinding],
 ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
-    let mut unmatched = returned_claims.iter().copied().collect::<BTreeSet<_>>();
+    let mut unmatched = returned_claims
+        .iter()
+        .map(|binding| binding.claim)
+        .collect::<BTreeSet<_>>();
     if unmatched.len() != returned_claims.len() || returned_claims.len() != result.claims.len() {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
     }
@@ -1351,18 +1413,19 @@ pub(crate) fn rebind_structural_result_claims(
         } else {
             StructuralMultiplicity::Linear
         };
-        let mut held = returned_claims.iter().filter(|claim| {
-            callee_claims
-                .get(claim)
-                .is_some_and(|live| live.place == Some(source) && live.path == binding.path)
+        let mut held = returned_claims.iter().filter(|returned| {
+            returned.path == binding.path
+                && callee_claims
+                    .get(&returned.claim)
+                    .is_some_and(|live| live.place == Some(source) && live.path == returned.path)
         });
         let Some(callee_claim) = held.next() else {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         };
         if held.next().is_some()
-            || !unmatched.remove(callee_claim)
+            || !unmatched.remove(&callee_claim.claim)
             || callee_claims
-                .get(callee_claim)
+                .get(&callee_claim.claim)
                 .is_none_or(|live| live.multiplicity != Some(expected_multiplicity))
             || rebound
                 .insert(

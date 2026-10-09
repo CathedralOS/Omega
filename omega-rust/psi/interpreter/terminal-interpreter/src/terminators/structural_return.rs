@@ -27,6 +27,10 @@ impl TerminalExecution<'_> {
             .and_then(|machine| machine.result.structural())
             .cloned()
             .ok_or(malformed())?;
+        // A return roster describes typed custody, including guarded payloads.
+        // Only the stored discriminator activates a Case path; a catalogue row
+        // neither creates a claim nor establishes a tag.
+        let active_returned_claims = self.active_structural_claims(*source, returned_claims)?;
         if cleanup_actions
             .iter()
             .any(|action| action.place() == *source)
@@ -117,13 +121,18 @@ impl TerminalExecution<'_> {
             let actual_claims = self
                 .live_claims
                 .iter()
-                .filter_map(|(claim, live)| (live.place == Some(*source)).then_some(*claim))
+                .filter(|(_, live)| live.place == Some(*source))
+                .map(|(claim, live)| terminal_psi::StructuralResultClaimBinding {
+                    claim: *claim,
+                    path: live.path.clone(),
+                })
                 .collect::<Vec<_>>();
-            if actual_claims != *returned_claims
-                || self
-                    .live_claims
-                    .keys()
-                    .any(|claim| !returned_claims.contains(claim))
+            if actual_claims != active_returned_claims
+                || self.live_claims.keys().any(|claim| {
+                    !active_returned_claims
+                        .iter()
+                        .any(|binding| binding.claim == *claim)
+                })
             {
                 return Err(malformed());
             }
@@ -138,6 +147,14 @@ impl TerminalExecution<'_> {
                     .values()
                     .filter(|live| live.place == Some(*source))
                     .map(|live| live.path.as_slice()),
+                &|current| {
+                    crate::structural_inputs::case_membership::stored_case_at_projection(
+                        &self.program.structural_types(),
+                        self.structural_values.get(&current.place)?,
+                        &self.structural_cases,
+                        &current.path,
+                    )
+                },
             )?;
             if self
                 .live_affine_frontier
@@ -162,12 +179,15 @@ impl TerminalExecution<'_> {
                         self.mint_boundary_result_claims(live_claims, *source, result)?
                     }
                     crate::execution::ResultClaimOrigin::CalleeReturn => {
+                        let mut active_result = result.clone();
+                        active_result.claims =
+                            self.active_structural_claims(*source, &result.claims)?;
                         rebind_structural_result_claims(
                             live_claims,
                             &self.live_claims,
                             *source,
-                            result,
-                            returned_claims,
+                            &active_result,
+                            &active_returned_claims,
                         )?
                     }
                 }),
@@ -196,7 +216,10 @@ impl TerminalExecution<'_> {
                 } else {
                     TerminalExecutionResult::Structural(TerminalStructuralResult {
                         value,
-                        claims: returned_claims.clone(),
+                        claims: active_returned_claims
+                            .iter()
+                            .map(|binding| binding.claim)
+                            .collect(),
                     })
                 },
                 destination: None,
@@ -217,8 +240,8 @@ impl TerminalExecution<'_> {
         self.element_view_values.remove(source);
         self.live_affine_frontier
             .retain(|entry| entry.place != *source);
-        for claim in returned_claims {
-            self.live_claims.remove(claim);
+        for binding in &active_returned_claims {
+            self.live_claims.remove(&binding.claim);
         }
         self.retire_return_inputs();
         self.continue_cleanup_actions(

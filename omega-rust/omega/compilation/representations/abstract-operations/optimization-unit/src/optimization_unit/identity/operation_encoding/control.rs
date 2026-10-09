@@ -91,7 +91,10 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(46);
             bytes.id(*psi_edge);
             bytes.id(*source);
-            encode_ids(bytes, returned_claims);
+            bytes.slice(returned_claims, |bytes, binding| {
+                bytes.id(binding.claim);
+                bytes.slice(&binding.path, encode_structural_path_segment);
+            });
             bytes.len(trivial_affine_locals.len());
             for (operation, place, structural_type) in trivial_affine_locals {
                 bytes.id(*operation);

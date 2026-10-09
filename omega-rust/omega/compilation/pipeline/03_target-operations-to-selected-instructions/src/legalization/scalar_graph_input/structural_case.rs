@@ -80,7 +80,6 @@ pub(in crate::legalization) fn case_source(
             || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !declaration.qualifications.is_empty()
             || !declaration.projected_qualifications.is_empty()
-            || !function.entry_claims.is_empty()
         {
             return Err(LegalizationError::custody());
         }
@@ -118,7 +117,6 @@ pub(in crate::legalization) fn case_source(
         || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
-        || !function.entry_claims.is_empty()
     {
         return Err(LegalizationError::custody());
     }
@@ -151,7 +149,6 @@ fn source_identity(
         .ok_or(LegalizationError::custody())?;
     if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
         || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !function.entry_claims.is_empty()
     {
         return Err(LegalizationError::custody());
     }

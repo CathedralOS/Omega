@@ -183,10 +183,12 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                             ClaimTransfer {
                                 claim: id(1),
                                 argument_index: 0,
+                                path: Vec::new(),
                             },
                             ClaimTransfer {
                                 claim: id(2),
                                 argument_index: 1,
+                                path: Vec::new(),
                             },
                         ],
                         requirement_obligations: vec![

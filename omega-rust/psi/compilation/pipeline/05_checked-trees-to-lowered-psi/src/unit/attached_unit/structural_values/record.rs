@@ -168,7 +168,9 @@ impl emission::Emission<'_, '_, '_> {
                             child_type,
                             value,
                             field.type_reference,
-                            terminal_psi::StructuralPathSegment::Field(target.identity.clone()),
+                            &[terminal_psi::StructuralPathSegment::Field(
+                                target.identity.clone(),
+                            )],
                         )?;
                         if !validation::linear_claim_frontier(
                             &self.checked.typed,

@@ -1,0 +1,53 @@
+use omega::language::core::drop;
+
+data Token [linear] { value: u64; }
+machine Token::drop(token: &mut Token) {}
+data Holder { guard: u64; token: Token; }
+data Attempt {
+    case Success(token: Token);
+    case Failure(token: Token);
+}
+
+machine try_transform(token: Token, succeed: bool) -> Attempt {
+    transition succeed {
+        true -> success(token)
+        false -> failure(token)
+    }
+    state success(token: Token) -> Attempt {
+        let value: u64 = token.value;
+        drop(token);
+        Attempt::Success { token: Token { value: ((value as u64 in Wrapping) + 1) as u64 } }
+    }
+    state failure(token: Token) -> Attempt {
+        Attempt::Failure { token: token }
+    }
+}
+
+machine restore(attempt: Attempt) -> Token {
+    transition attempt {
+        Attempt::Success { token } -> (token)
+        Attempt::Failure { token } -> (token)
+    }
+}
+
+machine apply(holder: &mut Holder, succeed: bool) -> u64 {
+    let detached: Token = holder.token;
+    let attempt: Attempt = try_transform(detached, succeed);
+    holder.token = restore(attempt);
+    holder.token.value
+}
+
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { guard: 19, token: Token { value: 41 } };
+    let failed: u64 = apply(&mut holder, false);
+    let succeeded: u64 = apply(&mut holder, true);
+    let guard: u64 = holder.guard;
+    let remaining: Token = holder.token;
+    drop(remaining);
+    transition failed == 41 && succeeded == 42 && guard == 19 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

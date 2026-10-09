@@ -899,7 +899,7 @@ pub(crate) fn call_claim_transfers(
                     root,
                     &argument.path,
                 )?;
-                for (claim_identity, kind) in crossing {
+                for (claim_identity, kind, path) in crossing {
                     // A result consumed by a by-value `self` callee carries
                     // its claim on the completed result itself; the lowering
                     // joins that claim to the callee's entry roster, so the
@@ -911,6 +911,7 @@ pub(crate) fn call_claim_transfers(
                     output.push(CheckedUnitClaimTransferPlan {
                         claim_identity,
                         argument_index: u32::try_from(argument_index).ok()?,
+                        path,
                     });
                 }
             }
@@ -921,7 +922,7 @@ pub(crate) fn call_claim_transfers(
             .iter()
             .filter(|entry| {
                 entry.parameter_index == source_parameter_index
-                    && (argument.path.is_empty() || entry.path == argument.path)
+                    && entry.path.starts_with(&argument.path)
             })
             .collect::<Vec<_>>();
         if entries.is_empty() {
@@ -945,6 +946,7 @@ pub(crate) fn call_claim_transfers(
             output.push(CheckedUnitClaimTransferPlan {
                 claim_identity: entry.claim_identity,
                 argument_index: u32::try_from(argument_index).ok()?,
+                path: entry.path.strip_prefix(argument.path.as_slice())?.to_vec(),
             });
         }
     }
@@ -1003,41 +1005,47 @@ fn owner_claim_crossings(
     events: &[&checked_trees::FlowPermissionEventFact],
     root: facts::PlaceRoot,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
-) -> Option<Vec<(PermissionClaimIdentity, PermissionEventKind)>> {
-    let root_type = if path.is_empty() {
-        None
-    } else {
-        Some(validation::canonical_place_type_reference(
-            program,
-            state,
-            call.statement_index,
-            &validation::CanonicalPlace {
-                root,
-                segments: Vec::new(),
-            },
-        )?)
-    };
+) -> Option<
+    Vec<(
+        PermissionClaimIdentity,
+        PermissionEventKind,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    )>,
+> {
+    let mut crossing_events = events.iter().filter(|event| event.root == root).peekable();
+    // An owned value with no crossing linear claims needs no claim-path type
+    // lookup. Anonymous constructions still participate in ordinary custody.
+    if crossing_events.peek().is_none() {
+        return Some(Vec::new());
+    }
+    let root_type = validation::canonical_place_type_reference(
+        program,
+        state,
+        call.statement_index,
+        &validation::CanonicalPlace {
+            root,
+            segments: Vec::new(),
+        },
+    )?;
     let mut claims = Vec::new();
-    for event in events.iter().filter(|event| event.root == root) {
-        if let Some(root_type) = root_type {
-            let (event_path, _) = validation::structural_owned_path(
-                program,
-                root_type,
-                flow.ownership.segments.span_or_empty(event.segments),
-            )
-            .ok()?;
-            if !event_path.starts_with(path) {
-                continue;
-            }
-        }
+    for event in crossing_events {
+        let (event_path, _) = validation::structural_owned_path(
+            program,
+            root_type,
+            flow.ownership.segments.span_or_empty(event.segments),
+        )
+        .ok()?;
+        let Some(relative) = event_path.strip_prefix(path) else {
+            continue;
+        };
         if event.claim_identity == PermissionClaimIdentity::Unknown
             || claims
                 .iter()
-                .any(|(identity, _)| *identity == event.claim_identity)
+                .any(|(identity, _, _)| *identity == event.claim_identity)
         {
             return None;
         }
-        claims.push((event.claim_identity, event.kind));
+        claims.push((event.claim_identity, event.kind, relative.to_vec()));
     }
     Some(claims)
 }
@@ -1080,7 +1088,7 @@ pub(crate) fn computed_call_claim_transfers(
                 .root
             }
         };
-        for (claim_identity, kind) in
+        for (claim_identity, kind, path) in
             owner_claim_crossings(program, flow, state, call, &events, root, &argument.path)?
         {
             if kind == PermissionEventKind::Consume {
@@ -1089,6 +1097,7 @@ pub(crate) fn computed_call_claim_transfers(
             output.push(CheckedUnitClaimTransferPlan {
                 claim_identity,
                 argument_index: u32::try_from(argument_index).ok()?,
+                path,
             });
         }
     }

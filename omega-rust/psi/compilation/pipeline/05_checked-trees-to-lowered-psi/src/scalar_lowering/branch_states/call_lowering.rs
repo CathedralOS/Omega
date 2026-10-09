@@ -30,6 +30,7 @@ pub(crate) fn lower_scalar_call(
     arguments: Vec<LoweredDirectExpression>,
     structural_arguments: Vec<PreparedStructuralArgument>,
     claim_transfers: Vec<checked_trees::CheckedUnitClaimTransferPlan>,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
     let target = if structural_arguments.is_empty() {
@@ -172,6 +173,11 @@ pub(crate) fn lower_scalar_call(
     // substitutes back at this call.
     let target_routes = crate::unit::effective_crash_routes(checked, target_machine)?;
     let crash_continuations = target_routes.clone();
+    let claim_transfers = crate::emission::claim_bindings::prepare_checked_claim_transfers(
+        &claim_transfers,
+        target.structural_parameters(),
+        structural_types,
+    )?;
     // This summary only tells graph preparation whether the checked call can
     // crash; an identity-only predicate suffices for that question. Emission
     // lowers `target_routes` against evaluated arguments, not this refined

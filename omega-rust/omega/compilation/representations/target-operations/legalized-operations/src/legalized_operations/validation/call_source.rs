@@ -65,6 +65,7 @@ pub(super) fn validate(
                 .map(|receipt| ClaimTransfer {
                     claim: receipt.claim,
                     argument_index: receipt.argument_index,
+                    path: Vec::new(),
                 })
                 .collect::<Vec<_>>();
             let unique_source_claims = completion_claim_sources

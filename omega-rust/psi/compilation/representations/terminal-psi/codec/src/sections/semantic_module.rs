@@ -52,8 +52,9 @@ use wire::{Reader, Writer, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Closed boundary application demands follow the target-family roster.
-pub(crate) const FORMAT_MARKER: u16 = 126;
+// Closed boundary application demands follow the target-family roster. Returns
+// and call transfers additionally preserve typed paths and their Case guards.
+pub(crate) const FORMAT_MARKER: u16 = 127;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

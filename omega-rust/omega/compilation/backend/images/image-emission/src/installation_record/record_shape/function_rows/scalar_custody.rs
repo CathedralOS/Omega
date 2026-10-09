@@ -4,9 +4,8 @@
 use super::super::stack_facts::installed_stack_facts_are_canonical;
 use crate::installation_record::{
     BoundaryRealization, InstallationRecord, InstalledFunction, MachineId, StructuralMultiplicity,
-    StructuralTypeId, borrowed_structural,
-    graph_structural, incoming_structural, installed_function_scalar_transport_is_canonical,
-    installed_unit_scalar_transport,
+    StructuralTypeId, borrowed_structural, graph_structural, incoming_structural,
+    installed_function_scalar_transport_is_canonical, installed_unit_scalar_transport,
 };
 
 /// The row's scalar custody facts.

@@ -1195,10 +1195,11 @@ fn validate_claim_indices(
         }
         // A declaration authenticates identity and relative path, not the
         // claim's current home after an owned state transfer. Exact argument
-        // types/paths are checked above; full frontier replay, required after
-        // this foundation check, authenticates the live home at this call.
-        let matches_path =
-            |path: &[StructuralPathSegment]| argument.path.is_empty() || path == argument.path;
+        // types/paths are checked above; source checking and consuming custody
+        // establish the live home, rather than this declaration-table lookup.
+        // Moving an aggregate projection carries its descendant claims, not
+        // only a claim exactly at the selected aggregate's root.
+        let matches_path = |path: &[StructuralPathSegment]| path.starts_with(&argument.path);
         let declared = machine
             .entry_claims
             .iter()

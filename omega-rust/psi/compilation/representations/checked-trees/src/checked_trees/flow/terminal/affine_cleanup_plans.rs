@@ -136,6 +136,9 @@ pub struct CheckedUnitClaimTransferPlan {
     /// Dense index into this call's structural argument list. The callee-local
     /// claim identity is reconstructed by terminal verification.
     pub argument_index: u32,
+    /// Exact typed path relative to that argument's selected value. Case
+    /// segments retain the discriminator guards on conditional custody.
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
 }
 
 /// Ordinary structural result custody is separate from its value binding.

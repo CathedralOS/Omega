@@ -13,7 +13,8 @@ use crate::sections::semantic_module::scalar_term_wire::{
 };
 use crate::sections::semantic_module::structural_place_wire::encode_obligation_ids;
 use crate::sections::semantic_module::structural_place_wire::{
-    decode_structural_arguments, encode_structural_arguments,
+    decode_structural_arguments, decode_structural_path, encode_structural_arguments,
+    encode_structural_path,
 };
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ObligationId, ServiceId, ValueId};
@@ -104,6 +105,7 @@ pub(super) fn encode_call_unit(
     for transfer in claim_transfers {
         writer.id(transfer.claim);
         writer.u32(transfer.argument_index);
+        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
     }
     encode_obligation_ids(writer, &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;
@@ -115,6 +117,7 @@ fn decode_claim_transfers(reader: &mut Reader<'_>) -> Result<Vec<ClaimTransfer>,
         Ok(ClaimTransfer {
             claim: reader.id("ClaimId")?,
             argument_index: reader.u32()?,
+            path: decode_structural_path(reader)?,
         })
     })
 }
@@ -174,6 +177,7 @@ pub(super) fn encode_call_dynamic(
     for transfer in claim_transfers {
         writer.id(transfer.claim);
         writer.u32(transfer.argument_index);
+        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
     }
     encode_obligation_ids(writer, &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;
@@ -222,6 +226,7 @@ pub(super) fn encode_call_structural_scalar(
     for transfer in claim_transfers {
         writer.id(transfer.claim);
         writer.u32(transfer.argument_index);
+        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
     }
     encode_obligation_ids(writer, &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;
@@ -259,6 +264,7 @@ pub(super) fn encode_call_structural(
     for transfer in claim_transfers {
         writer.id(transfer.claim);
         writer.u32(transfer.argument_index);
+        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
     }
     encode_obligation_ids(writer, &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;
@@ -399,6 +405,7 @@ pub(super) fn encode_call_structural_with_scalar_arguments(
     for transfer in claim_transfers {
         writer.id(transfer.claim);
         writer.u32(transfer.argument_index);
+        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
     }
     encode_obligation_ids(writer, &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;

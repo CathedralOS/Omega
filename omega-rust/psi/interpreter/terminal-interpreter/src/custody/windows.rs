@@ -60,6 +60,23 @@ impl TerminalExecution<'_> {
         result: &StructuralOperationResult,
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
     ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
+        // Extraction retains the selected backing. Its tags are already live,
+        // even though the result place has not been published yet.
+        let selected = crate::values::TerminalStructuralValue {
+            opaque_identity: hole.opaque_identity,
+            structural_type: result.structural_type,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            path: hole.path.clone(),
+        };
+        let case_membership = |current: &StructuralAffineDiscard| {
+            crate::structural_inputs::case_membership::stored_case_at_projection(
+                &self.program.structural_types(),
+                &selected,
+                &self.structural_cases,
+                &current.path,
+            )
+        };
         if let Some(argument) = self.owned_window_projection(source, path, hole)? {
             let selected = self
                 .live_claims
@@ -95,13 +112,18 @@ impl TerminalExecution<'_> {
                 return Ok(self.live_claims.clone());
             }
             self.stage_constructor_operand(&argument, frontier, &mut Vec::new())?;
-            return self.stage_constructor_claims(result, &[(&argument, Vec::new())], frontier);
+            return self.stage_constructor_claims(
+                result,
+                &[(&argument, Vec::new())],
+                frontier,
+                &case_membership,
+            );
         }
         let mut claims = self.live_claims.clone();
         for binding in &result.claims {
             super::bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
         }
-        self.stage_result_affine_frontier(result, frontier)?;
+        self.stage_result_affine_frontier(result, frontier, &case_membership)?;
         Ok(claims)
     }
 

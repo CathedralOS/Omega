@@ -75,7 +75,6 @@ impl ScalarRepresentationViewPair {
         matches!(self, Self::ByteBoolean { .. })
     }
 
-
     /// Re-view one source value at the target carrier, bit for bit. `None`
     /// when the value does not belong to the source carrier, or when a byte
     /// landing on `bool` is outside `{0, 1}` (the landing goal excludes it).

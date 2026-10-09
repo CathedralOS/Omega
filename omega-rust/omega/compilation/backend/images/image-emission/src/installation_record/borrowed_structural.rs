@@ -373,8 +373,7 @@ pub(super) fn call_is_exact(
     installed: &InstalledInternalUnitCall,
 ) -> bool {
     let call = &installed.custody;
-    let Some(callee) = record.function(call.target)
-    else {
+    let Some(callee) = record.function(call.target) else {
         return false;
     };
     let target_operations::CallSiteOwner::Operation(operation) = call.owner else {

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 5.03, "load1_start": 4.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "3", "load1_end": 2.57, "load1_start": 2.57, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1530,6 +1530,8 @@ fail/ownership/linear_call_result_field_live_overwrite rejected 644ms expected @
 	assignment would overwrite live linear value `pair.left`; consume or transfer the existing obligation first
 fail/ownership/linear_call_result_field_scope_loss rejected 500ms expected @9c376f77b213+wt
 	linear value `pair.left` reaches scope exit without being consumed or transferred
+fail/ownership/linear_case_result_second_transfer rejected 296ms expected @332ced10410b+wt
+	cannot use `returned` in machine `main` state `entry` (statement 3) after `returned` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `returned` first
 fail/ownership/linear_computed_call_argument_second_use rejected 799ms expected @c70a706629c8+wt
 	cannot use `local` in machine `main` state `entry` (statement 2) after `local` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `local` first
 fail/ownership/linear_inline_argument_result_scope_loss rejected 552ms expected @9c376f77b213+wt
@@ -3430,6 +3432,7 @@ pass/ownership/runtime_borrowed_captured_selector_exit checked 1853ms check-targ
 pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 1671ms check-target:macos_arm64 @6cb668db83ab
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 1749ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 1749ms check-target:macos_arm64 @84da89581e65
+pass/ownership/runtime_borrowed_case_result_restore_exit checked 1709ms check-target:macos_arm64 @332ced10410b+wt
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 1691ms check-target:macos_arm64 @461e97c328e8
 pass/ownership/runtime_borrowed_projected_linear_return_exit checked 1603ms check-target:macos_arm64 @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms check-target:macos_arm64 @2d8ed253669f
@@ -3439,6 +3442,7 @@ pass/ownership/runtime_captured_construction_selector_exit checked 1771ms check-
 pass/ownership/runtime_captured_replacement_selector_exit checked 1771ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit checked 1775ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 1674ms check-target:macos_arm64 @ecd601af92fb
+pass/ownership/runtime_linear_case_payload_forward_exit checked 1710ms check-target:macos_arm64 @332ced10410b+wt
 pass/ownership/runtime_nested_projected_claim_return_exit checked 1603ms check-target:macos_arm64 @cd27c16e2c35
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 1325ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_retained_alias_referent_transform_exit checked 1771ms check-target:macos_arm64 @76bbeef8b4d2

@@ -76,8 +76,9 @@ fn pair_transfer(
     let callee = parameter(2, 0, 1, StructuralMultiplicity::Affine);
     let callee_values = BTreeMap::from([(callee.place, value(9, 1, Vec::new()))]);
     transfer_claims(
-        caller_claims,
+        &crate::program::ProgramDeclarations::new(&[]),
         &BTreeMap::new(),
+        caller_claims,
         &[StructuralArgument {
             place: place(5),
             path: Vec::new(),
@@ -87,10 +88,12 @@ fn pair_transfer(
             ClaimTransfer {
                 claim: claim(2),
                 argument_index: 0,
+                path: vec![field("right")],
             },
             ClaimTransfer {
                 claim: claim(3),
                 argument_index: 0,
+                path: vec![field("left")],
             },
         ],
         std::slice::from_ref(&callee),

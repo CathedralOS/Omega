@@ -214,7 +214,6 @@ pub(in crate::lowering) fn lower_structural_argument(
         match argument.path.as_slice() {
             [] => (source_structural_type, source_shape, 0, None, None),
             path if argument.access == StructuralAccess::Owned
-                && callee_parameter.multiplicity == StructuralMultiplicity::Affine
                 && (result_source.is_some()
                     || parameters_by_place
                         .get(&argument.place)

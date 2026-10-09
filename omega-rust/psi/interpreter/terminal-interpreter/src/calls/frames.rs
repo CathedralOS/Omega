@@ -249,8 +249,9 @@ impl TerminalExecution<'_> {
             &structural_values,
         )?;
         let (remaining_claims, live_claims) = transfer_claims(
+            &self.program.structural_types(),
+            &self.structural_cases,
             &self.live_claims,
-            &self.structural_values,
             structural_arguments,
             claim_transfers,
             &callee.structural_parameters,
@@ -264,6 +265,14 @@ impl TerminalExecution<'_> {
             live_claims
                 .values()
                 .filter_map(|claim| claim.place.map(|place| (place, claim.path.as_slice()))),
+            &|current| {
+                crate::structural_inputs::case_membership::stored_case_at_projection(
+                    &self.program.structural_types(),
+                    structural_values.get(&current.place)?,
+                    &self.structural_cases,
+                    &current.path,
+                )
+            },
         )?;
         let mut caller_affine_frontier = self.live_affine_frontier.clone();
         for (argument, parameter) in structural_arguments

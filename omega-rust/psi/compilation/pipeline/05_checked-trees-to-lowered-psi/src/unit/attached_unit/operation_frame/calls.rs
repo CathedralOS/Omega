@@ -472,11 +472,10 @@ impl OperationFrame<'_, '_> {
             lookup_type_id(type_ids, &result.type_identity)?,
             structural_types,
         )?;
-        let mut result_claims = crate::emission::claim_bindings::emit_establishment_claims(
+        let result_claims = crate::emission::claim_bindings::emit_establishment_claims(
             &prepared_claims,
             &mut calls.claims,
         )?;
-        result_claims.sort();
         // The evaluator supplies its current namespaces at the exact operand
         // occurrence. Recursive construction and calls share normal frame
         // publication; no stale snapshot or second result home is introduced.
@@ -779,7 +778,12 @@ impl OperationFrame<'_, '_> {
                     Some(&mut *self.calls),
                     Some((self.next_value, self.operations)),
                 )?,
-                emitted_claim_transfers(claim_transfers, self.calls.claims.bindings())?,
+                emitted_claim_transfers(
+                    claim_transfers,
+                    self.calls.claims.bindings(),
+                    &signature.parameters,
+                    self.structural_types.declarations(),
+                )?,
             )
         };
         let kind = DirectCall {

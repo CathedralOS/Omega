@@ -200,22 +200,25 @@ pub(crate) fn ordinary_parameter_path(
         {
             argument.slice_view_projection_path()
         }
-        // Selecting an active payload lends its original backing. It does not
-        // authorize a partial owned move or a boundary ABI presentation.
-        ArgumentPathShape::Static {
-            case_qualified: true,
-            ..
-        } => None,
-        // An owned affine member moves into an owned formal.
+        // An owned affine member moves into an owned formal. The exact path
+        // walker retains a Case segment's declaration; checked permissions own
+        // membership, and execution rejoins the stored discriminator. The guard
+        // does not change the move or its claim transfer contract.
+        // The caller's scalar or Unit result does not change this custody.
         ArgumentPathShape::Static { .. }
-            if allow_field_path_projection
-                && checked_body
+            if checked_body
                 && custody.multiplicity == Multiplicity::Affine
                 && access == Owned
                 && custody.target_access? == Owned =>
         {
             argument.exact_projection_path()
         }
+        // Other case-qualified presentations still need their own access and
+        // ABI contracts; membership alone cannot authorize one.
+        ArgumentPathShape::Static {
+            case_qualified: true,
+            ..
+        } => None,
         ArgumentPathShape::Static {
             fields: 0,
             fixed_indexes: 1..=3,

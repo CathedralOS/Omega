@@ -496,6 +496,7 @@ impl Expansion<'_> {
                 scalar_actuals,
                 structural_arguments,
                 claim_transfers,
+                self.structural_types,
                 crate::scalar_lowering::contracts::caller_erased_proof_roster(
                     self.checked,
                     self.machine,

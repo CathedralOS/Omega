@@ -169,6 +169,7 @@ pub(in crate::legalization) fn installed_operation(
         .map(|receipt| terminal_psi::ClaimTransfer {
             claim: receipt.claim,
             argument_index: receipt.argument_index,
+            path: Vec::new(),
         })
         .collect::<Vec<_>>();
     let operation = match (result, &declaration.result, &candidate.result, target_call) {

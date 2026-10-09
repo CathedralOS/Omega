@@ -242,7 +242,11 @@ impl TerminalExecution<'_> {
                         opaque_identity: value.opaque_identity,
                         path: vec![StructuralPathSegment::Field(declaration.identity.clone())],
                     };
-                    claim_operands.push((argument, member.path.clone()));
+                    // Custody retains the namespace; physical payload storage
+                    // overlays the sum and therefore omits its Case segment.
+                    let mut claim_path = vec![StructuralPathSegment::Case(result_case)];
+                    claim_path.extend_from_slice(&member.path);
+                    claim_operands.push((argument, claim_path));
                     let transfers_custody =
                         self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                     if transfers_custody
@@ -261,17 +265,14 @@ impl TerminalExecution<'_> {
                 }
             }
         }
-        let claims = self.stage_constructor_claims(result, &claim_operands, &mut frontier)?;
+        storage.stage_case(member_root, result.structural_type, result_case);
+        let claims =
+            self.stage_constructor_claims(result, &claim_operands, &mut frontier, &|current| {
+                storage.case_at_projection(self, &value, &current.path)
+            })?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged_scalars);
         storage.publish(self);
-        self.structural_cases.insert(
-            member_root,
-            StructuralCaseContents {
-                structural_type: result.structural_type,
-                case: result_case,
-            },
-        );
         self.structural_values.insert(result.place, value);
         Ok(())
     }

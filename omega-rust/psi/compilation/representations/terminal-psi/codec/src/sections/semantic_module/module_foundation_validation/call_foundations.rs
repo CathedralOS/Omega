@@ -38,7 +38,16 @@ fn validate_call_tail(
         claim_transfers
             .iter()
             .map(|transfer| (transfer.claim, transfer.argument_index)),
-    )
+    )?;
+    for transfer in claim_transfers {
+        let parameter = structural_parameters
+            .get(transfer.argument_index as usize)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "claim transfer has no formal parameter",
+            ))?;
+        validate_structural_path(module, parameter.structural_type, &transfer.path)?;
+    }
+    Ok(())
 }
 
 pub(super) fn validate_call_unit(
@@ -329,15 +338,18 @@ pub(super) fn validate_call_structural(
     {
         return malformed("structural call result claims disagree with its multiplicity");
     }
-    if callee.blocks.iter().any(|block| {
-        matches!(
-            &block.terminator,
-            Terminator::ReturnStructural {
-                returned_claims,
-                ..
-            } if returned_claims.len() != actual_result.claims.len()
-        )
-    }) {
+    if !terminal_semantics::result_claim_catalog_matches_returns(
+        &actual_result.claims,
+        callee
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                Terminator::ReturnStructural {
+                    returned_claims, ..
+                } => Some(returned_claims.as_slice()),
+                _ => None,
+            }),
+    ) {
         return malformed("structural callee return disagrees with the caller's result claims");
     }
     validate_call_tail(

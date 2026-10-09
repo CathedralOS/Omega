@@ -106,8 +106,6 @@ pub fn substitute_proposition_values(
     }
 }
 
-
-
 pub fn substitute_proposition_structural_places(
     proposition: &Proposition,
     substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,

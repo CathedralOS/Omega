@@ -362,13 +362,18 @@ pub(crate) fn validate_structural_call_result(
         terminal_psi::StructuralMultiplicity::Unrestricted => result.claims.is_empty(),
     };
     claim_shape
-        && callee.blocks.iter().all(|block| {
-            block.nodes.iter().all(|node| match &node.operation {
-                abstract_operations::AbstractOperation::ReturnStructural {
-                    returned_claims,
-                    ..
-                } => returned_claims.len() == result.claims.len(),
-                _ => true,
-            })
-        })
+        && terminal_semantics::result_claim_catalog_matches_returns(
+            &result.claims,
+            callee
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .filter_map(|node| match &node.operation {
+                    abstract_operations::AbstractOperation::ReturnStructural {
+                        returned_claims,
+                        ..
+                    } => Some(returned_claims.as_slice()),
+                    _ => None,
+                }),
+        )
 }

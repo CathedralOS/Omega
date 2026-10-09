@@ -812,9 +812,10 @@ pub(super) fn fields(
     else {
         return None;
     };
+    // A constructor's claims describe its transferred obligations, not its
+    // storage layout. As for record fields, rejoin each owned operand and the
+    // selected payload's declared geometry without granting fresh custody.
     if row.result.is_some()
-        || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
     {

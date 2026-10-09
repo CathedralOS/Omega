@@ -92,6 +92,21 @@ pub(crate) struct ConstructorStorage {
 }
 
 impl ConstructorStorage {
+    /// Custody is staged against the same unpublished tags as the new bytes.
+    pub(crate) fn case_at_projection(
+        &self,
+        execution: &TerminalExecution,
+        root: &TerminalStructuralValue,
+        path: &[StructuralPathSegment],
+    ) -> Option<semantic_vocabulary::StructuralCaseId> {
+        crate::structural_inputs::case_membership::stored_case_at_projection(
+            &execution.program.structural_types(),
+            root,
+            &self.cases,
+            path,
+        )
+    }
+
     pub(crate) fn stage_byte_array(&mut self, destination: StructuralRuntimePlace, bytes: Vec<u8>) {
         // Byte arrays have one backing, never duplicate primitive cells. This
         // uses the same publication shape as constructor array establishment.

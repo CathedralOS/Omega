@@ -135,7 +135,8 @@ fn installed_provider_row_check(
     plan: &MachineCodePlan,
 ) -> Result<Vec<InstalledProviderUnitScalarCallRecord>, ObjectError> {
     let artifact = build_object_artifact(plan)?;
-    Ok(artifact.function_on_machine(plan.functions[0].machine)
+    Ok(artifact
+        .function_on_machine(plan.functions[0].machine)
         .map(|function| function.installed_provider_unit_scalar_calls.clone())
         .unwrap_or_default())
 }
@@ -282,6 +283,7 @@ fn substitute_installed_provider_unit_scalar_call(
             provider_call(plan).claim_transfers.push(ClaimTransfer {
                 claim: ClaimId::new(9).unwrap(),
                 argument_index: 0,
+                path: Vec::new(),
             });
         }
         Field::CompletionClaimSources => {

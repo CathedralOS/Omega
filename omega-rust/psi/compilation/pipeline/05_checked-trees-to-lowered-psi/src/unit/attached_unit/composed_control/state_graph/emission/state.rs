@@ -21,6 +21,7 @@ use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
+use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_checked_crash_predicates};
 
 impl StateGraphEmission<'_, '_> {
@@ -891,9 +892,7 @@ impl StateGraphEmission<'_, '_> {
                         binding_ordinal,
                     } => case_emission::result(state, binding_ordinal, &operations)?
                         .claims()
-                        .iter()
-                        .map(|binding| binding.claim)
-                        .collect::<Vec<_>>(),
+                        .to_vec(),
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index,
                     } => state
@@ -901,13 +900,28 @@ impl StateGraphEmission<'_, '_> {
                         .iter()
                         .filter(|claim| claim.parameter_index == parameter_index)
                         .map(|claim| {
-                            lookup_claim_id(&self.claims.source_claims, claim.claim_identity)
+                            let parameter = state_parameters.get(parameter_index as usize).ok_or(
+                                LoweringError::Unsupported("structural return formal is absent"),
+                            )?;
+                            Ok(terminal_psi::StructuralResultClaimBinding {
+                                claim: lookup_claim_id(
+                                    &self.claims.source_claims,
+                                    claim.claim_identity,
+                                )?,
+                                path: lower_static_argument_path(
+                                    &claim.path,
+                                    parameter.structural_type,
+                                    &self.catalogs.structural_types,
+                                )?,
+                            })
                         })
                         .collect::<Result<Vec<_>, _>>()?,
                     _ => return unsupported("structural return has no whole claim source"),
                 };
                 if self.content_entry_claims.iter().any(|entry| {
-                    returned_claims.contains(&entry.claim)
+                    returned_claims
+                        .iter()
+                        .any(|binding| binding.claim == entry.claim)
                         && !self.content_identity_reshuffles.iter().any(|identity| {
                             identity.claim == entry.claim
                                 && identity.input == entry.input

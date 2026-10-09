@@ -34,7 +34,12 @@ pub(crate) fn expected_ownership(
             cleanup_actions,
             ..
         } => vec![
-            OwnershipEvent::StructuralReturn(returned_claims.clone()),
+            OwnershipEvent::StructuralReturn(
+                returned_claims
+                    .iter()
+                    .map(|binding| binding.claim)
+                    .collect(),
+            ),
             OwnershipEvent::Cleanup(cleanup_actions.clone()),
         ],
         O::ExternalCompletion {

@@ -30,17 +30,15 @@ pub(crate) fn validate_reference_sources(
                 result.structural_type,
                 &reference.path,
             )?;
-        let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) = module.structural_type(reference_type)
-            .map(|row| &row.shape)
+        let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) =
+            module.structural_type(reference_type).map(|row| &row.shape)
         else {
             return crate::codec_error::malformed(
                 "reference result source must identify a reference leaf",
             );
         };
         for source in &reference.sources {
-            let Some(parameter) = machine
-                .signature_structural_parameter(source.place)
-            else {
+            let Some(parameter) = machine.signature_structural_parameter(source.place) else {
                 return crate::codec_error::malformed(
                     "reference result source must identify a formal ingress",
                 );
@@ -164,14 +162,20 @@ pub(crate) fn encode_operation_result(
         writer.id(establishment.domain);
         writer.u64(u64::from(establishment.route));
     }
-    writer.len("structural operation result claims", result.claims.len())?;
-    for claim in &result.claims {
+    encode_claim_bindings(writer, &result.claims)
+}
+
+/// Operation results and returning edges carry the same path-based claim join.
+/// Keep one row codec so neither envelope can lose the Case guard or rebind a
+/// claim by machine-local identity order instead of its typed source path.
+pub(crate) fn encode_claim_bindings(
+    writer: &mut Writer,
+    bindings: &[StructuralResultClaimBinding],
+) -> Result<(), CodecError> {
+    writer.len("structural claim bindings", bindings.len())?;
+    for claim in bindings {
         writer.id(claim.claim);
-        encode_structural_path(
-            writer,
-            "structural operation result claim path",
-            &claim.path,
-        )?;
+        encode_structural_path(writer, "structural claim binding path", &claim.path)?;
     }
     Ok(())
 }
@@ -193,12 +197,18 @@ pub(crate) fn decode_operation_result(
                 })?,
             })
         })?,
-        claims: decode_counted(reader, |reader| {
-            Ok(StructuralResultClaimBinding {
-                claim: reader.id("ClaimId")?,
-                path: decode_structural_path(reader)?,
-            })
-        })?,
+        claims: decode_claim_bindings(reader)?,
+    })
+}
+
+pub(crate) fn decode_claim_bindings(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralResultClaimBinding>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(StructuralResultClaimBinding {
+            claim: reader.id("ClaimId")?,
+            path: decode_structural_path(reader)?,
+        })
     })
 }
 

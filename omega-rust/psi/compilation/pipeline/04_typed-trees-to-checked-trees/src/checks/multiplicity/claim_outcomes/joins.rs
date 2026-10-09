@@ -768,15 +768,21 @@ fn derive_receipts(
                 excluded_input,
             });
         }
+        // An ordinary origin rewrite carries one conserved active claim, but
+        // cannot carry authenticated absence. Preserve that disposition even
+        // when every exit agrees or the callee has just one return: forwarding
+        // a known sum must not mint the other case's payload obligation.
+        let carries_absence = alternatives
+            .iter()
+            .any(|alternative| alternative.source.is_none());
         if !complete
-            || alternatives.len() < 2
-            // Active custody versus an exactly excluded case is a distinct
-            // disposition too. Removing inactive exits here would lose the
-            // conditional frontier merely because it has one active origin.
-            || alternatives.iter().all(|alternative|
-                alternative.source.as_ref().map(|(source, _)| source)
-                    == alternatives[0].source.as_ref().map(|(source, _)| source)
-                    && alternative.excluded_input == alternatives[0].excluded_input)
+            || alternatives.is_empty()
+            || (!carries_absence
+                && alternatives.iter().all(|alternative| {
+                    alternative.source.as_ref().map(|(source, _)| source)
+                        == alternatives[0].source.as_ref().map(|(source, _)| source)
+                        && alternative.excluded_input == alternatives[0].excluded_input
+                }))
         {
             continue;
         }

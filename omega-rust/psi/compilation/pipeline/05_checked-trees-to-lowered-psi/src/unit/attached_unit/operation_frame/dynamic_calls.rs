@@ -9,7 +9,6 @@
 
 use super::OperationFrame;
 use super::calls::CallInputs;
-use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::unit::{
     LoweringError, Operation, OperationKind, OperationResult, ValueDeclaration, allocate_dense,
     terminal_scalar_type, unsupported, value_id,
@@ -78,8 +77,15 @@ impl OperationFrame<'_, '_> {
             &earlier,
             inputs.byte_places,
         )?;
-        let claim_transfers =
-            emitted_claim_transfers(call.claim_transfers(), self.calls.claims.bindings())?;
+        let prepared_claims = crate::emission::claim_bindings::prepare_checked_claim_transfers(
+            call.claim_transfers(),
+            &slot_plan.structural_parameters,
+            self.structural_types.declarations(),
+        )?;
+        let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
+            &prepared_claims,
+            self.calls.claims.bindings(),
+        )?;
         let result = match call.result() {
             CheckedUnitCallResult::Unit => None,
             CheckedUnitCallResult::Scalar(result) => Some(ValueDeclaration {

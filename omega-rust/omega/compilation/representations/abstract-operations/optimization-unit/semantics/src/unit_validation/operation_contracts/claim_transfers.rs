@@ -90,6 +90,24 @@ pub(crate) fn validate_internal_claim_transfers(
         };
         // The current ownership replay authenticates the exact live source
         // and complete callee path roster at this operation.
+        let Some(parameter) = callee
+            .structural_parameters
+            .get(transfer.argument_index as usize)
+        else {
+            return false;
+        };
+        if !callee
+            .entry_claim_declarations
+            .iter()
+            .any(|claim| claim.input == parameter.place && claim.path == transfer.path)
+            && !(transfer.path.is_empty()
+                && callee
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == parameter.place))
+        {
+            return false;
+        }
         let _ = argument;
     }
     callee_claims.into_values().all(|input| {

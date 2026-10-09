@@ -73,7 +73,10 @@ impl TerminalExecution<'_> {
         }
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();
-        let claims = self.stage_constructor_claims(result, &claim_operands, &mut frontier)?;
+        let claims =
+            self.stage_constructor_claims(result, &claim_operands, &mut frontier, &|current| {
+                staged.case_at_projection(self, &value, &current.path)
+            })?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.local_structural_identities.commit_cursor(cursor);
         staged.publish(self);

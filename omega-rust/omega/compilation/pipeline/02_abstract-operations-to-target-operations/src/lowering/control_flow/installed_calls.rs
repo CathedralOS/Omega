@@ -49,6 +49,7 @@ pub(super) fn resolve(
         .map(|receipt| terminal_psi::ClaimTransfer {
             claim: receipt.claim,
             argument_index: receipt.argument_index,
+            path: Vec::new(),
         })
         .collect();
     let resolved = match (result, &candidate.result) {

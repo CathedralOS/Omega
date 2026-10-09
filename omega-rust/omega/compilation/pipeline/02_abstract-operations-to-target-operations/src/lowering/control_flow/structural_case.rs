@@ -108,7 +108,6 @@ fn case_source(
             || parameter.multiplicity == StructuralMultiplicity::Linear
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
-            || !function.entry_claims.is_empty()
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -134,7 +133,6 @@ fn case_source(
         || declaration.multiplicity == StructuralMultiplicity::Linear
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
-        || !function.entry_claims.is_empty()
         || parameter.access != declaration.access
         || parameter.multiplicity != declaration.multiplicity
         || parameter.structural_type != declaration.structural_type
@@ -142,6 +140,10 @@ fn case_source(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
+    // Dispatch observes this value's tag; it neither copies a claimed payload
+    // nor grants a disposition for one. Payload transfer and cleanup retain
+    // their separately checked paths, so unrelated or guarded entry claims
+    // cannot forbid this observation.
     let layout =
         super::aggregate_results::value_home_layout(parameter.structural_type, structural_types)?;
     if borrowed {

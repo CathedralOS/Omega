@@ -111,13 +111,10 @@ pub(super) fn validate_establish_structural_case(
     let Some(result) = operation.result.structural() else {
         return malformed("structural case establishment has no structural result");
     };
-    if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
-    {
+    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
         return malformed("structural case establishment has an invalid result surface");
     }
+    validate_constructor_claims(module, result)?;
     if !matches!(
         machine.structural_place(result.place),
         Some(StructuralPlaceDeclaration {
@@ -339,6 +336,7 @@ pub(super) fn validate_establish_record(
     let Some(result) = operation.result.structural() else {
         return malformed("record has no structural result");
     };
+    validate_constructor_claims(module, result)?;
     // Multiplicity does not describe the record's live claim set: an affine
     // record can carry disjoint linear descendants. Source custody owns their
     // identities and transfers; this codec checks the result's storage shape,
@@ -398,6 +396,35 @@ pub(super) fn validate_establish_record(
                 // backing lifetime and receiving predicates.
             }
             _ => return malformed("record field operand differs"),
+        }
+    }
+    Ok(())
+}
+
+/// Aggregate multiplicity and descendant custody are independent. Retain each
+/// exact typed path here; current ownership replay authenticates its identity
+/// and operand transport rather than treating the catalogue as fresh issuance.
+fn validate_constructor_claims(
+    module: &TerminalModule,
+    result: &terminal_psi::StructuralOperationResult,
+) -> Result<(), CodecError> {
+    // An intermediate constructor can publish custody at its private arrival
+    // rather than on this operation. Do not infer issuance from the root's
+    // multiplicity or require another claim before that owning edge.
+    if result
+        .claims
+        .windows(2)
+        .any(|pair| pair[0].claim >= pair[1].claim)
+    {
+        return malformed("aggregate claim bindings disagree with canonical order");
+    }
+    for (position, claim) in result.claims.iter().enumerate() {
+        super::validate_structural_path(module, result.structural_type, &claim.path)?;
+        if result.claims[position + 1..]
+            .iter()
+            .any(|other| terminal_semantics::structural_paths_may_overlap(&claim.path, &other.path))
+        {
+            return malformed("aggregate claim bindings overlap");
         }
     }
     Ok(())

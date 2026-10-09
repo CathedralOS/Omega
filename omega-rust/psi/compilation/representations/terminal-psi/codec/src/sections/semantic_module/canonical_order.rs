@@ -621,7 +621,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 }
                 | OperationKind::CallStructural {
                     claim_transfers, ..
-                } if !strictly_increasing(claim_transfers.iter().copied()) => {
+                } if !strictly_increasing(claim_transfers.iter()) => {
                     return Err(CodecError::NonCanonicalOrder(
                         "call claim transfers by claim and argument index",
                     ));

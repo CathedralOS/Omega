@@ -303,7 +303,12 @@ pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<Ownershi
             ..
         } => {
             vec![
-                OwnershipEvent::StructuralReturn(returned_claims.clone()),
+                OwnershipEvent::StructuralReturn(
+                    returned_claims
+                        .iter()
+                        .map(|binding| binding.claim)
+                        .collect(),
+                ),
                 OwnershipEvent::Cleanup(cleanup_actions.clone()),
             ]
         }

@@ -18,7 +18,9 @@ use terminal_psi::{
 
 use crate::installation_record::codec::{
     internal_unit::scalar_call::{decode_argument_source, encode_argument_source},
-    structural::argument::{decode_structural_argument, encode_structural_argument},
+    structural::argument::{
+        decode_path, decode_structural_argument, encode_path, encode_structural_argument,
+    },
     value_placement::{
         decode_direct_placement, decode_shape, encode_direct_placement, encode_shape,
     },
@@ -282,6 +284,7 @@ fn encode_internal_unit_call(
     for transfer in &custody.claim_transfers {
         push_u64(bytes, transfer.claim.get());
         push_u32(bytes, transfer.argument_index);
+        encode_path(bytes, &transfer.path)?;
     }
     encode_structural_result(bytes, installed.machine, custody.structural_result.as_ref())?;
     Ok(())
@@ -620,6 +623,7 @@ fn decode_internal_unit_call(
             claim: ClaimId::new(reader.u64()?)
                 .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
             argument_index: reader.u32()?,
+            path: decode_path(reader)?,
         });
     }
     let structural_result = decode_structural_result(reader, machine)?;
