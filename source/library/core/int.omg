@@ -209,11 +209,11 @@ satisfies CommutativeSemiring<IntPair>::mul_identity
 ensures
     (mul_int(a, one_int())) == (a)
 {
-    mul_zero_right(a.pos);
-    mul_zero_right(a.neg);
-    mul_one_right(a.neg);
-    mul_one_right(a.pos);
-    add_zero_left(a.neg);
+    _ = mul_zero_right(a.pos);
+    _ = mul_zero_right(a.neg);
+    _ = mul_one_right(a.neg);
+    _ = mul_one_right(a.pos);
+    _ = add_zero_left(a.neg);
     add_zero_right(a.pos);
 }
 

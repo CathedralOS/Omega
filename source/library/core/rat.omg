@@ -129,7 +129,7 @@ ensures
     let p_negative: Nat = mul(p.num.neg, p.den);
     add_comm(p_positive, p_negative);
     let positive: Nat = add(p_positive, p_negative);
-    sub_self(positive);
+    _ = sub_self(positive);
     transition { _ -> (rat_gap(p, p)) }
 }
 
@@ -166,10 +166,10 @@ machine rat_close_reflexive(p: Rat, precision: Nat)
 ensures
     (rat_close(p, p, precision)) == Nat::Zero
 {
-    rat_gap_reflexive(p);
-    mul_zero_right(precision);
+    _ = rat_gap_reflexive(p);
+    _ = mul_zero_right(precision);
     let common_denominator: Nat = mul(p.den, p.den);
-    sub_zero_left(common_denominator);
+    _ = sub_zero_left(common_denominator);
 }
 
 machine rat_close_symmetric(p: Rat, q: Rat, precision: Nat)
@@ -178,7 +178,7 @@ requires
 ensures
     (rat_close(q, p, precision)) == Nat::Zero
 {
-    rat_gap_symmetric(q, p);
+    _ = rat_gap_symmetric(q, p);
     mul_comm(q.den, p.den);
 }
 
@@ -216,7 +216,7 @@ ensures
         scaled_positive,
         scaled_negative
     );
-    nat_gap_mul_right(positive, negative, factor);
+    _ = nat_gap_mul_right(positive, negative, factor);
 }
 
 // Align the three translated/scaled signed-coordinate pairs at one common
@@ -347,7 +347,7 @@ ensures
     mul_comm(q.den, rat_gap(p, r));
     mul_comm(r.den, rat_gap(p, q));
     mul_comm(p.den, rat_gap(q, r));
-    nat_gap_triangle(x, y, z);
+    _ = nat_gap_triangle(x, y, z);
 }
 
 // Pure semiring factorization for the reciprocal-bound triangle.  Equation
@@ -439,13 +439,13 @@ ensures
 
     rat_close_triangle_factorization(p, q, r, precision);
     rat_gap_triangle_scaled(p, q, r);
-    mul_le_mul_right(triangle_lower, triangle_upper, double_precision);
-    mul_le_mul_right(
+    _ = mul_le_mul_right(triangle_lower, triangle_upper, double_precision);
+    _ = mul_le_mul_right(
         pq_close_lower,
         pq_close_upper,
         r.den
     );
-    mul_le_mul_right(
+    _ = mul_le_mul_right(
         qr_close_lower,
         qr_close_upper,
         p.den
@@ -456,22 +456,22 @@ ensures
         qr_scaled_lower,
         qr_scaled_upper
     );
-    le_trans(
+    _ = le_trans(
         scaled_triangle_lower,
         summed_lower,
         summed_upper
     );
-    mul_le_cancel_right(
+    _ = mul_le_cancel_right(
         doubled_pr_gap,
         doubled_pr_denominator,
         q.den
     );
-    mul_one_right(precision_pr_gap);
-    mul_succ_right(precision_pr_gap, Nat::Succ { prev: Nat::Zero });
-    mul_one_right(pr_denominator);
-    mul_succ_right(pr_denominator, Nat::Succ { prev: Nat::Zero });
-    le_one_succ(Nat::Succ { prev: Nat::Zero });
-    mul_le_cancel_right(
+    _ = mul_one_right(precision_pr_gap);
+    _ = mul_succ_right(precision_pr_gap, Nat::Succ { prev: Nat::Zero });
+    _ = mul_one_right(pr_denominator);
+    _ = mul_succ_right(pr_denominator, Nat::Succ { prev: Nat::Zero });
+    _ = le_one_succ(Nat::Succ { prev: Nat::Zero });
+    _ = mul_le_cancel_right(
         precision_pr_gap,
         pr_denominator,
         two

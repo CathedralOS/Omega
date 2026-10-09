@@ -208,7 +208,7 @@ ensures
     }
 
     state comm_step(prev: Nat, b: Nat) {
-        add_succ_law(b, prev);
+        _ = add_succ_law(b, prev);
         add_comm(prev, b);
     }
 }
@@ -274,8 +274,8 @@ satisfies CommutativeSemiring<Nat>::mul_identity
 ensures
     (mul(a, one())) == a
 {
-    mul_succ_right(a, Nat::Zero);
-    mul_zero_right(a);
+    _ = mul_succ_right(a, Nat::Zero);
+    _ = mul_zero_right(a);
     add_zero_right(a);
 }
 
@@ -345,7 +345,7 @@ ensures
     }
 
     state ma_step(prev: Nat, b: Nat, c: Nat) {
-        mul_distributes_right(b, mul(prev, b), c);
+        _ = mul_distributes_right(b, mul(prev, b), c);
         mul_assoc(prev, b, c);
     }
 }
@@ -392,11 +392,11 @@ ensures
     }
 
     state mc_base(b: Nat) {
-        mul_zero_right(b);
+        _ = mul_zero_right(b);
     }
 
     state mc_step(prev: Nat, b: Nat) {
-        mul_succ_right(b, prev);
+        _ = mul_succ_right(b, prev);
         mul_comm(prev, b);
     }
 }
@@ -521,7 +521,7 @@ ensures
     }
 
     state ss_step(prev: Nat) -> Nat {
-        succ_sub_succ(prev, prev);
+        _ = succ_sub_succ(prev, prev);
         transition { _ -> (sub_self(prev)) }
     }
 }
@@ -543,7 +543,7 @@ ensures
     }
 
     state asc_step(prev: Nat, a: Nat) -> Nat {
-        succ_sub_succ((add(prev, a)), prev);
+        _ = succ_sub_succ((add(prev, a)), prev);
         transition { _ -> (add_sub_cancel(prev, a)) }
     }
 }
@@ -572,7 +572,7 @@ ensures
     }
 
     state losl_step(r: Nat, prev: Nat) -> Nat {
-        succ_sub_succ(r, prev);
+        _ = succ_sub_succ(r, prev);
         transition { _ -> Nat::Zero }
     }
 }
@@ -592,7 +592,7 @@ ensures
     }
 
     state pll_step(prev: Nat, a: Nat) -> Nat {
-        le_of_succ_le(prev, a);
+        _ = le_of_succ_le(prev, a);
         transition { _ -> Nat::Zero }
     }
 }
@@ -614,12 +614,12 @@ ensures
     }
 
     state sle_zero(a: Nat) -> Nat {
-        sub_self(a);
+        _ = sub_self(a);
         transition { _ -> Nat::Zero }
     }
 
     state sle_step(a: Nat, q: Nat) -> Nat {
-        pred_le_left((saturating_sub(a, q)), a);
+        _ = pred_le_left((saturating_sub(a, q)), a);
         transition { _ -> (sub_le(a, q)) }
     }
 }
@@ -641,9 +641,9 @@ ensures
     }
 
     state slt_body(a: Nat, b: Nat) -> Nat {
-        succ_sub_succ(a, b);
-        succ_sub_succ((saturating_sub(a, b)), a);
-        sub_le(a, b);
+        _ = succ_sub_succ(a, b);
+        _ = succ_sub_succ((saturating_sub(a, b)), a);
+        _ = sub_le(a, b);
         transition { _ -> Nat::Zero }
     }
 }
@@ -665,9 +665,9 @@ ensures
     }
 
     state slol_step(pa: Nat, pb: Nat) -> Nat {
-        succ_sub_succ(pa, pb);
-        succ_sub_succ((saturating_sub(pa, pb)), pa);
-        sub_le(pa, pb);
+        _ = succ_sub_succ(pa, pb);
+        _ = succ_sub_succ((saturating_sub(pa, pb)), pa);
+        _ = sub_le(pa, pb);
         transition { _ -> Nat::Zero }
     }
 }
@@ -693,7 +693,7 @@ ensures
     }
 
     state slt_of(pb: Nat, a: Nat) -> Nat {
-        sub_lt_of_le(pb, a);
+        _ = sub_lt_of_le(pb, a);
         transition { _ -> Nat::Zero }
     }
 }
@@ -719,13 +719,13 @@ ensures
     }
 
     state mod_rec(a: Nat, b: Nat) -> Nat {
-        sub_lt(a, b);
+        _ = sub_lt(a, b);
         let next: Nat = saturating_sub(a, b);
         transition { _ -> (mod(next, b)) }
     }
 
     state mod_done(a: Nat, b: Nat) -> Nat {
-        lt_of_sub_pos(a, b, (pred(saturating_sub(b, a))));
+        _ = lt_of_sub_pos(a, b, (pred(saturating_sub(b, a))));
         transition { _ -> (a) }
     }
 }
@@ -764,8 +764,8 @@ ensures
     }
 
     state sea_step(pa: Nat, b: Nat, w: Nat) -> Nat {
-        pred_eq_succ((saturating_sub(b, pa)), w);
-        add_succ_law(pa, Nat::Succ { prev: w });
+        _ = pred_eq_succ((saturating_sub(b, pa)), w);
+        _ = add_succ_law(pa, Nat::Succ { prev: w });
         transition { _ -> (sub_eq_add(pa, b, Nat::Succ { prev: w })) }
     }
 }
@@ -785,13 +785,13 @@ ensures
     }
 
     state la_zero(w: Nat) -> Nat {
-        succ_sub_succ(Nat::Zero, w);
-        sub_zero_left(w);
+        _ = succ_sub_succ(Nat::Zero, w);
+        _ = sub_zero_left(w);
         transition { _ -> Nat::Zero }
     }
 
     state la_step(pa: Nat, w: Nat) -> Nat {
-        succ_sub_succ(Nat::Succ { prev: pa }, (add(pa, Nat::Succ { prev: w })));
+        _ = succ_sub_succ(Nat::Succ { prev: pa }, (add(pa, Nat::Succ { prev: w })));
         transition { _ -> (le_add(pa, w)) }
     }
 }
@@ -812,8 +812,8 @@ ensures
     }
 
     state lsp_body(a: Nat, b: Nat, w: Nat) -> Nat {
-        sub_eq_add(a, b, w);
-        le_add(a, w);
+        _ = sub_eq_add(a, b, w);
+        _ = le_add(a, w);
         transition { _ -> Nat::Zero }
     }
 }
@@ -830,8 +830,8 @@ ensures
     }
 
     state los_body(pb: Nat) -> Nat {
-        succ_sub_succ(Nat::Zero, pb);
-        sub_zero_left(pb);
+        _ = succ_sub_succ(Nat::Zero, pb);
+        _ = sub_zero_left(pb);
         transition { _ -> Nat::Zero }
     }
 }
@@ -852,7 +852,7 @@ terminates by b;
     }
 
     state gcd_rec(a: Nat, b: Nat, pb: Nat) -> Nat {
-        le_one_succ(pb);
+        _ = le_one_succ(pb);
         let next: Nat = mod(a, Nat::Succ { prev: pb });
         transition { _ -> (gcd(Nat::Succ { prev: pb }, next)) }
     }
@@ -873,7 +873,7 @@ requires
     }
 
     state div_rec(a: Nat, b: Nat) -> Nat {
-        sub_lt(a, b);
+        _ = sub_lt(a, b);
         let next: Nat = saturating_sub(a, b);
         transition { _ -> Nat::Succ { prev: div(next, b) } }
     }

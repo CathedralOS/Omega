@@ -203,7 +203,7 @@ ensures
         index
     )) == Nat::Zero
 {
-    nat_max_le(
+    _ = nat_max_le(
         FirstModulus(add(precision, precision)),
         SecondModulus(add(precision, precision)),
         index

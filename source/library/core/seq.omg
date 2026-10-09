@@ -186,8 +186,8 @@ ensures
     }
 
     state lr_step(head: u64, tail: Seq<u64>) -> Nat {
-        length_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
-        add_succ_law(length(tail), Nat::Zero);
+        _ = length_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
+        _ = add_succ_law(length(tail), Nat::Zero);
         add_zero_right(length(tail));
         transition { _ -> Nat::Succ { prev: length_reverse(tail) } }
     }
@@ -214,13 +214,13 @@ ensures
     }
 
     state ra_base(t: Seq<u64>) -> Seq<u64> {
-        append_empty_right(reverse(t));
+        _ = append_empty_right(reverse(t));
         transition { _ -> (reverse(t)) }
     }
 
     state ra_step(head: u64, tail: Seq<u64>, t: Seq<u64>) -> Seq<u64> {
         let ih: Seq<u64> = reverse_append(tail, t);
-        append_assoc(reverse(t), reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
+        _ = append_assoc(reverse(t), reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
         transition { _ -> (append(ih, Seq::Cons { head: head, tail: Seq::Empty })) }
     }
 }
@@ -242,7 +242,7 @@ ensures
     }
 
     state rr_step(head: u64, tail: Seq<u64>) -> Seq<u64> {
-        reverse_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
+        _ = reverse_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
         transition { _ -> Seq::Cons { head: head, tail: reverse_reverse(tail) } }
     }
 }
@@ -265,7 +265,7 @@ machine reverse_snoc(s: Seq<u64>, x: u64) -> Seq<u64>
 ensures
     (reverse(snoc(s, x))) == (Seq::Cons { head: x, tail: reverse(s) })
 {
-    reverse_append(s, Seq::Cons { head: x, tail: Seq::Empty });
+    _ = reverse_append(s, Seq::Cons { head: x, tail: Seq::Empty });
     transition { _ -> (reverse(s)) }
 }
 
@@ -278,8 +278,8 @@ machine length_snoc(s: Seq<u64>, x: u64) -> Nat
 ensures
     (length(snoc(s, x))) == (Nat::Succ { prev: length(s) })
 {
-    length_append(s, Seq::Cons { head: x, tail: Seq::Empty });
-    add_one_right(length(s));
+    _ = length_append(s, Seq::Cons { head: x, tail: Seq::Empty });
+    _ = add_one_right(length(s));
     transition { _ -> (length(s)) }
 }
 
@@ -290,7 +290,7 @@ machine snoc_append(s: Seq<u64>, t: Seq<u64>, x: u64) -> Seq<u64>
 ensures
     (snoc(append(s, t), x)) == (append(s, snoc(t, x)))
 {
-    append_assoc(s, t, Seq::Cons { head: x, tail: Seq::Empty });
+    _ = append_assoc(s, t, Seq::Cons { head: x, tail: Seq::Empty });
     transition { _ -> (append(s, t)) }
 }
 
