@@ -128,7 +128,7 @@ fn declared_contains_reference(
         };
         match &plan.shape {
             checked_trees::CheckedUnitStructuralTypeShape::Reference { .. } => return true,
-            checked_trees::CheckedUnitStructuralTypeShape::FusedServiceBinding
+            checked_trees::CheckedUnitStructuralTypeShape::BindingCarrier
             | checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
             | checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             checked_trees::CheckedUnitStructuralTypeShape::Record { fields: items, .. } => {

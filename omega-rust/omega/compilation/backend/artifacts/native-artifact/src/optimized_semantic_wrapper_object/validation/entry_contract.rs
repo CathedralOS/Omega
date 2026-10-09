@@ -247,7 +247,7 @@ mod service_tests {
         let declaration = StructuralTypeDeclaration {
             id: service,
             identity: "ConsoleCarrier".into(),
-            shape: StructuralTypeShape::FusedServiceBinding,
+            shape: StructuralTypeShape::BindingCarrier,
         };
         let field = StructuralFieldDeclaration {
             storage: None,

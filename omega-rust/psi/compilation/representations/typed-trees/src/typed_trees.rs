@@ -52,9 +52,9 @@ mod wire_schema_queries;
 
 pub use commitments::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
-    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, FusedServiceErasureAuthorization,
-    MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
-    StaticRequirementDispatch, closed_conformance_applications_of,
+    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, MachineSpecialization,
+    MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
+    closed_conformance_applications_of,
 };
 pub use placed_plans::{
     PlacedAccessorTarget, PlacedAtomicObservingResultContract, PlacedAtomicResidentContract,
@@ -180,10 +180,6 @@ pub struct TypedTrees {
     /// explicitly proposed review role. These describe callable completion;
     /// they grant no selected provider or execution authority.
     pub boundary_completion_declarations: Arena<BoundaryCompletionDeclaration>,
-    /// Compiler-owned authorizations for erasing one exact routed service
-    /// carrier after a Fused provider selection. Ordinary Psi lowering keeps
-    /// this empty and therefore cannot erase `Binding<R>` by type shape alone.
-    pub fused_service_erasures: Vec<FusedServiceErasureAuthorization>,
     /// Exact owner identity and authored names for erased evidence forwarding;
     /// checked lowering binds both names to checked evidence-term handles.
     pub evidence_forwardings: Vec<EvidenceForwarding>,
@@ -456,7 +452,6 @@ impl TypedTrees {
             dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
             boundary_completion_declarations: Arena::default(),
-            fused_service_erasures: Vec::new(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
             declaration_indexes: declaration_index::DeclarationIndexes::default(),
@@ -464,49 +459,6 @@ impl TypedTrees {
             pending_const_range_endpoints: std::collections::HashSet::new(),
             callable_identities: OwnedIndex::default(),
         }
-    }
-
-    pub fn bind_fused_service_erasures(
-        &mut self,
-        mut authorizations: Vec<FusedServiceErasureAuthorization>,
-    ) -> Result<(), String> {
-        authorizations.sort_by_key(|authorization| {
-            (
-                authorization.requirement.arena_index(),
-                authorization.requirement.generation(),
-            )
-        });
-        for authorization in &authorizations {
-            if !self.traits().iter().any(|definition| {
-                definition.is_boundary && definition.symbol == authorization.requirement
-            }) {
-                return Err(
-                    "fused service erasure authorization lacks an exact boundary requirement"
-                        .to_owned(),
-                );
-            }
-        }
-        if authorizations
-            .windows(2)
-            .any(|pair| pair[0].requirement == pair[1].requirement)
-        {
-            return Err(
-                "fused service erasure authorizations contain duplicate boundary requirements"
-                    .to_owned(),
-            );
-        }
-        self.fused_service_erasures = authorizations;
-        Ok(())
-    }
-
-    pub fn fused_service_erasure(
-        &self,
-        requirement: symbols::SymbolHandle,
-    ) -> Option<FusedServiceErasureAuthorization> {
-        self.fused_service_erasures
-            .iter()
-            .find(|authorization| authorization.requirement == requirement)
-            .copied()
     }
 
     pub fn ranking_expression_custody_for(

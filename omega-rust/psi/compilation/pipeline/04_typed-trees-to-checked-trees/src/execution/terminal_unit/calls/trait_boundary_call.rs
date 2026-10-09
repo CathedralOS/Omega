@@ -226,12 +226,9 @@ pub(super) fn build(
                 }
             });
     let routed_service_parameter_receiver = caller_parameters.iter().any(|parameter| {
-        parameter
-            .fused_service_erasure
-            .as_ref()
-            .is_some_and(|receipt| {
-                receipt.source_parameter == call.receiver_symbol && receipt.requirement == owner
-            })
+        parameter.binding_carrier.as_ref().is_some_and(|receipt| {
+            receipt.source_parameter == call.receiver_symbol && receipt.requirement == owner
+        })
     });
     let mut scalar_parameters = Vec::new();
     let mut structural_arguments = Vec::new();

@@ -38,7 +38,7 @@ pub fn fused_service_field_carrier<'a>(
             let declaration = matching.next()?;
             (matching.next().is_none()
                 && !declaration.identity.is_empty()
-                && matches!(declaration.shape, StructuralTypeShape::FusedServiceBinding))
+                && matches!(declaration.shape, StructuralTypeShape::BindingCarrier))
             .then_some(declaration.identity.as_str())
         }
         _ => None,

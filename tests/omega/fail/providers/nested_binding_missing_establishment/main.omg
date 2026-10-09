@@ -1,0 +1,15 @@
+// A logical carrier can be checked without selecting a provider, but neither
+// its nested shape nor the borrowed helper establishes runtime authority.
+use omega::language::core::binding;
+
+pub boundary trait Reading { machine read() -> u64; }
+data Session { reading: Binding<Reading>; }
+data Main { session: Session; }
+
+machine read(binding: &mut Binding<Reading>) -> u64 reaches Reading {
+    binding.read()
+}
+
+machine Main::main(main: &mut Main) reaches Reading {
+    let value: u64 = read(&mut main.session.reading);
+}

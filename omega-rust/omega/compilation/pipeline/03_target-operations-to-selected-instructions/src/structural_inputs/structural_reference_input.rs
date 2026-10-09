@@ -1227,7 +1227,7 @@ fn shape_inner(
     let result = match &declaration.shape {
         // Borrowing preserves a pointer to the established occurrence even
         // though the service marker itself contributes no payload bytes.
-        StructuralTypeShape::FusedServiceBinding => Some(ValueShape::integer(0, 1)),
+        StructuralTypeShape::BindingCarrier => Some(ValueShape::integer(0, 1)),
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(carrier) => field_shape(
             &StructuralFieldType::ByteSequence(*carrier),

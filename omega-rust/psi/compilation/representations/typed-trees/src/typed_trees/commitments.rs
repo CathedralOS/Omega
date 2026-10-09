@@ -28,15 +28,6 @@ macro_rules! digest_commitment {
     };
 }
 
-/// Compiler-owned authority that licenses one routed `Binding<R>` carrier to
-/// enter the existing provider-attachment specialization path. Erasure is a
-/// requirement-level decision; which provider plan realizes the requirement
-/// is each target's selection, joined by requirement identity in Omega.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FusedServiceErasureAuthorization {
-    pub requirement: symbols::SymbolHandle,
-}
-
 /// One compile-time machine specialization. Const arguments are canonical
 /// proof-static identities and static machine arguments are symbols; neither
 /// becomes a runtime value. Preparation records the template and arguments;

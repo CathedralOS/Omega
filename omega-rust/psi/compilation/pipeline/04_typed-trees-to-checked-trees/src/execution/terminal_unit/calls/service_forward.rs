@@ -1,5 +1,5 @@
 //! A routed binding follows ordinary call sequencing and structural loans.
-//! This join preserves the exact selected requirement at each argument, rather
+//! This join preserves the exact declared requirement at each argument, rather
 //! than recognizing a one-hop helper body. The argument builder already owns
 //! authored operand order and loan access; no shape here establishes a binding.
 
@@ -8,7 +8,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralPathSegment,
 };
 
-pub(super) fn fused_service_arguments_match(
+pub(super) fn binding_arguments_match(
     program: &dyn ::validation::CheckingInput,
     caller_state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -127,14 +127,11 @@ pub(super) fn fused_service_arguments_match(
                 != program
                     .normalized_type_identity(target_carrier.carrier_type)
                     .into_string()
-            || program
-                .fused_service_erasure(target_carrier.carrier.requirement)
-                .is_none()
         {
             return false;
         }
         if argument.path.is_empty() {
-            let Some(receipt) = &source_plan.fused_service_erasure else {
+            let Some(receipt) = &source_plan.binding_carrier else {
                 return false;
             };
             if receipt.source_parameter != source.symbol

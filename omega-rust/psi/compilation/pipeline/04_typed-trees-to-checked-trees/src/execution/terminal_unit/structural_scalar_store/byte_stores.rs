@@ -40,7 +40,7 @@ pub(super) fn view_write(
         Root::Parameter { plan, parameter } => {
             if plan.access != CheckedStructuralAccess::MutableBorrow
                 || plan.multiplicity != Multiplicity::Unrestricted
-                || plan.fused_service_erasure.is_some()
+                || plan.binding_carrier.is_some()
                 || byte_sequence_carrier(program, parameter.type_reference, &[]).is_none()
             {
                 return None;
@@ -114,7 +114,7 @@ pub(super) fn whole_store(
             CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
         )
         || plan.multiplicity != Multiplicity::Unrestricted
-        || plan.fused_service_erasure.is_some()
+        || plan.binding_carrier.is_some()
     {
         return None;
     }

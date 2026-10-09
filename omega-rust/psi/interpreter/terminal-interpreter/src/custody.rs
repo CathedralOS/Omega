@@ -942,7 +942,7 @@ pub(crate) fn split_affine_frontier_at_projection(
             }
             selected
         }
-        StructuralTypeShape::FusedServiceBinding
+        StructuralTypeShape::BindingCarrier
         | StructuralTypeShape::PrimitiveScalar(_)
         | StructuralTypeShape::Reference { .. }
         | StructuralTypeShape::ByteSequence(_)

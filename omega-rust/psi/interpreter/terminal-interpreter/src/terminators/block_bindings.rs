@@ -555,7 +555,7 @@ impl TerminalExecution<'_> {
                                 || matches!(
                                     declaration.shape,
                                     StructuralTypeShape::PrimitiveScalar(_)
-                                        | StructuralTypeShape::FusedServiceBinding
+                                        | StructuralTypeShape::BindingCarrier
                                 )
                         }) =>
                 {

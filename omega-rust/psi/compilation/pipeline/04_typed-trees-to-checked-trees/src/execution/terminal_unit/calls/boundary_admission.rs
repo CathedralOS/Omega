@@ -10,8 +10,8 @@ use crate::execution::terminal_unit::{
     Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode, is_reference,
 };
 
-/// A Fused binding projected from an ordinary parameter retains its exact
-/// requirement and compiler-issued erasure authorization. This proves the call
+/// A binding projected from an ordinary parameter retains its exact
+/// requirement and source occurrence. This proves the call
 /// receiver; attachment-field requirements remain a separate roster obligation.
 pub(super) fn parameter_binding_receiver_matches(
     program: &dyn ::validation::CheckingInput,
@@ -35,7 +35,7 @@ pub(super) fn parameter_binding_receiver_matches(
 }
 
 /// Resolve the ordinary source parameter whose projected Binding has an exact
-/// Fused authorization. This identifies a receiver, not a call admission: the
+/// declared requirement. This identifies a receiver, not a call admission: the
 /// call planner separately requires its structural parameter, and attachment
 /// collection uses this only for an already-planned matching boundary call.
 pub(crate) fn parameter_binding_receiver_source<'program>(
@@ -78,16 +78,10 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
         statement_index,
         &place,
     )?;
-    // A `Binding<R>` member projected out of a parameter's record storage is
-    // the migrated service spelling (`filesystem.host.open_create`): the
-    // binding's requirement is exact at the member, and the record's own
-    // attachment carries the provider provenance the Fused receipt carried
-    // for a direct `Binding` parameter. Direct parameter bindings still need
-    // the erasure authorization -- `segments.is_empty()` already excludes
-    // them above.
+    // A Binding member identifies the requirement through its own carrier.
+    // Provider selection and entry establishment are realization obligations.
     ((typed_trees::service::exact_bound_service_requirement(program, reference)
-        == Some(requirement)
-        && program.fused_service_erasure(requirement).is_some())
+        == Some(requirement))
         || field_type_carries_requirement(program, reference, requirement)
         || service_record_member_carries_requirement(program, reference, requirement))
     .then_some((source, place))

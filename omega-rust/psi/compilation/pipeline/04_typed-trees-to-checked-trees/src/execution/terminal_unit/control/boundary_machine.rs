@@ -480,7 +480,7 @@ fn boundary_parameters<'program>(
                 parameter_type,
                 &[],
             )?,
-            fused_service_erasure: None,
+            binding_carrier: None,
         });
     }
     Some((structural_parameters, scalar_parameters))

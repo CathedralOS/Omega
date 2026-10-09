@@ -213,7 +213,7 @@ pub(super) fn prepare(
         .zip(target.structural_parameters)
     {
         if !parameter.qualifications.is_empty()
-            || parameter.fused_service_erasure.is_some()
+            || parameter.binding_carrier.is_some()
             || parameter.access != argument.access
             || parameter.type_identity != argument.type_identity
         {

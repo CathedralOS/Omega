@@ -52,21 +52,21 @@ pub(crate) fn structural_carrier_type(
     }
 }
 
-/// A routed Service parameter keeps its Fused receipt and a multiplicity its
+/// A routed Binding parameter keeps its occurrence receipt and a multiplicity its
 /// access can carry.
 pub(in crate::unit::attached_unit) fn validate_service_parameter(
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
     carrier: &checked_trees::CheckedServiceParameterCarrier,
 ) -> Result<(), LoweringError> {
-    if parameter.fused_service_erasure.is_none() {
-        return unsupported("service parameter lost its Fused receipt");
+    if parameter.binding_carrier.is_none() {
+        return unsupported("Binding parameter lost its source receipt");
     }
     service_parameter_multiplicity(carrier.access)?;
     Ok(())
 }
 
 /// A borrowed Binding is an ordinary reference parameter, not an owned affine
-/// binding. Erasure changes storage, never the source access or multiplicity.
+/// binding. Provider storage never changes source access or multiplicity.
 fn service_parameter_multiplicity(
     access: checked_trees::CheckedStructuralAccess,
 ) -> Result<Multiplicity, LoweringError> {
@@ -75,7 +75,7 @@ fn service_parameter_multiplicity(
         checked_trees::CheckedStructuralAccess::SharedBorrow
         | checked_trees::CheckedStructuralAccess::MutableBorrow => Ok(Multiplicity::Unrestricted),
         checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-            unsupported("fused Service parameter cannot use write-only access")
+            unsupported("Binding parameter cannot use write-only access")
         }
     }
 }
@@ -226,7 +226,7 @@ pub(crate) fn lower_unit_parameters(
                     "Unit structural parameter repeats a qualification",
                 ));
             }
-            if parameter.fused_service_erasure.is_some()
+            if parameter.binding_carrier.is_some()
                 && (parameter.multiplicity != service_parameter_multiplicity(parameter.access)?
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty())

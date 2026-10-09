@@ -69,7 +69,12 @@ impl SelectedExecution {
     pub fn tolerated_unsettled_service_fields(&self) -> bool {
         self.program_entry_service_requirements()
             .iter()
-            .any(|requirement| self.program.fused_service_erasure(*requirement).is_none())
+            .any(|requirement| {
+                !crate::service_custody::has_fused_selection(
+                    &self.selected_provider_provenance,
+                    *requirement,
+                )
+            })
     }
 
     pub fn resolved_semantic_binding(

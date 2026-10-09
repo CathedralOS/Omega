@@ -147,7 +147,7 @@ pub(super) fn element_reference(
             if plan.access != CheckedStructuralAccess::MutableBorrow
                 || plan.multiplicity != Multiplicity::Unrestricted
                 || !plan.qualifications.is_empty()
-                || plan.fused_service_erasure.is_some()
+                || plan.binding_carrier.is_some()
             {
                 return None;
             }

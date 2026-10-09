@@ -424,7 +424,6 @@ impl Lowerer<'_> {
             // Family records are produced after all typed bodies settle.
             target_machine_families: _,
             boundary_completion_declarations: _,
-            fused_service_erasures: _,
             evidence_forwardings,
             proof_output_calls,
             // Derived lookup state does not travel with the fields; the

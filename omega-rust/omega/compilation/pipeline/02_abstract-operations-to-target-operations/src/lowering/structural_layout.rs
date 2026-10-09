@@ -345,7 +345,7 @@ pub(crate) fn structural_shape(
         match &declaration.shape {
             // Established Fused bindings have no payload. This describes only
             // geometry; their marker is not an empty-record constructor.
-            StructuralTypeShape::FusedServiceBinding => Ok(ValueShape::integer(0, 1)),
+            StructuralTypeShape::BindingCarrier => Ok(ValueShape::integer(0, 1)),
             // All supported native ABIs use 64-bit addresses. The carrier
             // stores the referent's address, never its contents; custody is
             // checked separately. Nested reference leaves use the same layout

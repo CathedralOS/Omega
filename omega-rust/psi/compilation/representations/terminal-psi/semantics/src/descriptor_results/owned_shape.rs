@@ -96,7 +96,7 @@ fn owned_shape<'a>(
                 },
             ) => shared_byte_slots,
             StructuralTypeShape::ByteSequence(_) => false,
-            StructuralTypeShape::FusedServiceBinding => false,
+            StructuralTypeShape::BindingCarrier => false,
             StructuralTypeShape::ElementView { .. } => false,
             StructuralTypeShape::Reference { .. } => false,
             StructuralTypeShape::Record { fields, .. } => fields.iter().all(&mut field_is_owned),

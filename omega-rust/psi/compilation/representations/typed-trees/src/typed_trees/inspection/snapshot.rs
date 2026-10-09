@@ -71,8 +71,6 @@ pub struct TypedTreesSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub machine_specializations: Vec<MachineSpecializationSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub fused_service_erasures: Vec<FusedServiceErasureSnapshot>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ranking_expression_custody: Vec<RankingExpressionCustodySnapshot>,
     /// Deferred const range-endpoint marks, sorted for stable output.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -294,12 +292,6 @@ pub struct MachineSpecializationSnapshot {
     pub accepted_template_commitment: Option<String>,
 }
 
-/// A compiler-owned authorization to erase one exact routed service carrier.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct FusedServiceErasureSnapshot {
-    pub requirement: u32,
-}
-
 /// The typed-expression handles retained for one machine's private ranking
 /// witness.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -438,7 +430,6 @@ impl TypedTreesSnapshot {
                 wire_encode_obligation_count: program.wire_encode_obligations.len(),
                 wire_schema_plan_count: program.wire_schema_plans.len(),
                 machine_specialization_count: program.machine_specializations.len(),
-                fused_service_erasure_count: program.fused_service_erasures.len(),
                 open_index_normalization_count: program.expression_table.open_index_normalization_count(),
                 evidence_forwarding_count: program.evidence_forwardings.len(),
                 proof_output_call_count: program.proof_output_calls.len(),
@@ -604,13 +595,6 @@ impl TypedTreesSnapshot {
                         .clone(),
                 })
                 .collect(),
-            fused_service_erasures: program
-                .fused_service_erasures
-                .iter()
-                .map(|authorization| FusedServiceErasureSnapshot {
-                    requirement: authorization.requirement.arena_index(),
-                })
-                .collect(),
             ranking_expression_custody: program
                 .ranking_expression_custody
                 .iter()
@@ -737,7 +721,6 @@ pub struct TypedTableSnapshot {
     pub wire_encode_obligation_count: usize,
     pub wire_schema_plan_count: usize,
     pub machine_specialization_count: usize,
-    pub fused_service_erasure_count: usize,
     pub open_index_normalization_count: usize,
     pub evidence_forwarding_count: usize,
     pub proof_output_call_count: usize,

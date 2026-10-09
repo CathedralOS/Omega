@@ -221,7 +221,10 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
             crate::codec_bytes::push_encoded(bytes, declaration_ordinal.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
             if let Some(construction) = construction {
-                crate::codec_bytes::push_encoded(bytes, construction.root_structural_type.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    bytes,
+                    construction.root_structural_type.get().to_le_bytes(),
+                );
                 crate::codec_bytes::push_encoded(bytes, construction.index.to_le_bytes());
             }
         }
@@ -232,7 +235,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     encode_string(bytes, &declaration.identity);
     match &declaration.shape {
-        StructuralTypeShape::FusedServiceBinding => bytes.push(9),
+        StructuralTypeShape::BindingCarrier => bytes.push(11),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.push(7);
             crate::codec_bytes::push_encoded(bytes, referent.get().to_le_bytes());
@@ -323,8 +326,14 @@ fn encode_authored_field_storage(
             bytes.push(6);
             encode_len(bytes, recipe.fragments().len());
             for fragment in recipe.fragments() {
-                crate::codec_bytes::push_encoded(bytes, fragment.container_byte_offset.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, fragment.container_width_bits.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    bytes,
+                    fragment.container_byte_offset.to_le_bytes(),
+                );
+                crate::codec_bytes::push_encoded(
+                    bytes,
+                    fragment.container_width_bits.to_le_bytes(),
+                );
                 crate::codec_bytes::push_encoded(bytes, fragment.destination_lsb.to_le_bytes());
                 crate::codec_bytes::push_encoded(bytes, fragment.source_lsb.to_le_bytes());
                 crate::codec_bytes::push_encoded(bytes, fragment.width.to_le_bytes());

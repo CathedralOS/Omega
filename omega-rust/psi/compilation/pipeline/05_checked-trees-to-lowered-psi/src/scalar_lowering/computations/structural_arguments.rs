@@ -48,7 +48,7 @@ pub(super) fn lower(
                             Multiplicity::Affine | Multiplicity::Linear
                         )
                 )
-                || parameter.fused_service_erasure.is_some()
+                || parameter.binding_carrier.is_some()
             {
                 return unsupported("computed borrow disagrees with its callee referent custody");
             }

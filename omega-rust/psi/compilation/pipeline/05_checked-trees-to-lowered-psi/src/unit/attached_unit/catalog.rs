@@ -538,7 +538,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             )?,
             // Dynamic byte descriptors have no implicit backing extent.
             // Their element-view establishment roots u8 through the operation.
-            CheckedUnitStructuralTypeShape::FusedServiceBinding
+            CheckedUnitStructuralTypeShape::BindingCarrier
             | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
             | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             // A borrowed `&[T]` view is the runtime-length descriptor over an
@@ -607,9 +607,7 @@ pub(crate) fn lower_unit_structural_type_roots(
     for plan in selected {
         let identity = plan.identity.clone();
         let shape = match &plan.shape {
-            CheckedUnitStructuralTypeShape::FusedServiceBinding => {
-                StructuralTypeShape::FusedServiceBinding
-            }
+            CheckedUnitStructuralTypeShape::BindingCarrier => StructuralTypeShape::BindingCarrier,
             CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,
@@ -657,18 +655,17 @@ pub(crate) fn lower_unit_structural_type_roots(
                     } => (field.relevance, StructuralFieldType::Erased {
                         type_identity: provider_type_identity.clone(),
                     }),
-                    CheckedUnitStructuralFieldType::FusedServiceBacked {
+                    CheckedUnitStructuralFieldType::BindingBacked {
                         provider_type_identity,
-                        erasure,
+                        receipt,
                     } => {
-                        if !erasure.requirement.is_valid()
-                            || checked.fused_service_erasure(erasure.requirement).is_none()
+                        if !receipt.requirement.is_valid()
                         {
                             return unsupported(
-                                "fused Service erasure lacks an exact requirement receipt",
+                                "Binding carrier lacks an exact requirement receipt",
                             );
                         }
-                        // Payload erases, not the semantic occurrence. A field loan
+                        // Retain the semantic occurrence independently of storage. A field loan
                         // retains this exact path; the child marker prohibits record
                         // construction and still requires entry/transfer establishment.
                         (field.relevance, StructuralFieldType::Structural(

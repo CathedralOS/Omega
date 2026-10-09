@@ -55,7 +55,7 @@ pub(super) fn index_structural_types(
             terminal_psi::StructuralTypeShape::Reference { .. } => {}
             // The marker declares no children; admission does not manufacture
             // its affine service-binding occurrence.
-            terminal_psi::StructuralTypeShape::FusedServiceBinding => {}
+            terminal_psi::StructuralTypeShape::BindingCarrier => {}
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
@@ -86,7 +86,7 @@ pub(super) fn index_structural_types(
     for declaration in &unit.structural_types {
         let referenced = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Reference { referent, .. } => vec![*referent],
-            terminal_psi::StructuralTypeShape::FusedServiceBinding
+            terminal_psi::StructuralTypeShape::BindingCarrier
             | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_) => Vec::new(),
             terminal_psi::StructuralTypeShape::Record { fields, .. } => fields

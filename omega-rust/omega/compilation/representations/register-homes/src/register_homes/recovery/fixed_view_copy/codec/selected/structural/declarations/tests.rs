@@ -59,7 +59,7 @@ fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     let declaration = StructuralTypeDeclaration {
         id: StructuralTypeId::new(7).unwrap(),
         identity: "test::Binding".into(),
-        shape: StructuralTypeShape::FusedServiceBinding,
+        shape: StructuralTypeShape::BindingCarrier,
     };
     let mut encoded = Vec::new();
     encode_type(&mut encoded, &declaration).unwrap();

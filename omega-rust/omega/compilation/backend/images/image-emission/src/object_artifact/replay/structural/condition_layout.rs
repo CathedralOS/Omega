@@ -41,7 +41,7 @@ fn replay_structural_shape(
     let declaration = declarations.get(&structural_type)?;
     let shape = match &declaration.shape {
         // A nested established Binding contributes no condition payload.
-        terminal_psi::StructuralTypeShape::FusedServiceBinding => ValueShape::integer(0, 1),
+        terminal_psi::StructuralTypeShape::BindingCarrier => ValueShape::integer(0, 1),
         // A reference field contains one address, not the referent's storage.
         // Its payload participates in enclosing offsets like any other field.
         terminal_psi::StructuralTypeShape::Reference { .. } => ValueShape::integer(8, 8),

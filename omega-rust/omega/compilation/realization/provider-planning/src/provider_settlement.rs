@@ -337,35 +337,6 @@ pub fn settle_checked_providers(
             .map(|selected| selected.derived.plan.clone())
             .collect::<Vec<_>>(),
     )?;
-    // Toolchain-minted host services are always Fused.
-    let mut fused_service_erasures = [toolchain_filesystem_plan
-        .as_ref()
-        .map(|minted| minted.trait_symbol)]
-    .into_iter()
-    .flatten()
-    .map(|requirement| typed_trees::typed_trees::FusedServiceErasureAuthorization { requirement })
-    .collect::<Vec<_>>();
-    for selected in &selected_provider_plans {
-        let composition_mode = selected
-            .selected_by
-            .composition_mode()
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if composition_mode != crate::CompositionMode::Fused {
-            continue;
-        }
-        let requirement = selected.derived.provenance.schema.symbol();
-        if typed
-            .traits()
-            .iter()
-            .any(|definition| definition.is_boundary && definition.symbol == requirement)
-        {
-            fused_service_erasures
-                .push(typed_trees::typed_trees::FusedServiceErasureAuthorization { requirement });
-        }
-    }
-    typed
-        .bind_fused_service_erasures(fused_service_erasures)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut selected_semantic_plans = selected_provider_plans
         .iter()
         .map(|selected| selected.derived.plan.clone())

@@ -250,6 +250,13 @@ applications explicitly; package review joins the exact schema commitment to
 the retained realization. Callback materialization borrows the checked program
 and updates only its native application, without reopening the source owner.
 
+Logical `Binding<R>` shapes and occurrence receipts are Psi data, independent
+of selected composition mode. Provider settlement does not mutate typed trees
+to authorize erasure. Omega joins the entry's exact carrier/requirement to its
+selected provider and establishes runtime custody; a logical Binding marker
+never grants zero-sized storage or authority. Native entry storage currently
+supports Fused establishment and rejects other modes.
+
 Calling-policy evaluation retains its validated ABI application as backend-owned
 output. Native entry and registrar settlement consume that application, not the
 evaluator's typed handles, source spans or policy execution state. Their contract

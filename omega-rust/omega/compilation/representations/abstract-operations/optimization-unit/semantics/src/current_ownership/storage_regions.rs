@@ -125,7 +125,7 @@ pub(super) fn storage_cannot_retain_loan(
                     .iter()
                     .all(|case| fields_cannot_retain_loan(types, &case.fields, established))
         }
-        StructuralTypeShape::FusedServiceBinding
+        StructuralTypeShape::BindingCarrier
         | StructuralTypeShape::Reference { .. }
         | StructuralTypeShape::ElementView { .. } => false,
     };

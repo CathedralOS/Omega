@@ -391,7 +391,7 @@ pub(in crate::execution) fn build_call_operation(
     if !boundary {
         let carries_routed_service = caller_parameters
             .iter()
-            .any(|parameter| parameter.fused_service_erasure.is_some())
+            .any(|parameter| parameter.binding_carrier.is_some())
             || program
                 .state_parameters(target_state)
                 .iter()
@@ -410,7 +410,7 @@ pub(in crate::execution) fn build_call_operation(
             "call operation: projected operand support"
         });
         let supported = (!carries_routed_service
-            || service_forward::fused_service_arguments_match(
+            || service_forward::binding_arguments_match(
                 program,
                 state,
                 caller_parameters,

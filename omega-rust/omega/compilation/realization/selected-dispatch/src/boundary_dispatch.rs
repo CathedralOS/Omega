@@ -169,19 +169,14 @@ fn plan_selected_boundary_adapter_dispatch(
             let symbol = if let Some(requirement) =
                 typed_trees::service::exact_bound_service_requirement(typed, field.type_reference)
             {
-                if typed.fused_service_erasure(requirement).is_none() {
-                    continue;
-                }
                 if !selected_service_plan_matches_requirement(
                     typed,
                     calling_plans,
                     selected_plans,
                     requirement,
                 ) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "routed service field `{}::{}` has no exact Fused selected-provider-plan join",
-                        data.name, field.name,
-                    )));
+                    // Unselected requirements supply no executable adapter.
+                    // Root establishment owns missing-provider diagnostics.
                     continue;
                 }
                 requirement
@@ -306,11 +301,9 @@ fn plan_selected_boundary_adapter_dispatch(
         }
     }
 
-    // Routed Binding parameters are admitted only when checked Unit planning
-    // retained an exact typed-parameter symbol plus the matching Fused plan
-    // digest. Do not rediscover arbitrary Service-looking parameters from
-    // names or types here: receipt custody is what authorizes receiver
-    // erasure and direct adapter dispatch.
+    // Logical Binding parameter receipts identify the receiver independently
+    // of provider selection. Only selected requirements contribute dispatch;
+    // an unused helper may declare other requirements without installing them.
     let unit = &checked.facts.flow.terminal_unit_effects;
     let parameter_rosters = unit
         .machines
@@ -330,7 +323,7 @@ fn plan_selected_boundary_adapter_dispatch(
         );
     for parameters in parameter_rosters {
         for parameter in parameters {
-            let Some(receipt) = &parameter.fused_service_erasure else {
+            let Some(receipt) = &parameter.binding_carrier else {
                 continue;
             };
             if !selected_service_plan_matches_requirement(
@@ -339,10 +332,6 @@ fn plan_selected_boundary_adapter_dispatch(
                 selected_plans,
                 receipt.requirement,
             ) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "routed service parameter {:?} has no exact Fused selected-provider-plan join",
-                    receipt.source_parameter,
-                )));
                 continue;
             }
             if !adapters

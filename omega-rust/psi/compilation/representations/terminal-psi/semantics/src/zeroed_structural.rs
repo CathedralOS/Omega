@@ -95,7 +95,7 @@ fn established_field_identity<'types>(
             let declaration = declarations
                 .iter()
                 .find(|declaration| declaration.id == *child)?;
-            matches!(declaration.shape, StructuralTypeShape::FusedServiceBinding)
+            matches!(declaration.shape, StructuralTypeShape::BindingCarrier)
                 .then_some(declaration.identity.as_str())
         }
         _ => None,
@@ -355,7 +355,7 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
         match &declaration.shape {
             // No payload does not mean no validity: a selected binding must be
             // established by the entry/transfer route, never by all-zero bytes.
-            StructuralTypeShape::FusedServiceBinding => return None,
+            StructuralTypeShape::BindingCarrier => return None,
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 leaves.push(ZeroedStructuralLeaf::ArrayScalar {
                     path,

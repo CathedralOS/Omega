@@ -938,20 +938,9 @@ fn receiver_layout(
     let Some(fields) = declaration.shape.record_fields() else {
         return Err(invalid());
     };
-    // Every erased receiver field must rejoin exactly one Fused establishment
-    // row. Terminal lowers a bare boundary-trait instance binding
-    // (`console: Console`, checked `ProviderBacked`) and a canonical
-    // `Binding<R> in Bound` carrier (checked `FusedServiceBacked`) to the same
-    // `Erased { type_identity }` shape, and only the Bound carrier ever
-    // produces a row (`selected-dispatch/src/service_custody/root.rs`). This
-    // layout therefore cannot tell a provider-backed field from a Bound field
-    // whose row went missing, so a bare interface field rejects here by
-    // design; admitting it would need a positive Psi-side witness that the
-    // field carries no Bound domain, never a missing-row fallback. Psi's
-    // determined-evidence rows are that witness for erased evidence a unique
-    // nullary constructor determines: such a field has no storage and needs
-    // no establishment, and it rejoins its row by complete route and carrier
-    // identity exactly as a service field rejoins its establishment.
+    // Binding payload erasure requires the exact Fused establishment roster. The
+    // logical Binding marker, like an erased proof field, grants no authority
+    // merely because its carrier has no payload in this realization.
     let mut erased = ErasedRowUse::default();
     validate_receiver_fields(
         &target.graph.structural_types,

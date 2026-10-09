@@ -132,11 +132,7 @@ pub(super) fn interface_retention_set(
         retain_symbol(&mut retained, index, input.policy_plan_machine);
     }
 
-    // Compiler-owned service-erasure authorizations and open-index operation
-    // selections name exact requirements/providers that must survive pruning.
-    for erasure in &program.fused_service_erasures {
-        retain_symbol(&mut retained, index, erasure.requirement);
-    }
+    // Open-index selections retain their exact provider and operator.
     for operation in program.expression_table.selected_index_operations() {
         retain_symbol(&mut retained, index, operation.provider);
         retain_symbol(&mut retained, index, operation.operator);

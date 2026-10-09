@@ -734,7 +734,7 @@ pub(super) fn build_traced(
                     if !borrowed_named_referent
                         && !borrowed_primitive_referent
                         && !borrowed_array_referent
-                        && parameter.fused_service_erasure.is_none()
+                        && parameter.binding_carrier.is_none()
                         && !byte_sequence_carrier(program, reference, &[]).is_some_and(|carrier| {
                             carrier.is_borrowed()
                                 || matches!(

@@ -108,7 +108,7 @@ fn validate_type(
         }
         // The already supplied binding identity has no scalar payload. This
         // content walk neither creates the binding nor establishes authority.
-        StructuralTypeShape::FusedServiceBinding
+        StructuralTypeShape::BindingCarrier
         | StructuralTypeShape::PrimitiveScalar(_)
         | StructuralTypeShape::ByteSequence(_)
         | StructuralTypeShape::ElementView { .. } => {}
@@ -133,7 +133,7 @@ fn requires_contents(
         let mut fields = Vec::new();
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::FusedServiceBinding
+            StructuralTypeShape::BindingCarrier
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_) => {
                 continue;

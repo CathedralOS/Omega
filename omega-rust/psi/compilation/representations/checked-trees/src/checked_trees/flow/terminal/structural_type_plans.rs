@@ -55,10 +55,10 @@ pub struct CheckedUnitStructuralTypePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralTypeShape {
-    /// An existing routed binding occurrence after selected Fused realization.
-    /// It has no payload but is not an empty record: construction requires
-    /// service establishment, not record or zero initialization.
-    FusedServiceBinding,
+    /// A routed binding occurrence, independent of provider selection.
+    /// This is not an empty record: construction requires establishment.
+    /// Realization determines storage only after selecting its provider.
+    BindingCarrier,
     /// An owned reference carrier, distinct from the borrowed referent shape.
     Reference {
         referent_identity: String,
@@ -167,13 +167,11 @@ pub enum CheckedUnitStructuralFieldType {
     ProviderBacked {
         provider_type_identity: String,
     },
-    /// An exact `Binding<R> in Bound` carrier authorized for erasure by the
-    /// matching Fused selected-provider plan. Keeping this separate from the
-    /// transitional bare-trait form makes receipt removal a rejecting
-    /// corruption rather than a downgrade to legacy behavior.
-    FusedServiceBacked {
+    /// An exact logical Binding carrier. The receipt identifies its declared
+    /// requirement; it does not assert erasure or grant establishment.
+    BindingBacked {
         provider_type_identity: String,
-        erasure: CheckedFusedServiceErasureReceipt,
+        receipt: CheckedBindingFieldReceipt,
     },
     /// An erased semantic field does not require an executable structural
     /// carrier. Its exact normalized type identity remains independently
@@ -184,12 +182,12 @@ pub enum CheckedUnitStructuralFieldType {
 }
 
 impl CheckedUnitStructuralFieldType {
-    /// The structural type identity behind a nested-record or fused-service
+    /// The structural type identity behind a nested-record or binding
     /// field, the two carriers that keep a whole type inside a record.
     pub fn structural_type_identity(&self) -> Option<&String> {
         match self {
             Self::Structural { type_identity }
-            | Self::FusedServiceBacked {
+            | Self::BindingBacked {
                 provider_type_identity: type_identity,
                 ..
             } => Some(type_identity),
@@ -208,17 +206,15 @@ impl CheckedUnitStructuralFieldType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckedFusedServiceErasureReceipt {
+pub struct CheckedBindingFieldReceipt {
     pub requirement: SymbolHandle,
 }
 
-/// Exact compiler-owned authority for erasing one direct, owned
-/// `Binding<R> in Bound` state parameter in a Fused build. The typed symbol
-/// and normalized full carrier identity survive independently of the
-/// structural parameter's dense position and erased base shape so a removed,
-/// moved, or fabricated receipt rejects at the checked-to-Terminal boundary.
+/// Exact source occurrence of a Binding parameter. The full carrier identity
+/// and requirement survive independently of its structural position. Selection
+/// and storage are realization decisions, not facts supplied by this receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedFusedServiceParameterReceipt {
+pub struct CheckedBindingParameterReceipt {
     pub source_parameter: SymbolHandle,
     pub carrier_type_identity: String,
     pub requirement: SymbolHandle,
@@ -363,10 +359,9 @@ pub struct CheckedUnitStructuralParameterPlan {
     /// Strictly ordered normalized domain identities.
     pub qualifications: Vec<SemanticDomainId>,
     pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
-    /// Present only for the first direct, owned affine
-    /// `Binding<R> in Bound` parameter rung. `None` on a typed Service
-    /// parameter is a rejecting custody downgrade, never legacy behavior.
-    pub fused_service_erasure: Option<CheckedFusedServiceParameterReceipt>,
+    /// Present for a logical Binding parameter, including its borrow shell.
+    /// Absence on a Binding is a custody error, not permission to erase it.
+    pub binding_carrier: Option<CheckedBindingParameterReceipt>,
 }
 
 /// Source-handle-free structural path retained by checked terminal plans.
@@ -476,7 +471,7 @@ pub fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape)
                     )
                 )
         }),
-        CheckedUnitStructuralTypeShape::FusedServiceBinding
+        CheckedUnitStructuralTypeShape::BindingCarrier
         | CheckedUnitStructuralTypeShape::Reference { .. }
         | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)

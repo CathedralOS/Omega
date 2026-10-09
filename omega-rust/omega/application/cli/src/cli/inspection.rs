@@ -66,8 +66,8 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             declaration.id.get(),
             declaration.identity,
             match &declaration.shape {
-                terminal_psi::StructuralTypeShape::FusedServiceBinding => {
-                    "fused_service_binding".to_owned()
+                terminal_psi::StructuralTypeShape::BindingCarrier => {
+                    "binding_carrier".to_owned()
                 }
                 terminal_psi::StructuralTypeShape::Reference { referent, access } => {
                     format!(
@@ -251,7 +251,8 @@ fn write_operation_summary(
             claim_transfers,
             ..
         } => {
-            let callee_attachment = module.machine(*callee)
+            let callee_attachment = module
+                .machine(*callee)
                 .and_then(|machine| machine.attachment)
                 .and_then(|id| structural_type_identity(module, id))
                 .unwrap_or("none");
@@ -349,11 +350,13 @@ fn argument_places(arguments: &[StructuralArgument]) -> String {
 }
 
 fn structural_type_identity(module: &TerminalModule, id: StructuralTypeId) -> Option<&str> {
-    module.structural_type(id)
+    module
+        .structural_type(id)
         .map(|declaration| declaration.identity.as_str())
 }
 
 fn service_identity(module: &TerminalModule, id: ServiceId) -> Option<&str> {
-    module.service(id)
+    module
+        .service(id)
         .map(|declaration| declaration.identity.as_str())
 }

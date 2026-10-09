@@ -562,7 +562,7 @@ fn zero_valid_shape(
     match &declaration.shape {
         // A binding leaf is admitted only by its exact source/roster join in
         // zero_valid_fields, never by generic recursion or zero-filled bytes.
-        StructuralTypeShape::FusedServiceBinding => false,
+        StructuralTypeShape::BindingCarrier => false,
         StructuralTypeShape::Record { fields, .. } => zero_valid_fields(
             checked,
             declarations,

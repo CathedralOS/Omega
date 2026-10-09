@@ -31,7 +31,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
         StructuralTypeDeclaration {
             id: service,
             identity: "ConsoleCarrier".into(),
-            shape: StructuralTypeShape::FusedServiceBinding,
+            shape: StructuralTypeShape::BindingCarrier,
         },
     ];
     let source = program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(

@@ -150,7 +150,7 @@ pub(crate) fn validate_structural_type_graph(
             terminal_psi::StructuralTypeShape::Reference { referent, .. } => {
                 visit(*referent, types, active, complete)?;
             }
-            terminal_psi::StructuralTypeShape::FusedServiceBinding => {}
+            terminal_psi::StructuralTypeShape::BindingCarrier => {}
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
             terminal_psi::StructuralTypeShape::Record { fields, .. } => {
@@ -231,7 +231,7 @@ pub(super) fn attachment_storage_types(
                 }
             }
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-            StructuralTypeShape::FusedServiceBinding
+            StructuralTypeShape::BindingCarrier
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Reference { .. }

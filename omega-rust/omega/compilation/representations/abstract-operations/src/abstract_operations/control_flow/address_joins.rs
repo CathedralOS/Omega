@@ -273,7 +273,7 @@ fn is_plain_referent<'a>(
         StructuralTypeShape::PrimitiveScalar(_) => true,
         // Address transport preserves an established binding occurrence. This
         // says nothing about construction or zero validity of its authority.
-        StructuralTypeShape::FusedServiceBinding => true,
+        StructuralTypeShape::BindingCarrier => true,
         // Empty records still have a borrowed address carrier. No payload
         // bytes are copied, and the join retains its place and loan custody.
         StructuralTypeShape::Record { fields, .. } => plain_fields(fields, lookup, active),

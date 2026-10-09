@@ -139,20 +139,18 @@ pub(crate) fn derive_fused_program_entry_establishments(
     // establishment check still applies to the fields that keep a selection.
     if permit_unsettled {
         service_fields.retain(|(_, carrier, _path)| {
-            checked.fused_service_erasure(carrier.requirement).is_some()
+            super::has_fused_selection(selected, carrier.requirement)
         });
         if service_fields.is_empty() {
             return Ok(Vec::new());
         }
     }
 
-    // Shape collection cannot retain a Binding field without its exact Fused
-    // selection. Check that prerequisite before looking for the resulting
-    // attachment, otherwise a missing provider appears to be a lowering bug.
-    // This diagnoses absence only; the field, digest and selected provenance
-    // still rejoin independently below before any establishment is issued.
+    // Psi retains every logical carrier without a provider decision. This
+    // realization currently supports only Fused entry establishment; missing
+    // or Independent selection cannot authorize zero-payload storage.
     for (_field, carrier, path) in &service_fields {
-        if checked.fused_service_erasure(carrier.requirement).is_none() {
+        if !super::has_fused_selection(selected, carrier.requirement) {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Binding field `{}::{}` requires a selected Fused provider for boundary `{}`",
                 owner.name,
@@ -286,9 +284,9 @@ pub(crate) fn derive_fused_program_entry_establishments(
                 continue;
             }
         };
-        let CheckedUnitStructuralFieldType::FusedServiceBacked {
+        let CheckedUnitStructuralFieldType::BindingBacked {
             provider_type_identity,
-            erasure,
+            receipt,
         } = &checked_field.field_type
         else {
             diagnostics.push(Diagnostic::error(format!(
@@ -302,19 +300,11 @@ pub(crate) fn derive_fused_program_entry_establishments(
             .normalized_type_identity(field.type_reference)
             .into_string();
         if provider_type_identity != &carrier_type_identity
-            || erasure.requirement != carrier.requirement
+            || receipt.requirement != carrier.requirement
         {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Binding field `{}::{}` substituted its carrier or requirement",
                 owner.name, field_path.join("::"),
-            )));
-            continue;
-        }
-        if checked.fused_service_erasure(carrier.requirement).is_none() {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Binding field `{}::{}` lacks Fused erasure authority",
-                owner.name,
-                field_path.join("::"),
             )));
             continue;
         }

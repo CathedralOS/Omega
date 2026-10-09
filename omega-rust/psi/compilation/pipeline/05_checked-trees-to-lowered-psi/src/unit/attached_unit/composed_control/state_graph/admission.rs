@@ -246,7 +246,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     .filter(|shape| shape.identity == parameter.type_identity);
                 if !matches!(
                     shapes.next().map(|shape| &shape.shape),
-                    Some(checked_trees::CheckedUnitStructuralTypeShape::FusedServiceBinding)
+                    Some(checked_trees::CheckedUnitStructuralTypeShape::BindingCarrier)
                 ) || shapes.next().is_some()
                 {
                     return unsupported(
@@ -263,7 +263,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 // does not change the edge's owned transfer into the state.
                 // Each write or reborrow retains its checked place access.
                 if source.is_const
-                    || parameter.fused_service_erasure.is_some()
+                    || parameter.binding_carrier.is_some()
                     || validation::structural_result_qualifications(
                         &checked.typed,
                         source.type_reference,
@@ -484,9 +484,7 @@ fn borrowed_parameter(
             "Unit graph borrowed parameter binding mutability is not its loan access",
         );
     }
-    if parameter.multiplicity != Multiplicity::Unrestricted
-        || parameter.fused_service_erasure.is_some()
-    {
+    if parameter.multiplicity != Multiplicity::Unrestricted || parameter.binding_carrier.is_some() {
         return unsupported("Unit graph borrowed parameter carries owned or provider custody");
     }
     Ok(())

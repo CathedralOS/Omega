@@ -19,7 +19,7 @@ pub(crate) fn encode_structural_type(
     writer.id(declaration.id);
     writer.string("structural type identity", &declaration.identity)?;
     match &declaration.shape {
-        StructuralTypeShape::FusedServiceBinding => writer.u8(9),
+        StructuralTypeShape::BindingCarrier => writer.u8(11),
         StructuralTypeShape::Reference { referent, access } => {
             writer.u8(7);
             writer.id(*referent);
@@ -96,7 +96,7 @@ pub(crate) fn decode_structural_type(
     let id = reader.id("StructuralTypeId")?;
     let identity = reader.string("structural type identity")?;
     let shape = match reader.u8()? {
-        9 => StructuralTypeShape::FusedServiceBinding,
+        11 => StructuralTypeShape::BindingCarrier,
         7 => StructuralTypeShape::Reference {
             referent: reader.id("StructuralTypeId")?,
             access: super::structural_signature_wire::decode_structural_access(reader)?,

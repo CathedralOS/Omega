@@ -96,9 +96,6 @@ pub(crate) fn apply_declaration_sidecar_pruning(
     program
         .authored_service_reach_rows
         .retain(|row| !owner_removed(row.owner));
-    program
-        .fused_service_erasures
-        .retain(|row| !owner_removed(row.requirement));
     // This roster has no inbound handles; source roles join by declaration
     // symbols. Wire placement arenas and other referenced backing rows stay.
     let completions = program

@@ -386,7 +386,7 @@ pub(super) fn encode_structural_type(
     bytes.id(declaration.id);
     bytes.string(&declaration.identity);
     match &declaration.shape {
-        StructuralTypeShape::FusedServiceBinding => bytes.u8(9),
+        StructuralTypeShape::BindingCarrier => bytes.u8(11),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.u8(7);
             bytes.id(*referent);

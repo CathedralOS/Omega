@@ -154,7 +154,7 @@ pub(crate) fn requires_materialized_host_custody(
         };
         let mut fields = Vec::new();
         match &declaration.shape {
-            StructuralTypeShape::Reference { .. } | StructuralTypeShape::FusedServiceBinding => {
+            StructuralTypeShape::Reference { .. } | StructuralTypeShape::BindingCarrier => {
                 return true;
             }
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}

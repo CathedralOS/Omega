@@ -855,13 +855,17 @@ bound strictly ordered.
 | 6 | PrimitiveScalar | scalar type |
 | 7 | Reference | referent structural type id + structural access |
 | 8 | ElementView | element structural type id |
-| 9 | FusedServiceBinding | no payload; nonconstructible service carrier |
+| 9 | retired | former Fused-only carrier; reject |
+| 11 | BindingCarrier | no encoded payload; logical nonconstructible binding, no storage authorization |
 
-The fused-service marker retains binding custody even when realization erases
-its runtime payload. It is not an empty record: record construction, zero
-initialization, and byte observation cannot establish or inspect a binding.
-Existing binding values may be transferred or borrowed only under their exact
-occurrence and provider-selection evidence.
+The binding marker retains logical custody independently of provider selection.
+It is not an empty record: record construction, zero initialization, and byte
+observation cannot establish or inspect a binding. Existing values transfer or
+borrow under their exact occurrence and requirement identity. This declaration
+does not authorize payload erasure. Realization must establish each supplied
+root and select its storage; the current native entry implementation supports
+Fused establishment only. Independent storage cannot inherit that zero-payload
+layout. Tag 9 is retired rather than reinterpreted as this weaker declaration.
 
 <!-- byte-sequence-carrier-tags -->
 

@@ -80,8 +80,8 @@ pub use structural_control_plans::{
 };
 pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};
 pub use structural_type_plans::{
-    CheckedAffineConstructionElementPlan, CheckedByteSequenceCarrier,
-    CheckedFusedServiceErasureReceipt, CheckedFusedServiceParameterReceipt, CheckedRuntimeIndex,
+    CheckedAffineConstructionElementPlan, CheckedBindingFieldReceipt,
+    CheckedBindingParameterReceipt, CheckedByteSequenceCarrier, CheckedRuntimeIndex,
     CheckedStructuralAccess, CheckedStructuralPathQualification, CheckedStructuralResultPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitStructuralCasePlan,
     CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,

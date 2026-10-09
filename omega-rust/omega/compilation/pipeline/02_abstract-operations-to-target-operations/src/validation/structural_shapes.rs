@@ -7,7 +7,8 @@ use calling_conventions::{
 };
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType, StructuralTypeId};
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -27,7 +28,6 @@ fn index_declarations(
     Ok(indexed)
 }
 
-
 pub(crate) fn parameter_shape(referent: ValueShape, access: StructuralAccess) -> ValueShape {
     match access {
         StructuralAccess::Owned => referent,
@@ -38,17 +38,6 @@ pub(crate) fn parameter_shape(referent: ValueShape, access: StructuralAccess) ->
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
 
 /// The by-value boundary shape one structural type carries under the calling
 /// policy: the provider-side materialization classifies records and fixed
@@ -354,7 +343,7 @@ fn shape(
         .get(&structural_type)
         .ok_or(InvalidStructuralShape)?;
     let result = match &declaration.shape {
-        StructuralTypeShape::FusedServiceBinding => ValueShape::integer(0, 1),
+        StructuralTypeShape::BindingCarrier => ValueShape::integer(0, 1),
         // Independently reconstruct the address payload, including nested
         // record leaves. Pointer bits carry no ownership authority.
         StructuralTypeShape::Reference { referent, .. } => ValueShape::integer(
@@ -492,12 +481,6 @@ fn conventional_sum_layout(
     calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
         .map_err(|_| InvalidStructuralShape)
 }
-
-
-
-
-
-
 
 fn field_shape(
     field: &StructuralFieldType,

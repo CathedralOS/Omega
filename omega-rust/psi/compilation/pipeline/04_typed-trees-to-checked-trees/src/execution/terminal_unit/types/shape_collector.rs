@@ -949,7 +949,7 @@ impl<'program> ShapeCollector<'program> {
                     })
                     .into_string(),
             }
-        } else if let Some((fused_service_erasure, provider_node)) =
+        } else if let Some((binding_carrier, provider_node)) =
             provider_backed_field(self.program, field_type_reference)
         {
             let provider_type_identity = self
@@ -960,12 +960,12 @@ impl<'program> ShapeCollector<'program> {
                     ..TypeIdentityRequest::ordinary(provider_node)
                 })
                 .into_string();
-            match fused_service_erasure {
-                Some(erasure) => {
-                    self.add_fused_service_carrier_type(provider_node, binders)?;
-                    CheckedUnitStructuralFieldType::FusedServiceBacked {
+            match binding_carrier {
+                Some(receipt) => {
+                    self.add_binding_carrier_type(provider_node, binders)?;
+                    CheckedUnitStructuralFieldType::BindingBacked {
                         provider_type_identity,
-                        erasure,
+                        receipt,
                     }
                 }
                 None => CheckedUnitStructuralFieldType::ProviderBacked {
@@ -1062,17 +1062,13 @@ impl<'program> ShapeCollector<'program> {
     /// Register the semantic binding independently from its occurrence receipt.
     /// Keeping a nonconstructible type lets fields and parameters share ordinary
     /// loan paths without turning zero-sized layout into establishment authority.
-    fn add_fused_service_carrier_type(
+    fn add_binding_carrier_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
-        let carrier = typed_trees::service::classify_exact_bound_service_carrier(
-            self.program,
-            type_reference,
-        )
-        .ok()??;
-        self.program.fused_service_erasure(carrier.requirement)?;
+        typed_trees::service::classify_exact_bound_service_carrier(self.program, type_reference)
+            .ok()??;
         let identity = self
             .program
             .type_identity(TypeIdentityRequest {
@@ -1083,7 +1079,7 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralTypePlan {
             no_code_affine_cleanup: false,
             identity: identity.clone(),
-            shape: CheckedUnitStructuralTypeShape::FusedServiceBinding,
+            shape: CheckedUnitStructuralTypeShape::BindingCarrier,
         };
         if self
             .types
@@ -1097,30 +1093,29 @@ impl<'program> ShapeCollector<'program> {
     }
 
     /// Retain the exact source parameter, including any borrow shell, beside
-    /// its zero-payload semantic carrier. The receipt grants no new binding.
-    pub(in crate::execution::terminal_unit) fn add_fused_service_parameter_type(
+    /// its logical semantic carrier. The receipt grants no new binding.
+    pub(in crate::execution::terminal_unit) fn add_binding_parameter_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         source_parameter: SymbolHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<(String, checked_trees::CheckedFusedServiceParameterReceipt)> {
+    ) -> Option<(String, checked_trees::CheckedBindingParameterReceipt)> {
         let parameter_carrier = typed_trees::service::classify_exact_service_parameter_carrier(
             self.program,
             type_reference,
         )
         .ok()??;
         let carrier = parameter_carrier.carrier;
-        self.program.fused_service_erasure(carrier.requirement)?;
         if !source_parameter.is_valid() {
             return None;
         }
 
         let type_identity =
-            self.add_fused_service_carrier_type(parameter_carrier.carrier_type, binders)?;
+            self.add_binding_carrier_type(parameter_carrier.carrier_type, binders)?;
 
         Some((
             type_identity,
-            checked_trees::CheckedFusedServiceParameterReceipt {
+            checked_trees::CheckedBindingParameterReceipt {
                 source_parameter,
                 carrier_type_identity: self
                     .program
@@ -1161,7 +1156,7 @@ impl<'program> ShapeCollector<'program> {
                     CheckedUnitStructuralTypeShape::ByteSequence(_) => {
                         retained.extend(self.byte_view_elements.iter().cloned());
                     }
-                    CheckedUnitStructuralTypeShape::FusedServiceBinding
+                    CheckedUnitStructuralTypeShape::BindingCarrier
                     | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields, .. } => {
                         retained.extend(
@@ -1289,28 +1284,24 @@ fn authored_field_storage(
     }
 }
 
-/// A provider-backed field's erasure receipt (when the carrier is an exact
+/// A provider-backed field's logical receipt (when the carrier is an exact
 /// `Binding<R>` requirement) plus the type node whose identity names the
-/// provider — the carrier itself for a fused service, the unwrapped
+/// provider — the carrier itself for a binding, the unwrapped
 /// boundary-trait referent for a `&'a mut <boundary trait>` field.
 pub(super) fn provider_backed_field(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(
-    Option<checked_trees::CheckedFusedServiceErasureReceipt>,
+    Option<checked_trees::CheckedBindingFieldReceipt>,
     TypeReferenceHandle,
 )> {
     if let Some(requirement) =
         typed_trees::service::exact_bound_service_requirement(program, type_reference)
     {
-        // A `Binding<boundary>` field with no settled provider selection still
-        // carries a provider handle: mint the unerased ProviderBacked shape so
-        // the record keeps its plan. Establishment — not shape collection —
-        // owns rejecting the missing selection, which lets the review's
-        // discovery pass mint this shape before its nomination exists.
-        let authorization = program.fused_service_erasure(requirement);
+        // Logical classification never consults target provider selection.
+        // Establishment joins this requirement to the selected provider later.
         return Some((
-            authorization.map(|_| checked_trees::CheckedFusedServiceErasureReceipt { requirement }),
+            Some(checked_trees::CheckedBindingFieldReceipt { requirement }),
             type_reference,
         ));
     }

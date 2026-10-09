@@ -118,7 +118,7 @@ fn structural_signature_with_partial_affine(
             });
             continue;
         }
-        let (type_identity, fused_service_erasure) =
+        let (type_identity, binding_carrier) =
             if typed_trees::service::classify_exact_service_parameter_carrier(
                 program,
                 parameter.type_reference,
@@ -134,7 +134,7 @@ fn structural_signature_with_partial_affine(
                 if fused_service_parameter_count != 1 {
                     return None;
                 }
-                let (identity, receipt) = shapes.add_fused_service_parameter_type(
+                let (identity, receipt) = shapes.add_binding_parameter_type(
                     parameter.type_reference,
                     parameter.symbol,
                     binders,
@@ -157,7 +157,7 @@ fn structural_signature_with_partial_affine(
             parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
         let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
         let access = structural_access_for_type_reference(program, parameter.type_reference)?;
-        if fused_service_erasure.is_some()
+        if binding_carrier.is_some()
             && (!service_parameter_access_matches(multiplicity, access)
                 || parameter.is_mutable != (access == CheckedStructuralAccess::MutableBorrow)
                 || !qualifications.is_empty())
@@ -195,7 +195,7 @@ fn structural_signature_with_partial_affine(
                 parameter.type_reference,
                 binders,
             )?,
-            fused_service_erasure,
+            binding_carrier,
         });
     }
     if allow_scalar_parameters
@@ -427,7 +427,7 @@ pub(crate) fn parameter_signatures(
             return None;
         }
         trace.phase("state graph: state signature: parameter signature: structural parameter type");
-        let (type_identity, fused_service_erasure) =
+        let (type_identity, binding_carrier) =
             if typed_trees::service::classify_exact_service_parameter_carrier(
                 program,
                 parameter.type_reference,
@@ -439,7 +439,7 @@ pub(crate) fn parameter_signatures(
                 if !binders.is_empty() {
                     return None;
                 }
-                let (identity, receipt) = shapes.add_fused_service_parameter_type(
+                let (identity, receipt) = shapes.add_binding_parameter_type(
                     parameter.type_reference,
                     parameter.symbol,
                     binders,
@@ -457,7 +457,7 @@ pub(crate) fn parameter_signatures(
         let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
         trace.phase("state graph: state signature: parameter signature: parameter access");
         let access = structural_access_for_type_reference(program, parameter.type_reference)?;
-        if fused_service_erasure.is_some()
+        if binding_carrier.is_some()
             && (!service_parameter_access_matches(multiplicity, access)
                 || parameter.is_mutable != (access == CheckedStructuralAccess::MutableBorrow)
                 || !qualifications.is_empty())
@@ -465,7 +465,7 @@ pub(crate) fn parameter_signatures(
             return None;
         }
         trace.phase("state graph: state signature: parameter signature: projected qualifications");
-        let projected_qualifications = if fused_service_erasure.is_some() {
+        let projected_qualifications = if binding_carrier.is_some() {
             Vec::new()
         } else {
             projected_parameter_qualifications(program, shapes, parameter.type_reference, binders)?
@@ -478,7 +478,7 @@ pub(crate) fn parameter_signatures(
             access,
             qualifications,
             projected_qualifications,
-            fused_service_erasure,
+            binding_carrier,
         });
     }
     Some((structural_parameters, scalar_parameters))

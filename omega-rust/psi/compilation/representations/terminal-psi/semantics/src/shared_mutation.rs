@@ -61,7 +61,7 @@ fn type_mutation<'types>(
     }
     active.push(identity);
     let result = match &declaration.shape {
-        StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::FusedServiceBinding => {
+        StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::BindingCarrier => {
             SharedMutation::None
         }
         StructuralTypeShape::ByteSequence(carrier) => byte_mutation(*carrier),

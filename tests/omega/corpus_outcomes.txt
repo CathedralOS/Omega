@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.84, "load1_start": 2.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -2021,6 +2021,8 @@ fail/providers/consuming_requirement_without_provider rejected 6663ms expected @
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 fail/providers/named_provider_wrong_requirement_owner rejected 18ms expected @693920652f41
 	closed conformance `WrongProvider satisfies CounterOperations` has no inherited requirement slot `OtherOperations::read`
+fail/providers/nested_binding_missing_establishment rejected 93091ms expected @6289e072ebd6
+	selected ProgramEntry Binding field `Main::session::reading` requires a selected Fused provider for boundary `Reading`
 fail/providers/provider_selection_fabricated_activation rejected 1230ms expected @944ee0efb38f+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/providers/provider_type_slot_ambiguous rejected 167ms expected @944ee0efb38f+wt
@@ -3892,6 +3894,7 @@ pass/providers/generic_provider_structural_result_composition_exit checked 3447m
 pass/providers/kernel_import_result_chain_exit checked 654ms check-target:linux_x86_64 @ee08fad015b6+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1865ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/providers/local_record_foreign_borrow_exit checked 2194ms check-target:macos_arm64 @59d57ace39f0+wt
+pass/providers/nested_binding_borrowed_call_exit checked 47687ms check-target:macos_arm64 @6289e072ebd6
 pass/providers/owned_array_operand_epochs_exit checked 1500ms check-target:macos_arm64 @c27519066a03+wt
 pass/providers/provider_type_target_default_override checked 653ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/runtime_adapter_dispatch_exit checked 1254ms check-target:macos_arm64 @2d8ed253669f

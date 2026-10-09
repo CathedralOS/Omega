@@ -32,7 +32,7 @@ pub(super) fn checked_provider_attachment_requirements(
             CheckedUnitStructuralFieldType::ProviderBacked {
                 provider_type_identity,
             }
-            | CheckedUnitStructuralFieldType::FusedServiceBacked {
+            | CheckedUnitStructuralFieldType::BindingBacked {
                 provider_type_identity,
                 ..
             } => Some((field, provider_type_identity)),
@@ -284,7 +284,7 @@ fn parameter_is_provider_carrier(
     parameter: &CheckedUnitStructuralParameterPlan,
     attachment_type_identity: &str,
 ) -> bool {
-    parameter.fused_service_erasure.is_some()
+    parameter.binding_carrier.is_some()
         || type_carries_unsupported_provider(
             shapes,
             parameter.type_identity.as_str(),
@@ -323,7 +323,7 @@ fn type_carries_unsupported_provider<'a>(
     }
     shape_fields(&plan.shape).any(|field| match &field.field_type {
         CheckedUnitStructuralFieldType::ProviderBacked { .. } => true,
-        CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => !allow_fused,
+        CheckedUnitStructuralFieldType::BindingBacked { .. } => !allow_fused,
         CheckedUnitStructuralFieldType::Structural { type_identity } => {
             type_carries_unsupported_provider(shapes, type_identity, allow_fused, visited)
         }

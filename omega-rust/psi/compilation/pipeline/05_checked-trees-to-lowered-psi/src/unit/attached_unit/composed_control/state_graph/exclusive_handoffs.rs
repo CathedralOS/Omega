@@ -80,7 +80,7 @@ pub(super) fn promote_shared_handoffs(
     let plain_loan = |parameter: &CheckedUnitStructuralParameterPlan| {
         parameter.multiplicity == Multiplicity::Unrestricted
             && parameter.qualifications.is_empty()
-            && parameter.fused_service_erasure.is_none()
+            && parameter.binding_carrier.is_none()
             && block_loan_referent(parameter)
     };
     let mut candidates = BTreeSet::new();

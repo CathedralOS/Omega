@@ -1,0 +1,30 @@
+// Checking retains the same logical Binding through a nested field and a
+// borrowed parameter. Only the selected entry establishes provider custody.
+use omega::language::core::binding;
+
+pub boundary trait Reading {
+    machine read() -> u64;
+}
+
+data ReadingProvider {}
+machine ReadingProvider::read() -> u64 satisfies Reading::read { 42 }
+
+// Merely checking a helper's Binding must not demand an unrelated selection.
+pub boundary trait Unselected { machine read() -> u64; }
+machine unused(binding: &Binding<Unselected>) -> u64 reaches Unselected {
+    binding.read()
+}
+
+data Session { reading: Binding<Reading>; }
+data Main { session: Session; }
+
+machine read(binding: &mut Binding<Reading>) -> u64 reaches Reading {
+    binding.read()
+}
+
+machine Main::main(main: &mut Main) reaches Reading crashes Trap {
+    let value: u64 = read(&mut main.session.reading);
+    transition value == 42 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

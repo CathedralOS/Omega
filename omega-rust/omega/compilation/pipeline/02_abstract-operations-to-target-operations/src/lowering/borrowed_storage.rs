@@ -103,7 +103,7 @@ impl StorageRecipes<'_> {
                 self.fields
                     .push((path.clone(), repetitions.clone(), offset, *scalar, *scalar))
             }
-            StructuralTypeShape::FusedServiceBinding
+            StructuralTypeShape::BindingCarrier
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. } => {

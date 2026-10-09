@@ -2509,10 +2509,12 @@ crash and native exit behavior.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`
     decisions: calling plans, program-entry
-    selection, fused-provider settlement, selected legacy generic-operator and
+    selection, provider settlement, selected legacy generic-operator and
     boundary-family requests, selected-dispatch execution, callback
     materialization, task activation, component progress, x86 FMA associations
-    and fused entry establishments. Move their per-target realization to Omega,
+    and fused entry establishments. Logical Binding shapes now remain independent
+    of provider mode; entry establishment still joins source schema and selected
+    provenance here. Move their per-target realization to Omega,
     keeping source-semantic contracts and all authored candidates in Psi. Every
     family body and Build row is checked even when `--target` excludes it.
   - Remove `provider-planning`'s `typed-trees`, `validation` and
