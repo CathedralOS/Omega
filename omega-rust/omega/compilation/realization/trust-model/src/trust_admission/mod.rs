@@ -8,7 +8,7 @@ use std::fmt;
 /// admission. The human-readable commitment remains part of admission
 /// authority, but compact report coordinates do not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TrustAdmissionDigest([u8; 32]);
+pub(crate) struct TrustAdmissionDigest([u8; 32]);
 
 impl TrustAdmissionDigest {
     pub fn from_digest(digest: [u8; 32]) -> Result<Self, &'static str> {
@@ -111,7 +111,7 @@ impl TrustAdmission {
         )
     }
 
-    pub fn for_machine_template(
+    pub(crate) fn for_machine_template(
         commitment: String,
         report_identity: u64,
         template_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
@@ -124,7 +124,7 @@ impl TrustAdmission {
         )
     }
 
-    pub fn for_machine_contract(
+    pub(crate) fn for_machine_contract(
         commitment: String,
         report_identity: u64,
         contract_commitment: checked_trees::MachineContractCommitment,
@@ -139,7 +139,7 @@ impl TrustAdmission {
 
     /// Reconstruct one owner-persisted admission. The digest is already the
     /// authority value; compact display data is intentionally absent.
-    pub fn from_persisted(
+    pub(crate) fn from_persisted(
         commitment: String,
         digest: TrustAdmissionDigest,
     ) -> Result<Self, &'static str> {

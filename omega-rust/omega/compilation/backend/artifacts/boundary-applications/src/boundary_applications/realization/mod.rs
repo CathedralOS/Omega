@@ -3,7 +3,7 @@ use semantic_vocabulary::OperationId;
 
 /// Closed semantic role selected for one exact D29 application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundaryApplicationRealizationRole {
+pub(crate) enum BoundaryApplicationRealizationRole {
     NongenericCheckedBody,
     SpecializedCheckedBody,
     ExactCompilerIntrinsic,
@@ -141,7 +141,7 @@ impl TerminalBoundaryApplicationRealizations {
         })
     }
 
-    pub fn validate_for_demands(
+    pub(crate) fn validate_for_demands(
         &self,
         demands: &TerminalBoundaryApplicationDemands,
     ) -> Result<(), &'static str> {

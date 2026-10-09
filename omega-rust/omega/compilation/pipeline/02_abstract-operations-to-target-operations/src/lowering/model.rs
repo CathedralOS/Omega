@@ -8,7 +8,7 @@ use target::NativeTarget;
 /// input. Construction grants no backing or access authority; lowering rejoins
 /// the complete plan identity and content commitment to the retained row.
 #[derive(Debug, Clone, Copy)]
-pub struct SelectedPlacedViewInputPlan<'plan> {
+pub(crate) struct SelectedPlacedViewInputPlan<'plan> {
     pub terminal_input: &'plan terminal_psi::TerminalPlacedViewInput,
     pub placement_plan: &'plan access_plans::ValidatedPlacementPlan,
 }
@@ -216,7 +216,7 @@ pub enum LoweringError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PlacedViewInputTranslationError {
+pub(crate) enum PlacedViewInputTranslationError {
     UnsupportedInputCount(usize),
     SelectionCountMismatch { expected: usize, actual: usize },
     InputIsNotDirectEntry,
@@ -255,7 +255,7 @@ impl LoweringError {
     /// An unsupported control shape in `machine`, carrying the caller's check
     /// site for a developer.
     #[track_caller]
-    pub fn unsupported_control_flow(machine: MachineId) -> Self {
+    pub(crate) fn unsupported_control_flow(machine: MachineId) -> Self {
         Self::UnsupportedControlFlow {
             machine,
             site: optimization_core::CompilerCheckSite::caller(),

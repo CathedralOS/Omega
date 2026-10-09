@@ -35,7 +35,7 @@ pub(crate) fn reject_raw_ieee_float_fma(
     }
 }
 
-pub fn validate_abstract_to_target_translation(
+pub(crate) fn validate_abstract_to_target_translation(
     source: &AbstractOperationPlan,
     expected_target: NativeTarget,
     target: &TargetOperationPlan,
