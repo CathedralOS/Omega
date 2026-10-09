@@ -13,9 +13,17 @@ ensures reflexive(result) {
 machine qualified(value: u8)
 ensures helpers::reflexive(value) {}
 
+machine returned(value: u8)
+ensures helpers::predicate(value) {}
+
+machine generic(value: u8)
+ensures helpers::identity<u8>(value) == value {}
+
 machine main() crashes Trap {
     formed(7u8);
     qualified(9u8);
+    returned(13u8);
+    generic(17u8);
     let observed: u8 = identity(11u8);
     transition observed == 11u8 {
         true -> done()
