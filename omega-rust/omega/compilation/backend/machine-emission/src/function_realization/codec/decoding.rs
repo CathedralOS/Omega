@@ -77,12 +77,12 @@ pub(super) fn decode_manifest_content(
         tag => return Err(Error::UnknownScope(tag)),
     };
     let statistics = FunctionRelativeOptimizationRealizationStatistics {
-        functions: u64::from_le_bytes(cursor.array()?),
-        blocks: u64::from_le_bytes(cursor.array()?),
-        instructions: u64::from_le_bytes(cursor.array()?),
-        bytes: u64::from_le_bytes(cursor.array()?),
-        resolved_conditional_branches: u64::from_le_bytes(cursor.array()?),
-        unresolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
+        functions: cursor.u64()?,
+        blocks: cursor.u64()?,
+        instructions: cursor.u64()?,
+        bytes: cursor.u64()?,
+        resolved_conditional_branches: cursor.u64()?,
+        unresolved_internal_machine_fixups: cursor.u64()?,
     };
     let frame = match cursor.byte()? {
         1 => FunctionRelativeFrameDisposition::Unavailable,

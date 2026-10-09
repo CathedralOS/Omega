@@ -40,6 +40,18 @@ impl<'encoded> Cursor<'encoded> {
         Ok(self.array::<1>()?[0])
     }
 
+    pub(super) fn u32(
+        &mut self,
+    ) -> Result<u32, FunctionRelativeOptimizationRealizationManifestDecodeError> {
+        Ok(u32::from_le_bytes(self.array()?))
+    }
+
+    pub(super) fn u64(
+        &mut self,
+    ) -> Result<u64, FunctionRelativeOptimizationRealizationManifestDecodeError> {
+        Ok(u64::from_le_bytes(self.array()?))
+    }
+
     pub(super) fn remaining(&self) -> usize {
         self.encoded.len() - self.offset
     }

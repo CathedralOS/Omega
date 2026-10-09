@@ -1,9 +1,9 @@
 use super::super::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
 };
-use optimization_core::hex;
 use super::target::{architecture_name, object_format_name};
 use machine_code::SelectedFunctionLayoutPolicy;
+use optimization_core::hex;
 use std::fmt::Write;
 
 pub(super) fn render_manifest(
@@ -220,4 +220,3 @@ pub(super) fn render_manifest(
     writeln!(output, "publication: unavailable").unwrap();
     output
 }
-

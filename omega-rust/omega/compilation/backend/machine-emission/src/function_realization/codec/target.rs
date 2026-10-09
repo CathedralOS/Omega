@@ -42,10 +42,10 @@ pub(super) fn decode_target(
             );
         }
     };
-    let pointer_size = usize::try_from(u64::from_le_bytes(cursor.array()?)).map_err(|_| {
+    let pointer_size = usize::try_from(cursor.u64()?).map_err(|_| {
         FunctionRelativeOptimizationRealizationManifestDecodeError::TargetLayoutOverflow
     })?;
-    let pointer_alignment = usize::try_from(u64::from_le_bytes(cursor.array()?)).map_err(|_| {
+    let pointer_alignment = usize::try_from(cursor.u64()?).map_err(|_| {
         FunctionRelativeOptimizationRealizationManifestDecodeError::TargetLayoutOverflow
     })?;
     Ok(NativeTarget {

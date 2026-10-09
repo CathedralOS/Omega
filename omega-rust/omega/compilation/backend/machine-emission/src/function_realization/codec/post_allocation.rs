@@ -36,10 +36,10 @@ pub(super) fn decode_optional_custody(
                 OptimizationSelectionIdentity::from_bytes(cursor.array()?);
             let source =
                 physical_instructions::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
-            let action_count = usize::try_from(u64::from_le_bytes(cursor.array()?))
-                .map_err(|_| Error::ActionCountOverflow)?;
-            let baseline_bytes = u64::from_le_bytes(cursor.array()?);
-            let selected_bytes = u64::from_le_bytes(cursor.array()?);
+            let action_count =
+                usize::try_from(cursor.u64()?).map_err(|_| Error::ActionCountOverflow)?;
+            let baseline_bytes = cursor.u64()?;
+            let selected_bytes = cursor.u64()?;
             Ok(Some(PostAllocationMachineOptimizationCustody::from_parts(
                 optimization,
                 artifact_identity,

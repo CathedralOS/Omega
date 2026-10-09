@@ -43,7 +43,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
         if cursor.take(MANIFEST_MAGIC.len())? != MANIFEST_MAGIC {
             return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != MANIFEST_VERSION {
             return Err(
                 FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
