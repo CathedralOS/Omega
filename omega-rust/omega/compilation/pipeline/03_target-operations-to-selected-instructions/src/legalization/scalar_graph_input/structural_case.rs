@@ -315,8 +315,20 @@ pub(in crate::legalization) fn leaf_copy_layout(
     // into fresh storage the successor takes custody of.
     let owned_case_copy = matches!(path, abstract_operations::StructuralCopyPath::Case(_))
         && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
+    let shared_descriptor = find_structural_type(&plan.structural_types, result.structural_type)
+        .is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                StructuralTypeShape::Reference {
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    ..
+                }
+            )
+        });
     if (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        && !owned_case_copy)
+        && !owned_case_copy
+        && !(result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && shared_descriptor))
         || !result.claims.is_empty()
     {
         return Err(LegalizationError::custody());
@@ -339,7 +351,10 @@ pub(in crate::legalization) fn leaf_copy_layout(
     if endpoint != result.structural_type && !byte_carrier {
         return Err(LegalizationError::custody());
     }
-    if super::reference_custody::contains_reference(&plan.structural_types, copy_type) {
+    // Geometry copies descriptor bytes; the independent custody replay joins
+    // their exact shared leaves and preserves the original live source roster.
+    // This never authorizes duplication of an exclusive reference or claims.
+    if !super::reference_custody::shared_copy_type(&plan.structural_types, copy_type) {
         return Err(LegalizationError::custody());
     }
     for element in &indices {

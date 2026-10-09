@@ -11,6 +11,8 @@
 //! Selection retains one descriptor with every possible immediate parent.
 //! Child access, transfer and disposal test membership in that complete roster;
 //! roots describe possible storage, never a runtime address to choose here.
+//! Shared descriptor copies retain that roster without consuming the source:
+//! each new carrier has its own release identity but the same immediate parents.
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
 };
@@ -224,6 +226,55 @@ pub(in crate::legalization) fn contains_reference(
     root: StructuralTypeId,
 ) -> bool {
     terminal_psi::structural_type_contains_reference(types, root)
+}
+
+/// Copying unrestricted storage may duplicate shared descriptors, never
+/// exclusive permissions. Referents are backing, not contained payload.
+pub(in crate::legalization) fn shared_copy_type(
+    types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(current) = pending.pop() {
+        if visited.contains(&current) {
+            continue;
+        }
+        visited.push(current);
+        let Some(declaration) = find_structural_type(types, current) else {
+            return false;
+        };
+        let fields: Vec<_> = match &declaration.shape {
+            StructuralTypeShape::Reference { access, .. } => {
+                if *access != StructuralAccess::SharedBorrow {
+                    return false;
+                }
+                continue;
+            }
+            StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
+            StructuralTypeShape::Sum { cases } => {
+                cases.iter().flat_map(|case| &case.fields).collect()
+            }
+            StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| &case.fields))
+                .collect(),
+            StructuralTypeShape::FixedArray { element, length } => {
+                if *length != 0 {
+                    pending.push(*element);
+                }
+                continue;
+            }
+            _ => continue,
+        };
+        pending.extend(
+            fields
+                .into_iter()
+                .filter(|field| !field.relevance.is_erased())
+                .filter_map(|field| field.field_type.as_structural()),
+        );
+    }
+    true
 }
 
 /// Push one field's reference-bearing child as a leaf-path continuation:
@@ -1438,6 +1489,83 @@ pub(in crate::legalization) fn apply(
 ) -> Result<(), LegalizationError> {
     let types = &plan.structural_types[..];
     match operation {
+        AbstractOperation::StructuralLeafCopy {
+            psi_operation,
+            result,
+            source,
+            path,
+        } if contains_reference(types, result.structural_type) => {
+            let abstract_operations::StructuralCopyPath::Ordinary(path) = path else {
+                return Err(invalid());
+            };
+            let shared_descriptor = find_structural_type(types, result.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Reference {
+                            access: StructuralAccess::SharedBorrow,
+                            ..
+                        }
+                    )
+                });
+            if !shared_copy_type(types, result.structural_type)
+                || (result.multiplicity != StructuralMultiplicity::Unrestricted
+                    && !(result.multiplicity == StructuralMultiplicity::Affine
+                        && shared_descriptor))
+                || !result.claims.is_empty()
+                || !result.qualification_establishments.is_empty()
+                || source_contract(function, custody, *source)
+                    .and_then(|root| leaf_type(types, root, path))
+                    != Some(result.structural_type)
+                || custody.leaves.iter().any(|((carrier, _), leaf)| {
+                    *carrier == result.place || leaf.identity.0 == result.place
+                })
+            {
+                return Err(invalid());
+            }
+            let paths = leaf_paths(types, result.structural_type, custody.leaves.len())
+                .filter(|paths| !paths.is_empty())
+                .ok_or(invalid())?;
+            let mut copied = Vec::with_capacity(paths.len());
+            for relative in &paths {
+                let mut selected = path.clone();
+                selected.extend_from_slice(relative);
+                let mut observation = selected.clone();
+                observation.push(StructuralPathSegment::Referent);
+                // Observation authenticates current permission and descriptor
+                // storage without minting a reborrow of the source identity.
+                call_paths::call_reference_custody(
+                    function,
+                    custody,
+                    types,
+                    &StructuralArgument {
+                        place: *source,
+                        path: observation,
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                )?;
+                let source_leaf = custody.leaves.get(&(*source, selected)).ok_or(invalid())?;
+                let expected =
+                    leaf_referent(types, result.structural_type, relative).ok_or(invalid())?;
+                if source_leaf.referent != expected {
+                    return Err(invalid());
+                }
+                let mut leaf = source_leaf.clone();
+                leaf.identity = (result.place, relative.clone());
+                leaf.operation = Some(*psi_operation);
+                leaf.result = result.clone();
+                copied.push(((result.place, relative.clone()), leaf));
+            }
+            if custody.leaves.keys().any(|(carrier, selected)| {
+                *carrier == *source
+                    && selected
+                        .strip_prefix(path.as_slice())
+                        .is_some_and(|relative| !paths.iter().any(|expected| expected == relative))
+            }) {
+                return Err(invalid());
+            }
+            custody.leaves.extend(copied);
+        }
         AbstractOperation::EstablishReference {
             psi_operation,
             result,

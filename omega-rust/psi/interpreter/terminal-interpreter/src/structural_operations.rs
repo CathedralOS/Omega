@@ -1171,18 +1171,35 @@ impl TerminalExecution<'_> {
             self.structural_values.insert(result.place, copied);
             return Ok(OperationFlow::Advance);
         }
-        // Affine payload copies and reference relocations need their own
-        // frontier/loan publication. Preserve the explicit execution boundary
-        // rather than calling an admitted but unsupported operation malformed.
+        // A shared descriptor may carry affine disposal metadata even though
+        // copying its permission is admitted. Its cells retain the captured
+        // backing below; no referent snapshot or parent reborrow is created.
+        let shared_descriptor = self
+            .program
+            .structural_types()
+            .get(&result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Reference {
+                        access: StructuralAccess::SharedBorrow,
+                        ..
+                    }
+                )
+            });
+        // Other affine payloads still need their owned frontier publication.
         if matches!(operation.kind, OperationKind::StructuralCaseLeafCopy { .. })
             && result.multiplicity != StructuralMultiplicity::Unrestricted
+            && !shared_descriptor
         {
             return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
         }
-        if result.multiplicity != StructuralMultiplicity::Unrestricted
+        if (result.multiplicity != StructuralMultiplicity::Unrestricted
+            && !(result.multiplicity == StructuralMultiplicity::Affine && shared_descriptor))
             || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
+            || self.live_affine_discard_at(result.place).is_some()
         {
             return Err(malformed());
         }
@@ -1245,6 +1262,40 @@ impl TerminalExecution<'_> {
             // record's scalar leaves decode little-endian out of the
             // consecutive bytes the source recast judgment proved fit.
             return self.byte_carrier_leaf_copy(&leaf, result);
+        }
+        let source_place = StructuralRuntimePlace::from(&leaf);
+        if shared_descriptor && !self.reference_referents.contains_key(&source_place) {
+            return Err(malformed());
+        }
+        // Unrestricted aggregates may also contain shared descriptor leaves.
+        // Every copied runtime association must rejoin that exact declaration;
+        // cloning storage cannot amplify an exclusive permission.
+        for carrier in self.reference_referents.keys().filter(|carrier| {
+            carrier.opaque_identity == source_place.opaque_identity
+                && carrier.path.starts_with(&source_place.path)
+        }) {
+            let relative = &carrier.path[source_place.path.len()..];
+            let reference_type = crate::custody::resolve_structural_path_type(
+                &self.program.structural_types(),
+                result.structural_type,
+                relative,
+            )?;
+            if !self
+                .program
+                .structural_types()
+                .get(&reference_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Reference {
+                            access: StructuralAccess::SharedBorrow,
+                            ..
+                        }
+                    )
+                })
+            {
+                return Err(malformed());
+            }
         }
         let copied = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
@@ -1339,6 +1390,7 @@ impl TerminalExecution<'_> {
             &StructuralRuntimePlace::from(&copied),
         );
         self.structural_values.insert(result.place, copied);
+        self.track_affine_result(result);
         Ok(OperationFlow::Advance)
     }
 

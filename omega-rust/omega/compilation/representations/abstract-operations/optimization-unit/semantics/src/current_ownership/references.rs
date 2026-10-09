@@ -1275,36 +1275,129 @@ pub(super) fn apply_operation(
                 *field,
             )?;
         }
-        O::StructuralLeafCopy { result, source, .. } => {
-            // A `&`-leaf copy relocates the source's existing loan
-            // descriptor: the result is a fresh live carrier rooted at that
-            // same primitive loan — no new edge, no consumption of `source`.
-            // The case-qualified variant relocates the same loan out of a
-            // proven-active case payload.
-            if structural_types
-                .get(&result.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::Reference {
-                            access: terminal_psi::StructuralAccess::SharedBorrow,
-                            ..
-                        }
-                    )
+        O::StructuralLeafCopy {
+            result,
+            source,
+            path,
+            ..
+        } if contains_reference(structural_types, result.structural_type) => {
+            // Copy carrier storage, not its referent or a new reborrow. Each
+            // copied permission joins the source's exact backing and immediate
+            // parent; distinct identities keep both shared cohort members live
+            // until their independent releases.
+            let abstract_operations::StructuralCopyPath::Ordinary(path) = path else {
+                return Err(invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "reference copy needs an exact ordinary carrier path",
+                ));
+            };
+            let shared_descriptor = reference_access(structural_types, result.structural_type)
+                == Some(StructuralAccess::SharedBorrow);
+            let source_type = structural_source_contract(function, *source)
+                .and_then(|signature| leaf_type(structural_types, signature.structural_type, path));
+            if source_type != Some(result.structural_type)
+                || (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    && !(result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                        && shared_descriptor))
+                || !result.claims.is_empty()
+                || !result.qualification_establishments.is_empty()
+                || live.iter().any(|reference| {
+                    reference.carrier == result.place || reference.identity.place == result.place
                 })
             {
-                let root = ReferenceOrigin::Primitive(*source);
-                live.push(LiveReference {
+                return Err(invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "reference copy has no exact shared source or fresh destination",
+                ));
+            }
+            let paths = leaf_paths(structural_types, result.structural_type, live.len())
+                .filter(|paths| !paths.is_empty())
+                .ok_or_else(|| {
+                    invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "reference copy has no complete source leaf roster",
+                    )
+                })?;
+            let mut copied = Vec::with_capacity(paths.len());
+            for relative in &paths {
+                let mut selected = path.clone();
+                selected.extend_from_slice(relative);
+                if leaf_type(structural_types, result.structural_type, relative)
+                    .and_then(|leaf| reference_access(structural_types, leaf))
+                    != Some(StructuralAccess::SharedBorrow)
+                {
+                    return Err(invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "reference copy requires available shared descriptor storage",
+                    ));
+                }
+                let mut observation = selected.clone();
+                observation.push(terminal_psi::StructuralPathSegment::Referent);
+                access_reference_custody(
+                    function,
+                    structural_types,
+                    block,
+                    node,
+                    live,
+                    &StructuralArgument {
+                        place: *source,
+                        path: observation,
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                )?;
+                let mut matching = live.iter().filter(|reference| {
+                    reference.carrier == *source && reference.carrier_path == selected
+                });
+                let source_leaf = matching.next().ok_or_else(|| {
+                    invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "reference copy source leaf is absent",
+                    )
+                })?;
+                if matching.next().is_some() {
+                    return Err(invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "reference copy source leaf is ambiguous or suspended",
+                    ));
+                }
+                copied.push(LiveReference {
                     identity: ReferenceIdentity {
                         place: result.place,
-                        path: Vec::new(),
+                        path: relative.clone(),
                     },
                     carrier: result.place,
-                    carrier_path: Vec::new(),
-                    root: root.clone(),
-                    parent: ReferenceParent::Root(root),
+                    carrier_path: relative.clone(),
+                    root: source_leaf.root.clone(),
+                    parent: source_leaf.parent.clone(),
                 });
             }
+            if live.iter().any(|reference| {
+                reference.carrier == *source
+                    && reference
+                        .carrier_path
+                        .strip_prefix(path.as_slice())
+                        .is_some_and(|relative| !paths.iter().any(|expected| expected == relative))
+            }) {
+                return Err(invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "reference copy source has an unaccounted leaf",
+                ));
+            }
+            live.extend(copied);
         }
         _ => {}
     }
