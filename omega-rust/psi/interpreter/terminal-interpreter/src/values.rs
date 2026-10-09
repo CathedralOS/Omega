@@ -2,8 +2,8 @@
 //! structural values, case values and their runtime places.
 
 use semantic_vocabulary::{
-    IeeeFloatValue, IntegerType, IntegerValue, ScalarType, StructuralCaseId, StructuralDomainId,
-    StructuralFieldId, StructuralTypeId,
+    IeeeFloatValue, IntegerType, IntegerValue, ScalarType, StructuralCaseId, StructuralFieldId,
+    StructuralTypeId,
 };
 use terminal_psi::StructuralPathSegment;
 
@@ -17,51 +17,7 @@ pub enum TerminalScalarValue {
     IeeeFloat(IeeeFloatValue),
 }
 
-/// Opaque target-neutral runtime carrier for one structural argument.
-///
-/// `opaque_identity` is chosen by the embedding host and is only preserved for
-/// argument forwarding and deterministic effect observation. Psi never treats
-/// it as an address or layout. Qualification IDs are semantic runtime facts
-/// supplied by the root installation and must be strictly increasing.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TerminalStructuralValue {
-    pub opaque_identity: u64,
-    pub structural_type: StructuralTypeId,
-    pub qualifications: Vec<StructuralDomainId>,
-    /// Exact occurrence-relative child memberships, retained independently
-    /// of storage identity and selected again whenever the value is projected.
-    pub projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
-    pub path: Vec<StructuralPathSegment>,
-}
-
-impl TerminalStructuralValue {
-    /// A fresh root value minted for `structural_type`: new opaque identity,
-    /// authored qualifications, no projected state, and no path.
-    pub fn minted(
-        opaque_identity: u64,
-        structural_type: StructuralTypeId,
-        qualifications: Vec<StructuralDomainId>,
-    ) -> Self {
-        Self {
-            opaque_identity,
-            structural_type,
-            qualifications,
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        }
-    }
-
-    /// Adds every domain in `source` this value does not already carry,
-    /// keeping the roster sorted — the union every binding site performs.
-    pub fn absorb_qualifications(&mut self, source: &[StructuralDomainId]) {
-        for domain in source {
-            if !self.qualifications.contains(domain) {
-                self.qualifications.push(*domain);
-            }
-        }
-        self.qualifications.sort();
-    }
-}
+pub use terminal_installation::TerminalStructuralValue;
 
 /// Exact target-neutral host/result payload for a selected scalar sum case.
 ///
@@ -87,8 +43,8 @@ impl TerminalScalarCaseValue {
         let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
             return Err(malformed());
         };
-        let selected = terminal_psi::find_structural_case(cases, self.result_case)
-            .ok_or_else(malformed)?;
+        let selected =
+            terminal_psi::find_structural_case(cases, self.result_case).ok_or_else(malformed)?;
         if declaration.id != self.structural_type
             || selected.fields.len() != self.fields.len()
             || selected

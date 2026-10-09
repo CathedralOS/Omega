@@ -15,7 +15,7 @@ pub enum ProviderInstallationError {
     AmbiguousSelectedProvider {
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
-    PsiAdmission(terminal_interpreter::ProviderInstallationError),
+    PsiAdmission(terminal_installation::ProviderInstallationError),
     TerminalIdentityMismatch,
     InstalledCallReplayMismatch {
         caller: MachineId,

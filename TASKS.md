@@ -2075,12 +2075,14 @@ crash and native exit behavior.
     cross with portable contract/ABI records; source selection stays at the
     producer, and backend-plan no longer depends on checked trees. Initial
     ABI/resource planning and entry signatures still need source-free inputs.
+    Native stage 00 and product records consume shared Terminal installation
+    contracts, not interpreter types; runtime dispatch stays in the interpreter.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming
     stage's declared inputs. Add one workspace architecture gate derived from
     `cargo metadata` that rejects a Psi dependency on Omega, an Omega
     pipeline/realization dependency on source/typed/checked Psi or Psi transform,
-    checking or interpreter crates, and any stage edge outside the declared
+    source-checking or interpreter crates, and any stage edge outside the declared
     producer/consumer graph. Allow explicit test-only fixture construction
     without adding the dependency to the production target. The gate names the
     forbidden edge and the owning stage; it does not maintain a second pipeline

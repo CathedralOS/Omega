@@ -260,7 +260,17 @@ stage 07 owns entry receipts and source-correspondence judgments. Sequencing is
 product-driver work, not an extra Psi stage or a second complete compiler driver;
 there is no `psi/compiler/` umbrella.
 
-`psi/compilation/checking/` owns reusable source-program judgments. Its independent
+`psi/compilation/checking/` owns reusable judgments, with source-program checking
+separate from Terminal receiving-boundary admission. Its independent
+[`terminal-installation`](psi/compilation/checking/terminal-installation/src/lib.rs)
+package admits provider selections and assumed links against an exact Terminal
+artifact and owns shared structural-entry backing descriptions. It consumes no
+source trees, target layout, compiler driver or execution engine. Native lowering
+and product records retain that sealed selection evidence; only interpretation
+constructs host-import dispatch from it. This semantic library is not a source
+checker or an additional transform stage.
+
+Its independent
 [`representation-planning`](psi/compilation/checking/representation-planning/README.md)
 package admits source-level opaque representation relationships and checks their
 transitive cleanup and copy properties. The caller supplies build authority;

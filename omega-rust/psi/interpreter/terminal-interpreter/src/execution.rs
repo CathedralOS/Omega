@@ -12,7 +12,7 @@ use crate::custody::{
     bind_structural_primitive_values,
 };
 use crate::effects::{
-    AdmittedAssumedBinding, AdmittedProviderInstallation, TerminalEffect, TerminalEffectHandler,
+    AdmittedAssumedBinding, TerminalEffect, TerminalEffectHandler, TerminalRuntimeSupplies,
 };
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::results::meter_status;
@@ -262,7 +262,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         placed_view_establishments: &[TerminalPlacedViewEstablishment],
         zero_initialized_arguments: &[u32],
         established_erased_fields: &[crate::structural_inputs::TerminalEstablishedErasedField],
-        installation: Option<&AdmittedProviderInstallation>,
+        installation: Option<&TerminalRuntimeSupplies>,
     ) -> Result<Self, TerminalInterpretError> {
         // A nonempty placed-view roster declares direct entry inputs whose
         // referent custody must be established beside the ordinary inputs: one

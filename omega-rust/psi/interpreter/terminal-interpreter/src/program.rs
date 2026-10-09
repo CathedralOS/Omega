@@ -168,7 +168,7 @@ impl<'artifact> TerminalProgram<'artifact> {
     /// entry inputs bind or effects begin.
     pub fn execution_requirements(
         &self,
-        installation: Option<&crate::effects::AdmittedProviderInstallation>,
+        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
     ) -> Result<crate::capabilities::TerminalExecutionRequirements, TerminalInterpretError> {
         crate::capabilities::check(&self.program, installation)
     }
@@ -224,24 +224,23 @@ impl<'artifact> TerminalProgram<'artifact> {
     pub fn admit_runtime_supplies(
         &self,
         request: crate::effects::TerminalRuntimeSupplyRequest<'_>,
-    ) -> Result<crate::effects::AdmittedProviderInstallation, TerminalInterpretError> {
-        use crate::effects::{AdmittedBoundarySupply, AdmittedProviderInstallation};
+    ) -> Result<crate::effects::TerminalRuntimeSupplies, TerminalInterpretError> {
+        use crate::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
 
         if request
             .installation
-            .is_some_and(|installation| installation.terminal_psi != self.program.identity)
+            .is_some_and(|installation| installation.terminal_psi() != self.program.identity)
         {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
-        let mut installation =
-            request
-                .installation
-                .cloned()
-                .unwrap_or_else(|| AdmittedProviderInstallation {
-                    terminal_psi: self.program.identity,
-                    supplies: BTreeMap::new(),
-                    assumed_bindings: Vec::new(),
-                });
+        let mut installation = request
+            .installation
+            .map(TerminalRuntimeSupplies::from)
+            .unwrap_or_else(|| TerminalRuntimeSupplies {
+                terminal_psi: self.program.identity,
+                supplies: BTreeMap::new(),
+                assumed_bindings: Vec::new(),
+            });
         for &boundary in request.host_imports {
             let rejected = |reason| TerminalInterpretError::RuntimeSupplySelectionRejected {
                 boundary,
@@ -332,7 +331,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
-        installation: &crate::effects::AdmittedProviderInstallation,
+        installation: &crate::effects::TerminalRuntimeSupplies,
     ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
         self.instantiate_with(scalar_arguments, structural_inputs, Some(installation))
     }
@@ -357,7 +356,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
-        installation: Option<&crate::effects::AdmittedProviderInstallation>,
+        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
     ) -> Result<crate::execution::TerminalExecution<'artifact>, TerminalArtifactInterpretError>
     {
         self.prepare_execution(scalar_arguments, structural_inputs, installation)
@@ -368,7 +367,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
-        installation: Option<&crate::effects::AdmittedProviderInstallation>,
+        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
     ) -> Result<
         (
             crate::execution::TerminalExecution<'artifact>,
@@ -441,7 +440,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
-        installation: Option<&crate::effects::AdmittedProviderInstallation>,
+        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
     ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
         let (execution, requirements) =
             self.prepare_execution(scalar_arguments, structural_inputs, installation)?;

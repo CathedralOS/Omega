@@ -1,5 +1,5 @@
 //! Effects an execution raises to its handler, the handler trait, the
-//! rejection it may answer with, and provider installation admission.
+//! rejection it may answer with, and interpreter-local supply dispatch.
 //!
 //! `results.rs` binds a host result to the verified boundary result it
 //! answers, and `byte_buffers.rs` stages the exact array and field loans a
@@ -122,71 +122,18 @@ pub struct TerminalEffectRejection {
     pub reason: String,
 }
 
-/// Omega-owned policy input naming one exact verified terminal provider row.
-/// Selection is intentionally separate from terminal-Psi semantic bytes.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProviderInstallationSelection {
-    pub boundary: BoundaryMachineId,
-    pub provider_identity: String,
-    pub candidate: MachineId,
-}
-
-/// Omega-owned policy input authorizing one root-level assumed binding
-/// contract relationship
-/// (wiki/spec/build/assumed_binding_contracts.md).
-///
-/// This is the runtime-policy side of `Build::assume_binding_contract`: only
-/// the consuming runtime root may authorize the relationship, so it arrives
-/// as sponsor-supplied installation input, never as artifact bytes — a
-/// dependency cannot grant the assumption to itself. Admission replays the
-/// link against the verified catalog: the supplied side must reach one
-/// selected implementation, competing checked or assumed supplies for the
-/// required requirement reject, and cyclic binding aliases reject. The
-/// relationship applies at this crossing only; it mints no
-/// `provider_candidates` conformance and no `installed` redirect, so a
-/// direct call of the supplied requirement keeps its own checked evidence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AssumedBindingSelection {
-    /// The caller-facing requirement (`Required::operation`) whose link the
-    /// root assumes.
-    pub required: BoundaryMachineId,
-    /// The requirement (`Supplied::operation`) whose selected implementation
-    /// the assumed link invokes.
-    pub supplied_requirement: BoundaryMachineId,
-}
-
-/// One admitted assumed binding contract relationship, bound to the same
-/// terminal-Psi identity as the checked provider installation it extends.
-///
-/// `implementation` is the actual selected code the assumed link invokes —
-/// binding identity cannot hide it. `supply_path` retains every assumed link
-/// followed to reach it, outermost first, so a chained assumption keeps its
-/// complete transitive trust record. Both requirements retain their own
-/// identities: the row is conditional evidence under the recorded
-/// assumption, not a checked conformance between them.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedAssumedBinding {
-    /// The caller-facing requirement (`Required::operation`).
-    pub required: BoundaryMachineId,
-    /// The requirement (`Supplied::operation`) whose selection resolves the
-    /// actual implementation.
-    pub supplied_requirement: BoundaryMachineId,
-    /// The concrete selected implementation reached by following the supply
-    /// side's selection and any nested assumed links — never the abstract
-    /// requirement itself.
-    pub implementation: MachineId,
-    /// Requirements traversed through nested assumed links before reaching
-    /// `implementation`, in traversal order. Empty when
-    /// `supplied_requirement` had an ordinary checked selection.
-    pub supply_path: Vec<BoundaryMachineId>,
-}
+pub use terminal_installation::{
+    AdmittedAssumedBinding, AssumedBindingSelection, ProviderInstallationSelection,
+};
 
 /// Admitted supply selection bound to one exact Terminal-Psi identity.
 /// Private fields preserve checked-provider custody; receiving hosts may add
 /// normal import choices through `TerminalProgram::admit_runtime_supplies`.
-/// Neither selection route establishes adapters or external-completion authority.
+/// Shared catalog admission supplies checked selections; this runtime carrier
+/// adds the interpreter's dispatch choice. Neither selection route establishes
+/// adapters or external-completion authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedProviderInstallation {
+pub struct TerminalRuntimeSupplies {
     pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
@@ -205,11 +152,26 @@ pub(crate) enum AdmittedBoundarySupply {
 /// choose imports on its behalf. Actual adapters remain instance-bound.
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalRuntimeSupplyRequest<'installation> {
-    pub installation: Option<&'installation AdmittedProviderInstallation>,
+    pub installation: Option<&'installation terminal_installation::AdmittedProviderSelections>,
     pub host_imports: &'installation [BoundaryMachineId],
 }
 
-impl AdmittedProviderInstallation {
+impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntimeSupplies {
+    fn from(selected: &terminal_installation::AdmittedProviderSelections) -> Self {
+        Self {
+            terminal_psi: selected.terminal_psi(),
+            supplies: selected
+                .providers()
+                .map(|(boundary, machine)| {
+                    (boundary, AdmittedBoundarySupply::CheckedProvider(machine))
+                })
+                .collect(),
+            assumed_bindings: selected.assumed_bindings().to_vec(),
+        }
+    }
+}
+
+impl TerminalRuntimeSupplies {
     pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
         self.terminal_psi
     }

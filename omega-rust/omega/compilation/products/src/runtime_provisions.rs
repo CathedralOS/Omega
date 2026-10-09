@@ -31,7 +31,7 @@ pub struct TerminalRuntimeProvisions {
     /// Parallel to `fused_services`: exact retained requirement slots of the
     /// same admitted schema/plan, not a provider-name or trait-prefix lookup.
     fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
-    installation: Option<terminal_interpreter::AdmittedProviderInstallation>,
+    installation: Option<terminal_installation::AdmittedProviderSelections>,
     host: Vec<TerminalRuntimeHostProvision>,
     borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
 }
@@ -42,7 +42,7 @@ impl TerminalRuntimeProvisions {
     pub fn capture_native_admission(
         checked: &terminal_psi::CheckedProgramEntryTerminalReceipt,
         fused_services: &[program_entry_plan::ProgramEntryFusedServiceEstablishment],
-        installation: Option<&terminal_interpreter::AdmittedProviderInstallation>,
+        installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         selected: &effects::SelectedProviderPlanFacts,
@@ -155,9 +155,7 @@ impl TerminalRuntimeProvisions {
             .map(|(establishment, slots)| (establishment, slots.as_slice()))
     }
 
-    pub const fn installation(
-        &self,
-    ) -> Option<&terminal_interpreter::AdmittedProviderInstallation> {
+    pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
         self.installation.as_ref()
     }
 

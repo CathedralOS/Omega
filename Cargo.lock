@@ -407,7 +407,7 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-codec",
- "terminal-interpreter",
+ "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "trust-model",
@@ -2076,6 +2076,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-installation"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
 name = "terminal-interpreter"
 version = "0.1.0"
 dependencies = [
@@ -2084,6 +2093,7 @@ dependencies = [
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-fuel",
+ "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2139,7 +2149,7 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-codec",
- "terminal-interpreter",
+ "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]

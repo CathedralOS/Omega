@@ -62,7 +62,7 @@ fn realize_image(
                 providers
                     .installation
                     .as_ref()
-                    .map(|installation| installation.psi_installation()),
+                    .map(|installation| installation.terminal_selection()),
                 providers
                     .settlements
                     .iter()

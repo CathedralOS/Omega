@@ -40,6 +40,7 @@ members = [
     "omega-rust/psi/compilation/representations/terminal-psi/codec",
     "omega-rust/psi/compilation/representations/terminal-psi/fuel",
     "omega-rust/psi/compilation/representations/terminal-psi/semantics",
+    "omega-rust/psi/compilation/checking/terminal-installation",
     "omega-rust/psi/interpreter/terminal-interpreter",
     "omega-rust/psi/interpreter/checked-interpreter",
     "omega-rust/psi/compilation/compile-time",

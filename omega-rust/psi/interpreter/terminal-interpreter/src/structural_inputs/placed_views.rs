@@ -17,22 +17,7 @@ use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::{StructuralAccess, TerminalModule, TerminalPlacedViewInput};
 
-/// One established placed-view input supplied beside the ordinary structural
-/// arguments.
-///
-/// `input` must equal its entry roster row exactly — machine, position, every
-/// declaration identity, access and binding flags, and both sealed placement
-/// identities — so a stale or substituted row cannot answer a different
-/// declared input. `referent` is the qualified backing carrier the provider
-/// lends for the invocation's duration: the borrowed establishment's parent
-/// claim. Qualification IDs are semantic runtime facts supplied by the root
-/// installation, the same as on structural arguments; Psi treats the carrier
-/// as an opaque occurrence root, never an address.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalPlacedViewEstablishment {
-    pub input: TerminalPlacedViewInput,
-    pub referent: TerminalStructuralValue,
-}
+pub use terminal_installation::TerminalPlacedViewEstablishment;
 
 /// A live placed-view occurrence: the referent a direct-entry roster row
 /// names, bound for the entry invocation's duration under the row's sealed

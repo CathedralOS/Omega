@@ -141,45 +141,7 @@ pub enum TerminalInterpretError {
     Fuel(FuelMeterError),
 }
 
-#[derive(Debug)]
-pub enum ProviderInstallationError {
-    SemanticDecode(terminal_codec::CodecError),
-    UnknownOrDuplicateSelection {
-        boundary: BoundaryMachineId,
-        candidate: MachineId,
-    },
-    /// One root-authorized assumed binding contract failed admission replay
-    /// against the verified artifact.
-    AssumedBindingRejected {
-        required: BoundaryMachineId,
-        supplied_requirement: BoundaryMachineId,
-        reason: AssumedBindingRejection,
-    },
-}
-
-/// Why one assumed binding contract relationship was rejected at
-/// installation admission.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AssumedBindingRejection {
-    /// The required side names no boundary machine in the verified artifact.
-    UnknownRequirement,
-    /// The supplied side names no boundary machine in the verified artifact.
-    UnknownSuppliedRequirement,
-    /// An ordinary checked provider selection already supplies the required
-    /// requirement: competing explicit checked and assumed supplies for the
-    /// same operation reject rather than silently preferring the assumption.
-    CompetingCheckedSupply,
-    /// Another assumed binding already claims the required requirement —
-    /// every required member still needs exactly one supply.
-    CompetingAssumption,
-    /// Following the supplied side's links reaches no selected
-    /// implementation: the supplied side must have one selected complete
-    /// provider and executable realization.
-    UnselectedSupply,
-    /// The assumed link resolves through itself or a cycle of assumed
-    /// links — cyclic binding aliases reject.
-    CyclicSupply,
-}
+pub use terminal_installation::{AssumedBindingRejection, ProviderInstallationError};
 
 #[derive(Debug)]
 pub enum TerminalArtifactInterpretError {

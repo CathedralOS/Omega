@@ -67,7 +67,7 @@ pub(crate) fn admit_provider_installation_with_projection(
                 ProviderInstallationError::AmbiguousSelectedProvider { boundary }
             });
         };
-        selections.push(terminal_interpreter::ProviderInstallationSelection {
+        selections.push(terminal_installation::ProviderInstallationSelection {
             boundary,
             provider_identity: candidate.provider_identity.clone(),
             candidate: candidate.candidate,
@@ -76,11 +76,11 @@ pub(crate) fn admit_provider_installation_with_projection(
     }
     let installed_calls = replay_installed_provider_calls(plan, module, &installed_candidates)?;
     let installation =
-        terminal_interpreter::admit_provider_installation(artifact, &selections, &[])
+        terminal_installation::admit_provider_installation(artifact, &selections, &[])
             .map_err(ProviderInstallationError::PsiAdmission)?;
     Ok(AdmittedProviderInstallation {
         psi: installation.terminal_psi(),
-        psi_installation: installation,
+        terminal_selection: installation,
         installed_candidates,
         installed_calls,
     })

@@ -15,7 +15,7 @@
 //! runtime; source-count is not a missing execution capability. Collect external
 //! demands without following them as normal provider calls.
 
-use crate::effects::{AdmittedBoundarySupply, AdmittedProviderInstallation};
+use crate::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
 use crate::errors::TerminalInterpretError;
 use crate::program::AdmittedTerminalProgram;
 use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind};
@@ -51,7 +51,7 @@ pub struct TerminalExternalCompletionDemand {
 
 pub(crate) fn check(
     program: &AdmittedTerminalProgram,
-    installation: Option<&AdmittedProviderInstallation>,
+    installation: Option<&TerminalRuntimeSupplies>,
 ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
     if installation.is_some_and(|installation| installation.terminal_psi != program.identity) {
         return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
@@ -590,7 +590,7 @@ mod tests {
             provider,
             machine(0, vec![boundary_call(provider_import)]),
         );
-        let installation = AdmittedProviderInstallation {
+        let installation = TerminalRuntimeSupplies {
             terminal_psi: program.identity,
             supplies: BTreeMap::from([(
                 boundary,
@@ -809,7 +809,7 @@ mod tests {
         assert!(requirements.imports.is_empty());
         assert_eq!(requirements.missing_providers, vec![boundary]);
         set_machine(&mut program, target, machine(2, Vec::new()));
-        let mut installation = AdmittedProviderInstallation {
+        let mut installation = TerminalRuntimeSupplies {
             terminal_psi: program.identity,
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),

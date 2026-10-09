@@ -26,7 +26,7 @@
 //! qualifications cannot rejoin the module's own catalogs is a stale or
 //! substituted establishment and rejects before access.
 
-pub use terminal_interpreter::TerminalPlacedViewEstablishment;
+pub use terminal_installation::TerminalPlacedViewEstablishment;
 
 use super::ArtifactLoweringError;
 use std::collections::BTreeSet;
@@ -40,8 +40,8 @@ const fn exclusive(access: StructuralAccess) -> bool {
 }
 
 fn referent_overlaps(
-    left: &terminal_interpreter::TerminalStructuralValue,
-    right: &terminal_interpreter::TerminalStructuralValue,
+    left: &terminal_installation::TerminalStructuralValue,
+    right: &terminal_installation::TerminalStructuralValue,
 ) -> bool {
     left.opaque_identity == right.opaque_identity
         && (left.path.starts_with(&right.path) || right.path.starts_with(&left.path))

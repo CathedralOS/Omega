@@ -80,12 +80,12 @@ impl AdmittedInstalledProviderCall {
     }
 }
 
-/// Omega-owned installation custody. The Psi carrier remains sealed and is
-/// exposed only by reference for reference execution; physical consumers use
-/// the fully replayed provider rows and call occurrences retained alongside it.
+/// Omega-owned installation custody. Shared Terminal selection evidence stays
+/// sealed; physical consumers use the admitted rows and call occurrences beside
+/// it. No interpreter dispatch map or live runtime state is built here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedProviderInstallation {
-    pub(crate) psi_installation: terminal_interpreter::AdmittedProviderInstallation,
+    pub(crate) terminal_selection: terminal_installation::AdmittedProviderSelections,
     pub(crate) psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) installed_candidates: Vec<ProviderCandidateConformance>,
     pub(crate) installed_calls: Vec<AdmittedInstalledProviderCall>,
@@ -96,8 +96,8 @@ impl AdmittedProviderInstallation {
         self.psi
     }
 
-    pub const fn psi_installation(&self) -> &terminal_interpreter::AdmittedProviderInstallation {
-        &self.psi_installation
+    pub const fn terminal_selection(&self) -> &terminal_installation::AdmittedProviderSelections {
+        &self.terminal_selection
     }
 
     pub fn installed_candidates(&self) -> &[ProviderCandidateConformance] {

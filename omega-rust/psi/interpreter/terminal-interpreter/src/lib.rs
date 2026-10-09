@@ -17,6 +17,10 @@
 //! `instantiate`, `bind_import`, `invoke`, `close`; the raw
 //! `TerminalExecution`/`TerminalEffectHandler` surface remains the low-level
 //! control the embedding layer is built over, not a binding API.
+//! Shared `AdmittedProviderSelections` records only exact checked providers
+//! and assumed links. `admit_runtime_supplies` combines those with this host's
+//! import choices into `TerminalRuntimeSupplies` before instance creation;
+//! native compilation never constructs that interpreter dispatch state.
 //!
 //! The domains beside them, by responsibility: `structural_inputs` (the
 //! host-supplied entry inputs and their binding), `custody` (claims, the
@@ -72,9 +76,9 @@ pub use effects::storage_loans::{
     TerminalStorageContents,
 };
 pub use effects::{
-    AcceptTerminalEffects, AdmittedAssumedBinding, AdmittedProviderInstallation,
-    AssumedBindingSelection, ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler,
-    TerminalEffectRejection, TerminalRuntimeSupplyRequest,
+    AcceptTerminalEffects, AdmittedAssumedBinding, AssumedBindingSelection,
+    ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalRuntimeSupplies, TerminalRuntimeSupplyRequest,
 };
 pub use errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
@@ -102,9 +106,12 @@ pub use structural_inputs::case_membership::TerminalStructuralCaseValue;
 pub use structural_inputs::placed_views::TerminalPlacedViewEstablishment;
 pub use structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 pub use structural_inputs::{TerminalEstablishedErasedField, TerminalStructuralInputs};
-pub use terminal_interpreter::{
-    admit_provider_installation, admit_provider_installation_from_artifact,
+pub use terminal_installation::{
+    AdmittedProviderSelections, admit_provider_installation,
+    admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
+};
+pub use terminal_interpreter::{
     interpret_serialized_terminal_artifact_measured, interpret_terminal_artifact,
     interpret_terminal_artifact_measured,
 };

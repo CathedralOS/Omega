@@ -6,7 +6,7 @@ use super::retention::{AdmittedOptimizationArtifact, retain_optimization_context
 use crate::lowering::lower_decoded_module;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
 use abstract_operations::AbstractOperationPlan;
-use terminal_interpreter::TerminalPlacedViewEstablishment;
+use terminal_installation::TerminalPlacedViewEstablishment;
 
 /// Native-admitted input and the provider establishments bound to its
 /// direct-entry placed-view roster rows. Construction is private:

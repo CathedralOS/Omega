@@ -17,9 +17,9 @@
 //! only the semantic result under the accepting effect handler. The two
 //! `TerminalExecution` starts below are steps 1 and 2 for a caller that drives
 //! `resume` itself. Provider admission borrows an already retained artifact
-//! through [`admit_provider_installation`], or decodes external semantic bytes
-//! through [`admit_provider_installation_from_artifact`]. Both check the same
-//! selection policy against the catalog instead of running.
+//! through `terminal_installation::admit_provider_installation`, or decodes
+//! external semantic bytes through that owner's artifact entry. Shared
+//! admission checks policy against the catalog without constructing runtime state.
 //!
 //! The domains beside this file: `execution` owns the live state and the
 //! interpreter loop; `structural_inputs` the host-supplied entry inputs and
@@ -31,20 +31,12 @@
 //! `semantic_value_comparison` the trace-value comparison used by
 //! differential checks.
 
-use crate::effects::{
-    AcceptTerminalEffects, AdmittedAssumedBinding, AdmittedProviderInstallation,
-    AssumedBindingSelection, ProviderInstallationSelection, TerminalEffectHandler,
-};
-use crate::errors::{
-    AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
-    TerminalInterpretError,
-};
+use crate::effects::{AcceptTerminalEffects, TerminalEffectHandler};
+use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError};
 use crate::execution::TerminalExecution;
 use crate::results::{MeasuredTerminalExecution, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::structural_inputs::TerminalStructuralInputs;
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::{FuelMeterError, TerminalFuelMeter};
 
 /// Decode one complete portable Terminal-Psi envelope and execute its module
@@ -125,177 +117,6 @@ pub fn interpret_terminal_artifact(
     .map(MeasuredTerminalExecution::into_value)
 }
 
-/// Decode a canonical artifact, then admit only selections that exactly name
-/// rows in its canonical provider catalog.
-pub fn admit_provider_installation_from_artifact(
-    semantic_bytes: &[u8],
-    selections: &[ProviderInstallationSelection],
-) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-    admit_provider_installation_with_assumed_bindings_from_artifact(semantic_bytes, selections, &[])
-}
-
-/// Admit receiving-host selections against a retained canonical artifact.
-/// The immutable view preserves the module/identity relationship; selection
-/// and assumption checks are identical to external byte admission. No module
-/// decoding or identity reconstruction is needed within the same invocation.
-pub fn admit_provider_installation(
-    artifact: terminal_codec::TerminalArtifactView<'_>,
-    selections: &[ProviderInstallationSelection],
-    assumptions: &[AssumedBindingSelection],
-) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-    admit_provider_selections(
-        artifact.module(),
-        artifact.identity(),
-        selections,
-        assumptions,
-    )
-}
-
-/// Decode a canonical artifact, then admit its provider selections and the
-/// consuming root's assumed binding contract relationships as one
-/// installation bound to that exact artifact identity.
-///
-/// `assumptions` are the runtime-policy side of
-/// `Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`
-/// (wiki/spec/build/assumed_binding_contracts.md): only the consuming runtime
-/// root may authorize them, so they arrive as sponsor input beside the
-/// checked selections, never from artifact bytes — a dependency cannot grant
-/// the assumption to itself. Admission replays each link against the
-/// verified catalog. An unknown requirement on either side, a competing
-/// checked selection or second assumption for the required requirement, a
-/// supply chain which reaches no selected implementation, and a cyclic
-/// binding alias each reject the whole installation.
-///
-/// An admitted assumption is retained on the installation as conditional
-/// evidence — the artifact's guarantees hold under the recorded assumption,
-/// whose falsity invalidates them without producing any unconditional claim.
-/// It mints no `provider_candidates` row and no checked `installed`
-/// redirect: the relationship applies at the named crossing only, so
-/// ordinary boundary dispatch and direct calls of either requirement keep
-/// their own evidence custody.
-pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
-    semantic_bytes: &[u8],
-    selections: &[ProviderInstallationSelection],
-    assumptions: &[AssumedBindingSelection],
-) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-    let module = terminal_codec::decode_module(semantic_bytes)
-        .map_err(ProviderInstallationError::SemanticDecode)?;
-    let identity = terminal_codec::terminal_psi_identity(&module)
-        .map_err(ProviderInstallationError::SemanticDecode)?;
-    admit_provider_selections(&module, identity, selections, assumptions)
-}
-
-fn admit_provider_selections(
-    module: &terminal_psi::TerminalModule,
-    identity: terminal_psi::TerminalPsiIdentity,
-    selections: &[ProviderInstallationSelection],
-    assumptions: &[AssumedBindingSelection],
-) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-    let mut installed = BTreeMap::new();
-    for selection in selections {
-        if selection.provider_identity.is_empty()
-            || installed
-                .insert(selection.boundary, selection.candidate)
-                .is_some()
-            || !module.provider_candidates.iter().any(|candidate| {
-                candidate.boundary == selection.boundary
-                    && candidate.provider_identity == selection.provider_identity
-                    && candidate.candidate == selection.candidate
-            })
-        {
-            return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
-                boundary: selection.boundary,
-                candidate: selection.candidate,
-            });
-        }
-    }
-    let assumed_bindings = admit_assumed_bindings(module, &installed, assumptions)?;
-    Ok(AdmittedProviderInstallation {
-        terminal_psi: identity,
-        supplies: installed
-            .into_iter()
-            .map(|(boundary, machine)| {
-                (
-                    boundary,
-                    crate::effects::AdmittedBoundarySupply::CheckedProvider(machine),
-                )
-            })
-            .collect(),
-        assumed_bindings,
-    })
-}
-
-/// Replay each root-authorized assumed binding against the verified catalog
-/// and the admitted checked selections.
-///
-/// Every returned row carries the actual implementation its assumed link
-/// invokes: the supply side resolves through its checked selection or
-/// through nested assumed links — retaining each traversed requirement in
-/// `supply_path` — and never through artifact bytes alone.
-fn admit_assumed_bindings(
-    module: &terminal_psi::TerminalModule,
-    installed: &BTreeMap<BoundaryMachineId, MachineId>,
-    assumptions: &[AssumedBindingSelection],
-) -> Result<Vec<AdmittedAssumedBinding>, ProviderInstallationError> {
-    let boundary_ids: BTreeSet<BoundaryMachineId> = module
-        .boundary_machines
-        .iter()
-        .map(|boundary| boundary.id)
-        .collect();
-    let mut admitted = Vec::new();
-    for assumption in assumptions {
-        let reject = |reason| ProviderInstallationError::AssumedBindingRejected {
-            required: assumption.required,
-            supplied_requirement: assumption.supplied_requirement,
-            reason,
-        };
-        if !boundary_ids.contains(&assumption.required) {
-            return Err(reject(AssumedBindingRejection::UnknownRequirement));
-        }
-        // Competing explicit checked and assumed supplies for the same
-        // operation reject rather than silently preferring the assumption.
-        if installed.contains_key(&assumption.required) {
-            return Err(reject(AssumedBindingRejection::CompetingCheckedSupply));
-        }
-        // Every required member still needs exactly one supply.
-        if admitted
-            .iter()
-            .any(|binding: &AdmittedAssumedBinding| binding.required == assumption.required)
-        {
-            return Err(reject(AssumedBindingRejection::CompetingAssumption));
-        }
-        if !boundary_ids.contains(&assumption.supplied_requirement) {
-            return Err(reject(AssumedBindingRejection::UnknownSuppliedRequirement));
-        }
-        // Follow the supply side's links to the actual selected
-        // implementation, retaining every traversed assumption. Cyclic
-        // binding aliases reject rather than resolving through themselves.
-        let mut visiting = BTreeSet::from([assumption.required]);
-        let mut supply_path = Vec::new();
-        let mut requirement = assumption.supplied_requirement;
-        let implementation = loop {
-            if let Some(candidate) = installed.get(&requirement) {
-                break *candidate;
-            }
-            if !visiting.insert(requirement) {
-                return Err(reject(AssumedBindingRejection::CyclicSupply));
-            }
-            let Some(next) = assumptions.iter().find(|link| link.required == requirement) else {
-                return Err(reject(AssumedBindingRejection::UnselectedSupply));
-            };
-            supply_path.push(requirement);
-            requirement = next.supplied_requirement;
-        };
-        admitted.push(AdmittedAssumedBinding {
-            required: assumption.required,
-            supplied_requirement: assumption.supplied_requirement,
-            implementation,
-            supply_path,
-        });
-    }
-    Ok(admitted)
-}
-
 impl TerminalExecution<'_> {
     /// Decode one artifact, then bind its scalar arguments and structural
     /// inputs before committing any operation or custody transfer.
@@ -311,5 +132,4 @@ impl TerminalExecution<'_> {
             None,
         )
     }
-
 }
