@@ -5,7 +5,7 @@ use super::super::{
     structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
 };
 use super::bodies::UnitPlans;
-use super::parameters::mint_runtime_index_selectors;
+use super::parameters::call_index_selectors;
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Operation,
     OperationResult, PlaceId, StructuralOperationResult, StructuralPlaceDeclaration,
@@ -77,6 +77,7 @@ pub(super) fn prepare(
     operation: &CheckedUnitEffectOperationPlan,
     target: Target<'_>,
     evaluated_scalar_arguments: Option<&[ValueDeclaration]>,
+    evaluated_selectors: Option<&[ValueDeclaration]>,
     caller_scalar_values: &[ValueDeclaration],
     caller_erased_scalar_parameters: &[ValueDeclaration],
     caller_erased_proof_parameters: &[checked_trees::CheckedErasedProofParameterPlan],
@@ -89,7 +90,6 @@ pub(super) fn prepare(
     structural_types: &[StructuralTypeDeclaration],
     call_byte_places: &[PlaceId],
     calls: &mut CallEmissionContext<'_>,
-    selector_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<PreparedCall, LoweringError> {
@@ -158,16 +158,10 @@ pub(super) fn prepare(
         .iter()
         .map(|value| value.id)
         .collect();
-    // Runtime-index field selectors read storage at this call's point; their
-    // reads land ahead of the call operation they select into.
-    let mut selector_values = mint_runtime_index_selectors(
-        structural_arguments,
-        selector_fields,
-        caller_scalar_values,
-        next_value,
-        operations,
-    )?
-    .into_iter();
+    // The argument schedule captures address operands at their authored point;
+    // the call consumes those values without rereading their sources.
+    let mut selector_values =
+        call_index_selectors(structural_arguments, evaluated_selectors)?.into_iter();
 
     let claim_transfers = emitted_claim_transfers(
         claim_transfers,

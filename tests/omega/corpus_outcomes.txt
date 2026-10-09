@@ -818,6 +818,10 @@ fail/collections/authored_index_guard_bound rejected 667ms expected @2d8ed253669
 	cannot prove index `index` is within unknown slice length of `items` in read::entry
 fail/collections/bounded_local_index_write_overrun rejected 279ms expected @d6df54bb693c+wt
 	cannot prove index `top` is within length 4 in Stack::replace_top::write
+fail/collections/computed_nested_borrow_selected_extent rejected 671ms expected @a4b3d5fb0060+wt
+	cannot prove index `index + 0` is within length 2 in visit::entry
+fail/collections/computed_nested_borrow_shared_authority rejected 422ms expected @a4b3d5fb0060+wt
+	mutable argument `rows` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/collections/declared_range_index_too_wide rejected 291ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 5 in Main::main::read
 fail/collections/element_view_descendant_uses_selected_extent rejected 364ms expected @9b554b6a9397+wt
@@ -3082,12 +3086,18 @@ pass/collections/runtime_case_array_element_write_exit checked 2347ms check-targ
 pass/collections/runtime_composed_element_view_reads_exit checked 1649ms check-target:macos_arm64 @9b554b6a9397+wt
 pass/collections/runtime_composed_owned_element_reads_exit checked 2161ms check-target:macos_arm64 @c267eef85dbe+wt
 pass/collections/runtime_composed_subview_reads_exit checked 1665ms check-target:macos_arm64 @9b554b6a9397+wt
+pass/collections/runtime_computed_borrow_selector_join_exit checked 3987ms check-target:macos_arm64 @a4b3d5fb0060+wt
+pass/collections/runtime_computed_borrow_selector_once_exit checked 3923ms check-target:macos_arm64 @a4b3d5fb0060+wt
+pass/collections/runtime_computed_borrow_selector_order_exit checked 3933ms check-target:macos_arm64 @a4b3d5fb0060+wt
 pass/collections/runtime_computed_index_direct_exit checked 1505ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_computed_nested_borrow_call_exit checked 3998ms check-target:macos_arm64 @a4b3d5fb0060+wt
+pass/collections/runtime_computed_signed_shared_borrow_exit checked 4191ms check-target:macos_arm64 @a4b3d5fb0060+wt
 pass/collections/runtime_constant_expression_index_stores_exit checked 830ms check-target:macos_arm64 @c864ec75728c+wt
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_double_indexed_rmw_exit checked 1513ms check-target:macos_arm64 @3f6c649ef545
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_element_view_selector_snapshot_exit checked 1698ms check-target:macos_arm64 @86ae3811c141+wt
+pass/collections/runtime_field_borrow_selector_order_exit checked 3735ms check-target:macos_arm64 @a4b3d5fb0060+wt
 pass/collections/runtime_finite_element_view_call_write_exit checked 6032ms check-target:macos_arm64 @222cdf8fe2a0+wt
 pass/collections/runtime_fixed_array_captured_selector_store_exit checked 2775ms check-target:macos_arm64 @faca6c5c7f5
 pass/collections/runtime_fixed_array_projected_write_exit checked 15110ms check-target:macos_arm64 @3ff24ec6504a+wt

@@ -2,6 +2,31 @@ use super::{Builder, CheckedScalarExpressionRole, ExpressionHandle, SymbolHandle
 use crate::values::scalar::call_lowering::call_is_boundary;
 
 impl Builder<'_, '_> {
+    /// Index operands have mathematical carriers, not necessarily stored type
+    /// references: a binary result owns no declaration identity. Reuse the
+    /// integer evaluator so computed selectors preserve signedness and policy;
+    /// only an anonymous integer needs the ordinary u64 index context.
+    fn index_selector(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<checked_trees::CheckedScalarComputationHandle> {
+        let operand = self.integer_operand(expression, None)?;
+        let value = self.materialize_integer(operand)?;
+        let value = if self
+            .plans
+            .nodes
+            .get(value)
+            .primitive_type
+            .is_fixed_integer()
+        {
+            value
+        } else {
+            self.expression(expression, typed_trees::types::PrimitiveType::U64)?
+        };
+        self.plans.nodes.get_mut(value).authored_root = expression;
+        Some(value)
+    }
+
     pub(super) fn record_call_arguments(
         &mut self,
         statement: u32,
@@ -18,6 +43,7 @@ impl Builder<'_, '_> {
         }
         let boundary = call_is_boundary(self.program, target);
         let mut scalar_ordinal = 0u32;
+        let mut structural_ordinal = 0u32;
         for (argument, parameter) in arguments.iter().zip(explicit_parameters) {
             // An erased parameter position has no scalar ordinal: the callee
             // plan (`execution::unit::calls`) skips it the same way.
@@ -35,6 +61,31 @@ impl Builder<'_, '_> {
                 // separate; no source-shape roster decides what a value is.
                 if !parameter.is_const {
                     self.retain_structural_argument(*argument, parameter.type_reference);
+                    if let Some(place) = validation::canonical_place_from_expression_in_state(
+                        self.program,
+                        self.state,
+                        self.statement_index,
+                        *argument,
+                    ) {
+                        for segment in place.segments {
+                            if let facts::PlaceSegment::Index { expression } = segment {
+                                let role = CheckedScalarExpressionRole::CallSelector {
+                                    call_ordinal,
+                                    argument_ordinal: structural_ordinal,
+                                    expression,
+                                };
+                                if self.plans.root_at(self.state, statement, role).is_none()
+                                    && let Some(root) = self.index_selector(expression)
+                                {
+                                    self.push_scalar_root(role, root);
+                                }
+                            }
+                        }
+                    }
+                    let Some(next) = structural_ordinal.checked_add(1) else {
+                        return;
+                    };
+                    structural_ordinal = next;
                 }
                 continue;
             };
@@ -121,15 +172,7 @@ impl Builder<'_, '_> {
                 ) {
                     for segment in place.segments {
                         if let facts::PlaceSegment::Index { expression } = segment {
-                            let reference = validation::expression_type_reference_in_state(
-                                self.program,
-                                self.state,
-                                self.statement_index,
-                                expression,
-                            )?;
-                            let primitive = self.program.primitive_type_reference(reference)?;
-                            let value = self.expression(expression, primitive)?;
-                            self.plans.nodes.get_mut(value).authored_root = expression;
+                            let value = self.index_selector(expression)?;
                             selectors.push((
                                 expression,
                                 checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(

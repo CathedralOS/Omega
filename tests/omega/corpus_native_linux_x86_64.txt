@@ -297,11 +297,17 @@ pass/collections/record_array_field_access_exit built 4960ms exit:0 stdout:match
 pass/collections/record_array_literal_field_store_exit built 1391ms exit:25 @2d8ed253669f+wt
 pass/collections/runtime_argmax_index_exit built 1022ms exit:70 @2d8ed253669f+wt
 pass/collections/runtime_case_array_element_write_exit built 2081ms exit:36 @2d8ed253669f+wt
+pass/collections/runtime_computed_borrow_selector_join_exit built 4167ms exit:0 @a4b3d5fb0060+wt
+pass/collections/runtime_computed_borrow_selector_once_exit built 4265ms exit:0 @a4b3d5fb0060+wt
+pass/collections/runtime_computed_borrow_selector_order_exit built 4164ms exit:0 @a4b3d5fb0060+wt
 pass/collections/runtime_computed_index_direct_exit built 1249ms exit:1 @2d8ed253669f+wt
+pass/collections/runtime_computed_nested_borrow_call_exit built 4136ms exit:0 @a4b3d5fb0060+wt
+pass/collections/runtime_computed_signed_shared_borrow_exit built 3839ms exit:0 @a4b3d5fb0060+wt
 pass/collections/runtime_declared_range_index_write_exit built 921ms exit:30 @2d8ed253669f+wt
 pass/collections/runtime_double_indexed_rmw_exit rejected 2139ms regressed-from:built+exit:1 @faca6c5c7f5
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(10) }))
 pass/collections/runtime_dutch_flag_partition_exit built 2751ms exit:70 @2d8ed253669f+wt
+pass/collections/runtime_field_borrow_selector_order_exit built 3736ms exit:0 @a4b3d5fb0060+wt
 pass/collections/runtime_fixed_array_captured_selector_store_exit built 5332ms exit:70 @527bb17dc5
 pass/collections/runtime_fixed_array_projected_write_exit built 43683ms exit:45 @74a22511782
 pass/collections/runtime_fixed_array_selector_call_store_exit built 4648ms exit:70 @527bb17dc5

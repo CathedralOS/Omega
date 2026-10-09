@@ -502,15 +502,10 @@ impl OperationFrame<'_, '_> {
         arguments: &[CheckedUnitStructuralArgumentPlan],
         earlier: &[(Option<StructuralPlaceDeclaration>, bool)],
         byte_places: &[PlaceId],
+        evaluated_selectors: Option<&[ValueDeclaration]>,
     ) -> Result<Vec<StructuralArgument>, LoweringError> {
-        let mut selector_values = parameters::mint_runtime_index_selectors(
-            arguments,
-            &self.evaluation.structural_fields,
-            self.values,
-            self.next_value,
-            self.operations,
-        )?
-        .into_iter();
+        let mut selector_values =
+            parameters::call_index_selectors(arguments, evaluated_selectors)?.into_iter();
         parameters::lower_structural_arguments(
             arguments,
             self.structural_types.declarations(),

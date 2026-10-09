@@ -43,6 +43,8 @@ pub(in crate::unit::attached_unit) struct CallInputs<'i> {
     /// The places of the call's byte-sequence literal and subslice
     /// arguments, in argument order.
     pub(in crate::unit::attached_unit) byte_places: &'i [PlaceId],
+    /// Address operands captured by the same authored schedule as scalar arguments.
+    pub(in crate::unit::attached_unit) evaluated_selectors: Option<&'i [ValueDeclaration]>,
 }
 
 impl OperationFrame<'_, '_> {
@@ -566,6 +568,7 @@ impl OperationFrame<'_, '_> {
             operation,
             signatures::find(self.callees.signatures, *target_machine)?.call_target(),
             inputs.evaluated_scalar_arguments,
+            inputs.evaluated_selectors,
             self.values,
             self.caller.erased_scalar_parameters,
             self.caller.erased_proof_parameters,
@@ -578,7 +581,6 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(),
             inputs.byte_places,
             self.calls,
-            &self.evaluation.structural_fields,
             self.next_value,
             self.operations,
         )?;
@@ -707,6 +709,7 @@ impl OperationFrame<'_, '_> {
         let mut emit_operand =
             |operand: &CheckedUnitEffectOperationPlan,
              evaluated: Option<&[ValueDeclaration]>,
+             evaluated_selectors: Option<&[ValueDeclaration]>,
              source_value_count: usize,
              evaluation: &mut argument_evaluation::Evaluation,
              values: &mut Vec<ValueDeclaration>,
@@ -768,6 +771,7 @@ impl OperationFrame<'_, '_> {
                     CallInputs {
                         evaluated_scalar_arguments: evaluated,
                         byte_places: &[],
+                        evaluated_selectors,
                     },
                 )?;
                 let place = results.continuation_place(result.binding_ordinal, operations)?;
@@ -974,14 +978,9 @@ impl OperationFrame<'_, '_> {
         let (structural_arguments, claim_transfers) = {
             // Arguments and transfer indices already name retained dense slots.
             // Never remove a receiver or rebase claims during emission.
-            let mut selector_values = parameters::mint_runtime_index_selectors(
-                structural_arguments,
-                &self.evaluation.structural_fields,
-                self.values,
-                self.next_value,
-                self.operations,
-            )?
-            .into_iter();
+            let mut selector_values =
+                parameters::call_index_selectors(structural_arguments, inputs.evaluated_selectors)?
+                    .into_iter();
             let earlier =
                 self.results
                     .earlier(structural_arguments, self.operations, self.evaluation)?;

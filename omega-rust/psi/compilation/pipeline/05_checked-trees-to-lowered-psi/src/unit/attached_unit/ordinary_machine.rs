@@ -120,6 +120,7 @@ pub(super) struct MachineEmission<'a> {
     next_literal_argument: usize,
     staged_arguments: Vec<Vec<usize>>,
     staged_subslices: Vec<Vec<(usize, PlaceId)>>,
+    staged_selectors: Vec<Vec<usize>>,
     subslice_places: Vec<StructuralPlaceDeclaration>,
     retained_scalar_prefix: Option<usize>,
     scalar_calls: CallEmissionContext<'a>,
@@ -132,6 +133,7 @@ pub(super) struct StepInputs {
     pub(super) finishes_argument_group: bool,
     pub(super) source_value_count: usize,
     pub(super) evaluated_scalar_arguments: Option<Vec<ValueDeclaration>>,
+    pub(super) evaluated_selectors: Option<Vec<ValueDeclaration>>,
 }
 
 /// The lowered machine and the occurrence rows the closure accumulates.
@@ -412,6 +414,7 @@ pub(super) fn emit(
         next_literal_argument,
         staged_arguments,
         staged_subslices,
+        staged_selectors: vec![Vec::new(); plan.operations.len()],
         subslice_places,
         retained_scalar_prefix,
         scalar_calls: CallEmissionContext {
@@ -1359,6 +1362,36 @@ impl MachineEmission<'_> {
                 self.scalar_result_values.push(value);
                 return Ok(());
             }
+            argument_schedule::Step::Selector {
+                operation,
+                argument,
+                segment,
+            } => {
+                let source_value_count =
+                    self.retained_scalar_prefix
+                        .ok_or(LoweringError::Unsupported(
+                            "selector staging has no source prefix",
+                        ))?;
+                let value = self.evaluation.call_selector(
+                    checked,
+                    plan.machine,
+                    plan.state,
+                    &plan.operations[operation],
+                    argument,
+                    segment,
+                    source_value_count,
+                    &mut self.scalar_result_values,
+                    &mut self.next_value_identity,
+                    &mut self.next_block,
+                    &mut self.next_edge,
+                    &mut self.operations,
+                    &mut self.scalar_calls,
+                )?;
+                self.next_call_obligation = self.scalar_calls.next_obligation_identity;
+                self.staged_selectors[operation].push(self.scalar_result_values.len());
+                self.scalar_result_values.push(value);
+                return Ok(());
+            }
             argument_schedule::Step::Subslice { operation, ordinal } => {
                 let source_value_count =
                     self.retained_scalar_prefix
@@ -1465,6 +1498,20 @@ impl MachineEmission<'_> {
             finishes_argument_group,
             source_value_count,
             evaluated_scalar_arguments,
+            evaluated_selectors: staged
+                .then(|| {
+                    self.staged_selectors[operation_index]
+                        .iter()
+                        .map(|slot| {
+                            self.scalar_result_values.get(*slot).copied().ok_or(
+                                LoweringError::Unsupported(
+                                    "staged selector lost its retained value",
+                                ),
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?,
         };
         let kind = match operation {
             CheckedUnitEffectOperationPlan::PortWrite { .. }
@@ -1557,6 +1604,7 @@ impl<'a> MachineEmission<'a> {
             CallInputs {
                 evaluated_scalar_arguments: step.evaluated_scalar_arguments.as_deref(),
                 byte_places: &byte_places,
+                evaluated_selectors: step.evaluated_selectors.as_deref(),
             },
         )?;
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;

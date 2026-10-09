@@ -67,6 +67,7 @@ pub(super) fn emit_call_operations(
     let mut retained_source_count = None;
     let mut staged_scalar_slots = vec![Vec::new(); planned_operations.len()];
     let mut staged_ranges = vec![Vec::new(); planned_operations.len()];
+    let mut staged_selector_slots = vec![Vec::new(); planned_operations.len()];
     while let Some(step) = schedule.next() {
         let (operation_index, staged) = match *step {
             Step::CaptureBefore(statement) => {
@@ -122,6 +123,35 @@ pub(super) fn emit_call_operations(
                 values.push(value);
                 continue;
             }
+            Step::Selector {
+                operation,
+                argument,
+                segment,
+            } => {
+                let source_value_count = retained_source_count.ok_or(
+                    LoweringError::Unsupported("composed selector has no source prefix"),
+                )?;
+                let mut calls = catalogs.scalar_calls.emission_context();
+                let value = evaluation.call_selector(
+                    checked,
+                    machine,
+                    state.state,
+                    &planned_operations[operation],
+                    argument,
+                    segment,
+                    source_value_count,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                    &mut calls,
+                )?;
+                catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                staged_selector_slots[operation].push(values.len());
+                values.push(value);
+                continue;
+            }
             Step::Subslice { operation, ordinal } => {
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed range operand has no source prefix"),
@@ -174,6 +204,14 @@ pub(super) fn emit_call_operations(
             .map(|slot| {
                 values.get(*slot).copied().ok_or(LoweringError::Unsupported(
                     "composed scalar operand lost its retained value",
+                ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let staged_selectors = staged_selector_slots[operation_index]
+            .iter()
+            .map(|slot| {
+                values.get(*slot).copied().ok_or(LoweringError::Unsupported(
+                    "composed selector lost its retained value",
                 ))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -266,6 +304,7 @@ pub(super) fn emit_call_operations(
                 CallInputs {
                     evaluated_scalar_arguments: arguments.as_deref(),
                     byte_places,
+                    evaluated_selectors: staged.then_some(staged_selectors.as_slice()),
                 },
             )?,
         }

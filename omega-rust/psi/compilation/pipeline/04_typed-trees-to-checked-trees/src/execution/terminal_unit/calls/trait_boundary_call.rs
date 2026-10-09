@@ -374,6 +374,7 @@ pub(super) fn build(
             place: &place,
             target: formal,
             target_identity: &target_identity,
+            selectors: None,
         };
         phase("call operation: boundary argument projection");
         let path = boundary_parameter_path(argument, custody, substitutions.as_slice())?;

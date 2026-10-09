@@ -857,6 +857,92 @@ impl Evaluation {
         )
     }
 
+    /// Evaluate one address operand at its authored argument point. The
+    /// schedule retains the result across later effects and private joins;
+    /// address emission consumes this value without replaying its source.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn call_selector(
+        &mut self,
+        checked: &CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        operation: &CheckedUnitEffectOperationPlan,
+        argument: usize,
+        segment: usize,
+        source_value_count: usize,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let call = operation
+            .call()
+            .ok_or(LoweringError::Unsupported("selector has no call"))?;
+        let path = call
+            .structural_arguments
+            .get(argument)
+            .and_then(|argument| argument.path.get(segment))
+            .ok_or(LoweringError::Unsupported(
+                "selector has no argument path occurrence",
+            ))?;
+        let value = match path {
+            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
+                let source = checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .map(|(_, source)| source)
+                    .find(|source| {
+                        source.root == *root
+                            && source.state == state
+                            && source.statement_ordinal == call.coordinate.statement_index
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "call selector lost its source computation",
+                    ))?;
+                self.source_value(
+                    checked,
+                    machine,
+                    state,
+                    source.statement_ordinal,
+                    source.role,
+                    &CheckedCallScalarArgument::Computation(*root),
+                    source_value_count,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                    calls,
+                )?
+            }
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::StructuralField(field),
+            ) => {
+                let expression = self.contextual_bindings().runtime_index_field(field)?;
+                let source_types = values
+                    .iter()
+                    .map(|value| value.value_type())
+                    .collect::<Vec<_>>();
+                let carrier = expression.value_type(&source_types)?;
+                ValueDeclaration {
+                    id: emit_direct_expression(&expression, values, next_value, operations),
+                    scalar_type: carrier.scalar_type,
+                    qualifications: carrier.qualifications,
+                }
+            }
+            _ => return unsupported("scheduled selector has no evaluated operand"),
+        };
+        if !matches!(value.scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+            return unsupported("call selector is not an integer operand");
+        }
+        Ok(value)
+    }
+
     /// Complete one dense scalar operand at its original call coordinate.
     /// The caller retains the result in `values` before evaluating another
     /// operand and uses indices to follow values across private blocks. Only

@@ -313,25 +313,14 @@ pub(crate) fn borrowed_storage_argument(
     // Receiver syntax does not confer additional projection authority; both
     // lanes rejoin exact source type and the captured access occurrence below.
     let target_shell = validation::reference_shell(program, target.type_reference)?;
-    let referee = validation::peel_declared_constraints(program, target_shell.referee);
     let target_access = match target_shell.access {
         language_semantics::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
         language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
         language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
     };
-    // A closed generic application is the same nominal carrier as its retained
-    // synthesized instance. Contents, exact identity and collected shape below
-    // still decide eligibility; syntax kind alone must not exclude the borrow.
-    // Fixed arrays use the same established storage loan. Shape collection and
-    // the exact source/formal identity below retain their element and length.
-    if !matches!(
-        program.type_reference_table.type_reference(referee),
-        TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::FixedArray { .. }
-    ) {
-        return None;
-    }
+    // Referent shape, contents, identity and the exact loan below decide
+    // admission. Primitive leaves and aggregates borrow the same original
+    // home; declaration spelling is not an additional eligibility rule.
     // The formal's own referee names the plan: a bounded byte owner keeps
     // the qualification its carrier is registered under.
     let target_identity = base_type_identity(program, target_shell.referee, &[])?;

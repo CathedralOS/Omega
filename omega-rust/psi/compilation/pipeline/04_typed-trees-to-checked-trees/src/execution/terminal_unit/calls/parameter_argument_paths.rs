@@ -7,7 +7,7 @@
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     fixed_byte_array_range_path, open_byte_range_path, projected_argument_path,
-    projected_argument_path_with_identity, projected_borrowed_path,
+    projected_argument_path_with_identity, projected_borrowed_path, projected_evaluated_path,
 };
 use crate::execution::terminal_unit::calls::argument_presentation::ArgumentPresentation;
 use crate::execution::terminal_unit::calls::boundary_admission::fixed_byte_array_view_is_admitted;
@@ -148,6 +148,11 @@ pub(crate) struct ParameterArgument<'argument> {
     pub(crate) place: &'argument validation::CanonicalPlace,
     pub(crate) target: TypeReferenceHandle,
     pub(crate) target_identity: &'argument str,
+    pub(crate) selectors: Option<
+        &'argument dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<CheckedUnitStructuralPathSegment>,
+    >,
 }
 
 /// The path an ordinary call lends from a caller parameter.
@@ -402,8 +407,14 @@ impl ParameterArgument<'_> {
         {
             return Some(path);
         }
-        let (projected, path) =
-            projected_borrowed_path(program, self.machine, state, statement_index, place)?;
+        let (projected, path) = projected_evaluated_path(
+            program,
+            self.machine,
+            state,
+            statement_index,
+            place,
+            self.selectors,
+        )?;
         (base_type_identity(program, projected, &[])? == self.target_identity).then_some(path)
     }
 }

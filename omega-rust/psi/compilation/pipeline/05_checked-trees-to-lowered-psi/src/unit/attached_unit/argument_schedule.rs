@@ -5,6 +5,9 @@
 //! share one schedule. Hoisting extraction or a copy before an earlier scalar
 //! argument reads absent or stale storage; delaying it observes later mutation.
 //! Constructor leaves use the selective evaluator, not additional scheduled calls.
+//! Address selectors join this same formal-order walk: evaluating them at the
+//! final call would observe mutations from later arguments. Retained value slots
+//! carry each selector through private joins without replaying its computation.
 
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
@@ -14,8 +17,19 @@ pub(crate) enum Step {
     CaptureBefore(u32),
     Ordinary(usize),
     Begin,
-    Argument { operation: usize, ordinal: usize },
-    Subslice { operation: usize, ordinal: usize },
+    Argument {
+        operation: usize,
+        ordinal: usize,
+    },
+    Subslice {
+        operation: usize,
+        ordinal: usize,
+    },
+    Selector {
+        operation: usize,
+        argument: usize,
+        segment: usize,
+    },
     Produce(usize),
     Call(usize),
     End,
@@ -85,6 +99,27 @@ pub(super) fn build_operations(
                 result.statement_index
             }
             _ => {
+                if operations[index].call().is_some_and(|call| {
+                    call.structural_arguments
+                        .iter()
+                        .any(|argument| argument.path.iter().any(evaluated_selector))
+                }) {
+                    steps.push(Step::Begin);
+                    append(
+                        checked,
+                        machine,
+                        state,
+                        operations,
+                        index..index + 1,
+                        index,
+                        &mut Vec::new(),
+                        &mut Vec::new(),
+                        &mut steps,
+                    )?;
+                    steps.push(Step::End);
+                    index += 1;
+                    continue;
+                }
                 steps.push(Step::Ordinary(index));
                 index += 1;
                 continue;
@@ -272,23 +307,45 @@ fn append(
                         .is_some_and(|result| result.binding_ordinal == binding)
                 })
             });
-        let Some(producer) = joined else {
-            continue;
-        };
-        append(
-            checked,
-            machine,
-            state,
-            operations,
-            group.clone(),
-            producer,
-            active,
-            emitted,
-            steps,
-        )?;
+        if let Some(producer) = joined {
+            append(
+                checked,
+                machine,
+                state,
+                operations,
+                group.clone(),
+                producer,
+                active,
+                emitted,
+                steps,
+            )?;
+        }
+        for (segment, path) in structural_arguments[argument_ordinal]
+            .path
+            .iter()
+            .enumerate()
+        {
+            if evaluated_selector(path) {
+                steps.push(Step::Selector {
+                    operation: index,
+                    argument: argument_ordinal,
+                    segment,
+                });
+            }
+        }
     }
     active.pop();
     emitted.push(index);
     steps.push(Step::Call(index));
     Ok(())
+}
+
+fn evaluated_selector(segment: &checked_trees::CheckedUnitStructuralPathSegment) -> bool {
+    matches!(
+        segment,
+        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(_)
+            | checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::StructuralField(_)
+            )
+    )
 }

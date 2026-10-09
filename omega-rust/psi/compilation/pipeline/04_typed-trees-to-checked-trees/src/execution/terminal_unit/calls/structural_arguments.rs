@@ -80,6 +80,18 @@ pub(crate) fn structural_call_arguments(
             continue;
         }
         let argument_ordinal = structural_argument_ordinal;
+        let selector = |expression| {
+            let root = facts.values.scalar_computations.root_at(
+                caller_state.symbol,
+                u32::try_from(statement_index).ok()?,
+                checked_trees::CheckedScalarExpressionRole::CallSelector {
+                    call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                    argument_ordinal: u32::try_from(argument_ordinal).ok()?,
+                    expression,
+                },
+            )?;
+            Some(checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
+        };
         structural_argument_ordinal = structural_argument_ordinal.checked_add(1)?;
         arm("call operation: structural arguments: argument place");
         let authored_place = {
@@ -329,7 +341,7 @@ pub(crate) fn structural_call_arguments(
             call,
             &place,
             target,
-            None,
+            Some(&selector),
         ) {
             output.push(plan);
             continue;
@@ -346,7 +358,7 @@ pub(crate) fn structural_call_arguments(
             call,
             &place,
             target,
-            None,
+            Some(&selector),
         ) {
             output.push(plan);
             continue;
@@ -377,6 +389,7 @@ pub(crate) fn structural_call_arguments(
             place: &place,
             target: target.type_reference,
             target_identity: &target_identity,
+            selectors: Some(&selector),
         };
         // Bodyless nominal requirements use the same boundary presentation
         // as trait requirements. The declared supply owns this distinction;

@@ -482,6 +482,7 @@ pub(super) fn collect_argument_calls(
         return None;
     }
     let mut structural_ordinal = 0u32;
+    let mut structural_arguments = Vec::new();
     for (argument, parameter) in arguments.iter().zip(formals.iter()) {
         if crate::execution::terminal_unit::strips_erased_parameter(parameter)?
             || program
@@ -490,6 +491,7 @@ pub(super) fn collect_argument_calls(
         {
             continue;
         }
+        structural_arguments.push(*argument);
         collect_range_calls(
             program,
             facts,
@@ -526,7 +528,8 @@ pub(super) fn collect_argument_calls(
             root.state == state && root.statement_ordinal as usize == call.statement_index
         })
     {
-        let ordinal = match root.role {
+        let plans = &facts.values.scalar_computations;
+        let (expression, primitive) = match root.role {
             CheckedScalarExpressionRole::BoundaryCallArgument {
                 call_ordinal,
                 argument_ordinal,
@@ -534,21 +537,49 @@ pub(super) fn collect_argument_calls(
             | CheckedScalarExpressionRole::UnitCallArgument {
                 call_ordinal,
                 argument_ordinal,
-            } if call_ordinal as usize == call.call_ordinal => argument_ordinal,
+            } if call_ordinal as usize == call.call_ordinal => {
+                *scalar_arguments.get(argument_ordinal as usize)?
+            }
+            CheckedScalarExpressionRole::CallSelector {
+                call_ordinal,
+                argument_ordinal,
+                expression,
+            } if call_ordinal as usize == call.call_ordinal => {
+                let argument = *structural_arguments.get(argument_ordinal as usize)?;
+                let place = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state,
+                    call.statement_index,
+                    argument,
+                )?;
+                if !place.segments.iter().any(|segment| {
+                    matches!(segment, facts::PlaceSegment::Index { expression: source }
+                        if *source == expression)
+                }) || !plans.nodes.is_valid(root.root)
+                {
+                    return None;
+                }
+                let primitive = plans.nodes.get(root.root).primitive_type;
+                if !primitive.is_fixed_integer() {
+                    return None;
+                }
+                (expression, primitive)
+            }
             _ => continue,
         };
         if root.machine != machine || roles.contains(&root.role) {
             return None;
         }
         roles.push(root.role);
-        let (expression, primitive) = scalar_arguments.get(ordinal as usize)?;
-        let plans = &facts.values.scalar_computations;
         if !plans.nodes.is_valid(root.root)
-            || plans.nodes.get(root.root).authored_root != *expression
-            || plans.nodes.get(root.root).primitive_type != *primitive
+            || plans.nodes.get(root.root).authored_root != expression
+            || plans.nodes.get(root.root).primitive_type != primitive
         {
             return None;
         }
+        // Address operands own their nested invocations just as scalar actuals
+        // do. Leaving a selector call in the outer roster either duplicates
+        // its execution or refuses a statement whose operand already owns it.
         collect_root_calls(
             program,
             facts,

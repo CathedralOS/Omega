@@ -76,6 +76,7 @@ impl OperationFrame<'_, '_> {
             structural_arguments,
             &earlier,
             inputs.byte_places,
+            inputs.evaluated_selectors,
         )?;
         let prepared_claims = crate::emission::claim_bindings::prepare_checked_claim_transfers(
             call.claim_transfers(),

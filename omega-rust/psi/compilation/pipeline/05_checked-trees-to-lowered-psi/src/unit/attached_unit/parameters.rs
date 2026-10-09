@@ -409,6 +409,34 @@ pub(crate) fn literal_argument_places(
     Ok(places)
 }
 
+/// Consume address operands retained by the authored call schedule. Every
+/// call selector must arrive here already evaluated; reading its source at
+/// the final call would observe effects from later argument positions.
+pub(crate) fn call_index_selectors(
+    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    evaluated: Option<&[ValueDeclaration]>,
+) -> Result<Vec<ValueId>, LoweringError> {
+    let count = arguments
+        .iter()
+        .flat_map(|argument| &argument.path)
+        .filter(|segment| {
+            matches!(
+                segment,
+                CheckedUnitStructuralPathSegment::ComputedIndex(_)
+                    | CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::StructuralField(_)
+                    )
+            )
+        })
+        .count();
+    let evaluated = evaluated.unwrap_or_default();
+    if evaluated.len() != count || evaluated.iter().any(|value|
+        !matches!(value.scalar_type, ScalarType::Integer(integer) if !integer.is_address())) {
+        return unsupported("captured call selectors disagree with their argument paths");
+    }
+    Ok(evaluated.iter().map(|value| value.id).collect())
+}
+
 /// Emit the declaration-resolved scalar read for every `StructuralField`
 /// runtime-index selector in argument order, before the call they select
 /// into. The call's `RuntimeIndex` segment then carries the read's value as

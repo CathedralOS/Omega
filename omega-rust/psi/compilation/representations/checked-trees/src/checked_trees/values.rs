@@ -263,6 +263,14 @@ pub enum CheckedScalarExpressionRole {
     /// Arrival observation of the independently checked natural rank, before
     /// the state prefix. Its root uses this state's exact formal telescope.
     RankObservation,
+    /// Evaluated selector of one structural call argument. The argument's
+    /// dense structural ordinal and authored operand keep equal selectors at
+    /// different evaluation points distinct.
+    CallSelector {
+        call_ordinal: u32,
+        argument_ordinal: u32,
+        expression: ExpressionHandle,
+    },
     /// Captured byte coordinate of this representation view occurrence.
     RepresentationViewOffset {
         expression: ExpressionHandle,

@@ -38,6 +38,7 @@ mod residual_complement;
 pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
         &CheckedUnitEffectOperationPlan,
         Option<&[ValueDeclaration]>,
+        Option<&[ValueDeclaration]>,
         usize,
         &mut argument_evaluation::Evaluation,
         &mut Vec<ValueDeclaration>,
@@ -863,6 +864,7 @@ impl Emission<'_, '_, '_> {
         let schedule =
             argument_schedule::build_operations(self.checked, self.machine, self.state, &planned)?;
         let mut staged_values = vec![Vec::new(); planned.len()];
+        let mut staged_selectors = vec![Vec::new(); planned.len()];
         let mut source_count = None;
         let mut completed = None;
         for step in schedule {
@@ -919,6 +921,33 @@ impl Emission<'_, '_, '_> {
                     self.values.push(value);
                     continue;
                 }
+                Step::Selector {
+                    operation,
+                    argument,
+                    segment,
+                } => {
+                    let count = source_count.ok_or(LoweringError::Unsupported(
+                        "structural selector has no source prefix",
+                    ))?;
+                    let value = self.evaluation.call_selector(
+                        self.checked,
+                        self.machine,
+                        self.state,
+                        &planned[operation],
+                        argument,
+                        segment,
+                        count,
+                        self.values,
+                        self.next_value,
+                        self.next_block,
+                        self.next_edge,
+                        self.operations,
+                        self.calls,
+                    )?;
+                    staged_selectors[operation].push(self.values.len());
+                    self.values.push(value);
+                    continue;
+                }
                 Step::Subslice { .. } => {
                     return unsupported(
                         "structural value call requires retained slice argument transport",
@@ -960,9 +989,21 @@ impl Emission<'_, '_, '_> {
             } else {
                 None
             };
+            let selectors = staged_selectors[index]
+                .iter()
+                .map(|slot| {
+                    self.values
+                        .get(*slot)
+                        .copied()
+                        .ok_or(LoweringError::Unsupported(
+                            "structural selector lost its retained value",
+                        ))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             let declaration = (self.operand_emitter)(
                 operation,
                 evaluated.as_deref(),
+                staged.then_some(selectors.as_slice()),
                 count,
                 self.evaluation,
                 self.values,

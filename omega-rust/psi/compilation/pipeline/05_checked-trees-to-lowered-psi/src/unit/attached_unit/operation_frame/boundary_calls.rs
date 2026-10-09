@@ -273,6 +273,7 @@ impl OperationFrame<'_, '_> {
             structural_arguments,
             &earlier,
             inputs.byte_places,
+            inputs.evaluated_selectors,
         )?;
         let completion_receipts = crate::emission::claim_bindings::emit_completion_receipts(
             &crate::emission::claim_bindings::prepare_completion_receipts(completion_receipts),
