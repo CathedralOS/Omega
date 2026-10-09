@@ -2599,10 +2599,9 @@ crash and native exit behavior.
   - Read-selector capture (ebf381240e2) names `__hoist_14` instead of the
     authored index: `fail/collections/non_integer_index_rejected` loses its
     fragment.
-  - Lowering declines: `pass/domains/runtime_result_domain_machine_overload_exit`
-    ("outer calls: statement window") and `fail/ports/asm_port_in_unsettled`
-    ("outer calls: argument calls" instead of its pinned "call operation:
-    target state").
+  - `fail/ports/asm_port_in_unsettled` pins the port-read lowering gap at
+    "call operation: target state"; since 8c8a83fc8e5 the gap is reported
+    earlier, at "outer calls: argument calls".
   - `pass/memory/bump_allocator_canary`: "cleanup effect dependency in
     `exercise_fallible` has no exact structural residual disposition". Any
     transition that moves the payloads of a sum with a linear payload case

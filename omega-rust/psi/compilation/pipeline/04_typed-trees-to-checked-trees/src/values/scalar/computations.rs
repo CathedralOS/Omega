@@ -148,12 +148,26 @@ pub(crate) fn build_checked_value_computation_plans(
                     StatementNode::Expression(expression) => Some((*expression, state.return_type)),
                     _ => None,
                 };
+                // A closed primitive array whose elements the scalar route
+                // enumerates owns one scalar root per element.
+                let scalar_elements =
+                    construction_destination.and_then(|(expression, expected)| {
+                        validation::scalar_array_elements(
+                            program,
+                            machine.symbol,
+                            expression,
+                            expected,
+                        )
+                    });
                 // Destination type selects the value owner, not the authored
                 // source shape. The structural builder owns construction,
                 // projections and reference descriptors equally in a local
                 // initializer and a return; primitive destinations stay with
                 // the scalar route unless they carry a checked case value.
+                // Each construction has one owner: element calls claimed by
+                // scalar element roots cannot also be structural operands.
                 if let Some((expression, expected)) = construction_destination
+                    && scalar_elements.is_none()
                     && (validation::is_scalar_case_value(program, expression, expected)
                         || program.primitive_type_reference(expected).is_none())
                     && let Some(root) = builder.structural_value(expression, expected)
@@ -193,14 +207,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         root,
                     );
                 }
-                if let Some((expression, expected)) = construction_destination
-                    && let Some(elements) = validation::scalar_array_elements(
-                        program,
-                        machine.symbol,
-                        expression,
-                        expected,
-                    )
-                {
+                if let Some(elements) = scalar_elements {
                     for (element_index, (element, primitive_type)) in
                         elements.elements.into_iter().enumerate()
                     {
