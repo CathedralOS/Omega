@@ -87,7 +87,7 @@ pub(crate) use rewrite::forward_selected_stored_load;
 
 /// An accepted store-to-load forwarding with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedStoredLoadForwarding {
+pub(crate) struct ValidatedStoredLoadForwarding {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: StoredLoadForwardingReceipt,
 }
@@ -95,7 +95,7 @@ pub struct ValidatedStoredLoadForwarding {
 validated_transformed_receipt!(ValidatedStoredLoadForwarding, StoredLoadForwardingReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StoredLoadForwardingReceipt {
+pub(crate) struct StoredLoadForwardingReceipt {
     identity: StoredLoadForwardingIdentity,
     function_index: usize,
     load: SelectedInstructionId,
@@ -120,7 +120,7 @@ impl StoredLoadForwardingReceipt {
 receipt_selected_identities!(StoredLoadForwardingReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StoredLoadForwardingError {
+pub(crate) enum StoredLoadForwardingError {
     SourceMismatch,
     UnsupportedInstruction,
     UnsupportedPair,

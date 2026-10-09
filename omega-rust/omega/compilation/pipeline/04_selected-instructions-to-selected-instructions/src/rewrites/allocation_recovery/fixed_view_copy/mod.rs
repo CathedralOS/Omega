@@ -68,7 +68,7 @@ pub(crate) fn materialize_fixed_view_copies(
 // Transform-side evidence for the fixed-view-copy rewrite; the durable plan,
 // policy and artifact framing live in `register_homes::recovery`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FixedViewCopyValidationReceipt {
+pub(crate) struct FixedViewCopyValidationReceipt {
     pub(crate) identity: FixedViewCopyIdentity,
     pub(crate) source_selected: SelectedInstructionPlanIdentity,
     pub(crate) source_ranges: LiveRangeIdentity,
@@ -146,7 +146,7 @@ impl ValidatedFixedViewCopies {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FixedViewCopyError {
+pub(crate) enum FixedViewCopyError {
     RootMismatch,
     WorkOverflow,
     BudgetExceeded {

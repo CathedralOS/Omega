@@ -102,7 +102,7 @@ pub(crate) use validation::{measured_steps, surface_sizes};
 
 /// An accepted constant condition materialization with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedConstantBoolean {
+pub(crate) struct ValidatedConstantBoolean {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: ConstantBooleanReceipt,
 }
@@ -110,7 +110,7 @@ pub struct ValidatedConstantBoolean {
 validated_transformed_receipt!(ValidatedConstantBoolean, ConstantBooleanReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConstantBooleanReceipt {
+pub(crate) struct ConstantBooleanReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -161,7 +161,7 @@ pub(crate) fn constant_boolean_identity(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConstantBooleanError {
+pub(crate) enum ConstantBooleanError {
     SourceMismatch,
     UnsupportedInstruction,
     /// A flag observation the constant fold cannot reproduce: a used unit

@@ -15,7 +15,7 @@ use register_model::{PhysicalRegisterModelIdentity, RegisterClassId, RegisterVie
 /// Materialize and independently replay one exact named policy controlling
 /// unconstrained physical-view availability. This is allocator input only; it
 /// grants no fixed-operand override, home assignment, or emission authority.
-pub fn materialize_allocator_availability(
+pub(crate) fn materialize_allocator_availability(
     register_environment: TargetRegisterEnvironmentIdentity,
     target: target::NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
@@ -37,7 +37,7 @@ pub fn materialize_allocator_availability(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocatorAvailabilityValidationReceipt {
+pub(crate) struct AllocatorAvailabilityValidationReceipt {
     pub(crate) identity: AllocatorAvailabilityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) physical: PhysicalRegisterModelIdentity,
@@ -92,7 +92,7 @@ impl ValidatedAllocatorAvailability {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AllocatorAvailabilityError {
+pub(crate) enum AllocatorAvailabilityError {
     RootMismatch,
     NonCanonicalAllowlist,
     UnknownView { view: u16 },

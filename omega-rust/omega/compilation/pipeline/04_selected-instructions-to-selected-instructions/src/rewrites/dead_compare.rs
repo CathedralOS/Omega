@@ -98,7 +98,7 @@ pub(crate) use validation::measured_steps;
 
 /// An accepted dead-compare removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedDeadCompare {
+pub(crate) struct ValidatedDeadCompare {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: DeadCompareReceipt,
 }
@@ -106,7 +106,7 @@ pub struct ValidatedDeadCompare {
 validated_transformed_receipt!(ValidatedDeadCompare, DeadCompareReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DeadCompareReceipt {
+pub(crate) struct DeadCompareReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -155,7 +155,7 @@ pub(crate) fn dead_compare_identity(receipt: &DeadCompareReceipt) -> DeadCompare
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeadCompareError {
+pub(crate) enum DeadCompareError {
     SourceMismatch,
     UnsupportedInstruction,
     UnsupportedUse,

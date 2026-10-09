@@ -53,8 +53,9 @@ pub(crate) use allocator_availability::{
     AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
 };
 pub use allocator_availability::{
-    ValidatedAllocatorAvailability, materialize_allocator_availability,
+    ValidatedAllocatorAvailability,
 };
+pub(crate) use allocator_availability::{ materialize_allocator_availability};
 pub(crate) use fixed_precolored_intervals::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
     ValidatedFixedPrecoloredIntervals, analyze_fixed_precolored_intervals,

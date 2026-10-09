@@ -1,7 +1,7 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FixedPrecoloredSegmentHomeError {
+pub(crate) enum FixedPrecoloredSegmentHomeError {
     RootMismatch,
     FunctionMismatch {
         function: usize,

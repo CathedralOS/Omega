@@ -33,7 +33,7 @@ pub(crate) fn analyze_fixed_precolored_split_requirements(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FixedPrecoloredSplitRequirementValidationReceipt {
+pub(crate) struct FixedPrecoloredSplitRequirementValidationReceipt {
     pub(crate) identity: FixedPrecoloredSplitRequirementPlanIdentity,
     pub(crate) fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
     pub(crate) ranges: LiveRangeIdentity,
@@ -108,7 +108,7 @@ impl FixedPrecoloredSplitRequirementValidationReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedFixedPrecoloredSplitRequirements {
+pub(crate) struct ValidatedFixedPrecoloredSplitRequirements {
     pub(crate) plan: FixedPrecoloredSplitRequirementPlan,
     pub(crate) receipt: FixedPrecoloredSplitRequirementValidationReceipt,
 }

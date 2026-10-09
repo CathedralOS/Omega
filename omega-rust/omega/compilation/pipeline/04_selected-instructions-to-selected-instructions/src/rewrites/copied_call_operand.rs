@@ -132,7 +132,7 @@ pub(crate) fn copied_call_operand_identity(
 
 /// An accepted copied-call-operand reroute with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedCopiedCallOperand {
+pub(crate) struct ValidatedCopiedCallOperand {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: CopiedCallOperandReceipt,
 }
@@ -140,7 +140,7 @@ pub struct ValidatedCopiedCallOperand {
 validated_transformed_receipt!(ValidatedCopiedCallOperand, CopiedCallOperandReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CopiedCallOperandReceipt {
+pub(crate) struct CopiedCallOperandReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     /// The function inside the plan the reroute rewrote.
@@ -176,7 +176,7 @@ impl CopiedCallOperandReceipt {
 receipt_selected_identities!(CopiedCallOperandReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CopiedCallOperandError {
+pub(crate) enum CopiedCallOperandError {
     SourceMismatch,
     /// Not the emitted direct-call roster the family declares: a body
     /// instruction of a kind no declared consumer names — the normalized
