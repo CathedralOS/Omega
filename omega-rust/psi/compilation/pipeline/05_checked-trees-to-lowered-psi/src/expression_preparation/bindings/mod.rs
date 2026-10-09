@@ -137,6 +137,16 @@ pub(crate) struct ScalarBindings {
 }
 
 impl ScalarBindings {
+    /// The recorded scalar-ingress home of dense formal `index`, when present.
+    fn scalar_parameter_home_row(
+        &self,
+        index: u32,
+    ) -> Option<&(u32, PlaceId, ScalarType, StructuralAccess)> {
+        self.scalar_parameter_homes
+            .iter()
+            .find(|row| row.0 == index)
+    }
+
     /// Resolve the source home before lowering the argument's relative path.
     /// A projected alias retains its physical root and its established prefix.
     pub(crate) fn borrowed_structural_home(
@@ -611,10 +621,8 @@ impl ScalarBindings {
         scalar_type: ScalarType,
         access: StructuralAccess,
     ) -> Result<(), LoweringError> {
-        if let Some((_, original, original_type, original_access)) = self
-            .scalar_parameter_homes
-            .iter()
-            .find(|row| row.0 == parameter_index)
+        if let Some((_, original, original_type, original_access)) =
+            self.scalar_parameter_home_row(parameter_index)
         {
             if *original != place || *original_type != scalar_type || *original_access != access {
                 return unsupported("scalar ingress changes its original home");
@@ -631,11 +639,7 @@ impl ScalarBindings {
         parameter_index: u32,
         scalar_type: ScalarType,
     ) -> Result<Option<PlaceId>, LoweringError> {
-        match self
-            .scalar_parameter_homes
-            .iter()
-            .find(|row| row.0 == parameter_index)
-        {
+        match self.scalar_parameter_home_row(parameter_index) {
             Some((_, place, actual, _)) if *actual == scalar_type => Ok(Some(*place)),
             Some(_) => unsupported("scalar ingress home changes its carrier"),
             None => Ok(None),
@@ -870,13 +874,11 @@ impl ScalarBindings {
         else {
             return unsupported("scalar formal borrow names another source");
         };
-        let (_, _, scalar_type, _) = self
-            .scalar_parameter_homes
-            .iter()
-            .find(|row| row.0 == parameter_index)
-            .ok_or(LoweringError::Unsupported(
-                "borrowed scalar formal has no published home",
-            ))?;
+        let (_, _, scalar_type, _) =
+            self.scalar_parameter_home_row(parameter_index)
+                .ok_or(LoweringError::Unsupported(
+                    "borrowed scalar formal has no published home",
+                ))?;
         self.primitive_borrow(argument, *scalar_type, structural_types)
     }
 
@@ -922,13 +924,9 @@ impl ScalarBindings {
                     .ok_or(LoweringError::Unsupported(
                         "computed primitive ingress has no established original home",
                     ))?;
-                let (_, _, _, granted) = self
-                    .scalar_parameter_homes
-                    .iter()
-                    .find(|row| row.0 == parameter_index)
-                    .ok_or(LoweringError::Unsupported(
-                        "computed ingress lost its access custody",
-                    ))?;
+                let (_, _, _, granted) = self.scalar_parameter_home_row(parameter_index).ok_or(
+                    LoweringError::Unsupported("computed ingress lost its access custody"),
+                )?;
                 if !permits(*granted, access) {
                     return unsupported("computed primitive ingress widens original access");
                 }
