@@ -42,7 +42,7 @@ pub(super) fn encode_fixed_site(bytes: &mut Vec<u8>, site: VirtualFixedConstrain
             crate::codec_bytes::push_encoded(bytes, point.0.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, operand.to_le_bytes());
-            bytes.push(access_tag(access));
+            bytes.push(access.access_tag());
         }
     }
 }
@@ -183,14 +183,6 @@ pub(super) fn decode_constraint_key(
         family,
         variant: cursor.u32()?,
     })
-}
-
-pub(super) fn access_tag(access: RegisterOperandAccess) -> u8 {
-    match access {
-        RegisterOperandAccess::Use => 0,
-        RegisterOperandAccess::Def => 1,
-        RegisterOperandAccess::UseDef => 2,
-    }
 }
 
 pub(super) fn decode_access(

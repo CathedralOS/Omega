@@ -1,11 +1,8 @@
-use register_model::RegisterOperandAccess;
-
 use target::{Architecture, ObjectFormat};
 
 use crate::{
     ArchitecturalUnitActionKind, LiveRangeIdentity, LiveRangePlan, VirtualFixedConstraintSite,
 };
-
 
 /// `live_range_identity` from the digests of `plan.functions`, in order.
 pub fn live_range_identity_from_digests(
@@ -33,7 +30,10 @@ pub fn live_range_identity_from_digests(
         ObjectFormat::Coff => 2,
     });
     crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_size as u64).to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_alignment as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        (plan.target.pointer_alignment as u64).to_le_bytes(),
+    );
     encode_len(&mut bytes, digests.len());
     for digest in digests {
         bytes.extend_from_slice(digest);
@@ -63,7 +63,7 @@ pub fn live_range_function_digest(function: &crate::FunctionLiveRanges) -> [u8; 
             crate::codec_bytes::push_encoded(&mut bytes, occurrence.point.0.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, occurrence.instruction.0.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, occurrence.operand.to_le_bytes());
-            bytes.push(access_tag(occurrence.access));
+            bytes.push(occurrence.access.access_tag());
         }
         encode_len(&mut bytes, register.fixed_constraints.len());
         for constraint in &register.fixed_constraints {
@@ -81,7 +81,7 @@ pub fn live_range_function_digest(function: &crate::FunctionLiveRanges) -> [u8; 
                     crate::codec_bytes::push_encoded(&mut bytes, point.0.to_le_bytes());
                     crate::codec_bytes::push_encoded(&mut bytes, instruction.0.to_le_bytes());
                     crate::codec_bytes::push_encoded(&mut bytes, operand.to_le_bytes());
-                    bytes.push(access_tag(access));
+                    bytes.push(access.access_tag());
                 }
             }
             crate::codec_bytes::push_encoded(&mut bytes, constraint.view.0.to_le_bytes());
@@ -178,14 +178,6 @@ fn encode_connectors(bytes: &mut Vec<u8>, connectors: &[crate::LiveRangeEdgeConn
         bytes.push(connector.polarity_ordinal);
         crate::codec_bytes::push_encoded(bytes, connector.psi_edge.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, connector.target.0.to_le_bytes());
-    }
-}
-
-fn access_tag(access: RegisterOperandAccess) -> u8 {
-    match access {
-        RegisterOperandAccess::Use => 0,
-        RegisterOperandAccess::Def => 1,
-        RegisterOperandAccess::UseDef => 2,
     }
 }
 

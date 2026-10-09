@@ -1,5 +1,3 @@
-use register_model::RegisterOperandAccess;
-
 use target::{Architecture, ObjectFormat};
 
 use crate::{FunctionLiveness, LivenessIdentity, LivenessPlan};
@@ -62,7 +60,7 @@ fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
         crate::codec_bytes::push_encoded(bytes, operand.instruction.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.operand.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
-        bytes.push(access_tag(operand.access));
+        bytes.push(operand.access.access_tag());
         crate::codec_bytes::push_encoded(bytes, operand.class.0.to_le_bytes());
         encode_option_u16(bytes, operand.fixed_view.map(|view| view.0));
         encode_option_u16(bytes, operand.tied_to);
@@ -99,14 +97,6 @@ fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
             encode_vregs(bytes, &successor.virtual_live);
             encode_units(bytes, &successor.unit_live);
         }
-    }
-}
-
-fn access_tag(access: RegisterOperandAccess) -> u8 {
-    match access {
-        RegisterOperandAccess::Use => 0,
-        RegisterOperandAccess::Def => 1,
-        RegisterOperandAccess::UseDef => 2,
     }
 }
 

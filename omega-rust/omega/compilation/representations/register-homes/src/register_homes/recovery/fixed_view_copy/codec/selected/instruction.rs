@@ -19,7 +19,7 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
         Cursor, decode_accepted_fact, decode_id, decode_option_u16, decode_u16s, encode_option_u16,
         encode_u16s, length,
     },
-    values::{access_tag, decode_access, decode_bool, decode_constraint_key, decode_integer},
+    values::{decode_access, decode_bool, decode_constraint_key, decode_integer},
 };
 
 pub(super) fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
@@ -30,7 +30,7 @@ pub(super) fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInst
     for operand in &instruction.operands {
         crate::codec_bytes::push_encoded(bytes, operand.operand.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
-        bytes.push(access_tag(operand.access));
+        bytes.push(operand.access.access_tag());
         crate::codec_bytes::push_encoded(bytes, operand.class.0.to_le_bytes());
         encode_option_u16(bytes, operand.fixed_view.map(|view| view.0));
         encode_option_u16(bytes, operand.tied_to);
@@ -287,7 +287,12 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        selected_instructions::exact_add_or_sub_pair_pattern!(immediate,obligation,accepted_fact, ..) => {
+        selected_instructions::exact_add_or_sub_pair_pattern!(
+            immediate,
+            obligation,
+            accepted_fact,
+            ..
+        ) => {
             encode_integer(bytes, immediate);
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
