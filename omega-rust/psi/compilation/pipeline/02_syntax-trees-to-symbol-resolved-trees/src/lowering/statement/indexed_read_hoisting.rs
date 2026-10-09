@@ -4,11 +4,12 @@ use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::match_subject_hoisting::{
     borrow_membership_subject, is_reference_struct_parameter_member,
 };
+use crate::lowering::statement::place_operand_capture::capture_address_operands;
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
 use symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCastExpression,
-    TableIndexedExpression, TableMembershipExpression, TableRangeExpression, TableUnaryExpression,
+    TableMembershipExpression, TableRangeExpression, TableUnaryExpression,
 };
 use symbol_resolved_trees::statement::Statement;
 use symbols::BuiltinFunction;
@@ -191,21 +192,13 @@ fn rewrite_children(
                 }),
             );
         }
-        ExpressionNode::Indexed(indexed) => {
-            // A NON-root indexed node reached via recursion would already have
-            // been hoisted by `hoist_child`; reaching here means this is the
-            // value root. Leave it whole (the root whole-value copy path), but
-            // still rewrite its index sub-expression so a runtime-indexed read
-            // INSIDE the index (`arr[other[i]]`) is hoisted.
-            let index = hoist_index(lowerer, indexed.index, hoisted, mode);
-            set_expression(
-                lowerer,
-                expression,
-                ExpressionNode::Indexed(TableIndexedExpression {
-                    collection: indexed.collection,
-                    index,
-                }),
-            );
+        ExpressionNode::Indexed(_) => {
+            // The value root remains storage. Its collection and selectors
+            // evaluate in order through the same owner as loans and stores;
+            // expression depth and local/parameter spelling are not admission
+            // criteria. Selection boundaries above still keep skipped
+            // operands out of this unconditional capture.
+            capture_address_operands(lowerer, expression, hoisted);
         }
         // Array literals, calls, member accesses, struct literals, and the leaf
         // nodes (names, integers, ...) are left untouched: an operand-position
@@ -267,153 +260,6 @@ pub(crate) fn is_integer_embedding_call(
                 .symbols
                 .builtin_function_for_symbol(call.target_symbol)
                 == Some(symbols::BuiltinFunction::IntegerEmbed))
-}
-
-/// Rewrites an `Indexed` node's INDEX position. A hoistable COMPUTED index
-/// (`arr[k + 1]` -- see `index_is_hoistable_computed`) is hoisted into a
-/// `let __hoist_N = k + 1;` temp so the access indexes a slotted plain place:
-/// the checker proves the temp's bounds from its env interval, state-storage
-/// keeps its slot (the runtime-index carve-out), and simplify never folds a
-/// computed binding back into an index position. Anything else goes through
-/// `hoist_child` unchanged (a runtime-indexed read INSIDE the index,
-/// `arr[other[i]]`, still hoists there).
-pub(crate) fn hoist_index(
-    lowerer: &mut Lowerer,
-    index: ExpressionHandle,
-    hoisted: &mut Vec<Statement>,
-    mode: OperandHoisting,
-) -> ExpressionHandle {
-    if index_is_hoistable_computed(lowerer, index) {
-        return hoist_into_temp(lowerer, index, hoisted);
-    }
-    hoist_child(lowerer, index, hoisted, mode)
-}
-
-/// A `Binary` index up to TWO levels deep (`k + 1`, `2 * k`, and the
-/// row-major idiom `y * 4 + x`) whose leaf operands are each TYPEABLE at the
-/// hoist-temp layer: an integer literal, a `self.<field>` member, or a
-/// state-PARAMETER name -- with at least one non-literal (a pure-const binary
-/// is left for the const fold, which resolves it to a fixed index without a
-/// temp). A LOCAL leaf is refused: `infer_hoist_temp_type` resolves
-/// self-fields and params only, and an untypeable temp would mint a Unit
-/// layout error where the checker's computed-index fence gives a clear
-/// message today. Deeper nests (`(a+b)*(c+d)` and beyond) are likewise left
-/// fenced -- the interval synthesis in `computed_index_interval` composes to
-/// the same depth, so hoistable-here and range-synthesizable-there stay in
-/// lockstep (R0 of the dependent-types ladder: the two-level shape was
-/// neither hoisted NOR fenced, and silently read ZII natively).
-fn index_is_hoistable_computed(lowerer: &Lowerer, index: ExpressionHandle) -> bool {
-    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let Some(binary) = expressions.binary_node(index) else {
-        return false;
-    };
-    let leaf_is_typeable = |operand: ExpressionHandle| -> bool {
-        match expressions.expression(operand) {
-            ExpressionNode::Integer(_) => true,
-            // A field of the machine's data, through whichever binding this
-            // state reaches it: `self` under the receiver spelling, an
-            // ordinary parameter under the static one. `member_chain_type`
-            // resolves either root, so both are typeable as a hoist temp.
-            ExpressionNode::Member(member) => matches!(
-                expressions.expression(member.receiver),
-                ExpressionNode::Name(path)
-                    if expressions
-                        .name_path_members(path.members)
-                        .first()
-                        .is_some_and(|name| {
-                            name.is_self_receiver()
-                                || lowerer
-                                    .current_state_parameter_names
-                                    .iter()
-                                    .any(|parameter| parameter == name.as_str())
-                        })
-            ),
-            ExpressionNode::Name(path) => {
-                let members = expressions.name_path_members(path.members);
-                let [only] = members else {
-                    return false;
-                };
-                lowerer
-                    .current_state_parameter_names
-                    .iter()
-                    .any(|name| name == only.as_str())
-            }
-            _ => false,
-        }
-    };
-    let operand_is_typeable = |operand: ExpressionHandle| -> bool {
-        if leaf_is_typeable(operand) {
-            return true;
-        }
-        // One nested level: a binary of typeable LEAVES (`y * 4` inside
-        // `y * 4 + x`).
-        match expressions.expression(operand) {
-            ExpressionNode::Binary(inner) => {
-                leaf_is_typeable(inner.left) && leaf_is_typeable(inner.right)
-            }
-            _ => false,
-        }
-    };
-    let contains_non_literal = |operand: ExpressionHandle| -> bool {
-        match expressions.expression(operand) {
-            ExpressionNode::Integer(_) => false,
-            ExpressionNode::Binary(inner) => {
-                !matches!(
-                    expressions.expression(inner.left),
-                    ExpressionNode::Integer(_)
-                ) || !matches!(
-                    expressions.expression(inner.right),
-                    ExpressionNode::Integer(_)
-                )
-            }
-            _ => true,
-        }
-    };
-    if !contains_non_literal(binary.left) && !contains_non_literal(binary.right) {
-        return false;
-    }
-    operand_is_typeable(binary.left) && operand_is_typeable(binary.right)
-}
-
-/// Hoists computed indices inside an assignment TARGET's place chain
-/// (`self.arr[self.k + 1] = v`), walking `Member` receivers and `Indexed`
-/// collections. Only INDEX positions are rewritten -- the place structure
-/// itself is never hoisted (it is a write target, not a value).
-pub(crate) fn hoist_target_computed_indices(
-    lowerer: &mut Lowerer,
-    target: ExpressionHandle,
-    hoisted: &mut Vec<Statement>,
-) {
-    let node = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .expression(target)
-        .clone();
-    match node {
-        ExpressionNode::Indexed(indexed) => {
-            hoist_target_computed_indices(lowerer, indexed.collection, hoisted);
-            if index_is_hoistable_computed(lowerer, indexed.index) {
-                let index = hoist_into_temp(lowerer, indexed.index, hoisted);
-                set_expression(
-                    lowerer,
-                    target,
-                    ExpressionNode::Indexed(TableIndexedExpression {
-                        collection: indexed.collection,
-                        index,
-                    }),
-                );
-            }
-        }
-        ExpressionNode::Member(member) => {
-            hoist_target_computed_indices(lowerer, member.receiver, hoisted);
-        }
-        ExpressionNode::Borrow(inner) => {
-            hoist_target_computed_indices(lowerer, inner.target, hoisted);
-        }
-        _ => {}
-    }
 }
 
 /// Hoists `child` if it is an `Indexed` node, otherwise recurses into it.

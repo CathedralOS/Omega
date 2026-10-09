@@ -665,16 +665,19 @@ defines the complete product bar.
     `fail/ownership/view_element_window_{unproven_index,live_borrow,missing_repair}`;
     qualify remaining hosts. Keep `runtime_local_subslice_element_window_exit`
     (0) for local and nested subslice offsets, field writes, computed copy
-    replacement and runtime-indexed affine extraction/repair through an
-    immutable alias with untouched siblings; keep
+    replacement and runtime-indexed affine extraction/repair through computed
+    immutable copies and constant shifts with untouched siblings; keep
     `fail/ownership/local_subslice_window_wrong_repair` for an index that
     does not restore the hole. Keep `borrowed_window_changed_selector` and
     `runtime_window_fixed_observation` for changed mutable selectors and
     observing a fixed element that a runtime-selected hole may overlap.
-    Qualify computed-selector agreement (`chosen = at + 0` extracted through
-    `chosen` and repaired through `at` still rejects), mutable-selector version
-    pinning and cleanup prerequisites on narrowed receivers, plus remaining
-    native hosts.
+    Keep `runtime_computed_selector_snapshot_window_exit` (0) and
+    `computed_window_selector_keeps_snapshot` for captured computed values
+    after their mutable initializer changes; they are not aliases of that
+    live storage. Keep `computed_window_selector_requires_builtin_meaning`
+    for a selected authored operator whose result is not the builtin sum.
+    Qualify mutable-selector version pinning, cleanup
+    prerequisites on narrowed receivers and remaining native hosts.
     Qualify runtime-selected cleanup on the remaining native hosts. Keep
     `pass/drops/runtime_case_selected_cleanup_continuations_exit` (0) for
     captured scalar returns, computed temporaries, parent retention and

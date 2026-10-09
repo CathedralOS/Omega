@@ -12,14 +12,14 @@
 //! hoists runtime-indexed operand reads (and pure builtin guard calls),
 //! `value_call_hoisting.rs` hoists unconditional scalar value calls and
 //! `match_subject_hoisting.rs` hoists membership and comparison match
-//! subjects. `reference_initializer_selectors.rs` captures evaluated address
-//! operands for unconditional loans without extracting their pointee. All
-//! these owners mint their temps through `hoist_temps.rs`.
+//! subjects. `place_operand_capture.rs` captures evaluated address operands
+//! for unconditional reads, writes and loans without extracting their pointee.
+//! All these owners mint their temps through `hoist_temps.rs`.
 
 pub(in crate::lowering) mod hoist_temps;
 mod indexed_read_hoisting;
 mod match_subject_hoisting;
-mod reference_initializer_selectors;
+mod place_operand_capture;
 mod statement_nodes;
 mod value_call_hoisting;
 

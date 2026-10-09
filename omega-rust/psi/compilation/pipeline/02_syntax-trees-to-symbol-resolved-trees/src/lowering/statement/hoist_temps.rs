@@ -7,7 +7,7 @@
 //! (`infer_hoist_temp_type`). Any other declared type is the temp's
 //! annotation.
 
-use super::reference_initializer_selectors::capture_reference_initializer_selectors;
+use super::place_operand_capture::capture_reference_initializer_selectors;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};

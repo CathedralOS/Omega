@@ -1,10 +1,12 @@
-//! Ordered address operands for unconditional reference initializers.
+//! Ordered operands for an unconditional place evaluation.
 //!
 //! A loan keeps its pointee as storage, but its selectors are evaluated values.
 //! Capture those values through ordinary inferred locals before establishing the
-//! loan. Walking collections first snapshots earlier selectors before a later
-//! selector can mutate their source. This owner is intentionally not used for
-//! guarded operands: moving their producers would change short-circuit order.
+//! loan or evaluating a read/write place. Walking collections first snapshots
+//! earlier selectors before a later selector can mutate their source. This
+//! owner is intentionally not used for guarded operands: moving their producers
+//! would change short-circuit order. Anonymous arithmetic keeps its contextual
+//! landing boundary rather than acquiring a synthetic local's scalar carrier.
 
 use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::statement_nodes::set_expression;
@@ -40,7 +42,8 @@ pub(super) fn capture_reference_initializer_selectors(
     }
 }
 
-fn capture_address_operands(
+/// Retain storage identity while evaluating its address operands in order.
+pub(super) fn capture_address_operands(
     lowerer: &mut Lowerer,
     address: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
@@ -86,6 +89,15 @@ fn capture_selector(
     selector: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
 ) -> ExpressionHandle {
+    // Literal-only operands read no storage to snapshot. Keep their operators
+    // and landing boundaries with the ordinary numeric owner: anonymous trees
+    // have no stored carrier yet, while suffixes retain their own carrier.
+    // An inferred local here would either keep Unit or introduce premature
+    // landing and change rational intermediates into integer operations.
+    // This walk neither evaluates a value nor grants an operator's meaning.
+    if is_numeric_literal_expression(lowerer, selector) {
+        return selector;
+    }
     let node = lowerer
         .symbol_resolved_trees
         .tables
@@ -94,7 +106,6 @@ fn capture_selector(
         .expression(selector)
         .clone();
     match node {
-        ExpressionNode::Integer(_) => selector,
         ExpressionNode::Range(mut range) => {
             if range.start.is_valid() {
                 range.start = capture_selector(lowerer, range.start, hoisted);
@@ -109,4 +120,21 @@ fn capture_selector(
         // selector may write that place after this selector has evaluated.
         _ => hoist_into_temp(lowerer, selector, hoisted),
     }
+}
+
+fn is_numeric_literal_expression(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let mut pending = vec![expression];
+    while let Some(expression) = pending.pop() {
+        match expressions.expression(expression) {
+            ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {}
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
+            ExpressionNode::Binary(binary) => {
+                pending.push(binary.right);
+                pending.push(binary.left);
+            }
+            _ => return false,
+        }
+    }
+    true
 }

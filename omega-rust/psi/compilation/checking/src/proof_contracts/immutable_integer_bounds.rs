@@ -237,43 +237,25 @@ pub fn immutable_integer_bound_value_symbol(
     }
 }
 
+/// Normalize the same additive terms as a two-symbol bound, retaining exactly
+/// one immutable value identity and its constant shift. Reading a computed
+/// local must not change the available bound vocabulary: its checked exact
+/// value and finite immutable copies contribute the same terms as the direct
+/// expression. Mutable leaves and unsupported coefficients remain unknown.
 pub fn immutable_integer_bound_symbol_offset(
     program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ImmutableIntegerBoundOffset> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
+    let mut terms = BoundSumTerms::default();
+    collect_bound_terms(program, lookup, expression, &mut terms, 0)?;
+    let (Some(symbol), None) = (terms.first, terms.second) else {
         return None;
     };
-    let (base, offset) = match binary.operator {
-        typed_trees::expression::BinaryOperator::Add => {
-            let left_value = program.expression_table.constant_integer_value(binary.left);
-            let right_value = program
-                .expression_table
-                .constant_integer_value(binary.right);
-            match (left_value, right_value) {
-                (Some(k), None) => (binary.right, k),
-                (None, Some(k)) => (binary.left, k),
-                _ => return None,
-            }
-        }
-        typed_trees::expression::BinaryOperator::Subtract => {
-            let k = program
-                .expression_table
-                .constant_integer_value(binary.right)?;
-            if program
-                .expression_table
-                .constant_integer_value(binary.left)
-                .is_some()
-            {
-                return None;
-            }
-            (binary.left, k.checked_neg()?)
-        }
-        _ => return None,
-    };
-    let symbol = bound_leaf_symbol(program, lookup, base)?;
-    Some(ImmutableIntegerBoundOffset { symbol, offset })
+    Some(ImmutableIntegerBoundOffset {
+        symbol,
+        offset: terms.offset,
+    })
 }
 
 /// Normalize an `Add`/`Subtract` tree of immutable integer bindings into the
@@ -304,7 +286,7 @@ pub fn immutable_integer_bound_sum(
     })
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct BoundSumTerms {
     first: Option<SymbolHandle>,
     second: Option<SymbolHandle>,
@@ -357,11 +339,19 @@ fn collect_bound_terms(
         },
         _ => {
             let symbol = bound_leaf_symbol(program, lookup, expression)?;
-            if let Some(initializer) = bound_leaf_initializer(program, lookup, expression) {
-                // An immutable local bound to a bound-shaped initializer
-                // contributes that initializer's terms: the local stores the
-                // expression's exact value, never a retargetable alias.
-                return collect_bound_terms(program, lookup, initializer, terms, depth + 1);
+            if let Some(initializer) = bound_leaf_initializer(program, lookup, symbol) {
+                // Algebraic expansion is optional knowledge about an existing
+                // immutable value, not permission to replay its initializer.
+                // If it reads mutable storage or exceeds this vocabulary,
+                // retain the captured value as an opaque atom. Failed
+                // reduction must not partially alter the enclosing terms.
+                let mut expanded = terms.clone();
+                if collect_bound_terms(program, lookup, initializer, &mut expanded, depth + 1)
+                    .is_some()
+                {
+                    *terms = expanded;
+                    return Some(());
+                }
             }
             if terms.first == Some(symbol) || terms.second == Some(symbol) {
                 // `x + x` is `2x`; coefficient-one terms cannot express it.
@@ -379,29 +369,37 @@ fn collect_bound_terms(
     }
 }
 
-/// When one bound leaf is an immutable local whose initializer is itself a
-/// bound-shaped `Add`/`Subtract` tree, the leaf's terms come from that
-/// initializer -- generated hoist locals are exactly this shape. A mutable
-/// local, a non-bound initializer, or a bare parameter name contributes the
-/// leaf's own symbol instead.
+/// Resolve the computed initializer at the immutable value identity, after
+/// finite copies have been followed. An alias's declaration may contain only
+/// a name while the captured value came from an additive computation. Mutable
+/// storage is never followed here: it is not an immutable bound leaf, and a
+/// snapshot whose initializer reads it keeps its own occurrence identity.
 fn bound_leaf_initializer(
     program: &dyn crate::CheckingInput,
     lookup: &ImmutableBoundLookup<'_>,
-    expression: ExpressionHandle,
+    symbol: SymbolHandle,
 ) -> Option<ExpressionHandle> {
-    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, expression)
-    else {
-        return None;
-    };
     let LocalLookup::Found(local) = local_by_symbol(lookup, symbol) else {
         return None;
     };
     if local.is_mutable || !local.initial_value.is_valid() {
         return None;
     }
-    let Some(binary) = program.expression_table.binary_node(local.initial_value) else {
+    let binary = program.expression_table.binary_node(local.initial_value)?;
+    // Expanding a stored computation must retain the declaration that chose
+    // its operator meaning. The local's structural owner supplies that exact
+    // callable context; a `+` requirement selecting an authored operation is
+    // not builtin addition, even when both operands are Exact integers.
+    let state_symbol = program.symbols.get(local.symbol).parent;
+    let (machine, state) = crate::find_state_with_machine(program, state_symbol)?;
+    if !crate::has_builtin_bound_expression_meaning(
+        program,
+        machine,
+        Some(state),
+        local.initial_value,
+    ) {
         return None;
-    };
+    }
     matches!(
         binary.operator,
         typed_trees::expression::BinaryOperator::Add

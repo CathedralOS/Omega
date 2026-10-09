@@ -23,8 +23,10 @@ machine rotate(tokens: &mut [Token], at: u64)
 requires tokens.len >= 4, at < 2
 {
     let tail: &mut [Token] = tokens[1..3];
-    let chosen: u64 = at;
-    let first: Token = tail[chosen];
+    let chosen: u64 = at + 0;
+    let shifted: u64 = (chosen + 1) - 1;
+    let selected: u64 = shifted;
+    let first: Token = tail[selected];
     tail[at] = Token { byte: 69 };
     tail[1] = first;
 }

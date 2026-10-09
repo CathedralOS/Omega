@@ -3,13 +3,15 @@
 use crate::lowering::expression::lower_private_expression_into_table;
 use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
-    OperandHoisting, hoist_child, hoist_operand_indexed_reads, hoist_target_computed_indices,
+    OperandHoisting, hoist_child, hoist_operand_indexed_reads,
 };
 use crate::lowering::statement::match_subject_hoisting::{
     guard_hoists_operands, hoist_comparison_match_subject, hoist_membership_match_subject,
     is_reference_struct_parameter_member,
 };
-use crate::lowering::statement::reference_initializer_selectors::capture_reference_initializer_selectors;
+use crate::lowering::statement::place_operand_capture::{
+    capture_address_operands, capture_reference_initializer_selectors,
+};
 use crate::lowering::statement::value_call_hoisting::{
     hoist_scalar_value_call_comparison, hoist_terminal_value_machine_call,
     is_scalar_return_computation,
@@ -125,10 +127,9 @@ pub(crate) fn lower_statement_node(
             let target = lower_statement_expression(lowerer, syntax_trees, assignment.target)?;
             let value = lower_statement_expression(lowerer, syntax_trees, assignment.value)?;
             let mut hoisted = Vec::new();
-            // A computed index in the write TARGET (`arr[k + 1] = v`) hoists
-            // the same way as in value positions: the temp indexes as a
-            // slotted plain place.
-            hoist_target_computed_indices(lowerer, target, &mut hoisted);
+            // Address operands finish in place order before the RHS. The
+            // capture retains values, never a copied destination subtree.
+            let target = capture_address_operands(lowerer, target, &mut hoisted);
             let value = hoist_operand_indexed_reads(
                 lowerer,
                 value,
