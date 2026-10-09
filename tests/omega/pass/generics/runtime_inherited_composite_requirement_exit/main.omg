@@ -1,6 +1,7 @@
 data Selected<'storage> { reference: &'storage i32; }
 data Envelope<Value> { value: Value; }
 data Pair<First, Second> { first: First; second: Second; }
+data RegionalValue<'storage> { value: i32; }
 
 // Authored dependent bodies are neither concrete views nor invented loans.
 // Selected instances still check their complete return and store frontiers.
@@ -28,8 +29,13 @@ machine observe<'storage, Operations satisfies Wrapped<Selected<'storage>>>(
     let envelope: Envelope<Selected<'storage>> = Envelope { value: original };
     let forwarded: Envelope<Selected<'storage>> = Operations::forward(envelope);
     let observed: i32 = forwarded.value.reference;
+    // A region argument is not a retained loan. Repeated owned applications
+    // consume their prepared fields without discarding the nested actuals.
+    let regional: RegionalValue<'storage> = RegionalValue { value: observed };
+    let inner: Envelope<RegionalValue<'storage>> = Envelope { value: regional };
+    let owned: Envelope<Envelope<RegionalValue<'storage>>> = Envelope { value: inner };
     source = 7;
-    observed
+    owned.value.value.value
 }
 
 machine run<'storage>(source: &'storage mut i32) -> i32 {

@@ -26,7 +26,11 @@ enum ContentType {
     Array(Box<ContentType>, usize),
     Slice(Box<ContentType>),
     Shared(Box<ContentType>),
-    Data(SymbolHandle, Vec<ContentType>),
+    Data {
+        symbol: SymbolHandle,
+        application: TypeReferenceHandle,
+        arguments: Vec<ContentType>,
+    },
     /// A shared-view member — `&[T]` or `&'a V` — under
     /// [`ContentsRequirement::OwnedOrSharedView`]. A terminal descriptor leaf:
     /// the carrier copies base and extent while the referent's loan stays
@@ -47,7 +51,7 @@ impl ContentType {
             Self::Scalar(_) | Self::Atomic(_) | Self::ConstValue | Self::View | Self::Provider => 1,
             Self::Array(element, _) => 1 + element.size(),
             Self::Slice(element) | Self::Shared(element) => 1 + element.size(),
-            Self::Data(_, arguments) => 1 + arguments.iter().map(Self::size).sum::<usize>(),
+            Self::Data { arguments, .. } => 1 + arguments.iter().map(Self::size).sum::<usize>(),
         }
     }
 }
@@ -411,12 +415,15 @@ fn resolve(
             program
                 .data_type_parameters(data)
                 .is_empty()
-                .then_some(ContentType::Data(*symbol, Vec::new()))
+                .then_some(ContentType::Data {
+                    symbol: *symbol,
+                    application: reference,
+                    arguments: Vec::new(),
+                })
         }
         TypeReferenceNode::Generic {
             base_symbol,
             arguments: source_arguments,
-            lifetime_arguments,
             ..
         } => {
             let data = definition(program, *base_symbol)?;
@@ -448,9 +455,7 @@ fn resolve(
                     )
                 })
                 .collect::<Option<Vec<_>>>()?;
-            if lifetime_arguments.is_empty()
-                && let Some(instance) = program.closed_data_definition(reference)
-            {
+            if let Some(instance) = program.closed_data_definition(reference) {
                 // The retained instance's fields already contain exact
                 // substituted extents. Reuse them only under its complete
                 // original application identity, not its synthetic name.
@@ -468,9 +473,17 @@ fn resolve(
                 {
                     return None;
                 }
-                return Some(ContentType::Data(instance.symbol, Vec::new()));
+                return Some(ContentType::Data {
+                    symbol: instance.symbol,
+                    application: reference,
+                    arguments: resolved,
+                });
             }
-            Some(ContentType::Data(*base_symbol, resolved))
+            Some(ContentType::Data {
+                symbol: *base_symbol,
+                application: reference,
+                arguments: resolved,
+            })
         }
         // Extent zero does not introduce loans or cleanup. Retain and classify
         // the element carrier just as for nonempty arrays; operation-specific
@@ -590,7 +603,7 @@ fn resolve(
                             | ContentsRequirement::RepresentedOwned
                             | ContentsRequirement::BorrowedStorage
                             | ContentsRequirement::BorrowFree)
-                        && matches!(contents, ContentType::Data(_, _))
+                        && matches!(contents, ContentType::Data { .. })
                         && domain.subject == typed_trees::types::DomainConstraintSubject::Declared
                         && domain.semantic_id.is_valid()
                         && typed_trees::domain::domain_by_symbol(program, domain.symbol).is_some()
@@ -727,7 +740,12 @@ fn check_contents(
     if complete.contains(resolved) {
         return true;
     }
-    let ContentType::Data(symbol, arguments) = resolved else {
+    let ContentType::Data {
+        symbol,
+        application,
+        arguments,
+    } = resolved
+    else {
         return match resolved {
             ContentType::Scalar(_) => true,
             // Shared atomic access may change the resident without invalidating
@@ -748,11 +766,28 @@ fn check_contents(
             // A const parameter named where a member type belongs is not
             // storage the classifier understands.
             ContentType::ConstValue => false,
-            ContentType::Data(..) => unreachable!(),
+            ContentType::Data { .. } => unreachable!(),
         };
     };
-    let Some(data) = definition(program, *symbol) else {
-        return false;
+    // A prepared view may keep its template's symbol. The exact application,
+    // not a nominal lookup, owns its closed fields. Scoped template arguments
+    // remain scratch for applications that preparation could not close.
+    let (data, substitutions) = if let Some(data) = program.closed_data_definition(*application) {
+        (data, Vec::new())
+    } else {
+        let Some(data) = definition(program, *symbol) else {
+            return false;
+        };
+        let parameters = program.data_type_parameters(data);
+        if parameters.len() != arguments.len() {
+            return false;
+        }
+        let substitutions = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| (parameter.symbol, argument.clone()))
+            .collect::<Vec<_>>();
+        (data, substitutions)
     };
     // A repeated declaration must consume finite type-argument structure, as
     // in Wrapper<Wrapper<Value>>. Expanding recursive by-value data is not a
@@ -770,7 +805,7 @@ fn check_contents(
                 | ContentsRequirement::BorrowedStorage
         ))
         || active.iter().any(|ancestor| {
-            matches!(ancestor, ContentType::Data(owner, _)
+            matches!(ancestor, ContentType::Data { symbol: owner, .. }
             if owner == symbol && resolved.size() >= ancestor.size())
         })
         || (!matches!(
@@ -784,15 +819,6 @@ fn check_contents(
     {
         return false;
     }
-    let parameters = program.data_type_parameters(data);
-    if parameters.len() != arguments.len() {
-        return false;
-    }
-    let substitutions = parameters
-        .iter()
-        .zip(arguments)
-        .map(|(parameter, argument)| (parameter.symbol, argument.clone()))
-        .collect::<Vec<_>>();
     active.push(resolved.clone());
     let mut check_field = |field: &typed_trees::data::DataField| {
         if field.relevance.is_erased() {
