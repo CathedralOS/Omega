@@ -377,11 +377,10 @@ fn float_destination(
     program: &TypedTrees,
     destination: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(destination)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(destination)
+        .as_named_symbol()?;
     match program.symbols.builtin_type_atom(*symbol)? {
         symbols::BuiltinTypeAtom::F32 => Some(PrimitiveType::F32),
         symbols::BuiltinTypeAtom::F64 => Some(PrimitiveType::F64),

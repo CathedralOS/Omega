@@ -299,12 +299,11 @@ pub(super) fn exact_probe_destination(
     destination: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::PrimitiveType> {
     use symbols::BuiltinTypeAtom;
-    use typed_trees::types::{PrimitiveType, TypeReferenceNode};
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(destination)
-    else {
-        return None;
-    };
+    use typed_trees::types::PrimitiveType;
+    let symbol = &program
+        .type_reference_table
+        .type_reference(destination)
+        .as_named_symbol()?;
     Some(match program.symbols.builtin_type_atom(*symbol)? {
         BuiltinTypeAtom::I8 => PrimitiveType::I8,
         BuiltinTypeAtom::I16 => PrimitiveType::I16,
@@ -326,13 +325,12 @@ pub(super) fn scalar_probe_destination(
     destination: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::PrimitiveType> {
     use symbols::BuiltinTypeAtom;
-    use typed_trees::types::{PrimitiveType, TypeReferenceNode};
+    use typed_trees::types::PrimitiveType;
     exact_probe_destination(program, destination).or_else(|| {
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(destination)
-        else {
-            return None;
-        };
+        let symbol = &program
+            .type_reference_table
+            .type_reference(destination)
+            .as_named_symbol()?;
         match program.symbols.builtin_type_atom(*symbol)? {
             BuiltinTypeAtom::F32 => Some(PrimitiveType::F32),
             BuiltinTypeAtom::F64 => Some(PrimitiveType::F64),

@@ -138,11 +138,10 @@ pub fn closed_static_call_type_bindings(
                 | ExpressionNode::Integer(_)
                 | ExpressionNode::Float(_) => {}
                 ExpressionNode::StructLiteral(literal) => {
-                    let TypeReferenceNode::Named { symbol, .. } =
-                        program.type_reference_table.type_reference(expected)
-                    else {
-                        return None;
-                    };
+                    let symbol = &program
+                        .type_reference_table
+                        .type_reference(expected)
+                        .as_named_symbol()?;
                     if !symbol.is_valid()
                         || *symbol != literal.type_symbol
                         || !program.data_definitions().iter().any(|definition| {

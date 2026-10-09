@@ -8,7 +8,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::{DataDefinition, DataField};
 use typed_trees::domain::{DomainDefinition, ProofFact};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableBinaryExpression};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 /// Check case membership under the exact domain declaration's carrier binding.
 pub fn has_exact_domain_case_membership_meaning(
@@ -180,11 +180,10 @@ fn subject_type(
             )?;
             // Generic bases do not instantiate their field telescope. The
             // producer must retain a concrete named specialization first.
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(receiver)
-            else {
-                return None;
-            };
+            let symbol = &program
+                .type_reference_table
+                .type_reference(receiver)
+                .as_named_symbol()?;
             let mut definitions = program
                 .data_definitions()
                 .iter()

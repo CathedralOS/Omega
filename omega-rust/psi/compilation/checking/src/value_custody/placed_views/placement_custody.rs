@@ -17,8 +17,7 @@ pub(super) fn validate_agreements(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for conformance in program.conformances() {
-        let Some(trait_definition) = program
-            .trait_definition_by_symbol(conformance.trait_symbol)
+        let Some(trait_definition) = program.trait_definition_by_symbol(conformance.trait_symbol)
         else {
             continue;
         };
@@ -592,11 +591,10 @@ fn plain_record_for_type(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(type_reference)
+        .as_named_symbol()?;
     let record = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
     (record.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && record.generic_instance.is_none()

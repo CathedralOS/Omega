@@ -77,11 +77,10 @@ fn record(
     fields: &[(String, DecodedCanonicalConstValue)],
 ) -> Option<ExpressionNode> {
     let declared_type = validation::unwrapped_type_reference(program, declared_type)?;
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(declared_type)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(declared_type)
+        .as_named_symbol()?;
     // Encoded names are consistency claims, never a route to another carrier.
     let definition = program
         .data_definitions()

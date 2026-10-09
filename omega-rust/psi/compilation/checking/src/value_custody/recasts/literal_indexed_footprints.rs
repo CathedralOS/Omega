@@ -286,11 +286,10 @@ pub(crate) fn literal_indexed_recast_target_size(
             .filter(|size| *size > 0);
     }
 
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(target_type)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(target_type)
+        .as_named_symbol()?;
     if !closed_fact_free_record_symbol_is_eligible(program, *symbol) {
         return None;
     }

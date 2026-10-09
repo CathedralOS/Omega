@@ -325,11 +325,10 @@ pub fn checked_shape_data_declaration<'program>(
     result_type: typed_trees::types::TypeReferenceHandle,
     name: &str,
 ) -> Option<(&'program typed_trees::data::DataDefinition, SymbolHandle)> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(result_type)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(result_type)
+        .as_named_symbol()?;
     let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
     if !symbol.is_valid()
         || data.name.as_str() != name

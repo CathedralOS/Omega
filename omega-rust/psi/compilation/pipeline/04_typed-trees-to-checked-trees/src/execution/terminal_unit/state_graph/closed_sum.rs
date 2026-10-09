@@ -253,11 +253,10 @@ pub(super) fn build(
     ) {
         return None;
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(type_reference)
+        .as_named_symbol()?;
     let data = program.data_definition_by_symbol(*symbol)?;
     let variants = program
         .data_members(data)

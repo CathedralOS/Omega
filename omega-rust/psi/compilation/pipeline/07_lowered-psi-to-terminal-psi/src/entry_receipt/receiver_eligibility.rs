@@ -51,11 +51,10 @@ pub(super) fn derive(
     let owned = checked
         .type_reference_table
         .peeled_type_reference(receiver.type_reference);
-    let TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(owned)
-    else {
-        return None;
-    };
+    let symbol = &checked
+        .type_reference_table
+        .type_reference(owned)
+        .as_named_symbol()?;
     let definition = checked.data_definition_by_symbol(*symbol)?;
     // Source parameters name their nominal data directly. Rejoin that identity;
     // never infer eligibility from a matching layout or display name.

@@ -45,11 +45,10 @@ fn exact_integer_primitive(
     {
         carrier_type = *base_type;
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(carrier_type)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(carrier_type)
+        .as_named_symbol()?;
     let primitive = PrimitiveType::from_builtin_atom(program.symbols.builtin_type_atom(*symbol)?)?;
     if program.arithmetic_domain_for_type_reference(type_reference) != ArithmeticDomain::Exact {
         return None;

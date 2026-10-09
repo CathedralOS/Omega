@@ -708,11 +708,10 @@ pub(super) fn record_referent(
             .unconstrained_type_reference(*referee);
         borrowed = true;
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(reference)
+        .as_named_symbol()?;
     (symbol.is_valid()
         && crate::declarations::data_queries::data_definition_by_symbol(program, *symbol).is_some())
     .then_some((*symbol, borrowed))

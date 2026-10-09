@@ -174,11 +174,10 @@ fn literal_projections(
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(literal) => {
-                let TypeReferenceNode::Named { symbol, .. } =
-                    program.type_reference_table.type_reference(reference)
-                else {
-                    return None;
-                };
+                let symbol = &program
+                    .type_reference_table
+                    .type_reference(reference)
+                    .as_named_symbol()?;
                 if program.symbols.get(*symbol).kind != symbols::SymbolKind::Data
                     || literal.type_symbol != *symbol
                 {

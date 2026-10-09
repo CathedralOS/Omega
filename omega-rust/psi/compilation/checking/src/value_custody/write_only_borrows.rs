@@ -300,11 +300,10 @@ fn closed_write_only_data(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(type_reference)
+        .as_named_symbol()?;
     closed_write_only_data_by_symbol(program, *symbol)
 }
 

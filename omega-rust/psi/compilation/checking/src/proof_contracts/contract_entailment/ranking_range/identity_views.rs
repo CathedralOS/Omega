@@ -560,11 +560,10 @@ fn unsigned_carrier(
         }
         reference = *base_type;
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(reference)
+        .as_named_symbol()?;
     let carrier = program.symbols.builtin_type_atom(*symbol)?;
     matches!(
         carrier,

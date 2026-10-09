@@ -38,11 +38,10 @@ pub(crate) fn closed_record_integer_projection(
             _ => break,
         }
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(carrier)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(carrier)
+        .as_named_symbol()?;
     program.symbols.builtin_type_atom(*symbol)?;
     let primitive = program.primitive_type_reference(reference)?;
     let value = program.closed_integer_value_in(selected, symbols::SymbolHandle::invalid())?;

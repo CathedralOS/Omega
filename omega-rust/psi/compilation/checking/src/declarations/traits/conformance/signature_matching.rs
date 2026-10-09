@@ -1066,11 +1066,10 @@ pub(crate) fn required_trait_type_parameter<'program>(
     required: TypeReferenceHandle,
     trait_type_parameters: &'program [TypeParameter],
 ) -> Option<&'program TypeParameter> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(required)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(required)
+        .as_named_symbol()?;
 
     symbol.is_valid().then_some(())?;
     trait_type_parameters

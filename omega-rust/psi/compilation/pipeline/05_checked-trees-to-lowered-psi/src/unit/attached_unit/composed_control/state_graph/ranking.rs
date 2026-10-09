@@ -325,13 +325,11 @@ fn rank_type(machine: &TerminalMachine, value: ValueId) -> Result<IntegerType, L
         .iter()
         .chain(machine.block_parameters())
         .copied()
-        .chain(machine.operations().filter_map(|operation| {
-            if let OperationResult::Scalar(value) = operation.result {
-                Some(value)
-            } else {
-                None
-            }
-        }))
+        .chain(
+            machine
+                .operations()
+                .filter_map(|operation| operation.result.as_scalar()),
+        )
         .find_map(|declaration| {
             if declaration.id == value
                 && let Some(integer) = declaration.scalar_type.as_integer()

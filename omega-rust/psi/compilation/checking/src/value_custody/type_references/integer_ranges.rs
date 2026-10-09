@@ -172,11 +172,10 @@ pub fn declared_integer_range(
         }
         type_reference = *base_type;
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(type_reference)
+        .as_named_symbol()?;
     let carrier = program.symbols.builtin_type_atom(*symbol)?;
     let (endpoints, end_inclusive) = endpoints?;
     carrier

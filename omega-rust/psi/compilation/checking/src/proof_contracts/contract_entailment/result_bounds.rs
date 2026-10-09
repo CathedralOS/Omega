@@ -769,11 +769,10 @@ fn integer_carrier(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(reference)
+        .as_named_symbol()?;
     program.symbols.builtin_type_atom(*symbol)?;
     let primitive = program.primitive_type_reference(reference)?;
     carrier_bounds(primitive)?;

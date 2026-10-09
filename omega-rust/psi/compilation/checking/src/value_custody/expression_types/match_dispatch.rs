@@ -718,7 +718,7 @@ pub(super) fn fresh_payloadless_case(
     reference: TypeReferenceHandle,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
     use typed_trees::data::DataMember;
-    use typed_trees::types::TypeReferenceNode;
+
     if !crate::has_contents(
         program,
         reference,
@@ -726,11 +726,10 @@ pub(super) fn fresh_payloadless_case(
     ) {
         return None;
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
+    let symbol = &program
+        .type_reference_table
+        .type_reference(reference)
+        .as_named_symbol()?;
     let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
     let members = program.data_members(data);
     if members.is_empty()

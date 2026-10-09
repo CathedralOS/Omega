@@ -5,7 +5,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn binary_is_builtin(
     program: &dyn crate::CheckingInput,
@@ -62,11 +62,10 @@ fn operand_type(
             let receiver = operand_type(program, member.receiver)?;
             let receiver =
                 crate::value_custody::places::unwrapped_type_reference(program, receiver)?;
-            let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(receiver)
-            else {
-                return None;
-            };
+            let symbol = &program
+                .type_reference_table
+                .type_reference(receiver)
+                .as_named_symbol()?;
             if !symbol.is_valid() {
                 return None;
             }
