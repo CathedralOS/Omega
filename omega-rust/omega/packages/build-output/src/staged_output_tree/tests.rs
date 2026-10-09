@@ -3,7 +3,7 @@
 mod file_selection;
 
 use super::BuildStagedOutputTree;
-use crate::{OutputTreeEntry, from_entries};
+use crate::tree_from_entries::{OutputTreeEntry, from_entries};
 
 /// Canonical retained roster: two directories, a nested file pair, and two
 /// top-level files, one of them a generated `.omg` source for the

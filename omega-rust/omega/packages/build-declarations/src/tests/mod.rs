@@ -3,8 +3,9 @@
 use crate::{
     ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
     PackageDeclaration, ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
-    project_build_declaration_from_source, project_build_declaration_syntax,
+    project_build_declaration_from_source,
 };
+use crate::syntax_projection::project_build_declaration_syntax;
 use source_files_to_tokens::Lexer;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
