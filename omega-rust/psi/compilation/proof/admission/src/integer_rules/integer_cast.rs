@@ -225,14 +225,7 @@ pub fn check_integer_cast_bound_conversion(
     // endpoint is a live value of a different carrier. Keep that endpoint and
     // strictness byte-for-byte; only the checked chain's root may change.
     // Literal retyping remains the separate, existing route below.
-    fn order(proposition: &Proposition) -> Option<(bool, &IntegerMathTerm, &IntegerMathTerm)> {
-        match proposition {
-            Proposition::IntegerMathLessThan(left, right) => Some((true, left, right)),
-            Proposition::IntegerMathLessOrEqual(left, right) => Some((false, left, right)),
-            _ => None,
-        }
-    }
-    fn embedded_value(term: &ScalarTerm) -> Option<IntegerMathTerm> {
+        fn embedded_value(term: &ScalarTerm) -> Option<IntegerMathTerm> {
         let ScalarTerm::Value {
             id,
             scalar_type: ScalarType::Integer(source_type),
@@ -252,7 +245,7 @@ pub fn check_integer_cast_bound_conversion(
     if let (
         Some((root_strict, root_left, root_right)),
         Some((target_strict, target_left, target_right)),
-    ) = (order(&mathematical_root), order(&mathematical_conclusion))
+    ) = (crate::proof::mathematical_order(&mathematical_root), crate::proof::mathematical_order(&mathematical_conclusion))
         && root_strict == target_strict
         && ((Some(root_left) == embedded_value(chain.root()).as_ref()
             && Some(target_left) == embedded_value(chain.target()).as_ref()
