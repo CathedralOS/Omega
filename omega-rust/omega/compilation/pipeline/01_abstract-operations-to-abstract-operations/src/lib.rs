@@ -48,8 +48,6 @@ pub(crate) use analyses::{
 pub(crate) use analyses::{
     CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisSnapshot,
-    validate_countdown_invariant_constant_analysis,
-    validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
 pub(crate) use optimization_unit::ScalarConstantValue;
 pub(crate) use pass_manager::PsiValidatedCandidateDeclaration;
