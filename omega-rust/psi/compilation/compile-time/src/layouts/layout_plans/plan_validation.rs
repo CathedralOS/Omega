@@ -490,13 +490,7 @@ fn validate_integer_decode_range(
     }
 
     if let Some((minimum, maximum)) = field.declared_range {
-        let (stored_minimum, stored_maximum) = match interpretation {
-            layout_plans::IntegerInterpretation::Signed => (
-                -(1i128 << (stored_width - 1)),
-                (1i128 << (stored_width - 1)) - 1,
-            ),
-            layout_plans::IntegerInterpretation::Unsigned => (0, (1i128 << stored_width) - 1),
-        };
+        let (stored_minimum, stored_maximum) = interpretation.stored_bounds(stored_width);
         if stored_minimum < i128::from(minimum) || stored_maximum > i128::from(maximum) {
             return Err(format!(
                 "field `{}` stored integer range {stored_minimum}..={stored_maximum} does not fit its declared semantic range {minimum}..={maximum}",
