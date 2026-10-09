@@ -32,8 +32,6 @@ pub use diagnostics::{ PlanDiagnostic};
 pub(crate) use diagnostics::{BoundaryPlanDiagnostic};
 pub use state_footprints::{ StateFootprintEvidence,
 };
-pub(crate) use state_footprints::{
-    ProviderExitRealization};
 pub use vocabulary::{
     CallPlan, CallSignature, CallingPolicy, EntryControl,
     EntryStack, IndirectPointerLocation, MachineRegime, MachineRegister, MachineState,

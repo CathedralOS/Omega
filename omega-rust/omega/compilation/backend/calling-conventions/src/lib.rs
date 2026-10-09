@@ -2,14 +2,14 @@
 //!
 //! `plans` owns the calling-plan vocabulary the README's contract publishes;
 //! `darwin`, `linux`, and `windows` fix each host's registers, syscall numbers,
-//! and import libraries; `aggregate_layout` and `stack_realizations` decide how
-//! aggregates and stack slots are passed; `callback_materializations` binds
-//! native callbacks. Layout and selection consume these; they never re-derive them.
+//! and import libraries; `aggregate_layout` decides how aggregates and stack
+//! slots are passed; `callback_materializations` binds native callbacks.
+//! Layout and selection consume these; they never re-derive them.
 //!
 //! Start at `host_operations.rs`: the host operation catalog, its
 //! capabilities and the external binding rows that bind an operation to a
-//! foreign symbol; `plans` owns the calling-plan vocabulary, `stack_realizations`
-//! and `callback_materializations` realize stacks and callbacks,
+//! foreign symbol; `plans` owns the calling-plan vocabulary,
+//! `callback_materializations` realizes callbacks,
 //! `boundary_values` classifies public value graphs and checks authored ABI
 //! classes, `aggregate_layout` lays out aggregates, and `hosts` fixes each host's registers, syscall numbers and import
 //! libraries.
@@ -24,7 +24,6 @@ mod callback_materializations;
 mod host_operations;
 mod hosts;
 mod plans;
-mod stack_realizations;
 
 pub use aggregate_layout::{ ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,
     evaluate_conventional_sum_layout,
@@ -58,4 +57,3 @@ pub use plans::{
     evaluate_ordinary_boundary_entry_plan, gpr_code, validate_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
-pub(crate) use plans::{ ProviderExitRealization};

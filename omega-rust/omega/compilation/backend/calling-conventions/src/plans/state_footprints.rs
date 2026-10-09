@@ -4,7 +4,7 @@
 
 use crate::plans::plan_identity::Fnv1a;
 use crate::plans::{
-EntryControl, MachineRegister, MachineState, MachineStateSet,
+MachineRegister, MachineState, MachineStateSet,
     RegisterSet,
 };
 
@@ -33,15 +33,6 @@ impl StateFootprintEvidence {
     pub const fn machine_state(&self) -> MachineStateSet {
         self.machine_state
     }
-}
-
-/// Provider evidence for the control-state transition that leaves one
-/// externally entered boundary. This is implementation evidence, not part of
-/// the public `CallPlan + StatePlan` identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ProviderExitRealization {
-    pub control: EntryControl,
-    pub restored_state: MachineStateSet,
 }
 
 /// Verify that a provider's realized exit is exactly the exit admitted by the
