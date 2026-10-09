@@ -178,7 +178,9 @@ fn append_identity_to_digest(
     digest.raw(identity.program_fingerprint.as_bytes());
 }
 
-fn append_terminal_identity(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
+/// The canonical wire fragment for a `TerminalPsiIdentity`: vocabulary marker
+/// then fingerprint bytes.
+pub fn append_terminal_identity(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
     crate::codec_bytes::push_encoded(bytes, identity.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(identity.program_fingerprint.as_bytes());
 }

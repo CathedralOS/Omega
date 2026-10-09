@@ -34,8 +34,9 @@ pub use sections::debug_map::{
 pub use sections::optimization_execution::{
     PsiOptimizationExecutionIdentity, PsiOptimizationExecutionRecord,
     PsiOptimizationExecutionRecordBuildError, PsiOptimizationExecutionRecordDecodeError,
-    PsiOptimizationExecutionRecordError, build_identity_optimization_execution_record,
-    decode_psi_optimization_execution_record, encode_psi_optimization_execution_record,
+    PsiOptimizationExecutionRecordError, append_terminal_identity,
+    build_identity_optimization_execution_record, decode_psi_optimization_execution_record,
+    encode_psi_optimization_execution_record,
 };
 pub use sections::semantic_module::canonical_order::{
     canonical_proposition_order_key, canonical_scalar_term_order_key,
