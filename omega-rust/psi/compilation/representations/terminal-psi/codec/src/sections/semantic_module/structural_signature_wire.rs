@@ -152,6 +152,7 @@ pub(crate) fn encode_boundary_machine(
         }
     }
     encode_service_ceiling(writer, &declaration.fixed_service_reach)?;
+    encode_optional_id(writer, declaration.owning_service);
     encode_service_ceiling(writer, &declaration.published_service_ceiling)
 }
 
@@ -348,6 +349,7 @@ pub(crate) fn decode_boundary_machine(
             tag => Err(CodecError::InvalidTag("BoundaryContentGuarantee", tag)),
         })?,
         fixed_service_reach: decode_ids(reader, "ServiceId")?,
+        owning_service: decode_optional_id(reader, "ServiceId")?,
         published_service_ceiling: decode_ids(reader, "ServiceId")?,
     })
 }

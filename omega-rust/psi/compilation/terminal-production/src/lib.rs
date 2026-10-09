@@ -15,7 +15,9 @@
 //! Observation wraps each leg without owning its result or changing its order.
 //! Omega adapts observations and optimizer refusals to its product report.
 
+mod composition_admission;
 mod custody;
+pub use composition_admission::TerminalCompositionAdmission;
 mod observation;
 mod terminal_production;
 

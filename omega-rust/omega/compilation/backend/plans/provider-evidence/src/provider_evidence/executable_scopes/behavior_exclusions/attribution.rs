@@ -1,39 +1,7 @@
-//! Source-declaration joins and human descriptions for exclusion evidence.
-//!
-//! The producing join reads exact typed declarations; receiver replay continues
-//! to reconstruct ownership independently from canonical module identities.
-//! Descriptions label possible behavior and missing evidence, never witnessed
-//! runtime execution, and neither names nor diagnostic text grant authority.
+//! Build selection identity projection and human descriptions of exclusion evidence.
+//! Diagnostic text never supplies service ownership or grants authority.
 
-use super::{BehaviorExclusion, BoundaryServiceOwners, EvidenceGapKind, ProhibitedSite};
-use std::collections::BTreeMap;
-
-impl BoundaryServiceOwners {
-    /// Join normalized boundary requirements to the services their typed traits
-    /// declare. The caller supplies the checked program used for this lowering;
-    /// loaded declarations alone do not establish execution or receiver authority.
-    pub fn from_declared_traits(
-        program: &typed_trees::TypedTrees,
-        module: &terminal_psi::TerminalModule,
-    ) -> Self {
-        let mut owning_service: BTreeMap<String, String> = BTreeMap::new();
-        for definition in program
-            .traits()
-            .iter()
-            .filter(|definition| definition.is_boundary)
-        {
-            for signature in program.trait_machine_signatures(definition) {
-                owning_service.insert(
-                    program.trait_requirement_callable_identity_text(definition, signature),
-                    definition.name.as_str().to_owned(),
-                );
-            }
-        }
-        Self::from_module(module, &|boundary_identity| {
-            owning_service.get(boundary_identity).cloned()
-        })
-    }
-}
+use super::{BehaviorExclusion, EvidenceGapKind, ProhibitedSite};
 
 /// Map a checked boundary-trait symbol to the identity Terminal service
 /// declarations carry for it: the trait's declared name.
@@ -55,13 +23,10 @@ impl BehaviorExclusion {
             Self::CrashCause(cause) => {
                 format!("crash cause {cause:?}")
             }
-            Self::Service(service) => {
-                match module.service(service)
-                {
-                    Some(declaration) => format!("service `{}`", declaration.identity),
-                    None => format!("service {service}"),
-                }
-            }
+            Self::Service(service) => match module.service(service) {
+                Some(declaration) => format!("service `{}`", declaration.identity),
+                None => format!("service {service}"),
+            },
             // A physical-class selection is a demand on the mechanism closure:
             // this walk never yields a prohibited site for it, but the arm keeps
             // the description total if one is ever named.
@@ -106,6 +71,9 @@ impl EvidenceGapKind {
             }
             EvidenceGapKind::UnknownBoundary(boundary) => {
                 format!("boundary {boundary} has no retained declaration")
+            }
+            EvidenceGapKind::UnknownBoundaryService(boundary) => {
+                format!("invoked trait requirement {boundary} has no retained service owner")
             }
             EvidenceGapKind::UnknownEntry => {
                 "the selected entry is not retained in the module".to_owned()

@@ -1502,7 +1502,6 @@ dependencies = [
  "checked-trees",
  "checked-trees-to-lowered-psi",
  "diagnostics",
- "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
@@ -2099,13 +2098,14 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "checked-trees",
- "lowered-psi",
- "lowered-psi-to-lowered-psi",
+ "diagnostics",
+ "effects",
  "optimization",
  "psi-terminal-production",
  "source",
  "terminal-codec",
  "terminal-psi",
+ "trust-model",
 ]
 
 [[package]]
@@ -2116,6 +2116,7 @@ dependencies = [
  "language-semantics",
  "semantic-vocabulary",
  "sha2",
+ "source",
 ]
 
 [[package]]
@@ -2189,11 +2190,9 @@ dependencies = [
  "build-time-evaluation",
  "checked-interpreter",
  "checked-trees",
- "checked-trees-to-lowered-psi",
  "diagnostics",
  "effects",
  "language-semantics",
- "lowered-psi",
  "semantic-vocabulary",
  "sha2",
  "source",

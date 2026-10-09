@@ -2484,8 +2484,10 @@ crash and native exit behavior.
     crosses publication. Build exclusions retain selected service identities,
     and native proposal construction no longer takes checked trees. Entry
     receipts and signatures use portable declaration identities; source entry
-    selection and Extent capture remain producer-side. Finish callback,
-    exclusion-admission and provider-installation joins without checked/lowered
+    selection and Extent capture remain producer-side. Exclusion admission now
+    borrows unoptimized Terminal semantics before optimization; exact service
+    owners travel in declarations, without a retained lowering clone or source
+    lookup. Finish callback and provider-installation joins without checked/lowered
     source inputs, then move initial source-dependent selection behind Terminal.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`

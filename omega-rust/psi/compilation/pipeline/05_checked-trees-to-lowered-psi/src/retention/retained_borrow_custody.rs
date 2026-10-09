@@ -85,8 +85,8 @@ fn lower_custody(
         return unsupported("retained-borrow source place or access does not replay");
     }
     let source_ty = checked
-            .type_reference_table
-            .unconstrained_type_reference(parameter.type_reference);
+        .type_reference_table
+        .unconstrained_type_reference(parameter.type_reference);
     let TypeReferenceNode::Reference {
         access: language_core::ReferenceAccess::Shared,
         lifetime: Some(_),
@@ -106,8 +106,8 @@ fn lower_custody(
         return unsupported("retained-borrow result place does not replay");
     }
     let result_ty = checked
-            .type_reference_table
-            .unconstrained_type_reference(signature.return_type);
+        .type_reference_table
+        .unconstrained_type_reference(signature.return_type);
     let TypeReferenceNode::Generic {
         base_symbol,
         lifetime_arguments,
@@ -233,6 +233,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
             scalar_requires: Vec::new(),
             parameter_order: Vec::new(),
             fixed_service_reach: Vec::new(),
+            owning_service: None,
             id,
             identity: row.callable_identity.clone(),
             attachment: None,

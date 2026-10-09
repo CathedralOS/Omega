@@ -44,7 +44,7 @@ impl<'a> TerminalProductionRequest<'a> {
     ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
         let TerminalProductionCustody {
             entry_identity,
-            retain_unoptimized,
+            behavior_exclusions,
             timings,
         } = custody;
         let produced = psi_terminal_production::TerminalProductionRequest {
@@ -56,12 +56,12 @@ impl<'a> TerminalProductionRequest<'a> {
         .produce(
             psi_terminal_production::TerminalProductionCustody {
                 entry_identity,
-                retain_unoptimized,
+                admission: behavior_exclusions.as_ref().map(|policy| {
+                    policy as &dyn psi_terminal_production::TerminalCompositionAdmission
+                }),
             },
             &mut ProductProductionObserver { timings },
         )?;
-        Ok(ProducedTerminalArtifact {
-            production: produced,
-        })
+        Ok(produced)
     }
 }

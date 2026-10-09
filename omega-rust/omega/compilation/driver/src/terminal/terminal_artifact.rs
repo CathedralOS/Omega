@@ -104,14 +104,10 @@ pub(crate) fn produce_retained_terminal_artifact(
     }
     .produce(TerminalProductionCustody {
         entry_identity: Some(source_signature_identity),
-        // The authored behavior exclusions are judged against the
-        // unoptimized composition the artifact was published from.
-        retain_unoptimized: !checked
-            .build()
-            .config
-            .behavior_exclusions
-            .as_slice()
-            .is_empty(),
+        behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
+            checked.build().config.behavior_exclusions.as_slice(),
+            &checked.execution().selected_provider_plan_facts,
+        ),
         timings: &mut stage_timings,
     });
     stage_timings.add_completed(
@@ -121,20 +117,13 @@ pub(crate) fn produce_retained_terminal_artifact(
     );
     // A capacity refusal keeps its exceeded provision on the diagnostic so
     // the target's outcome publishes `Incomplete`, not a rejection.
-    let produced = produced.map_err(|error| vec![error.diagnostic()])?;
+    let produced = produced.map_err(|error| error.diagnostics())?;
     let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {
         vec![Diagnostic::error(
             "terminal-artifact production retained no checked ProgramEntry receipt",
         )]
     })?;
-    trust_model::verify_entry_behavior_exclusions(
-        checked,
-        checked.build().config.behavior_exclusions.as_slice(),
-        &checked.execution().selected_provider_plan_facts,
-        produced.unoptimized(),
-        entry_machine_symbol,
-    )?;
-    let (artifact, _, _) = produced.into_parts();
+    let artifact = produced.into_artifact();
     let native_realization_proposal =
         stage_timings.record_result(NATIVE_REALIZATION_PROPOSAL_STAGE, || {
             native_proposal::project_terminal_native_realization_proposal(

@@ -150,6 +150,11 @@ pub(super) fn encode_boundary_machine(
         encode_boundary_content_guarantee,
     );
     encode_ids(bytes, &declaration.fixed_service_reach);
+    encode_optional(
+        bytes,
+        declaration.owning_service.as_ref(),
+        |bytes, service| bytes.id(*service),
+    );
     encode_ids(bytes, &declaration.published_service_ceiling);
 }
 

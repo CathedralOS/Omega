@@ -1,84 +1,55 @@
-//! Product reporting beside Psi-owned artifact and source custody.
-//!
-//! These are driver results beside the canonical artifact, not another Psi IR.
-
-use lowered_psi::LoweredPsi;
-use terminal_psi::CheckedProgramEntryTerminalReceipt;
+//! Product policy and reporting inputs for Psi-owned Terminal production.
 
 use artifacts::compile_timings::CompileTimings;
+pub use psi_terminal_production::ProducedTerminalArtifact;
 
-/// Canonical Terminal output beside the checked-source evidence the caller
-/// asked production to retain: the unoptimized module and the checked
-/// `ProgramEntry` receipt when an entry identity was supplied.
-///
-/// The retained native route rejoins the checked entry receipt after the
-/// checked frontend is gone, so the receipt leaves production beside the
-/// artifact instead of remaining a direct-route-only custody object.
-#[derive(Debug, PartialEq, Eq)]
-#[must_use = "Terminal production retains the artifact and checked-source custody"]
-pub struct ProducedTerminalArtifact {
-    pub(super) production: psi_terminal_production::ProducedTerminalArtifact,
-}
-
-impl ProducedTerminalArtifact {
-    pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
-        self.production.artifact()
-    }
-
-    /// The checked `ProgramEntry` receipt, present exactly when the request
-    /// carried an entry identity.
-    pub const fn receipt(&self) -> Option<&CheckedProgramEntryTerminalReceipt> {
-        self.production.receipt()
-    }
-
-    /// The lowered module before selected optimization, present exactly when
-    /// the custody asked to retain it: the composition an admission check
-    /// that must not see optimization reads, without lowering again.
-    pub const fn unoptimized(&self) -> Option<&LoweredPsi> {
-        self.production.unoptimized()
-    }
-
-    /// Keep only the canonical portable artifact.
-    pub fn into_artifact(self) -> terminal_codec::CanonicalTerminalArtifact {
-        self.production.into_artifact()
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn into_parts(
-        self,
-    ) -> (
-        terminal_codec::CanonicalTerminalArtifact,
-        Option<CheckedProgramEntryTerminalReceipt>,
-        Option<LoweredPsi>,
-    ) {
-        self.production.into_parts()
-    }
-}
-
-/// What one production run keeps in custody beside the artifact.
-///
-/// `entry_identity` is the checked source-signature identity a
-/// `ProgramEntry` receipt retains; `None` publishes the machine as an
-/// ordinary Terminal product with no entry receipt. `timings` records each
-/// production leg into the request's own ladder; a disabled `CompileTimings`
-/// runs the same body unmeasured.
-pub struct TerminalProductionCustody<'t> {
+/// Product admission reads the actual unoptimized composition, then releases
+/// the borrow before optimization. No checked-source or LoweredPsi sidecar is
+/// retained in the result.
+pub struct TerminalProductionCustody<'a> {
     pub entry_identity: Option<[u8; 32]>,
-    /// Retain the lowered module as it was before selected optimization,
-    /// beside the artifact. An admission that must judge the unoptimized
-    /// composition (the authored behavior exclusions) reads it from the
-    /// product instead of lowering the entry a second time.
-    pub retain_unoptimized: bool,
-    pub timings: &'t mut CompileTimings,
+    pub behavior_exclusions: Option<TerminalBehaviorExclusions<'a>>,
+    pub timings: &'a mut CompileTimings,
 }
 
-impl<'t> TerminalProductionCustody<'t> {
-    /// Retain only the artifact, without an entry receipt or unoptimized module.
-    pub fn artifact_only(timings: &'t mut CompileTimings) -> Self {
+impl<'a> TerminalProductionCustody<'a> {
+    pub fn artifact_only(timings: &'a mut CompileTimings) -> Self {
         Self {
             entry_identity: None,
-            retain_unoptimized: false,
+            behavior_exclusions: None,
             timings,
         }
+    }
+}
+
+pub struct TerminalBehaviorExclusions<'a> {
+    authored: &'a [effects::AuthoredBehaviorExclusion],
+    providers: &'a effects::SelectedProviderPlanFacts,
+}
+
+impl<'a> TerminalBehaviorExclusions<'a> {
+    pub fn new(
+        authored: &'a [effects::AuthoredBehaviorExclusion],
+        providers: &'a effects::SelectedProviderPlanFacts,
+    ) -> Option<Self> {
+        (!authored.is_empty()).then_some(Self {
+            authored,
+            providers,
+        })
+    }
+}
+
+impl psi_terminal_production::TerminalCompositionAdmission for TerminalBehaviorExclusions<'_> {
+    fn admit(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        provenance: &terminal_psi::TerminalMachineProvenance,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        trust_model::verify_entry_behavior_exclusions(
+            self.authored,
+            self.providers,
+            module,
+            provenance,
+        )
     }
 }

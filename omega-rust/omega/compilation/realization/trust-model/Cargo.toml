@@ -13,8 +13,6 @@ build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
 checked-interpreter = { path = "../../../../psi/interpreter/checked-interpreter" }
 effects = { path = "../../backend/plans/provider-evidence" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
-checked-trees-to-lowered-psi = { path = "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi" }
-lowered-psi = { path = "../../../../psi/compilation/representations/lowered-psi" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }

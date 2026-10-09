@@ -9,6 +9,7 @@ name = "terminal_psi"
 path = "src/lib.rs"
 
 [dependencies]
+source = { path = "../../../foundation/source" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 language-core = { path = "../../../foundation/language-core" }
 language-semantics = { path = "../../../foundation/language-semantics" }

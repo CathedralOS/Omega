@@ -5,10 +5,11 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+effects = { path = "../../backend/plans/provider-evidence" }
+trust-model = { path = "../../realization/trust-model" }
 source = { path = "../../../../psi/foundation/source" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
-lowered-psi = { path = "../../../../psi/compilation/representations/lowered-psi" }
-lowered-psi-to-lowered-psi = { path = "../../../../psi/compilation/pipeline/06_lowered-psi-to-lowered-psi" }
 optimization = { path = "../../../../psi/foundation/optimization-selections" }
 
 artifacts = { path = "../../../foundation/artifacts" }

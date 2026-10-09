@@ -80,6 +80,12 @@ pub(super) fn validate_boundary_machine(
     }
     require_known_services(module, &boundary.published_service_ceiling)?;
     require_known_services(module, &boundary.fixed_service_reach)?;
+    if let Some(owner) = boundary.owning_service {
+        if boundary.kind != terminal_psi::BoundaryRequirementKind::Trait {
+            return malformed("non-trait boundary names an owning service");
+        }
+        require_known_services(module, &[owner])?;
+    }
     Ok(())
 }
 

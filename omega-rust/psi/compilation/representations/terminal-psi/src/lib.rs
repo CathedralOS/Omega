@@ -19,7 +19,7 @@ pub use artifacts::{
     DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
     EvidenceRoute, IntegerAffineWitness, IntegerCastChainWitness,
     IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemMarker, TerminalDebugMap,
+    ProofSystemMarker, TerminalDebugMap, TerminalMachineProvenance,
 };
 
 mod callback_application;

@@ -16,11 +16,12 @@ mod provider_evidence;
 pub mod provider_grants;
 
 pub use provider_evidence::executable_scopes::behavior_exclusions::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
-    BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, BoundaryServiceOwners, authored_behavior_exclusion_set_in, boundary_trait_identity, establish_behavior_exclusions_with_owners,
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusionReport,
+    BehaviorExclusionVerdict, BehaviorExclusions, authored_behavior_exclusion_set_in,
+    boundary_trait_identity, establish_behavior_exclusions,
 };
 
-pub(crate) use provider_evidence::executable_scopes::behavior_exclusions::{BehaviorExclusion};
+pub(crate) use provider_evidence::SelectedProviderClosureDigest;
 pub use provider_evidence::authority::service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
 pub use provider_evidence::authority::terminal_authority::{
     CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
@@ -28,21 +29,23 @@ pub use provider_evidence::authority::terminal_authority::{
     CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, NormalizedForeignArgumentContract,
     NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
-    SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityClosureLeaf, TerminalAuthorityClosureReviewReceipt,
-    TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
-    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
-    compiler_intrinsic_execution_identity_bytes, numeric_type_tag,
+    SyscallTerminalMechanismIdentity, TerminalAuthorityClass, TerminalAuthorityClosureLeaf,
+    TerminalAuthorityClosureReviewReceipt, TerminalAuthorityDisposition,
+    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
+    TerminalMechanismIdentity, compiler_intrinsic_execution_identity_bytes, numeric_type_tag,
     primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
     terminal_mechanism_identity_bytes,
 };
-pub use provider_evidence::component_eras::component_era_entry_ledger::{EraEntryError, EraQuiescenceError, EraRetirementError,
+pub use provider_evidence::component_eras::component_era_entry_ledger::{
+    EraEntryError, EraQuiescenceError, EraRetirementError,
 };
 pub use provider_evidence::component_eras::component_progress_manifest::{
     CheckedComponentProgressDemand, ComponentProgressManifest,
 };
+pub(crate) use provider_evidence::executable_scopes::behavior_exclusions::BehaviorExclusion;
 pub(crate) use provider_evidence::executable_scopes::executable_tcb_manifest::{
-    ExecutionScope, ContainmentGuarantee, OpaqueInProcessBinding,
-    OpaqueExecutableAdmissionCandidate, ValidatedOpaqueExecutableAdmission,
+    ContainmentGuarantee, ExecutionScope, OpaqueExecutableAdmissionCandidate,
+    OpaqueInProcessBinding, ValidatedOpaqueExecutableAdmission,
 };
 pub use provider_evidence::providers::foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
@@ -50,7 +53,5 @@ pub use provider_evidence::providers::foreign_locator::{
 };
 pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{
-    InstallationReachResolution, SelectedProviderPlanFacts,
-    SelectedRequirementSpecialization,
+    InstallationReachResolution, SelectedProviderPlanFacts, SelectedRequirementSpecialization,
 };
-pub(crate) use provider_evidence::{SelectedProviderClosureDigest};

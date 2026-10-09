@@ -1,15 +1,9 @@
 //! Authored build behavior exclusions enforced at product admission.
 //!
-//! `Build::exclude_crash` selections arrive on the checked compilation with
-//! their declaration spans intact; the contract they select is verified here,
-//! against the same unoptimized Terminal composition the artifact will
-//! publish, before either product route admits it. The walk replays the
-//! selected entry's own lowering rather than the produced artifact because
-//! optional optimization must never decide admissibility: an exclusion that
-//! only survives after dead-code removal or folding is not established.
-//!
-//! Entry products and callback thunks use the same admission operation with
-//! their own retained unoptimized lowering and authored entry symbol.
+//! The product's evaluated exclusions and provider selections are applied to
+//! borrowed Terminal semantics before optimization. Source attribution is an
+//! independent diagnostic companion; no checked tree or lowering is accepted.
+//! Entry products and callback thunks use this same admission operation.
 //!
 //! A violated exclusion and an incomplete evidence account are different
 //! rejections: a witnessed prohibited site names possible behavior this
@@ -17,71 +11,47 @@
 //! certify absence at that site. Both fail admission; neither is silently
 //! converted into the other.
 
-use checked_trees::CheckedTrees;
-
 mod selections;
-use checked_trees_to_lowered_psi::LoweredMachineProvenance;
 use diagnostics::Diagnostic;
 use effects::{AuthoredBehaviorExclusion, authored_behavior_exclusion_set_in};
-use effects::{
-    BehaviorExclusionReport, BehaviorExclusionVerdict, establish_behavior_exclusions_with_owners,
-};
+use effects::{BehaviorExclusionReport, BehaviorExclusionVerdict, establish_behavior_exclusions};
 pub use selections::harvest_behavior_exclusions;
+use terminal_psi::TerminalMachineProvenance;
 
-/// Verify the authored exclusions against the selected program entry's
-/// unoptimized composition: the lowered module Terminal production retained
-/// before its selected optimization ran, the same lowering the artifact was
-/// published from. `unoptimized` is `None` only when production was not
-/// asked to retain it. With authored exclusions that is a production-request
-/// fault, not an admission; without exclusions no retained copy is needed.
+/// Admit the unoptimized composition under the authored product policy.
 pub fn verify_entry_behavior_exclusions(
-    checked: &CheckedTrees,
     authored: &[AuthoredBehaviorExclusion],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
-    unoptimized: Option<&lowered_psi::LoweredPsi>,
-    entry_machine_symbol: symbols::SymbolHandle,
+    module: &terminal_psi::TerminalModule,
+    provenance: &TerminalMachineProvenance,
 ) -> Result<(), Vec<Diagnostic>> {
     if authored.is_empty() {
         return Ok(());
     }
-    let lowered = unoptimized.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "behavior-exclusion admission needs the unoptimized Terminal lowering retained by production",
-        )]
-    })?;
-    let module = &lowered.semantic_module;
     let exclusions = authored_behavior_exclusion_set_in(authored, module);
     if exclusions.is_empty() {
         // Every authored row named a service this composition never
         // declares: nothing in it can invoke that service.
         return Ok(());
     }
-    let report = establish_behavior_exclusions_with_owners(
+    let report = establish_behavior_exclusions(
         module,
         &[module.entry],
         &exclusions,
         selected_provider_plans,
-        &effects::BoundaryServiceOwners::from_declared_traits(checked, module),
     );
     match report.verdict() {
         BehaviorExclusionVerdict::Satisfied => Ok(()),
-        _ => {
-            let provenance =
-                LoweredMachineProvenance::from_lowering(checked, lowered, entry_machine_symbol);
-            Err(behavior_exclusion_diagnostics(
-                authored,
-                module,
-                &provenance,
-                &report,
-            ))
-        }
+        _ => Err(behavior_exclusion_diagnostics(
+            authored, module, provenance, &report,
+        )),
     }
 }
 
 fn behavior_exclusion_diagnostics(
     authored: &[AuthoredBehaviorExclusion],
     module: &terminal_psi::TerminalModule,
-    provenance: &LoweredMachineProvenance,
+    provenance: &TerminalMachineProvenance,
     report: &BehaviorExclusionReport,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::with_capacity(2 * (report.prohibited.len() + report.gaps.len()) + 1);
@@ -143,7 +113,7 @@ fn behavior_exclusion_diagnostics(
 }
 
 fn describe_location(
-    provenance: &LoweredMachineProvenance,
+    provenance: &TerminalMachineProvenance,
     machine: semantic_vocabulary::MachineId,
     block: Option<semantic_vocabulary::BlockId>,
     operation: Option<semantic_vocabulary::OperationId>,

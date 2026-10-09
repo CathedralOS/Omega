@@ -52,6 +52,13 @@ application, requirement, static telescope, signature, contract and visibility.
 A bodyless implementation, bounded effect row or provider selection cannot
 synthesize requirement identity.
 
+Executable trait requirements retain their exact owning service identity as a
+declaration field. Invoking the requirement contributes that service and its
+parent closure regardless of the selected provider's body. Consumers do not
+recover this relationship by parsing a callable name or reopening checked
+source. Non-trait requirements carry no owning service. Non-executable
+retained-borrow contract rows do not introduce an invocation by being retained.
+
 ## Boundary crash contracts
 
 The boundary declaration retains its published crash routes, independently of

@@ -5,6 +5,8 @@
 
 mod checked_program_entry;
 mod debug_map;
+mod machine_provenance;
+pub use machine_provenance::TerminalMachineProvenance;
 mod proof_kernel;
 pub use checked_program_entry::{
     CheckedProgramEntryDeterminedEvidenceField, CheckedProgramEntryFusedServiceField,

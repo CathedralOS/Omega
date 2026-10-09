@@ -10,7 +10,9 @@
 mod custody;
 mod stage_timings;
 mod terminal_production;
-pub use custody::{ProducedTerminalArtifact, TerminalProductionCustody};
+pub use custody::{
+    ProducedTerminalArtifact, TerminalBehaviorExclusions, TerminalProductionCustody,
+};
 pub use psi_terminal_production::{TerminalMachineSelection, TerminalProductionStage};
 pub use terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,

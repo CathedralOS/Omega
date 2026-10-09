@@ -24,10 +24,8 @@
 //! runtime execution. `establish_behavior_exclusions` consumes an
 //! already-selected entry roster and the selected provider-plan facts that
 //! decide which retained provider-candidate bodies a boundary call can
-//! realize. It is deliberately source-free: the boundary-to-service ownership
-//! is reconstructed from the canonical requirement identities the module
-//! retains, so an independently consuming proposal replays the identical
-//! accounting instead of trusting producer-supplied owner rows.
+//! realize. Exact service ownership is a Terminal declaration field; neither
+//! source declarations nor parsing display identities supplies that relationship.
 //!
 //! A boundary call's own fixed service reach always counts: the requirement
 //! invocation contributes it no matter which provider the installation picks.
@@ -43,8 +41,7 @@
 //! checks settled mechanism evidence without consulting receiver permissions.
 //! Build authoring and source-spanned selection provenance remain with build
 //! evaluation. Neither semantic nor physical checking executes the Build.
-//! `attribution` owns the producer's typed-declaration join and human evidence
-//! descriptions; independent receiver replay does not use that source join.
+//! `attribution` owns Build selection identity projection and human descriptions.
 
 mod attribution;
 pub use attribution::boundary_trait_identity;
@@ -52,7 +49,7 @@ pub use attribution::boundary_trait_identity;
 use crate::TerminalAuthorityClass;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, OperationId, ServiceId};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::VecDeque;
 use terminal_psi::{
     CrashCause, OperationKind, ProviderCandidateConformance, TerminalMachine, TerminalModule,
     Terminator,
@@ -230,6 +227,7 @@ pub struct ProhibitedBehavior {
 pub enum EvidenceGapKind {
     UnknownCallee(MachineId),
     UnknownBoundary(BoundaryMachineId),
+    UnknownBoundaryService(BoundaryMachineId),
     UnknownEntry,
 }
 
@@ -248,96 +246,6 @@ pub enum BehaviorExclusionVerdict {
     Satisfied,
     Prohibited,
     InsufficientEvidence,
-}
-
-/// Which abstract service each boundary machine in a module belongs to.
-///
-/// A boundary declaration retains only the service reach it spelled; the
-/// trait that owns the requirement is not a dedicated Terminal row. Invoking
-/// a boundary is an invocation of its owning service and of every parent in
-/// the module's service closure, whatever the selected provider does, so the
-/// join supplies this ownership. The producing admission supplies it from
-/// the checked trait declarations; [`Self::from_module_identities`]
-/// reconstructs the same relation source-free from the canonical requirement
-/// identities the module retains, so independently consuming evidence does
-/// not depend on producer-supplied owner rows.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct BoundaryServiceOwners {
-    owners: BTreeMap<BoundaryMachineId, ServiceId>,
-}
-
-/// The owning service identity inside a canonical requirement identity.
-/// The normalized overload identities write
-/// `named-callable(path(Owner::requirement),parameters(...),result-dispatch(...))`:
-/// the `path(...)` atom holds `Owner::requirement`, with `\`, `(`, `)` and
-/// `,` escaped. The last `::` separates the requirement member from its
-/// owner, which may itself be qualified (`a::b::Owner`). `None` outside
-/// this canonical form.
-impl BoundaryServiceOwners {
-    /// Join each boundary declaration to its owning service:
-    /// `owning_service_identity` maps a boundary's canonical identity to the
-    /// service identity its trait declares, resolved against the module's
-    /// service catalog. Boundaries the map cannot name have no owner here.
-    pub(crate) fn from_module(
-        module: &TerminalModule,
-        owning_service_identity: &dyn Fn(&str) -> Option<String>,
-    ) -> Self {
-        let mut owners = BTreeMap::new();
-        for boundary in &module.boundary_machines {
-            let Some(identity) = owning_service_identity(&boundary.identity) else {
-                continue;
-            };
-            if let Some(service) = module
-                .services
-                .iter()
-                .find(|service| service.identity == identity)
-            {
-                owners.insert(boundary.id, service.id);
-            }
-        }
-        Self { owners }
-    }
-
-    /// Source-free ownership reconstruction for independently consumed
-    /// modules: a canonical requirement identity retains its declaring owner
-    /// as `named-callable(path(Owner::requirement),...)`, so the owner is
-    /// decoded and resolved against the module's service catalog. Boundaries
-    /// outside the canonical form contribute no owner. A canonical identity
-    /// cannot distinguish a trait requirement from an exact machine
-    /// overload: a machine requirement named `Endpoint::step` beside an
-    /// unrelated service `Endpoint` counts that service — conservative in
-    /// the direction incomplete evidence already takes, rejecting the
-    /// composition rather than dropping a possible invocation.
-        pub fn insert(&mut self, boundary: BoundaryMachineId, service: ServiceId) {
-        self.owners.insert(boundary, service);
-    }
-
-    pub fn owner(&self, boundary: BoundaryMachineId) -> Option<ServiceId> {
-        self.owners.get(&boundary).copied()
-    }
-
-    /// The owning service and its transitive parents in `module`.
-    fn invoked_services(
-        &self,
-        module: &TerminalModule,
-        boundary: BoundaryMachineId,
-    ) -> Vec<ServiceId> {
-        let mut invoked = Vec::new();
-        let Some(owner) = self.owner(boundary) else {
-            return invoked;
-        };
-        let mut pending = vec![owner];
-        while let Some(service) = pending.pop() {
-            if invoked.contains(&service) {
-                continue;
-            }
-            invoked.push(service);
-            if let Some(declaration) = module.service(service) {
-                pending.extend(declaration.parents.iter().copied());
-            }
-        }
-        invoked
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -362,22 +270,17 @@ impl BehaviorExclusionReport {
 /// Reconstruct a conservative account of possible behavior for the exact
 /// entry roster's static call closure in `module`, under the provider
 /// realization `selected_provider_plans` admits for each reached boundary.
-/// Boundary-to-service ownership is reconstructed from the module's canonical
-/// requirement identities so a source-free consumer replays the identical
-/// accounting.
-/// [`establish_behavior_exclusions`] with the boundary-to-service ownership
-/// the join reconstructed: a boundary call then counts as an invocation of
-/// its owning service and that service's parents, beside the fixed reach
-/// the declaration spelled. Executable edge work joins the closure too:
+/// A boundary call counts as invocation of its declared owning service and
+/// that service's parents, beside its fixed reach. No source joins are needed.
+/// Executable edge work joins the closure too:
 /// a nominal affine cleanup commits a selected machine's body on the edge,
 /// so the walk follows `cleanup_machine` targets like static calls and
 /// treats an absent one as an evidence gap rather than trusted inertness.
-pub fn establish_behavior_exclusions_with_owners(
+pub fn establish_behavior_exclusions(
     module: &TerminalModule,
     entries: &[MachineId],
     exclusions: &BehaviorExclusions,
     selected_provider_plans: &crate::SelectedProviderPlanFacts,
-    boundary_owners: &BoundaryServiceOwners,
 ) -> BehaviorExclusionReport {
     let mut report = BehaviorExclusionReport::default();
     if exclusions.is_empty() {
@@ -407,7 +310,6 @@ pub fn establish_behavior_exclusions_with_owners(
                 machine,
                 exclusions,
                 selected_provider_plans,
-                boundary_owners,
                 &mut report,
                 &mut pending,
             );
@@ -507,7 +409,6 @@ fn inspect_machine<'module>(
     machine: &'module TerminalMachine,
     exclusions: &BehaviorExclusions,
     selected_provider_plans: &crate::SelectedProviderPlanFacts,
-    boundary_owners: &BoundaryServiceOwners,
     report: &mut BehaviorExclusionReport,
     pending: &mut VecDeque<&'module TerminalMachine>,
 ) {
@@ -544,11 +445,22 @@ fn inspect_machine<'module>(
                         operation: operation.id,
                         boundary: *boundary,
                     };
+                    if declaration.kind == terminal_psi::BoundaryRequirementKind::Trait
+                        && declaration.owning_service.is_none()
+                    {
+                        report.gaps.push(EvidenceGap {
+                            entry,
+                            machine: machine.id,
+                            block: Some(block.id),
+                            operation: Some(operation.id),
+                            kind: EvidenceGapKind::UnknownBoundaryService(*boundary),
+                        });
+                    }
                     // The declaration's fixed reach and the service that owns
                     // the requirement (with its parents) are both invoked
                     // here, whatever the selected provider does.
                     let mut invoked = declaration.fixed_service_reach.clone();
-                    for service in boundary_owners.invoked_services(module, *boundary) {
+                    for service in invoked_services(module, declaration.owning_service) {
                         if !invoked.contains(&service) {
                             invoked.push(service);
                         }
@@ -583,8 +495,7 @@ fn inspect_machine<'module>(
                         }
                     }
                     for realization in realizations {
-                        match module.machine(realization)
-                        {
+                        match module.machine(realization) {
                             Some(target) => pending.push_back(target),
                             None => report.gaps.push(EvidenceGap {
                                 entry,
@@ -628,8 +539,7 @@ fn inspect_machine<'module>(
         // closure exactly like a static call. Claim-free discards carry no
         // code and are not invocations.
         for cleanup_machine in nominal_cleanup_machines(&block.terminator) {
-            match module.machine(cleanup_machine)
-            {
+            match module.machine(cleanup_machine) {
                 Some(target) => pending.push_back(target),
                 None => report.gaps.push(EvidenceGap {
                     entry,
@@ -659,8 +569,23 @@ fn nominal_cleanup_machines(terminator: &Terminator) -> impl Iterator<Item = Mac
         })
 }
 
+/// Nominal invocation contributes the exact owner and its transitive parents.
+fn invoked_services(module: &TerminalModule, owner: Option<ServiceId>) -> Vec<ServiceId> {
+    let mut invoked = Vec::new();
+    let mut pending: Vec<_> = owner.into_iter().collect();
+    while let Some(service) = pending.pop() {
+        if invoked.contains(&service) {
+            continue;
+        }
+        invoked.push(service);
+        if let Some(declaration) = module.service(service) {
+            pending.extend(declaration.parents.iter().copied());
+        }
+    }
+    invoked
+}
+
 mod authored;
 pub use authored::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
-    authored_behavior_exclusion_set_in,
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, authored_behavior_exclusion_set_in,
 };

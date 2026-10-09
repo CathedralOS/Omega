@@ -492,7 +492,11 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
   `codec/`, `semantics/`, `verification/`, `fuel/` and `fuel/certification/`.
   Representation data and candidate production remain independent of checking.
-- Omega `compilation/driver/terminal-production/` — sequences Psi stages 05–07 through publication.
+- Psi `compilation/terminal-production/` — sequences stages 05–07 through
+  publication. Omega `compilation/driver/terminal-production/` supplies product
+  policy and reporting; it does not assemble the stages. Exclusion admission
+  borrows the unoptimized Terminal composition inside that sequence, without
+  exporting or cloning its checked-source lowering.
 - Psi `compilation/compile-time/` — evaluation admission and result elaboration.
 - Psi `interpreter/` — checked and Terminal execution engines.
 - `compiler/` — compilation coordination.

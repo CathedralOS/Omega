@@ -57,7 +57,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // and call transfers additionally preserve typed paths and their Case guards.
 // Machine and callback bodies retain their checked declaration identities.
 // Normal exclusive calls also retain their caller-local storage custody joins.
-pub(crate) const FORMAT_MARKER: u16 = 129;
+// Boundary requirements retain their exact nominal service owner.
+pub(crate) const FORMAT_MARKER: u16 = 130;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

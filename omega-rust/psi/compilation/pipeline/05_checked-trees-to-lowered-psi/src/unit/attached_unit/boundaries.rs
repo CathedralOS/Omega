@@ -93,6 +93,21 @@ pub(crate) fn lower_declarations(
                 plan.state,
             )?,
             fixed_service_reach: lower_fixed_boundary_service_reach(checked, plan, service_ids)?,
+            owning_service: if plan.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
+                let owner = checked
+                    .typed
+                    .service_reaches
+                    .id_for_symbol(plan.contract_owner)
+                    .ok_or(LoweringError::Unsupported(
+                        "boundary trait has no service identity",
+                    ))?;
+                Some(crate::terminal_identities::lookup_service_id(
+                    service_ids,
+                    owner,
+                )?)
+            } else {
+                None
+            },
             published_service_ceiling: lower_published_service_ceiling(
                 &checked.facts.service_reaches.rows,
                 plan.contract_service_reach,

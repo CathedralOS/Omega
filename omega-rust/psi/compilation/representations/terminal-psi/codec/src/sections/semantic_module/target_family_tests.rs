@@ -87,6 +87,7 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             fixed_service_reach: Vec::new(),
+            owning_service: None,
             published_service_ceiling: Vec::new(),
         });
         members.push(TargetMachineFamilyMember {
@@ -99,6 +100,14 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
         canonical: members[0].callable,
         members,
     });
+    let owner = semantic_vocabulary::ServiceId::new(1).unwrap();
+    module.services.push(terminal_psi::ServiceDeclaration {
+        id: owner,
+        identity: "service-owner".into(),
+        parents: Vec::new(),
+    });
+    module.boundary_machines[0].kind = BoundaryRequirementKind::Trait;
+    module.boundary_machines[0].owning_service = Some(owner);
     for canonical in [
         TargetMachineCallable::Machine(machine),
         TargetMachineCallable::Boundary(BoundaryMachineId::new(1).unwrap()),

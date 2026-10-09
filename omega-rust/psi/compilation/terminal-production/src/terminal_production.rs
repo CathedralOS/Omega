@@ -2,13 +2,11 @@
 
 use checked_trees::CheckedTrees;
 use checked_trees_to_lowered_psi::{
-    LoweringError, TerminalMachineSelection, lower_machine, select_terminal_machine,
+    LoweringError, TerminalMachineSelection, lower_machine, lowered_machine_provenance,
+    select_terminal_machine,
 };
 use diagnostics::Diagnostic;
-use lowered_psi::LoweredPsi;
-use lowered_psi_to_lowered_psi::{
-    PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
-};
+use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 
 use crate::custody::{ProducedTerminalArtifact, TerminalProductionCustody};
 use crate::observation::{TerminalProductionObserver, TerminalProductionStage};
@@ -50,36 +48,42 @@ impl<'a> TerminalProductionRequest<'a> {
     /// signature.
     pub fn produce(
         self,
-        custody: TerminalProductionCustody,
+        custody: TerminalProductionCustody<'_>,
         observer: &mut impl TerminalProductionObserver,
     ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
         let TerminalProductionCustody {
             entry_identity,
-            retain_unoptimized,
+            admission,
         } = custody;
-        self.produce_retained(entry_identity, retain_unoptimized, observer)
-    }
-
-    fn produce_retained(
-        self,
-        entry_identity: Option<[u8; 32]>,
-        retain_unoptimized: bool,
-        observer: &mut impl TerminalProductionObserver,
-    ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
         let checked = self.checked;
         // The receipt names the selected checked machine, so the selection is
-        // rejoined before lowering only when an entry receipt is requested.
-        let entry_selection = match entry_identity {
-            Some(_) => Some(
+        // rejoined for receipts and diagnostic attribution before lowering.
+        let entry_selection = match (entry_identity, admission.is_some()) {
+            (Some(_), _) | (_, true) => Some(
                 observer
                     .record_result(TerminalProductionStage::MachineSelection, || {
                         select_terminal_machine(checked, self.machine)
                     })
                     .map_err(TerminalArtifactProductionError::Lowering)?,
             ),
-            None => None,
+            _ => None,
         };
-        let (unoptimized, optimized) = self.lower_and_optimize(retain_unoptimized, observer)?;
+        let lowered = observer
+            .record_result(TerminalProductionStage::Lowering, || {
+                lower_machine(self.checked, self.machine, self.exact_toolchain_sources)
+            })
+            .map_err(TerminalArtifactProductionError::Lowering)?;
+        if let (Some(admission), Some(selection)) = (admission, entry_selection) {
+            let provenance = lowered_machine_provenance(checked, &lowered, selection.machine);
+            admission
+                .admit(&lowered.semantic_module, &provenance)
+                .map_err(TerminalArtifactProductionError::Admission)?;
+        }
+        let optimized = observer
+            .record_result(TerminalProductionStage::Optimization, || {
+                run_psi_optimization(lowered, self.optimization_selections)
+            })
+            .map_err(TerminalArtifactProductionError::Optimization)?;
         let entry_receipt = match (entry_identity, entry_selection) {
             (Some(source_signature_identity), Some(selection)) => Some(
                 observer
@@ -108,38 +112,13 @@ impl<'a> TerminalProductionRequest<'a> {
             }
             None => None,
         };
-        Ok(ProducedTerminalArtifact {
-            artifact,
-            receipt,
-            unoptimized,
-        })
-    }
-
-    /// Lower once, retain the unoptimized module when asked, then run the
-    /// selected optimization on the same lowering.
-    fn lower_and_optimize(
-        self,
-        retain_unoptimized: bool,
-        observer: &mut impl TerminalProductionObserver,
-    ) -> Result<(Option<LoweredPsi>, PsiOptimizationStageResult), TerminalArtifactProductionError>
-    {
-        let lowered = observer
-            .record_result(TerminalProductionStage::Lowering, || {
-                lower_machine(self.checked, self.machine, self.exact_toolchain_sources)
-            })
-            .map_err(TerminalArtifactProductionError::Lowering)?;
-        let unoptimized = retain_unoptimized.then(|| lowered.clone());
-        let optimized = observer
-            .record_result(TerminalProductionStage::Optimization, || {
-                run_psi_optimization(lowered, self.optimization_selections)
-            })
-            .map_err(TerminalArtifactProductionError::Optimization)?;
-        Ok((unoptimized, optimized))
+        Ok(ProducedTerminalArtifact { artifact, receipt })
     }
 }
 
 #[derive(Debug)]
 pub enum TerminalArtifactProductionError {
+    Admission(Vec<Diagnostic>),
     Lowering(LoweringError),
     Optimization(PsiOptimizationStageError),
     Artifact(terminal_codec::CanonicalTerminalArtifactError),
@@ -147,6 +126,13 @@ pub enum TerminalArtifactProductionError {
 }
 
 impl TerminalArtifactProductionError {
+    pub fn diagnostics(&self) -> Vec<Diagnostic> {
+        match self {
+            Self::Admission(diagnostics) => diagnostics.clone(),
+            _ => vec![self.diagnostic()],
+        }
+    }
+
     /// The refusal as the diagnostic compilation reports. A body this
     /// compiler cannot lower yet reports its plan gap: the construct at its
     /// source span, as an `Incomplete` coverage provision.

@@ -1,17 +1,17 @@
 # Terminal production
 
 Public contract: [Terminal Psi product](../../../../../wiki/spec/terminal-psi/product.md).
-This product-driver package sequences Psi stages; it owns neither language
-judgments nor another executable IR. Both ordinary compilation and package
-compilation use this sequence.
+This product adapter supplies reporting and exclusion policy to the Psi-owned
+production facade; it owns neither stages nor another executable IR.
 
-Enter [terminal_production.rs](src/terminal_production.rs). The sequence is
+Enter [terminal_production.rs](src/terminal_production.rs), then the
+[Psi sequence](../../../../psi/compilation/terminal-production/src/terminal_production.rs):
 `checked-trees-to-lowered-psi` -> `lowered-psi-to-lowered-psi` ->
 `lowered-psi-to-terminal-psi`. `LoweredPsi` belongs to representations.
 Publication consumes the validated optimization-stage result, not an unoptimized
 producer-private shortcut.
 
-[custody.rs](src/custody.rs) owns retained artifacts and entry receipts;
+[custody.rs](src/custody.rs) supplies product policy and re-exports the result;
 [stage_timings.rs](src/stage_timings.rs) owns sequence
 observations. Neither implements Psi judgments.
 
@@ -23,13 +23,18 @@ separates canonical sealing from source-entry correspondence audits.
 `TerminalProductionRequest` carries the checked trees, the
 `TerminalMachineSelection` naming the machine, and the exact Psi optimization
 selection. Its one `produce` entry takes a `TerminalProductionCustody`: an
-optional ProgramEntry source-signature identity, an unoptimized-retention choice,
+optional ProgramEntry source-signature identity, optional behavior exclusions,
 and the stage-timing carrier. Every product runs the same
 lowering, optimization and publication legs; an entry identity
 adds the ProgramEntry receipt legs, which check the unique Unit entry before
 publication and rejoin the published semantic identity afterward. The
 `ProducedTerminalArtifact` returns the artifact beside the requested entry
-receipt and unoptimized module.
+receipt. No lowering or unoptimized clone leaves production. Before optimization,
+the policy borrows the actual Terminal module and a diagnostic attribution
+companion. Exclusion admission uses exact service owners retained in boundary
+declarations, not checked trees or a callable-name lookup. The same operation
+admits program entries and callback thunks; an admission cannot mutate the
+module, replace a stage or choose whether optimization runs.
 
 Permission-ledger validation belongs to the stage-05 lowering entrance, not
 this coordinator. Its work is included in the lowering timing row; there is
@@ -38,7 +43,7 @@ no separate caller-owned ledger-check leg.
 Terminal production owns its observation labels and failure classification.
 `TerminalProductionStage::observation_labels` supplies stable report names and
 input/output labels; the Omega caller only merges their measured rows.
-`TerminalArtifactProductionError::diagnostic_message` distinguishes missing
+`TerminalArtifactProductionError::diagnostics` distinguishes missing
 implementation, incomplete proof search and ordinary rejection. Neither requires
 a dependency on the Omega reporting accumulator.
 

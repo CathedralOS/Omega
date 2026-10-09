@@ -23,7 +23,7 @@ pub fn inspect_terminal(
     )
     .produce(TerminalProductionCustody {
         entry_identity: None,
-        retain_unoptimized: false,
+        behavior_exclusions: None,
         timings: &mut timings,
     })
     .map(|produced| produced.into_artifact())

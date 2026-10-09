@@ -111,6 +111,10 @@ pub struct BoundaryMachineDeclaration {
     /// Strictly ordered and parent-closed; its union with a selected requirement's
     /// unresolved bound forms the published ceiling, without erasing overlap.
     pub fixed_service_reach: Vec<ServiceId>,
+    /// Exact declaring boundary trait, when this is a trait requirement.
+    /// Invoking the requirement invokes this service and its parents even
+    /// when a selected implementation has an empty body.
+    pub owning_service: Option<ServiceId>,
     /// Strictly ordered normalized published ceiling.
     pub published_service_ceiling: Vec<ServiceId>,
 }

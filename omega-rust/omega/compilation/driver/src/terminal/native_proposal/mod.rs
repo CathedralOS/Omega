@@ -44,25 +44,13 @@ fn produce_callback_thunk_artifact(
     }
     .produce(TerminalProductionCustody {
         entry_identity: None,
-        // Authored exclusions are judged on the unoptimized composition.
-        retain_unoptimized: true,
+        behavior_exclusions: terminal_production::TerminalBehaviorExclusions::new(
+            checked.build().config.behavior_exclusions.as_slice(),
+            &checked.execution().selected_provider_plan_facts,
+        ),
         timings: &mut production_timings,
     })
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "callback thunk Terminal production failed: {error}",
-        ))]
-    })?;
-    // The callback body is part of the admitted composition; the authored
-    // exclusions apply to its unoptimized module exactly as to the program
-    // entry's.
-    trust_model::verify_entry_behavior_exclusions(
-        checked,
-        checked.build().config.behavior_exclusions.as_slice(),
-        &checked.execution().selected_provider_plan_facts,
-        produced.unoptimized(),
-        placement.selected_machine,
-    )?;
+    .map_err(|error| error.diagnostics())?;
     compilation_products::TerminalCallbackThunkArtifact::new(produced.into_artifact())
         .map_err(|message| vec![Diagnostic::error(message)])
 }

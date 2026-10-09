@@ -81,7 +81,7 @@ pub use machine_lowering::lower_machine;
 pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
 
 // Diagnostic-only source attribution for the unoptimized lowering.
-pub use lowered_machine_provenance::LoweredMachineProvenance;
+pub use lowered_machine_provenance::lowered_machine_provenance;
 
 // Proof artifacts this stage produces for owners outside it.
 pub use proofs::content_conservation::{
