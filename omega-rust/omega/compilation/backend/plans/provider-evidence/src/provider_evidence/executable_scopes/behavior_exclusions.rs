@@ -60,7 +60,7 @@ use terminal_psi::{
 
 /// One exact exclusion selected by the build root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum BehaviorExclusion {
+pub enum BehaviorExclusion {
     CrashCause(CrashCause),
     Service(ServiceId),
     /// No admitted mechanism may exercise this class of D45's closed
@@ -201,7 +201,7 @@ impl BehaviorExclusions {
 
 /// The executable coordinate where a possible excluded behavior is retained.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ProhibitedSite {
+pub enum ProhibitedSite {
     CrashTerminator {
         block: BlockId,
     },
@@ -218,7 +218,7 @@ pub(crate) enum ProhibitedSite {
 
 /// One possible excluded behavior attributable to an entry, machine, and site.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ProhibitedBehavior {
+pub struct ProhibitedBehavior {
     pub exclusion: BehaviorExclusion,
     pub entry: MachineId,
     pub machine: MachineId,
@@ -227,7 +227,7 @@ pub(crate) struct ProhibitedBehavior {
 
 /// Why the closure evidence could not certify absence at one site.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum EvidenceGapKind {
+pub enum EvidenceGapKind {
     UnknownCallee(MachineId),
     UnknownBoundary(BoundaryMachineId),
     UnknownEntry,
@@ -235,7 +235,7 @@ pub(crate) enum EvidenceGapKind {
 
 /// One site whose possible behavior the retained evidence does not cover.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct EvidenceGap {
+pub struct EvidenceGap {
     pub entry: MachineId,
     pub machine: MachineId,
     pub block: Option<BlockId>,
