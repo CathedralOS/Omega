@@ -30,7 +30,7 @@ pub enum FunctionFragmentFrameApplicationError {
     ReceiptMismatch,
 }
 
-failed_display!(
+diagnostics::failed_display!(
     FunctionFragmentFrameApplicationError,
     "function-fragment frame application failed"
 );

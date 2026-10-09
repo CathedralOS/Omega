@@ -43,14 +43,10 @@ pub enum Aarch64FrameProtocolError {
     OffsetOutOfRange,
 }
 
-impl std::fmt::Display for Aarch64FrameProtocolError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "AArch64 frame protocol encoding failed: {self:?}"
-        )
-    }
-}
+diagnostics::failed_display!(
+    Aarch64FrameProtocolError,
+    "AArch64 frame protocol encoding failed"
+);
 
 impl std::error::Error for Aarch64FrameProtocolError {}
 
@@ -192,7 +188,8 @@ fn register(
     view: RegisterViewId,
 ) -> Result<Register, Aarch64FrameProtocolError> {
     let name = model
-        .model().view(view)
+        .model()
+        .view(view)
         .map(|row| row.name.as_str())
         .ok_or(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view))?;
     let (prefix, number) = name.split_at(1);

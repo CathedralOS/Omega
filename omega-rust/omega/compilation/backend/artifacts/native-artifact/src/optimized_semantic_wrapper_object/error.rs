@@ -14,14 +14,10 @@ pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectError {
     ManifestMismatch,
 }
 
-impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperObjectError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized ProgramStorage semantic wrapper object failed: {self:?}"
-        )
-    }
-}
+diagnostics::failed_display!(
+    OptimizedProgramStorageSemanticWrapperObjectError,
+    "optimized ProgramStorage semantic wrapper object failed"
+);
 
 impl std::error::Error for OptimizedProgramStorageSemanticWrapperObjectError {}
 
@@ -41,5 +37,3 @@ impl From<OptimizedProgramStorageSemanticWrapperObjectRecordError>
         }
     }
 }
-
-

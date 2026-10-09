@@ -15,6 +15,6 @@ pub enum TargetFrameLayoutError {
     },
 }
 
-failed_display!(TargetFrameLayoutError, "target frame layout failed");
+diagnostics::failed_display!(TargetFrameLayoutError, "target frame layout failed");
 
 impl std::error::Error for TargetFrameLayoutError {}

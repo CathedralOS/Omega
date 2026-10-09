@@ -43,17 +43,6 @@
 //! The object join over placed text belongs to object-file and image-emission.
 
 // 1. Function-relative realization.
-/// `Display` for the crate's `<context> failed: {self:?}` error convention.
-macro_rules! failed_display {
-    ($type:ty, $message:literal) => {
-        impl std::fmt::Display for $type {
-            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(formatter, concat!($message, ": {:?}"), self)
-            }
-        }
-    };
-}
-
 mod codec_bytes;
 mod digest_encoder;
 mod function_realization;

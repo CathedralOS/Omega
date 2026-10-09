@@ -14,7 +14,7 @@ pub enum TargetFrameProtocolEncodingError {
     NonCanonicalEncoding,
 }
 
-failed_display!(
+diagnostics::failed_display!(
     TargetFrameProtocolEncodingError,
     "target frame protocol encoding failed"
 );

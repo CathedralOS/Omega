@@ -17,7 +17,7 @@ pub enum NonAuthoritativeCalleeSaveStorageError {
     },
 }
 
-failed_display!(
+diagnostics::failed_display!(
     NonAuthoritativeCalleeSaveStorageError,
     "non-authoritative callee-save storage planning failed"
 );

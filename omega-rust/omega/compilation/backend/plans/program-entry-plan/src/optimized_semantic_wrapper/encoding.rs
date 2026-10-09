@@ -54,14 +54,10 @@ pub enum OptimizedProgramStorageSemanticWrapperEncodingError {
     TemplateMismatch,
 }
 
-impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperEncodingError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized ProgramStorage semantic wrapper encoding failed: {self:?}"
-        )
-    }
-}
+diagnostics::failed_display!(
+    OptimizedProgramStorageSemanticWrapperEncodingError,
+    "optimized ProgramStorage semantic wrapper encoding failed"
+);
 
 impl std::error::Error for OptimizedProgramStorageSemanticWrapperEncodingError {}
 

@@ -23,7 +23,7 @@ pub enum RelocationFreeTextSectionPlacementError {
     ReceiptMismatch,
 }
 
-failed_display!(
+diagnostics::failed_display!(
     RelocationFreeTextSectionPlacementError,
     "optimized relocation-free text-section placement failed"
 );

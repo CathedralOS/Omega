@@ -20,7 +20,7 @@ pub enum FunctionRelativeOptimizationRealizationError {
     ReceiptMismatch,
 }
 
-failed_display!(
+diagnostics::failed_display!(
     FunctionRelativeOptimizationRealizationError,
     "function-relative optimization realization failed"
 );

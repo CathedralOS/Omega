@@ -29,7 +29,7 @@ pub(crate) enum ResolvedFragmentEmissionError {
     ArtifactMismatch,
 }
 
-failed_display!(
+diagnostics::failed_display!(
     ResolvedFragmentEmissionError,
     "resolved fragment projection failed"
 );

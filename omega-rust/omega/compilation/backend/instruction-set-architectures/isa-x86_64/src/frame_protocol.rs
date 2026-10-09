@@ -36,11 +36,10 @@ pub enum X86_64FrameProtocolError {
     OffsetOutOfRange,
 }
 
-impl std::fmt::Display for X86_64FrameProtocolError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "x86-64 frame protocol encoding failed: {self:?}")
-    }
-}
+diagnostics::failed_display!(
+    X86_64FrameProtocolError,
+    "x86-64 frame protocol encoding failed"
+);
 
 impl std::error::Error for X86_64FrameProtocolError {}
 
@@ -155,7 +154,8 @@ fn register_code(
     view: RegisterViewId,
 ) -> Result<u8, X86_64FrameProtocolError> {
     let name = model
-        .model().view(view)
+        .model()
+        .view(view)
         .map(|row| row.name.as_str())
         .ok_or(X86_64FrameProtocolError::UnknownOrUnsupportedView(view))?;
     let code = match name {

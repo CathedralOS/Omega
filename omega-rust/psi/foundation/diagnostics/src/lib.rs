@@ -60,6 +60,18 @@ macro_rules! string_diagnostic {
     };
 }
 
+/// `Display` for the `<context> failed: {self:?}` error convention.
+#[macro_export]
+macro_rules! failed_display {
+    ($type:ty, $message:literal) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, concat!($message, ": {:?}"), self)
+            }
+        }
+    };
+}
+
 /// Single `error`-severity diagnostic with the producing site prefixed, for
 /// call sites that surface exactly one refusal.
 pub fn error_in_context(context: &str, message: impl std::fmt::Display) -> Vec<Diagnostic> {

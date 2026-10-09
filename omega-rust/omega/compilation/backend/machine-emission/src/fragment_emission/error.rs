@@ -18,7 +18,7 @@ pub enum FunctionFragmentEmissionError {
     ReceiptMismatch,
 }
 
-failed_display!(
+diagnostics::failed_display!(
     FunctionFragmentEmissionError,
     "optimized function-fragment emission failed"
 );

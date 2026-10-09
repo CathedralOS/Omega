@@ -25,7 +25,7 @@ pub(crate) enum FrameApplicationError {
     ArtifactMismatch,
 }
 
-failed_display!(
+diagnostics::failed_display!(
     FrameApplicationError,
     "function-fragment frame application failed"
 );

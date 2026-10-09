@@ -15,7 +15,7 @@ pub(crate) enum TextPlacementError {
     ArtifactMismatch,
 }
 
-failed_display!(
+diagnostics::failed_display!(
     TextPlacementError,
     "optimized relocation-free text-section placement failed"
 );

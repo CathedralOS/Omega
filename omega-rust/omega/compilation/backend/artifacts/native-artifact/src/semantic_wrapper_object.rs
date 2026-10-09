@@ -38,7 +38,7 @@ pub(crate) use codec::{
 pub(crate) use composition::compose_optimized_program_storage_semantic_wrapper_object;
 
 use codec::{decode_manifest, encode_manifest, encode_manifest_content, encode_plan_content};
-use manifest::{construct_manifest};
+use manifest::construct_manifest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
@@ -120,7 +120,6 @@ impl OptimizedProgramStorageSemanticWrapperObjectPlan {
         canonical.extend_from_slice(&encode_plan_content(self)?);
         Ok(OptimizedProgramStorageSemanticWrapperObjectIdentity::from_canonical_bytes(&canonical))
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -235,11 +234,6 @@ impl OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
             manifest: manifest.identity,
         }
     }
-
-
-
-
-
 }
 
 // Wire identity of the wrapper object, its container, and its manifest.
@@ -260,14 +254,10 @@ pub enum OptimizedProgramStorageSemanticWrapperObjectRecordError {
     WrapperResolution(X86_64SemanticUnitWrapperResolutionError),
 }
 
-impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperObjectRecordError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized ProgramStorage semantic wrapper object record failed: {self:?}"
-        )
-    }
-}
+diagnostics::failed_display!(
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
+    "optimized ProgramStorage semantic wrapper object record failed"
+);
 
 impl std::error::Error for OptimizedProgramStorageSemanticWrapperObjectRecordError {}
 
