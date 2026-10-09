@@ -8,14 +8,12 @@ mod resolution;
 mod resolved_closure;
 
 pub(crate) use dependency_paths::DependencyRequestPaths;
-
 pub(crate) use super::root_request::PackageRootSourceRequest;
 pub use resolved_closure::{
 };
 pub(crate) use resolved_closure::{
-    ExactTargetPackageSourceClosure, ResolvedDependencySourceRequest, ResolvedPackageSourceClosure,
-    ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest};
-
+    ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure,
+    ResolvedRootPackageSourceRequest};
 use super::PackageClosureValidationError;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{

@@ -9,7 +9,6 @@
 //! these operations rather than in the command-line binary.
 
 mod accepted_compilation;
-pub(crate) use accepted_compilation::compiler_input_identity;
 mod check_project;
 mod compile_project;
 mod inspect_packages;
@@ -19,6 +18,7 @@ mod prepare_project;
 mod publication;
 mod stage_build_edit;
 
+pub(crate) use accepted_compilation::compiler_input_identity;
 pub use check_project::{
     CheckPreparedLocalProjectError, PreparedLocalProjectCheckRequest, check_prepared_local_project_for_inspection,
     check_prepared_local_project_for_targets,

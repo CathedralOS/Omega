@@ -2,10 +2,8 @@
 
 use crate::build_session::PackageBuildSession;
 use crate::review::SemanticBindingReview;
-
 mod error;
 pub(crate) use error::PackageChangeError;
-
 use crate::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockTarget,
 };
@@ -114,34 +112,6 @@ impl PackageChangeReview {
         .map_err(PackageChangeError::Lock)
     }
 }
-
-/// Check and compare a resolved install/update candidate for one exact target.
-/// The caller resolves the requested candidate before executing build code.
-/// Its session is the resource owner shared across all review targets and rounds.
-/// Only the compiler's existing scoped build evaluator is used; dependencies
-/// receive no resolver or host credential object through this interface.
-///
-/// Ordinary proof failures cannot be approved as capability changes. Explicit
-/// accepted assumptions remain policy findings and use the normal decisions.
-/// No old source, native emission, reconstruction question, or admission
-/// promotion is needed. Resume after a source edit by creating a new review and
-/// recovering saved decisions against its new comparison, not the old object.
-pub(crate) fn review_package_change(
-    source_closure: ResolvedPackageSourceClosure,
-    target: TargetProfile,
-    accepted: Option<&PackageLockTarget>,
-    session: &mut PackageBuildSession,
-) -> Result<PackageChangeReview, PackageChangeError> {
-    review_package_change_reusing(
-        source_closure,
-        target,
-        accepted,
-        session,
-        None,
-        &mut CandidateSourcePreparation::new(),
-    )
-}
-
 /// The same candidate review, retaining binding-independent source preparation
 /// in the caller's store. A command reviewing several targets of this resolved
 /// closure prepares each package once.

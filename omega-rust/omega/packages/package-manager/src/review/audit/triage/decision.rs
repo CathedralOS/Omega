@@ -7,7 +7,6 @@ use crate::review::timings;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use package_evidence::record::{PackagePolicyRowKind, PackageReviewDangerousAuthorityClass};
 use std::collections::{BTreeMap, BTreeSet};
-
 use super::render::{self, TriageRenderError};
 
 /// Deterministic package-manager disposition for source review.
@@ -160,21 +159,6 @@ pub(crate) fn triage_update_without_admission_baseline(
             .collect(),
     }
 }
-
-/// Compare compiler-issued candidate evidence with a valid accepted baseline.
-///
-/// `unavailable_baseline_sources` affects source-audit guidance only: the
-/// canonical baseline rows still govern capability comparison. A package-key
-/// change is a replacement/provenance conflict; exact-key source revisions are
-/// ordinary updates. Advisory model output is deliberately not accepted here.
-pub(crate) fn triage_review_update(
-    baseline: &CompilerIssuedPackageReviewSet,
-    candidate: &CompilerIssuedPackageReviewSet,
-    unavailable_baseline_sources: &BTreeSet<PackageKey>,
-) -> CompilerReviewTriage {
-    triage_review_update_records(baseline.reviews(), candidate, unavailable_baseline_sources)
-}
-
 pub(crate) fn triage_review_update_records<B: PackageReviewEvidence>(
     baseline: &[B],
     candidate: &CompilerIssuedPackageReviewSet,

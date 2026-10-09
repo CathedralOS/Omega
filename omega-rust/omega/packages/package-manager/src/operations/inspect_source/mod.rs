@@ -11,4 +11,4 @@ pub use request::{
     SourceAdapter,
 };
 pub(crate) use request::{
-    PackageSourceInspectionError, PackageSourceRequest, PackageSourceRequestParseError};
+    PackageSourceRequest};

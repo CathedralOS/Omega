@@ -21,5 +21,4 @@ pub(crate) use resolution::resolve_selected_git_project_source_from_pin_in_lanes
 pub use resolution::{
 };
 pub(crate) use resolution::{
-    resolve_git_package_source, resolve_selected_git_package_source,
     resolve_selected_git_project_source};

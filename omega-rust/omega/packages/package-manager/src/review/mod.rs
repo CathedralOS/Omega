@@ -8,7 +8,6 @@ mod restricted_build_grants;
 mod timings;
 
 pub(crate) use candidate::verify_transitive_source_custody;
-
 pub(crate) use audit::{
     CompilerReviewTriage,
     PackageTriageDecision, PackageTriageDisposition, PackageTriageReason, TriageRenderError,

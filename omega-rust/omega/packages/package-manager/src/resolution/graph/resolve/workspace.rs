@@ -17,28 +17,6 @@ use package_source::{
 use package_source::{LocalSourceLimits, SourceResolver};
 use std::collections::BTreeMap;
 use std::path::Path;
-
-/// Resolve a workspace closure beneath the manager-owned private source root.
-pub(crate) fn resolve_workspace_package_closure(
-    workspace_root_source: &SourceLineage,
-    root_member_path: SourceRelativePath,
-    live_workspace_root: impl AsRef<Path>,
-    storage: &SourceResolver,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    resolve_workspace_closure(
-        workspace_root_source,
-        root_member_path,
-        live_workspace_root,
-        None,
-        storage,
-        source_limits,
-        closure_limits,
-        false,
-    )
-}
-
 /// Resolve a selected workspace project root. The root may be a package or an
 /// application; dependencies remain package-only.
 pub(crate) fn resolve_workspace_project_closure(
@@ -60,29 +38,6 @@ pub(crate) fn resolve_workspace_project_closure(
         true,
     )
 }
-
-/// Resolve a context-enabled workspace closure beneath private resolver storage.
-pub(crate) fn resolve_workspace_package_closure_in_context(
-    workspace_root_source: &SourceLineage,
-    root_member_path: SourceRelativePath,
-    live_workspace_root: impl AsRef<Path>,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolver,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    resolve_workspace_closure(
-        workspace_root_source,
-        root_member_path,
-        live_workspace_root,
-        Some(&source_context),
-        storage,
-        source_limits,
-        closure_limits,
-        false,
-    )
-}
-
 /// Context-enabled project-root variant for a workspace member that may be an
 /// application while external path dependencies remain explicitly scoped.
 #[allow(clippy::too_many_arguments)]
