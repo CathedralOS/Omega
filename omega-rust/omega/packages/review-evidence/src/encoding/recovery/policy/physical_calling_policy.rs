@@ -4,16 +4,8 @@ pub(in crate::encoding::recovery) mod placement;
 pub(in crate::encoding::recovery) mod state;
 
 use super::{Error, PackagePolicyRecoveryLimits, reader::Reader};
-use crate::encoding::{PACKAGE_PHYSICAL_CALLING_POLICY_VERSION, PHYSICAL_CALLING_POLICY_MAGIC};
 use crate::record::{PackagePolicyPhysicalCallingContract, PackageReviewBoundaryCallingPolicy};
 
-impl PackagePolicyPhysicalCallingContract {
-    super::recover_canonical_component!(
-        PHYSICAL_CALLING_POLICY_MAGIC,
-        PACKAGE_PHYSICAL_CALLING_POLICY_VERSION,
-        physical,
-    );
-}
 
 pub(in crate::encoding::recovery) fn physical(
     reader: &mut Reader<'_>,

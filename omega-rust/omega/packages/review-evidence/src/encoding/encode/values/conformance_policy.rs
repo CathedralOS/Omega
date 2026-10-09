@@ -3,27 +3,10 @@
 use super::identity::encode_nominal;use super::super::type_identity;
 
 use crate::encoding::encode::encoder::Encoder;
-use crate::encoding::{
-    CONFORMANCE_POLICY_MAGIC, PACKAGE_CONFORMANCE_POLICY_VERSION, PackageReviewEncodingError};
+use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument};
 
-impl PackagePolicyClosedConformanceApplication {
-    /// Complete inert application bytes, not a proof or selection receipt.
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
-        encoder.field("format", |encoder| {
-            encoder.fixed_bytes(CONFORMANCE_POLICY_MAGIC);
-            Ok(())
-        })?;
-        encoder.field("package_conformance_policy_version", |encoder| {
-            encoder.u16(PACKAGE_CONFORMANCE_POLICY_VERSION);
-            Ok(())
-        })?;
-        encode_application(&mut encoder, self)?;
-        encoder.finish()
-    }
-}
 
 pub(crate) fn encode_application(
     encoder: &mut Encoder,

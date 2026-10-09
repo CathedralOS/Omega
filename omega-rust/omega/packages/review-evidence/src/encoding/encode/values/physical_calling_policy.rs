@@ -4,28 +4,13 @@ use crate::encoding::encode::declarations::{
     calling_policy_tag, encode_machine_register, encode_value_placement,
 };
 use crate::encoding::encode::encoder::Encoder;
-use crate::encoding::{
-    PACKAGE_PHYSICAL_CALLING_POLICY_VERSION, PHYSICAL_CALLING_POLICY_MAGIC,
-    PackageReviewEncodingError,
-};
+use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     PackagePolicyEntryControl, PackagePolicyEntryStack, PackagePolicyMachineRegime,
     PackagePolicyMachineState, PackagePolicyMachineStateSet, PackagePolicyPhysicalCallingContract,
     PackagePolicyPreemption, PackagePolicyStatePlan, PackageReviewBoundaryCallingPolicy,
 };
 
-impl PackagePolicyPhysicalCallingContract {
-    /// Versioned bytes for this physical facet only. No callback identities,
-    /// evidence receipts, or acceptance authority are encoded.
-    pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        Encoder::policy_bytes(
-            PHYSICAL_CALLING_POLICY_MAGIC,
-            PACKAGE_PHYSICAL_CALLING_POLICY_VERSION,
-            self,
-            encode_physical,
-        )
-    }
-}
 
 pub(crate) fn encode_physical(
     encoder: &mut Encoder,
