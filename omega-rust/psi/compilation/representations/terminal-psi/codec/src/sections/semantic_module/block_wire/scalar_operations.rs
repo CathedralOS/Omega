@@ -395,6 +395,8 @@ pub(super) fn decode_trapping_integer(
 }
 
 /// Result format belongs to its declaration. Eligibility is already Bool.
+/// Saturating tags 2 and 3 described the retired binary operand/rule payloads;
+/// tag 4 is a new wire shape, so old artifacts fail with InvalidTag.
 pub(super) fn encode_float_result_policy(
     writer: &mut Writer,
     policy: &FloatResultPolicy,
