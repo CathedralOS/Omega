@@ -399,12 +399,9 @@ impl ProviderPlan {
                 binding_identity
             ));
         }
-        let mut hash: u64 = 0xcbf29ce484222325;
-        for byte in rendered.as_bytes() {
-            hash ^= u64::from(*byte);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-        hash
+        let mut hash = crate::fnv1a::Fnv1a::new();
+        hash.bytes(rendered.as_bytes());
+        hash.finish()
     }
 
     /// The deterministic order selection pipelines apply before replaying or

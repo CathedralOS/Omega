@@ -203,7 +203,6 @@ impl ComponentProgressManifest {
         self.selected_provider_closure_digest
     }
 
-
     pub fn pending(&self) -> &[ComponentBuildBoundProgressDemand] {
         &self.pending
     }
@@ -304,52 +303,42 @@ fn compatibility_report_fingerprint(
     selected: u64,
     pending: &[ComponentBuildBoundProgressDemand],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
-    let mut write = |bytes: &[u8]| {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-    };
-    write(entry.as_bytes());
-    write(&selected.to_le_bytes());
-    write(&(pending.len() as u64).to_le_bytes());
+    let mut hash = crate::fnv1a::Fnv1a::new();
+    hash.bytes_framed(entry.as_bytes());
+    hash.bytes_framed(&selected.to_le_bytes());
+    hash.bytes_framed(&(pending.len() as u64).to_le_bytes());
     for demand in pending {
-        write(demand.provider_service_identity.as_bytes());
+        hash.bytes_framed(demand.provider_service_identity.as_bytes());
         match demand.provider_service_package_identity {
             Some(identity) => {
-                write(&[1]);
-                write(&identity.digest());
+                hash.bytes_framed(&[1]);
+                hash.bytes_framed(&identity.digest());
             }
-            None => write(&[0]),
+            None => hash.bytes_framed(&[0]),
         }
-        write(demand.requirement_identity.as_bytes());
+        hash.bytes_framed(demand.requirement_identity.as_bytes());
         match demand.requirement_owner_package_identity {
             Some(identity) => {
-                write(&[1]);
-                write(&identity.digest());
+                hash.bytes_framed(&[1]);
+                hash.bytes_framed(&identity.digest());
             }
-            None => write(&[0]),
+            None => hash.bytes_framed(&[0]),
         }
-        write(demand.profile_identity.as_bytes());
-        write(&(demand.subject_projections.len() as u64).to_le_bytes());
+        hash.bytes_framed(demand.profile_identity.as_bytes());
+        hash.bytes_framed(&(demand.subject_projections.len() as u64).to_le_bytes());
         for projection in &demand.subject_projections {
-            write(projection.as_bytes());
+            hash.bytes_framed(projection.as_bytes());
         }
-        write(&(demand.establishment_routes.len() as u64).to_le_bytes());
+        hash.bytes_framed(&(demand.establishment_routes.len() as u64).to_le_bytes());
         for route in &demand.establishment_routes {
-            write(route.kind.as_str().as_bytes());
-            write(route.requirement_identity.as_bytes());
+            hash.bytes_framed(route.kind.as_str().as_bytes());
+            hash.bytes_framed(route.requirement_identity.as_bytes());
         }
-        write(&demand.provider_plan_report_identity.to_le_bytes());
-        write(demand.origin_callable_identity.as_bytes());
-        write(demand.origin_state_identity.as_bytes());
-        write(&(demand.statement_ordinal as u64).to_le_bytes());
-        write(&(demand.call_ordinal as u64).to_le_bytes());
+        hash.bytes_framed(&demand.provider_plan_report_identity.to_le_bytes());
+        hash.bytes_framed(demand.origin_callable_identity.as_bytes());
+        hash.bytes_framed(demand.origin_state_identity.as_bytes());
+        hash.bytes_framed(&(demand.statement_ordinal as u64).to_le_bytes());
+        hash.bytes_framed(&(demand.call_ordinal as u64).to_le_bytes());
     }
-    hash
+    hash.finish()
 }

@@ -242,7 +242,6 @@ impl SelectedProviderPlanFacts {
             && self.plans.iter().any(|member| member == plan)
     }
 
-
     pub fn plans(&self) -> &[ProviderPlan] {
         &self.plans
     }
@@ -250,7 +249,10 @@ impl SelectedProviderPlanFacts {
     /// Compatibility/report lookup for existing compact-ID consumers. Code
     /// making an admission or execution decision must use
     /// [`Self::plan_by_exact_evidence`] instead.
-    pub(crate) fn plan_by_report_fingerprint(&self, report_fingerprint: u64) -> Option<&ProviderPlan> {
+    pub(crate) fn plan_by_report_fingerprint(
+        &self,
+        report_fingerprint: u64,
+    ) -> Option<&ProviderPlan> {
         self.plans
             .iter()
             .find(|plan| plan.report_fingerprint() == report_fingerprint)
@@ -322,12 +324,9 @@ impl SelectedProviderPlanFacts {
         self.execution_scope
     }
 
-
     pub fn is_empty(&self) -> bool {
         self.plans.is_empty()
     }
-
-
 
     /// Attach checked realization reach to provider-selected bounded
     /// requirements. The requirement ceiling stays in the provider schema;
@@ -602,7 +601,6 @@ impl SelectedProviderPlanFacts {
             })
     }
 
-
     /// Resolve one root closure from its concrete reach plus exact bounded
     /// requirement dependencies, addressed through the root's own selected
     /// provider plan. A requirement the root's plan realizes binds that
@@ -645,7 +643,6 @@ impl SelectedProviderPlanFacts {
         resolved.dedup();
         Ok(resolved)
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -688,16 +685,12 @@ pub struct SelectedRequirementSpecialization {
 }
 
 fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
-    for byte in (plans.len() as u64).to_le_bytes().into_iter().chain(
-        plans
-            .iter()
-            .flat_map(|plan| plan.report_fingerprint().to_le_bytes()),
-    ) {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x100000001b3);
+    let mut hash = crate::fnv1a::Fnv1a::new();
+    hash.u64(plans.len() as u64);
+    for plan in plans {
+        hash.u64(plan.report_fingerprint());
     }
-    hash
+    hash.finish()
 }
 
 fn selected_closure_report_fingerprint(
@@ -705,52 +698,27 @@ fn selected_closure_report_fingerprint(
     resolutions: &[InstallationReachResolution],
     specialization_rows: &[SelectedRequirementSpecialization],
 ) -> u64 {
-    let mut hash = selected_plans_report_fingerprint(plans);
+    let mut hash = crate::fnv1a::Fnv1a::resume(selected_plans_report_fingerprint(plans));
     for resolution in resolutions {
-        for byte in resolution
-            .requirement_identity
-            .as_bytes()
-            .iter()
-            .copied()
-            .chain(resolution.provider_plan_report_identity.to_le_bytes())
-            .chain((resolution.upper_bound.len() as u64).to_le_bytes())
-            .chain(
-                resolution
-                    .upper_bound
-                    .iter()
-                    .flat_map(|service| service.as_bytes().iter().copied().chain([0])),
-            )
-            .chain((resolution.resolved_row.len() as u64).to_le_bytes())
-            .chain(
-                resolution
-                    .resolved_row
-                    .iter()
-                    .flat_map(|service| service.as_bytes().iter().copied().chain([0])),
-            )
-        {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x100000001b3);
+        hash.bytes(resolution.requirement_identity.as_bytes());
+        hash.u64(resolution.provider_plan_report_identity);
+        hash.u64(resolution.upper_bound.len() as u64);
+        for service in &resolution.upper_bound {
+            hash.bytes_terminated(service.as_bytes());
+        }
+        hash.u64(resolution.resolved_row.len() as u64);
+        for service in &resolution.resolved_row {
+            hash.bytes_terminated(service.as_bytes());
         }
     }
     for row in specialization_rows {
-        for byte in row
-            .provider_plan_report_identity
-            .to_le_bytes()
-            .into_iter()
-            .chain(row.selected_requirement_identity.as_bytes().iter().copied())
-            .chain([0])
-            .chain(row.selected_machine_identity.as_bytes().iter().copied())
-            .chain([0])
-            .chain(row.requirement_identity.as_bytes().iter().copied())
-            .chain([0])
-            .chain(row.machine_identity.as_bytes().iter().copied())
-            .chain([0])
-        {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
+        hash.u64(row.provider_plan_report_identity);
+        hash.bytes_terminated(row.selected_requirement_identity.as_bytes());
+        hash.bytes_terminated(row.selected_machine_identity.as_bytes());
+        hash.bytes_terminated(row.requirement_identity.as_bytes());
+        hash.bytes_terminated(row.machine_identity.as_bytes());
     }
-    hash
+    hash.finish()
 }
 
 struct SelectedProviderClosureDigestEncoder(Sha256);
