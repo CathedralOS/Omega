@@ -9,6 +9,7 @@ name = "image"
 path = "src/lib.rs"
 
 [dependencies]
+semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 calling-conventions = { path = "../../calling-conventions" }
 function-identity = { path = "../../../../foundation/function-identity" }
 arena = { path = "../../../../../psi/foundation/arena" }

@@ -684,6 +684,7 @@ dependencies = [
  "function-identity",
  "object-file",
  "optimization-core",
+ "semantic-vocabulary",
  "sha2",
  "target",
  "terminal-psi",

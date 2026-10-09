@@ -479,11 +479,10 @@ pub(crate) fn executable_inventory_report_fingerprint(
     hash
 }
 
-pub(crate) const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+pub(crate) const FNV_OFFSET: u64 = semantic_vocabulary::Fnv1a::OFFSET_BASIS;
 
 pub(crate) fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        *hash ^= u64::from(*byte);
-        *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
+    let mut fingerprint = semantic_vocabulary::Fnv1a::resume(*hash);
+    fingerprint.bytes(bytes);
+    *hash = fingerprint.finish();
 }
