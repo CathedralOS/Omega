@@ -1606,6 +1606,10 @@ fail/layouts/callee_integer_at_write_requires_fit rejected 250ms expected @bf12c
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/captured_encoded_reference_replacement_requires_fit rejected 453ms expected @2013ba4602a1+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/layouts/data_layout_query_machine_operand rejected 138ms expected @cde8fd7883a1
+	`size_of` takes a data type; a machine declaration is not a data carrier
+fail/layouts/data_layout_query_value_argument rejected 140ms expected @cde8fd7883a1
+	`align_of` takes no value arguments; the queried type is its single `<T>` operand
 fail/layouts/encoded_foreign_view_preserves_value_facts rejected 202ms expected @d56a61c738bf
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ForeignByte` are not representation-compatible
 fail/layouts/encoded_foreign_view_requires_same_geometry rejected 199ms expected @d56a61c738bf
@@ -1628,8 +1632,8 @@ fail/layouts/recast_integer_at_store_requires_fit rejected 52ms expected @8a4978
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
 fail/layouts/recursive_integer_at_requires_all_arrivals_fit rejected 406ms expected @cd0f1f2b1338
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value has no fitting bounds or entry relation
-fail/layouts/size_of_uninstantiated_plan_laid rejected 111ms expected @2d8ed253669f
-	`CompactBits` is a layout policy application, but its schema instance has no runtime layout: the type was never instantiated in a value position (CompactBits::plan produced no layout plan for it)
+fail/layouts/size_of_uninstantiated_plan_laid rejected 293ms unexpected @cde8fd7883a1
+	unimplemented: `size_of` requires a portable Terminal data-layout query; native layout must not rewrite the checked source
 fail/machines/retired_projected_data_call_expression rejected 165ms expected @1fdeb1b089073
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 fail/machines/retired_projected_data_call_statement rejected 166ms expected @1fdeb1b089073
@@ -3626,9 +3630,12 @@ pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 3232ms check-ta
 	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
 pass/inline_asm/asm_where_exact_clobbers_compile checked 353ms @4e4bfed13aee+wt
 pass/layouts/access_plan_inaccessible_seed checked 444ms @2d8ed253669f
+pass/layouts/authored_layout_query_names_exit checked 34479ms check-target:macos_arm64 @cde8fd7883a1
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 276ms @d1ebe54629b8
 pass/layouts/integer_at_owned_local_borrow_call_exit checked 1327ms check-target:macos_arm64 @313322813ba5+wt
 pass/layouts/placed_view_source_access_compile checked 2159ms @cba4ef8c9ab1
+pass/layouts/portable_data_layout_queries rejected 177ms check-target:macos_arm64 @cde8fd7883a1
+	unimplemented: `size_of` requires a portable Terminal data-layout query; native layout must not rewrite the checked source
 pass/layouts/private_callback_slot_demand_compile checked 3542ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
 pass/layouts/runtime_callee_integer_at_fitting_write_exit checked 1759ms check-target:macos_arm64 @acdf102c21ea+wt
@@ -3650,7 +3657,8 @@ pass/layouts/runtime_recast_reference_captures_index_exit checked 1759ms check-t
 pass/layouts/runtime_recursive_encoded_reference_exit checked 1822ms check-target:macos_arm64 @cd0f1f2b1338
 pass/layouts/runtime_returned_encoded_reference_exit checked 1710ms check-target:macos_arm64 @83cbaac892d6
 pass/layouts/runtime_selected_reference_parent_restoration_exit checked 1866ms check-target:macos_arm64 @c910d797b35a
-pass/layouts/runtime_size_of_align_of_exit checked 1659ms check-target:macos_arm64 @2d8ed253669f
+pass/layouts/runtime_size_of_align_of_exit rejected 5214ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @cde8fd7883a1
+	unimplemented: `size_of` requires a portable Terminal data-layout query; native layout must not rewrite the checked source
 pass/layouts/runtime_sparse_fragmented_bits_exit checked 1653ms check-target:macos_arm64 @acdf102c21ea+wt
 pass/layouts/runtime_stored_returned_encoded_reference_exit checked 1712ms check-target:macos_arm64 @4cbb568dee2d+wt
 pass/locals/mutable_local_call_initializer_exit checked 1412ms check-target:macos_arm64 @2d8ed253669f

@@ -134,12 +134,6 @@ pub(super) fn report_unresolved_value_call(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let target = call.target.as_str();
-    // `size_of<T>()`/`align_of<T>()` carry the compiler's layout query, not a
-    // machine callee: the selected target's layout answers them after
-    // settlement, so the unresolved-target fence does not apply.
-    if call.layout_query.is_some() {
-        return;
-    }
     // Named operators are callable requirements too. Use the same exact-symbol
     // or unique path+arity resolution as checked-flow analysis; a leaf spelling
     // alone is never enough to suppress this fail-closed fence.

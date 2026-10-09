@@ -68,7 +68,6 @@ pub(super) fn zero_argument_invocation_discharges(
         machine_arguments: Box::default(),
         quotient_operation: None,
         private_layout_operation: None,
-        layout_query: None,
         arguments: probe.expression_table.insert_expression_handles([]),
         evidence_arguments: Box::default(),
         operational_acknowledgement: language_semantics::CallOperationalAcknowledgement::default(),

@@ -83,6 +83,12 @@ These forms take data types. Executable machine entries and their late code
 regions instead use [address and code-layout queries](../language/counts_and_addresses.md#native-code-layout-queries).
 Neither `usize` nor a dedicated alignment carrier is introduced.
 
+The Rust reference currently rejects these queries as unimplemented while their
+portable Terminal operation is missing. Native layout must not be folded into
+typed source before checking: that would make the shared Psi program depend on
+one realization target or the compiler host. This implementation gap does not
+change the query contract above; **TARGET-SEMANTIC-APPLICATIONS** owns restoration.
+
 ## Placement vocabulary
 
 The compiler owns a closed placement vocabulary; policies select and compose

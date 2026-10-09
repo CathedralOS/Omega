@@ -376,7 +376,6 @@ impl ExpressionTable {
                     machine_arguments: call.machine_arguments,
                     quotient_operation: call.quotient_operation,
                     private_layout_operation: call.private_layout_operation,
-                    layout_query: call.layout_query,
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,

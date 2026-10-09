@@ -1,0 +1,2 @@
+machine operation() {}
+machine measure() -> u64 { size_of<operation>() }

@@ -257,6 +257,13 @@ selected provider and establishes runtime custody; a logical Binding marker
 never grants zero-sized storage or authority. Native entry storage currently
 supports Fused establishment and rejects other modes.
 
+Physical data-layout queries must not rewrite typed source before checking.
+The former target-selected `size_of`/`align_of` literal fold is removed. These
+queries currently report an explicit implementation gap during source lowering;
+restoration must retain a portable query and consume the exact selected layout
+after the Psi boundary, including explicit target custody for constant evaluation.
+Ordinary authored machines with those names remain ordinary calls.
+
 Calling-policy evaluation retains its validated ABI application as backend-owned
 output. Native entry and registrar settlement consume that application, not the
 evaluator's typed handles, source spans or policy execution state. Their contract

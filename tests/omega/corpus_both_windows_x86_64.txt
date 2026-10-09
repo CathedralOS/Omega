@@ -30,6 +30,11 @@ pass/domains/named_subject_capacity_identity_exit built 5855ms exit:70 interpret
 pass/float/runtime_total_order_satisfiers_exit built 74829ms exit:70 interpreter-exit:70 interpreter:agrees @6d9868469d56+wt
 pass/generics/runtime_const_container_methods_exit built 6084ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/generics/runtime_container_setter_matrix_exit built 5872ms exit:1 interpreter-exit:1 interpreter:agrees @506354b3cca3+wt
+pass/layouts/authored_layout_query_names_exit built 40883ms exit:0 interpreter-exit:0 interpreter:agrees @cde8fd7883a1
+pass/layouts/portable_data_layout_queries rejected 162ms interpreter:unchecked @cde8fd7883a1
+	unimplemented: `size_of` requires a portable Terminal data-layout query; native layout must not rewrite the checked source
+pass/layouts/runtime_size_of_align_of_exit rejected 4842ms interpreter:unchecked @cde8fd7883a1
+	unimplemented: `size_of` requires a portable Terminal data-layout query; native layout must not rewrite the checked source
 pass/locals/static_local_field_names_exit built 2008ms exit:0 interpreter-exit:0 interpreter:agrees @105d2b8e6ff9+wt
 pass/machines/static_namespace_constant_exit built 6980ms exit:0 interpreter-exit:0 interpreter:agrees @0bb2f2c02dae+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 5436ms exit:41 interpreter-exit:41 interpreter:agrees @506354b3cca3+wt

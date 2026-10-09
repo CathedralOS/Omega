@@ -391,7 +391,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     machine_arguments: Box::default(),
                     quotient_operation: None,
                     private_layout_operation: None,
-                    layout_query: None,
                     arguments,
                     evidence_arguments: Box::default(),
                     operational_acknowledgement:

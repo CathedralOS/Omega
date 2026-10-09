@@ -1,9 +1,8 @@
 // RUNTIME DATA-LAYOUT QUERIES (wiki/spec/layouts/, DATA-LAYOUT-QUERIES):
 // `size_of<T>()` and `align_of<T>()` are authored as ordinary calls, not
-// keywords. Their typed request carries no callee; execution settlement folds
-// each one to a `u64` literal from the selected target's validated layout
-// BEFORE checked-tree construction, so the same spelling works in authored
-// constants and in runtime locals. Exits 70 only when every answer matches
+// keywords. Their portable query must consume the selected validated layout
+// without changing source checking per target. That path is unimplemented;
+// the old pre-check native fold is removed. Exits 70 only when every answer matches
 // the layout the program also depends on:
 //   Row        -- native record, u64 + u32 pads to size 16, align 8
 //   Pair       -- two u8s: size 2, align 1 (no padding)
@@ -124,9 +123,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    // Runtime lets pin the same fold the consts carry: a retained query in a
-    // machine body must reach checked-tree construction as the settled
-    // literal, not as a callee-less call that omits the unit plan.
+    // Runtime and const observations must agree under the exact selected layout.
     let row_bytes: u64 = size_of<Row>();
     let pair_bytes: u64 = size_of<Pair>();
     let packed_bytes: u64 = size_of<CompactBits<PackedFlags>>();

@@ -86,12 +86,9 @@ pub(super) fn call_expressions(
 pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Result<bool, String> {
     let mut contains_call = false;
     for_each_initializer_expression(program, &[root], |expression| {
-        // A `size_of`/`align_of` request is the compiler's layout query, not
-        // an invocation: it carries no callee for admission to select and no
-        // machine body for replay to re-execute.
         contains_call |= matches!(
             program.expression_table.expression(expression),
-            ExpressionNode::Call(call) if call.layout_query.is_none()
+            ExpressionNode::Call(_)
         );
     })?;
     Ok(contains_call)

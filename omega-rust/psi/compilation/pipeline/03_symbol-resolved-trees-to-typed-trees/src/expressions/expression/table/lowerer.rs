@@ -370,7 +370,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 }
                 let quotient_operation = self.lower_quotient_operation_request(call)?;
                 let private_layout_operation = self.lower_private_layout_operation_request(call)?;
-                let layout_query = self.lower_data_layout_query(expression, call)?;
+                self.reject_unimplemented_layout_query(expression, call)?;
                 let receiver = if quotient_operation.is_some() {
                     // The `Quotient` receiver is the sealed namespace marker,
                     // not a resolvable binding: retaining it as a dangling
@@ -419,34 +419,30 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         "late-selected receiver method retains an undischarged structural type equation; use a closed explicitly selected receiver",
                     ).with_source_span(call.target.source_span()));
                 }
-                let machine_arguments = if private_layout_operation.is_some()
-                    || quotient_operation.is_some()
-                    || layout_query.is_some()
-                {
-                    // `Slot` is a sealed proof-static selector, not an
-                    // ordinary generic parameter of the identity operation.
-                    // `Quotient` statics are the same shape: representative
-                    // and theorem selections are retained inside the sealed
-                    // request, and no resolvable generic callee exists to
-                    // bind them, so MP2b must not read them as generic
-                    // machine arguments. A `size_of`/`align_of` operand is
-                    // a compiler query's type, not a callee's type
-                    // argument: no generic callee exists to bind it either.
-                    Box::default()
-                } else {
-                    call.machine_arguments
-                        .iter()
-                        .map(|argument| {
-                            crate::expressions::expression::lower_static_machine_argument(
-                                self.program,
-                                self.target_trees,
-                                self.source.authored_expression_exposure(expression),
-                                argument,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, Diagnostic>>()?
-                        .into_boxed_slice()
-                };
+                let machine_arguments =
+                    if private_layout_operation.is_some() || quotient_operation.is_some() {
+                        // `Slot` is a sealed proof-static selector, not an
+                        // ordinary generic parameter of the identity operation.
+                        // `Quotient` statics are the same shape: representative
+                        // and theorem selections are retained inside the sealed
+                        // request, and no resolvable generic callee exists to
+                        // bind them, so MP2b must not read them as generic
+                        // machine arguments.
+                        Box::default()
+                    } else {
+                        call.machine_arguments
+                            .iter()
+                            .map(|argument| {
+                                crate::expressions::expression::lower_static_machine_argument(
+                                    self.program,
+                                    self.target_trees,
+                                    self.source.authored_expression_exposure(expression),
+                                    argument,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, Diagnostic>>()?
+                            .into_boxed_slice()
+                    };
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Call(
@@ -461,7 +457,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             machine_arguments,
                             quotient_operation,
                             private_layout_operation,
-                            layout_query,
                             arguments,
                             evidence_arguments: call
                                 .evidence_arguments
@@ -854,24 +849,24 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         }))
     }
 
-    /// `size_of<T>()`/`align_of<T>()`: compiler-owned queries over the
-    /// selected target's validated layout. Only a receiverless spelling whose
-    /// target did not resolve to a declaration is a query; anything else stays
-    /// an ordinary call and finds its own diagnostics downstream.
-    fn lower_data_layout_query(
+    /// Preserve operand diagnostics, but do not let a physical layout query
+    /// become a target-dependent source literal. A portable query operation
+    /// and its selected-layout consumer must exist before this can be lowered.
+    /// Resolved declarations with the same name remain ordinary machine calls.
+    fn reject_unimplemented_layout_query(
         &mut self,
         expression: resolved::expression::ExpressionHandle,
         call: &resolved::expression::TableCallExpression,
-    ) -> Result<Option<typed::expression::DataLayoutQueryRequest>, Diagnostic> {
+    ) -> Result<(), Diagnostic> {
         let Some(kind) = language_core::data_layout_queries::DataLayoutQueryKind::from_target_name(
             call.target.as_str(),
         ) else {
-            return Ok(None);
+            return Ok(());
         };
         if call.target_symbol.is_valid() || call.receiver.is_valid() {
             // A resolved declaration or a receiver wins over the compiler's
             // query spelling, exactly as the checked-call intrinsics rule.
-            return Ok(None);
+            return Ok(());
         }
         let spelling = kind.target_name();
         if !call.arguments.is_empty() {
@@ -892,7 +887,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             ))
             .with_source_span(call.target.source_span()));
         }
-        let mut lowered = crate::expressions::expression::lower_static_machine_argument(
+        let lowered = crate::expressions::expression::lower_static_machine_argument(
             self.program,
             self.target_trees,
             self.source.authored_expression_exposure(expression),
@@ -908,7 +903,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 .filter(|_| operand.symbol.is_valid())
                 .map(|program| program.symbols.get(operand.symbol).kind);
             match self.layout_query_operand_type(operand)? {
-                Some(type_reference) => lowered.type_reference = type_reference,
+                Some(_) => {}
                 None => {
                     return Err(Diagnostic::error(match operand_kind {
                         Some(symbols::SymbolKind::Machine | symbols::SymbolKind::State) => {
@@ -933,10 +928,10 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 }
             }
         }
-        Ok(Some(typed::expression::DataLayoutQueryRequest {
-            kind,
-            operand: lowered,
-        }))
+        Err(Diagnostic::error(format!(
+            "unimplemented: `{spelling}` requires a portable Terminal data-layout query; native layout must not rewrite the checked source"
+        ))
+        .with_source_span(call.target.source_span()))
     }
 
     /// The queried carrier as a typed type reference: a structural argument

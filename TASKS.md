@@ -2091,8 +2091,9 @@ crash and native exit behavior.
   lint alone does not close this outcome.
   - Remove the current violations rather than grandfathering them:
     `compiler.rs` loops targets around checking and Terminal production;
-    `checked/checking/execution_settlement.rs` plans providers and folds target
-    layout before checking and Terminal production;
+    `checked/checking/execution_settlement.rs` still plans providers before
+    checking and Terminal production; target-layout source folding is removed,
+    with portable layout-query execution tracked by **TARGET-SEMANTIC-APPLICATIONS**;
     `realization/provider-planning` depends on syntax/typed/checked trees,
     stage 04, validation and the checked interpreter; Omega stage 00 consumes
     checked entry and source-shaped callback ABI/resource placements beside the
@@ -5399,13 +5400,20 @@ wait for Cathedral's instruction coverage. The interpreter is
   [target-semantic capsule](wiki/spec/language/evaluation.md#target-semantic-capsule)
   of the selected target, and close package review over
   [operator applications](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
-  - `size_of`/`align_of` already fold through native layout authority in
-    `omega-rust/omega/compilation/realization/provider-planning/src/data_layout_queries.rs`,
-    but targetless settlement chooses the host. Observations must name their
-    subject (address space, data layout, format, profile) from target closure,
-    never compiler-host facts. Reuse typed arguments and compiler-materialized
-    target data; a new projection needs a concrete customer, not a general
-    `TargetSemantics::*` source API (its spelling is unsettled per the spec).
+  - Restore `size_of`/`align_of` through a portable query and the exact selected
+    layout, not by rewriting typed source during target settlement. The old
+    host-fallback fold and its extra typed call variant are removed; source
+    lowering reports `unimplemented:` until the portable path exists.
+    `pass/layouts/portable_data_layout_queries` must regain native/interpreted
+    exit 0 for both its constant and runtime query; the existing custom-plan
+    query case retains its authored exit 70. Restore the exact missing-layout
+    diagnostic in `fail/layouts/size_of_uninstantiated_plan_laid`; its current
+    refusal names missing query support, not the authored invalid condition.
+    Observations name their subject
+    (address space, data layout, format, profile) from target closure, never
+    compiler-host facts. Preserve query operand rejection and ordinary calls to
+    same-named authored machines. Reuse typed arguments and compiler-materialized
+    target data, not a new `TargetSemantics::*` source API.
   - Package review has no supplied symbolic boundary-application closure
     (the unused one was deleted); a reviewed customer needs one that covers
     the complete reachable specialization closure including const

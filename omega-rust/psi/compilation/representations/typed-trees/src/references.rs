@@ -1147,9 +1147,6 @@ fn visit_call_expression(
             visit_static_argument(program, retained, &theorem.application);
         }
     }
-    if let Some(query) = &call.layout_query {
-        visit_static_argument(program, retained, &query.operand);
-    }
     if let Some(layout) = &call.private_layout_operation {
         visit_static_argument(program, retained, &layout.selected_slot);
     }

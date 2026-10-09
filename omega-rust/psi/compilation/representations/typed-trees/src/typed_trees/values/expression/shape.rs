@@ -19,9 +19,6 @@ impl TableCallExpression {
     /// * `private_layout_operation` — an exact compiler-known
     ///   `Plan::place_private<Slot>` request. Its selected conformance is
     ///   proof-static identity that ordinary generic dispatch never sees.
-    /// * `layout_query` — a compiler-owned `size_of<T>`/`align_of<T>` request.
-    ///   There is no callee at all; settlement replaces the call with the
-    ///   selected target's validated layout before ordinary call admission.
     ///
     /// The predicate deliberately says nothing about the receiver, the target
     /// symbol or the positional arguments: each of those is a caller's own
@@ -30,7 +27,6 @@ impl TableCallExpression {
         self.static_requirement_dispatch.is_none()
             && self.quotient_operation.is_none()
             && self.private_layout_operation.is_none()
-            && self.layout_query.is_none()
     }
 
     /// Whether the call supplies its callee nothing but positional

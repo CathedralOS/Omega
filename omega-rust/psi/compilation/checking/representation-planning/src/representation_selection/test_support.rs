@@ -390,7 +390,6 @@ pub fn fixture() -> Fixture {
                 static_requirement_dispatch: None,
                 quotient_operation: None,
                 private_layout_operation: None,
-                layout_query: None,
                 evidence_arguments: Box::default(),
                 operational_acknowledgement: Default::default(),
             }));

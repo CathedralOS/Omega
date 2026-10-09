@@ -181,7 +181,6 @@ impl ExpressionTable {
                     machine_arguments: Box::default(),
                     quotient_operation: None,
                     private_layout_operation: None,
-                    layout_query: None,
                     arguments,
                     evidence_arguments: call.evidence_arguments.to_vec().into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,

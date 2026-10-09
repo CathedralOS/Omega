@@ -2,9 +2,10 @@
 //!
 //! These are core names, not keywords: a call whose target resolved to an
 //! authored declaration stays an ordinary call, and only a receiverless,
-//! unresolved spelling with exactly one static type argument carries the
-//! request. Evaluation consumes the selected target's validated layout once
-//! Omega owns it; Psi retains the request rather than a fabricated size.
+//! unresolved spelling with exactly one static type argument names the
+//! request. A portable query representation must precede selected-layout
+//! evaluation. Until that path exists, source lowering reports unimplemented;
+//! native layout must not rewrite typed source into host-dependent literals.
 
 /// Which layout extent a `size_of`/`align_of` query asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

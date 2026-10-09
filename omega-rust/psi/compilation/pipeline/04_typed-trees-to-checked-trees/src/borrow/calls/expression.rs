@@ -47,15 +47,7 @@ pub(super) fn collect_expression_borrow_calls(
                     receiver_path.as_deref(),
                 );
 
-            // A retained `size_of`/`align_of` request is the compiler's
-            // layout query, not an invocation: it names no callee to dispatch
-            // to, and a receiverless spelling is dispatch-eligible by shape
-            // alone, so it would mint a call fact with an invalid target and
-            // the terminal-unit call sequencer would omit the whole unit
-            // plan. Selected-execution settlement folds every query to a
-            // `u64` literal before settled checking, but preliminary checking
-            // and build-time evaluation still admit the request node here.
-            if is_machine_call && call.layout_query.is_none() {
+            if is_machine_call {
                 let accesses = collection.collect_call_argument_accesses(
                     collection
                         .program

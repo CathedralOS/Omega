@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 302ms @0484de104502
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @0484de104502
 pass/arithmetic/bounded_assignment checked 323ms @0484de104502
@@ -639,7 +639,8 @@ pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 1046ms @
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 1241ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)
 pass/layouts/runtime_plan_laid_value_field_exit built 1772ms exit:70 @0484de104502
-pass/layouts/runtime_size_of_align_of_exit built 1909ms exit:70 @0484de104502
+pass/layouts/runtime_size_of_align_of_exit rejected 4764ms regressed-from:built+exit:70 @cde8fd7883a1
+	unimplemented: `size_of` requires a portable Terminal data-layout query; native layout must not rewrite the checked source
 pass/memory/address_translation_canary checked 467ms @0484de104502
 pass/memory/bump_allocator_canary built 1359ms @0484de104502
 pass/memory/interrupt_table_canary checked 759ms @0484de104502

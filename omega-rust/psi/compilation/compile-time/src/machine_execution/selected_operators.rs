@@ -186,7 +186,6 @@ pub(crate) fn prepare_selected_execution(
                 machine_arguments: Box::new([]),
                 quotient_operation: None,
                 private_layout_operation: None,
-                layout_query: None,
                 arguments,
                 evidence_arguments: Box::new([]),
                 operational_acknowledgement:
