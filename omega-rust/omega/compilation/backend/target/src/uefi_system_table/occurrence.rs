@@ -21,7 +21,7 @@ use crate::{
 use diagnostics::Diagnostic;
 
 /// Signature fixed by the UEFI specification for `EFI_SYSTEM_TABLE`.
-pub const UEFI_SYSTEM_TABLE_SIGNATURE: u64 = 0x5453_5953_2049_4249;
+pub(crate) const UEFI_SYSTEM_TABLE_SIGNATURE: u64 = 0x5453_5953_2049_4249;
 
 const U32_SIZE: usize = size_of::<u32>();
 const U64_SIZE: usize = size_of::<u64>();
@@ -44,7 +44,7 @@ struct HeaderGeometry {
 /// or execution authority.
 #[derive(Debug)]
 #[must_use = "validated UEFI system-table occurrence retains borrowed integrity evidence"]
-pub struct ValidatedUefiSystemTableHeaderIntegrity<'occurrence> {
+pub(crate) struct ValidatedUefiSystemTableHeaderIntegrity<'occurrence> {
     layout: ValidatedUefiSystemTableNativeLayout,
     table_bytes: &'occurrence [u8],
     revision: u32,
@@ -63,7 +63,7 @@ impl<'occurrence> ValidatedUefiSystemTableHeaderIntegrity<'occurrence> {
     }
 
     /// The target-owned system-table prefix covered by the runtime header.
-    pub fn known_prefix_bytes(&self) -> &'occurrence [u8] {
+    pub(crate) fn known_prefix_bytes(&self) -> &'occurrence [u8] {
         &self.table_bytes[..self.layout.known_prefix_byte_size() as usize]
     }
 
@@ -91,7 +91,7 @@ impl<'occurrence> ValidatedUefiSystemTableHeaderIntegrity<'occurrence> {
 /// input retained for inspection or retry.
 #[derive(Debug)]
 #[must_use = "UEFI system-table occurrence rejection retains its layout and borrowed input"]
-pub struct UefiSystemTableOccurrenceValidationError<'occurrence> {
+pub(crate) struct UefiSystemTableOccurrenceValidationError<'occurrence> {
     layout: ValidatedUefiSystemTableNativeLayout,
     supplied_bytes: &'occurrence [u8],
     diagnostic: Diagnostic,
@@ -136,7 +136,7 @@ impl std::error::Error for UefiSystemTableOccurrenceValidationError<'_> {}
 /// extension bytes participate in the CRC. Supplied trailing bytes beyond
 /// `HeaderSize` are outside the successful carrier; a rejection instead
 /// retains the exact complete input for inspection or retry.
-pub fn validate_uefi_system_table_occurrence<'occurrence>(
+pub(crate) fn validate_uefi_system_table_occurrence<'occurrence>(
     layout: ValidatedUefiSystemTableNativeLayout,
     supplied_bytes: &'occurrence [u8],
 ) -> Result<

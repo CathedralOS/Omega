@@ -37,16 +37,16 @@ const TABLE_ALIGNMENT: u32 = 8;
 
 /// Recorded commitment to the authored `EfiSystemTableView` schema report
 /// fingerprint. Every replayed plan must come from that source-minted schema.
-pub const UEFI_X64_SYSTEM_TABLE_SCHEMA_REPORT_FINGERPRINT: u64 = 0xd007_21f7_9763_5cd7;
+pub(crate) const UEFI_X64_SYSTEM_TABLE_SCHEMA_REPORT_FINGERPRINT: u64 = 0xd007_21f7_9763_5cd7;
 
 /// Compact commitment to the validated `LayoutPlanReport` the authored
 /// `EfiSystemTableViewLayout::plan` policy produces for `EfiSystemTableView`.
-pub const UEFI_X64_SYSTEM_TABLE_LAYOUT_PLAN_COMMITMENT: u64 = 0xa3aa_ed00_b7a9_c504;
+pub(crate) const UEFI_X64_SYSTEM_TABLE_LAYOUT_PLAN_COMMITMENT: u64 = 0xa3aa_ed00_b7a9_c504;
 
 /// Compact commitment to the validated native field layout the evaluated plan
 /// replayed rows must hash to this identity, so the retained field vocabulary
 /// cannot drift silently from the source-authored geometry.
-pub const UEFI_X64_SYSTEM_TABLE_NATIVE_LAYOUT_COMMITMENT: u64 = 0x902a_8803_3004_f8bf;
+pub(crate) const UEFI_X64_SYSTEM_TABLE_NATIVE_LAYOUT_COMMITMENT: u64 = 0x902a_8803_3004_f8bf;
 
 /// The target byte offsets the authored `EfiSystemTableViewLayout::plan` produces
 /// for `EfiSystemTableView`'s thirteen semantic members, in declaration order.
@@ -111,7 +111,7 @@ const SEMANTIC_FIELDS: [(
 /// Closed field identity for the UEFI x86-64 `EFI_SYSTEM_TABLE` layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub enum UefiSystemTableNativeField {
+pub(crate) enum UefiSystemTableNativeField {
     HeaderSignature = 1,
     HeaderRevision = 2,
     HeaderSize = 3,
@@ -135,7 +135,7 @@ pub enum UefiSystemTableNativeField {
 /// Native representation class of one retained field row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum UefiSystemTableNativeFieldKind {
+pub(crate) enum UefiSystemTableNativeFieldKind {
     UnsignedInteger = 1,
     Pointer = 2,
     ReservedZero = 3,
@@ -144,7 +144,7 @@ pub enum UefiSystemTableNativeFieldKind {
 
 /// Exact target-relative geometry of one system-table field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UefiSystemTableNativeFieldLayout {
+pub(crate) struct UefiSystemTableNativeFieldLayout {
     field: UefiSystemTableNativeField,
     ordinal: u8,
     byte_offset: u32,
@@ -188,7 +188,7 @@ impl UefiSystemTableNativeFieldLayout {
 /// authority.
 #[derive(Debug)]
 #[must_use = "validated UEFI system-table layout retains target-owned entry identity"]
-pub struct ValidatedUefiSystemTableNativeLayout {
+pub(crate) struct ValidatedUefiSystemTableNativeLayout {
     profile: TargetProfile,
     entry_slot: ProgramEntrySlotDeclaration,
     contents: UefiSystemTableNativeLayoutContents,
@@ -242,7 +242,7 @@ impl ValidatedUefiSystemTableNativeLayout {
 
     /// Replay the complete target slot and every exact native-layout row.
     /// The compact report fingerprint is deliberately not consulted.
-    pub fn matches_exact_plan(&self, expected: &Self) -> bool {
+    pub(crate) fn matches_exact_plan(&self, expected: &Self) -> bool {
         self.profile == expected.profile
             && self.entry_slot == expected.entry_slot
             && self.contents == expected.contents
@@ -257,7 +257,7 @@ impl ValidatedUefiSystemTableNativeLayout {
 /// Rejected native-layout planning with the requested target profile retained.
 #[derive(Debug)]
 #[must_use = "UEFI system-table layout rejection retains the requested profile"]
-pub struct UefiSystemTableNativeLayoutError {
+pub(crate) struct UefiSystemTableNativeLayoutError {
     profile: TargetProfile,
     diagnostic: Diagnostic,
 }
@@ -298,7 +298,7 @@ pub(crate) struct UefiSystemTableNativeLayoutContents {
 /// cover the 120-byte aggregate reject. The `FirmwareRevisionPadding` row is
 /// the evaluated plan's implicit gap under its physical name -- any other gap
 /// is foreign geometry and rejects.
-pub fn replayed_uefi_x64_system_table_native_layout(
+pub(crate) fn replayed_uefi_x64_system_table_native_layout(
     report: &LayoutPlanReport,
 ) -> Option<ValidatedUefiSystemTableNativeLayout> {
     let profile = TargetProfile::UefiX64;
@@ -343,7 +343,7 @@ pub fn replayed_uefi_x64_system_table_native_layout(
 /// `EfiSystemTableViewLayout::plan` produces for `EfiSystemTableView` and is replayed
 /// through the same commitments, so it cannot drift silently from the authored
 /// policy.
-pub fn exact_uefi_x64_system_table_native_layout() -> ValidatedUefiSystemTableNativeLayout {
+pub(crate) fn exact_uefi_x64_system_table_native_layout() -> ValidatedUefiSystemTableNativeLayout {
     replayed_uefi_x64_system_table_native_layout(&exact_uefi_x64_system_table_layout_plan_report())
         .expect(
             "the authored UEFI x64 system-table layout must replay its source-minted commitments",
@@ -353,7 +353,7 @@ pub fn exact_uefi_x64_system_table_native_layout() -> ValidatedUefiSystemTableNa
 /// The report the authored policy produces, in `LayoutPlanReport` form. This
 /// is the one residual literal recipe; consumers must route it through
 /// `replayed_uefi_x64_system_table_native_layout`, never read it directly.
-pub fn exact_uefi_x64_system_table_layout_plan_report() -> LayoutPlanReport {
+pub(crate) fn exact_uefi_x64_system_table_layout_plan_report() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: UEFI_X64_SYSTEM_TABLE_SCHEMA_REPORT_FINGERPRINT,
         entries: std::iter::once(&"header")
@@ -376,7 +376,7 @@ pub fn exact_uefi_x64_system_table_layout_plan_report() -> LayoutPlanReport {
 /// `EFI_SYSTEM_TABLE` native layout is owned only by the UEFI x86-64 target;
 /// any other profile rejects rather than inheriting firmware structure from
 /// its shared x86-64 architecture.
-pub fn plan_uefi_system_table_native_layout(
+pub(crate) fn plan_uefi_system_table_native_layout(
     profile: TargetProfile,
 ) -> Result<ValidatedUefiSystemTableNativeLayout, Box<UefiSystemTableNativeLayoutError>> {
     let entry_slot = profile.program_entry_slot();

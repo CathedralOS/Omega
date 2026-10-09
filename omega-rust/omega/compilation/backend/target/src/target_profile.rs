@@ -70,7 +70,7 @@ pub enum TargetProfile {
 /// evidence uses this identity so those details cannot silently rename a
 /// profile already present in locks or review material.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TargetProfileIdentity(&'static str);
+pub(crate) struct TargetProfileIdentity(&'static str);
 
 impl TargetProfileIdentity {
     pub const fn as_str(self) -> &'static str {
@@ -280,7 +280,7 @@ pub struct ProgramEntrySlotDeclaration {
 /// Consumers that only implement one schema must inspect the variant and fail
 /// closed for every other member instead of accepting and ignoring it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TargetRequiredRootSlotDeclaration {
+pub(crate) enum TargetRequiredRootSlotDeclaration {
     ProgramEntry(ProgramEntrySlotDeclaration),
 }
 

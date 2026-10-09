@@ -15,7 +15,7 @@ const X86_SCALAR_FMA_DIFFERENTIAL_SCHEMA: &[u8] = b"omega.x86-scalar-fma-differe
 const X86_SCALAR_FMA_PROVIDER_SCHEMA: &[u8] = b"omega.x86-scalar-fma-provider.v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum X86TargetFeature {
+pub(crate) enum X86TargetFeature {
     Avx,
     Fma3,
 }
@@ -166,7 +166,7 @@ impl X86DeploymentFeatures {
 /// multiply-then-add. The receipt retains raw bits so it is independent of the
 /// compiler host's floating-point environment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86ScalarFmaDifferentialReceipt {
+pub(crate) struct X86ScalarFmaDifferentialReceipt {
     slot: X86ScalarFmaSlot,
     operand_bits: [u64; 3],
     fused_result_bits: u64,
@@ -345,7 +345,7 @@ impl AdmittedX86ScalarFmaProvider {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86ScalarFmaAdmissionError {
+pub(crate) enum X86ScalarFmaAdmissionError {
     UnsupportedProfile(TargetProfile),
     MissingExactFeatureSet,
     ProfileMismatch,

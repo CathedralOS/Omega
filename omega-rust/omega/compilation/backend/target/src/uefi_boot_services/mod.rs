@@ -35,7 +35,7 @@ pub static UEFI_LOADED_IMAGE_PROTOCOL_GUID: UefiProtocolGuid = UefiProtocolGuid 
 
 /// Byte-encoded UEFI protocol GUID carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UefiProtocolGuid {
+pub(crate) struct UefiProtocolGuid {
     pub data1: u32,
     pub data2: u16,
     pub data3: u16,
@@ -50,16 +50,16 @@ const TABLE_ALIGNMENT: u32 = 8;
 
 /// Recorded commitment to the authored `EfiBootServicesView` schema report
 /// fingerprint. Every replayed plan must come from that source-minted schema.
-pub const UEFI_X64_BOOT_SERVICES_SCHEMA_REPORT_FINGERPRINT: u64 = 0xa61c_19ce_5c21_d68f;
+pub(crate) const UEFI_X64_BOOT_SERVICES_SCHEMA_REPORT_FINGERPRINT: u64 = 0xa61c_19ce_5c21_d68f;
 
 /// Compact commitment to the validated `LayoutPlanReport` the authored
 /// `EfiBootServicesViewLayout::plan` policy produces for `EfiBootServicesView`.
-pub const UEFI_X64_BOOT_SERVICES_LAYOUT_PLAN_COMMITMENT: u64 = 0x3882_01de_e60d_724d;
+pub(crate) const UEFI_X64_BOOT_SERVICES_LAYOUT_PLAN_COMMITMENT: u64 = 0x3882_01de_e60d_724d;
 
 /// Compact commitment to the validated native field layout the evaluated plan
 /// replayed rows must hash to this identity, so the retained field vocabulary
 /// cannot drift silently from the source-authored geometry.
-pub const UEFI_X64_BOOT_SERVICES_NATIVE_LAYOUT_COMMITMENT: u64 = 0x5078_c8e1_c605_a12e;
+pub(crate) const UEFI_X64_BOOT_SERVICES_NATIVE_LAYOUT_COMMITMENT: u64 = 0x5078_c8e1_c605_a12e;
 
 /// The target byte offsets the authored `EfiBootServicesViewLayout::plan` produces
 /// for `EfiBootServicesView`'s two semantic members, in declaration order.
@@ -72,7 +72,7 @@ const SEMANTIC_FIELDS: [&str; 2] = ["header", "services"];
 /// Closed field identity for the UEFI x86-64 `EFI_BOOT_SERVICES` layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub enum UefiBootServicesNativeField {
+pub(crate) enum UefiBootServicesNativeField {
     HeaderSignature = 1,
     HeaderRevision,
     HeaderSize,
@@ -127,7 +127,7 @@ pub enum UefiBootServicesNativeField {
 /// Native representation class of one retained field row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum UefiBootServicesNativeFieldKind {
+pub(crate) enum UefiBootServicesNativeFieldKind {
     UnsignedInteger = 1,
     FunctionPointer = 2,
     ReservedZero = 3,
@@ -136,7 +136,7 @@ pub enum UefiBootServicesNativeFieldKind {
 
 /// Exact target-relative geometry of one boot-services field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UefiBootServicesNativeFieldLayout {
+pub(crate) struct UefiBootServicesNativeFieldLayout {
     field: UefiBootServicesNativeField,
     ordinal: u8,
     byte_offset: u32,
@@ -175,7 +175,7 @@ impl UefiBootServicesNativeFieldLayout {
 /// authority.
 #[derive(Debug)]
 #[must_use = "validated UEFI Boot Services layout retains target-owned entry identity"]
-pub struct ValidatedUefiBootServicesNativeLayout {
+pub(crate) struct ValidatedUefiBootServicesNativeLayout {
     profile: TargetProfile,
     entry_slot: ProgramEntrySlotDeclaration,
     fields: Vec<UefiBootServicesNativeFieldLayout>,
@@ -224,7 +224,7 @@ impl ValidatedUefiBootServicesNativeLayout {
 /// Rejected native-layout planning with the requested target profile retained.
 #[derive(Debug)]
 #[must_use = "UEFI Boot Services layout rejection retains the requested profile"]
-pub struct UefiBootServicesNativeLayoutError {
+pub(crate) struct UefiBootServicesNativeLayoutError {
     profile: TargetProfile,
     diagnostic: Diagnostic,
 }
@@ -255,7 +255,7 @@ impl std::error::Error for UefiBootServicesNativeLayoutError {}
 /// the 376-byte aggregate rejects. The service-pointer rows are the evaluated
 /// `services` extent's named slots -- any other interior geometry is foreign
 /// and rejects.
-pub fn replayed_uefi_x64_boot_services_native_layout(
+pub(crate) fn replayed_uefi_x64_boot_services_native_layout(
     report: &LayoutPlanReport,
 ) -> Option<ValidatedUefiBootServicesNativeLayout> {
     let profile = TargetProfile::UefiX64;
@@ -294,7 +294,7 @@ pub fn replayed_uefi_x64_boot_services_native_layout(
 /// `EfiBootServicesViewLayout::plan` produces for `EfiBootServicesView` and is
 /// replayed through the same commitments, so it cannot drift silently from the
 /// authored policy.
-pub fn exact_uefi_x64_boot_services_native_layout() -> ValidatedUefiBootServicesNativeLayout {
+pub(crate) fn exact_uefi_x64_boot_services_native_layout() -> ValidatedUefiBootServicesNativeLayout {
     replayed_uefi_x64_boot_services_native_layout(&exact_uefi_x64_boot_services_layout_plan_report())
         .expect(
             "the authored UEFI x64 Boot Services layout must replay its source-minted commitments",
@@ -304,7 +304,7 @@ pub fn exact_uefi_x64_boot_services_native_layout() -> ValidatedUefiBootServices
 /// The report the authored policy produces, in `LayoutPlanReport` form. This
 /// is the one residual literal recipe; consumers must route it through
 /// `replayed_uefi_x64_boot_services_native_layout`, never read it directly.
-pub fn exact_uefi_x64_boot_services_layout_plan_report() -> LayoutPlanReport {
+pub(crate) fn exact_uefi_x64_boot_services_layout_plan_report() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: UEFI_X64_BOOT_SERVICES_SCHEMA_REPORT_FINGERPRINT,
         entries: SEMANTIC_FIELDS
@@ -326,7 +326,7 @@ pub fn exact_uefi_x64_boot_services_layout_plan_report() -> LayoutPlanReport {
 /// `EFI_BOOT_SERVICES` native layout is owned only by the UEFI x86-64 target;
 /// any other profile rejects rather than inheriting firmware structure from
 /// its shared x86-64 architecture.
-pub fn plan_uefi_boot_services_native_layout(
+pub(crate) fn plan_uefi_boot_services_native_layout(
     profile: TargetProfile,
 ) -> Result<ValidatedUefiBootServicesNativeLayout, Box<UefiBootServicesNativeLayoutError>> {
     let entry_slot = profile.program_entry_slot();
