@@ -6,6 +6,7 @@
 //! into one exact numeric guarantee while preserving the distinction between
 //! a selected target contract and conformance of a physical invocation.
 
+use crate::compatibility_fingerprint::Fnv1a;
 use sha2::{Digest, Sha256};
 
 use crate::TargetProfile;
@@ -13,8 +14,6 @@ use crate::TargetProfile;
 const GUARANTEED_ENTRY_STACK_PROJECTION: &str = "TargetSemantics::guaranteed_entry_stack";
 const UEFI_X86_64_SUBJECT: &str = "UefiX86_64";
 const PROJECTION_SEMANTICS_VERSION: u32 = 1;
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 mod sealed {
     pub trait EntryStackSubject {}
@@ -234,11 +233,11 @@ impl TargetSemantics {
 
 fn report_identity(subject: &str, profile: TargetProfile) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.target-semantics.observation-application.v1");
-    hash.bytes(GUARANTEED_ENTRY_STACK_PROJECTION.as_bytes());
-    hash.bytes(subject.as_bytes());
-    hash.bytes(&PROJECTION_SEMANTICS_VERSION.to_le_bytes());
-    hash.bytes(profile.identity().as_str().as_bytes());
+    hash.bytes_raw(b"omega.target-semantics.observation-application.v1");
+    hash.bytes_raw(GUARANTEED_ENTRY_STACK_PROJECTION.as_bytes());
+    hash.bytes_raw(subject.as_bytes());
+    hash.bytes_raw(&PROJECTION_SEMANTICS_VERSION.to_le_bytes());
+    hash.bytes_raw(profile.identity().as_str().as_bytes());
     hash.finish()
 }
 
@@ -260,14 +259,14 @@ where
     Subject: TargetEntryStackSubject,
 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.target-semantics.closed-entry-stack-guarantee.v1");
-    hash.bytes(
+    hash.bytes_raw(b"omega.target-semantics.closed-entry-stack-guarantee.v1");
+    hash.bytes_raw(
         &application
             .non_authoritative_compatibility_report_identity
             .to_le_bytes(),
     );
-    hash.bytes(&Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes());
-    hash.bytes(&Subject::REQUIRED_ALIGNMENT.to_le_bytes());
+    hash.bytes_raw(&Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes());
+    hash.bytes_raw(&Subject::REQUIRED_ALIGNMENT.to_le_bytes());
     hash.finish()
 }
 
@@ -292,25 +291,6 @@ where
 fn hash_field(digest: &mut Sha256, bytes: &[u8]) {
     digest.update((bytes.len() as u64).to_le_bytes());
     digest.update(bytes);
-}
-
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(FNV_OFFSET_BASIS)
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in bytes {
-            self.0 ^= u64::from(*byte);
-            self.0 = self.0.wrapping_mul(FNV_PRIME);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
 }
 
 #[cfg(test)]
