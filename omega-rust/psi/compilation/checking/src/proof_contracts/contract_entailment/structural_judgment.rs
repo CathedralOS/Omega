@@ -1490,7 +1490,28 @@ impl<'program> StructuralJudge<'program> {
                 ) {
                     return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
                 }
-                let Some((left, right)) = structural_term_pair(program, binary) else {
+                let pair = self
+                    .program
+                    .machine(self.machine_symbol)
+                    .and_then(|machine| self.program.machine_states(machine).first())
+                    .and_then(|state| {
+                        let parameters = self.program.state_parameters(state);
+                        Some((
+                            super::structural_terms::structural_term_for_parameters(
+                                program,
+                                self.machine_symbol,
+                                parameters,
+                                binary.left,
+                            )?,
+                            super::structural_terms::structural_term_for_parameters(
+                                program,
+                                self.machine_symbol,
+                                parameters,
+                                binary.right,
+                            )?,
+                        ))
+                    });
+                let Some((left, right)) = pair else {
                     return StructuralJudgment::Unknown;
                 };
                 let left = self.resolve(left);

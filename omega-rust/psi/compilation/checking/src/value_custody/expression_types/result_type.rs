@@ -167,6 +167,21 @@ fn result_type(
             )
         }
         ExpressionNode::Call(call) => {
+            // Semantic overloads retain the actual declaring telescope.
+            // Reuse the selected catalog owner with the same result references
+            // as ordinary calls; anonymous expected types never choose a row.
+            let operands: Vec<_> = program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|argument| result_type(program, owner, *argument, active))
+                .collect();
+            let selected_operator = typed_trees::operator::resolve_named_expression_call(program, call)
+                .or_else(|| {
+                    let references = operands.iter().copied().collect::<Option<Vec<_>>>()?;
+                    let (symbol, _, _) = crate::proof_contracts::float_projection_bindings::semantic_operations::float_semantic_application_with_operand_types(program, call, &references)?;
+                    typed_trees::operator::declaration_by_symbol(program, symbol)
+                });
             // Inside an abstract trait contract, a sibling requirement's
             // generic result already belongs to this exact telescope. Runtime
             // callers cannot borrow that raw result: they need its applied
@@ -194,30 +209,19 @@ fn result_type(
             scoped_requirement_result
                 .or_else(|| crate::machine_calls::calls::resolved_call_result_type(program, call))
                 .or_else(|| {
-                    typed_trees::operator::resolve_named_expression_call(program, call).and_then(
-                        |operator| {
-                            let operands: Vec<_> = program
-                                .expression_table
-                                .expression_handles(call.arguments)
-                                .iter()
-                                .map(|argument| result_type(program, owner, *argument, active))
-                                .collect();
-                            bound_result_type_parameter(program, operator, &operands).or_else(
-                                || {
-                                    (!result_mentions_type_parameters(
-                                        program,
-                                        operator,
-                                        operator.return_type,
-                                    ))
-                                    .then_some(operator.return_type)
-                                },
-                            )
-                        },
-                    )
+                    selected_operator.and_then(|operator| {
+                        bound_result_type_parameter(program, operator, &operands).or_else(|| {
+                            (!result_mentions_type_parameters(
+                                program,
+                                operator,
+                                operator.return_type,
+                            ))
+                            .then_some(operator.return_type)
+                        })
+                    })
                 })
                 .or_else(|| {
-                    if typed_trees::operator::resolve_named_expression_call(program, call).is_some()
-                    {
+                    if selected_operator.is_some() {
                         return None;
                     }
                     program

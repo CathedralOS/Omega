@@ -8,6 +8,7 @@
 
 use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_parameters, owner_symbol, selected_call_contract,
+    selected_call_contract_for_parameters,
 };
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
@@ -414,7 +415,7 @@ fn bound_term(
             None
         }
         ExpressionNode::Call(call) => {
-            selected_call_contract(program, call)?;
+            let selected = selected_call_contract_for_parameters(program, call, scope, parameters)?;
             let arguments = program
                 .expression_table
                 .expression_handles(call.arguments)
@@ -433,7 +434,7 @@ fn bound_term(
                 })
                 .collect::<Option<Vec<_>>>()?;
             Some(StructuralTerm::Application {
-                target: super::super::structural_terms::structural_call_target(program, call),
+                target: owner_symbol(&selected),
                 selections: call.machine_arguments.to_vec(),
                 machine: super::super::structural_terms::structural_call_machine_name(
                     call.target.as_str(),

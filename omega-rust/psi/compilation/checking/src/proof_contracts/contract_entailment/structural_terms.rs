@@ -227,6 +227,31 @@ pub(super) fn structural_term_in_scope(
     )>,
     expression: ExpressionHandle,
 ) -> Option<StructuralTerm> {
+    structural_term_with_frame(program, scope, None, expression)
+}
+
+pub(super) fn structural_term_for_parameters(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+) -> Option<StructuralTerm> {
+    structural_term_with_frame(program, None, Some((owner, parameters)), expression)
+}
+
+fn structural_term_with_frame(
+    program: &dyn crate::CheckingInput,
+    scope: Option<(
+        &typed_trees::machine::Machine,
+        &typed_trees::state::State,
+        typed_trees::types::TypeReferenceHandle,
+    )>,
+    frame: Option<(
+        symbols::SymbolHandle,
+        &[typed_trees::signature::StateParameter],
+    )>,
+    expression: ExpressionHandle,
+) -> Option<StructuralTerm> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
@@ -253,15 +278,15 @@ pub(super) fn structural_term_in_scope(
         }
         ExpressionNode::StructLiteral(literal) => {
             constructor_literal_term(program, literal, |value| {
-                structural_term_in_scope(program, scope, value)
+                structural_term_with_frame(program, scope, frame, value)
             })
         }
         ExpressionNode::Binary(binary) => binary_term_in_scope(
             program,
             scope,
             expression,
-            structural_term_in_scope(program, scope, binary.left)?,
-            structural_term_in_scope(program, scope, binary.right)?,
+            structural_term_with_frame(program, scope, frame, binary.left)?,
+            structural_term_with_frame(program, scope, frame, binary.right)?,
         ),
         ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
         // A determinate float literal carries its exact decimal spelling; the
@@ -269,18 +294,21 @@ pub(super) fn structural_term_in_scope(
         // term-less so a NaN operand can never pose as a decided value.
         ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
         ExpressionNode::Call(call) => {
-            if (!call.receiver.is_valid() || static_call_receiver(program, call))
+            let target = structural_call_target_in_frame(program, call, frame);
+            if (!call.receiver.is_valid() || static_call_receiver_for_target(program, call, target))
                 && call.evidence_arguments.is_empty()
                 && call.static_requirement_dispatch.is_none()
             {
                 let handles = program.expression_table.expression_handles(call.arguments);
                 let arguments: Vec<StructuralTerm> = handles
                     .iter()
-                    .filter_map(|argument| structural_term_in_scope(program, scope, *argument))
+                    .filter_map(|argument| {
+                        structural_term_with_frame(program, scope, frame, *argument)
+                    })
                     .collect();
                 if arguments.len() == handles.len() {
                     return Some(StructuralTerm::Application {
-                        target: structural_call_target(program, call),
+                        target,
                         selections: call.machine_arguments.to_vec(),
                         machine: structural_call_machine_name(
                             call.target.as_str(),
@@ -302,14 +330,21 @@ pub(super) fn structural_term_in_scope(
         }),
         ExpressionNode::Member(member) => {
             if let Some(call) = program.expression_table.call_node(member.receiver)
-                && (!call.receiver.is_valid() || static_call_receiver(program, call))
+                && (!call.receiver.is_valid()
+                    || static_call_receiver_for_target(
+                        program,
+                        call,
+                        structural_call_target_in_frame(program, call, frame),
+                    ))
                 && call.evidence_arguments.is_empty()
                 && call.static_requirement_dispatch.is_none()
             {
                 let handles = program.expression_table.expression_handles(call.arguments);
                 let arguments = handles
                     .iter()
-                    .filter_map(|argument| structural_term_in_scope(program, scope, *argument))
+                    .filter_map(|argument| {
+                        structural_term_with_frame(program, scope, frame, *argument)
+                    })
                     .collect::<Vec<_>>();
                 if arguments.len() == handles.len() {
                     let result_type = program
@@ -318,7 +353,7 @@ pub(super) fn structural_term_in_scope(
                     let field =
                         call_projection_field_symbol(program, result_type, member.member.as_str())?;
                     return Some(StructuralTerm::CallProjection {
-                        target: structural_call_target(program, call),
+                        target: structural_call_target_in_frame(program, call, frame),
                         selections: call.machine_arguments.to_vec(),
                         machine: structural_call_machine_name(
                             call.target.as_str(),
@@ -369,7 +404,7 @@ pub(super) fn structural_term_in_scope(
             // a substitutable projection so call instantiation can recover
             // the actual extent. Ordinary symbolic fields retain the same
             // vocabulary as callee_term_with_machines and citation intake.
-            match structural_term_in_scope(program, scope, member.receiver) {
+            match structural_term_with_frame(program, scope, frame, member.receiver) {
                 Some(StructuralTerm::Constructor { fields, .. }) => fields
                     .into_iter()
                     .find(|(name, _)| name == member.member.as_str())
@@ -398,35 +433,49 @@ pub(super) fn structural_term_in_scope(
         // instantiates to `main.control`), so the term names the
         // referent's storage and a `.len` over it folds to the declared
         // extent.
-        ExpressionNode::Borrow(borrow) => structural_term_in_scope(program, scope, borrow.target),
+        ExpressionNode::Borrow(borrow) => {
+            structural_term_with_frame(program, scope, frame, borrow.target)
+        }
         _ => None,
     }
 }
 
-/// Whether a call's receiver position carries a namespace path rather than a
-/// value: `Point::zero()` spells its `Point` prefix as a receiver Name whose
-/// symbol resolves to a type, module, or machine root — never a local,
-/// parameter, or borrow. A namespace receiver contributes no runtime
-/// argument, so the call termifies exactly like a receiverless application.
+/// Rejoin the namespace to the exact selected public declaration. Source
+/// qualifiers may still lack an early namespace symbol; declaration kinds are
+/// not sufficient authority and an instance receiver stays observable.
 pub(super) fn static_call_receiver(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    call.receiver.is_valid()
-        && matches!(
-            program.expression_table.expression(call.receiver),
-            ExpressionNode::Name(path)
-                if matches!(
-                    program.symbols.get(path.symbol).kind,
-                    symbols::SymbolKind::BuiltinType
-                        | symbols::SymbolKind::Data
-                        | symbols::SymbolKind::Domain
-                        | symbols::SymbolKind::Machine
-                        | symbols::SymbolKind::Module
-                        | symbols::SymbolKind::Trait
-                        | symbols::SymbolKind::ConformanceParameter
-                )
-        )
+    static_call_receiver_for_target(program, call, structural_call_target(program, call))
+}
+
+fn static_call_receiver_for_target(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+    target: symbols::SymbolHandle,
+) -> bool {
+    let mut selected = call.clone();
+    selected.target_symbol = target;
+    program.call_has_no_runtime_receiver_for_target(&selected)
+}
+
+fn structural_call_target_in_frame(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+    frame: Option<(
+        symbols::SymbolHandle,
+        &[typed_trees::signature::StateParameter],
+    )>,
+) -> symbols::SymbolHandle {
+    frame
+        .and_then(|(owner, parameters)| {
+            super::specification_calls::selected_call_contract_for_parameters(
+                program, call, owner, parameters,
+            )
+        })
+        .map(|owner| super::specification_calls::owner_symbol(&owner))
+        .unwrap_or_else(|| structural_call_target(program, call))
 }
 
 fn call_projection_field_symbol(

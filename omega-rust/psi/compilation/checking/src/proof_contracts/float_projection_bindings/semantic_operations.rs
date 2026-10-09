@@ -64,14 +64,32 @@ pub fn float_semantic_application_for_parameters(
     &'static FloatSemanticOperation,
     FloatSemanticContractIdentity,
 )> {
-    let kinds = program
+    let references = program
         .expression_table
         .expression_handles(call.arguments)
         .iter()
         .map(|argument| {
             crate::parameter_expression_result_type_reference(program, owner, parameters, *argument)
-                .and_then(|reference| typed_value_kind(program, reference))
         })
+        .collect::<Option<Vec<_>>>()?;
+    float_semantic_application_with_operand_types(program, call, &references)
+}
+
+/// Select a sealed semantic declaration using the actual result references
+/// already established by the shared expression owner. Neither an expected
+/// destination nor a carrier-name spelling supplies an overload selection.
+pub(crate) fn float_semantic_application_with_operand_types(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+    references: &[typed_trees::types::TypeReferenceHandle],
+) -> Option<(
+    symbols::SymbolHandle,
+    &'static FloatSemanticOperation,
+    FloatSemanticContractIdentity,
+)> {
+    let kinds = references
+        .iter()
+        .map(|reference| typed_value_kind(program, *reference))
         .collect::<Option<Vec<_>>>()?;
     exact_toolchain_float_semantic_application(program, call, &kinds)
 }

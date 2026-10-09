@@ -232,6 +232,22 @@ pub(super) fn selected_call_contract<'program>(
                 .map(SelectedCallContract::Operator)
         })
 }
+/// A proof application retains its own abstract operand telescope before
+/// actual substitution. Source semantic overloads select by these established
+/// references, sharing the same sealed declaration owner as result typing.
+pub(super) fn selected_call_contract_for_parameters<'program>(
+    program: &'program dyn crate::CheckingInput,
+    call: &TableCallExpression,
+    owner: SymbolHandle,
+    parameters: &[StateParameter],
+) -> Option<SelectedCallContract<'program>> {
+    selected_call_contract(program, call).or_else(|| {
+        let (symbol, _, _) =
+            crate::float_semantic_application_for_parameters(program, call, owner, parameters)?;
+        typed_trees::operator::declaration_by_symbol(program, symbol)
+            .map(SelectedCallContract::Operator)
+    })
+}
 
 fn signature_by_symbol(
     program: &dyn crate::CheckingInput,
