@@ -38,5 +38,6 @@ pub use vocabulary::{
     CallPlan, CallSignature, CallingPolicy, EntryControl,
     EntryStack, IndirectPointerLocation, MachineRegime, MachineRegister, MachineState,
     MachineStateSet, Preemption, RegisterSet, StatePlan, SystemVEightbyteClass, ValueClass,
-    ValueLocation, ValuePlacement, ValueShape, encode_state_plan_identity, gpr_code,
+    ValueLocation, ValuePlacement, ValueShape, byte_size_at_offset_zero,
+    encode_state_plan_identity, gpr_code,
 };

@@ -269,7 +269,6 @@ impl CallSignature {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueLocation {
     Register {
@@ -305,6 +304,29 @@ pub enum IndirectPointerLocation {
         stack_byte_offset: u32,
         alignment: u16,
     },
+}
+
+/// The byte size of a single placed value whose content starts at offset
+/// zero — the `Register`-or-`Stack` shape placement checks everywhere restate
+/// as a match arm when they only need that one fact.
+pub fn byte_size_at_offset_zero(locations: &[ValueLocation]) -> Option<u32> {
+    match locations {
+        [
+            ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            },
+        ]
+        | [
+            ValueLocation::Stack {
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            },
+        ] => Some(*byte_size),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

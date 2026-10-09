@@ -483,24 +483,12 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                             return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                         }
                     } else {
-                        let placed_pointer_word = match destination.locations.as_slice() {
-                            [
-                                ValueLocation::Register {
-                                    value_byte_offset: 0,
-                                    byte_size,
-                                    ..
-                                },
-                            ]
-                            | [
-                                ValueLocation::Stack {
-                                    value_byte_offset: 0,
-                                    byte_size,
-                                    ..
-                                },
-                            ] => *byte_size,
-                            _ => {
-                                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                            }
+                        let Some(placed_pointer_word) =
+                            calling_conventions::byte_size_at_offset_zero(
+                                destination.locations.as_slice(),
+                            )
+                        else {
+                            return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                         };
                         if destination.shape
                             != ValueShape::integer(u32::from(pointer_size), pointer_alignment)
@@ -680,22 +668,10 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                 // stand in for that parameter's identity.
                 let source = resolved_source(*source_value, function, sources)
                     .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
-                let placed_byte_size = match placement.locations.as_slice() {
-                    [
-                        ValueLocation::Register {
-                            value_byte_offset: 0,
-                            byte_size,
-                            ..
-                        },
-                    ]
-                    | [
-                        ValueLocation::Stack {
-                            value_byte_offset: 0,
-                            byte_size,
-                            ..
-                        },
-                    ] => *byte_size,
-                    _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
+                let Some(placed_byte_size) =
+                    calling_conventions::byte_size_at_offset_zero(placement.locations.as_slice())
+                else {
+                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 };
                 if source.scalar_type() != *parameter
                     || source.source_value() != *source_value

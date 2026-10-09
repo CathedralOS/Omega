@@ -231,22 +231,10 @@ pub(super) fn validate(
             .zip(&scalar_shapes)
             .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
             .any(|((((argument, value), parameter), shape), index)| {
-                let placed_byte_size = match argument.placement.locations.as_slice() {
-                    [
-                        ValueLocation::Register {
-                            value_byte_offset: 0,
-                            byte_size,
-                            ..
-                        },
-                    ]
-                    | [
-                        ValueLocation::Stack {
-                            value_byte_offset: 0,
-                            byte_size,
-                            ..
-                        },
-                    ] => *byte_size,
-                    _ => return true,
+                let Some(placed_byte_size) = calling_conventions::byte_size_at_offset_zero(
+                    argument.placement.locations.as_slice(),
+                ) else {
+                    return true;
                 };
                 let native_position = index
                     + private_ordinals
