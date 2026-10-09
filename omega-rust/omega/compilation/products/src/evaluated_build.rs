@@ -167,7 +167,7 @@ impl BuildAdmission {
     /// explicit row, else the target environment's declared default.
     /// Retaining it here carries a defaulted path through the same proposal,
     /// report and package custody as an authored one.
-    pub fn native_application_metadata(
+    pub(crate) fn native_application_metadata(
         &self,
         settings: &EvaluatedBuildSettings,
         selected_target_profile: Option<target::TargetProfile>,

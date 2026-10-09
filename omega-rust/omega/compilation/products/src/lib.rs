@@ -39,9 +39,10 @@ pub mod publication;
 mod runtime_provisions;
 
 pub use checked_compilation::{
-    CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
+    CheckedCompilation, CheckedCompilationInputs, CheckedProductReport,
     RetainedCompilationChecks,
 };
+pub(crate) use checked_compilation::{ CompileReportSettlement};
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{
     CheckedCompileOutcome, CompileFailure, CompileOutcomes, CompileTargetOutcome,
@@ -68,8 +69,9 @@ pub use package_build::{PackageBuildOutcome, PreparedPackageBuild};
 pub use package_compilation::RetainedBuildOutputs;
 pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedBuilds};
 pub use prepared_source::{
-    PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier, TypedFrontierRetention,
+    PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier,
 };
+pub(crate) use prepared_source::{ TypedFrontierRetention};
 pub use runtime_provisions::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
