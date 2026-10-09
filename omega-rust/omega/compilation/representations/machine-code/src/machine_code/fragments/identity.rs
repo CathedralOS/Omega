@@ -18,7 +18,7 @@ use target_operations::TerminalPsiProvenance;
 
 const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v18";
 
-pub fn function_fragment_emission_identity(
+pub(crate) fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
 ) -> FunctionFragmentEmissionIdentity {
     let mut hasher = Sha256::new();

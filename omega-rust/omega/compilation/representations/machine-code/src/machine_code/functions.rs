@@ -7,8 +7,9 @@ pub use exit_contract::{
     WholeFunctionExitPolicy, WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
     WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
     WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence, exit_policy_tag, whole_function_exit_contract_identity,
+    WholeFunctionReturnValueEvidence, whole_function_exit_contract_identity,
 };
+pub(crate) use exit_contract::{ exit_policy_tag};
 
 use semantic_vocabulary::PlaceId;
 
@@ -42,7 +43,7 @@ pub struct CompilerPrivateMachineCodeFunction {
 /// Keeping these rows separate prevents an artifact-local `MachineId` from
 /// impersonating a semantic program function with the same numeric identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineCodePlanWithPrivateFunctions {
+pub(crate) struct MachineCodePlanWithPrivateFunctions {
     pub plan: MachineCodePlan,
     pub private_functions: Vec<CompilerPrivateMachineCodeFunction>,
 }

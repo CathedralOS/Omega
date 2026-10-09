@@ -7,7 +7,7 @@ use target::NativeTarget;
 use register_model::FrameAbiPreservationConvention;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NonAuthoritativeSpillFrameRequirementIdentity([u8; 32]);
+pub(crate) struct NonAuthoritativeSpillFrameRequirementIdentity([u8; 32]);
 
 impl NonAuthoritativeSpillFrameRequirementIdentity {
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
@@ -20,14 +20,14 @@ impl NonAuthoritativeSpillFrameRequirementIdentity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum NonAuthoritativeSpillFrameRequirementPolicy {
+pub(crate) enum NonAuthoritativeSpillFrameRequirementPolicy {
     AbstractSpillAreaAndPreservationConventionV1,
 }
 
 /// Requirements only. This artifact has no selected base, offset, frame size,
 /// red-zone placement, shadow space, instruction, fault, unwind, or probing field.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NonAuthoritativeSpillFrameRequirementPlan {
+pub(crate) struct NonAuthoritativeSpillFrameRequirementPlan {
     pub abstract_spill_access_constraints: AbstractSpillAccessConstraintPlanIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub target: NativeTarget,
@@ -38,7 +38,7 @@ pub struct NonAuthoritativeSpillFrameRequirementPlan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FunctionSpillFrameRequirements {
+pub(crate) struct FunctionSpillFrameRequirements {
     pub machine: MachineId,
     pub abstract_spill_area_bytes: u64,
     pub abstract_spill_area_alignment: u64,

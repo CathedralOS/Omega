@@ -20,14 +20,15 @@ pub use frame_identity::{
 };
 pub use frame_layout::{
     CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore,
-    FunctionNonAuthoritativeCalleeSaveStorage, FunctionSpillFrameRequirements,
+    FunctionNonAuthoritativeCalleeSaveStorage,
     FunctionTargetFrameLayout, LocalStorageFrameSlot, NonAuthoritativeCalleeSaveSlot,
     NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageIdentity,
-    NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStoragePolicy,
-    NonAuthoritativeSpillFrameRequirementIdentity, NonAuthoritativeSpillFrameRequirementPlan,
-    NonAuthoritativeSpillFrameRequirementPolicy, OutgoingAbiFrameArea, ReturnAddressFrameCustody,
+    NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStoragePolicy, OutgoingAbiFrameArea, ReturnAddressFrameCustody,
     StackProbePlan, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
+pub(crate) use frame_layout::{ FunctionSpillFrameRequirements,
+    NonAuthoritativeSpillFrameRequirementIdentity, NonAuthoritativeSpillFrameRequirementPlan,
+    NonAuthoritativeSpillFrameRequirementPolicy};
 pub use frame_protocol::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,
     TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
@@ -39,10 +40,11 @@ pub use parameters::{
 pub use scalars::{
     UnitAffineScalarRecordEstablishmentRecord, UnitIntegerConstantRecord, UnitScalarHomeRecord,
 };
-pub use stack::{
-    Aarch64ReturnLinkEvidence, ScalarCallStackEvidence, ScalarStackEvidence, ScalarStackMutation,
+pub use stack::{ ScalarCallStackEvidence, ScalarStackEvidence, ScalarStackMutation,
     ScalarStackMutationKind, StackAdjustmentPair, UnitCallStackEvidence, UnitStackEvidence,
 };
+pub(crate) use stack::{
+    Aarch64ReturnLinkEvidence};
 pub use stores::{
     ScalarStructuralScalarFieldStoreRecord, UnitStructuralScalarFieldStoreRecord,
     UnitWriteOnlyPrimitiveStoreRecord, UnitWriteOnlyPrimitiveStoreSourceRecord,
