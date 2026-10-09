@@ -1,14 +1,15 @@
 //! Emitted program functions and separately identified compiler-private functions.
 
 pub mod exit_contract;
+pub(crate) use exit_contract::exit_policy_tag;
 pub use exit_contract::{
     WholeFunctionCrashEvidence, WholeFunctionEntryAssumption, WholeFunctionExitContract,
     WholeFunctionExitContractIdentity, WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody,
     WholeFunctionExitPolicy, WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
     WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
     WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence, whole_function_exit_contract_identity};
-pub(crate) use exit_contract::{ exit_policy_tag};
+    WholeFunctionReturnValueEvidence, whole_function_exit_contract_identity,
+};
 
 use semantic_vocabulary::PlaceId;
 
@@ -22,7 +23,8 @@ use crate::{
     UnitIntegerConstantRecord, UnitParameterHomeRecord, UnitParameterRecord, UnitScalarHomeRecord,
     UnitStackEvidence, UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
     X86FloatingControlRecord, X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
-    unit_call_arguments};
+    unit_call_arguments,
+};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::TerminalPsiIdentity;
@@ -34,7 +36,8 @@ pub struct CompilerPrivateMachineCodeFunction {
     pub identity: function_identity::MachineFunctionIdentity,
     pub private_symbol: std::sync::Arc<str>,
     pub source_psi: TerminalPsiIdentity,
-    pub function: MachineCodeFunction}
+    pub function: MachineCodeFunction,
+}
 
 impl MachineCodeFunction {
     /// The scalar structural parameter arriving at `place`, when declared.
@@ -171,4 +174,5 @@ pub struct MachineCodeFunction {
     /// Exact ownership-bearing structural return bound to the emitted byte
     /// interval. Claim identities are semantic metadata, never hidden ABI
     /// words.
-    pub structural_return: Option<StructuralReturnRecord>}
+    pub structural_return: Option<StructuralReturnRecord>,
+}

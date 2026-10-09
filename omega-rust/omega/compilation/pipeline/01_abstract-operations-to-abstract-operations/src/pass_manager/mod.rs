@@ -18,32 +18,39 @@ use crate::ranked_rewrites::LoopInvariantScalarMotionError;
 use crate::validation::ValidatedOptimizerRankingCertificates;
 use crate::validation::{
     ValidatedOptimizerCycleComponents, validate_transformed_psi_cycle_components,
-    validate_verified_psi_cycle_components};
+    validate_verified_psi_cycle_components,
+};
 use crate::{AnalysisManagerError, RuleProposalError, RuleRegistryError};
 use crate::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
     CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
-    analyze_counted_loops};
+    analyze_counted_loops,
+};
 #[cfg(any(test, feature = "test-support"))]
 use crate::{
     CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisSnapshot};
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisSnapshot,
+};
 pub(crate) use execution::run_registries;
 use optimization_core::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionRecordError,
     ExternalDecisionLog, ExternalDecisionSchemaError, InvalidOptimizationManifestRecord,
     OptimizationCandidateIdentity, OptimizationIdentityBundle, OptimizationPassManifestRecord,
     OptimizationRuleIdentity, OptimizationSelections, OptimizationUnitIdentity,
-    OptimizationWorkBudget};
+    OptimizationWorkBudget,
+};
 use optimization_unit::{
-    InvalidPsiTransformationLedger, PsiOptimizationUnit, PsiTransformationLedger};
+    InvalidPsiTransformationLedger, PsiOptimizationUnit, PsiTransformationLedger,
+};
 pub use optimization_unit::{
-    OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration};
+    OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration,
+};
 use optimization_unit_semantics::OptimizationUnitValidationError;
 use terminal_psi_to_abstract_operations::{
-    VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit};
+    VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
+};
 
 /// Identity of the deterministic structural cost policy used by every current
 /// target-neutral Psi pass.
@@ -57,7 +64,8 @@ pub struct VerifiedPsiOptimizationSession {
     unit: PsiOptimizationUnit,
     /// Validated at construction in every build, so malformed cycle topology
     /// rejects the session; the relocation boundary reads it back per step.
-    cycle_components: ValidatedOptimizerCycleComponents}
+    cycle_components: ValidatedOptimizerCycleComponents,
+}
 
 impl VerifiedPsiOptimizationSession {
     pub fn new(
@@ -86,7 +94,8 @@ impl VerifiedPsiOptimizationSession {
         Ok(Self {
             input,
             unit,
-            cycle_components})
+            cycle_components,
+        })
     }
 
     /// Rebinds analysis custody to an independently validated transformed
@@ -99,7 +108,8 @@ impl VerifiedPsiOptimizationSession {
         Ok(Self {
             input,
             unit,
-            cycle_components})
+            cycle_components,
+        })
     }
 
     pub const fn input(&self) -> &VerifiedPsiOptimizationInput {
@@ -185,7 +195,6 @@ impl VerifiedPsiOptimizationSession {
             &invariants,
         )
     }
-
 }
 
 #[derive(Debug)]
@@ -206,7 +215,8 @@ pub struct OptimizationRun {
     pub external_decisions: ExternalDecisionLog,
     pub pass_manifests: Vec<OptimizationPassManifestRecord>,
     pub transformation_ledger: PsiTransformationLedger,
-    pub identity_bundle: OptimizationIdentityBundle}
+    pub identity_bundle: OptimizationIdentityBundle,
+}
 
 impl OptimizationRun {
     pub const fn selections(&self) -> &OptimizationSelections {
@@ -252,22 +262,26 @@ pub enum OptimizationRunError {
     Analysis(AnalysisManagerError),
     Proposal {
         rule: OptimizationRuleIdentity,
-        error: RuleProposalError},
+        error: RuleProposalError,
+    },
     CandidateValidation(OptimizationUnitValidationError),
     LoopInvariantScalarMotion(LoopInvariantScalarMotionError),
     WorkBudgetExhausted(&'static str),
     NonDecreasingConvergenceMeasure {
         previous: u64,
-        current: u64},
+        current: u64,
+    },
     OscillatingRevision {
         identity: OptimizationUnitIdentity,
         first_seen_iteration: u64,
-        repeated_at_iteration: u64},
+        repeated_at_iteration: u64,
+    },
     RegistryCoverageMismatch,
     DuplicateCandidate(OptimizationCandidateIdentity),
     CandidateContractMismatch {
         candidate: OptimizationCandidateIdentity,
-        axis: CandidateContractAxis},
+        axis: CandidateContractAxis,
+    },
     PolicySelectionMissing(OptimizationCandidateIdentity),
     InvalidManifest(InvalidOptimizationManifestRecord),
     InvalidTransformationLedger(InvalidPsiTransformationLedger),
@@ -279,7 +293,8 @@ pub enum OptimizationRunError {
     MissingPassManifest,
     DuplicatePipelineRule,
     RegistryConstruction(RuleRegistryError),
-    SelectionRegistryMismatch}
+    SelectionRegistryMismatch,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CandidateContractAxis {
@@ -287,7 +302,8 @@ pub enum CandidateContractAxis {
     Rule,
     RequiredAnalyses,
     InvalidatedAnalyses,
-    SafetyClass}
+    SafetyClass,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExternalDecisionReplayError {
@@ -295,20 +311,25 @@ pub enum ExternalDecisionReplayError {
     ContextMismatch(ExternalDecisionContextAxis),
     DuplicateDecision {
         input: OptimizationUnitIdentity,
-        rule: OptimizationRuleIdentity},
+        rule: OptimizationRuleIdentity,
+    },
     MissingDecision {
         ordinal: usize,
         input: OptimizationUnitIdentity,
-        rule: OptimizationRuleIdentity},
+        rule: OptimizationRuleIdentity,
+    },
     IllegalDecision {
         ordinal: usize,
         expected_input: OptimizationUnitIdentity,
-        expected_rule: OptimizationRuleIdentity},
+        expected_rule: OptimizationRuleIdentity,
+    },
     InvalidRecordedOutcome(BaselineDecisionRecordError),
     LeftoverDecisions {
         first_unused: usize,
-        remaining: usize},
-    ReconstructedLogMismatch}
+        remaining: usize,
+    },
+    ReconstructedLogMismatch,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExternalDecisionContextAxis {
@@ -318,7 +339,8 @@ pub enum ExternalDecisionContextAxis {
     PhaseSelections,
     Target,
     RuleSet,
-    CostModel}
+    CostModel,
+}
 
 impl std::fmt::Display for ExternalDecisionReplayError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -326,11 +348,11 @@ impl std::fmt::Display for ExternalDecisionReplayError {
     }
 }
 
-impl std::error::Error for ExternalDecisionReplayError  {}
+impl std::error::Error for ExternalDecisionReplayError {}
 impl std::fmt::Display for OptimizationRunError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "Psi optimization run failed: {self:?}")
     }
 }
 
-impl std::error::Error for OptimizationRunError  {}
+impl std::error::Error for OptimizationRunError {}

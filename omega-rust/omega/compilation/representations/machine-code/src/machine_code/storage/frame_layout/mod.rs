@@ -18,5 +18,6 @@ pub use layout::{
     TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
 pub(crate) use spill::{
-    FunctionSpillFrameRequirements,
-    NonAuthoritativeSpillFrameRequirementPlan, NonAuthoritativeSpillFrameRequirementPolicy};
+    FunctionSpillFrameRequirements, NonAuthoritativeSpillFrameRequirementPlan,
+    NonAuthoritativeSpillFrameRequirementPolicy,
+};
