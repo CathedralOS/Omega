@@ -59,18 +59,18 @@ impl ProgramEntryReceiverSignature {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramEntryResultSignature {
+pub(crate) enum ProgramEntryResultSignature {
     Unit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramEntryExtentFieldRole {
+pub(crate) enum ProgramEntryExtentFieldRole {
     Base,
     Length,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProgramEntryExtentFieldLayout {
+pub(crate) struct ProgramEntryExtentFieldLayout {
     role: ProgramEntryExtentFieldRole,
     byte_offset: u16,
     shape: calling_conventions::ValueShape,

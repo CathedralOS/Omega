@@ -16,11 +16,11 @@ use target::{
     plan_uefi_boot_services_native_layout,
 };
 
-pub const UEFI_HANDLE_PROTOCOL_SERVICE_IDENTITY: &str = "EFI_BOOT_SERVICES.HandleProtocol";
-pub const UEFI_HANDLE_PROTOCOL_HANDLE_TYPE_IDENTITY: &str = "EFI_HANDLE";
-pub const UEFI_HANDLE_PROTOCOL_GUID_POINTER_TYPE_IDENTITY: &str = "*const EFI_GUID";
-pub const UEFI_HANDLE_PROTOCOL_INTERFACE_OUT_TYPE_IDENTITY: &str = "*mut *mut void";
-pub const UEFI_HANDLE_PROTOCOL_STATUS_TYPE_IDENTITY: &str = "EFI_STATUS";
+pub(crate) const UEFI_HANDLE_PROTOCOL_SERVICE_IDENTITY: &str = "EFI_BOOT_SERVICES.HandleProtocol";
+pub(crate) const UEFI_HANDLE_PROTOCOL_HANDLE_TYPE_IDENTITY: &str = "EFI_HANDLE";
+pub(crate) const UEFI_HANDLE_PROTOCOL_GUID_POINTER_TYPE_IDENTITY: &str = "*const EFI_GUID";
+pub(crate) const UEFI_HANDLE_PROTOCOL_INTERFACE_OUT_TYPE_IDENTITY: &str = "*mut *mut void";
+pub(crate) const UEFI_HANDLE_PROTOCOL_STATUS_TYPE_IDENTITY: &str = "EFI_STATUS";
 
 const HANDLE_PROTOCOL_FIELD_ORDINAL: u8 = 21;
 const HANDLE_PROTOCOL_FIELD_OFFSET: u32 = 152;
@@ -28,14 +28,14 @@ const STATUS_ERROR_BIT: u64 = 1_u64 << 63;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum UefiHandleProtocolStatus {
+pub(crate) enum UefiHandleProtocolStatus {
     Success = 1,
     InvalidParameter = 2,
     Unsupported = 3,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UefiHandleProtocolStatusRow {
+pub(crate) struct UefiHandleProtocolStatusRow {
     status: UefiHandleProtocolStatus,
     code: u64,
 }
@@ -66,7 +66,7 @@ const STATUS_ROWS: [UefiHandleProtocolStatusRow; 3] = [
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use = "UEFI HandleProtocol invocation plan retains exact target provider schema"]
-pub struct UefiHandleProtocolInvocationPlan {
+pub(crate) struct UefiHandleProtocolInvocationPlan {
     profile: TargetProfile,
     service_identity: &'static str,
     service_field: UefiBootServicesNativeFieldLayout,
@@ -119,7 +119,7 @@ impl UefiHandleProtocolInvocationPlan {
 
 #[derive(Debug)]
 #[must_use = "UEFI HandleProtocol plan rejection retains requested profile"]
-pub struct UefiHandleProtocolInvocationPlanError {
+pub(crate) struct UefiHandleProtocolInvocationPlanError {
     profile: TargetProfile,
     diagnostic: Diagnostic,
 }
@@ -141,7 +141,7 @@ impl std::fmt::Display for UefiHandleProtocolInvocationPlanError {
 }
 impl std::error::Error for UefiHandleProtocolInvocationPlanError {}
 
-pub fn plan_uefi_handle_protocol_invocation(
+pub(crate) fn plan_uefi_handle_protocol_invocation(
     profile: TargetProfile,
 ) -> Result<UefiHandleProtocolInvocationPlan, Box<UefiHandleProtocolInvocationPlanError>> {
     let candidate = derive_candidate(profile).map_err(|diagnostic| {

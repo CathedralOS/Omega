@@ -93,7 +93,7 @@ pub fn select_optimized_program_storage_semantic_wrapper_encoding(
 
 /// Independently replay the retained plan, re-project its request, and
 /// re-validate the retained template bytes against that request.
-pub fn validate_optimized_program_storage_semantic_wrapper_encoding(
+pub(crate) fn validate_optimized_program_storage_semantic_wrapper_encoding(
     staged: &StagedOptimizedProgramStorageSemanticWrapperEncoding,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperEncodingError> {
     validate_optimized_program_storage_semantic_wrapper(&staged.source)

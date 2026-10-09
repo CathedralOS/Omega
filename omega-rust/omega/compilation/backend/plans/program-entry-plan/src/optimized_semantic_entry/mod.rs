@@ -105,7 +105,7 @@ impl<'plan> OptimizedProgramStorageSemanticCallingApplication<'plan> {
 /// The semantic contract requires this plan to remain paired with the selected
 /// target slot, but cannot use it to construct or invoke a bootstrap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStoragePhysicalEntryDisposition {
+pub(crate) enum OptimizedProgramStoragePhysicalEntryDisposition {
     PlannedNotInvokedV1,
 }
 
@@ -135,7 +135,7 @@ impl OptimizedProgramStorageSemanticRoot {
         &self.carrier_identity
     }
 
-    pub fn parameter_type_identity(&self) -> &str {
+    pub(crate) fn parameter_type_identity(&self) -> &str {
         &self.parameter_type_identity
     }
 
