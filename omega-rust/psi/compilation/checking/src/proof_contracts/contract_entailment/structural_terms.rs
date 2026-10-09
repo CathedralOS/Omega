@@ -309,6 +309,7 @@ fn structural_term_with_frame(
         ExpressionNode::Binary(binary) => binary_term_in_scope(
             program,
             scope,
+            frame,
             expression,
             structural_term_with_frame(program, scope, frame, binary.left)?,
             structural_term_with_frame(program, scope, frame, binary.right)?,

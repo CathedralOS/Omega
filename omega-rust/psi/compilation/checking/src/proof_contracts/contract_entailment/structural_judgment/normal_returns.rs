@@ -300,6 +300,7 @@ impl<'program> StructuralJudge<'program> {
                     value = super::super::structural_terms::binary_term_in_scope(
                         program,
                         Some(scope),
+                        None,
                         expression,
                         left.clone(),
                         right.clone(),

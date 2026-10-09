@@ -6,7 +6,9 @@
 
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use numerics::float_projection::FloatProjectionOperation;
-use numerics::float_semantics_catalog::{FloatSemanticKernel, FloatSemanticPredicate};
+use numerics::float_semantics_catalog::{
+    FloatSemanticComparison, FloatSemanticKernel, FloatSemanticPredicate,
+};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 
@@ -122,9 +124,105 @@ impl StructuralJudge<'_> {
             primitive,
             self.declaration_term(binary.right)?,
         )?);
+        let comparison = match binary.operator {
+            BinaryOperator::Equal => FloatSemanticComparison::Equal,
+            BinaryOperator::NotEqual => FloatSemanticComparison::NotEqual,
+            _ => return None,
+        };
+        Some(
+            match self.float_comparison_truth(comparison, &left, &right, 0) {
+                Some(true) => StructuralJudgment::Proven,
+                Some(false) => StructuralJudgment::Refuted,
+                None => StructuralJudgment::Unknown,
+            },
+        )
+    }
+
+    /// Selected callable comparisons enter the same application normalizer as
+    /// named calls. A Boolean truth follows only from completed value terms,
+    /// not from equality's source token or a matching result carrier.
+    pub(super) fn judge_value_predicate(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<StructuralJudgment> {
+        if self
+            .declaration_expression_type(expression)
+            .and_then(|reference| self.program.primitive_type_reference(reference))
+            != Some(PrimitiveType::Bool)
+        {
+            return None;
+        }
+        let term = self.resolve(self.declaration_term(expression)?);
+        match term {
+            StructuralTerm::Constructor { data, case, fields }
+                if data == "bool" && fields.is_empty() =>
+            {
+                match language_semantics::const_value::boolean_literal_spelling(&case) {
+                    Some(true) => Some(StructuralJudgment::Proven),
+                    Some(false) => Some(StructuralJudgment::Refuted),
+                    None => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// The sealed comparison row owns its law. Equal complete operands permit
+    /// reflexive IEEE truth only with the appropriate NaN classification;
+    /// this reduction creates a Boolean, never a value-identity substitution.
+    pub(super) fn resolved_float_comparison(
+        &self,
+        value: &StructuralTerm,
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        let StructuralTerm::Application {
+            target,
+            result_type,
+            arguments,
+            selections,
+            ..
+        } = value
+        else {
+            return None;
+        };
+        if depth >= 32 || !selections.is_empty() {
+            return None;
+        }
+        let operator = self.program.operator_definition_by_symbol(*target)?;
+        let (row, _) = crate::proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(self.program, operator)?;
+        let FloatSemanticKernel::PairBool(comparison) = row.kernel() else {
+            return None;
+        };
+        let [left, right] = arguments.as_slice() else {
+            return None;
+        };
+        if !crate::declared_carriers_match(self.program, *result_type, operator.return_type)
+            || self
+                .program
+                .arithmetic_domain_for_type_reference(*result_type)
+                != self
+                    .program
+                    .arithmetic_domain_for_type_reference(operator.return_type)
+        {
+            return None;
+        }
+        self.float_comparison_truth(comparison, left, right, depth + 1)
+            .map(boolean_term)
+    }
+
+    fn float_comparison_truth(
+        &self,
+        comparison: FloatSemanticComparison,
+        left: &StructuralTerm,
+        right: &StructuralTerm,
+        depth: usize,
+    ) -> Option<bool> {
+        if depth >= 32 {
+            return None;
+        }
         let nan_truth = |meaning: &StructuralTerm| {
-            let predicate = nan_predicate(program, meaning.clone())?;
-            let term = self.resolve(predicate);
+            let predicate = nan_predicate(self.program, meaning.clone())?;
+            let term = self.resolve_at(predicate, depth + 1);
             if term == boolean_term(true) {
                 Some(true)
             } else if term == boolean_term(false) {
@@ -133,27 +231,21 @@ impl StructuralJudge<'_> {
                 None
             }
         };
-        let left_nan = nan_truth(&left);
-        let right_nan = nan_truth(&right);
+        let left_nan = nan_truth(left);
+        let right_nan = nan_truth(right);
         if super::super::struct_trace() {
             eprintln!(
-                "STRUCT ieee meanings owner={:?} expression={expression:?} left={left:?} right={right:?} left_nan={left_nan:?} right_nan={right_nan:?}",
-                self.machine_symbol
+                "STRUCT ieee completed comparison={comparison:?} same_meaning={} left_nan={left_nan:?} right_nan={right_nan:?}",
+                left == right
             );
         }
-        let equality = if left_nan == Some(true) || right_nan == Some(true) {
-            false
-        } else if left == right && (left_nan == Some(false) || right_nan == Some(false)) {
-            true
+        if left_nan == Some(true) || right_nan == Some(true) {
+            Some(comparison.unordered_truth())
+        } else if left == right {
+            comparison.same_meaning_truth(left_nan.or(right_nan))
         } else {
-            return Some(StructuralJudgment::Unknown);
-        };
-        let holds = equality == (binary.operator == BinaryOperator::Equal);
-        Some(if holds {
-            StructuralJudgment::Proven
-        } else {
-            StructuralJudgment::Refuted
-        })
+            None
+        }
     }
 }
 

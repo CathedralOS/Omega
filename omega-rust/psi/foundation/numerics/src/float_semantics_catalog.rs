@@ -260,7 +260,7 @@ pub enum FloatSemanticKernel {
     /// `(FloatMeaning, FloatMeaning) -> FloatMeaning`.
     PairMeaning(fn(&FloatMeaning, &FloatMeaning) -> FloatMeaning),
     /// `(FloatMeaning, FloatMeaning) -> bool`.
-    PairBool(fn(&FloatMeaning, &FloatMeaning) -> bool),
+    PairBool(FloatSemanticComparison),
     /// `(FloatFormat, FloatMeaning) -> FloatClass`.
     UnaryClass(fn(FloatFormat, &FloatMeaning) -> FloatClass),
     /// Total classification predicates have explicit semantic identity so
@@ -268,6 +268,51 @@ pub enum FloatSemanticKernel {
     SinglePredicate(FloatSemanticPredicate),
     /// `(FloatFormat, FloatMeaning) -> bool`.
     UnaryBool(fn(FloatFormat, &FloatMeaning) -> bool),
+}
+
+/// IEEE comparison laws owned by the exact selected catalog row.
+/// Reflexive value meaning does not make NaN compare equal to itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloatSemanticComparison {
+    Equal,
+    NotEqual,
+    Less,
+    LessOrEqual,
+    Greater,
+    GreaterOrEqual,
+}
+
+impl FloatSemanticComparison {
+    fn evaluate(self, left: &FloatMeaning, right: &FloatMeaning) -> bool {
+        match self {
+            Self::Equal => FloatSemantics::equal(left, right),
+            Self::NotEqual => FloatSemantics::not_equal(left, right),
+            Self::Less => FloatSemantics::less(left, right),
+            Self::LessOrEqual => FloatSemantics::less_or_equal(left, right),
+            Self::Greater => FloatSemantics::greater(left, right),
+            Self::GreaterOrEqual => FloatSemantics::greater_or_equal(left, right),
+        }
+    }
+
+    /// NaN on either side determines every IEEE comparison independently of
+    /// the other operand. An unknown classification supplies no such fact.
+    pub const fn unordered_truth(self) -> bool {
+        matches!(self, Self::NotEqual)
+    }
+
+    /// Complete equal meanings share their NaN classification. Strict order
+    /// is false even when that classification is unknown; other comparisons
+    /// need it because NaN remains unordered.
+    pub const fn same_meaning_truth(self, nan: Option<bool>) -> Option<bool> {
+        match self {
+            Self::Less | Self::Greater => Some(false),
+            _ => match nan {
+                Some(true) => Some(self.unordered_truth()),
+                Some(false) => Some(!matches!(self, Self::NotEqual)),
+                None => None,
+            },
+        }
+    }
 }
 
 /// The semantic classification law owned by a selected catalog predicate.
@@ -444,10 +489,9 @@ impl FloatSemanticKernel {
                 let [left, right] = arguments else {
                     return None;
                 };
-                Some(FloatSemanticResult::Bool(kernel(
-                    left.as_meaning()?,
-                    right.as_meaning()?,
-                )))
+                Some(FloatSemanticResult::Bool(
+                    kernel.evaluate(left.as_meaning()?, right.as_meaning()?),
+                ))
             }
             Self::UnaryClass(kernel) => {
                 let [format, value] = arguments else {
@@ -709,21 +753,36 @@ pub const FLOAT_SEMANTIC_OPERATIONS: &[FloatSemanticOperation] = &[
         Meaning,
         PairMeaning(FloatSemantics::maximum),
     ),
-    row("equal", PAIR, Bool, PairBool(FloatSemantics::equal)),
-    row("not_equal", PAIR, Bool, PairBool(FloatSemantics::not_equal)),
-    row("less", PAIR, Bool, PairBool(FloatSemantics::less)),
+    row(
+        "equal",
+        PAIR,
+        Bool,
+        PairBool(FloatSemanticComparison::Equal),
+    ),
+    row(
+        "not_equal",
+        PAIR,
+        Bool,
+        PairBool(FloatSemanticComparison::NotEqual),
+    ),
+    row("less", PAIR, Bool, PairBool(FloatSemanticComparison::Less)),
     row(
         "less_or_equal",
         PAIR,
         Bool,
-        PairBool(FloatSemantics::less_or_equal),
+        PairBool(FloatSemanticComparison::LessOrEqual),
     ),
-    row("greater", PAIR, Bool, PairBool(FloatSemantics::greater)),
+    row(
+        "greater",
+        PAIR,
+        Bool,
+        PairBool(FloatSemanticComparison::Greater),
+    ),
     row(
         "greater_or_equal",
         PAIR,
         Bool,
-        PairBool(FloatSemantics::greater_or_equal),
+        PairBool(FloatSemanticComparison::GreaterOrEqual),
     ),
     row(
         "classify",
@@ -1105,8 +1164,8 @@ impl FloatSemanticOperation {
 #[cfg(test)]
 mod tests {
     use super::{
-        FLOAT_SEMANTIC_OPERATIONS, FloatSemanticOperand, FloatSemanticOperation,
-        FloatSemanticResult, FloatSemanticValueKind, IntegerCarrier,
+        FLOAT_SEMANTIC_OPERATIONS, FloatSemanticComparison, FloatSemanticOperand,
+        FloatSemanticOperation, FloatSemanticResult, FloatSemanticValueKind, IntegerCarrier,
     };
     use crate::bignum::BigInt;
     use crate::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
@@ -1292,6 +1351,61 @@ mod tests {
                 .expect("equal discharges")
                 .result,
             FloatSemanticResult::Bool(FloatSemantics::equal(&left, &right))
+        );
+    }
+
+    #[test]
+    fn completed_comparison_laws_agree_with_ieee_kernels() {
+        let comparisons = [
+            FloatSemanticComparison::Equal,
+            FloatSemanticComparison::NotEqual,
+            FloatSemanticComparison::Less,
+            FloatSemanticComparison::LessOrEqual,
+            FloatSemanticComparison::Greater,
+            FloatSemanticComparison::GreaterOrEqual,
+        ];
+        let values = [
+            FloatMeaning::from_f32(0.0),
+            FloatMeaning::from_f32(-0.0),
+            FloatMeaning::from_f32(1.0),
+            FloatMeaning::from_f32(-1.0),
+            FloatMeaning::from_f32(f32::MIN_POSITIVE),
+            FloatMeaning::from_f32(f32::MAX),
+            FloatMeaning::from_f32(f32::INFINITY),
+            FloatMeaning::from_f32(f32::NEG_INFINITY),
+            FloatMeaning::NaN,
+        ];
+        for comparison in comparisons {
+            for value in &values {
+                assert_eq!(
+                    comparison.same_meaning_truth(Some(FloatSemantics::is_nan(value))),
+                    Some(comparison.evaluate(value, value))
+                );
+                assert_eq!(
+                    comparison.unordered_truth(),
+                    comparison.evaluate(value, &FloatMeaning::NaN)
+                );
+                assert_eq!(
+                    comparison.unordered_truth(),
+                    comparison.evaluate(&FloatMeaning::NaN, value)
+                );
+            }
+        }
+        assert_eq!(
+            FloatSemanticComparison::Equal.same_meaning_truth(None),
+            None
+        );
+        assert_eq!(
+            FloatSemanticComparison::NotEqual.same_meaning_truth(None),
+            None
+        );
+        assert_eq!(
+            FloatSemanticComparison::Less.same_meaning_truth(None),
+            Some(false)
+        );
+        assert_eq!(
+            FloatSemanticComparison::Greater.same_meaning_truth(None),
+            Some(false)
         );
     }
 

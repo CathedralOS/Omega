@@ -3,7 +3,6 @@ use super::{
     TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker, structural_call_machine_name,
     term_contains,
 };
-use language_semantics::const_value::boolean_literal_spelling;
 use typed_trees::types::TypeReferenceHandle;
 
 mod licenses;
@@ -607,6 +606,9 @@ impl<'program> StructuralJudge<'program> {
                     {
                         term = replacement.clone();
                         continue;
+                    }
+                    if let Some(truth) = self.resolved_float_comparison(&resolved, depth + 1) {
+                        return truth;
                     }
                     if let Some(normalized) =
                         self.selected_contract_normal_form(&resolved, depth + 1)
@@ -1273,6 +1275,7 @@ impl<'program> StructuralJudge<'program> {
             ExpressionNode::Binary(binary) => super::structural_terms::binary_term_in_scope(
                 program,
                 scope,
+                None,
                 expression,
                 self.callee_term_with_machines(
                     binary.left,
@@ -1474,29 +1477,9 @@ impl<'program> StructuralJudge<'program> {
             };
         }
         let Some(binary) = program.expression_table.binary_node(fact) else {
-            // A boolean-valued proof call is itself a proposition. Resolve a
-            // closed checked application exactly as `call == true`; N6
-            // equivalence laws use this ordinary contract shape.
-            let Some(term) = self.declaration_term(fact) else {
-                return StructuralJudgment::Unknown;
-            };
-            return match self.resolve(term) {
-                StructuralTerm::Constructor { data, case, fields }
-                    if data == "bool"
-                        && fields.is_empty()
-                        && boolean_literal_spelling(&case) == Some(true) =>
-                {
-                    StructuralJudgment::Proven
-                }
-                StructuralTerm::Constructor { data, case, fields }
-                    if data == "bool"
-                        && fields.is_empty()
-                        && boolean_literal_spelling(&case) == Some(false) =>
-                {
-                    StructuralJudgment::Refuted
-                }
-                _ => StructuralJudgment::Unknown,
-            };
+            return self
+                .judge_value_predicate(fact)
+                .unwrap_or(StructuralJudgment::Unknown);
         };
         if super::structural_terms::is_case_observation(program, fact) {
             if !self.is_case_membership(fact, binary) {
@@ -1542,6 +1525,9 @@ impl<'program> StructuralJudge<'program> {
                 self.judge_disjunction(binary.left, binary.right)
             }
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                if let Some(judgment) = self.judge_value_predicate(fact) {
+                    return judgment;
+                }
                 if let Some(judgment) = self.judge_ieee_equality(fact) {
                     return judgment;
                 }
@@ -1596,7 +1582,9 @@ impl<'program> StructuralJudge<'program> {
                     }
                 }
             }
-            _ => StructuralJudgment::Unknown,
+            _ => self
+                .judge_value_predicate(fact)
+                .unwrap_or(StructuralJudgment::Unknown),
         }
     }
 

@@ -6,19 +6,24 @@ use super::StructuralTerm;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
-/// Forms the congruence term for a selected builtin binary operation, with an
+/// Forms the congruence term for the selected binary operation, with an
 /// optional declaring `(machine, state)` fallback plus the expression's
 /// expected (landed) result type. Pure literal operands carry no `Name`, so
 /// `expression_scope` cannot anchor a scope walk, and fully anonymous operands
 /// carry no resolvable result reference; callers that already know the
 /// expression's owning state and expected type pass them through instead of
-/// losing the term.
+/// losing the term. An explicit declaration frame takes precedence over a
+/// name anchor, so contract formals remain in their own telescope. Selected
+/// callable operations retain that exact application and result type rather
+/// than acquiring builtin arithmetic or identity laws.
 pub(crate) fn binary_term_in_scope(
     program: &dyn crate::CheckingInput,
     scope: Option<(&Machine, &State, TypeReferenceHandle)>,
+    frame: Option<(SymbolHandle, &[StateParameter])>,
     expression: ExpressionHandle,
     left: StructuralTerm,
     right: StructuralTerm,
@@ -26,12 +31,27 @@ pub(crate) fn binary_term_in_scope(
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
-    let (machine, state) = expression_scope(program, expression, 0)
-        .and_then(|symbol| scoped_machine_state(program, symbol))
-        .or_else(|| scope.map(|(machine, state, _)| (machine, state)))?;
+    let state_scope = scope
+        .map(|(machine, state, _)| (machine, state))
+        .or_else(|| {
+            expression_scope(program, expression, 0)
+                .and_then(|symbol| scoped_machine_state(program, symbol))
+        });
+    let owner = frame
+        .map(|(owner, _)| owner)
+        .or_else(|| state_scope.map(|(machine, _)| machine.symbol))?;
     let expected = scope.map(|(_, _, expected)| expected);
-    let references = [binary.left, binary.right]
-        .map(|operand| crate::expression_result_type_reference(program, machine, state, operand));
+    let expression_type = |expression| {
+        if let Some((owner, parameters)) = frame {
+            crate::parameter_expression_result_type_reference(
+                program, owner, parameters, expression,
+            )
+        } else {
+            let (machine, state) = state_scope?;
+            crate::expression_result_type_reference(program, machine, state, expression)
+        }
+    };
+    let references = [binary.left, binary.right].map(expression_type);
     if binary.operator == BinaryOperator::CaseMembership {
         return None;
     }
@@ -41,16 +61,54 @@ pub(crate) fn binary_term_in_scope(
     if let Some(spelling) = spelling
         && !typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
-            machine.symbol,
+            owner,
             expression,
             spelling,
             &references,
         )
     {
-        return None;
+        if references.iter().any(Option::is_none)
+            || !typed_trees::operator::selected_trait_operator_meanings(
+                program,
+                owner,
+                spelling,
+                &references,
+            )
+            .is_empty()
+        {
+            return None;
+        }
+        let candidates = typed_trees::operator::resolve_spelling_for_operands(
+            program,
+            spelling,
+            &references,
+            program.expression_table.source_span(expression),
+        );
+        let [selected] = candidates.as_slice() else {
+            return None;
+        };
+        // The application is denotational, not an executed call snapshot.
+        // Its selected public result equations still require their premises
+        // in the common contract normalizer before supplying any truth.
+        if !crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(
+            program,
+            selected.operator,
+        ) {
+            return None;
+        }
+        let result_type = expression_type(expression)?;
+        let name = program
+            .operator_path_members(selected.operator.name)
+            .last()?;
+        return Some(StructuralTerm::Application {
+            result_type,
+            target: selected.operator.symbol,
+            selections: Vec::new(),
+            machine: super::structural_call_machine_name(name.as_str(), &[], &[]),
+            arguments: vec![left, right],
+        });
     }
-    let parent_reference =
-        || crate::expression_result_type_reference(program, machine, state, expression);
+    let parent_reference = || expression_type(expression);
     let reference = |index: usize| {
         references[index]
             .or_else(|| {
