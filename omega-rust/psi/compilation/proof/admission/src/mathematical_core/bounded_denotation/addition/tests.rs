@@ -1,5 +1,6 @@
 use super::super::test_utilities::{
     direct_affine_proof, direct_fixture, elaborate_checked, mathematical,
+    verify_then_elaborate,
 };
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
@@ -148,17 +149,8 @@ fn closed_addend_rule_axioms(
     };
     let context = PropositionContext::from_value_types([]).unwrap();
     let assumptions = [premise];
-    verify_bounded_certificate(
-        &context,
-        &goal,
-        &assumptions,
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
     let parameters = BTreeSet::new();
-    let elaboration = elaborate_checked(&context, &goal, &assumptions, &[], &parameters, &proof);
+    let elaboration = verify_then_elaborate(&context, &goal, &assumptions, &parameters, &proof);
     assert!(
         elaboration.denotation.addition.laws.is_empty(),
         "closed goals derive from numeral laws, not the law chain"
@@ -248,17 +240,8 @@ fn open_sum_over_closed_difference_uses_the_numeral_equation() {
         },
     };
     let assumptions = [premise];
-    verify_bounded_certificate(
-        &context,
-        &goal,
-        &assumptions,
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
     let parameters = BTreeSet::new();
-    let elaboration = elaborate_checked(&context, &goal, &assumptions, &[], &parameters, &proof);
+    let elaboration = verify_then_elaborate(&context, &goal, &assumptions, &parameters, &proof);
     // The closed difference denotes to its numeral `248`, so the
     // cancellation step uses the interned numeral-operation equation
     // `add 248 7 = 255`; monotonicity and endpoint substitution re-decide

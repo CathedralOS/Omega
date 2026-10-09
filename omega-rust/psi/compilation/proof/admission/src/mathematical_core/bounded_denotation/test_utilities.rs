@@ -138,6 +138,28 @@ pub(crate) fn direct_affine_proof(
     }
 }
 
+/// Kernel-verify `proof` against `goal` under `assumptions` with a
+/// default budget, then elaborate it for the rule-and-axiom assertions
+/// below — the prelude the bound tests ran by hand.
+pub(super) fn verify_then_elaborate<'a>(
+    context: &'a PropositionContext,
+    goal: &Proposition,
+    assumptions: &'a [Proposition],
+    machine_parameter_values: &'a BTreeSet<ValueId>,
+    proof: &ProofNode,
+) -> Elaboration<'a> {
+    verify_bounded_certificate(
+        context,
+        goal,
+        assumptions,
+        &[],
+        proof,
+        &mut Budget::default(),
+    )
+    .unwrap();
+    elaborate_checked(context, goal, assumptions, &[], machine_parameter_values, proof)
+}
+
 /// Elaborate `proof` against `goal` under `assumptions`/`semantic_axioms`
 /// — the prelude the bounded tests run before asserting on the recorded
 /// rule and axiom rosters.

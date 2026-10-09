@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use super::super::test_utilities::{
     direct_affine_proof, direct_fixture, elaborate_checked, mathematical,
+    verify_then_elaborate,
 };
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
@@ -152,17 +153,8 @@ fn correlated_subtract_lower_uses_the_add_cancel_law() {
         },
     };
     let assumptions = [premise];
-    verify_bounded_certificate(
-        &context,
-        &goal,
-        &assumptions,
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
     let parameters = BTreeSet::new();
-    let elaboration = elaborate_checked(&context, &goal, &assumptions, &[], &parameters, &proof);
+    let elaboration = verify_then_elaborate(&context, &goal, &assumptions, &parameters, &proof);
     assert!(elaboration.denotation.rule_axioms.is_empty());
     assert_eq!(elaboration.denotation.subtraction.laws.len(), 1);
     assert!(
@@ -332,17 +324,8 @@ fn correlated_subtract_closed_goal_decides_by_numeral_laws() {
         },
     };
     let assumptions = [premise];
-    verify_bounded_certificate(
-        &context,
-        &goal,
-        &assumptions,
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
     let parameters = BTreeSet::new();
-    let elaboration = elaborate_checked(&context, &goal, &assumptions, &[], &parameters, &proof);
+    let elaboration = verify_then_elaborate(&context, &goal, &assumptions, &parameters, &proof);
     assert!(elaboration.denotation.rule_axioms.is_empty());
     assert!(elaboration.denotation.subtraction.laws.is_empty());
 }
