@@ -1,4 +1,8 @@
 //! Guarded structural case arms and structural state leaves.
+//!
+//! Ordinary expression tails and explicit value transitions finish the same
+//! normal-return path. Earlier expressions only advance that path's facts;
+//! named state transfers retain their captured arguments and entry subjects.
 
 use super::call_requirements::{CallRequirement, establish_citation};
 use crate::proof_contracts::contract_entailment::citations::{
@@ -466,6 +470,73 @@ fn recognize_structural_state_leaves_from(
                             established_guarantees.clone(),
                             statement_index + 1,
                         )?);
+                    }
+                    return Some(leaves);
+                }
+                StatementNode::Expression(expression) if !saw_transition => {
+                    let is_tail = statement_index + 1
+                        == program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .len();
+                    let result_type = if is_tail {
+                        state.return_type
+                    } else {
+                        crate::expression_result_type_reference(
+                            program,
+                            machine,
+                            state,
+                            *expression,
+                        )
+                        .unwrap_or_default()
+                    };
+                    let outcomes = judge.normal_return_paths(
+                        *expression,
+                        &environment,
+                        (machine, state, result_type),
+                    )?;
+                    let mut leaves = Vec::new();
+                    for outcome in outcomes {
+                        if is_tail {
+                            if requirement.is_none() {
+                                leaves.push(finalize_structural_case_arm(
+                                    program,
+                                    machine,
+                                    &outcome.judge,
+                                    classification,
+                                    diagnostics,
+                                    parameter_names,
+                                    case_hypotheses.clone(),
+                                    case_equations.clone(),
+                                    pending_citations.clone(),
+                                    outcome.value,
+                                ));
+                            }
+                        } else {
+                            // An evaluated expression is not an early return.
+                            // Resume with its own facts and discard only its
+                            // value; later statements still own the result.
+                            leaves.extend(recognize_structural_state_leaves_from(
+                                program,
+                                machine,
+                                &outcome.judge,
+                                classification,
+                                diagnostics,
+                                states,
+                                state,
+                                parameter_names,
+                                environment.clone(),
+                                case_hypotheses.clone(),
+                                case_equations.clone(),
+                                pending_citations.clone(),
+                                collect_citations,
+                                path,
+                                fresh,
+                                requirement,
+                                established_guarantees.clone(),
+                                statement_index + 1,
+                            )?);
+                        }
                     }
                     return Some(leaves);
                 }
