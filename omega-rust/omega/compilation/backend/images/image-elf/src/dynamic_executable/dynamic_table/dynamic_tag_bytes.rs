@@ -380,22 +380,8 @@ mod tests {
     };
     use target::TargetProfile;
 
-    const FIRST_SITES: &[usize] = &[0, 32];
-    const SECOND_SITES: &[usize] = &[16];
-    const IMPORTS: [crate::test_support::DynamicImportFixture; 2] = [
-        crate::test_support::DynamicImportFixture {
-            object: b"liba\xff.so",
-            symbol: b"alpha\xfe",
-            version: b"V1\xfd",
-            instruction_offsets: FIRST_SITES,
-        },
-        crate::test_support::DynamicImportFixture {
-            object: b"libb.so",
-            symbol: b"beta",
-            version: b"V2",
-            instruction_offsets: SECOND_SITES,
-        },
-    ];
+    const IMPORTS: [crate::test_support::DynamicImportFixture; 2] =
+        crate::test_support::PAIR_IMPORTS;
 
     fn tag_plan(
         target: TargetProfile,

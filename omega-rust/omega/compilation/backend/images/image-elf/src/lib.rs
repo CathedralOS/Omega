@@ -570,6 +570,23 @@ pub(crate) mod test_support {
         },
     ];
 
+    /// The two-import cross-library fixture the section and table tests
+    /// share: one relocation site pair per library.
+    pub(crate) const PAIR_IMPORTS: [ImportFixture; 2] = [
+        ImportFixture {
+            object: b"liba\xff.so",
+            symbol: b"alpha\xfe",
+            version: b"V1\xfd",
+            instruction_offsets: &[0, 32],
+        },
+        ImportFixture {
+            object: b"libb.so",
+            symbol: b"beta",
+            version: b"V2",
+            instruction_offsets: &[16],
+        },
+    ];
+
     /// Insert the imported symbol and its normalized ELF-versioned locator —
     /// the shared prelude of every dynamic-link import fixture.
     pub(crate) fn insert_import_fixture(

@@ -400,23 +400,7 @@ mod tests {
 
     use target::TargetProfile;
 
-    const FIRST_SITES: &[usize] = &[0, 32];
-    const SECOND_SITES: &[usize] = &[16];
-    const IMPORTS: [ImportFixture; 2] = [
-        ImportFixture {
-            object: b"liba\xff.so",
-            symbol: b"alpha\xfe",
-            version: b"V1\xfd",
-            instruction_offsets: FIRST_SITES,
-        },
-        ImportFixture {
-            object: b"libb.so",
-            symbol: b"beta",
-            version: b"V2",
-            instruction_offsets: SECOND_SITES,
-        },
-    ];
-
+    const IMPORTS: [ImportFixture; 2] = crate::test_support::PAIR_IMPORTS;
     fn dynamic_table(
         target: TargetProfile,
         imports: &[ImportFixture],
