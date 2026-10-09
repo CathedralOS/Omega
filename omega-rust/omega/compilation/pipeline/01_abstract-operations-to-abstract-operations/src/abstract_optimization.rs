@@ -102,37 +102,6 @@ pub fn optimize_abstract_operations(
     Ok(published)
 }
 
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn run_psi_registry(
-    verified: VerifiedPsiOptimizationUnit,
-    selections: &OptimizationSelections,
-    registry: &OrderedRuleRegistry,
-    budget: OptimizationWorkBudget,
-) -> Result<OptimizationRun, OptimizationRunError> {
-    let projection = selections.project_psi();
-    let expected =
-        built_in_psi_registry(selections).map_err(OptimizationRunError::RegistryConstruction)?;
-    if expected.identity() != registry.identity()
-        || expected.contracts().collect::<Vec<_>>() != registry.contracts().collect::<Vec<_>>()
-    {
-        return Err(OptimizationRunError::SelectionRegistryMismatch);
-    }
-    let session = VerifiedPsiOptimizationSession::new(verified)
-        .map_err(OptimizationRunError::InitialValidation)?;
-    if registry.is_empty() {
-        run_registries(session, selections, projection.selections(), &[], budget)
-    } else {
-        let step = crate::rules::PsiPassStep::RewriteRegistry(registry.clone());
-        run_registries(
-            session,
-            selections,
-            projection.selections(),
-            std::slice::from_ref(&step),
-            budget,
-        )
-    }
-}
-
 /// Execute every implemented named optimization as its own canonical pass
 /// group and publish one chained run over the exact selected suite.
 #[cfg(any(test, feature = "test-support"))]
@@ -179,31 +148,3 @@ pub(crate) fn run_psi_pipeline_for_projection(
     )
 }
 
-/// Replay a canonical external decision log through the ordinary selected Psi
-/// pipeline. Candidate construction and validation are identical to the
-/// model-free run; the log supplies only the action after validation.
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn replay_psi_pipeline(
-    verified: VerifiedPsiOptimizationUnit,
-    selections: &OptimizationSelections,
-    budget_per_pass: OptimizationWorkBudget,
-    encoded_external_decisions: &[u8],
-) -> Result<OptimizationRun, OptimizationRunError> {
-    let projection = selections.project_psi();
-    let external_decisions =
-        ExternalDecisionLog::decode(encoded_external_decisions).map_err(|error| {
-            OptimizationRunError::ExternalDecisionReplay(ExternalDecisionReplayError::Schema(error))
-        })?;
-    let steps = built_in_psi_steps_for_selections(projection.selections())
-        .map_err(OptimizationRunError::RegistryConstruction)?;
-    let session = VerifiedPsiOptimizationSession::new(verified)
-        .map_err(OptimizationRunError::InitialValidation)?;
-    run_registries_with_external_decisions(
-        session,
-        selections,
-        projection.selections(),
-        &steps,
-        budget_per_pass,
-        external_decisions,
-    )
-}

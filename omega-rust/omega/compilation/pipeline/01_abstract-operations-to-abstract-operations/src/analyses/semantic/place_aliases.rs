@@ -21,16 +21,6 @@ pub(crate) struct PlaceView {
     pub path: Vec<StructuralPathSegment>,
 }
 
-/// Whether two views provably share storage, provably cannot, or sit outside
-/// what the declared roster establishes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) enum PlaceAliasRelation {
-    Overlapping,
-    Disjoint,
-    Unknown,
-}
-
 /// One custody view the verifier admits live on this machine, with every
 /// frontier site holding it as evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,32 +65,6 @@ impl PlaceAliasesAnalysis {
 }
 
 impl PlaceAliasFunction {
-    /// Provable storage relation between two views. Views reach outside their
-    /// root's own extent only through `Referent`, so that crossing is the only
-    /// route by which declared storage can meet another root's content.
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn relation(&self, a: &PlaceView, b: &PlaceView) -> PlaceAliasRelation {
-        let Some(a_kind) = self.root_kind(a.root) else {
-            return PlaceAliasRelation::Unknown;
-        };
-        let Some(b_kind) = self.root_kind(b.root) else {
-            return PlaceAliasRelation::Unknown;
-        };
-        // Provider attachments are boundary evidence without a target layout;
-        // nothing in the roster bounds where their content lives.
-        if matches!(a_kind, StructuralPlaceKind::ProviderAttachment { .. })
-            || matches!(b_kind, StructuralPlaceKind::ProviderAttachment { .. })
-        {
-            return PlaceAliasRelation::Unknown;
-        }
-        if a.root == b.root {
-            return view_path_relation(&a.path, &b.path);
-        }
-        if a.path.iter().chain(b.path.iter()).any(is_referent) {
-            return PlaceAliasRelation::Unknown;
-        }
-        PlaceAliasRelation::Disjoint
-    }
 
     #[cfg(any(test, feature = "test-support"))]
     fn root_kind(&self, place: PlaceId) -> Option<StructuralPlaceKind> {
@@ -108,31 +72,6 @@ impl PlaceAliasFunction {
             .binary_search_by_key(&place, |root| root.place)
             .ok()
             .and_then(|index| self.roots[index].kind)
-    }
-}
-
-/// Same-root path relation. Any divergence — different field, case index, or
-/// one path crossing `Referent` where the other stays in carrier storage —
-/// names disjoint extents. A prefix extends into the longer view's storage
-/// only while the continuation stays inside it, so a continuation beginning
-/// at `Referent` is disjoint rather than contained.
-#[cfg(any(test, feature = "test-support"))]
-fn view_path_relation(
-    a: &[StructuralPathSegment],
-    b: &[StructuralPathSegment],
-) -> PlaceAliasRelation {
-    let shared = a.iter().zip(b.iter()).take_while(|(x, y)| x == y).count();
-    if shared < a.len() && shared < b.len() {
-        return PlaceAliasRelation::Disjoint;
-    }
-    let continuation = if a.len() < b.len() {
-        &b[shared..]
-    } else {
-        &a[shared..]
-    };
-    match continuation.first() {
-        Some(StructuralPathSegment::Referent) => PlaceAliasRelation::Disjoint,
-        _ => PlaceAliasRelation::Overlapping,
     }
 }
 

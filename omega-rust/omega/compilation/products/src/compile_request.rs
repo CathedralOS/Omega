@@ -211,7 +211,6 @@ impl CompileRequest {
         self
     }
 
-
     /// Supply the package's sources and accepted input policy once. Each
     /// target independently admits the resulting package custody.
     pub fn with_package_inputs(mut self, inputs: PackageCompilationInputs) -> Self {
@@ -225,16 +224,6 @@ impl CompileRequest {
     /// selected target. Missing demanded rows still reject during authority review.
     pub fn with_terminal_authority_policy(mut self, policy: TerminalAuthorityPolicy) -> Self {
         self.policy.terminal_authority_policy = policy;
-        self
-    }
-    /// Supply an explicit receiving permission policy to every current
-    /// destination; calling this is the only way a request claims receiver
-    /// admission, including when the supplied policy is explicitly empty.
-    pub(crate) fn with_terminal_authority_permission_policy(
-        mut self,
-        policy: TerminalAuthorityPermissionPolicy,
-    ) -> Self {
-        self.policy.terminal_authority_permission_policy = Some(policy);
         self
     }
     pub fn with_optimization_rollback(mut self, rollback: OptimizationRollback) -> Self {

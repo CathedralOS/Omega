@@ -39,31 +39,6 @@ pub struct ConsumedSourceUnit {
 }
 
 impl ConsumedSourceUnit {
-    /// Construct one canonical source row for custody coverage. The retained
-    /// coordinate must match the shape [`consumed_source_unit`] derives: a
-    /// package-authored or package-generated unit names its reconciled package
-    /// and no toolchain namespace, an owned toolchain unit names its canonical
-    /// namespace and no package, and a virtual toolchain unit names neither.
-    /// Every row retains a nonempty relative path of nonempty components, and
-    /// a toolchain namespace is never empty.
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn for_test(
-        kind: ConsumedSourceUnitKind,
-        package: Option<semantic_vocabulary::PackageKeyIdentity>,
-        toolchain_namespace: Option<String>,
-        relative_path: Vec<String>,
-        byte_count: u64,
-        content_digest: [u8; 32],
-    ) -> Result<Self, &'static str> {
-        Self::from_retained(
-            kind,
-            package,
-            toolchain_namespace,
-            relative_path,
-            byte_count,
-            content_digest,
-        )
-    }
 
     /// Rebuild one retained row from its decoded coordinates. Same shape
     /// contract as [`for_test`](Self::for_test) — persisted projections are

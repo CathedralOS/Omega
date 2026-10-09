@@ -250,7 +250,6 @@ impl CompileReport {
         self.build_observation
     }
 
-
     /// Record companions after their package owner has published them.
     pub(crate) fn record_build_output_publication(mut self) -> Result<Self, String> {
         if !matches!(self.product, CompileProduct::BuildArtifacts) && !self.wrote_output {
@@ -619,21 +618,11 @@ impl CompileReport {
         Ok(self)
     }
 
-
-
     /// Transfer the complete Terminal product without dropping its callback
     /// sidecar. There is deliberately no consuming artifact-only projection.
     pub fn into_retained_terminal_artifact(self) -> Option<RetainedTerminalArtifact> {
         match self.product {
             CompileProduct::TerminalArtifact(product) => Some(product.artifact),
-            _ => None,
-        }
-    }
-
-
-    pub(crate) fn executable_publication(&self) -> Option<&ExecutablePublicationReceipt> {
-        match &self.product {
-            CompileProduct::NativeExecutable(product) => Some(&product.executable),
             _ => None,
         }
     }
@@ -650,7 +639,6 @@ impl CompileReport {
             _ => None,
         }
     }
-
 
     /// Returns the installed `.app` package root only after independently
     /// replaying the complete report custody checks, including the
