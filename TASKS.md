@@ -1287,6 +1287,14 @@ defines the complete product bar.
   for fresh and call-produced linear claims, acyclic exits and reordered
   parameter positions. These controls exit 0 natively and in Terminal on
   macOS ARM64; nondecreasing and stale-premise cycles still reject.
+  Rank range arrivals and executable projection share exact recurrence
+  relevance: a suffix unable to reach the ranked cycle may omit its rank
+  formal. Keep `pass/termination/joint_rank_acyclic_finish_exit` for a joint
+  preserving/strict cycle with a parameterless finish, and
+  `pass/termination/rank_range_record_snapshot_compile` for an ordinary
+  snapshot return after the cycle (source-only). A rankless finish calling
+  back into its owner and a snapshot fed back into recurrence still reject;
+  unrelated exit requirements and prefix write checks remain obligatory.
   Unproved arrivals, overwritten requirement inputs and actual `u32` overrides
   still reject; machine-entry requirements are not imported at internal arrivals.
 

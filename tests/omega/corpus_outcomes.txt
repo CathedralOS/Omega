@@ -2261,6 +2261,8 @@ fail/termination/increasing_unbounded_rejected rejected 369ms expected @8836526a
 	terminating machine Main::climb: unbounded `Nat::Increasing` is not a well-founded ranking -- the bound is part of the view: name it with `-> Nat::IncreasingTo(limit)`
 fail/termination/joint_machine_call_cycle_stalled rejected 101ms expected @c08960bee2b1+wt
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/joint_rankless_finish_reenters_component rejected 422ms expected @cbd2e74d8f23
+	terminating machine left: cannot prove rank range `0..=9` for the rank produced by the selected view
 fail/termination/lexicographic_component_zero_step_rejected rejected 118ms expected @c08960bee2b1+wt
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- ranking preservation or strict DECREASE is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/measure_field_arrival_contract rejected 745ms expected @2d8ed253669f
@@ -4118,6 +4120,7 @@ pass/termination/inherited_acyclic_requirement_guarantee_compile checked 295ms @
 pass/termination/inherited_requirement_guarantee_compile checked 286ms @2d8ed253669f
 pass/termination/joint_lexicographic_machine_call_cycle_compile checked 288ms @2d8ed253669f
 pass/termination/joint_machine_call_cycle_forwarding_compile checked 286ms @2d8ed253669f
+pass/termination/joint_rank_acyclic_finish_exit checked 3202ms check-target:macos_arm64 @cbd2e74d8f23
 pass/termination/measure_borrowed_projection_range checked 302ms @2d8ed253669f
 pass/termination/measure_field_call_component checked 373ms @c4e45d3dda38+wt
 pass/termination/measure_field_computed_arrival checked 307ms @2d8ed253669f
@@ -4147,6 +4150,7 @@ pass/termination/rank_range_nested_slice_carrier_borrowed checked 313ms @2d8ed25
 pass/termination/rank_range_nested_slice_length checked 303ms @2d8ed253669f
 pass/termination/rank_range_prefix_call checked 286ms @2d8ed253669f
 pass/termination/rank_range_projected_slice_length checked 284ms @2d8ed253669f
+pass/termination/rank_range_record_snapshot_compile checked 619ms @cbd2e74d8f23
 pass/termination/rank_range_scratch_input_write checked 282ms @2d8ed253669f
 pass/termination/rank_range_state_call checked 311ms check-target:macos_arm64 @2d8ed253669f
 pass/termination/rank_range_state_call_requires_bridge checked 293ms @2d8ed253669f
