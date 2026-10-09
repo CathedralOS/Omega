@@ -11,7 +11,6 @@ use package_source::local::resolution_observations::{
     VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,
 };
 use package_source::{GitObjectIdAlgorithm, ImmutableSourceResolution, LocalSourceLimits};
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 pub(super) fn render_resolution(
@@ -241,11 +240,10 @@ fn render_file_summary(
 }
 
 fn file_content_commitment(bytes: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(b"omega-package-source-file-v1\0");
-    hasher.update((bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
-    hasher.finalize().into()
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-source-file-v1\0");
+    digest.bytes(bytes);
+    digest.finish()
 }
 
 fn file_parts(kind: Option<&VerifiedPackageSourceEntryKind>) -> Option<(&[u8], bool)> {

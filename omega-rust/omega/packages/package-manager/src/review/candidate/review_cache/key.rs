@@ -3,7 +3,7 @@
 //! package key and source resolution.
 
 use crate::declarations::DependencyPurpose;
-use package_compilation::review_record_encoding::{hash_framed, purpose_tag};
+use package_compilation::review_record_encoding::purpose_tag;
 use package_compilation::{
     PackageCompilationInputs, review_cache_inputs_digest, review_cache_snapshot_digest,
 };
@@ -54,23 +54,22 @@ pub(super) fn compiled_review_key_with_identity(
     snapshot: &build_evaluation::BuildSnapshotRequest,
     compiler_identity: [u8; 32],
 ) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(RECORD_KEY_DOMAIN);
-    digest.update(package.digest());
-    digest.update([purpose_tag(purpose)]);
-    hash_framed(&mut digest, checked_target.target_name().as_bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(RECORD_KEY_DOMAIN);
+    digest.raw(&package.digest());
+    digest.byte(purpose_tag(purpose));
+    digest.bytes(checked_target.target_name().as_bytes());
     match build_execution_profile {
         Some(profile) => {
-            digest.update([1]);
-            hash_framed(&mut digest, profile.target_name().as_bytes());
+            digest.byte(1);
+            digest.bytes(profile.target_name().as_bytes());
         }
-        None => digest.update([0]),
+        None => digest.byte(0),
     }
-    hash_framed(&mut digest, entry.as_os_str().as_encoded_bytes());
-    digest.update(compiler_identity);
-    digest.update(review_cache_inputs_digest(inputs));
-    digest.update(review_cache_snapshot_digest(snapshot));
-    digest.finalize().into()
+    digest.bytes(entry.as_os_str().as_encoded_bytes());
+    digest.raw(&compiler_identity);
+    digest.raw(&review_cache_inputs_digest(inputs));
+    digest.raw(&review_cache_snapshot_digest(snapshot));
+    digest.finish().into()
 }
 
 pub(super) fn lineage_digest(lineage: &SourceLineage) -> [u8; 32] {
@@ -88,8 +87,8 @@ pub(super) fn resolution_digest(resolution: &ImmutableSourceResolution) -> [u8; 
             content,
         } => {
             digest.update([0]);
-            hash_framed(&mut digest, commit.to_hex().as_bytes());
-            hash_framed(&mut digest, tree.to_hex().as_bytes());
+            digest.update(commit.to_hex().as_bytes());
+            digest.update(tree.to_hex().as_bytes());
             digest.update(content.digest());
         }
         ImmutableSourceResolution::Workspace { content } => {

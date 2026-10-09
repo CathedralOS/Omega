@@ -3,14 +3,13 @@
 use super::super::SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN;
 use super::super::usage::Budget;
 use super::super::{CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint};
-use sha2::{Digest, Sha256};
 
 pub(in super::super) fn fingerprint(bytes: &[u8]) -> CanonicalSourceClosureSubjectFingerprint {
-    let mut hasher = Sha256::new();
-    hasher.update(SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN);
-    hasher.update((bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
-    CanonicalSourceClosureSubjectFingerprint(hasher.finalize().into())
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN,
+    );
+    digest.bytes(bytes);
+    CanonicalSourceClosureSubjectFingerprint(digest.finish())
 }
 
 pub(in super::super) fn encode_hex(bytes: &[u8]) -> String {
