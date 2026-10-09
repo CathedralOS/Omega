@@ -354,3 +354,52 @@ The storage and view traits moved here (`ArrayAccess`, `SliceAccess`,
 `VecAccess`, `FixedVecAccess`, `PointerArithmetic`, `BoundedQueueAccess`)
 have no callers, so their service identity is unobserved today; the answer
 decides whether their rows declare `reaches;`.
+
+### Q6 - How does source call a requirement through a `Binding<R>`?
+
+Named decision: `binding-receiver-call-form`.
+
+**Customer:** the product compiler's own entry, `source/omega/main.omg`,
+which the Omega-written compiler must resolve, type and check
+(**OMEGA-PRODUCT-COMPILER-SOURCE**). Its context holds `console:
+Binding<Console>` and it calls `block context.console.read_byte()`,
+`context.console.write_byte(value as i32)` and
+`context.console.exit_process(tag as i32)`; the language guide writes
+`app.console.write_line("Hello")` and `suspend proxy.service.write(text)`
+(chapter 19). The product resolver and typer have no rule to admit these
+calls, and any rule they adopt is source surface.
+
+**Existing rules:** [expressions](wiki/spec/language/expressions.md#calls-places-and-temporaries):
+"A named machine call selects a static path and supplies every ordinary
+parameter explicitly ... called as `Buffer::clear(&mut buffer)`, not
+`buffer.clear()` ... Dot access remains data-field projection; it does not
+select or invoke a machine." [Component publication](wiki/spec/build/component_publication.md#bindings-and-era-entry):
+`Binding<R>` is the runtime call authority for boundary trait `R`;
+"Repeated service use borrows it", and a bare trait value rejects.
+[Boundary calls](wiki/spec/terminal-psi/boundary_calls.md) gives "omitted
+service receivers" no parameter tag and binds each used binding field to
+the bodyless requirements it calls directly, but defines only the Terminal
+shape, not the source spelling. [Effects](wiki/spec/language/effects.md)
+types a boundary call by its requirement's signature and contract. No page
+says how a source call names the binding it goes through; the requirement
+signatures (`Console::read_byte() -> ByteRead`) have no binding parameter.
+The Rust reference compiler accepts the dot form by unwrapping a
+`Binding<R>` receiver and resolving the member against `R`
+(`omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols/type_references/queries.rs`).
+
+**Decision needed:**
+
+1. **Recommended: a `Binding<R>` place is the one receiver.** `place.op(args)`
+   where `place` has type `Binding<R>` (a field, local or parameter) calls
+   requirement `R::op` with exactly its arguments, borrowing the binding as
+   the omitted service receiver; dot access on every other type stays
+   field projection. This is the spelling the guide, the product entry, the
+   library and the reference compiler already use.
+2. **An explicit leading binding argument:** `Console::read_byte(&context.console)`,
+   a named requirement call whose first argument is the binding and is not
+   one of the requirement's parameters. This keeps dot access uniform but
+   makes the argument list differ from the requirement's signature.
+3. **Ambient selection:** `Console::read_byte()` routes through the unique
+   `Binding<Console>` field reachable from the entry context, chosen by the
+   compiler; two candidates reject. No receiver is written, but selection
+   depends on the context's shape rather than the call.

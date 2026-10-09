@@ -6048,7 +6048,17 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   closure (its 3 units, std's `console` with its 5 target implementations,
   core's `binding` and `external_binding`) parses whole except the Windows
   console's retired `boundary requirement`; `console.omg`'s writer ranks
-  its loop by `terminates by bytes -> Slice::Length`.
+  its loop by `terminates by bytes -> Slice::Length`. Without the Windows
+  file, resolving it stops at `data Main { console: Binding<Console>; }`
+  (core's `Binding<R>` takes a boundary trait, which resolution admits in no
+  type-argument position yet); its console calls
+  (`context.console.read_byte()`) wait on owner decision
+  `binding-receiver-call-form`, and std's target providers still declare
+  defaults through `Owner::provider_defaults` calling
+  `Owner::select_provider<Trait, Owner>(defaults)` over a provider data
+  type, a convention no spec page defines (wiki/spec/build/provider_selection.md
+  selects named implementations through `Build::select_provider<Slot,
+  Provider>(builder)`).
   The resolver gate resolves the whole psi package, its 58
   units, as one package `psi`; the shared syntax tables hold
   4,096 roots, 1,024 uses, 32,000 path members (under a third used by psi; a
