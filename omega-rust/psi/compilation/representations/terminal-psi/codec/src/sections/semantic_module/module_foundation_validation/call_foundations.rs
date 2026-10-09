@@ -3,7 +3,7 @@
 
 use super::{
     StructuralArgumentPresentation, callee_exact_payloadless_return, has_service,
-    has_structural_type, is_claim_free_structural_call, validate_claim_indices,
+    has_structural_type, is_claim_free_structural_call, validate_claim_actions,
     validate_structural_arguments, validate_structural_path,
 };
 use crate::codec_error::{CodecError, malformed};
@@ -32,7 +32,7 @@ fn validate_call_tail(
         structural_parameters,
         StructuralArgumentPresentation::Ordinary,
     )?;
-    validate_claim_indices(
+    validate_claim_actions(
         machine,
         structural_arguments,
         claim_transfers
@@ -140,7 +140,7 @@ pub(super) fn validate_call_dynamic(
             StructuralArgumentPresentation::Ordinary,
         )?;
     }
-    validate_claim_indices(
+    validate_claim_actions(
         machine,
         structural_arguments,
         claim_transfers
@@ -493,7 +493,7 @@ pub(super) fn validate_boundary_call(
         &boundary.structural_parameters,
         StructuralArgumentPresentation::Boundary,
     )?;
-    validate_claim_indices(
+    validate_claim_actions(
         machine,
         structural_arguments,
         completion_receipts

@@ -5,7 +5,7 @@
 // record field when the result initializes it and again when it reseats the
 // vacated field by assignment. The executable root-result and disposal
 // control is `linear_call_result_claims_exit`; this fixture additionally
-// requires boundary-call realization and reseated-field claim transport.
+// requires boundary-call realization.
 data Receipt [linear] { code: i32; }
 
 domain Receipt::Issued;

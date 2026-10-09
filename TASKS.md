@@ -544,13 +544,12 @@ defines the complete product bar.
     a state parameter whose arrivals carry different claims (two locals
     swapped across arms) has "unsupported graph custody" (stage 05
     `state_graph/claims.rs`): a Terminal operation names one static claim, so
-    that join needs by-path binding like a call result's. Passing a projection
-    of a linear field reseated by `pair.left = make(5)` fails Terminal
-    foundation validation ("claim action does not match a declared structural
-    claim path"); consuming the reseated owner whole runs. The qualified-result
+    that join needs by-path binding like a call result's. The qualified-result
     boundary/reseated-field combination in
     `pass/ownership/linear_qualified_call_result_claims` still needs boundary
-    realization and projected replacement-claim transport. Preserve ordinary
+    realization. Preserve projected replacement and sibling custody in
+    `pass/ownership/linear_call_result_place_assignment_exit` and reject
+    `fail/ownership/linear_replaced_field_second_use`. Preserve ordinary
     qualified result, state-return and disposal custody in
     `pass/ownership/linear_call_result_claims_exit`; missing result membership
     and reuse of the transferred original must reject. Wider/nested

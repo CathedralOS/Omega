@@ -32,6 +32,13 @@ return is a bijection between the claims it hands back and the caller's result
 bindings. Claim identities stay machine-local. Result custody is established
 only on successful completion; it cannot also remain on the input owner.
 
+A claim declaration's path describes its establishment, not its permanent
+location. Construction, replacement stores and state transfers can rebase the
+same identity beneath a different owned home. Foundation validation authenticates
+the declared identity and typed operands; live ownership checks authenticate
+the current home and the exact path relative to the consuming argument. The
+original declaration is not rewritten when custody moves.
+
 Normal boundary completion carries the verifier-derived receipt set for every live
 claim at each exact argument position, not one receipt per parameter. Missing,
 duplicate, reordered, or path-mismatched rows reject. Commit consumption only

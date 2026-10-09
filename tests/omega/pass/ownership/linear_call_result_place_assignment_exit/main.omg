@@ -48,7 +48,13 @@ machine main() crashes Trap {
     let first: i32 = consume(held);
     held = make(9);
     let second: i32 = consume(held);
-    transition retired == 1 && settled == 7 && first == 8 && second == 9 {
+    let mut projected: Pair = issue(3, 4);
+    let removed: i32 = consume(projected.left);
+    projected.left = make(6);
+    let replacement: i32 = consume(projected.left);
+    let sibling: i32 = consume(projected.right);
+    transition retired == 1 && settled == 7 && first == 8 && second == 9
+        && removed == 3 && replacement == 6 && sibling == 4 {
         true -> done()
         _ -> bad()
     }

@@ -1196,35 +1196,35 @@ fn is_plain_affine_operation_result(
     })
 }
 
-fn validate_claim_indices(
+fn validate_claim_actions(
     machine: &TerminalMachine,
     arguments: &[StructuralArgument],
     claims: impl Iterator<Item = (ClaimId, u32)>,
 ) -> Result<(), CodecError> {
     let mut transferred = BTreeSet::new();
     for (claim, argument_index) in claims {
-        let Some(argument) = arguments.get(argument_index as usize) else {
+        if arguments.get(argument_index as usize).is_none() {
             return malformed("claim action has an unknown structural argument index");
-        };
+        }
         if !transferred.insert(claim) {
             return malformed("claim action repeats a claim identity");
         }
-        // A declaration authenticates identity and relative path, not the
-        // claim's current home after an owned state transfer. Exact argument
-        // types/paths are checked above; source checking and consuming custody
-        // establish the live home, rather than this declaration-table lookup.
-        // Moving an aggregate projection carries its descendant claims, not
-        // only a claim exactly at the selected aggregate's root.
-        let matches_path = |path: &[StructuralPathSegment]| path.starts_with(&argument.path);
+        // Declarations authenticate machine-local identity, not the claim's
+        // current coordinates. A store can move a result-root claim beneath
+        // an aggregate field; a later projection names that new home without
+        // changing the original declaration. Actual/formal typed paths are
+        // checked by the call foundation. Source checking, ownership replay
+        // and consuming custody check the live place and relative transfer
+        // path; comparing the original path here would reject valid moves.
         let declared = machine
             .entry_claims
             .iter()
-            .any(|entry| entry.claim == claim && matches_path(&entry.path))
+            .any(|entry| entry.claim == claim)
             || machine.loan_completions.iter().any(|completion| {
                 completion
                     .claims
                     .iter()
-                    .any(|binding| binding.claim == claim && matches_path(&binding.path))
+                    .any(|binding| binding.claim == claim)
             })
             || machine.operations().any(|operation| {
                 let Some(result) = operation.result.structural() else {
@@ -1237,13 +1237,10 @@ fn validate_claim_indices(
                         && matches!(declaration.kind,
                         StructuralPlaceKind::OperationResult { producer, structural_type }
                         if producer == operation.id && structural_type == result.structural_type)
-                }) && result
-                    .claims
-                    .iter()
-                    .any(|binding| binding.claim == claim && matches_path(&binding.path))
+                }) && result.claims.iter().any(|binding| binding.claim == claim)
             });
         if !declared {
-            return malformed("claim action does not match a declared structural claim path");
+            return malformed("claim action has an undeclared structural claim identity");
         }
     }
     Ok(())

@@ -1767,6 +1767,8 @@ fail/ownership/linear_mixed_branch_treatment rejected 633ms expected @2d8ed25366
 	linear value `receipt` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation
 fail/ownership/linear_qualified_result_requires_membership rejected 370ms expected @d2a4bcea8c9a+wt
 	cannot prove default-domain field requirement for return from missing at statement 0: receipt requires Receipt::Issued
+fail/ownership/linear_replaced_field_second_use rejected 267ms expected @81c6f9927396+wt
+	cannot use `pair.left` in machine `main` state `entry` (statement 4) after `pair.left` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `pair.left` first
 fail/ownership/linear_result_member_argument_scope_loss rejected 668ms expected @9c376f77b213+wt
 	linear value `second.right` reaches scope exit without being consumed or transferred
 fail/ownership/linear_result_member_argument_second_use rejected 487ms expected @9c376f77b213+wt
