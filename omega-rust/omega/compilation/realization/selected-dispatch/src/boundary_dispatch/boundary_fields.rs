@@ -55,12 +55,11 @@ pub(crate) fn named_type_symbol(
     typed: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        typed.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    symbol.is_valid().then_some(*symbol)
+    let symbol = typed
+        .type_reference_table
+        .type_reference(type_reference)
+        .as_named_symbol()?;
+    symbol.is_valid().then_some(symbol)
 }
 
 /// Whether the field's requirement family -- the boundary trait or the

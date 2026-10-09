@@ -169,13 +169,14 @@ fn plan_selected_boundary_adapter_dispatch(
                 }
                 requirement
             } else {
-                let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+                let Some(symbol) = typed
                     .type_reference_table
                     .type_reference(field.type_reference)
+                    .as_named_symbol()
                 else {
                     continue;
                 };
-                *symbol
+                symbol
             };
             if !adapters
                 .iter()

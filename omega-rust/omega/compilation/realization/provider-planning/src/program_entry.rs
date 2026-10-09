@@ -369,15 +369,17 @@ fn provisioned_entry_context_from_parameters<'program>(
                 parameter.name
             )));
         };
-        let TypeReferenceNode::Named { symbol, .. } =
-            typed.type_reference_table.type_reference(*referee)
+        let Some(symbol) = typed
+            .type_reference_table
+            .type_reference(*referee)
+            .as_named_symbol()
         else {
             return Err(Diagnostic::error(format!(
                 "entry machine `{machine_name}` context `{}` must name its exact provisioned data type",
                 parameter.name
             )));
         };
-        *symbol
+        symbol
     };
     let definition = typed
         .data_definition_by_symbol(definition_symbol)

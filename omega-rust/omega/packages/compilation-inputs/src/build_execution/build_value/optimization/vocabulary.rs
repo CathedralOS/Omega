@@ -53,16 +53,17 @@ pub(super) fn classify(typed: &TypedTrees) -> Result<OptimizationBuildVocabulary
                 "Build declares more than one `optimizations` field",
             )]);
         };
-        let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+        let Some(symbol) = typed
             .type_reference_table
             .type_reference(field.type_reference)
+            .as_named_symbol()
         else {
             return Err(vec![Diagnostic::error(format!(
                 "Build.optimizations must have the exact toolchain `Optimizations` type, got `{}`",
                 typed.display_type_reference_with_constraints(field.type_reference)
             ))]);
         };
-        if !is_exact_toolchain_build_prelude_data(typed, *symbol, "Optimizations") {
+        if !is_exact_toolchain_build_prelude_data(typed, symbol, "Optimizations") {
             return Err(vec![Diagnostic::error(format!(
                 "Build.optimizations must have the exact toolchain `Optimizations` type, got `{}`",
                 typed.display_type_reference_with_constraints(field.type_reference)

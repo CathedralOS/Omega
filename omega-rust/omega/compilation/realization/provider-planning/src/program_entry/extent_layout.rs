@@ -36,15 +36,15 @@ pub(super) fn capture(
     {
         base_type = *unconstrained;
     }
-    let TypeReferenceNode::Named {
-        symbol: data_symbol,
-        ..
-    } = typed.type_reference_table.type_reference(base_type)
+    let Some(data_symbol) = typed
+        .type_reference_table
+        .type_reference(base_type)
+        .as_named_symbol()
     else {
         return Err("selected program-storage root is not a named Extent record".into());
     };
     let definition = typed
-        .data_definition_by_symbol(*data_symbol)
+        .data_definition_by_symbol(data_symbol)
         .ok_or_else(|| "selected program-storage Extent has no data definition".to_owned())?;
     let [
         typed_trees::data::DataMember::Field(base),
