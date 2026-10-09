@@ -149,7 +149,7 @@ pub enum AtomicModificationAfter {
 /// Why a retained [`AtomicReadsFrom`] edge fails the coherence axiom
 /// replayed by [`happens_before_atomic_coherence_violation`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AtomicReadsFromViolation {
+pub(crate) enum AtomicReadsFromViolation {
     /// A store or fence carries a reads-from witness although it observes
     /// no resident.
     NonObservingWitness,
@@ -182,7 +182,7 @@ pub enum AtomicReadsFromViolation {
 /// Why a retained [`AtomicModificationAfter`] edge fails the coherence
 /// axiom replayed by [`happens_before_atomic_coherence_violation`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AtomicModificationAfterViolation {
+pub(crate) enum AtomicModificationAfterViolation {
     /// A load or fence carries a modification-order edge although it joins
     /// no modification order.
     NonMemberEdge,

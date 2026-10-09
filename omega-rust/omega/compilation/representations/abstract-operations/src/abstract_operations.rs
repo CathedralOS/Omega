@@ -70,9 +70,10 @@ pub use structural_type_catalog::StructuralTypeCatalog;
 pub mod atomic;
 pub use atomic::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
-    AtomicCoherenceViolation, AtomicModificationAfter, AtomicModificationAfterViolation,
-    AtomicReadsFrom, AtomicReadsFromViolation, happens_before_atomic_coherence_violation,
+    AtomicCoherenceViolation, AtomicModificationAfter,
+    AtomicReadsFrom, happens_before_atomic_coherence_violation,
 };
+pub(crate) use atomic::{ AtomicModificationAfterViolation, AtomicReadsFromViolation};
 pub mod calls;
 pub use calls::{
     AbstractBoundaryResult, AbstractCallSignature, AbstractCallTarget,
@@ -94,11 +95,12 @@ pub use integer_arithmetic::{
     IntegerShiftPolicy,
 };
 pub mod operations;
-pub use operations::{AbstractOperation, IntegerArithmeticOperands, IntegerShiftOperands};
+pub use operations::{AbstractOperation};
+pub(crate) use operations::{ IntegerArithmeticOperands, IntegerShiftOperands};
 mod structural_stores;
 pub use structural_stores::{StructuralScalarStoreDestination, StructuralWindowRoot};
 mod structural_copy;
 pub use structural_copy::StructuralCopyPath;
 
 mod storage_mutations;
-pub use storage_mutations::StorageMutation;
+pub(crate) use storage_mutations::StorageMutation;

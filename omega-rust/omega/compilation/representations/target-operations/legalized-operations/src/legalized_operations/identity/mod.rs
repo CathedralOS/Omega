@@ -17,9 +17,10 @@ pub use canonical::identity as legalized_operation_plan_identity;
 mod ordinary_calls;
 mod read_byte;
 pub use calling::{
-    encode_call_plan, encode_callback_materialization, encode_eightbyte_class,
-    encode_indirect_pointer, encode_native_place, encode_placement, encode_shape,
+    encode_call_plan, encode_placement, encode_shape,
 };
+pub(crate) use calling::{ encode_callback_materialization, encode_eightbyte_class,
+    encode_indirect_pointer, encode_native_place};
 pub use encoding::encode_fuel;
 pub use normalized_foreign::{encode_locator,
     encode_call_binding, encode_machine_function_identity, encode_native_callback_argument,
