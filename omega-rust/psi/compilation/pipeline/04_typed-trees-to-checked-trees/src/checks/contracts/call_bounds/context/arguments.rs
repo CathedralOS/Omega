@@ -196,12 +196,7 @@ fn meaning(
             })
         }
         ExpressionNode::Binary(binary) => {
-            let spelling = match binary.operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                _ => return None,
-            };
+            let spelling = crate::checks::arithmetic_spelling(binary.operator)?;
             let left = meaning(program, facts, owner, parameters, binary.left);
             let right = meaning(program, facts, owner, parameters, binary.right);
             // Anonymous integer literals take the other operand's carrier;

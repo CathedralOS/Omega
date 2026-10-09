@@ -767,12 +767,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 }),
             ExpressionNode::Borrow(borrow) => self.term_reference(borrow.target),
             ExpressionNode::Binary(binary) => {
-                let spelling = match binary.operator {
-                    BinaryOperator::Add => OperatorSpelling::Add,
-                    BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                    BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                    _ => return None,
-                };
+                let spelling = crate::checks::arithmetic_spelling(binary.operator)?;;
                 let left = self.term_reference(binary.left)?;
                 let right = self.term_reference(binary.right)?;
                 self.builtin_meaning(expression, spelling, left.binder_type, right.binder_type)

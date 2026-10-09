@@ -62,6 +62,8 @@ mod ranges;
 pub(crate) mod termination;
 
 use diagnostics::Diagnostic;
+use language_core::OperatorSpelling;
+use typed_trees::expression::BinaryOperator;
 pub(crate) use operators::{named_operator_route_is_false, operator_route_is_false};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
@@ -211,4 +213,15 @@ pub(crate) fn unsigned(primitive: PrimitiveType) -> bool {
         primitive,
         typed_trees::unsigned_integer_primitive_pattern!()
     )
+}
+
+/// The spelling of the arithmetic binary operators shared by meaning and
+/// term-reference normalization; `None` for any other operator.
+pub(crate) fn arithmetic_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
+    match operator {
+        BinaryOperator::Add => Some(OperatorSpelling::Add),
+        BinaryOperator::Subtract => Some(OperatorSpelling::Subtract),
+        BinaryOperator::Multiply => Some(OperatorSpelling::Multiply),
+        _ => None,
+    }
 }
