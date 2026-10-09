@@ -39,9 +39,17 @@ fn encode_option<T>(bytes: &mut Vec<u8>, value: Option<T>, encode: impl FnOnce(&
 }
 
 pub(super) fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
+    encode_le_list(bytes, values, |value| value.to_le_bytes());
+}
+
+fn encode_le_list<T, const N: usize>(
+    bytes: &mut Vec<u8>,
+    values: impl ExactSizeIterator<Item = T>,
+    to_le: impl Fn(T) -> [u8; N],
+) {
     length(bytes, values.len());
     for value in values {
-        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, to_le(value));
     }
 }
 
@@ -65,10 +73,7 @@ pub(super) fn decode_ids<T>(
 }
 
 pub(super) fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) {
-    length(bytes, values.len());
-    for value in values {
-        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-    }
+    encode_le_list(bytes, values, |value| value.to_le_bytes());
 }
 
 pub(super) fn decode_u16s(cursor: &mut Cursor<'_>) -> Result<Vec<u16>, FixedViewCopyDecodeError> {
