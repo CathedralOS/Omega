@@ -74,10 +74,32 @@ impl StructuralJudge<'_> {
         };
         let references =
             [binary.left, binary.right].map(|operand| self.declaration_expression_type(operand));
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT ieee operands owner={:?} expression={expression:?} references={references:?}",
+                self.machine_symbol
+            );
+        }
         let [Some(left_type), Some(right_type)] = references else {
             return None;
         };
         let primitive = program.primitive_type_reference(left_type)?;
+        if super::super::struct_trace()
+            && matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+        {
+            eprintln!(
+                "STRUCT ieee authority owner={:?} expression={expression:?} primitive={primitive:?} right_primitive={:?} builtin={}",
+                self.machine_symbol,
+                program.primitive_type_reference(right_type),
+                typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    self.machine_symbol,
+                    expression,
+                    spelling,
+                    &references
+                )
+            );
+        }
         if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
             || program.primitive_type_reference(right_type) != Some(primitive)
             || !typed_trees::operator::has_builtin_spelled_expression_meaning(
@@ -113,6 +135,12 @@ impl StructuralJudge<'_> {
         };
         let left_nan = nan_truth(&left);
         let right_nan = nan_truth(&right);
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT ieee meanings owner={:?} expression={expression:?} left={left:?} right={right:?} left_nan={left_nan:?} right_nan={right_nan:?}",
+                self.machine_symbol
+            );
+        }
         let equality = if left_nan == Some(true) || right_nan == Some(true) {
             false
         } else if left == right && (left_nan == Some(false) || right_nan == Some(false)) {
@@ -153,8 +181,17 @@ fn projected_meaning(
         )?;
         (source == primitive).then_some(operator)
     });
-    let operator = candidates.next()?;
-    if candidates.next().is_some() {
+    let operator = candidates.next();
+    let duplicate = candidates.next();
+    if super::super::struct_trace() {
+        eprintln!(
+            "STRUCT ieee projection primitive={primitive:?} target={:?} duplicate={:?}",
+            operator.map(|operator| operator.symbol),
+            duplicate.map(|operator| operator.symbol)
+        );
+    }
+    let operator = operator?;
+    if duplicate.is_some() {
         return None;
     }
     operator_application(program, operator, value)
