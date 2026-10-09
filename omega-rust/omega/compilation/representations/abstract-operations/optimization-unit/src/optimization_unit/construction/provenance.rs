@@ -74,8 +74,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::ElementViewSubslice { psi_operation, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(psi_operation, ..)
         | O::StructuralScalarFieldRead { psi_operation, .. }
-        | O::BooleanNot { psi_operation, .. }
-        | O::BooleanEqual { psi_operation, .. }
+        | abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation, ..)
         | abstract_operations::integer_equal_less_pair_pattern!(psi_operation, ..)
         | O::IntegerLessOrEqual { psi_operation, .. }
         | O::IntegerBitwiseNot { psi_operation, .. }

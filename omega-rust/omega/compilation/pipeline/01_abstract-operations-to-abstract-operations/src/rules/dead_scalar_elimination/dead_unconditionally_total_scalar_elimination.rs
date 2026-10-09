@@ -44,16 +44,8 @@ psi_optimization_rule_delegate!(
 
 pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
     let (source_operation, result, scalar_type) = match operation {
-        O::BooleanNot {
-            psi_operation,
-            result,
-            ..
-        }
-        | O::BooleanEqual {
-            psi_operation,
-            result,
-            ..
-        }
+        abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation,
+            result, ..)
         | abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
             result, ..)
         | O::IntegerLessOrEqual {

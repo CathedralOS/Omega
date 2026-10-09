@@ -267,8 +267,7 @@ pub(super) fn lower(
             | AbstractOperation::ScalarRepresentationView { result, .. }
             | abstract_operations::integer_equal_less_pair_pattern!(result, ..)
             | AbstractOperation::IntegerLessOrEqual { result, .. }
-            | AbstractOperation::BooleanNot { result, .. }
-            | AbstractOperation::BooleanEqual { result, .. } => Some(*result),
+            | abstract_operations::boolean_not_or_equal_pair_pattern!(result, ..) => Some(*result),
             AbstractOperation::IntegerArithmetic { result, .. }
             | AbstractOperation::TrappingInteger { result, .. }
             | AbstractOperation::IntegerBitwiseAnd { result, .. }

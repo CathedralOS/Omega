@@ -28,7 +28,7 @@ pub(super) fn evaluate(
     location: NodeLocation,
 ) -> Result<BooleanEvaluation, OptimizationUnitValidationError> {
     match node.operation {
-        O::BooleanNot { .. } | O::BooleanEqual { .. } => {
+        abstract_operations::boolean_not_or_equal_pair_pattern!(..) => {
             boolean_literals::evaluate(function, node, candidate)
         }
         abstract_operations::integer_equal_less_pair_pattern!(..) | O::IntegerLessOrEqual { .. } => {

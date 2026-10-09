@@ -1253,3 +1253,11 @@ macro_rules! element_view_read_write_pair_pattern {
             | $crate::AbstractOperation::ElementViewWrite { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! boolean_not_or_equal_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::BooleanNot { $($fields)* }
+            | $crate::AbstractOperation::BooleanEqual { $($fields)* }
+    };
+}

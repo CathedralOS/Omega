@@ -268,16 +268,8 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         } => Ok((*psi_operation, *result)),
-        AbstractOperation::BooleanEqual {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::BooleanNot {
-            psi_operation,
-            result,
-            ..
-        }
+        abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation,
+            result, ..)
         | AbstractOperation::IntegerWiden {
             psi_operation,
             result,

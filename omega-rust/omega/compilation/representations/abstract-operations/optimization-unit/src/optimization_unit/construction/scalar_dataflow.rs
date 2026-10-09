@@ -42,8 +42,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
             ..
         } => Some((result.value, result.scalar_type)),
         O::BooleanConstant { result, .. }
-        | O::BooleanNot { result, .. }
-        | O::BooleanEqual { result, .. }
+        | abstract_operations::boolean_not_or_equal_pair_pattern!(result, ..)
         | O::IeeeFloatCompare { result, .. }
         | abstract_operations::integer_equal_less_pair_pattern!(result, ..)
         | O::IntegerLessOrEqual { result, .. } => Some((*result, ScalarType::Boolean)),

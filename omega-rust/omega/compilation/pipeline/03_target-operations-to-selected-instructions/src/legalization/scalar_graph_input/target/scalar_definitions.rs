@@ -137,8 +137,7 @@ pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
             | AbstractOperation::ElementViewRead { .. }
             | abstract_operations::integer_equal_less_pair_pattern!(..)
             | AbstractOperation::IntegerLessOrEqual { .. }
-            | AbstractOperation::BooleanNot { .. }
-            | AbstractOperation::BooleanEqual { .. }
+            | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
             | AbstractOperation::TrappingInteger { .. }
             | AbstractOperation::IntegerArithmetic { .. }
             | AbstractOperation::IntegerShift { .. }
@@ -375,16 +374,8 @@ pub(super) fn observation(
             result,
             ..
         }
-        | AbstractOperation::BooleanNot {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::BooleanEqual {
-            psi_operation,
-            result,
-            ..
-        } => (*psi_operation, *result, ScalarType::Boolean),
+        | abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation,
+            result, ..) => (*psi_operation, *result, ScalarType::Boolean),
         _ => return Err(LegalizationError::custody()),
     };
     if result_home.defining_operation != operation

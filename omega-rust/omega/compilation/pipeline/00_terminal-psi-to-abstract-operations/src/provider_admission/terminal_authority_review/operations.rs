@@ -73,8 +73,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::ElementViewSubslice { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | AbstractOperation::StructuralScalarFieldRead { .. }
-        | AbstractOperation::BooleanNot { .. }
-        | AbstractOperation::BooleanEqual { .. }
+        | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::IntegerBitwiseNot { .. }

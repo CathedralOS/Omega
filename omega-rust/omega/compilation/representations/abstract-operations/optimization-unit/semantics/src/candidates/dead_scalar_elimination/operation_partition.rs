@@ -11,8 +11,7 @@ use super::rule_catalog::{DeadScalarFamily, dead_scalar_family};
 fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option<DeadScalarFamily> {
     match operation {
         O::IntegerConstant { .. } | O::BooleanConstant { .. } => Some(DeadScalarFamily::Literal),
-        O::BooleanNot { .. }
-        | O::BooleanEqual { .. }
+        abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
         | O::IntegerBitwiseNot { .. }
@@ -126,16 +125,8 @@ pub(crate) fn independently_validated_dead_scalar_shape(
         ) => Some((*psi_operation, *result, ScalarType::Boolean, None)),
         (
             DeadScalarFamily::UnconditionallyTotal,
-            O::BooleanNot {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::BooleanEqual {
-                psi_operation,
-                result,
-                ..
-            }
+            abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation,
+                result, ..)
             | abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
                 result, ..)
             | O::IntegerLessOrEqual {

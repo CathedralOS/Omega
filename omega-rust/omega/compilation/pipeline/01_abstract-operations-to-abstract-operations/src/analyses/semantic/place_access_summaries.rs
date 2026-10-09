@@ -850,8 +850,7 @@ fn scan_operation(
         | O::IeeeFloatCompare { .. }
         | O::FloatResultPolicy { .. }
         | O::BooleanConstant { .. }
-        | O::BooleanNot { .. }
-        | O::BooleanEqual { .. }
+        | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
         | O::IntegerBitwiseNot { .. }

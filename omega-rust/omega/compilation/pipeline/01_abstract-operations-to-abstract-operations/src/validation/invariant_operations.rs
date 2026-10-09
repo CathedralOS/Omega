@@ -69,8 +69,7 @@ pub(crate) fn admissible_scalar_leaf_relocation(node: &OptimizationNode) -> bool
 /// per use site by [`invariant_scalar_operand_substitution`].
 pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -> bool {
     let psi_operation = match &node.operation {
-        O::BooleanNot { psi_operation, .. }
-        | O::BooleanEqual { psi_operation, .. }
+        abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation, ..)
         | abstract_operations::integer_equal_less_pair_pattern!(psi_operation, ..)
         | O::IntegerLessOrEqual { psi_operation, .. }
         | abstract_operations::bitwise_not_and_pair_pattern!(psi_operation, ..)

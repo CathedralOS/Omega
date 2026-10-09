@@ -686,8 +686,7 @@ pub(super) fn lower_operation(
         | AbstractOperation::ElementViewSubslice { .. }
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | AbstractOperation::IntegerLessOrEqual { .. }
-        | AbstractOperation::BooleanNot { .. }
-        | AbstractOperation::BooleanEqual { .. }
+        | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | AbstractOperation::IntegerArithmetic { .. }
         | AbstractOperation::TrappingInteger { .. }
         | AbstractOperation::IntegerBitwiseAnd { .. }
