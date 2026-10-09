@@ -193,9 +193,7 @@ fn instruction_size(
         SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => {
             if !matches!(
                 instruction.kind,
-                SelectedInstructionKind::CallScalar { .. }
-                    | SelectedInstructionKind::CallUnit { .. }
-                    | SelectedInstructionKind::CallAggregate { .. }
+                selected_instructions::selected_call_triple_pattern!(..)
             ) {
                 return unexpected(instruction.id);
             }

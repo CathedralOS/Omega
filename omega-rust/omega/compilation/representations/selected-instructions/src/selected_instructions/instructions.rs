@@ -606,3 +606,12 @@ macro_rules! load_width_triple_pattern {
             | $crate::SelectedInstructionKind::Load32 { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! selected_call_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::SelectedInstructionKind::CallAggregate { $($fields)* }
+            | $crate::SelectedInstructionKind::CallScalar { $($fields)* }
+            | $crate::SelectedInstructionKind::CallUnit { $($fields)* }
+    };
+}

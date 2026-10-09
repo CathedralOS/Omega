@@ -395,9 +395,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.push(predicate.mask_bit());
         }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
-        SelectedInstructionKind::CallScalar { target }
-        | SelectedInstructionKind::CallAggregate { target }
-        | SelectedInstructionKind::CallUnit { target } => {
+        crate::selected_call_triple_pattern!(target, ..) => {
             target.encode_identity(bytes);
         }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {

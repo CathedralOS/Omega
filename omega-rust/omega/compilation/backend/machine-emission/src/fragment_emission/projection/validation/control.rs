@@ -16,9 +16,7 @@ pub(super) fn check(
     instruction: &SelectedInstruction,
     actual: &Control,
 ) -> Result<(), ResolvedFragmentEmissionError> {
-    if let SelectedInstructionKind::CallScalar { target }
-    | SelectedInstructionKind::CallUnit { target }
-    | SelectedInstructionKind::CallAggregate { target } = instruction.kind
+    if let selected_instructions::selected_call_triple_pattern!(target, ..) = instruction.kind
     {
         let mut rows = function
             .calls

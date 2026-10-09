@@ -471,9 +471,7 @@ fn operand_chain_length(
 fn is_call_consumer(instruction: &SelectedInstruction) -> bool {
     matches!(
         instruction.kind,
-        SelectedInstructionKind::CallUnit { .. }
-            | SelectedInstructionKind::CallScalar { .. }
-            | SelectedInstructionKind::CallAggregate { .. }
+        selected_instructions::selected_call_triple_pattern!(..)
     )
 }
 

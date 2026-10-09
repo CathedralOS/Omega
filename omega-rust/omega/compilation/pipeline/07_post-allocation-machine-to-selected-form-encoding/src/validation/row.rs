@@ -145,9 +145,7 @@ pub(crate) fn validate(
             }
             Ok(())
         }
-        kind @ (SelectedInstructionKind::CallScalar { .. }
-        | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallAggregate { .. }) => {
+        kind @ (selected_instructions::selected_call_triple_pattern!(..)) => {
             if row.address.is_some() {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }

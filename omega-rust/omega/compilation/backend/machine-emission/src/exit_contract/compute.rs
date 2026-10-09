@@ -384,9 +384,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                 } else {
                     if matches!(
                         instruction.kind,
-                        SelectedInstructionKind::CallScalar { .. }
-                            | SelectedInstructionKind::CallUnit { .. }
-                            | SelectedInstructionKind::CallAggregate { .. }
+                        selected_instructions::selected_call_triple_pattern!(..)
                     ) {
                         if function_frame.is_none() {
                             return Err(WholeFunctionExitContractError::NonReturnControlEffect(

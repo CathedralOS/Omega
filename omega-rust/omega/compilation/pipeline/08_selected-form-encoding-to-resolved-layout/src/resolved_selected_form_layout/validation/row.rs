@@ -56,7 +56,7 @@ pub(super) fn validate(
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup },
         ) => {
-            if !matches!(instruction.kind, SelectedInstructionKind::CallScalar { target: selected_instructions::SelectedCallTarget::Machine(callee) } | SelectedInstructionKind::CallUnit { target: selected_instructions::SelectedCallTarget::Machine(callee) } | SelectedInstructionKind::CallAggregate { target: selected_instructions::SelectedCallTarget::Machine(callee) } if callee == fixup.callee)
+            if !matches!(instruction.kind, selected_instructions::selected_call_triple_pattern!(target:selected_instructions::SelectedCallTarget::Machine(callee), ..) if callee == fixup.callee)
                 || candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup != Some(*fixup)

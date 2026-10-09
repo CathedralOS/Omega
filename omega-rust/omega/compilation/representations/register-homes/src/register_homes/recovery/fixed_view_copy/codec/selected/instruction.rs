@@ -323,9 +323,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        SelectedInstructionKind::CallScalar { target }
-        | SelectedInstructionKind::CallAggregate { target }
-        | SelectedInstructionKind::CallUnit { target } => {
+        selected_instructions::selected_call_triple_pattern!(target, ..) => {
             target.encode_identity(bytes);
         }
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
