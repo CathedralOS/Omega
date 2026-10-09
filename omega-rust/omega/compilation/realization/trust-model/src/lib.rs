@@ -10,6 +10,7 @@
 //! artifact writing or compiler orchestration. Source judgments still
 //! arrive as checked trees; this is not a Terminal-only consumer yet.
 
+mod digest_encoder;
 mod accepted_machine_grants;
 mod accepted_templates;
 mod admission_settlement;

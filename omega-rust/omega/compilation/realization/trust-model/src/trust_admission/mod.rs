@@ -1,6 +1,5 @@
 //! Exact admission values: semantic subjects, strong digests, and identity comparison.
 
-use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::fmt;
 
@@ -54,14 +53,11 @@ fn trust_admission_digest(
     commitment: &str,
     underlying: &[u8; 32],
 ) -> TrustAdmissionDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.trust-admission.v1\0");
-    digest.update((subject.domain().len() as u64).to_le_bytes());
-    digest.update(subject.domain());
-    digest.update((commitment.len() as u64).to_le_bytes());
-    digest.update(commitment.as_bytes());
-    digest.update(underlying);
-    TrustAdmissionDigest(digest.finalize().into())
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.trust-admission.v1\0");
+    digest.bytes(subject.domain());
+    digest.string(commitment);
+    digest.raw(underlying);
+    TrustAdmissionDigest(digest.finish().into())
 }
 
 /// One exact owner-policy admission consumed by compilation.
