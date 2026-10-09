@@ -5,7 +5,7 @@
 //! storage. No child mutates or publishes until the whole constructor's type,
 //! qualification and custody checks succeed.
 use crate::byte_sequences::ByteSequenceView;
-use crate::custody::resolve_structural_arguments;
+use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -35,14 +35,12 @@ impl<'execution> ConstructorValue<'execution> {
             }
             return Ok(Self::ScalarArray(array));
         }
-        resolve_structural_arguments(
+        resolve_single_structural_argument(
             &execution.program.structural_types(),
             &execution.structural_values,
-            std::slice::from_ref(argument),
-        )?
-        .pop()
+            argument,
+        )
         .map(Self::Placed)
-        .ok_or_else(malformed)
     }
 
     pub(crate) fn structural_type(&self) -> StructuralTypeId {
