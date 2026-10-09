@@ -48,7 +48,7 @@ fn inspect_package_source_with_resolver(
 }
 
 /// Inspect one source using manager-owned private resolver storage.
-pub fn inspect_package_source(
+pub(crate) fn inspect_package_source(
     request: PackageSourceRequest,
     storage: &SourceResolver,
     limits: LocalSourceLimits,

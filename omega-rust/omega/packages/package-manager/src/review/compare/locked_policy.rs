@@ -8,7 +8,7 @@ use std::fmt;
 
 /// Failure to associate fresh compiler output with an exact retained target.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LockedPolicyComparisonError {
+pub(crate) enum LockedPolicyComparisonError {
     MissingReview { package: PackageKey },
     UnexpectedReview { package: PackageKey },
     DuplicateReview { package: PackageKey },
@@ -72,7 +72,7 @@ impl std::error::Error for LockedPolicyComparisonError {}
 /// package count. Fresh policies project only the retained risk rows. Neither
 /// equality nor a changed-key result
 /// approves admissions, replays historical decisions, or issues fresh evidence.
-pub fn compare_locked_package_policies(
+pub(crate) fn compare_locked_package_policies(
     accepted: &PackageLockTarget,
     reviews: &CompilerIssuedPackageReviewSet,
 ) -> Result<Vec<PackageKey>, LockedPolicyComparisonError> {

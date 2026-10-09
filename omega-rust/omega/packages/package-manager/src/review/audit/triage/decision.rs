@@ -15,7 +15,7 @@ use super::render::{self, TriageRenderError};
 /// This is review-only orchestration state. It is neither accepted lock
 /// evidence nor proof that a human or model audited source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageTriageDisposition {
+pub(crate) enum PackageTriageDisposition {
     NoReviewBlocker,
     NoReviewBlockerWithAuditRecommended,
     BlockedMissingAdmissionBaseline,
@@ -24,7 +24,7 @@ pub enum PackageTriageDisposition {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageTriageReason {
+pub(crate) enum PackageTriageReason {
     InitialAdmission,
     NewTransitivePackage,
     RemovedPackage,
@@ -43,7 +43,7 @@ pub enum PackageTriageReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageTriageDecision {
+pub(crate) struct PackageTriageDecision {
     package_name: String,
     baseline_key: Option<PackageKey>,
     candidate_key: Option<PackageKey>,
@@ -56,7 +56,7 @@ impl PackageTriageDecision {
         &self.package_name
     }
 
-    pub fn baseline_key(&self) -> Option<&PackageKey> {
+    pub(crate) fn baseline_key(&self) -> Option<&PackageKey> {
         self.baseline_key.as_ref()
     }
 
@@ -74,7 +74,7 @@ impl PackageTriageDecision {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompilerReviewTriage {
+pub(crate) struct CompilerReviewTriage {
     decisions: Vec<PackageTriageDecision>,
 }
 
@@ -102,7 +102,7 @@ impl CompilerReviewTriage {
 /// Initial installation is comparison against an empty baseline. Dangerous
 /// authority and opaque representation-TCB rows recommend audit immediately;
 /// the absence of an old package is not itself a conflict.
-pub fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> CompilerReviewTriage {
+pub(crate) fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> CompilerReviewTriage {
     let _stage = timings::stage("triage");
     CompilerReviewTriage {
         decisions: candidate
@@ -137,7 +137,7 @@ pub fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> Com
 /// where retained accepted rows still govern capability comparison. A caller
 /// may leave this state only by starting the explicit full-graph fresh-
 /// admission flow; it may not reinterpret the update as unchanged.
-pub fn triage_update_without_admission_baseline(
+pub(crate) fn triage_update_without_admission_baseline(
     candidate: &CompilerIssuedPackageReviewSet,
 ) -> CompilerReviewTriage {
     let _stage = timings::stage("triage");
@@ -167,7 +167,7 @@ pub fn triage_update_without_admission_baseline(
 /// canonical baseline rows still govern capability comparison. A package-key
 /// change is a replacement/provenance conflict; exact-key source revisions are
 /// ordinary updates. Advisory model output is deliberately not accepted here.
-pub fn triage_review_update(
+pub(crate) fn triage_review_update(
     baseline: &CompilerIssuedPackageReviewSet,
     candidate: &CompilerIssuedPackageReviewSet,
     unavailable_baseline_sources: &BTreeSet<PackageKey>,

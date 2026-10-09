@@ -120,7 +120,7 @@ fn resolve_selected_git_declared_source_from_pin_in_lanes(
     }
 }
 
-pub fn resolve_git_package_source(
+pub(crate) fn resolve_git_package_source(
     request: &GitSourceRequest,
     storage: &SourceResolver,
     limits: LocalSourceLimits,
@@ -132,7 +132,7 @@ pub fn resolve_git_package_source(
     )
 }
 
-pub fn resolve_selected_git_package_source(
+pub(crate) fn resolve_selected_git_package_source(
     request: &GitPackageSourceRequest,
     storage: &SourceResolver,
     limits: LocalSourceLimits,
@@ -149,7 +149,7 @@ pub fn resolve_selected_git_package_source(
     result
 }
 
-pub fn resolve_selected_git_project_source(
+pub(crate) fn resolve_selected_git_project_source(
     request: &GitPackageSourceRequest,
     storage: &SourceResolver,
     limits: LocalSourceLimits,

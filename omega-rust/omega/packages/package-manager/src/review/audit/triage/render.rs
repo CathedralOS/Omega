@@ -6,7 +6,7 @@ use package_evidence::record::PackageReviewDangerousAuthorityClass;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TriageRenderError {
+pub(crate) struct TriageRenderError {
     maximum_bytes: usize,
     required_bytes: usize,
 }

@@ -23,7 +23,7 @@ pub(super) const CONTEXT_LINES: usize = 3;
 /// changed files, and output rejects rather than truncates. These are review
 /// resource limits, not package identity or admission policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PackageSourcePatchLimits {
+pub(crate) struct PackageSourcePatchLimits {
     maximum_entries_per_snapshot: usize,
     maximum_bytes_per_snapshot: u64,
     maximum_metadata_bytes_per_snapshot: usize,
@@ -98,13 +98,13 @@ impl Default for PackageSourcePatchLimits {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageSourcePatchSide {
+pub(crate) enum PackageSourcePatchSide {
     Baseline,
     Candidate,
 }
 
 #[derive(Debug)]
-pub enum PackageSourcePatchError {
+pub(crate) enum PackageSourcePatchError {
     PackageKeyMismatch,
     SourceCustody {
         side: PackageSourcePatchSide,
@@ -194,7 +194,7 @@ impl std::error::Error for PackageSourcePatchError {}
 /// symlink payloads, and line bytes remain attacker-controlled code data; they
 /// are lane-prefixed and byte-escaped but are not claimed prompt-safe.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageSourcePatch {
+pub(crate) struct PackageSourcePatch {
     baseline_key: Option<PackageKey>,
     candidate_key: PackageKey,
     changed_entries: usize,

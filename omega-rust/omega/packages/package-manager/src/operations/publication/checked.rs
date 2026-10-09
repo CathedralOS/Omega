@@ -2,7 +2,7 @@
 
 mod error;
 use PublishReviewedPackageChangeError as Error;
-pub use error::PublishReviewedPackageChangeError;
+pub(crate) use error::PublishReviewedPackageChangeError;
 
 use super::PackageFileTransaction;
 use crate::declarations::BuildFileReplacement;
@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 /// The transaction journal records an accepted intent, not proof of an audit.
 /// A pending-publication error may follow a partial write; recover that intent
 /// under the project mutex before loading the next accepted pair.
-pub fn publish_reviewed_package_change(
+pub(crate) fn publish_reviewed_package_change(
     transaction: &mut PackageFileTransaction,
     replacement: &BuildFileReplacement,
     stage: &StagedLocalSnapshot,
