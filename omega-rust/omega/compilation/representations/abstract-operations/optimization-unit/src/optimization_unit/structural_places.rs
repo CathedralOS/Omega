@@ -146,7 +146,7 @@ pub fn declared_structural_type(
 
 /// The `EstablishRecord` or `EstablishCase` node's field initializers when
 /// `producer` is that node on `place`, or `None` when no such node exists.
-pub fn establishment_fields(
+pub(crate) fn establishment_fields(
     function: &PsiOptimizationFunction,
     producer: OperationId,
     place: PlaceId,
@@ -210,7 +210,7 @@ pub fn shape(
 /// common-field roster, with the structural type the field declares.
 /// `None` when the shape has no common-field roster, the name is absent, or
 /// the field's declared type is not structural.
-pub fn descended_field(
+pub(crate) fn descended_field(
     unit: &PsiOptimizationUnit,
     current: StructuralTypeId,
     identity: &str,
@@ -220,7 +220,7 @@ pub fn descended_field(
 
 /// The same common-field descent by verifier field handle, for the
 /// canonical steps a spliced copy projection carries.
-pub fn descended_field_id(
+pub(crate) fn descended_field_id(
     unit: &PsiOptimizationUnit,
     current: StructuralTypeId,
     identity: StructuralFieldId,
@@ -232,7 +232,7 @@ pub fn descended_field_id(
 /// `current`, with the structural type the field declares. `None` when the
 /// shape has no common-field roster, no field matches, or the field's
 /// declared type is not structural.
-pub fn descended_field_matching(
+pub(crate) fn descended_field_matching(
     unit: &PsiOptimizationUnit,
     current: StructuralTypeId,
     matching: impl Fn(&StructuralFieldDeclaration) -> bool,
@@ -258,7 +258,7 @@ pub fn descended_field_matching(
 /// a `FixedIndex` step keeps its element descent inside an in-bounds fixed
 /// array. `None` when the roster lacks the name, the index leaves a fixed
 /// array, or the segment has no canonical step.
-pub fn canonicalize_ordinary_path(
+pub(crate) fn canonicalize_ordinary_path(
     unit: &PsiOptimizationUnit,
     mut current: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -441,7 +441,7 @@ impl<'a> Position<'a> {
 /// caller folds or forwards — or the literal zero an
 /// `EstablishZeroedStructural` fixes without naming any operand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EstablishmentScalar {
+pub(crate) enum EstablishmentScalar {
     Initializer(OperationId, ValueId),
     Zeroed(OperationId),
 }
@@ -459,7 +459,7 @@ pub struct ProvenFieldValue {
 /// The `ValueId` the `EstablishRecord` producer stores into `field`, or
 /// `None` when the producer node is absent, is not an `EstablishRecord` on
 /// this place, or the initializer is not a scalar.
-pub fn record_initializer(
+pub(crate) fn record_initializer(
     function: &PsiOptimizationFunction,
     producer: OperationId,
     place: PlaceId,
@@ -477,7 +477,7 @@ pub fn record_initializer(
 /// The `ValueId` the `EstablishCase` producer stores into `field`, or
 /// `None` when the producer node is absent, is not an `EstablishCase`
 /// on this place, or the case field is absent.
-pub fn case_field_initializer(
+pub(crate) fn case_field_initializer(
     function: &PsiOptimizationFunction,
     producer: OperationId,
     place: PlaceId,
@@ -516,7 +516,7 @@ pub fn observed_field_declaration<'a>(
 /// observation kind — a Boolean read needs a `Boolean` field carrier, an
 /// integer read needs an `Integer` carrier (plain or bounded). `Erased`,
 /// structural, byte-sequence, and float fields never match.
-pub fn matches_observed_kind(
+pub(crate) fn matches_observed_kind(
     declaration: &StructuralFieldDeclaration,
     kind: ObservedFieldKind,
 ) -> bool {
@@ -550,7 +550,7 @@ pub fn bound_value(
 /// for a Boolean carrier, all-zero bits for an integer carrier of either
 /// sign. `None` when the observed kind does not match the declaration's
 /// scalar — the caller already checked this, so the `None` is defensive.
-pub fn zeroed_fold(
+pub(crate) fn zeroed_fold(
     declaration: &StructuralFieldDeclaration,
     kind: ObservedFieldKind,
 ) -> Option<FoldedFieldValue> {
@@ -579,7 +579,7 @@ pub fn zeroed_fold(
 /// the use site. A non-constant definition, a parameter bound to divergent
 /// arguments on different edges, an edge that fails to bind it, or a cycle
 /// in the chain yields `None`.
-pub fn constant_definition(
+pub(crate) fn constant_definition(
     function: &PsiOptimizationFunction,
     value: ValueId,
 ) -> Option<FoldedFieldValue> {
@@ -628,7 +628,7 @@ pub fn constant_definition(
 
 /// Whether a proven constant matches the observation kind — a Boolean read
 /// folds only to `Boolean`, an integer read only to `Integer`.
-pub fn matches_constant_kind(value: FoldedFieldValue, kind: ObservedFieldKind) -> bool {
+pub(crate) fn matches_constant_kind(value: FoldedFieldValue, kind: ObservedFieldKind) -> bool {
     matches!(
         (value, kind),
         (FoldedFieldValue::Boolean(_), ObservedFieldKind::Boolean)
@@ -693,7 +693,7 @@ pub fn dominators(
 /// The structural type one path segment descends to under `current`, or
 /// `None` when the segment does not apply to `current`'s shape or names a
 /// field whose declared type is not structural.
-pub fn descended_type(
+pub(crate) fn descended_type(
     unit: &PsiOptimizationUnit,
     current: StructuralTypeId,
     segment: &StructuralPathSegment,
@@ -735,7 +735,7 @@ pub fn descended_type(
 /// (an in-block `IntegerConstant`, on the other). The operand's declared
 /// integer type — shared by both sides under checked semantics — is the type
 /// the comparison evaluates under.
-pub fn comparison_operands(
+pub(crate) fn comparison_operands(
     block: &OptimizationBlock,
     prefix: &[OptimizationNode],
     ordering: IntegerComparisonOrdering,
@@ -939,7 +939,7 @@ pub fn scalar_value_definition(
 
 /// The case roster of `type_id`'s declared shape, or `None` when the type
 /// is absent or its shape is not `Sum`/`Mixed`.
-pub fn roster_cases(
+pub(crate) fn roster_cases(
     unit: &PsiOptimizationUnit,
     type_id: StructuralTypeId,
 ) -> Option<&[StructuralCaseDeclaration]> {
@@ -960,7 +960,7 @@ pub fn roster_cases(
 /// The first declared case of `type_id`'s roster — the case a zeroed tag's
 /// ordinal-zero bits select — or `None` when the shape is not a
 /// `Sum`/`Mixed` or declares no case at all.
-pub fn roster_first_case(
+pub(crate) fn roster_first_case(
     unit: &PsiOptimizationUnit,
     type_id: StructuralTypeId,
 ) -> Option<StructuralCaseId> {
@@ -970,7 +970,7 @@ pub fn roster_first_case(
 
 /// The one case of `type_id`'s closed roster, or `None` when its shape is
 /// not a `Sum`/`Mixed` or names more than one case.
-pub fn roster_sole_case(
+pub(crate) fn roster_sole_case(
     unit: &PsiOptimizationUnit,
     type_id: StructuralTypeId,
 ) -> Option<StructuralCaseId> {
@@ -998,7 +998,7 @@ pub fn sole_case_at_path(
 
 /// The one case of a declared closed roster, or `None` when the place's
 /// declared type is not a sum shape or names more than one case.
-pub fn sole_case(
+pub(crate) fn sole_case(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
@@ -1025,7 +1025,7 @@ pub fn resolved_sole_case(
 /// its rostered declaration, the declared-type equality check, and the
 /// cycle guard; returns the child place and its establishment for the next
 /// step.
-pub fn descended_field_child(
+pub(crate) fn descended_field_child(
     function: &PsiOptimizationFunction,
     producer: OperationId,
     place: PlaceId,
@@ -1044,7 +1044,7 @@ pub fn descended_field_child(
 /// The `StructuralLeafCopy` that produces `place` — its source place and
 /// spelled projection — or `None` when `place` is not that copy's operation
 /// result.
-pub fn leaf_copy_source<'a>(
+pub(crate) fn leaf_copy_source<'a>(
     function: &'a PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<(PlaceId, &'a StructuralCopyPath)> {
@@ -1074,12 +1074,12 @@ pub fn leaf_copy_source<'a>(
 /// path never spells a `Case` step, so a case-qualified descent appears
 /// only under a copy crossing.
 #[derive(Debug, Clone, Copy)]
-pub enum PathStep<'a> {
+pub(crate) enum PathStep<'a> {
     Ordinary(&'a StructuralPathSegment),
     Canonical(CanonicalStructuralPathSegment),
 }
 impl<'a> Position<'a> {
-    pub fn descend_step(
+    pub(crate) fn descend_step(
         self,
         unit: &'a PsiOptimizationUnit,
         step: PathStep<'_>,
@@ -1612,7 +1612,7 @@ fn establishment_scalar(
     }
 }
 #[allow(clippy::too_many_arguments)]
-pub fn proven_field_value(
+pub(crate) fn proven_field_value(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,

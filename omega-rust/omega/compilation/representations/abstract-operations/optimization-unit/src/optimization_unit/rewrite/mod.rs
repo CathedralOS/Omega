@@ -45,22 +45,26 @@ pub use cfg_rewrite_plans::{
     RedundantBlockParameterRewrite, RedundantBlockParameterWitness, SharedJumpFusionRewrite,
     SpecializedStateEdgeRow, StateArgumentSpecializationRewrite, UnreachablePrivateMachinesRewrite,
 };
+
 use contracts::PsiRewriteWitness;
 pub use contracts::{
     PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewriteDecisionPoint, PsiRewritePatch,
 };
+
 pub use declarations::PsiCandidateDeclaration;
 pub use foundations::{
     NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, ScalarSubstitution,
     encode_location,
 };
+
 pub use loop_invariant_scalar_motion::{
     LoopInvariantNodeResult, LoopInvariantScalarMotionCandidate, LoopInvariantScalarNode,
     LoopInvariantScalarRelocation,
 };
+
+pub(crate) use scalar_evaluation::ScalarEvaluationWitness;
 pub use scalar_evaluation::{
-    IntegerEvaluationWitness, ScalarConstantValue, ScalarEvaluationWitness,
-    literal_scalar_constant_fact_identity,
+    IntegerEvaluationWitness, ScalarConstantValue, literal_scalar_constant_fact_identity,
 };
 pub use scalar_rewrite_plans::{
     BooleanConstantRewrite, DeadScalarNodeRewrite, DominatingScalarCommonSubexpressionRewrite,
@@ -68,6 +72,7 @@ pub use scalar_rewrite_plans::{
     PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
     ProofCertifiedScalarIdentityRewrite, TotalScalarIdentityKind, TotalScalarIdentityRewrite,
 };
+
 pub use sccp::{
     SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
     derived_sccp_scalar_constant_fact_identity,

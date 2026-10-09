@@ -24,8 +24,10 @@ mod model;
 mod validation;
 
 use codec::encode_ledger;
-pub use error::{InvalidPsiTransformationLedger, PsiTransformationLedgerDecodeError};
+pub use error::InvalidPsiTransformationLedger;
+pub(crate) use error::PsiTransformationLedgerDecodeError;
 pub use model::{PrunedMachineCustody, PsiTransformationLedger, PsiTransformationRecord};
+
 use validation::validate_provenance;
 
 impl PsiTransformationLedger {

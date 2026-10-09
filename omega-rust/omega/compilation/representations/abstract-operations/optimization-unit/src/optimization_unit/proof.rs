@@ -143,7 +143,7 @@ impl AcceptedObligationFact {
     }
 }
 
-pub fn accepted_obligation_fact_identity(
+pub(crate) fn accepted_obligation_fact_identity(
     psi: TerminalPsiIdentity,
     proof_bundle_fingerprint: [u8; 32],
     machine: MachineId,
@@ -223,7 +223,7 @@ impl ProofQuestion {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn proof_question_identity(
+pub(crate) fn proof_question_identity(
     terminal_psi: TerminalPsiIdentity,
     proof_bundle_fingerprint: [u8; 32],
     owner: ProofQuestionOwner,

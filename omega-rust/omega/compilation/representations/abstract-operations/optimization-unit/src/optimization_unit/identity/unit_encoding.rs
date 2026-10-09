@@ -6,8 +6,8 @@ use super::{
     OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot, ProofQuestion,
     ProofQuestionAdmissionKind, ProofQuestionClass, ProofQuestionOwner, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiProvenance, PsiSemanticId, ServiceDeclaration,
-    StructuralDomainDeclaration, StructuralResultDeclaration, TerminalRootServiceReach,
-    ValueDefinition, ValueDefinitionSite, ValueUse,
+    StructuralResultDeclaration, TerminalRootServiceReach, ValueDefinition, ValueDefinitionSite,
+    ValueUse,
 };
 use crate::optimization_unit::identity::carrier_encoding::{
     encode_abstract_result, encode_binding, encode_ids, encode_integer_value, encode_multiplicity,
@@ -23,29 +23,6 @@ use crate::optimization_unit::identity::structural_encoding::{
 };
 
 const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v38\0";
-const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
-    b"omega.psi-optimization-structural-domain-catalog.v1\0";
-
-pub fn structural_domain_catalog_identity(
-    domains: &[StructuralDomainDeclaration],
-) -> OptimizationUnitIdentity {
-    let mut length = CanonicalBytes::length();
-    encode_structural_domain_catalog(&mut length, domains);
-    let mut digest = CanonicalBytes::digest(OptimizationUnitIdentity::canonical_encoder(
-        length.finish_length(),
-    ));
-    encode_structural_domain_catalog(&mut digest, domains);
-    OptimizationUnitIdentity::from_canonical_encoder(digest.finish_digest())
-}
-
-fn encode_structural_domain_catalog(
-    bytes: &mut CanonicalBytes,
-    domains: &[StructuralDomainDeclaration],
-) {
-    bytes.bytes(STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN);
-    bytes.slice(domains, encode_structural_domain);
-}
-
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
 ) -> OptimizationUnitIdentity {

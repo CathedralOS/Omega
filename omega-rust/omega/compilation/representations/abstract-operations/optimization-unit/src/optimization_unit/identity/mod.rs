@@ -59,6 +59,4 @@ pub fn scalar_refinement_identity_bytes(
     bytes.finish()
 }
 
-pub use unit_encoding::{
-    recompute_psi_optimization_unit_identity, structural_domain_catalog_identity,
-};
+pub use unit_encoding::recompute_psi_optimization_unit_identity;

@@ -13,8 +13,6 @@ mod scalar_dataflow;
 mod structural_custody;
 pub use function::reconstruct_psi_optimization_function_seed;
 
-pub use restamp::restamp_psi_function_derived_metadata;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitBuildError {
     MissingBlocks(MachineId),

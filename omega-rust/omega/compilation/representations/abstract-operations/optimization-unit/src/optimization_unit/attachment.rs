@@ -1,9 +1,8 @@
 //! One-time verifier-catalog attachment and aggregate identity resealing.
 
-use super::super::{BTreeSet, recompute_psi_optimization_unit_identity};
+use super::super::recompute_psi_optimization_unit_identity;
 use super::{
-    AcceptedObligationFact, OwnershipFrontierFact, OwnershipFrontierSnapshot, ProofQuestion,
-    PsiOptimizationUnit,
+    AcceptedObligationFact, OwnershipFrontierFact, OwnershipFrontierSnapshot, PsiOptimizationUnit,
 };
 /// Attach the verified Terminal module's catalogs and each machine's contract
 /// inputs to a reconstructed unit, then reseal its identity. The optimizer's
@@ -158,37 +157,3 @@ impl std::fmt::Display for ProofQuestionIndexError {
 }
 
 impl std::error::Error for ProofQuestionIndexError {}
-
-/// Attach the verifier's complete ordered proof-question projection exactly
-/// once. The input order is retained rather than reconstructed or sorted.
-pub fn attach_proof_questions(
-    mut unit: PsiOptimizationUnit,
-    questions: Vec<ProofQuestion>,
-) -> Result<PsiOptimizationUnit, ProofQuestionIndexError> {
-    if !unit.proof_questions.is_empty() {
-        return Err(ProofQuestionIndexError::AlreadyAttached);
-    }
-    if questions
-        .iter()
-        .any(|question| question.terminal_psi != unit.psi)
-    {
-        return Err(ProofQuestionIndexError::TerminalIdentityMismatch);
-    }
-    if questions
-        .iter()
-        .any(|question| !question.has_canonical_identity())
-    {
-        return Err(ProofQuestionIndexError::InvalidQuestionIdentity);
-    }
-    let mut identities = BTreeSet::new();
-    let mut owners = BTreeSet::new();
-    if questions.iter().any(|question| {
-        !identities.insert(question.identity)
-            || !owners.insert((question.owner, question.obligation))
-    }) {
-        return Err(ProofQuestionIndexError::DuplicateQuestion);
-    }
-    unit.proof_questions = questions;
-    unit.identity = recompute_psi_optimization_unit_identity(&unit);
-    Ok(unit)
-}

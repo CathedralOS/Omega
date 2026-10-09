@@ -84,7 +84,7 @@ impl OwnershipFrontierFact {
     }
 }
 
-pub fn ownership_frontier_fact_identity(
+pub(crate) fn ownership_frontier_fact_identity(
     psi: TerminalPsiIdentity,
     machine: MachineId,
     site: OwnershipFrontierSite,

@@ -4,9 +4,10 @@ mod codec;
 mod model;
 mod rendering;
 
+pub(crate) use model::PrePhysicalOptimizationManifestDecodeError;
 pub use model::{
     OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,
-    PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestDecodeError,
+    PrePhysicalOptimizationManifest,
 };
 
 use crate::{

@@ -29,58 +29,54 @@ mod rewrite;
 mod structural_places;
 
 pub use attachment::{
-    AcceptedObligationFactIndexError, OwnershipFrontierFactIndexError, ProofQuestionIndexError,
-    attach_accepted_obligation_facts, attach_ownership_frontier_facts, attach_proof_questions,
-    attach_verified_module_context, canonical_ownership_frontier_snapshot,
+    AcceptedObligationFactIndexError, ProofQuestionIndexError, attach_accepted_obligation_facts,
+    attach_ownership_frontier_facts, attach_verified_module_context,
+    canonical_ownership_frontier_snapshot,
 };
 pub use construction::{
     OptimizationUnitBuildError, reconstruct_psi_optimization_function_seed,
-    reconstruct_psi_optimization_unit_seed, restamp_psi_function_derived_metadata,
+    reconstruct_psi_optimization_unit_seed,
 };
 pub use cycles::{
     CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
     OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
     OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
 };
+
 pub use evidence::{
     AbstractOptimizationEvidence, OptimizationRunUsage, PsiOptimizationCommit,
     PsiValidatedCandidateDeclaration,
 };
+
 pub use graph::{
     EffectLink, FuelSettlement, OptimizationBlock, OptimizationEdge, OptimizationFact,
     OptimizationNode, OwnershipEvent, PsiOptimizationFunction, PsiProvenance, ValueDefinition,
     ValueDefinitionSite, ValueUse, encode_value_definition_site_identity,
 };
-pub use identity::{
-    recompute_psi_optimization_unit_identity, scalar_refinement_identity_bytes,
-    structural_domain_catalog_identity,
-};
+
+pub use identity::{recompute_psi_optimization_unit_identity, scalar_refinement_identity_bytes};
 pub use ledger::{
     InvalidPsiTransformationLedger, PrunedMachineCustody, PsiTransformationLedger,
-    PsiTransformationLedgerDecodeError, PsiTransformationRecord,
+    PsiTransformationRecord,
 };
 pub use manifest::{
     OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,
-    PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestDecodeError,
+    PrePhysicalOptimizationManifest,
 };
 pub use observation::{
-    ObservationEventClass, ObservationKnowledge, PsiClosedRegionBlockObservation,
-    PsiClosedRegionObservation, PsiClosedRegionSemantics, PsiNodeObservation, PsiObservableEvent,
-    PsiObservationModel, PsiRegionBoundaryEdgeObservation, PsiRegionFrontierObservation,
-    reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
+    ObservationKnowledge, PsiNodeObservation, reconstruct_psi_closed_region_observation,
+    reconstruct_psi_observation_model,
 };
 pub use ownership::{
     OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
     OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-    ownership_frontier_fact_identity,
 };
-pub use proof::{
-    AcceptedObligationFact, ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass,
-    ProofQuestionOwner, accepted_obligation_fact_identity, proof_question_identity,
-};
+pub use proof::{AcceptedObligationFact, ProofQuestionOwner};
+pub(crate) use proof::{ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass};
 pub use range::{
     ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
+
 pub use rewrite::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
     CaseMembershipSpecializationRewrite, ConstantConditionalRewrite, DeadScalarNodeRewrite,
@@ -95,11 +91,11 @@ pub use rewrite::{
     ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
     PsiCandidateDeclaration, PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError,
     PsiRewriteDecisionPoint, PsiRewritePatch, RedundantBlockParameterRewrite,
-    RedundantBlockParameterWitness, ScalarConstantValue, ScalarEvaluationWitness,
-    ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
-    SccpValueRow, SccpValueState, SharedJumpFusionRewrite, SpecializedStateEdgeRow,
-    StateArgumentSpecializationRewrite, TotalScalarIdentityKind, TotalScalarIdentityRewrite,
-    UnreachablePrivateMachinesRewrite, derived_sccp_scalar_constant_fact_identity, encode_location,
+    RedundantBlockParameterWitness, ScalarConstantValue, ScalarSubstitution, SccpBlockRow,
+    SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
+    SharedJumpFusionRewrite, SpecializedStateEdgeRow, StateArgumentSpecializationRewrite,
+    TotalScalarIdentityKind, TotalScalarIdentityRewrite, UnreachablePrivateMachinesRewrite,
+    derived_sccp_scalar_constant_fact_identity, encode_location,
     literal_scalar_constant_fact_identity,
 };
 
@@ -239,19 +235,12 @@ impl PsiOptimizationUnit {
     }
 }
 pub use structural_places::{
-    DispatchCondition, Establishment, EstablishmentScalar, FieldEvidence, FunctionAnalysis,
-    IntegerComparisonOrdering, ObservedFieldKind, PathStep, Position, ProvenFieldValue,
-    RootProducer, admit_field_node, argument_rewrites_place, bound_place, bound_value,
-    canonicalize_ordinary_path, case_field_initializer, comparison_operands, constant_definition,
-    declared_structural_type, descended_field, descended_field_child, descended_field_id,
-    descended_field_matching, descended_type, dominators, established_case_at,
-    establishment_fields, field_evidence, function_analysis, integer_comparison_condition,
-    leaf_copy_source, matches_constant_kind, matches_observed_kind, observed_field_declaration,
-    proof_basis, proven_field_value, reachable_blocks_after_conditional_fold, record_initializer,
-    resolved_sole_case, root_producer, roster_cases, roster_first_case, roster_sole_case,
-    scalar_value_definition, shape, sole_case, sole_case_at_path, structural_child, zeroed_fold,
+    DispatchCondition, Establishment, FieldEvidence, FunctionAnalysis, Position, admit_field_node,
+    argument_rewrites_place, bound_place, bound_value, declared_structural_type, dominators,
+    established_case_at, field_evidence, function_analysis, integer_comparison_condition,
+    observed_field_declaration, proof_basis, reachable_blocks_after_conditional_fold,
+    resolved_sole_case, root_producer, scalar_value_definition, shape, sole_case_at_path,
+    structural_child,
 };
 
-pub use integer_intervals::{
-    IntervalExtraction, PartialIntegerBounds, extract_integer_intervals, proof_range_goal,
-};
+pub use integer_intervals::{IntervalExtraction, extract_integer_intervals, proof_range_goal};
