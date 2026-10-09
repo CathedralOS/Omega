@@ -18,13 +18,14 @@ pub mod calling_policy_plans;
 pub mod component_progress;
 pub mod data_layout_queries;
 pub mod evaluated_via_bindings;
+mod fnv1a;
 mod intrinsic_requirements;
 mod planning_context;
 pub mod program_entry;
 mod provider_declarations;
 mod provider_identity;
-pub use provider_identity::{ provider_row_matches, provider_trait_application,
-    provider_trait_requirement_matches,
+pub use provider_identity::{
+    provider_row_matches, provider_trait_application, provider_trait_requirement_matches,
 };
 mod provider_planning;
 mod provider_settlement;
@@ -33,36 +34,35 @@ pub mod target_machines;
 pub mod task_plans;
 pub mod x86_fma_plan_association;
 
+pub(crate) use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{
-    CheckedProviderSelection, ProviderSettlement, TargetProviderDefaults,
-    settle_checked_providers,
+    CheckedProviderSelection, ProviderSettlement, TargetProviderDefaults, settle_checked_providers,
     verify_selected_compositions_are_realized,
 };
-pub(crate) use provider_settlement::{ 
-    SettledTargetMachineDeclarations};
 
 pub use intrinsic_requirements::{IntrinsicRequirement, IntrinsicRequirementKind};
 pub use planning_context::ProviderPlanningContext;
-pub use provider_declarations::{
-    collect_executed_provider_selections,
-};
-pub(crate) use provider_declarations::{ harvest_provider_selections};
+pub use provider_declarations::collect_executed_provider_selections;
+pub(crate) use provider_declarations::harvest_provider_selections;
 pub use provider_planning::selection::{
-    CompositionMode,
-    ProviderSelection, ProviderSelectionSubject,
+    CompositionMode, ProviderSelection, ProviderSelectionSubject,
 };
-pub(crate) use provider_planning::selection::{  ProviderOperatorFamilySelection, ProviderSelectionIdentity};
+pub(crate) use provider_planning::selection::{
+    ProviderOperatorFamilySelection, ProviderSelectionIdentity,
+};
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration, ProviderSelectionProvenance,
-    SelectedProviderReviewProvenance,
-    bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter, same_semantic_name, satisfies_plan_name,
-    select_derived_provider_plans, selected_provider_plan_facts, selected_requirement_checked_adapter,
-    selected_requirement_plan, selected_use_plan, specialized_provider_machines,
+    CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
+    ProviderSelectionProvenance, SelectedProviderReviewProvenance,
+    bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter,
+    same_semantic_name, satisfies_plan_name, select_derived_provider_plans,
+    selected_provider_plan_facts, selected_requirement_checked_adapter, selected_requirement_plan,
+    selected_use_plan, specialized_provider_machines,
 };
-pub(crate) use provider_planning::{ DerivedProviderPlan,
-    ProviderPlanProvenance, SelectedProviderPlanWithProvenance, SelectedTargetMachineOrigin,
-    selected_provider_plan_facts_with_independent_components};
+pub(crate) use provider_planning::{
+    DerivedProviderPlan, ProviderPlanProvenance, SelectedProviderPlanWithProvenance,
+    SelectedTargetMachineOrigin, selected_provider_plan_facts_with_independent_components,
+};
 pub(crate) use provider_planning::{
     extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,
 };

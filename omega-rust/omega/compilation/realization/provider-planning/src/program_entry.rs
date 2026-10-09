@@ -1105,18 +1105,15 @@ fn exact_bundled_physical_contract_package_source_digest(
 }
 
 fn physical_contract_package_source_report_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv1a::Fnv1a::new();
     for bytes in [
         b"omega.program-entry-physical-package.v1".as_slice(),
         identity,
         source,
     ] {
-        for byte in bytes {
-            hash ^= u64::from(*byte);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
+        hash.bytes(bytes);
     }
-    hash
+    hash.finish()
 }
 
 struct ArrivalRequirementParameterType {

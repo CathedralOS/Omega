@@ -450,11 +450,14 @@ fn frame_identity(
                 machine.name
             ))]
         })?;
-    let mut hash = super::StableHash::new();
+    let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x57);
     hash.string(callable.as_str());
     hash.string(entry.name.as_str());
-    super::normalized_id(hash.finish(), TaskStackFrameId::from_normalized_identity)
+    super::normalized_id(
+        hash.finish_normalized(),
+        TaskStackFrameId::from_normalized_identity,
+    )
 }
 
 fn frame_value_layout(
