@@ -1,0 +1,15 @@
+// The selected result forwards the access each completed branch already has.
+machine exercise(first: &mut u32, second: &mut u32, choose: bool) -> u32 {
+    let selected: &mut u32 = match choose {
+        true -> first,
+        false -> second
+    };
+    let observed: u32 = selected;
+    observed
+}
+
+machine main() -> u32 {
+    let mut first: u32 = 7;
+    let mut second: u32 = 9;
+    exercise(&mut first, &mut second, true)
+}
