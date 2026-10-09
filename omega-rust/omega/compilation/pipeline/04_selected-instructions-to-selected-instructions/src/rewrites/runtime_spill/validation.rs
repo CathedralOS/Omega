@@ -643,9 +643,7 @@ pub fn validate_runtime_spill_with_span_policy(
                 // instruction, exactly where the proposal's emitter read it.
                 let stored = match definition.position {
                     StoragePosition::AfterUseDef { operand, .. } => restored
-                        .operands
-                        .iter()
-                        .find(|candidate| candidate.operand == operand)
+                        .operand(operand)
                         .map(|operand| operand.virtual_register)
                         .ok_or(RuntimeSpillError::ReplayMismatch)?,
                     _ => definition.register,

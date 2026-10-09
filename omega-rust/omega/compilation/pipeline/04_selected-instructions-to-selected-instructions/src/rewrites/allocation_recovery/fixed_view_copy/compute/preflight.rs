@@ -54,7 +54,7 @@ pub(super) fn copy_row<'a>(
         &constraints.catalog().constraints,
         selected_keys.copy_i64,
     )
-        .ok_or(FixedViewCopyError::CopyConstraintMismatch)?;
+    .ok_or(FixedViewCopyError::CopyConstraintMismatch)?;
     if row.operands.len() != 2
         || row.operands[0].operand != 0
         || row.operands[0].access != RegisterOperandAccess::Use
@@ -175,11 +175,7 @@ pub(super) fn find_leaf_block(
                 instruction: instruction.0,
             });
         }
-        let Some(destination_operand) = destination
-            .operands
-            .iter()
-            .find(|candidate| candidate.operand == operand)
-        else {
+        let Some(destination_operand) = destination.operand(operand) else {
             return Err(FixedViewCopyError::MissingDestination {
                 function: function_index,
                 instruction: instruction.0,
@@ -214,19 +210,14 @@ pub(super) fn find_site_block(
     to_view: register_model::RegisterViewId,
 ) -> Result<selected_instructions::SelectedBlockId, FixedViewCopyError> {
     for block in &function.blocks {
-        let site = block.instruction(instruction)
-            .or_else(|| {
-                let destination = terminator_instruction(&block.terminator);
-                (destination.id == instruction).then_some(destination)
-            });
+        let site = block.instruction(instruction).or_else(|| {
+            let destination = terminator_instruction(&block.terminator);
+            (destination.id == instruction).then_some(destination)
+        });
         let Some(site) = site else {
             continue;
         };
-        let Some(site_operand) = site
-            .operands
-            .iter()
-            .find(|candidate| candidate.operand == operand)
-        else {
+        let Some(site_operand) = site.operand(operand) else {
             return Err(FixedViewCopyError::MissingDestination {
                 function: function_index,
                 instruction: instruction.0,

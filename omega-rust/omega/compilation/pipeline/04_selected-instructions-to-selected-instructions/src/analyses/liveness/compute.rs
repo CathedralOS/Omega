@@ -215,12 +215,9 @@ pub(super) fn reject_unsupported_constraints(
         } else if !early.is_empty() {
             let definition = early[0];
             let mut participants = BTreeSet::new();
-            let tied_source = definition.tied_to.and_then(|operand| {
-                instruction
-                    .operands
-                    .iter()
-                    .find(|candidate| candidate.operand == operand)
-            });
+            let tied_source = definition
+                .tied_to
+                .and_then(|operand| instruction.operand(operand));
             let valid_source = tied_source.is_none_or(|source| {
                 source.access == RegisterOperandAccess::Use
                     && source.operand < definition.operand

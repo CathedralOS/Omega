@@ -74,12 +74,9 @@ pub(super) fn reject_v1_unsupported(
                 }
                 values.push(operand.virtual_register);
             }
-            let tied_source = definition.tied_to.and_then(|operand| {
-                instruction
-                    .operands
-                    .iter()
-                    .find(|candidate| candidate.operand == operand)
-            });
+            let tied_source = definition
+                .tied_to
+                .and_then(|operand| instruction.operand(operand));
             let source_is_valid = match tied_source {
                 None => true,
                 Some(source) => {

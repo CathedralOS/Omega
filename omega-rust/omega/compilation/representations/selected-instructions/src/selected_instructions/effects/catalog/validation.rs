@@ -404,11 +404,7 @@ fn validate_encoded_effects(
         return Err(());
     }
     for operand in &encoded.external_operand_reads {
-        let row = constraint
-            .operands
-            .iter()
-            .find(|row| row.operand == *operand)
-            .ok_or(())?;
+        let row = constraint.operand(*operand).ok_or(())?;
         if !matches!(
             row.access,
             RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
@@ -417,11 +413,7 @@ fn validate_encoded_effects(
         }
     }
     for operand in &encoded.external_operand_writes {
-        let row = constraint
-            .operands
-            .iter()
-            .find(|row| row.operand == *operand)
-            .ok_or(())?;
+        let row = constraint.operand(*operand).ok_or(())?;
         if !matches!(
             row.access,
             RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
@@ -1200,12 +1192,7 @@ fn validate_applicability(
     constraint: &RegisterInstructionConstraint,
     applicability: MachineAlternativeApplicability,
 ) -> Result<(), ()> {
-    let operand = |number| {
-        constraint
-            .operands
-            .iter()
-            .find(|operand| operand.operand == number)
-    };
+    let operand = |number| constraint.operand(number);
     let reads = |access| {
         matches!(
             access,

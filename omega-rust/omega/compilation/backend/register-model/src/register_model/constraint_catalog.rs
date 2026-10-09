@@ -209,6 +209,13 @@ pub struct RegisterInstructionConstraint {
     pub clobbers: Vec<RegisterUnitId>,
 }
 
+impl RegisterInstructionConstraint {
+    /// The operand constraint numbered `operand`, when declared.
+    pub fn operand(&self, operand: u16) -> Option<&RegisterOperandConstraint> {
+        self.operands.iter().find(|row| row.operand == operand)
+    }
+}
+
 /// A target register-constraint inventory and its keyed definitions.
 ///
 /// Both vectors are strictly key-sorted in the validated form. `required`

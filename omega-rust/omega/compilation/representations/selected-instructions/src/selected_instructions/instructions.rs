@@ -28,6 +28,15 @@ pub fn instruction_position(
         .position(|instruction| instruction.id == id)
 }
 
+impl SelectedInstruction {
+    /// The operand record numbered `operand`, when declared.
+    pub fn operand(&self, operand: u16) -> Option<&SelectedOperand> {
+        self.operands
+            .iter()
+            .find(|candidate| candidate.operand == operand)
+    }
+}
+
 /// Call control keeps implementation selection apart from the data ABI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedCallTarget {

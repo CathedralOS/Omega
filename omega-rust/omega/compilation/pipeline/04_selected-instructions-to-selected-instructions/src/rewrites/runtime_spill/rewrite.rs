@@ -227,12 +227,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 let stored = match definition.position {
                     super::StoragePosition::AfterUseDef { operand, .. } => instructions
                         .last()
-                        .and_then(|emitted| {
-                            emitted
-                                .operands
-                                .iter()
-                                .find(|candidate| candidate.operand == operand)
-                        })
+                        .and_then(|emitted| emitted.operand(operand))
                         .map(|operand| operand.virtual_register)
                         .ok_or(RuntimeSpillError::SourceMismatch)?,
                     _ => definition.register,
