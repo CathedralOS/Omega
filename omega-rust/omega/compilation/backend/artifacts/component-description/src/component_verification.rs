@@ -27,8 +27,8 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
 use crate::component_description::{
     ComponentDescription, ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind,
-    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportContract, ExportSurface,
-    ImportSlot, InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
+    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
+    InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
     ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
     component_description_identity, decode_component_description_with_artifact,
     derive_component_inventory, hex, requirement_contract_identity, requirement_export_identity,
@@ -269,9 +269,6 @@ pub struct VerifiedComponent {
     description_identity: [u8; 32],
     closure: [u8; 32],
     module: TerminalModule,
-    /// The verified export roster's join contracts, re-derived from the
-    /// module at admission — never read from the description bytes.
-    export_contracts: Vec<ExportContract>,
 }
 
 impl VerifiedComponent {
@@ -315,7 +312,6 @@ impl VerifiedComponent {
         &self.description.exports
     }
 
-
     /// Every possible entry into the component.
     pub fn entries(&self) -> &[ComponentEntry] {
         &self.description.entries
@@ -325,7 +321,6 @@ impl VerifiedComponent {
     pub fn outgoing(&self) -> &[OutgoingAuthority] {
         &self.description.outgoing
     }
-
 
     /// Every custody constraint the component carries.
     pub fn custody(&self) -> &[CustodyConstraint] {
@@ -666,7 +661,6 @@ pub fn verify_component(
         // is not the same cost as decoding the bytes again: no validation,
         // canonical re-encode or byte comparison runs here.
         module: module.clone(),
-        export_contracts: inventory.export_contracts,
     })
 }
 
