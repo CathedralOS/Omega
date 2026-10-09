@@ -40,12 +40,7 @@ impl TerminalExecution<'_> {
                 let Some((index, _)) = path[position].runtime_index() else {
                     continue;
                 };
-                let TerminalScalarValue::Integer { value, .. } =
-                    self.values
-                        .get(&index)
-                        .copied()
-                        .ok_or(TerminalInterpretError::VerifiedValueMissing(index))?
-                else {
+                let TerminalScalarValue::Integer { value, .. } = self.scalar_value(index)? else {
                     return Err(malformed());
                 };
                 // Initialized value arrays own a payload instead of an opaque

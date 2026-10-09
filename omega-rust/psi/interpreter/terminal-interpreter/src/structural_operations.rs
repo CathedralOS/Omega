@@ -1608,10 +1608,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let count = |operand| -> Result<u64, TerminalInterpretError> {
-            let value = self
-                .values
-                .get(&operand)
-                .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?;
+            let value = self.scalar_value(operand)?;
             let TerminalScalarValue::Integer {
                 scalar_type,
                 value: IntegerValue::Unsigned(value),
@@ -1619,10 +1616,10 @@ impl TerminalExecution<'_> {
             else {
                 return Err(malformed());
             };
-            if *scalar_type != count_type {
+            if scalar_type != count_type {
                 return Err(malformed());
             }
-            u64::try_from(*value).map_err(|_| malformed())
+            u64::try_from(value).map_err(|_| malformed())
         };
         let byte_index = count(index)?;
         let byte_length = count(length)?;

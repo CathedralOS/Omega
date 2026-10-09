@@ -79,17 +79,14 @@ impl TerminalExecution<'_> {
         let TerminalScalarValue::Integer {
             scalar_type,
             value: IntegerValue::Unsigned(byte),
-        } = self
-            .values
-            .get(value)
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?
+        } = self.scalar_value(*value)?
         else {
             return Err(malformed());
         };
-        if *scalar_type != byte_type || live_length > capacity || byte_index >= live_length {
+        if scalar_type != byte_type || live_length > capacity || byte_index >= live_length {
             return Err(malformed());
         }
-        let byte = u8::try_from(*byte).map_err(|_| malformed())?;
+        let byte = u8::try_from(byte).map_err(|_| malformed())?;
         let byte_index = usize::try_from(byte_index).map_err(|_| malformed())?;
         let bytes = self
             .structural_byte_sequence_fields

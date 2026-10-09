@@ -73,12 +73,7 @@ impl TerminalExecution<'_> {
         }
         let scalar_arguments = scalar_argument_ids
             .iter()
-            .map(|argument| {
-                self.values
-                    .get(argument)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-            })
+            .map(|argument| self.scalar_value(*argument))
             .collect::<Result<Vec<_>, _>>()?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
@@ -278,12 +273,7 @@ impl TerminalExecution<'_> {
         let boundary_declaration = program.verified_boundary_machine(&boundary)?;
         let scalar_arguments = scalar_argument_ids
             .iter()
-            .map(|argument| {
-                self.values
-                    .get(argument)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-            })
+            .map(|argument| self.scalar_value(*argument))
             .collect::<Result<Vec<_>, _>>()?;
         bind_boundary_arguments(&boundary_declaration.scalar_parameters, &scalar_arguments)?;
         let supply = self.boundary_supplies.get(&boundary).copied();
@@ -569,12 +559,7 @@ impl TerminalExecution<'_> {
         };
         let arguments = arguments
             .iter()
-            .map(|argument| {
-                self.values
-                    .get(argument)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-            })
+            .map(|argument| self.scalar_value(*argument))
             .collect::<Result<Vec<_>, _>>()?;
         let callee_id = callee;
         let callee = program.verified_machine(callee_id)?;

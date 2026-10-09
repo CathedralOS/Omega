@@ -467,12 +467,7 @@ impl<'artifact> TerminalExecution<'artifact> {
     ) -> Result<Vec<TerminalScalarValue>, TerminalInterpretError> {
         arguments
             .iter()
-            .map(|argument| {
-                self.values
-                    .get(argument)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-            })
+            .map(|argument| self.scalar_value(*argument))
             .collect()
     }
 
