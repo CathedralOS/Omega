@@ -17,7 +17,6 @@ pub use data_regions::{
     PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, place_data_extent,
     place_data_regions, validate_placed_data_region_inventory,
 };
-pub(crate) use executable_regions::validate_placed_executable_region_inventory_digest;
 pub use executable_regions::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest, PlacedExecutableGapBytesDigest, PlacedExecutableRegion,
     PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
