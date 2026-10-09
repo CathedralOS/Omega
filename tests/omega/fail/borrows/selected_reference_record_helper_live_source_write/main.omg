@@ -90,3 +90,21 @@ machine invalid_selected_refill(first: &mut Cell, second: &mut Cell, third: &mut
     second.value = 83;
     chosen.target.value
 }
+
+machine invalid_refill_after_selection(first: &mut Cell, second: &mut Cell, third: &mut Cell, selected: bool) -> i32 {
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let third_parent: &mut Cell = &mut third;
+    let third_input: Held = Held { target: &third_parent, stamp: 14 };
+    let first_input: Held = Held { target: &first_parent, stamp: 12 };
+    let second_input: Held = Held { target: &second_parent, stamp: 13 };
+    let mut held: Held = first_input;
+    let chosen: Held = match selected { true -> held, false -> second_input };
+    held = third_input;
+    let observed: i32 = chosen.target.value;
+    first.value = 51;
+    second.value = 83;
+    // Retiring the selected old occurrence does not retire this new carrier.
+    third.value = 99;
+    held.target.value
+}

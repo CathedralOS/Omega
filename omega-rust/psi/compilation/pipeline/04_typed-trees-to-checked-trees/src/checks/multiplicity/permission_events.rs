@@ -221,116 +221,154 @@ pub(crate) fn prepare_permission_events(
             ));
             continue;
         }
-        super::permission_schedule::walk(program, state, (places, remaining), |step, custody| {
-            let (places, remaining) = custody;
-            super::permission_schedule::select_cases(program, state, step, places);
-            match step {
-                super::permission_schedule::PermissionStep::Evaluate {
-                    statement: statement_index,
-                    evaluation,
-                } => {
-                    if !matches!(
+        super::permission_schedule::walk(
+            program,
+            state,
+            (
+                places,
+                remaining,
+                owned_selection::SelectionOccurrences::default(),
+            ),
+            |step, custody| {
+                let (places, remaining, selections) = custody;
+                super::permission_schedule::select_cases(program, state, step, places);
+                match step {
+                    super::permission_schedule::PermissionStep::Evaluate {
+                        statement: statement_index,
                         evaluation,
-                        checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
-                    ) {
-                        match owned_selection::record_statement(
+                    } => {
+                        if !matches!(
+                            evaluation,
+                            checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
+                        ) {
+                            if let Err(diagnostic) = selections.check_statement(
+                                program,
+                                facts,
+                                machine,
+                                state,
+                                statement_index,
+                                &statements[statement_index],
+                            ) {
+                                selection_diagnostics.push(diagnostic);
+                                return;
+                            }
+                            match owned_selection::record_statement(
+                                program,
+                                facts,
+                                machine,
+                                state,
+                                statement_index,
+                                &statements[statement_index],
+                                places,
+                            ) {
+                                Ok(true) => {
+                                    if let Some((_, receipt)) = facts
+                                        .flow
+                                        .ownership
+                                        .owned_selection_at(state.symbol, statement_index as u32)
+                                    {
+                                        selections.consume(program, &facts.flow.ownership, receipt);
+                                        for place in selections.unavailable_places() {
+                                            remaining.transfer_storage(place.root, &place.segments);
+                                        }
+                                    }
+                                    return;
+                                }
+                                Ok(false) => {}
+                                Err(diagnostic) => {
+                                    selection_diagnostics.push(diagnostic);
+                                    return;
+                                }
+                            }
+                        }
+                        let event_start = permission_events.len();
+                        remaining.reserve(program, &statements[statement_index]);
+                        let storage_establishments = match apply_statement_permission_production(
                             program,
                             facts,
-                            machine,
-                            state,
+                            state_flow.machine_symbol,
+                            state.symbol,
+                            &moves,
+                            &calls,
+                            &completion_regions,
+                            &temporary_owners,
                             statement_index,
                             &statements[statement_index],
+                            evaluation,
                             places,
+                            remaining,
+                            &mut permission_events,
+                            &mut claim_identities,
+                            &mut conditional_carrier_transfers,
+                            selections,
                         ) {
-                            Ok(true) => return,
-                            Ok(false) => {}
+                            Ok(establishments) => establishments,
                             Err(diagnostic) => {
                                 selection_diagnostics.push(diagnostic);
                                 return;
                             }
-                        }
+                        };
+                        temporary_results::append_owned_transfer(
+                            facts,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            evaluation,
+                            &temporary_owners,
+                            places,
+                            &mut permission_events,
+                        );
+                        temporary_results::append_shared_borrow(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            evaluation,
+                            &temporary_owners,
+                            places,
+                            &mut permission_events,
+                            &mut selection_diagnostics,
+                            &mut cleanup_dispositions,
+                        );
+                        remaining.observe(
+                            program,
+                            &permission_events[event_start..],
+                            &facts.flow.ownership.segments,
+                            &mut cleanup_dispositions,
+                            FlowClaimJoinExit::default(),
+                            &storage_establishments,
+                        );
                     }
-                    let event_start = permission_events.len();
-                    remaining.reserve(program, &statements[statement_index]);
-                    if let Err(diagnostic) = apply_statement_permission_production(
-                        program,
-                        facts,
-                        state_flow.machine_symbol,
-                        state.symbol,
-                        &moves,
-                        &calls,
-                        &completion_regions,
-                        &temporary_owners,
-                        statement_index,
-                        &statements[statement_index],
-                        evaluation,
-                        places,
-                        remaining,
-                        &mut permission_events,
-                        &mut claim_identities,
-                        &mut conditional_carrier_transfers,
-                    ) {
-                        selection_diagnostics.push(diagnostic);
-                        return;
+                    super::permission_schedule::PermissionStep::Exit {
+                        coordinate,
+                        crash: false,
+                    } => {
+                        let event_start = permission_events.len();
+                        append_owned_cleanup_permission_events(
+                            program,
+                            state,
+                            state_flow.machine_symbol,
+                            coordinate,
+                            places,
+                            remaining,
+                            &mut facts.flow.ownership.segments,
+                            &mut permission_events,
+                        );
+                        remaining.observe(
+                            program,
+                            &permission_events[event_start..],
+                            &facts.flow.ownership.segments,
+                            &mut cleanup_dispositions,
+                            coordinate,
+                            &[],
+                        );
                     }
-                    temporary_results::append_owned_transfer(
-                        facts,
-                        machine.symbol,
-                        state.symbol,
-                        statement_index,
-                        evaluation,
-                        &temporary_owners,
-                        places,
-                        &mut permission_events,
-                    );
-                    temporary_results::append_shared_borrow(
-                        program,
-                        facts,
-                        machine.symbol,
-                        state.symbol,
-                        statement_index,
-                        evaluation,
-                        &temporary_owners,
-                        places,
-                        &mut permission_events,
-                        &mut selection_diagnostics,
-                        &mut cleanup_dispositions,
-                    );
-                    remaining.observe(
-                        program,
-                        &permission_events[event_start..],
-                        &facts.flow.ownership.segments,
-                        &mut cleanup_dispositions,
-                        FlowClaimJoinExit::default(),
-                    );
+                    super::permission_schedule::PermissionStep::Exit { crash: true, .. }
+                    | super::permission_schedule::PermissionStep::MissedGuard { .. } => {}
                 }
-                super::permission_schedule::PermissionStep::Exit {
-                    coordinate,
-                    crash: false,
-                } => {
-                    let event_start = permission_events.len();
-                    append_owned_cleanup_permission_events(
-                        program,
-                        state,
-                        state_flow.machine_symbol,
-                        coordinate,
-                        places,
-                        remaining,
-                        &mut facts.flow.ownership.segments,
-                        &mut permission_events,
-                    );
-                    remaining.observe(
-                        program,
-                        &permission_events[event_start..],
-                        &facts.flow.ownership.segments,
-                        &mut cleanup_dispositions,
-                        coordinate,
-                    );
-                }
-                super::permission_schedule::PermissionStep::Exit { crash: true, .. }
-                | super::permission_schedule::PermissionStep::MissedGuard { .. } => {}
-            }
-        });
+            },
+        );
     }
 
     append_borrow_permission_events(

@@ -15,7 +15,7 @@ use language_semantics::PermissionClaimIdentity;
 use language_semantics::PermissionEventSource;
 use language_semantics::PermissionProvenance;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -29,56 +29,6 @@ pub(in crate::checks::multiplicity) fn record_statement(
     places: &mut [LinearPlace],
 ) -> Result<bool, Diagnostic> {
     let expressions = statement_expressions(program, statement);
-    for (_, receipt) in facts
-        .flow
-        .ownership
-        .owned_selections
-        .iter()
-        .filter(|(_, receipt)| {
-            receipt.state == state.symbol && (receipt.statement_ordinal as usize) < statement_index
-        })
-    {
-        // A linear join consumes one exact claim place, named on every
-        // transfer; the rest of the source root's frontier is residual
-        // custody that stays live and consumable. Only a use reaching the
-        // consumed claim (or a place containing it) sees a dead place.
-        let linear_receipt =
-            program.type_multiplicity(receipt.type_reference) == Multiplicity::Linear;
-        for source in facts
-            .flow
-            .ownership
-            .selection_sources
-            .span_or_empty(receipt.sources)
-        {
-            if !linear_receipt {
-                if expressions
-                    .iter()
-                    .any(|expression| names_symbol(program, *expression, source.symbol))
-                    || matches!(statement, StatementNode::Call(call) if call.receiver_root_symbol == source.symbol)
-                {
-                    return Err(Diagnostic::error(
-                        "owned value may have been transferred by an earlier match; it cannot be used here",
-                    ));
-                }
-                continue;
-            }
-            if linear_source_use_conflicts(
-                program,
-                facts,
-                machine,
-                state,
-                statement_index,
-                statement,
-                &expressions,
-                receipt,
-                source.symbol,
-            ) {
-                return Err(Diagnostic::error(
-                    "linear match transfer consumed this exact claim on every edge; it cannot be used here",
-                ));
-            }
-        }
-    }
     let selected = expressions
         .iter()
         .copied()
@@ -643,122 +593,4 @@ pub(in crate::checks::multiplicity) fn apply_availability(
             );
         }
     }
-}
-
-/// Whether a statement touches a claim an earlier linear selection already
-/// consumed on every edge. The consumed place is the roster source plus the
-/// exact transfer path; residual siblings of the source root stay live and
-/// consumable, so only overlapping maximal use paths conflict. An
-/// unresolvable call receiver conservatively counts as a whole-source use.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn linear_source_use_conflicts(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    statement: &StatementNode,
-    expressions: &[ExpressionHandle],
-    receipt: &FlowOwnedSelectionReceipt,
-    source_symbol: SymbolHandle,
-) -> bool {
-    // The consumed places are the claim set each transfer names, not just the
-    // moved leaf path: a claim row is the exact discharged place, while a
-    // claimless transfer still guards its leaf path (a projected affine leaf
-    // keeps residual siblings off the moved child).
-    let consumed_paths = facts
-        .flow
-        .ownership
-        .selection_transfers
-        .span_or_empty(receipt.transfers)
-        .iter()
-        .filter(|transfer| transfer.source.is_valid())
-        .filter(|transfer| {
-            facts
-                .flow
-                .ownership
-                .selection_sources
-                .get(transfer.source)
-                .symbol
-                == source_symbol
-        })
-        .flat_map(|transfer| {
-            let claims = facts
-                .flow
-                .ownership
-                .selection_transfer_claims
-                .span_or_empty(transfer.claims);
-            if claims.is_empty() {
-                vec![
-                    facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(transfer.path)
-                        .to_vec(),
-                ]
-            } else {
-                claims
-                    .iter()
-                    .map(|claim| {
-                        facts
-                            .flow
-                            .ownership
-                            .segments
-                            .span_or_empty(claim.path)
-                            .to_vec()
-                    })
-                    .collect()
-            }
-        })
-        .collect::<Vec<_>>();
-    if consumed_paths.is_empty() {
-        return false;
-    }
-    let mut used_paths: Vec<Vec<facts::PlaceSegment>> = expressions
-        .iter()
-        .filter_map(|expression| {
-            validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                *expression,
-            )
-        })
-        .filter(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
-        .map(|place| place.segments)
-        .collect();
-    if let Some(call) = statement.as_call()
-        && call.receiver_root_symbol == source_symbol
-    {
-        match crate::flow::canonical_receiver_place_for_call_site(
-            program,
-            machine.symbol,
-            state.symbol,
-            &validation::CallSite::Statement(call),
-            statement_index,
-        ) {
-            Some(place) if place.root == facts::PlaceRoot::Symbol(source_symbol) => {
-                used_paths.push(place.segments)
-            }
-            _ => return true,
-        }
-    }
-    // The inner `Name` nodes of a projection are strict prefixes of the
-    // outermost use; keep only maximal touched paths so reading a residual
-    // sibling does not count as using the consumed whole.
-    let used_paths: Vec<Vec<facts::PlaceSegment>> = used_paths
-        .iter()
-        .filter(|path| {
-            !used_paths
-                .iter()
-                .any(|other| other.len() > path.len() && other.starts_with(path.as_slice()))
-        })
-        .cloned()
-        .collect();
-    used_paths.iter().any(|used| {
-        consumed_paths
-            .iter()
-            .any(|consumed| place_paths_overlap(used, consumed))
-    })
 }

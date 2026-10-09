@@ -1,5 +1,6 @@
 //! Statement permission production, moves and static case selection.
 
+use crate::checks::multiplicity::cleanup_dispositions::StorageEstablishment;
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
 use crate::checks::multiplicity::linear_validation::claim_provenance::{
     completed_statement_values, written_linear_targets, written_owner_targets,
@@ -32,12 +33,13 @@ pub(crate) fn apply_statement_permission_production(
     permission_events: &mut Vec<FlowPermissionEventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
     conditional_carrier_transfers: &mut Vec<usize>,
-) -> Result<(), diagnostics::Diagnostic> {
+    selections: &mut super::super::owned_selection::SelectionOccurrences,
+) -> Result<Vec<StorageEstablishment>, diagnostics::Diagnostic> {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
     if matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#"))
     {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     let event_start = permission_events.len();
@@ -316,6 +318,8 @@ pub(crate) fn apply_statement_permission_production(
         );
     }
 
+    let mut checked_through = event_start;
+    let mut storage_establishments: Vec<StorageEstablishment> = Vec::new();
     for (target, source) in written_targets {
         let place_index = target.place_index;
         let obligation_live = target.obligation_live;
@@ -375,6 +379,26 @@ pub(crate) fn apply_statement_permission_production(
                     obligation_live: false,
                 });
             }
+        }
+        // Authenticate the RHS and old-value disposal before a new whole
+        // write can end a selected-source occurrence barrier.
+        selections.check_events(
+            &permission_events[checked_through..],
+            &facts.flow.ownership.segments,
+        )?;
+        checked_through = permission_events.len();
+        selections.establish(target.root, &target.destination_path);
+        if !storage_establishments.iter().any(|establishment| {
+            establishment.destination.root == target.root
+                && establishment.destination.segments == target.destination_path
+        }) {
+            storage_establishments.push(StorageEstablishment {
+                event_ordinal: permission_events.len() - event_start,
+                destination: validation::CanonicalPlace {
+                    root: target.root,
+                    segments: target.destination_path.clone(),
+                },
+            });
         }
         place.live = obligation_live || place.multiplicity == Multiplicity::Affine;
         place.case_excluded = place.conditional && !obligation_live;
@@ -445,7 +469,11 @@ pub(crate) fn apply_statement_permission_production(
     for event in &mut permission_events[event_start..] {
         event.evaluation = evaluation;
     }
-    Ok(())
+    selections.check_events(
+        &permission_events[checked_through..],
+        &facts.flow.ownership.segments,
+    )?;
+    Ok(storage_establishments)
 }
 
 fn move_selects_claim(event_path: &[facts::PlaceSegment], claim: &LinearPlace) -> bool {

@@ -6,6 +6,8 @@
 //! A shared-reference member owns descriptor storage, not its referent. Its
 //! carrier therefore needs the same selected-source receipt as other owned
 //! storage; loan checking independently retains its complete backing frontier.
+//! The occurrence frontier ends only at an authenticated receiving write, not
+//! at inherited provenance or a sibling edge's establishment.
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -17,7 +19,9 @@ pub(in crate::checks) use operands::reachable_arms;
 use operands::*;
 mod availability;
 mod leaves;
+mod occurrences;
 mod operands;
+pub(super) use occurrences::SelectionOccurrences;
 
 /// Storage that can travel on a selected owned edge. Finite linear storage
 /// keeps its claim frontier; shared-view carriers keep their descriptor loans.

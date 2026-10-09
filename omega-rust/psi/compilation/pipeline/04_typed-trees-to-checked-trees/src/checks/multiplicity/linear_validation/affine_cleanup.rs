@@ -198,7 +198,7 @@ pub(crate) fn apply_recorded_cleanup_events(
     }
 }
 
-fn exit_evaluation(
+pub(super) fn exit_evaluation(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     coordinate: FlowClaimJoinExit,

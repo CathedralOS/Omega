@@ -2192,19 +2192,22 @@ crash and native exit behavior.
     lifetime relation; an unrelated-lifetime input is not a fallback candidate.
     Retirement separately retains possible transfers and
     proves which source paths transfer on every arm.
-    Remaining: selection availability still treats a source variable as consumed
-    forever, rather than tracking its current stored occurrence. Refill after
-    selection must establish a new carrier without reviving the consumed one;
-    its new backing must remain protected until that carrier's last read. Extend
-    the selected helper fixture with this witness and an invalid early write.
-    Preserve exact receiving-holder correspondence and leaf-only retirement
+    Remaining: **PSI-TARGET-FAMILIES**, integrated by
+    **PIPELINE-ARCHITECTURE-ENFORCEMENT**, blocks ordinary std package admission
+    with its missing portable family contract; this prevents the public helper
+    and descriptor sample commands before their own compilation. The slice-return
+    controls below still reject their captured range
+    endpoint against an unknown length on untouched main `9657a66795`;
+    **MACOS-NATIVE-LOST-SUCCESSES** owns that shared hoisted-bound dependency.
+    Their authored exits remain required. Preserve current-occurrence selection
+    availability: a whole-local refill after selection installs a new carrier
+    without reviving the consumed one; its new backing stays protected until
+    that carrier's last read. The consumed-source RHS, partial-child refill and
+    early-new-backing write controls must reject. Preserve exact receiving-holder
+    correspondence and leaf-only retirement
     across replacement, copied suppliers and anonymous selection complements.
     Borrowed call results nested in constructors and projections retain their
     receiving leaf groups; do not restore the whole-initializer call recognizer.
-    The slice-return controls below
-    still reject their captured range endpoint against an unknown length on
-    untouched main `9657a66795`; **MACOS-NATIVE-LOST-SUCCESSES** owns that
-    shared hoisted-bound dependency. Their authored exits remain required.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

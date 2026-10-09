@@ -24,6 +24,13 @@ pub(crate) struct RemainingCustody {
     )>,
 }
 
+/// A receiving write's storage extent, paired with its first claim event in
+/// the current evaluation. Claim events name leaves, not the containing write.
+pub(super) struct StorageEstablishment {
+    pub(super) event_ordinal: usize,
+    pub(super) destination: validation::CanonicalPlace,
+}
+
 impl RemainingCustody {
     /// Reserve a deferred owned local without inventing a valid whole value.
     pub(super) fn reserve(
@@ -119,10 +126,26 @@ impl RemainingCustody {
         segments: &Arena<PlaceSegment>,
         output: &mut ContextualCleanupFacts,
         exit: FlowClaimJoinExit,
+        establishments: &[StorageEstablishment],
     ) {
-        for event in events {
+        for (event_ordinal, event) in events.iter().enumerate() {
             if event.access != PermissionAccess::Owned {
                 continue;
+            }
+            // Dispose the old occurrence with its old exclusions before the
+            // receiving write clears them. Apply a whole write only once:
+            // later claim events may exclude absent conditional payloads.
+            for establishment in establishments
+                .iter()
+                .filter(|establishment| establishment.event_ordinal == event_ordinal)
+            {
+                debug_assert_eq!(event.kind, PermissionEventKind::Establish);
+                debug_assert_eq!(event.root, establishment.destination.root);
+                self.establish_storage(
+                    program,
+                    establishment.destination.root,
+                    &establishment.destination.segments,
+                );
             }
             let path = segments.span_or_empty(event.segments);
             if event.kind == PermissionEventKind::AffineDrop
@@ -214,5 +237,24 @@ impl RemainingCustody {
     /// carrier transfer: retaining that home would dispose it on the edge.
     pub(super) fn transfer_storage(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
         self.remove(root, path);
+    }
+
+    /// Claim events name leaves; the successful write also establishes its
+    /// containing storage region. A child write never clears a removed parent.
+    fn establish_storage(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        root: PlaceRoot,
+        path: &[PlaceSegment],
+    ) {
+        self.excluded
+            .retain(|(candidate, removed)| *candidate != root || !removed.starts_with(path));
+        if let Some((_, frontier)) = self
+            .constructing
+            .iter_mut()
+            .find(|(candidate, _)| *candidate == root)
+        {
+            frontier.establish(program, path);
+        }
     }
 }

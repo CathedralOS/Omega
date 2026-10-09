@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 7.93, "load1_start": 7.93, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 5.57, "load1_start": 5.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -447,13 +447,14 @@ fail/borrows/selected_reference_live_nested_parent_write rejected 393ms expected
 	statement 4 mutates `second_parent` while local borrow `nested` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/selected_reference_live_reborrow_parent_write rejected 391ms expected @c910d797b35a
 	statement 3 mutates `second_view` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/selected_reference_record_helper_live_source_write rejected 452ms expected @d4bb8490772a+wt
+fail/borrows/selected_reference_record_helper_live_source_write rejected 694ms expected @ee5c54594b4f+wt
 	statement 5 mutates `second.value` while local borrow `copied` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 	statement 3 mutates `second.value` while local borrow `envelope` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `first.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 5 mutates `second.value` while local borrow `envelope` is still active (borrowed at statement 4; its last use is at statement 6 and it is released at state exit)
 	statement 6 mutates `second.value` while local borrow `held` is still active (borrowed at statement 5; its last use is at statement 7 and it is released at state exit)
 	statement 10 mutates `second.value` while local borrow `chosen` is still active (borrowed at statement 9; its last use is at statement 11 and it is released at state exit)
+	statement 12 mutates `third.value` while local borrow `held` is still active (borrowed at statement 8; its last use is at statement 13 and it is released at state exit)
 fail/borrows/selected_reference_record_helper_local_escape rejected 359ms expected @fcce6043b0fd+wt
 	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a borrow of an input parameter or `self` instead
 fail/borrows/selected_reference_record_helper_wrong_lifetime rejected 348ms expected @fcce6043b0fd+wt
@@ -1746,6 +1747,11 @@ fail/ownership/read_through_consumed_owner_rejected rejected 732ms expected @78c
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 fail/ownership/read_through_dropped_owner_rejected rejected 771ms expected @78cf629f34f9+wt
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
+fail/ownership/selected_carrier_partial_refill_contains_consumed_owner rejected 417ms expected @ee5c54594b4f+wt
+	owned value may have been transferred by an earlier match; it cannot be used here
+fail/ownership/selected_carrier_refill_reads_consumed_source rejected 380ms expected @ee5c54594b4f+wt
+	owned value may have been transferred by an earlier match; it cannot be used here
+	owned value may have been transferred by an earlier match; it cannot be used here
 fail/ownership/view_element_window_live_borrow rejected 433ms expected @37c6aa84a411+wt
 	statement 1 mutates `tokens[0]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/ownership/view_element_window_missing_repair rejected 365ms expected @37c6aa84a411+wt

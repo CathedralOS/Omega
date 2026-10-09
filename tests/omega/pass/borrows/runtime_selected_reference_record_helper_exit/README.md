@@ -60,3 +60,9 @@ earlier move from that variable does not consume its new value.
 A copied-descriptor candidate keeps its original supplier independently live.
 Retiring the selected result and unselected complement cannot consume that
 supplier through shared ancestry; its later read still precedes restoration.
+
+A whole-local refill after selection installs a new carrier occurrence in the
+consumed source slot. The replacement originates before the selection: borrowed
+provenance age does not decide occurrence availability. Reading the selected
+result restores its old backings, while the replacement's third backing stays
+protected until the refilled carrier is read. Both selector values run this route.

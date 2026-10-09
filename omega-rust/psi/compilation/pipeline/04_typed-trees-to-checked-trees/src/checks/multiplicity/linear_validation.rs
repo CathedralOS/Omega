@@ -22,7 +22,7 @@ pub(crate) use applied_events::{
 pub(crate) use claim_frontier::{
     initial_linear_places, linear_claim_frontier, reserve_owner_places,
 };
-pub(crate) use claim_provenance::completed_statement_values;
+pub(crate) use claim_provenance::{completed_statement_values, written_linear_targets};
 pub(crate) use permission_production::{
     apply_statement_permission_production, established_provenance, event_statement_index,
     permission_source, select_static_case_alternative,
@@ -36,7 +36,6 @@ use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource,
 };
-use symbols::SymbolHandle;
 
 pub(crate) fn validate_linear_permission_events(
     program: &dyn ::validation::CheckingInput,
@@ -106,66 +105,104 @@ pub(crate) fn validate_linear_permission_events(
         );
 
         let mut outcomes = Vec::new();
-        super::permission_schedule::walk(program, state, places.clone(), |step, places| {
-            super::permission_schedule::select_cases(program, state, step, places);
-            match step {
-                super::permission_schedule::PermissionStep::Evaluate {
-                    statement,
-                    evaluation,
-                } => {
-                    // The recording pass already decided which statements are
-                    // owned selections and kept one receipt for each. Apply
-                    // that receipt's availability exactly as recording did,
-                    // instead of recording the selection a second time.
-                    if !matches!(
-                        evaluation,
-                        checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
-                    ) && let Some((_, receipt)) = facts
-                        .flow
-                        .ownership
-                        .owned_selections
-                        .iter()
-                        .find(|(_, receipt)| {
-                            receipt.machine == machine.symbol
-                                && receipt.state == state.symbol
-                                && receipt.statement_ordinal as usize == statement
-                        })
-                    {
-                        owned_selection::apply_availability(
-                            program,
-                            &facts.flow.ownership,
-                            receipt,
-                            places,
-                        );
-                        return;
-                    }
-                    apply_recorded_statement_events(
+        super::permission_schedule::walk(
+            program,
+            state,
+            (
+                places.clone(),
+                owned_selection::SelectionOccurrences::default(),
+            ),
+            |step, custody| {
+                let (places, selections) = custody;
+                super::permission_schedule::select_cases(program, state, step, places);
+                match step {
+                    super::permission_schedule::PermissionStep::Evaluate {
                         statement,
                         evaluation,
-                        &events,
-                        &facts.flow.ownership.segments,
-                        places,
-                        &mut diagnostics,
-                    );
-                }
-                super::permission_schedule::PermissionStep::Exit {
-                    coordinate,
-                    crash: false,
-                } => {
-                    affine_cleanup::apply_recorded_cleanup_events(
-                        program,
-                        state,
-                        state_flow.machine_symbol,
+                    } => {
+                        // The recording pass already decided which statements are
+                        // owned selections and kept one receipt for each. Apply
+                        // that receipt's availability exactly as recording did,
+                        // instead of recording the selection a second time.
+                        if !matches!(
+                            evaluation,
+                            checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
+                        ) && let Some((_, receipt)) = facts
+                            .flow
+                            .ownership
+                            .owned_selections
+                            .iter()
+                            .find(|(_, receipt)| {
+                                receipt.machine == machine.symbol
+                                    && receipt.state == state.symbol
+                                    && receipt.statement_ordinal as usize == statement
+                            })
+                        {
+                            if events.iter().any(|event| {
+                                permission_event_statement_index(event.source) == Some(statement)
+                            }) {
+                                diagnostics.push(Diagnostic::error("owned selection acquired unconditional transfer, establishment, or residual cleanup events"));
+                            }
+                            selections.consume(program, &facts.flow.ownership, receipt);
+                            owned_selection::apply_availability(
+                                program,
+                                &facts.flow.ownership,
+                                receipt,
+                                places,
+                            );
+                            return;
+                        }
+                        if let Err(diagnostic) = selections.replay_statement(
+                            program,
+                            state,
+                            statement,
+                            evaluation,
+                            &events,
+                            &facts.flow.ownership,
+                            places,
+                        ) {
+                            diagnostics.push(diagnostic);
+                        }
+                        apply_recorded_statement_events(
+                            statement,
+                            evaluation,
+                            &events,
+                            &facts.flow.ownership.segments,
+                            places,
+                            &mut diagnostics,
+                        );
+                    }
+                    super::permission_schedule::PermissionStep::Exit {
                         coordinate,
-                        &events,
-                        places,
-                        &mut diagnostics,
-                    );
-                    outcomes.push(places.clone())
+                        crash: false,
+                    } => {
+                        if let Err(diagnostic) = selections.check_events(
+                            events.iter().copied().filter(|event| {
+                                event.source == PermissionEventSource::StateExit
+                                    && event.evaluation
+                                        == affine_cleanup::exit_evaluation(
+                                            program, state, coordinate,
+                                        )
+                            }),
+                            &facts.flow.ownership.segments,
+                        ) {
+                            diagnostics.push(diagnostic);
+                        }
+                        affine_cleanup::apply_recorded_cleanup_events(
+                            program,
+                            state,
+                            state_flow.machine_symbol,
+                            coordinate,
+                            &events,
+                            places,
+                            &mut diagnostics,
+                        );
+                        outcomes.push(places.clone())
+                    }
+                    _ => {}
                 }
-                _ => {}
-            }
-        });
+            },
+        );
         let mut mixed_places = Vec::new();
         let has_ordinary_exit = !outcomes.is_empty();
         if let Some(first) = outcomes.first() {
@@ -207,99 +244,6 @@ pub(crate) fn validate_linear_permission_events(
         }
     }
 
-    for (_, receipt) in facts.flow.ownership.owned_selections.iter() {
-        let sources = facts
-            .flow
-            .ownership
-            .selection_sources
-            .span_or_empty(receipt.sources);
-        // A linear receipt consumes only the exact claim each transfer names;
-        // residual siblings of a source root remain live custody with their
-        // own later events. Only an event overlapping a consumed path on a
-        // source root is a second life for the same claim.
-        let consumed_places: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> =
-            if program.type_multiplicity(receipt.type_reference) == Multiplicity::Linear {
-                facts
-                    .flow
-                    .ownership
-                    .selection_transfers
-                    .span_or_empty(receipt.transfers)
-                    .iter()
-                    .filter(|transfer| transfer.source.is_valid())
-                    .flat_map(|transfer| {
-                        let symbol = facts
-                            .flow
-                            .ownership
-                            .selection_sources
-                            .get(transfer.source)
-                            .symbol;
-                        let claims = facts
-                            .flow
-                            .ownership
-                            .selection_transfer_claims
-                            .span_or_empty(transfer.claims);
-                        if claims.is_empty() {
-                            vec![(
-                                symbol,
-                                facts
-                                    .flow
-                                    .ownership
-                                    .segments
-                                    .span_or_empty(transfer.path)
-                                    .to_vec(),
-                            )]
-                        } else {
-                            claims
-                                .iter()
-                                .map(|claim| {
-                                    (
-                                        symbol,
-                                        facts
-                                            .flow
-                                            .ownership
-                                            .segments
-                                            .span_or_empty(claim.path)
-                                            .to_vec(),
-                                    )
-                                })
-                                .collect()
-                        }
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-        if facts.flow.ownership.permissions.iter().any(|(_, event)| {
-            if event.machine_symbol != receipt.machine
-                || event.state_symbol != receipt.state
-                || event.access != PermissionAccess::Owned
-            {
-                return false;
-            }
-            let statement = permission_event_statement_index(event.source);
-            if statement == Some(receipt.statement_ordinal as usize) {
-                return true;
-            }
-            if event.source != PermissionEventSource::StateExit
-                && !statement
-                    .is_some_and(|statement| statement > receipt.statement_ordinal as usize)
-            {
-                return false;
-            }
-            if consumed_places.is_empty() {
-                return sources
-                    .iter()
-                    .any(|source| event.root == facts::PlaceRoot::Symbol(source.symbol));
-            }
-            let event_path = facts.flow.ownership.segments.span_or_empty(event.segments);
-            consumed_places.iter().any(|(symbol, path)| {
-                event.root == facts::PlaceRoot::Symbol(*symbol)
-                    && owned_selection::place_paths_overlap(event_path, path)
-            })
-        }) {
-            diagnostics.push(Diagnostic::error("owned selection acquired unconditional transfer, establishment, or residual cleanup events"));
-        }
-    }
     if diagnostics.is_empty() {
         Ok(())
     } else {

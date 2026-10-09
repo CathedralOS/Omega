@@ -248,6 +248,30 @@ machine verify_selected_refill(first: &mut Cell, second: &mut Cell, third: &mut 
         && first.value == 51 && second.value == 83 && third.value == 99
 }
 
+machine verify_refill_after_selection(first: &mut Cell, second: &mut Cell, third: &mut Cell, selected: bool) -> bool {
+    first.value = 41;
+    second.value = 73;
+    third.value = 89;
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let third_parent: &mut Cell = &mut third;
+    // The replacement already exists before the selection consumes its sources.
+    let third_input: Held = Held { target: &third_parent, stamp: 14 };
+    let first_input: Held = Held { target: &first_parent, stamp: 12 };
+    let second_input: Held = Held { target: &second_parent, stamp: 13 };
+    let mut held: Held = first_input;
+    let chosen: Held = match selected { true -> held, false -> second_input };
+    held = third_input;
+    let observed: i32 = chosen.target.value;
+    first.value = 51;
+    second.value = 83;
+    let later: i32 = held.target.value;
+    third.value = 99;
+    observed == (match selected { true -> 41, false -> 73 }) && later == 89
+        && chosen.stamp == (match selected { true -> 12, false -> 13 }) && held.stamp == 14
+        && first.value == 51 && second.value == 83 && third.value == 99
+}
+
 machine verify_selected_copy(first: &mut Cell, second: &mut Cell, selected: bool) -> bool {
     first.value = 41;
     second.value = 73;
@@ -315,7 +339,9 @@ machine Main::main(main: &mut Main) reaches Console {
     let twentieth: bool = verify_selected_refill(&mut main.first, &mut main.second, &mut main.third, false);
     let twenty_first: bool = verify_selected_copy(&mut main.first, &mut main.second, true);
     let twenty_second: bool = verify_selected_copy(&mut main.first, &mut main.second, false);
-    transition first && second && third && fourth && fifth && sixth && seventh && eighth && ninth && tenth && eleventh && twelfth && thirteenth && fourteenth && fifteenth && sixteenth && seventeenth && eighteenth && nineteenth && twentieth && twenty_first && twenty_second {
+    let twenty_third: bool = verify_refill_after_selection(&mut main.first, &mut main.second, &mut main.third, true);
+    let twenty_fourth: bool = verify_refill_after_selection(&mut main.first, &mut main.second, &mut main.third, false);
+    transition first && second && third && fourth && fifth && sixth && seventh && eighth && ninth && tenth && eleventh && twelfth && thirteenth && fourteenth && fifteenth && sixteenth && seventeenth && eighteenth && nineteenth && twentieth && twenty_first && twenty_second && twenty_third && twenty_fourth {
         true -> good(main)
         false -> bad(main)
     }
