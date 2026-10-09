@@ -60,7 +60,7 @@ pub use source_consumption::{
     derive_package_compilation_subject, derive_source_consumption_commitment,
     toolchain_source_identities, toolchain_source_identity_digest,
 };
-pub use source_consumption::{
+pub(crate) use source_consumption::{
     PackageCompilationSubject};
 pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
