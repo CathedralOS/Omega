@@ -82,7 +82,7 @@ macro_rules! canonical_authority_digest {
             ) -> Self {
                 let mut digest = crate::digest_encoder::DomainDigestEncoder::new($domain);
                 digest.raw(&report_identity.to_le_bytes());
-                digest.u64((canonical.len() as u64);
+                digest.u64(canonical.len() as u64);
                 digest.raw(&canonical);
                 Self(digest.finish())
             }
