@@ -95,7 +95,7 @@ impl ScalarBindings {
         Ok(formal.map(|formal| (formal.argument.clone(), formal.structural_type)))
     }
 
-    fn captured_formal_home(
+    pub(super) fn captured_formal_home(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<Option<StructuralArgument>, LoweringError> {

@@ -21,7 +21,7 @@ pub(crate) use boolean::emit_boolean_expression;
 use buffer::OperationBuffer;
 use calls::{CallEmissionContext, LoweredDirectCallBinding};
 use expressions::LoweredDirectExpression;
-pub(crate) use expressions::{emit_byte_length, emit_direct_expression};
+pub(crate) use expressions::emit_direct_expression;
 use lowered_psi::{
     LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
 };
