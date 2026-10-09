@@ -20,6 +20,8 @@
 
 #![forbid(unsafe_code)]
 
+mod codec_bytes;
+
 mod authored_storage;
 mod bounded_integer_type;
 pub mod byte_predicates;

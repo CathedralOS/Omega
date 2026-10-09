@@ -7,11 +7,11 @@ pub fn encode_integer(bytes: &mut Vec<u8>, value: IntegerValue) {
     match value {
         IntegerValue::Signed(value) => {
             bytes.push(0);
-            bytes.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
         }
         IntegerValue::Unsigned(value) => {
             bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
         }
     }
 }
@@ -45,8 +45,8 @@ pub fn encode_register(bytes: &mut Vec<u8>, register: MachineRegister) {
 pub(super) fn encode_bindings(bytes: &mut Vec<u8>, bindings: &[ValueBinding]) {
     encode_len(bytes, bindings.len());
     for binding in bindings {
-        bytes.extend_from_slice(&binding.parameter.get().to_le_bytes());
-        bytes.extend_from_slice(&binding.argument.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, binding.parameter.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, binding.argument.get().to_le_bytes());
         encode_scalar_type(bytes, binding.scalar_type);
     }
 }
@@ -77,5 +77,5 @@ pub(super) fn encode_integer_type(bytes: &mut Vec<u8>, integer: IntegerType) {
         semantic_vocabulary::IntegerSign::Signed => 0,
         semantic_vocabulary::IntegerSign::Unsigned => 1,
     });
-    bytes.extend_from_slice(&integer.bits().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, integer.bits().to_le_bytes());
 }

@@ -17,6 +17,8 @@
 //! declaration selection, quotient correspondence, type identity, value
 //! domains and wire.
 
+mod codec_bytes;
+
 pub mod byte_predicates;
 pub mod const_value;
 pub mod content;

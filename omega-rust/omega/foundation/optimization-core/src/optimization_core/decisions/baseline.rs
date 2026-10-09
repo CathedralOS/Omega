@@ -86,7 +86,7 @@ impl BaselineDecisionLog {
     pub fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(b"OMGBDL\0\0");
-        encoded.extend_from_slice(&1_u32.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, 1_u32.to_le_bytes());
         encoded.extend_from_slice(
             &u32::try_from(self.records.len())
                 .expect("decision record count fits u32")
@@ -102,7 +102,7 @@ impl BaselineDecisionLog {
             );
             for candidate in &record.considered {
                 encoded.extend_from_slice(&candidate.candidate.bytes());
-                encoded.extend_from_slice(&candidate.predicted_cost_delta.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut encoded, candidate.predicted_cost_delta.to_le_bytes());
             }
             match record.outcome {
                 BaselineDecisionOutcome::Choose(candidate) => {
@@ -273,7 +273,7 @@ fn encode_decision(
     );
     for candidate in considered {
         canonical.extend_from_slice(&candidate.candidate.bytes());
-        canonical.extend_from_slice(&candidate.predicted_cost_delta.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, candidate.predicted_cost_delta.to_le_bytes());
     }
     match outcome {
         BaselineDecisionOutcome::Choose(candidate) => {

@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn nominal_cleanup_path_wire_change_rejects_previous_module_version() {
         let mut encoded = super::super::MAGIC.to_vec();
-        encoded.extend_from_slice(&120_u16.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, 120_u16.to_le_bytes());
         assert!(matches!(
             super::super::decode_module(&encoded),
             Err(CodecError::UnsupportedFormatMarker(120))

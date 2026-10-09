@@ -70,7 +70,7 @@ impl OptimizationDecisionRecord {
                 + usize::from(self.validator.is_some()) * 32,
         );
         encoded.extend_from_slice(DECISION_WIRE_FORMAT.magic);
-        encoded.extend_from_slice(&DECISION_WIRE_FORMAT.version.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, DECISION_WIRE_FORMAT.version.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
         encoded.extend_from_slice(&self.input.bytes());
         encoded.extend_from_slice(&self.candidate.bytes());

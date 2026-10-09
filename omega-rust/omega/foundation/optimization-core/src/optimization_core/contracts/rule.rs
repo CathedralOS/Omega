@@ -43,10 +43,10 @@ impl OptimizationRuleContract {
     pub fn encode(self) -> Vec<u8> {
         let mut encoded = Vec::with_capacity(97);
         encoded.extend_from_slice(RULE_CONTRACT_MAGIC);
-        encoded.extend_from_slice(&RULE_CONTRACT_SCHEMA_VERSION.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, RULE_CONTRACT_SCHEMA_VERSION.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
         encoded.extend_from_slice(&self.pass.bytes());
-        encoded.extend_from_slice(&self.version.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, self.version.to_le_bytes());
         encoded.extend_from_slice(&self.required_analyses.encode());
         encoded.extend_from_slice(&self.invalidated_analyses.encode());
         encoded.extend_from_slice(&self.safety_class.encode());

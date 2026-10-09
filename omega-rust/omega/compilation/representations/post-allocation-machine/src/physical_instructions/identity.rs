@@ -53,23 +53,23 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
     });
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
         encode_len(&mut bytes, function.local_storage_slots.len());
         for slot in &function.local_storage_slots {
             slot.id.encode_identity(&mut bytes);
-            bytes.extend_from_slice(&slot.byte_size.to_le_bytes());
-            bytes.extend_from_slice(&slot.alignment.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, slot.byte_size.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, slot.alignment.to_le_bytes());
         }
         encode_len(&mut bytes, function.outgoing_arguments.len());
         for slot in &function.outgoing_arguments {
             slot.id.encode_identity(&mut bytes);
-            bytes.extend_from_slice(&slot.byte_size.to_le_bytes());
-            bytes.extend_from_slice(&slot.alignment.to_le_bytes());
-            bytes.extend_from_slice(&slot.abi_stack_byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, slot.byte_size.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, slot.alignment.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, slot.abi_stack_byte_offset.to_le_bytes());
         }
         encode_len(&mut bytes, function.blocks.len());
         for block in &function.blocks {
-            bytes.extend_from_slice(&block.block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, block.block.0.to_le_bytes());
             encode_len(&mut bytes, block.instructions.len());
             for instruction in &block.instructions {
                 encode_instruction(&mut bytes, instruction);
@@ -81,14 +81,14 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
 }
 
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMachineInstruction) {
-    bytes.extend_from_slice(&instruction.instruction.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, instruction.instruction.0.to_le_bytes());
     selected_instructions::encode_machine_alternative_identity(bytes, &instruction.alternative);
     encode_len(bytes, instruction.operands.len());
     for operand in &instruction.operands {
-        bytes.extend_from_slice(&operand.operand.to_le_bytes());
-        bytes.extend_from_slice(&operand.virtual_register.0.to_le_bytes());
-        bytes.extend_from_slice(&operand.class.0.to_le_bytes());
-        bytes.extend_from_slice(&operand.view.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.operand.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.class.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, operand.view.0.to_le_bytes());
         bytes.push(match operand.access {
             RegisterOperandAccess::Use => 0,
             RegisterOperandAccess::Def => 1,
@@ -127,8 +127,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             byte_size,
         }) => {
             bytes.push(6);
-            bytes.extend_from_slice(&base_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             bytes.push(byte_size);
         }
         Some(crate::PhysicalAddressOperation::AddressOffset {
@@ -136,16 +136,16 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             byte_offset,
         }) => {
             bytes.push(7);
-            bytes.extend_from_slice(&base_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         Some(crate::PhysicalAddressOperation::Load8Indexed {
             base_operand,
             index_operand,
         }) => {
             bytes.push(4);
-            bytes.extend_from_slice(&base_operand.to_le_bytes());
-            bytes.extend_from_slice(&index_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, index_operand.to_le_bytes());
         }
         Some(crate::PhysicalAddressOperation::HostedReadByte { slot }) => {
             bytes.push(9);
@@ -162,8 +162,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             width,
         }) => {
             bytes.push(12);
-            bytes.extend_from_slice(&base_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             bytes.push(width.byte_size());
         }
         Some(crate::PhysicalAddressOperation::StorePacked {
@@ -172,8 +172,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             width,
         }) => {
             bytes.push(13);
-            bytes.extend_from_slice(&base_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             bytes.push(width.byte_size());
         }
         Some(crate::PhysicalAddressOperation::Load8 {
@@ -181,32 +181,32 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             byte_offset,
         }) => {
             bytes.push(10);
-            bytes.extend_from_slice(&base_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         Some(crate::PhysicalAddressOperation::Load16 {
             base_operand,
             byte_offset,
         }) => {
             bytes.push(11);
-            bytes.extend_from_slice(&base_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         Some(crate::PhysicalAddressOperation::Load32 {
             base_operand,
             byte_offset,
         }) => {
             bytes.push(8);
-            bytes.extend_from_slice(&base_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         Some(crate::PhysicalAddressOperation::Load64 {
             base_operand,
             byte_offset,
         }) => {
             bytes.push(1);
-            bytes.extend_from_slice(&base_operand.to_le_bytes());
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, base_operand.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         Some(crate::PhysicalAddressOperation::Store64 { slot, byte_offset })
         | Some(crate::PhysicalAddressOperation::FrameAddress { slot, byte_offset }) => {
@@ -226,8 +226,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
                     abi_stack_byte_offset,
                 } => {
                     bytes.push(2);
-                    bytes.extend_from_slice(&parameter_index.to_le_bytes());
-                    bytes.extend_from_slice(&abi_stack_byte_offset.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, parameter_index.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, abi_stack_byte_offset.to_le_bytes());
                 }
                 selected_instructions::FrameStorageSlotId::Outgoing(slot) => {
                     bytes.push(match slot.role {
@@ -235,14 +235,14 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
                         selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
                     });
                     slot.invocation_site.encode_identity(bytes);
-                    bytes.extend_from_slice(&slot.argument_index.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, slot.argument_index.to_le_bytes());
                 }
                 selected_instructions::FrameStorageSlotId::Local(slot) => {
                     bytes.push(1);
                     slot.encode_identity(bytes);
                 }
             }
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
     }
     encode_units(bytes, &instruction.implicit_unit_uses);
@@ -256,7 +256,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
 fn encode_units(bytes: &mut Vec<u8>, units: &[RegisterUnitId]) {
     encode_len(bytes, units.len());
     for unit in units {
-        bytes.extend_from_slice(&unit.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, unit.0.to_le_bytes());
     }
 }
 

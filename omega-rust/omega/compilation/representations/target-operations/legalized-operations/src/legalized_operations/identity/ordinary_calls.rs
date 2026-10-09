@@ -32,8 +32,8 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
             }
             crate::LegalizedDescriptorOrigin::Literal { machine, place } => {
                 bytes.push(1);
-                bytes.extend_from_slice(&machine.get().to_le_bytes());
-                bytes.extend_from_slice(&place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
             }
         }
     }
@@ -45,7 +45,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
         match argument {
             LegalizedScalarArgument::Scalar { source, placement } => {
                 bytes.push(0);
-                bytes.extend_from_slice(&source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                 encode_placement(bytes, placement);
             }
             LegalizedScalarArgument::Structural {
@@ -66,8 +66,8 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
     }
     encode_len(bytes, call.claim_transfers.len());
     for transfer in &call.claim_transfers {
-        bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
-        bytes.extend_from_slice(&transfer.argument_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, transfer.argument_index.to_le_bytes());
     }
     encode_ids(
         bytes,

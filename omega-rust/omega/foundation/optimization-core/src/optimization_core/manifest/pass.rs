@@ -81,7 +81,7 @@ impl OptimizationPassManifestRecord {
             12 + 32 * 4 + 4 + self.ordered_rules.len() * 32 + 4 + decision_bytes + 40,
         );
         encoded.extend_from_slice(PASS_WIRE_FORMAT.magic);
-        encoded.extend_from_slice(&PASS_WIRE_FORMAT.version.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, PASS_WIRE_FORMAT.version.to_le_bytes());
         encoded.extend_from_slice(&self.pass.bytes());
         encoded.extend_from_slice(&self.input.bytes());
         encoded.extend_from_slice(&self.output.bytes());

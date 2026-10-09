@@ -140,8 +140,8 @@ fn artifact_identity(
     debug: Option<SectionFingerprint>,
 ) -> TerminalArtifactIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&MANIFEST_FORMAT_MARKER.to_le_bytes());
-    bytes.extend_from_slice(&semantic.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, MANIFEST_FORMAT_MARKER.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, semantic.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(semantic.program_fingerprint.as_bytes());
     bytes.extend_from_slice(optimization.as_bytes());
     encode_optional_fingerprint(&mut bytes, installation);

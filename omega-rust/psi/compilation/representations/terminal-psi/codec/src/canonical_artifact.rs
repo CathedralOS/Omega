@@ -138,7 +138,7 @@ impl CanonicalTerminalArtifact {
             .saturating_add(self.debug_bytes.as_ref().map_or(0, Vec::len));
         let mut bytes = Vec::with_capacity(capacity);
         bytes.extend_from_slice(ARTIFACT_MAGIC);
-        bytes.extend_from_slice(&ARTIFACT_FORMAT_MARKER.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, ARTIFACT_FORMAT_MARKER.to_le_bytes());
         encode_section_len(&mut bytes, self.semantic_bytes.len());
         encode_section_len(&mut bytes, self.optimization_bytes.len());
         match &self.debug_bytes {

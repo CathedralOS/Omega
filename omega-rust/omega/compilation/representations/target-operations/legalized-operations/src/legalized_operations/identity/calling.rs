@@ -32,8 +32,8 @@ pub fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     for register in plan.ordinary_clobbers.as_slice() {
         encode_register(bytes, *register);
     }
-    bytes.extend_from_slice(&plan.stack_alignment.to_le_bytes());
-    bytes.extend_from_slice(&plan.shadow_bytes.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, plan.stack_alignment.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, plan.shadow_bytes.to_le_bytes());
     match plan.entry_control {
         EntryControl::CallReturn => bytes.push(1),
         EntryControl::SupervisorCall {
@@ -42,14 +42,14 @@ pub fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
         } => {
             bytes.push(2);
             encode_register(bytes, number_register);
-            bytes.extend_from_slice(&immediate.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, immediate.to_le_bytes());
         }
         EntryControl::InterruptReturn => bytes.push(3),
     }
 }
 
 pub(crate) fn encode_callback_materialization(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
-    bytes.extend_from_slice(&row.binder.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, row.binder.get().to_le_bytes());
     encode_native_place(bytes, &row.destination);
 }
 
@@ -57,7 +57,7 @@ pub(crate) fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace
     match destination {
         NativePlace::Parameter(parameter) => {
             bytes.push(1);
-            bytes.extend_from_slice(&parameter.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, parameter.get().to_le_bytes());
         }
         NativePlace::Field {
             parameter,
@@ -65,11 +65,11 @@ pub(crate) fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace
             field_path,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&parameter.get().to_le_bytes());
-            bytes.extend_from_slice(&layout.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, parameter.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, layout.get().to_le_bytes());
             encode_len(bytes, field_path.len());
             for slot in field_path {
-                bytes.extend_from_slice(&slot.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, slot.get().to_le_bytes());
             }
         }
     }
@@ -87,8 +87,8 @@ pub fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {
             } => {
                 bytes.push(1);
                 encode_register(bytes, register);
-                bytes.extend_from_slice(&value_byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&byte_size.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, value_byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_size.to_le_bytes());
             }
             ValueLocation::Stack {
                 stack_byte_offset,
@@ -97,10 +97,10 @@ pub fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {
                 alignment,
             } => {
                 bytes.push(2);
-                bytes.extend_from_slice(&stack_byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&value_byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&byte_size.to_le_bytes());
-                bytes.extend_from_slice(&alignment.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, stack_byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, value_byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_size.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, alignment.to_le_bytes());
             }
             ValueLocation::Indirect {
                 pointer,
@@ -113,12 +113,12 @@ pub fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {
                 match copy_stack_byte_offset {
                     Some(offset) => {
                         bytes.push(1);
-                        bytes.extend_from_slice(&offset.to_le_bytes());
+                        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
                     }
                     None => bytes.push(0),
                 }
-                bytes.extend_from_slice(&byte_size.to_le_bytes());
-                bytes.extend_from_slice(&alignment.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_size.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, alignment.to_le_bytes());
             }
         }
     }
@@ -135,8 +135,8 @@ pub(crate) fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPoin
             alignment,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&stack_byte_offset.to_le_bytes());
-            bytes.extend_from_slice(&alignment.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, stack_byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, alignment.to_le_bytes());
         }
     }
 }
@@ -157,8 +157,8 @@ pub fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
             encode_eightbyte_class(bytes, second);
         }
     }
-    bytes.extend_from_slice(&shape.byte_size.to_le_bytes());
-    bytes.extend_from_slice(&shape.alignment.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, shape.byte_size.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, shape.alignment.to_le_bytes());
 }
 
 pub(crate) fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyteClass) {

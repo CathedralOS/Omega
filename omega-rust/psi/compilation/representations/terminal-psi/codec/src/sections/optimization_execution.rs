@@ -117,7 +117,7 @@ pub fn encode_psi_optimization_execution_record(
     let selections = record.selections.encode();
     let mut bytes = Vec::with_capacity(10 + 8 + selections.len() + 132);
     bytes.extend_from_slice(MAGIC);
-    bytes.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, FORMAT_MARKER.to_le_bytes());
     bytes.extend_from_slice(
         &u64::try_from(selections.len())
             .expect("the in-memory optimization selection fits u64")
@@ -177,7 +177,7 @@ fn append_identity_to_digest(digest: &mut crate::digest_encoder::DomainDigestEnc
 }
 
 fn append_terminal_identity(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
-    bytes.extend_from_slice(&identity.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, identity.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(identity.program_fingerprint.as_bytes());
 }
 

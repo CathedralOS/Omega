@@ -12,7 +12,7 @@ pub fn encode_hosted_read_byte_identity(
     result: &StructuralOperationResult,
     layout: &ConventionalSumLayout,
 ) {
-    bytes.extend_from_slice(&operation.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
     encode_payload(bytes, boundary, result, layout);
 }
 
@@ -22,27 +22,27 @@ pub(super) fn encode_payload(
     result: &StructuralOperationResult,
     layout: &ConventionalSumLayout,
 ) {
-    bytes.extend_from_slice(&boundary.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
     super::structural_result::encode_operation_result(bytes, result);
     encode_layout(bytes, layout);
 }
 
 pub(super) fn encode_layout(bytes: &mut Vec<u8>, layout: &ConventionalSumLayout) {
     super::calling::encode_shape(bytes, layout.shape);
-    bytes.extend_from_slice(&layout.tag_byte_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, layout.tag_byte_offset.to_le_bytes());
     super::calling::encode_shape(bytes, layout.tag_shape);
     encode_len(bytes, layout.common_fields.len());
     for field in &layout.common_fields {
         super::calling::encode_shape(bytes, field.shape);
-        bytes.extend_from_slice(&field.byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, field.byte_offset.to_le_bytes());
     }
-    bytes.extend_from_slice(&layout.payload_byte_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, layout.payload_byte_offset.to_le_bytes());
     encode_len(bytes, layout.cases.len());
     for case in &layout.cases {
         encode_len(bytes, case.fields.len());
         for field in &case.fields {
             super::calling::encode_shape(bytes, field.shape);
-            bytes.extend_from_slice(&field.byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, field.byte_offset.to_le_bytes());
         }
     }
 }

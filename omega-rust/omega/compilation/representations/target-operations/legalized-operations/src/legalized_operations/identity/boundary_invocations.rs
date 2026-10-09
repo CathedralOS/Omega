@@ -36,7 +36,7 @@ pub fn encode_boundary_execution_identity(
 }
 
 pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBinding) {
-    bytes.extend_from_slice(&binding.boundary.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, binding.boundary.get().to_le_bytes());
     encode_boundary_execution_identity(bytes, binding.execution);
     match &binding.realization {
         BoundarySettlementRealization::NormalizedForeignCall(call) => {
@@ -46,15 +46,15 @@ pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBi
         BoundarySettlementRealization::Builtin(realization) => match realization {
             BoundaryRealization::MetadataOnlyPort(port) => {
                 bytes.push(0);
-                bytes.extend_from_slice(&port.effect_operation.get().to_le_bytes());
-                bytes.extend_from_slice(&port.service.get().to_le_bytes());
-                bytes.extend_from_slice(&port.port.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, port.effect_operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, port.service.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, port.port.to_le_bytes());
                 bytes.push(port.value);
             }
             BoundaryRealization::DirectPortReadU8(port) => {
                 bytes.push(1);
-                bytes.extend_from_slice(&port.service.get().to_le_bytes());
-                bytes.extend_from_slice(&port.port.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, port.service.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, port.port.to_le_bytes());
             }
             BoundaryRealization::LinuxWriteLine(_) => bytes.push(2),
             BoundaryRealization::HostedExitProcessI32(_) => bytes.push(3),

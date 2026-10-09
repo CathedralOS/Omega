@@ -71,7 +71,7 @@ pub(super) fn log_identity(
 
 fn encode_candidate_features(encoded: &mut Vec<u8>, features: &ExternalCandidateFeatures) {
     encoded.extend_from_slice(&features.summary.candidate.bytes());
-    encoded.extend_from_slice(&features.summary.predicted_cost_delta.to_le_bytes());
+    crate::codec_bytes::push_encoded(encoded, features.summary.predicted_cost_delta.to_le_bytes());
     encoded.extend_from_slice(&features.consumed_analyses.encode());
     encoded.extend_from_slice(
         &u64::try_from(features.consumed_facts.len())

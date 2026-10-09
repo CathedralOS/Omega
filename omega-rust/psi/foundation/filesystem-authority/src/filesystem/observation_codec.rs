@@ -81,7 +81,7 @@ impl<'a> ObservationCursor<'a> {
 }
 
 pub fn push_framed(out: &mut Vec<u8>, bytes: &[u8]) {
-    out.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(out, (bytes.len() as u64).to_le_bytes());
     out.extend_from_slice(bytes);
 }
 
@@ -108,11 +108,11 @@ pub fn encode_operation_result(result: FilesystemOperationResult, out: &mut Vec<
     match result {
         FilesystemOperationResult::Scalar(value) => {
             out.push(0);
-            out.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(out, value.to_le_bytes());
         }
         FilesystemOperationResult::LogicalHandle(identity) => {
             out.push(1);
-            out.extend_from_slice(&identity.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(out, identity.get().to_le_bytes());
         }
     }
 }
@@ -152,7 +152,7 @@ pub fn encode_logical_handle_input(input: FilesystemLogicalHandleInput, out: &mu
     match input.resolution() {
         FilesystemLogicalHandleInputResolution::Resolved(identity) => {
             out.push(0);
-            out.extend_from_slice(&identity.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(out, identity.get().to_le_bytes());
         }
         FilesystemLogicalHandleInputResolution::Null => out.push(1),
         FilesystemLogicalHandleInputResolution::Unknown => out.push(2),
@@ -181,16 +181,16 @@ pub fn recover_logical_handle_input(
 
 pub fn encode_logical_handle_output(output: FilesystemLogicalHandleOutput, out: &mut Vec<u8>) {
     out.push(encode_logical_handle_kind(output.kind()));
-    out.extend_from_slice(&output.identity().get().to_le_bytes());
+    crate::codec_bytes::push_encoded(out, output.identity().get().to_le_bytes());
     match output.source() {
         FilesystemLogicalHandleOutputSource::Created => out.push(0),
         FilesystemLogicalHandleOutputSource::Duplicated(identity) => {
             out.push(1);
-            out.extend_from_slice(&identity.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(out, identity.get().to_le_bytes());
         }
         FilesystemLogicalHandleOutputSource::Borrowed(identity) => {
             out.push(2);
-            out.extend_from_slice(&identity.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(out, identity.get().to_le_bytes());
         }
     }
 }

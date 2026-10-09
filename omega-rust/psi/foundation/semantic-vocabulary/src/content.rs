@@ -202,7 +202,7 @@ fn encode_fingerprint_term(
         } => {
             output.push(1);
             output.extend_from_slice(&u32::try_from(projection.domain.get()).ok()?.to_le_bytes());
-            output.extend_from_slice(&projection.projection_report_fingerprint.to_le_bytes());
+            crate::codec_bytes::push_encoded(output, projection.projection_report_fingerprint.to_le_bytes());
             output.push(match subject.version {
                 ContentPlaceVersion::Entry => 1,
                 ContentPlaceVersion::Current => 2,
@@ -210,7 +210,7 @@ fn encode_fingerprint_term(
             match structural_places.get(&subject.root)? {
                 StructuralPlaceKind::Parameter { position } => {
                     output.push(1);
-                    output.extend_from_slice(&position.to_le_bytes());
+                    crate::codec_bytes::push_encoded(output, position.to_le_bytes());
                 }
                 StructuralPlaceKind::Result => output.push(3),
                 StructuralPlaceKind::OperationResult {
@@ -218,8 +218,8 @@ fn encode_fingerprint_term(
                     structural_type,
                 } => {
                     output.push(4);
-                    output.extend_from_slice(&producer.get().to_le_bytes());
-                    output.extend_from_slice(&structural_type.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(output, producer.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(output, structural_type.get().to_le_bytes());
                 }
                 // Block parameters, literals, and trivial affine locals carry no claims or content
                 // qualifications in the accepted slice, so they cannot become
@@ -229,7 +229,7 @@ fn encode_fingerprint_term(
                 | StructuralPlaceKind::ProviderAttachment { .. }
                 | StructuralPlaceKind::TrivialAffineLocal { .. } => return None,
             }
-            output.extend_from_slice(&(subject.segments.len() as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(output, (subject.segments.len() as u64).to_le_bytes());
             for segment in &subject.segments {
                 match segment {
                     ContentPlaceSegment::Case(name) => {
@@ -242,14 +242,14 @@ fn encode_fingerprint_term(
                     }
                     ContentPlaceSegment::FixedIndex(index) => {
                         output.push(2);
-                        output.extend_from_slice(&index.to_le_bytes());
+                        crate::codec_bytes::push_encoded(output, index.to_le_bytes());
                     }
                 }
             }
         }
         ContentTerm::Separate(terms) => {
             output.push(2);
-            output.extend_from_slice(&(terms.len() as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(output, (terms.len() as u64).to_le_bytes());
             for term in terms {
                 encode_fingerprint_term(term, structural_places, output)?;
             }
@@ -259,7 +259,7 @@ fn encode_fingerprint_term(
 }
 
 fn encode_fingerprint_string(value: &str, output: &mut Vec<u8>) {
-    output.extend_from_slice(&(value.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(output, (value.len() as u64).to_le_bytes());
     output.extend_from_slice(value.as_bytes());
 }
 

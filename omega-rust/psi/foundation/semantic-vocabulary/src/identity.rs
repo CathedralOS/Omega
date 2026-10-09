@@ -43,7 +43,7 @@ impl BoundaryInvocationSite {
             Self::ExternalCompletion(edge) => (1, edge.get()),
         };
         bytes.push(tag);
-        bytes.extend_from_slice(&identity.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
     }
 
     /// Decode only the closed namespace tags and valid nonzero coordinates.

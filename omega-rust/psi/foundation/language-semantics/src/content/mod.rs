@@ -393,8 +393,8 @@ fn encode_content_conservation_term(term: &ContentConservationTerm, output: &mut
             ..
         } => {
             output.push(1);
-            output.extend_from_slice(&semantic_domain.0.to_le_bytes());
-            output.extend_from_slice(&projection_report_fingerprint.to_le_bytes());
+            crate::codec_bytes::push_encoded(output, semantic_domain.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(output, projection_report_fingerprint.to_le_bytes());
             output.push(match subject.version {
                 ContentPlaceVersion::Entry => 1,
                 ContentPlaceVersion::Current => 2,
@@ -402,11 +402,11 @@ fn encode_content_conservation_term(term: &ContentConservationTerm, output: &mut
             match &subject.root {
                 ContentPlaceRoot::Parameter { position, .. } => {
                     output.push(1);
-                    output.extend_from_slice(&position.to_le_bytes());
+                    crate::codec_bytes::push_encoded(output, position.to_le_bytes());
                 }
                 ContentPlaceRoot::Result => output.push(3),
             }
-            output.extend_from_slice(&(subject.segments.len() as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(output, (subject.segments.len() as u64).to_le_bytes());
             for segment in &subject.segments {
                 match segment {
                     ContentPlaceSegment::Case(case) => {
@@ -419,14 +419,14 @@ fn encode_content_conservation_term(term: &ContentConservationTerm, output: &mut
                     }
                     ContentPlaceSegment::FixedIndex(index) => {
                         output.push(2);
-                        output.extend_from_slice(&index.to_le_bytes());
+                        crate::codec_bytes::push_encoded(output, index.to_le_bytes());
                     }
                 }
             }
         }
         ContentConservationTerm::Separate(terms) => {
             output.push(2);
-            output.extend_from_slice(&(terms.len() as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(output, (terms.len() as u64).to_le_bytes());
             for term in terms {
                 encode_content_conservation_term(term, output);
             }
@@ -467,7 +467,7 @@ pub fn terminal_projection_report_fingerprint(
                 } else {
                     2
                 });
-                output.extend_from_slice(&(path.len() as u64).to_le_bytes());
+                crate::codec_bytes::push_encoded(output, (path.len() as u64).to_le_bytes());
                 for segment in path {
                     encode_string(segment, output);
                 }
@@ -509,7 +509,7 @@ pub fn terminal_projection_report_fingerprint(
     match expression {
         semantic_vocabulary::ContentProjectionExpression::IntervalSet(members) => {
             bytes.push(3);
-            bytes.extend_from_slice(&(members.len() as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, (members.len() as u64).to_le_bytes());
             for (start, end) in members {
                 encode_terminal_scalar(start, &mut bytes);
                 encode_terminal_scalar(end, &mut bytes);
@@ -542,7 +542,7 @@ fn encode_projection(expression: &ContentProjectionExpression, output: &mut Vec<
     match expression {
         ContentProjectionExpression::IntervalSet { members } => {
             output.push(3);
-            output.extend_from_slice(&(members.len() as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(output, (members.len() as u64).to_le_bytes());
             for member in members {
                 encode_scalar(member.start(), output);
                 encode_scalar(member.end(), output);
@@ -559,14 +559,14 @@ fn encode_scalar(expression: &ContentScalarExpression, output: &mut Vec<u8>) {
     match expression {
         ContentScalarExpression::SubjectField(path) => {
             output.push(1);
-            output.extend_from_slice(&(path.len() as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(output, (path.len() as u64).to_le_bytes());
             for segment in path {
                 encode_string(&segment.name, output);
             }
         }
         ContentScalarExpression::RuntimeScalarEmbedding(path) => {
             output.push(2);
-            output.extend_from_slice(&(path.len() as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(output, (path.len() as u64).to_le_bytes());
             for segment in path {
                 encode_string(&segment.name, output);
             }
@@ -597,7 +597,7 @@ fn encode_scalar(expression: &ContentScalarExpression, output: &mut Vec<u8>) {
 }
 
 fn encode_string(value: &str, output: &mut Vec<u8>) {
-    output.extend_from_slice(&(value.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(output, (value.len() as u64).to_le_bytes());
     output.extend_from_slice(value.as_bytes());
 }
 

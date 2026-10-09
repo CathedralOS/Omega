@@ -9,6 +9,7 @@
 //! `rollback` owns exact-name disabling, selection settlement and its receipt;
 //! callers decide which execution phases their requested product permits.
 
+mod codec_bytes;
 mod cursor;
 mod digest_encoder;
 mod optimization_core;

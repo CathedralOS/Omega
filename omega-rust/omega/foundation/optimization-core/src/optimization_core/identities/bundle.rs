@@ -79,7 +79,7 @@ impl OptimizationIdentityBundle {
                 + optional_width(self.workload_profile.is_some()),
         );
         encoded.extend_from_slice(BUNDLE_MAGIC);
-        encoded.extend_from_slice(&BUNDLE_VERSION.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, BUNDLE_VERSION.to_le_bytes());
         encoded.extend_from_slice(&self.selections.bytes());
         encoded.extend_from_slice(&self.rule_set.bytes());
         encoded.extend_from_slice(&self.target_cost_model.bytes());

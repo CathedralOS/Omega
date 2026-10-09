@@ -20,12 +20,12 @@ pub(super) fn encode_window_root(
         }
         abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => {
             bytes.push(1);
-            bytes.extend_from_slice(&producer.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
             super::structural_result::encode_operation_result(bytes, result);
         }
         abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
             bytes.push(2);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
             encode_structural_parameter(bytes, parameter);
         }
     }
@@ -42,9 +42,9 @@ pub(super) fn encode_structural_parameter(
     bytes: &mut Vec<u8>,
     parameter: &StructuralParameterDeclaration,
 ) {
-    bytes.extend_from_slice(&parameter.place.get().to_le_bytes());
-    bytes.extend_from_slice(&parameter.position.to_le_bytes());
-    bytes.extend_from_slice(&parameter.structural_type.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, parameter.place.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, parameter.position.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, parameter.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, parameter.multiplicity);
     encode_access(bytes, parameter.access);
     encode_ids(
@@ -61,8 +61,8 @@ pub(super) fn encode_target_structural_parameter(
     bytes: &mut Vec<u8>,
     parameter: &target_operations::TargetStructuralParameter,
 ) {
-    bytes.extend_from_slice(&parameter.place.get().to_le_bytes());
-    bytes.extend_from_slice(&parameter.structural_type.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, parameter.place.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, parameter.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, parameter.multiplicity);
     encode_access(bytes, parameter.access);
     encode_shape(bytes, parameter.shape);
@@ -77,12 +77,12 @@ pub(super) fn encode_projected_qualifications(
     encode_len(bytes, rows.len());
     for row in rows {
         encode_structural_path(bytes, &row.path);
-        bytes.extend_from_slice(&row.domain.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.domain.get().to_le_bytes());
     }
 }
 
 pub(super) fn encode_structural_argument(bytes: &mut Vec<u8>, argument: &StructuralArgument) {
-    bytes.extend_from_slice(&argument.place.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_structural_path(bytes, &argument.path);
     encode_access(bytes, argument.access);
 }
@@ -91,30 +91,30 @@ pub(super) fn encode_target_structural_argument(
     bytes: &mut Vec<u8>,
     argument: &target_operations::TargetStructuralArgument,
 ) {
-    bytes.extend_from_slice(&argument.place.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_access(bytes, argument.access);
     encode_structural_path(bytes, &argument.path);
-    bytes.extend_from_slice(&argument.root_structural_type.get().to_le_bytes());
-    bytes.extend_from_slice(&argument.structural_type.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, argument.root_structural_type.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, argument.structural_type.get().to_le_bytes());
     encode_shape(bytes, argument.shape);
-    bytes.extend_from_slice(&argument.source_byte_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, argument.source_byte_offset.to_le_bytes());
     optimization_core::encode_option_u64(bytes, argument.fixed_array_length);
     encode_option_u32(bytes, argument.element_stride);
     match &argument.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             bytes.push(5);
-            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
         target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
             psi_operation,
         } => {
             bytes.push(4);
-            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
         target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
             bytes.push(2);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
         }
         target_operations::TargetStructuralArgumentSource::Placement(placement) => {
             bytes.push(0);
@@ -124,21 +124,21 @@ pub(super) fn encode_target_structural_argument(
             psi_operation,
         } => {
             bytes.push(1);
-            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
         target_operations::TargetStructuralArgumentSource::EstablishedElementView {
             psi_operation,
         } => {
             bytes.push(6);
-            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
     }
     encode_placement(bytes, &argument.destination);
 }
 
 pub(super) fn encode_entry_claim(bytes: &mut Vec<u8>, claim: &EntryClaim) {
-    bytes.extend_from_slice(&claim.claim.get().to_le_bytes());
-    bytes.extend_from_slice(&claim.input.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, claim.input.get().to_le_bytes());
     encode_structural_path(bytes, &claim.path);
 }
 
@@ -148,13 +148,13 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
         match segment {
             StructuralPathSegment::Case(case) => {
                 bytes.push(7);
-                bytes.extend_from_slice(&case.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
             }
             StructuralPathSegment::Referent => bytes.push(3),
             StructuralPathSegment::FixedByteRange { start, end } => {
                 bytes.push(4);
-                bytes.extend_from_slice(&start.to_le_bytes());
-                bytes.extend_from_slice(&end.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, start.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, end.to_le_bytes());
             }
             StructuralPathSegment::Field(identity) => {
                 bytes.push(1);
@@ -162,28 +162,28 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
             }
             StructuralPathSegment::FixedIndex(index) => {
                 bytes.push(2);
-                bytes.extend_from_slice(&index.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.to_le_bytes());
             }
             StructuralPathSegment::RuntimeIndex { index, obligation } => {
                 bytes.push(5);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             }
         }
     }
 }
 
 pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
-    bytes.extend_from_slice(&place.id.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, place.id.get().to_le_bytes());
     match place.kind {
         StructuralPlaceKind::BlockParameter { block, position } => {
             bytes.push(8);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&position.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
         }
         StructuralPlaceKind::Parameter { position } => {
             bytes.push(1);
-            bytes.extend_from_slice(&position.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
         }
         StructuralPlaceKind::Result => bytes.push(2),
         StructuralPlaceKind::OperationResult {
@@ -191,16 +191,16 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
             structural_type,
         } => {
             bytes.push(3);
-            bytes.extend_from_slice(&producer.get().to_le_bytes());
-            bytes.extend_from_slice(&structural_type.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
         }
         StructuralPlaceKind::ByteSequenceLiteral {
             declaration_ordinal,
             structural_type,
         } => {
             bytes.push(4);
-            bytes.extend_from_slice(&declaration_ordinal.to_le_bytes());
-            bytes.extend_from_slice(&structural_type.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, declaration_ordinal.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
         }
         StructuralPlaceKind::ProviderAttachment {
             attachment,
@@ -208,9 +208,9 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
             boundary,
         } => {
             bytes.push(5);
-            bytes.extend_from_slice(&attachment.get().to_le_bytes());
-            bytes.extend_from_slice(&field.get().to_le_bytes());
-            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, attachment.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, field.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
         }
         StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
@@ -218,24 +218,24 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
             construction,
         } => {
             bytes.push(if construction.is_some() { 7 } else { 6 });
-            bytes.extend_from_slice(&declaration_ordinal.to_le_bytes());
-            bytes.extend_from_slice(&structural_type.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, declaration_ordinal.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
             if let Some(construction) = construction {
-                bytes.extend_from_slice(&construction.root_structural_type.get().to_le_bytes());
-                bytes.extend_from_slice(&construction.index.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, construction.root_structural_type.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, construction.index.to_le_bytes());
             }
         }
     }
 }
 
 pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDeclaration) {
-    bytes.extend_from_slice(&declaration.id.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     encode_string(bytes, &declaration.identity);
     match &declaration.shape {
         StructuralTypeShape::FusedServiceBinding => bytes.push(9),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.push(7);
-            bytes.extend_from_slice(&referent.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, referent.get().to_le_bytes());
             encode_access(bytes, *access);
         }
         StructuralTypeShape::PrimitiveScalar(scalar_type) => {
@@ -248,13 +248,13 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
         }
         StructuralTypeShape::ElementView { element } => {
             bytes.push(8);
-            bytes.extend_from_slice(&element.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
         }
         StructuralTypeShape::Record { fields, storage } => {
             bytes.push(if storage.is_some() { 10 } else { 2 });
             if let Some(storage) = storage {
-                bytes.extend_from_slice(&storage.byte_size.to_le_bytes());
-                bytes.extend_from_slice(&storage.byte_alignment.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, storage.byte_size.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, storage.byte_alignment.to_le_bytes());
             }
             encode_structural_fields(bytes, fields);
             if storage.is_some() {
@@ -265,14 +265,14 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
         }
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.push(3);
-            bytes.extend_from_slice(&element.get().to_le_bytes());
-            bytes.extend_from_slice(&length.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.push(4);
             encode_len(bytes, cases.len());
             for case in cases {
-                bytes.extend_from_slice(&case.id.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, case.id.get().to_le_bytes());
                 encode_string(bytes, &case.identity);
                 encode_structural_fields(bytes, &case.fields);
             }
@@ -282,7 +282,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             encode_structural_fields(bytes, fields);
             encode_len(bytes, cases.len());
             for case in cases {
-                bytes.extend_from_slice(&case.id.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, case.id.get().to_le_bytes());
                 encode_string(bytes, &case.identity);
                 encode_structural_fields(bytes, &case.fields);
             }
@@ -302,7 +302,7 @@ fn encode_authored_field_storage(
             stored_scalar,
         }) => {
             bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
             if let Some(scalar) = stored_scalar {
                 encode_scalar_type(bytes, *scalar);
             }
@@ -312,22 +312,22 @@ fn encode_authored_field_storage(
             element_stride,
         }) => {
             bytes.push(3);
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
-            bytes.extend_from_slice(&element_stride.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, element_stride.to_le_bytes());
         }
         Some(AuthoredFieldStorage::Direct { byte_offset }) => {
             bytes.push(4);
-            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         Some(AuthoredFieldStorage::Fragmented(recipe)) => {
             bytes.push(6);
             encode_len(bytes, recipe.fragments().len());
             for fragment in recipe.fragments() {
-                bytes.extend_from_slice(&fragment.container_byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&fragment.container_width_bits.to_le_bytes());
-                bytes.extend_from_slice(&fragment.destination_lsb.to_le_bytes());
-                bytes.extend_from_slice(&fragment.source_lsb.to_le_bytes());
-                bytes.extend_from_slice(&fragment.width.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, fragment.container_byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, fragment.container_width_bits.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, fragment.destination_lsb.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, fragment.source_lsb.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, fragment.width.to_le_bytes());
             }
         }
     }
@@ -336,7 +336,7 @@ fn encode_authored_field_storage(
 pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[StructuralFieldDeclaration]) {
     encode_len(bytes, fields.len());
     for field in fields {
-        bytes.extend_from_slice(&field.id.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
         encode_string(bytes, &field.identity);
         bytes.push(match field.relevance {
             BindingRelevance::Relevant => 1,
@@ -384,7 +384,7 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
             }
             StructuralFieldType::Structural(structural_type) => {
                 bytes.push(4);
-                bytes.extend_from_slice(&structural_type.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
             }
             StructuralFieldType::Erased { type_identity } => {
                 bytes.push(5);
@@ -408,11 +408,11 @@ pub(super) fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSeq
                 },
                 None => 0,
             });
-            bytes.extend_from_slice(&capacity.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, capacity.to_le_bytes());
         }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             bytes.push(2);
-            bytes.extend_from_slice(&capacity.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, capacity.to_le_bytes());
         }
     }
 }
@@ -438,7 +438,7 @@ pub(super) fn encode_option_u32(bytes: &mut Vec<u8>, value: Option<u32>) {
     match value {
         Some(value) => {
             bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
         }
         None => bytes.push(0),
     }
@@ -458,14 +458,14 @@ pub(super) fn encode_record_initializers(
 ) {
     encode_len(bytes, fields.len());
     for field in fields {
-        bytes.extend_from_slice(&field.field.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, field.field.get().to_le_bytes());
         match &field.value {
             terminal_psi::RecordFieldValue::Scalar {
                 value,
                 range_obligation,
             } => {
                 bytes.push(0);
-                bytes.extend_from_slice(&value.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
                 optimization_core::encode_option_u64(bytes, range_obligation.map(|id| id.get()));
             }
             terminal_psi::RecordFieldValue::Structural(argument) => {

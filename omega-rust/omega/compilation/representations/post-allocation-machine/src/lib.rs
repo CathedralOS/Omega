@@ -5,6 +5,8 @@
 //! Start at [`physical_instructions::PostAllocationMachinePlan`]. This crate
 //! owns data and canonical encoding, not construction or admission authority.
 
+mod codec_bytes;
+
 mod digest_encoder;
 pub mod physical_instructions;
 pub use physical_instructions::{

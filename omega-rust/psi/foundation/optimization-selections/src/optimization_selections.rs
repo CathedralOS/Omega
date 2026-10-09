@@ -95,8 +95,8 @@ impl PsiOptimizationSelections {
             .expect("the closed Psi optimization vocabulary fits in u32");
         let mut encoded = Vec::with_capacity(16 + self.selected.len());
         encoded.extend_from_slice(ENCODING_MAGIC);
-        encoded.extend_from_slice(&ENCODING_VERSION.to_le_bytes());
-        encoded.extend_from_slice(&count.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, ENCODING_VERSION.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, count.to_le_bytes());
         encoded.extend(self.selected.iter().map(|optimization| *optimization as u8));
         encoded
     }
