@@ -349,11 +349,13 @@ fn requirement_call_result_type(
     Some(signature.return_type)
 }
 
-/// Landing and constant-projection destination checks every argument runs
-/// before its permission and class gates.
+/// Literal formation belongs to the argument, not to whether its call is a
+/// statement or produces a value. Run landing, constant-projection and recursive
+/// array formation checks together before the permission and class gates.
 fn validate_literal_argument_destination(
     program: &dyn crate::CheckingInput,
-    current_machine_symbol: symbols::SymbolHandle,
+    current_machine: &Machine,
+    current_state: Option<&State>,
     argument: ExpressionHandle,
     parameter_type: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -366,11 +368,21 @@ fn validate_literal_argument_destination(
     );
     crate::value_custody::literals::validate_constant_projection_destination(
         program,
-        current_machine_symbol,
+        current_machine.symbol,
         argument,
         parameter_type,
         diagnostics,
     );
+    if let Some(state) = current_state {
+        crate::value_custody::struct_literals::validate_array_literal_elements(
+            program,
+            current_machine,
+            state,
+            argument,
+            parameter_type,
+            diagnostics,
+        );
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -490,7 +502,8 @@ fn validate_call_arguments_with_type_correspondence(
             .unwrap_or(value_environment);
         validate_literal_argument_destination(
             program,
-            current_machine.symbol,
+            current_machine,
+            current_state,
             *argument,
             parameter.type_reference,
             diagnostics,
@@ -558,19 +571,6 @@ fn validate_call_arguments_with_type_correspondence(
                 parameter,
                 target_name,
                 retains_float_result_policy,
-                diagnostics,
-            );
-        }
-        // An array-literal argument (`sink([300, ..])`) is checked element-wise
-        // against the parameter's `[T; N]` element type -- the scalar guards above
-        // no-op on a non-primitive (array) parameter.
-        if let Some(state) = current_state {
-            crate::value_custody::struct_literals::validate_array_literal_elements(
-                program,
-                current_machine,
-                state,
-                *argument,
-                parameter.type_reference,
                 diagnostics,
             );
         }
@@ -731,14 +731,22 @@ fn validate_value_call_argument_classes(
         .iter()
         .zip(program.state_parameters(callee_state).iter())
     {
-        if !program.machine_type_parameters(callee_machine).is_empty()
-            && !crate::value_custody::expression_types::argument_matches_carrier_with_substitutions(
-                program,
-                *argument,
-                parameter.type_reference,
-                &type_bindings,
-            )
-        {
+        validate_literal_argument_destination(
+            program,
+            current_machine,
+            Some(current_state),
+            *argument,
+            parameter.type_reference,
+            diagnostics,
+        );
+        // Result use does not relax argument admission. Ordinary and generic
+        // value calls use the same carrier correspondence as statement calls.
+        if !crate::value_custody::expression_types::argument_matches_carrier_with_substitutions(
+            program,
+            *argument,
+            parameter.type_reference,
+            &type_bindings,
+        ) {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` expects `{}`, got `{}`",
                 parameter.name,
@@ -748,13 +756,6 @@ fn validate_value_call_argument_classes(
             )));
             continue;
         }
-        validate_literal_argument_destination(
-            program,
-            current_machine.symbol,
-            *argument,
-            parameter.type_reference,
-            diagnostics,
-        );
         if report_argument_reference_access(
             program,
             current_machine,

@@ -93,6 +93,11 @@ pub struct ExpressionTable {
     /// their stable handles when a compilation projects a closed body roster.
     expression_roots: Arena<ExpressionHandle>,
     source_spans: Vec<SourceSpan>,
+    /// Complete array result types derived from this occurrence's elements
+    /// after call binding. Zero means the elements have no resolved common
+    /// type; an expected parameter or a projected element cannot supply it.
+    array_literal_types: Arena<crate::types::TypeReferenceHandle>,
+    array_literal_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
     index_expression_authorities: Arena<IndexExpressionAuthority>,
     index_expression_authority_handles: Vec<Handle<IndexExpressionAuthority>>,
     authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
@@ -132,6 +137,8 @@ impl ExpressionTable {
             struct_fields,
             match_arms,
             source_spans,
+            array_literal_types,
+            array_literal_type_handles,
             index_expression_authorities,
             index_expression_authority_handles,
             authored_selection_occurrences,
@@ -188,6 +195,13 @@ impl ExpressionTable {
                 &self.match_arms,
             )
             && self.source_spans.starts_with(source_spans)
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                array_literal_types,
+                &self.array_literal_types,
+            )
+            && self
+                .array_literal_type_handles
+                .starts_with(array_literal_type_handles)
             && self
                 .authored_selection_occurrences
                 .starts_with(authored_selection_occurrences)
@@ -280,6 +294,7 @@ impl ExpressionTable {
             .wrapping_add(self.match_arms.revision())
             .wrapping_add(self.static_machine_applications.revision())
             .wrapping_add(self.static_machine_arguments.revision())
+            .wrapping_add(self.array_literal_types.revision())
             .wrapping_add(self.source_spans.len() as u64)
             .wrapping_add(self.authored_selection_occurrences.len() as u64)
     }
@@ -304,6 +319,8 @@ impl ExpressionTable {
             expressions: Arena::with_capacity(capacity.expressions),
             expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
+            array_literal_types: Arena::default(),
+            array_literal_type_handles: Vec::new(),
             index_expression_authorities: Arena::default(),
             index_expression_authority_handles: Vec::new(),
             authored_selection_occurrences: Vec::with_capacity(capacity.expressions),
@@ -325,6 +342,8 @@ impl ExpressionTable {
         self.expressions.reset_retain_capacity();
         self.expression_roots.reset_retain_capacity();
         self.source_spans.clear();
+        self.array_literal_types.reset_retain_capacity();
+        self.array_literal_type_handles.clear();
         self.index_expression_authorities.reset_retain_capacity();
         self.index_expression_authority_handles.clear();
         self.authored_selection_occurrences.clear();
@@ -457,6 +476,47 @@ impl ExpressionTable {
 
     pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
         self.source_spans[source_span_index(handle)] = source_span;
+    }
+
+    /// The complete value type retained before immutable checking. Copies
+    /// begin unresolved and derive their own type after binding/substitution;
+    /// a source instance's element type is not authority for its copy.
+    pub fn array_literal_type_reference(
+        &self,
+        handle: ExpressionHandle,
+    ) -> crate::types::TypeReferenceHandle {
+        if !self.expression_is_valid(handle) {
+            return crate::types::TypeReferenceHandle::invalid();
+        }
+        let Some(reference) = self
+            .array_literal_type_handles
+            .get(source_span_index(handle))
+        else {
+            return crate::types::TypeReferenceHandle::invalid();
+        };
+        if reference.is_valid() {
+            *self.array_literal_types.get(*reference)
+        } else {
+            crate::types::TypeReferenceHandle::invalid()
+        }
+    }
+
+    pub fn set_array_literal_type_reference(
+        &mut self,
+        handle: ExpressionHandle,
+        type_reference: crate::types::TypeReferenceHandle,
+    ) {
+        let position = source_span_index(handle);
+        if self.array_literal_type_handles.len() <= position {
+            self.array_literal_type_handles
+                .resize(position + 1, Handle::invalid());
+        }
+        let reference = &mut self.array_literal_type_handles[position];
+        if reference.is_valid() {
+            *self.array_literal_types.get_mut(*reference) = type_reference;
+        } else {
+            *reference = self.array_literal_types.insert(type_reference);
+        }
     }
 
     /// Attach exact authored-selection occurrence identities to an expression.

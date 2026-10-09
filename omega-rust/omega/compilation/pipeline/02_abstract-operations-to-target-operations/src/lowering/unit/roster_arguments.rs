@@ -213,31 +213,6 @@ pub(in crate::lowering) fn lower_structural_argument(
     let (projected_type, projected_shape, source_byte_offset, fixed_array_length, element_stride) =
         match argument.path.as_slice() {
             [] => (source_structural_type, source_shape, 0, None, None),
-            path if argument.access == StructuralAccess::Owned
-                && (result_source.is_some()
-                    || parameters_by_place
-                        .get(&argument.place)
-                        .is_some_and(|source| {
-                            source.access == StructuralAccess::Owned
-                                && source.multiplicity == StructuralMultiplicity::Affine
-                        })) =>
-            {
-                let (selected_type, selected_shape, offset) = resolve_structural_projection_path(
-                    source_structural_type,
-                    path,
-                    structural_types,
-                    shape_cache,
-                    active,
-                )?;
-                let (length, stride) =
-                    super::super::structural_layout::root_array_projection_metadata(
-                        source_structural_type,
-                        structural_types,
-                        shape_cache,
-                        active,
-                    )?;
-                (selected_type, selected_shape, offset, length, stride)
-            }
             path if exact_borrowed_projection => {
                 let projected = resolve_structural_projection_path(
                     source_structural_type,

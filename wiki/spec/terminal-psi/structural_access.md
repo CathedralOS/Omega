@@ -359,6 +359,13 @@ name a whole value or an authenticated finite field/fixed-index subtree. The
 current custody judgment rejects overlapping affine transfers and preserves the
 remaining siblings. An unrestricted array cannot absorb an affine element.
 
+An array introduces no fresh linear claim. Its result continues every live
+operand claim beneath `FixedIndex(ordinal)` followed by that claim's original
+child path. One element may contain several claims or another fixed array;
+entry and result frontiers retain these typed descendant paths rather than
+assuming one root claim per element. Claim metadata adds no native payload
+bytes and does not replace exact element-type or extent correspondence.
+
 The constructor charges one operation step before transferring its operands and
 publishes the complete array atomically. It exposes no partially initialized
 array and requires no runtime initialization bitmap. Descriptor backing and

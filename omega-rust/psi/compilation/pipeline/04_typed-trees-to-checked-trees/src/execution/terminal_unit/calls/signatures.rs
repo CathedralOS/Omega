@@ -7,11 +7,11 @@ use crate::execution::terminal_unit::types::{
     structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::{
-    BTreeSet, CarryPolicy, CheckFacts, CheckedStructuralAccess,
-    CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan, Multiplicity,
-    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-    StateParameter, SymbolHandle, TypeReferenceNode, strips_erased_parameter,
+    CarryPolicy, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
+    CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    PermissionEventSource, StateParameter, SymbolHandle, TypeReferenceNode,
+    strips_erased_parameter,
 };
 
 /// Which attachment storage a qualified machine's signature retains.
@@ -533,29 +533,9 @@ pub(crate) fn entry_claims(
         {
             source_type = *base_type;
         }
-        if let TypeReferenceNode::FixedArray {
-            length: typed_trees::types::FixedArrayLength::Literal(length),
-            ..
-        } = program.type_reference_table.type_reference(source_type)
-        {
-            let indices = matching
-                .iter()
-                .map(|event| {
-                    let [facts::PlaceSegment::FixedIndex { index }] =
-                        facts.flow.ownership.segments.span_or_empty(event.segments)
-                    else {
-                        return None;
-                    };
-                    Some(*index)
-                })
-                .collect::<Option<BTreeSet<_>>>()?;
-            if matching.len() != *length
-                || indices != (0..*length).collect::<BTreeSet<_>>()
-                || !parameter.qualifications.is_empty()
-            {
-                return None;
-            }
-        }
+        // The source ownership producer already enumerates the complete
+        // frontier. Preserve each typed descendant path: an array element may
+        // itself contain several claims or another array, not one root claim.
         for event in matching {
             if event.claim_identity == PermissionClaimIdentity::Unknown {
                 return None;

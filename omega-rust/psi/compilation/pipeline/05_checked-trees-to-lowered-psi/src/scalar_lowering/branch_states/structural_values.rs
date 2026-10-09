@@ -947,7 +947,7 @@ pub(crate) fn emit(
                     .collect(),
                 operations,
             )?;
-            attach_result_claims(construction.place, claims, operations)?;
+            operations.set_structural_result_claims(construction.place, claims)?;
             return Ok(());
         }
     };
@@ -1025,27 +1025,6 @@ pub(crate) fn emit(
             )
         }
     };
-    attach_result_claims(construction.place, claims, operations)?;
-    Ok(())
-}
-
-fn attach_result_claims(
-    place: PlaceId,
-    claims: Vec<terminal_psi::StructuralResultClaimBinding>,
-    operations: &mut OperationBuffer,
-) -> Result<(), LoweringError> {
-    let result = operations
-        .iter_mut()
-        .filter_map(|operation| match &mut operation.result {
-            super::super::OperationResult::Structural(result) if result.place == place => {
-                Some(result)
-            }
-            _ => None,
-        })
-        .next()
-        .ok_or(LoweringError::Unsupported(
-            "constructed value lost its result claim home",
-        ))?;
-    result.claims = claims;
+    operations.set_structural_result_claims(construction.place, claims)?;
     Ok(())
 }

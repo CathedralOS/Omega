@@ -452,8 +452,8 @@ defines the complete product bar.
     `pass/operators/runtime_constructed_operand_result_exit` (exit 0 in both
     engines). Use ordinary expression continuations for selected payload returns,
     not raw jump arguments.
-    Structural arrays and value dispatch still need their full construction
-    schedule. Preserve occurrence-bound routed memberships through completed
+    Value dispatch still needs its full construction schedule. Preserve
+    occurrence-bound routed memberships through completed
     children, copies and nested projections:
     `pass/calls/runtime_constructor_child_declared_membership_exit` and
     `pass/domains/runtime_nested_record_membership_transport_exit` stay at 0
@@ -533,13 +533,13 @@ defines the complete product bar.
     edge carries. `pass/ownership/{linear_call_result_claims_exit,linear_ambiguous_state_result_mapping,linear_transparent_record_frontier}`,
     `pass/ownership/linear_{inline_constructed_argument_claims,result_member_projection_arguments,result_owners_residual_cleanup,call_result_place_assignment}_exit`
     and `pass/ownership/linear_{state_graph_call_arguments,state_graph_claim_transport,computed_call_claim_transfers}_exit`
-    run natively. Keep call-produced construction children on the shared
-    receiving-value join: nested fresh/forwarded claims, authored field order
-    and nonresident case payloads in
-    `linear_inline_constructed_argument_claims_exit`, and computed operands in
-    `linear_computed_call_claim_transfers_exit`, run at 0 in native and Terminal
-    execution. Reject `fail/ownership/linear_constructor_call_member_second_use`
-    at the original owner's second use. Remaining: a computed boundary or
+    run natively. Keep the shared receiving-value join across record, case and
+    fixed-array construction: `linear_inline_constructed_argument_claims_exit`
+    pins nested claims, multiple claims per element and authored effect order;
+    `linear_computed_call_claim_transfers_exit` pins computed operands.
+    Reject second use, missing child consumption and wrong array type/extent
+    in `fail/ownership/linear_{constructor_call_member_second_use,array_constructor_duplicate_operand,array_member_scope_loss,array_call_argument_wrong_element,array_call_argument_wrong_extent}`.
+    Remaining: a computed boundary or
     selector call has no claim-transfer lane;
     a state parameter whose arrivals carry different claims (two locals
     swapped across arms) has "unsupported graph custody" (stage 05

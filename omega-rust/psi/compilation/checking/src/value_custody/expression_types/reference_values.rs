@@ -255,7 +255,7 @@ fn shared_referee_matches(
 /// explicit const arguments. The required side keeps its authored constraint
 /// shells: a `([u8; N] in Domain)` parameter cannot be satisfied by shape
 /// alone.
-fn fixed_array_binds_open_length(
+pub(super) fn fixed_array_binds_open_length(
     program: &dyn crate::CheckingInput,
     mut actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
@@ -688,7 +688,7 @@ pub(super) fn substituted_reference(
     None
 }
 
-fn declared_value_type(
+pub(super) fn declared_value_type(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,

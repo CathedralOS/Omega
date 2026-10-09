@@ -40,6 +40,15 @@ machine verify(settled: bool) crashes Trap {
     state bad() { crash Trap; }
 }
 
+machine settle_array(receipts: [Receipt; 2]) -> i32 {
+    let second: Receipt = receipts[1];
+    let first: Receipt = receipts[0];
+    let total: i32 = (((first.code as i32 in Wrapping) * (10 as i32 in Wrapping)) + (second.code as i32 in Wrapping)) as i32;
+    drop(second);
+    drop(first);
+    total
+}
+
 machine main() crashes Trap {
     let inline: i32 = ((consume(Receipt { code: 5 }) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
     let local: Receipt = Receipt { code: 4 };
@@ -48,5 +57,6 @@ machine main() crashes Trap {
     let paired: i32 = ((settle(Pair { left: member, right: Receipt { code: 7 } }) as i32 in Wrapping) + (3 as i32 in Wrapping)) as i32;
     let nested: i32 = consume(make(8));
     let produced: i32 = ((settle(Pair { left: make(9), right: make(10) }) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
-    verify(inline == 6 && named == 6 && paired == 16 && nested == 8 && produced == 20);
+    let array: i32 = ((settle_array([make(1), make(2)]) as i32 in Wrapping) + (3 as i32 in Wrapping)) as i32;
+    verify(inline == 6 && named == 6 && paired == 16 && nested == 8 && produced == 20 && array == 15);
 }

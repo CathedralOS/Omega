@@ -206,6 +206,28 @@ pub(crate) struct OperationBuffer {
 }
 
 impl OperationBuffer {
+    /// Publish the claims transported by completed constructor operands.
+    /// The operation owns the result home; its receiving binding is separate.
+    pub(crate) fn set_structural_result_claims(
+        &mut self,
+        place: PlaceId,
+        claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+    ) -> Result<(), LoweringError> {
+        let result = self
+            .operations
+            .iter_mut()
+            .rev()
+            .find_map(|operation| match &mut operation.result {
+                OperationResult::Structural(result) if result.place == place => Some(result),
+                _ => None,
+            })
+            .ok_or(LoweringError::Unsupported(
+                "constructed value lost its result claim home",
+            ))?;
+        result.claims = claims;
+        Ok(())
+    }
+
     /// Allocate the read obligation that canonically certifies the next
     /// operation's bounds, recording it when `bound_decided` requires proof.
     pub(crate) fn push_read_obligation(

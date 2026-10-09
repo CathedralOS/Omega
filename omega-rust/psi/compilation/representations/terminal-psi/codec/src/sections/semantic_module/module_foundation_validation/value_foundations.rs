@@ -523,8 +523,11 @@ pub(super) fn validate_establish_structural_array(
     let Some(result) = operation.result.structural() else {
         return malformed("array has no structural result");
     };
-    if !matches!(result.multiplicity, StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted)
-        || !result.qualifications.is_empty() || !result.claims.is_empty()
+    validate_constructor_claims(module, result)?;
+    // Array custody is the disjoint frontier of its completed elements,
+    // including linear descendants. Their claims are transported, not issued
+    // again or forbidden by a claim-free construction eligibility rule.
+    if !result.qualifications.is_empty()
         || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
         return malformed("array result custody is noncanonical");
     }

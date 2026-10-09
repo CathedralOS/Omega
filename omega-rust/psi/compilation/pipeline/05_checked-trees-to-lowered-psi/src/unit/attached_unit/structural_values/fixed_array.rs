@@ -39,18 +39,35 @@ impl emission::Emission<'_, '_, '_> {
         let parent_multiplicity = self.multiplicity;
         let source_count = self.values.len();
         let mut operands = Vec::with_capacity(elements.len());
+        let mut claims = Vec::new();
+        let element_has_claims =
+            !validation::linear_claim_frontier(&self.checked.typed, element_reference).is_empty();
         for (element_position, value) in elements.iter().enumerate() {
             let element_index = u64::try_from(element_position)
                 .map_err(|_| LoweringError::Unsupported("array element identity overflow"))?;
-            operands.push(self.child_constructor_operand(
+            let operand = self.child_constructor_operand(
                 element,
                 *value,
                 element_reference,
                 &[terminal_psi::StructuralPathSegment::FixedIndex(
                     element_index,
                 )],
-            )?);
+            )?;
+            if element_has_claims {
+                for claim in self.claims_held_by(&operand)? {
+                    let mut path = vec![terminal_psi::StructuralPathSegment::FixedIndex(
+                        element_index,
+                    )];
+                    path.extend(claim.path);
+                    claims.push(terminal_psi::StructuralResultClaimBinding {
+                        claim: claim.claim,
+                        path,
+                    });
+                }
+            }
+            operands.push(operand);
         }
+        claims.sort();
         let place = place_id(allocate_dense(self.next_place)?);
         self.temporary_places.push(emit_completed(
             place,
@@ -59,6 +76,8 @@ impl emission::Emission<'_, '_, '_> {
             operands,
             self.operations,
         )?);
+        self.operations
+            .set_structural_result_claims(place, claims)?;
         self.values.truncate(source_count);
         Ok(place)
     }

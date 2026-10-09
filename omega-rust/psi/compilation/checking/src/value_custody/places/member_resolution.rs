@@ -528,10 +528,19 @@ pub(super) fn expression_type_position(
         ExpressionNode::ZeroValue(reference) => reference
             .is_valid()
             .then_some(MemberPosition::Reference(*reference)),
-        ExpressionNode::ArrayLiteral(elements) => array_literal_position(
-            program,
-            program.expression_table.expression_handles(*elements),
-        ),
+        ExpressionNode::ArrayLiteral(elements) => {
+            let retained = program
+                .expression_table
+                .array_literal_type_reference(expression);
+            if retained.is_valid() {
+                Some(MemberPosition::Reference(retained))
+            } else {
+                array_literal_position(
+                    program,
+                    program.expression_table.expression_handles(*elements),
+                )
+            }
+        }
         ExpressionNode::Match(dispatch) => match_result_position(program, dispatch),
         // The remaining leaves produce scalar values — literals, unary and
         // binary results, range operands — whose types own no declaration

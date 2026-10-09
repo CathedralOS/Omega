@@ -17,6 +17,7 @@ machine main() {
     let nested: [[u8; 0]; 0] = [];
     let held: Holder = Holder { bytes: [] };
     let selected: [u8; 0] = first([EMPTY]);
+    let empty_bytes: [u8; 0] = first([""]);
     let same: bool = from_literal == selected;
     let count: u64 = from_bytes.len;
 }

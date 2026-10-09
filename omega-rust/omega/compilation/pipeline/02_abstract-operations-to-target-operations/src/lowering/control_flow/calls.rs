@@ -691,11 +691,11 @@ fn structural_argument(
             types,
         );
     }
-    if super::owned_arguments::is_owned_parameter(declaration, types)
-        && (argument.path.is_empty()
-            || live.structural_homes.contains_key(&argument.place)
-            || live.trivial_affine_locals.contains_key(&argument.place))
-    {
+    // Owned aggregate transport follows the selected type and exact root
+    // storage, whether that root arrived as a parameter or was produced here.
+    // Routing incoming projections through view presentation instead would
+    // attach array descriptor metadata to an owned child ABI.
+    if super::owned_arguments::is_owned_parameter(declaration, types) {
         return super::owned_arguments::argument(
             argument,
             declaration,

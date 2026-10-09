@@ -61,6 +61,29 @@ machine settle_order(pair: Pair) -> i32 {
     total
 }
 
+machine settle_array(receipts: [Receipt; 2]) -> i32 {
+    let first: Receipt = receipts[0];
+    let second: Receipt = receipts[1];
+    let total: i32 = (((first.code as i32 in Wrapping) * (10 as i32 in Wrapping)) + (second.code as i32 in Wrapping)) as i32;
+    drop(first);
+    drop(second);
+    total
+}
+
+machine settle_nested(receipts: [[Receipt; 1]; 2]) -> i32 {
+    let second: Receipt = receipts[1][0];
+    let first: Receipt = receipts[0][0];
+    let total: i32 = (((first.code as i32 in Wrapping) * (10 as i32 in Wrapping)) + (second.code as i32 in Wrapping)) as i32;
+    drop(second);
+    drop(first);
+    total
+}
+
+machine settle_pairs(pairs: [Pair; 1]) -> i32 {
+    let pair: Pair = pairs[0];
+    settle_order(pair)
+}
+
 machine open(envelope: Envelope) -> i32 {
     settle(envelope.pair)
 }
@@ -107,9 +130,15 @@ machine main() crashes Trap {
     let nested: i32 = open(Envelope { pair: Pair { left: pass(original), right: make(11) } });
     let mut sequence: i32 = 1;
     let ordered: i32 = settle_order(Pair { right: issue(&mut sequence), left: issue(&mut sequence) });
+    let array: i32 = settle_array([make(1), make(2)]);
+    let array_order: i32 = settle_array([issue(&mut sequence), issue(&mut sequence)]);
+    let nested_array: i32 = settle_nested([[make(1)], [make(2)]]);
+    let array_record: i32 = settle_pairs([Pair { left: make(1), right: make(2) }]);
     let absent: i32 = open_choice(ChoiceEnvelope { choice: choose(false), sibling: make(21) });
     let present: i32 = open_choice(ChoiceEnvelope { choice: choose(true), sibling: make(22) });
     drop(Receipt { code: 9 });
     verify(moved == 3 && fresh == 7 && direct == 5 && forwarded == 6 && produced == 15
-        && nested == 21 && ordered == 21 && sequence == 3 && absent == 21 && present == 34);
+        && nested == 21 && ordered == 21 && sequence == 5 && array == 12 && array_order == 34
+        && nested_array == 12 && array_record == 12
+        && absent == 21 && present == 34);
 }

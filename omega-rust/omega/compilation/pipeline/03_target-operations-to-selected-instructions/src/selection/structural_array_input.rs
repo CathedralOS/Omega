@@ -3,7 +3,7 @@ use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
 pub(super) fn elements(
     source: &LegalizedScalarFunction,
@@ -29,8 +29,6 @@ pub(super) fn elements(
     // Completed memberships ride the result's semantic home. They add no
     // element bytes or alignment; ownership and claim transport stay distinct.
     if row.result.is_some()
-        || result.multiplicity == StructuralMultiplicity::Linear
-        || !result.claims.is_empty()
         || u64::try_from(elements.len()).ok()? != length
         || geometry(result.structural_type, types)? != *shape
     {

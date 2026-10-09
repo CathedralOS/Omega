@@ -292,6 +292,15 @@ fn result_type(
         ExpressionNode::StructLiteral(literal) => program
             .type_reference_table
             .find_named_type_reference(literal.type_symbol),
+        ExpressionNode::ArrayLiteral(_) => {
+            let reference = program
+                .expression_table
+                .array_literal_type_reference(expression);
+            reference
+                .is_valid()
+                .then_some(reference)
+                .or_else(|| crate::declared_constant_array_type(program, expression))
+        }
         ExpressionNode::Cast(cast) => cast_result_type_reference(program, cast),
         ExpressionNode::Indexed(indexed)
             if matches!(
@@ -577,7 +586,11 @@ pub fn join_result_type_references(
             // on one arm cannot become a promise about an anonymous peer.
             // Do not compare rendered bounds: equal spellings need not
             // name the same dependent predicate subject.
-            if references.iter().all(|reference| *reference == Some(first)) {
+            if references.iter().all(|reference| {
+                reference.is_some_and(|reference| {
+                    same_result_type(program, first, reference, &mut Vec::new())
+                })
+            }) {
                 return Some(first);
             }
             // Separately authored qualifications have separate type
@@ -609,6 +622,48 @@ pub fn join_result_type_references(
                 .then(|| arithmetic_result_type_reference(program, first))
                 .flatten()
         })
+}
+
+/// Equal independently allocated collection types retain the same element
+/// evidence. Recurse through fixed arrays only; qualification nodes must retain
+/// the very same predicate/domain payload rather than equal rendered bounds.
+fn same_result_type(
+    program: &dyn crate::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+    active: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
+) -> bool {
+    if left == right {
+        return true;
+    }
+    if active.contains(&(left, right)) {
+        return false;
+    }
+    let left_type = program.type_reference_table.type_reference(left);
+    let right_type = program.type_reference_table.type_reference(right);
+    if left_type == right_type {
+        return true;
+    }
+    let (
+        TypeReferenceNode::FixedArray {
+            element_type: left_element,
+            length: left_length,
+        },
+        TypeReferenceNode::FixedArray {
+            element_type: right_element,
+            length: right_length,
+        },
+    ) = (left_type, right_type)
+    else {
+        return false;
+    };
+    if left_length != right_length {
+        return false;
+    }
+    active.push((left, right));
+    let same = same_result_type(program, *left_element, *right_element, active);
+    active.pop();
+    same
 }
 
 fn has_domain_result_shell(

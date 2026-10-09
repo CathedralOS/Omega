@@ -291,8 +291,8 @@ pub(super) fn enforce_construction_field_obligations(
 /// Enforce each ELEMENT of an array literal against the array's declared element
 /// type -- the same cross-class + narrowing obligations a scalar store carries.
 /// `[300, ..]` into a `[i8; N]` truncates silently; `[true, ..]` into `[i8; N]`
-/// stores garbage. Does nothing unless `value` is an array literal and
-/// `expected_type` is a fixed array of a scalar primitive. Flow-insensitive (empty
+/// stores garbage. Selected arms retain the destination; explicit borrows
+/// retain the referee destination. Flow-insensitive (empty
 /// environment), matching the construction field-obligation checks. Reused across the
 /// binding sites that know the array's expected type (assignment target, etc.).
 pub(crate) fn validate_array_literal_elements(
@@ -303,10 +303,39 @@ pub(crate) fn validate_array_literal_elements(
     expected_type: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let Some(dispatch) = program.expression_table.match_node(value) {
+        for arm in program.expression_table.match_arms(dispatch.arms) {
+            validate_array_literal_elements(
+                program,
+                machine,
+                state,
+                arm.value,
+                expected_type,
+                diagnostics,
+            );
+        }
+        return;
+    }
     // Qualifications constrain the value, not the array's storage shape.
     // Element formation still owes its exact carrier checks independently.
     let array_shape =
         crate::value_custody::places::peel_declared_constraints(program, expected_type);
+    if let Some(borrow) = program.expression_table.borrow_expression(value)
+        && let TypeReferenceNode::Reference { referee, .. } =
+            program.type_reference_table.type_reference(array_shape)
+    {
+        // This checks formation only. The independent reference gate checks
+        // access and the loan checker retains the actual backing permission.
+        validate_array_literal_elements(
+            program,
+            machine,
+            state,
+            borrow.target,
+            *referee,
+            diagnostics,
+        );
+        return;
+    }
     let TypeReferenceNode::FixedArray { length, .. } =
         program.type_reference_table.type_reference(array_shape)
     else {

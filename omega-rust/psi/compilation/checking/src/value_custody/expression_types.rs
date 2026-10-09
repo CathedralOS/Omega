@@ -338,16 +338,11 @@ fn argument_matches_type_reference_using(
         TypeReferenceNode::Reference {
             referee, access, ..
         } => {
-            let implicit_shared_source_has_identity = matches!(
-                argument_node,
-                ExpressionNode::Call(_)
-                    | ExpressionNode::Indexed(_)
-                    | ExpressionNode::Member(_)
-                    | ExpressionNode::Name(_)
-                    | ExpressionNode::String(_)
-            );
+            // Shared lending observes a completed value, including an anonymous
+            // constructor. Its carrier must correspond; loan formation and
+            // temporary lifetime belong to the independent custody checks, not
+            // a syntax whitelist that excludes valid construction operands.
             *access == language_semantics::ReferenceAccess::Shared
-                && implicit_shared_source_has_identity
                 && argument_matches_type_reference_using(
                     program,
                     argument,
@@ -374,14 +369,61 @@ fn argument_matches_type_reference_using(
                     required_substitutions,
                 ))
         }
-        TypeReferenceNode::FixedArray { .. } => matches!(
-            argument_node,
-            ExpressionNode::ArrayLiteral(_)
-                | ExpressionNode::Call(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-        ),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            // Array syntax is not type correspondence. The same walk already
+            // follows selected arms and explicit borrows; recurse into literal
+            // children here, and compare the complete declared type of an
+            // already produced/stored value, including nested extents.
+            if let ExpressionNode::String(bytes) = argument_node {
+                // The empty byte sequence exactly forms a zero-length byte
+                // array; nonempty text still requires its bounded text carrier.
+                return bytes.is_empty()
+                    && *length == typed_trees::types::FixedArrayLength::Literal(0)
+                    && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8);
+            }
+            if let ExpressionNode::ArrayLiteral(elements) = argument_node {
+                let elements = program.expression_table.expression_handles(*elements);
+                return !matches!(length, typed_trees::types::FixedArrayLength::Literal(length)
+                    if *length != elements.len())
+                    && elements.iter().all(|element| {
+                        argument_matches_type_reference_using(
+                            program,
+                            *element,
+                            *element_type,
+                            correspondence,
+                            required_substitutions,
+                        )
+                    });
+            }
+            let mut substitutions = Vec::new();
+            let Some(actual) =
+                reference_values::declared_value_type(program, argument, &mut substitutions)
+            else {
+                return false;
+            };
+            // The enclosing constraint arm delegates only carrier matching;
+            // qualification admission still consumes the actual value's facts.
+            // Strip the corresponding actual root shell, never child evidence.
+            let actual = program
+                .type_reference_table
+                .unconstrained_type_reference(actual);
+            program.type_identity(TypeIdentityRequest {
+                substitutions: &substitutions,
+                ..TypeIdentityRequest::ordinary(actual)
+            }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(type_reference)
+            }) || reference_values::fixed_array_binds_open_length(
+                program,
+                actual,
+                type_reference,
+                &substitutions,
+                required_substitutions,
+            )
+        }
         TypeReferenceNode::Slice { element_type } => {
             // A string literal is a byte sequence, so it satisfies a `[u8]` slice
             // target (`&[u8] in Utf8 = "..."`) -- the basis for migrating string

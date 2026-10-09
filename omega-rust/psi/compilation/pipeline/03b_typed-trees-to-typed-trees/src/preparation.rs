@@ -4,6 +4,7 @@
 //! an open typed program. Retained tables are preparation evidence, not a
 //! second program representation or permission to skip checking.
 
+mod array_results;
 mod default_domain_zero;
 mod deferred_constants;
 mod opaque_property_receipts;
@@ -215,6 +216,7 @@ pub fn prepare_typed_trees(
     // reached requirement under its selector application and retarget the
     // calls to those slots before validation judges the call edges.
     crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
+    array_results::retain_array_result_types(&mut program);
     Ok((
         program.into(),
         TypedPreparation {
@@ -304,6 +306,7 @@ pub fn prepare_constant_execution(
     validation::resolve_dynamic_call_targets(&mut program)?;
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;
+    array_results::retain_array_result_types(&mut program);
     Ok(program)
 }
 
