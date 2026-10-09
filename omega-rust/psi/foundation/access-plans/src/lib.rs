@@ -31,6 +31,7 @@ macro_rules! diagnostic_accessor {
     };
 }
 
+mod digest_encoder;
 mod access_plan;
 mod normalized_identity;
 mod placements;

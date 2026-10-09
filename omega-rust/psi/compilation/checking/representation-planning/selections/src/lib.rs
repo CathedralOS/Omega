@@ -6,6 +6,7 @@
 //! target-independent record without depending on the build-planning service.
 //! Start at [`representation_selections::OpaqueRepresentationSelection`].
 
+mod digest_encoder;
 pub mod representation_selections;
 pub use representation_selections::{
     OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION, OpaqueRepresentationApplicationOrigin,

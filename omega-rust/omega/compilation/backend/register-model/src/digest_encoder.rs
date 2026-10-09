@@ -78,3 +78,17 @@ impl DomainDigestEncoder {
         }
     }
 }
+
+impl crate::register_model::register_vocabulary::Sha256RegisterDigest for DomainDigestEncoder {
+    fn byte(&mut self, value: u8) {
+        DomainDigestEncoder::byte(self, value);
+    }
+
+    fn u64(&mut self, value: u64) {
+        DomainDigestEncoder::u64(self, value);
+    }
+
+    fn raw(&mut self, bytes: &[u8]) {
+        DomainDigestEncoder::raw(self, bytes);
+    }
+}

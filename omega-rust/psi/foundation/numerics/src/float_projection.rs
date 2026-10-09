@@ -5,7 +5,6 @@
 //! retained by the public proof carrier.
 
 use crate::float_semantics::{FloatFormat, FloatMeaning};
-use sha2::{Digest, Sha256};
 
 /// Toolchain source that owns the closed public float-projection declarations.
 /// A declaration with the same path and signature in any other source has no

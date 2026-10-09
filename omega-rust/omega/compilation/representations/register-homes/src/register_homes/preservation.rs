@@ -69,8 +69,8 @@ pub enum CalleeSavedModificationWitness {
 /// copy is how a producer and the downstream stage that must agree with it
 /// drift apart silently: both keep compiling, both keep hashing, and only a
 /// rejected identity ever reveals the divergence.
-pub fn encode_callee_saved_modification_witness_identity(
-    hasher: &mut Sha256,
+pub fn encode_callee_saved_modification_witness_identity<H: register_model::Sha256RegisterDigest + ?Sized>(
+    hasher: &mut H,
     witness: CalleeSavedModificationWitness,
 ) {
     match witness {
@@ -82,23 +82,23 @@ pub fn encode_callee_saved_modification_witness_identity(
             home_view,
             write_semantics,
         } => {
-            hasher.update([0]);
-            hasher.update(block.0.to_le_bytes());
-            hasher.update(instruction.0.to_le_bytes());
-            hasher.update(operand.to_le_bytes());
-            hasher.update(virtual_register.0.to_le_bytes());
-            hasher.update(home_view.0.to_le_bytes());
-            hasher.update([write_semantics_tag(write_semantics)]);
+            hasher.byte(0);
+            hasher.raw(&block.0.to_le_bytes());
+            hasher.raw(&instruction.0.to_le_bytes());
+            hasher.raw(&operand.to_le_bytes());
+            hasher.raw(&virtual_register.0.to_le_bytes());
+            hasher.raw(&home_view.0.to_le_bytes());
+            hasher.byte(write_semantics_tag(write_semantics));
         }
         CalleeSavedModificationWitness::ImplicitDefinition { block, instruction } => {
-            hasher.update([1]);
-            hasher.update(block.0.to_le_bytes());
-            hasher.update(instruction.0.to_le_bytes());
+            hasher.byte(1);
+            hasher.raw(&block.0.to_le_bytes());
+            hasher.raw(&instruction.0.to_le_bytes());
         }
         CalleeSavedModificationWitness::ImplicitClobber { block, instruction } => {
-            hasher.update([2]);
-            hasher.update(block.0.to_le_bytes());
-            hasher.update(instruction.0.to_le_bytes());
+            hasher.byte(2);
+            hasher.raw(&block.0.to_le_bytes());
+            hasher.raw(&instruction.0.to_le_bytes());
         }
     }
 }

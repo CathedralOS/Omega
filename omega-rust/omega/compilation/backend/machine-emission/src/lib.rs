@@ -43,6 +43,7 @@
 //! The object join over placed text belongs to object-file and image-emission.
 
 // 1. Function-relative realization.
+mod digest_encoder;
 mod function_realization;
 
 pub use function_realization::{

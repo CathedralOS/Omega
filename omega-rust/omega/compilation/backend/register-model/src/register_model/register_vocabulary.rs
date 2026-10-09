@@ -72,13 +72,35 @@ pub struct RegisterClass {
     pub views: Vec<RegisterViewId>,
 }
 
+/// Digest sink the identity roster writers feed — each crate's
+/// domain-tagged encoder implements it.
+pub trait Sha256RegisterDigest {
+    fn byte(&mut self, value: u8);
+    fn u64(&mut self, value: u64);
+    fn raw(&mut self, bytes: &[u8]);
+}
+
+impl Sha256RegisterDigest for sha2::Sha256 {
+    fn byte(&mut self, value: u8) {
+        sha2::Digest::update(self, [value]);
+    }
+
+    fn u64(&mut self, value: u64) {
+        sha2::Digest::update(self, value.to_le_bytes());
+    }
+
+    fn raw(&mut self, bytes: &[u8]) {
+        sha2::Digest::update(self, bytes);
+    }
+}
+
 /// Length-prefix writer shared by identity hashes.
-pub fn sha256_length(hasher: &mut crate::digest_encoder::DomainDigestEncoder, value: usize) {
+pub fn sha256_length<H: Sha256RegisterDigest + ?Sized>(hasher: &mut H, value: usize) {
     hasher.u64(value as u64);
 }
 
 /// Length-framed register-unit roster writer shared by identity hashes.
-pub fn sha256_register_units(hasher: &mut crate::digest_encoder::DomainDigestEncoder, values: &[RegisterUnitId]) {
+pub fn sha256_register_units<H: Sha256RegisterDigest + ?Sized>(hasher: &mut H, values: &[RegisterUnitId]) {
     sha256_length(hasher, values.len());
     for value in values {
         hasher.raw(&value.0.to_le_bytes());

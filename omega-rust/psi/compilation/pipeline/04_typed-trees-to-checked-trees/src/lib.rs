@@ -11,6 +11,7 @@
 //! facts, flow, values, borrow, checks and execution build the checked result.
 
 // The route, in the order `lower_typed_trees` runs it.
+mod digest_encoder;
 mod authored_selections;
 mod borrow;
 mod checking;

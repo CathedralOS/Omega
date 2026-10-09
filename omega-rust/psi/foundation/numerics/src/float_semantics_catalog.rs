@@ -31,7 +31,6 @@ use crate::bignum::BigInt;
 use crate::float_semantics::{
     FloatClass, FloatFormat, FloatMeaning, FloatSemantics, IntegerFormat,
 };
-use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 

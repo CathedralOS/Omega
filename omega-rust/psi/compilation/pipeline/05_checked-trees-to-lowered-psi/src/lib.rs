@@ -47,6 +47,7 @@
 //! declarations every family that declares structural storage shares.
 
 // The entrance.
+mod digest_encoder;
 mod machine_lowering;
 
 // The plan families `machine_dispatch` selects between, in their dependency

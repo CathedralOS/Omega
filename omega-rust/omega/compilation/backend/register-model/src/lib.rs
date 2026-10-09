@@ -38,7 +38,7 @@ pub use register_model::preservation_storage::{
 };
 pub use register_model::register_vocabulary::{
     RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView,
-    RegisterViewId, RegisterWriteSemantics, sha256_length, sha256_register_units,
+    RegisterViewId, RegisterWriteSemantics, Sha256RegisterDigest, sha256_length, sha256_register_units,
 };
 pub use register_model::reservation_profiles::{ RegisterReservationProfile,
     RegisterReservationProfileValidationError, ReservationReason,

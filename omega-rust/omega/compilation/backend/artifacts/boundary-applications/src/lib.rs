@@ -14,6 +14,7 @@
 //! authored-use association and sealed checked-scope completeness remain with
 //! their producing and admitting consumers.
 
+mod digest_encoder;
 pub mod boundary_applications;
 pub use boundary_applications::{
     BoundaryApplication, BoundaryApplicationArgument,

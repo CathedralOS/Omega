@@ -3,6 +3,7 @@
 //! Begin at [`checked_trees`]; validation adds facts to typed trees without
 //! replacing them with a second copy of the same source vocabulary.
 
+mod digest_encoder;
 pub mod checked_trees;
 
 pub use checked_trees::{CheckedCleanupCaseCondition, CheckedCleanupControlPlans};

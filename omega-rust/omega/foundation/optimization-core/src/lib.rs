@@ -9,6 +9,8 @@
 //! `rollback` owns exact-name disabling, selection settlement and its receipt;
 //! callers decide which execution phases their requested product permits.
 
+mod cursor;
+mod digest_encoder;
 mod optimization_core;
 
 pub use optimization_core::contracts::{
