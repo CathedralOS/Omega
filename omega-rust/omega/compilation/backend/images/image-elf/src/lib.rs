@@ -105,65 +105,32 @@ mod static_executable;
 pub use dynamic_executable::{ElfDynamicExecutableEmissionError, emit_elf_dynamic_executable};
 pub use static_executable::{emit_elf_aarch64_executable, emit_elf_x86_64_executable};
 
-pub(crate) use dynamic_executable::dynamic_table::dynamic_table_descriptor::{
-    plan_elf_dynamic_table_section_descriptor};
 
-pub(crate) use dynamic_executable::dynamic_table::dynamic_tag_bytes::{ serialize_elf_dynamic_table};
 
-pub(crate) use dynamic_executable::dynamic_table::dynamic_tags::{ ValidatedElfDynamicTagPlan, plan_elf_dynamic_tags};
 pub use dynamic_executable::file_assembly::assembled_dynamic_file::{
     ValidatedElfDynamicExecutable,
 };
 
-pub(crate) use dynamic_executable::file_assembly::dynamic_file_envelope::{ ValidatedElfDynamicFileEnvelope,
-    serialize_elf_dynamic_file_envelope};
 
-pub(crate) use dynamic_executable::file_assembly::resolved_procedure_linkage::{
-    ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageKind,
-    apply_elf_procedure_linkage_fixups};
+pub(crate) use dynamic_executable::file_assembly::resolved_procedure_linkage::ElfAppliedProcedureLinkageKind;
 
-pub(crate) use dynamic_executable::import_sections::dynamic_link::{ PlannedElfDynamicLinkInputs, plan_elf_dynamic_link_inputs};
 
-pub(crate) use dynamic_executable::import_sections::dynamic_section_bytes::{
-    serialize_elf_dynamic_sections};
 
-pub(crate) use dynamic_executable::import_sections::dynamic_section_descriptors::{
-    plan_elf_dynamic_section_descriptors};
 
-pub(crate) use dynamic_executable::import_sections::dynamic_sections::{ plan_elf_dynamic_sections};
 
 pub(crate) use dynamic_executable::load_placement::load_layout::{
-    ElfLoadProgramHeaderKind, ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind,
-    ValidatedElfDynamicLoadLayout, plan_elf_dynamic_load_layout};
+    ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind};
 
-pub(crate) use dynamic_executable::load_placement::placed_section_headers::{ apply_elf_section_header_placements};
 
-pub(crate) use dynamic_executable::load_placement::resolved_dynamic_table::{
-    ElfDynamicAddressApplicationTarget,
-    apply_elf_dynamic_address_fixups};
+pub(crate) use dynamic_executable::load_placement::resolved_dynamic_table::ElfDynamicAddressApplicationTarget;
 
-pub(crate) use dynamic_executable::procedure_linkage::dynamic_import_relocations::{ ValidatedElfProcedureLinkageRelocationPlan,
-    plan_elf_procedure_linkage_relocations};
 
-pub(crate) use dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
-    ValidatedElfProcedureLinkageSectionDescriptorPlan,
-    plan_elf_procedure_linkage_section_descriptors};
 
-pub(crate) use dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
-    plan_elf_procedure_linkage_templates};
 
-pub(crate) use dynamic_executable::section_headers::relative_section_layout::{ plan_elf_relative_section_payload_layout};
 
-pub(crate) use dynamic_executable::section_headers::section_header_bytes::{ ValidatedElfSectionHeaderTableTemplate,
-    serialize_elf_section_header_table};
 
-pub(crate) use dynamic_executable::section_headers::section_name_table::{ ValidatedElfSectionNameTablePlan, plan_elf_section_name_table};
 
-pub(crate) use dynamic_executable::section_headers::section_payload_roster::{ ValidatedElfIndexedSectionPayloadPlan,
-    plan_elf_indexed_section_payloads};
 
-pub(crate) use dynamic_executable::section_headers::section_roster::{
-    plan_elf_dynamic_section_roster};
 
 #[cfg(test)]
 pub(crate) mod test_support {

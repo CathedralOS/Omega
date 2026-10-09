@@ -24,19 +24,12 @@ mod validation;
 use self::PackageLockError as Error;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
-pub use decisions::{
-};
 pub(crate) use decisions::{
-    HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
-    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
-    HistoricalPackagePolicyRecoveryUsage};
+    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits};
 pub(crate) use error::PackageLockError;
 pub(crate) use limits::PackageLockRecoveryLimits;
-pub use occurrences::{
-};
 pub(crate) use occurrences::{
-    PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
-    PackagePurposeCoverage};
+    PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError};
 use package_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
 

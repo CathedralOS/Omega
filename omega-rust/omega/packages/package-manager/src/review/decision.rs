@@ -2,12 +2,10 @@
 
 mod policy;
 
-pub use policy::{
-};
 pub(crate) use policy::{
-    PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionSubject,
+    PackagePolicyDecisionSubject,
     PackagePolicyResolution, PackagePolicyReviewError, recover_package_policy_review,
-    render_package_policy_review, resolve_package_policy_decisions};
+    render_package_policy_review};
 
 /// Root-project policy for one exact blocking candidate change.
 ///

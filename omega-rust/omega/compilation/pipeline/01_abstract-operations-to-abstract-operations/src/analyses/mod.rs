@@ -19,10 +19,6 @@ pub(crate) use control_flow::{
     CountdownInvariantConstantAnalysisSnapshot, CountedLoopAnalysisSnapshot,
 };
 pub(crate) use control_flow::{
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, UnsignedCountdownInvariantConstantPlacements,
-};
-pub(crate) use control_flow::{
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
     analyze_counted_loops,
 };

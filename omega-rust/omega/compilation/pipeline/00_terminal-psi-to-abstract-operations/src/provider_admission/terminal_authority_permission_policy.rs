@@ -5,7 +5,6 @@ use effects::{
     TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
     provider_plan::ServiceSchemaDigest};
 use sha2::{Digest, Sha256};
-use std::sync::OnceLock;
 
 pub(crate) const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
 

@@ -561,7 +561,6 @@ name = "effects"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
- "installation-evidence",
  "language-core",
  "language-semantics",
  "numerics",

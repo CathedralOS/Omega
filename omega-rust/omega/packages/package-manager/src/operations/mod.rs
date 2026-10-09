@@ -23,37 +23,25 @@ pub use check_project::{
     CheckPreparedLocalProjectError, PreparedLocalProjectCheckRequest, check_prepared_local_project_for_inspection,
     check_prepared_local_project_for_targets,
 };
-pub(crate) use check_project::{ CheckedProjectTargetOutcome,
-    check_prepared_local_project};
 pub use compile_project::{
     CompilePreparedLocalProjectNativeError,
     PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
     compile_prepared_local_project_for_native_targets,
 };
-pub(crate) use compile_project::{ CompiledProjectTargetOutcome};
 pub use inspect_packages::{ PackageInspectionOptions, inspect_packages,
 };
-pub(crate) use inspect_packages::{
-    PackageInspectionError, PackageInspectionOutcome};
 pub use inspect_source::{ SourceAdapter,
     inspect_package_source_locator,
 };
-pub(crate) use inspect_source::{
-    PackageSourceInspection, PackageSourceInspectionError, PackageSourceRequest,
-    PackageSourceRequestParseError, inspect_package_source};
-pub use package_change::{
-};
+pub(crate) use inspect_source::PackageSourceRequest;
 pub(crate) use package_change::{
-    PackageChangeError, PackageChangeReview, review_package_change, review_package_change_reusing};
+    PackageChangeError, PackageChangeReview, review_package_change_reusing};
 pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
 pub use prepare_project::{
     LocalProjectPreparationOptions, PrepareLocalProjectError,
     prepare_local_project, prepare_local_project_for_targets,
 };
 pub(crate) use prepare_project::{ PreparedLocalProject};
-pub use publication::{
-};
 pub(crate) use publication::{
-    PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,
-    PublishReviewedPackageChangeError, publish_reviewed_package_change};
+    PackageFileTransaction, PackagePublicationError, PackagePublicationLimits, publish_reviewed_package_change};
 pub(crate) use stage_build_edit::stage_build_dependency_edit;

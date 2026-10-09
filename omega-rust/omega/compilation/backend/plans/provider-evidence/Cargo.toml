@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 target = { path = "../../target" }
-installation-evidence = { path = "../../runtime/installation-evidence" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../../../psi/foundation/symbols" }
 source = { path = "../../../../../psi/foundation/source" }

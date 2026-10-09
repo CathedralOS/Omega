@@ -11,4 +11,3 @@ pub mod graph;
 pub mod source;
 
 pub(crate) use compiler_input::PackageCompilationScope;
-pub(crate) use compiler_input::{package_compilation_inputs, package_compilation_inputs_for};

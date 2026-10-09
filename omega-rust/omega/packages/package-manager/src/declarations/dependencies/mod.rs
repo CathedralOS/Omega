@@ -6,15 +6,9 @@
 pub(crate) mod edit;
 pub(crate) mod read;
 
-pub use edit::{
-};
 pub(crate) use edit::{
-    BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
-    BuildDependencyManualReason, BuildFileReplacement, canonical_dependency_statement,
-    plan_dependency_addition, plan_dependency_replacement};
+    BuildDependencyEditPlan, BuildFileReplacement};
 pub use read::{ DependencyPurpose, PackageSelection,
 };
 pub(crate) use read::{
-    BuildDependencyProjection, DependencyAliasError, DependencyProjectionError,
-    DependencyProjections, DependencySourceRequest,
-    ProjectedDependencies, extract_build_dependency_projection, extract_dependency_projection};
+    DependencyProjectionError, DependencySourceRequest};
