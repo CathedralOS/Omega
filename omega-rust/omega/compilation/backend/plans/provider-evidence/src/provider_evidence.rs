@@ -21,7 +21,7 @@ use std::collections::BTreeSet;
 /// existing compact normalized identity remains a compatibility/report
 /// coordinate and must not authorize artifact replay by itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct SelectedProviderClosureDigest([u8; 32]);
+pub struct SelectedProviderClosureDigest([u8; 32]);
 
 impl SelectedProviderClosureDigest {
     const fn from_digest(digest: [u8; 32]) -> Self {

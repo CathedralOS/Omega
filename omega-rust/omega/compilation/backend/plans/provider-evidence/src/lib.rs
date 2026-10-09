@@ -19,8 +19,8 @@ pub use provider_evidence::executable_scopes::behavior_exclusions::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
     BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, BoundaryServiceOwners, authored_behavior_exclusion_set_in, boundary_trait_identity, establish_behavior_exclusions_with_owners,
 };
-pub use provider_evidence::executable_scopes::behavior_exclusions::{BehaviorExclusion, EvidenceGapKind, ProhibitedSite};
-pub use provider_evidence::executable_scopes::behavior_exclusions::{
+pub(crate) use provider_evidence::executable_scopes::behavior_exclusions::{BehaviorExclusion, EvidenceGapKind, ProhibitedSite};
+pub(crate) use provider_evidence::executable_scopes::behavior_exclusions::{
     EvidenceGap, ProhibitedBehavior};
 
 pub use provider_evidence::authority::service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
@@ -37,14 +37,14 @@ pub use provider_evidence::authority::terminal_authority::{
     primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
     terminal_mechanism_identity_bytes,
 };
-pub use provider_evidence::authority::terminal_authority::{
+pub(crate) use provider_evidence::authority::terminal_authority::{
     TerminalAuthorityClosureReviewBuildError};
 pub use provider_evidence::component_eras::component_era_entry_ledger::{EraEntryError, EraQuiescenceError, EraRetirementError,
 };
 pub use provider_evidence::component_eras::component_progress_manifest::{
     CheckedComponentProgressDemand, ComponentProgressManifest,
 };
-pub use provider_evidence::component_eras::component_progress_manifest::{ComponentBuildBoundProgressDemand};
+pub(crate) use provider_evidence::component_eras::component_progress_manifest::{ComponentBuildBoundProgressDemand};
 
 
 
@@ -63,4 +63,4 @@ pub use provider_evidence::{
     InstallationReachResolution, SelectedProviderPlanFacts,
     SelectedRequirementSpecialization,
 };
-pub use provider_evidence::{SelectedProviderClosureDigest};
+pub(crate) use provider_evidence::{SelectedProviderClosureDigest};

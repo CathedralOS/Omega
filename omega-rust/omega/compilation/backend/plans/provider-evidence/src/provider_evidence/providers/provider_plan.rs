@@ -139,7 +139,7 @@ pub struct ProviderPlan {
 /// starts empty, so a clone whose public fields are changed before its first
 /// digest cannot inherit the original's commitment.
 #[derive(Default)]
-pub(crate) struct ProviderPlanDigestMemo(std::sync::OnceLock<ProviderPlanDigest>);
+pub struct ProviderPlanDigestMemo(std::sync::OnceLock<ProviderPlanDigest>);
 
 impl Clone for ProviderPlanDigestMemo {
     fn clone(&self) -> Self {

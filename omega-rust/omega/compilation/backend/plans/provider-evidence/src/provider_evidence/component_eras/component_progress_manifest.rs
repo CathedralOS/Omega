@@ -43,7 +43,7 @@ pub struct CheckedComponentProgressDemand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ComponentBuildBoundProgressDemand {
+pub struct ComponentBuildBoundProgressDemand {
     pub provider_service_identity: String,
     pub provider_service_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub requirement_identity: String,
