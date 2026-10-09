@@ -236,6 +236,19 @@ fn reserve_materialization_path_bytes(
         })
 }
 
+#[cfg(not(unix))]
+fn reject_unsupported_executable_mode(
+    executable: bool,
+) -> Result<(), BuildStagedOutputMaterializationError> {
+    if executable {
+        Err(materialization_error(
+            "this host cannot represent retained executable file mode",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(unix)]
 fn validate_retained_executable_mode(
     _executable: bool,
@@ -247,13 +260,7 @@ fn validate_retained_executable_mode(
 fn validate_retained_executable_mode(
     executable: bool,
 ) -> Result<(), BuildStagedOutputMaterializationError> {
-    if executable {
-        Err(materialization_error(
-            "this host cannot represent retained executable file mode",
-        ))
-    } else {
-        Ok(())
-    }
+    reject_unsupported_executable_mode(executable)
 }
 
 #[cfg(unix)]
@@ -279,13 +286,7 @@ fn set_materialized_file_mode(
     _path: &Path,
     executable: bool,
 ) -> Result<(), BuildStagedOutputMaterializationError> {
-    if executable {
-        Err(materialization_error(
-            "this host cannot represent retained executable file mode",
-        ))
-    } else {
-        Ok(())
-    }
+    reject_unsupported_executable_mode(executable)
 }
 
 #[cfg(unix)]
