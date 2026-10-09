@@ -3,6 +3,8 @@ use omega::language::core::binding;
 
 data Cell { value: i32; }
 data Held<'storage> { target: &'storage Cell; stamp: i32; }
+data Envelope<'storage> { held: Held<'storage>; seal: i32; }
+data Pair<'first, 'second> { left: Held<'first>; right: Held<'second>; }
 data Main { console: Binding<Console>; first: Cell; second: Cell; }
 
 machine select<'storage>(first: &'storage Cell, second: &'storage Cell, selected: bool) -> Held<'storage> {
@@ -75,6 +77,42 @@ machine verify_named_lifetime(first: &mut Cell, second: &mut Cell, selected: boo
     observed == 41 && first.value == 51 && second.value == 83
 }
 
+machine verify_nested(first: &mut Cell, second: &mut Cell, selected: bool) -> bool {
+    first.value = 41;
+    second.value = 73;
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let envelope: Envelope = Envelope {
+        held: select(&first_parent, &second_parent, selected), seal: 17
+    };
+    let observed: i32 = envelope.held.target.value;
+    first.value = 51;
+    second.value = 83;
+    let stamp: i32 = envelope.held.stamp;
+    observed == (match selected { true -> 41, false -> 73 }) &&
+        stamp == (match selected { true -> 12, false -> 13 }) &&
+        envelope.seal == 17 && first.value == 51 && second.value == 83
+}
+
+machine pair<'first, 'second>(first: &'first Cell, second: &'second Cell) -> Pair<'first, 'second> {
+    Pair {
+        left: Held { target: first, stamp: 12 },
+        right: Held { target: second, stamp: 13 }
+    }
+}
+
+machine verify_projected(first: &mut Cell, second: &mut Cell) -> bool {
+    first.value = 41;
+    second.value = 73;
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let held: Held = pair(&first_parent, &second_parent).left;
+    let observed: i32 = held.target.value;
+    first.value = 51;
+    second.value = 83;
+    observed == 41 && held.stamp == 12 && first.value == 51 && second.value == 83
+}
+
 machine Main::main(main: &mut Main) reaches Console {
     let first: bool = verify(&mut main.first, &mut main.second, true);
     let second: bool = verify(&mut main.first, &mut main.second, false);
@@ -82,7 +120,10 @@ machine Main::main(main: &mut Main) reaches Console {
     let fourth: bool = verify_forwarded(&mut main.first, &mut main.second, false);
     let fifth: bool = verify_named_lifetime(&mut main.first, &mut main.second, true);
     let sixth: bool = verify_named_lifetime(&mut main.first, &mut main.second, false);
-    transition first && second && third && fourth && fifth && sixth {
+    let seventh: bool = verify_nested(&mut main.first, &mut main.second, true);
+    let eighth: bool = verify_nested(&mut main.first, &mut main.second, false);
+    let ninth: bool = verify_projected(&mut main.first, &mut main.second);
+    transition first && second && third && fourth && fifth && sixth && seventh && eighth && ninth {
         true -> good(main)
         false -> bad(main)
     }

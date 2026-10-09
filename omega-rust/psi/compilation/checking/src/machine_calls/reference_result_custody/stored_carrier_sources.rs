@@ -1,4 +1,7 @@
-//! Select supplying carrier leaves through retained structural values.
+//! Select a stored descriptor's producer through the checked value graph.
+//! Constructor prefixes and projections belong to this graph; callers retain
+//! the receiving loan's formation separately. A copied place inherits custody,
+//! while a call keeps its exact occurrence and residual result path.
 
 use checked_trees::{
     CheckFacts, CheckedStructuralValueHandle, CheckedStructuralValueKind,
@@ -6,15 +9,45 @@ use checked_trees::{
 };
 use typed_trees::data::DataMember;
 
+/// The producer of a selected stored descriptor. Call identity is retained
+/// independently of its eventual local, field or store consumer.
+pub enum StoredCarrierSource {
+    Place(CheckedUnitStructuralArgumentPlan),
+    Call {
+        value: CheckedStructuralValueHandle,
+        path: Vec<CheckedUnitStructuralPathSegment>,
+    },
+}
+
+/// Resolve all possible producers of this exact receiving descriptor path.
+/// This query creates no loan authority and never drops dispatch alternatives.
+pub fn stored_carrier_sources(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    value: CheckedStructuralValueHandle,
+    selection: &[CheckedUnitStructuralPathSegment],
+) -> Option<Vec<StoredCarrierSource>> {
+    let mut output = Vec::new();
+    select(
+        program,
+        facts,
+        value,
+        selection,
+        &mut Vec::new(),
+        &mut output,
+    )?;
+    Some(output)
+}
+
 /// Select one stored carrier through ordinary value composition. Every
 /// dispatch alternative supplies provenance; unrelated sibling leaves do not.
-pub(super) fn select(
-    program: &dyn ::validation::CheckingInput,
+fn select(
+    program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     value: CheckedStructuralValueHandle,
     selection: &[CheckedUnitStructuralPathSegment],
     active: &mut Vec<CheckedStructuralValueHandle>,
-    output: &mut Vec<CheckedUnitStructuralArgumentPlan>,
+    output: &mut Vec<StoredCarrierSource>,
 ) -> Option<()> {
     let values = &facts.values.structural_values;
     if !values.nodes.is_valid(value) || active.contains(&value) {
@@ -26,7 +59,7 @@ pub(super) fn select(
         | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
             let mut source = source.clone();
             source.path.extend_from_slice(selection);
-            output.push(source);
+            output.push(StoredCarrierSource::Place(source));
         }
         CheckedStructuralValueKind::Projection { source, path, .. } => {
             let mut path = path.clone();
@@ -138,6 +171,12 @@ pub(super) fn select(
                 return None;
             };
             select(program, facts, child, suffix, active, output)?;
+        }
+        CheckedStructuralValueKind::Call { .. } => {
+            output.push(StoredCarrierSource::Call {
+                value,
+                path: selection.to_vec(),
+            });
         }
         // These form rather than transport a descriptor. Their admitted
         // formation/call lineage remains the independent parent authority.

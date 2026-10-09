@@ -1189,9 +1189,19 @@ impl Emission<'_, '_, '_> {
                         continuation,
                     );
                 }
-                let continuation = continuation.ok_or(LoweringError::Unsupported(
-                    "projected selection requires a structural continuation",
-                ))?;
+                // A projection always needs an ownership edge for its kept
+                // subtree and residual complement. At a value root there is
+                // no enclosing dispatch to supply that edge; create the same
+                // result continuation rather than turn the projection into
+                // an alias over temporary storage.
+                let owned_continuation;
+                let is_root = continuation.is_none();
+                let continuation = if let Some(continuation) = continuation {
+                    continuation
+                } else {
+                    owned_continuation = self.root_value_continuation(self.values.clone())?;
+                    &owned_continuation
+                };
                 let projected = self.projected_root(source, path, type_identity)?;
                 if matches!(
                     structural_values(self.checked).nodes.get(source).kind,
@@ -1203,6 +1213,9 @@ impl Emission<'_, '_, '_> {
                     );
                 }
                 self.complete_value(projected.root, Some(&projected), continuation)?;
+                if is_root {
+                    self.record_root_continuation(continuation);
+                }
                 Ok(continuation.place)
             }
             CheckedStructuralValueKind::ViewElementCopy { reads } => {
@@ -1997,16 +2010,28 @@ impl Emission<'_, '_, '_> {
         })
     }
 
-    /// Partition `remaining_owners` into pass-through and residual places
-    /// for one selection join: every owner slot mints a fresh block-parameter
-    /// place, owners still cited by live sources become residuals (their
-    /// symbol is invalidated) and the rest pass through. The trailing result
-    /// slot contributes only its parameter row, carrying the result's own
-    /// access (`SharedBorrow` for a `&T` join, `Owned` otherwise).
+    /// Root selection takes its result from the first candidate owner; every
+    /// other owner crosses the same continuation partition used by nested
+    /// selections. Dispatch and projection therefore retain identical cleanup
+    /// and result-arrival obligations without aliasing temporary storage.
+    fn root_value_continuation(
+        &mut self,
+        values: Vec<ValueDeclaration>,
+    ) -> Result<ValueContinuation, LoweringError> {
+        let first_candidate = self.first_candidate();
+        let remaining_owners = self
+            .owners
+            .iter()
+            .enumerate()
+            .filter(|(position, _)| Some(*position) != first_candidate)
+            .map(|(_, owner)| owner.clone())
+            .collect();
+        self.joined_value_continuation(values, remaining_owners)
+    }
 
-    /// Continuation minted at an unseen join: fresh identities for the
-    /// given values, `remaining_owners` partitioned against it, and the
-    /// result place bound to the last structural parameter.
+    /// Mint fresh join identities and partition remaining owners into
+    /// pass-through and residual places. The trailing structural parameter
+    /// carries the selected result's own access, independently of its siblings.
     fn joined_value_continuation(
         &mut self,
         values: Vec<ValueDeclaration>,

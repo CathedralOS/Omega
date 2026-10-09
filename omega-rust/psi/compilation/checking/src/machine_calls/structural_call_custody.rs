@@ -1164,36 +1164,8 @@ pub fn structural_call_custody(
             program,
             destination.return_type,
         ) {
-            let local_destination = program
-                .statement_table
-                .statement_at(source_state, call.statement_index)
-                .and_then(|statement| match statement {
-                    typed_trees::statement::StatementNode::LocalData(local)
-                        if local.initial_value == call.authored_expression =>
-                    {
-                        Some(local)
-                    }
-                    _ => None,
-                });
-            if let Some(local) = local_destination {
-                if program.normalized_type_identity(local.type_reference)
-                    != program.normalized_type_identity(destination.return_type)
-                    || crate::machine_calls::reference_result_custody::local_record_loans(
-                        program,
-                        facts,
-                        caller_machine,
-                        source_state,
-                        u32::try_from(call.statement_index)
-                            .map_err(|_| "reference record call index exceeds u32")?,
-                    )
-                    .is_none()
-                {
-                    return Err("reference record result has no exact captured leaf loans");
-                }
-            // A nested call result is an anonymous carrier: no local mints
-            // leaf loans for it, so each returned leaf must instead replay
-            // through the call's exact actual to a live caller-side loan.
-            } else if !crate::machine_calls::reference_result_custody::nested_call_result_loans(
+            use crate::machine_calls::reference_result_custody::record_call_reception;
+            let reception = record_call_reception(
                 program,
                 facts,
                 caller_machine,
@@ -1201,7 +1173,24 @@ pub fn structural_call_custody(
                 u32::try_from(call.statement_index)
                     .map_err(|_| "reference record call index exceeds u32")?,
                 call.authored_expression,
-            ) {
+            )
+            .ok_or("reference record result has no exact captured leaf loans")?;
+            // Received leaves consume checked formation groups. Unreceived
+            // projection siblings and anonymous operands stay in the call's
+            // temporary carrier until ordinary subtree/operand disposal.
+            if !reception.residual_paths.is_empty()
+                && !crate::machine_calls::reference_result_custody::transient_call_record_loans(
+                    program,
+                    facts,
+                    caller_machine,
+                    source_state,
+                    u32::try_from(call.statement_index)
+                        .map_err(|_| "reference record call index exceeds u32")?,
+                    call.authored_expression,
+                    structural_arguments,
+                    &reception.residual_paths,
+                )
+            {
                 return Err("reference record result has no exact captured leaf loans");
             }
         }

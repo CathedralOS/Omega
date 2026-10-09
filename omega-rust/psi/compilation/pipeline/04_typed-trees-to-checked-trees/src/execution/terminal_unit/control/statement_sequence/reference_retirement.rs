@@ -138,10 +138,86 @@ impl Retirement<'_> {
                     .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
                         && self.facts.borrow.loans.get(child).source_owner_symbol
                             == parent.owner_symbol
-                        && call
-                            .structural_arguments
-                            .iter()
-                            .any(|source| self.source_captures_holder(source, parent))
+                        && call.structural_arguments.iter().any(|source| {
+                            source.access.borrow_access_kind().is_some()
+                                && self.source_captures_holder(source, parent)
+                        })
+                });
+            }
+            if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                value,
+                calls,
+                ..
+            } = operation
+            {
+                if !local_carrier_loans(
+                    self.facts,
+                    self.machine,
+                    self.state.symbol,
+                    result,
+                    self.results,
+                )
+                .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
+                {
+                    return false;
+                }
+                let loan = self.facts.borrow.loans.get(child);
+                let Some((_, local)) = self
+                    .program
+                    .state_local_declaration(self.state, loan.owner_symbol)
+                else {
+                    return false;
+                };
+                let Some(path) = transport::carrier_path(
+                    self.program,
+                    local.type_reference,
+                    self.facts.borrow.loan_owner_path(loan),
+                ) else {
+                    return false;
+                };
+                let Some(sources) = validation::reference_result_custody::stored_carrier_sources(
+                    self.program,
+                    self.facts,
+                    *value,
+                    &path,
+                ) else {
+                    return false;
+                };
+                // A retained inner call forms a descriptor in the enclosing
+                // result's exact leaf slot. Its anonymous call result is not
+                // another local holder. Keep operand parents until this
+                // receiving occurrence has actually retired.
+                return sources.into_iter().any(|source| {
+                    let validation::reference_result_custody::StoredCarrierSource::Call {
+                        value,
+                        ..
+                    } = source
+                    else {
+                        return false;
+                    };
+                    if loan.formation_expression
+                        != self
+                            .facts
+                            .values
+                            .structural_values
+                            .nodes
+                            .get(value)
+                            .expression
+                        || loan.source_owner_symbol != parent.owner_symbol
+                    {
+                        return false;
+                    }
+                    calls
+                        .iter()
+                        .find(|call| call.value == value)
+                        .and_then(|call| call.operation().call())
+                        .is_some_and(|call| {
+                            call.structural_arguments.iter().any(|source| {
+                                source.access.borrow_access_kind().is_some()
+                                    && self.source_captures_holder(source, parent)
+                            })
+                        })
                 });
             }
             let CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } =

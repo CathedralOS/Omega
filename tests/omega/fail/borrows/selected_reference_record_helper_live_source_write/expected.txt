@@ -1,1 +1,2 @@
 while local borrow `copied` is still active
+while local borrow `envelope` is still active

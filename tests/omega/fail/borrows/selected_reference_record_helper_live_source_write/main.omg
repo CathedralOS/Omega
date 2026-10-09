@@ -1,5 +1,6 @@
 data Cell { value: i32; }
 data Held<'storage> { target: &'storage Cell; stamp: i32; }
+data Envelope<'storage> { held: Held<'storage>; seal: i32; }
 
 machine select<'storage>(first: &'storage Cell, second: &'storage Cell, selected: bool) -> Held<'storage> {
     match selected {
@@ -17,4 +18,14 @@ machine invalid(first: &mut Cell, second: &mut Cell) -> i32 {
     let original: i32 = held.target.value;
     second.value = 83;
     copied.value
+}
+
+machine invalid_nested(first: &mut Cell, second: &mut Cell) -> i32 {
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let envelope: Envelope = Envelope {
+        held: select(&first_parent, &second_parent, true), seal: 17
+    };
+    second.value = 83;
+    envelope.held.target.value
 }

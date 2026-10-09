@@ -10,7 +10,7 @@ use super::{
 use checked_trees::BorrowLoanFact;
 
 mod paths;
-mod sources;
+pub(super) use paths::carrier_path;
 
 /// Historical carrier transport, not a new loan descent. A copy and an owned
 /// move retain the supplying occurrence's immediate parents; neither makes
@@ -64,9 +64,17 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 local.type_reference,
                 facts.borrow.loan_owner_path(loan),
             )?;
-            let mut sources = Vec::new();
-            sources::select(program, facts, *value, &path, &mut Vec::new(), &mut sources)?;
+            let sources = validation::reference_result_custody::stored_carrier_sources(
+                program, facts, *value, &path,
+            )?;
             for source in sources {
+                let validation::reference_result_custody::StoredCarrierSource::Place(source) =
+                    source
+                else {
+                    // Calls form their own result; they do not inherit a
+                    // copied descriptor's historical parent correspondence.
+                    continue;
+                };
                 let (source_owner, source_formation) = match source.source {
                     CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,

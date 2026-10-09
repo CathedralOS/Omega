@@ -15,6 +15,14 @@ The second route puts selection inside a field, forwards it through a named
 state and a helper call, and copies the returned shared descriptor. Mutation
 waits for both the original returned descriptor and its copy to finish.
 
-The final route declares distinct input lifetimes and returns only the first
+Another route declares distinct input lifetimes and returns only the first
 input. The unrelated second input can be mutated while that result stays live.
 Both selector values exercise this declared-source restriction.
+
+The enclosing-record route calls the helper inside a field initializer. Its
+returned descriptor pins the exact input parents until the nested target's final
+read; scalar siblings remain readable after both original backings are writable.
+
+The projected-call route keeps one subtree of a returned pair. Its unused
+sibling retires with the temporary result; both original backings become
+writable after the kept target's final read, while its scalar stamp stays live.

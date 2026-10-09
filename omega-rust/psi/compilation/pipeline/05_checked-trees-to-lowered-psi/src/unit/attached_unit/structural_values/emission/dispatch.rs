@@ -41,18 +41,8 @@ impl Emission<'_, '_, '_> {
         let continuation = if let Some(continuation) = continuation {
             continuation
         } else {
-            let first_candidate = self.first_candidate();
-            let remaining_owners = self
-                .owners
-                .iter()
-                .enumerate()
-                .filter(|(position, _)| Some(*position) != first_candidate)
-                .map(|(_, owner)| owner.clone())
-                .collect::<Vec<_>>();
-            owned_continuation = self.joined_value_continuation(
-                self.values[..source_count].to_vec(),
-                remaining_owners,
-            )?;
+            owned_continuation =
+                self.root_value_continuation(self.values[..source_count].to_vec())?;
             &owned_continuation
         };
         for (position, arm) in arms.iter().enumerate() {

@@ -24,6 +24,10 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod primitive_locals;
 pub use primitive_locals::primitive_local_source;
+mod stored_carrier_sources;
+pub use stored_carrier_sources::{StoredCarrierSource, stored_carrier_sources};
+mod call_reception;
+pub use call_reception::{RecordCallReception, record_call_reception};
 
 // An owned formal has a compact type DAG but its returned-origin roster is
 // materialized by path. Bound that expansion before semantic classification or
@@ -1939,20 +1943,19 @@ fn reference_record_call_sources<'program>(
     Some((destination, sources))
 }
 
-/// A nested call's anonymous reference-record result has no `let` destination:
-/// `select(forward_outer(outer).inner)` captures `forward_outer`'s returned
-/// leaves directly into the consuming call. Each returned leaf must replay
-/// through the call's exact actual to the caller-side captured loan group
-/// that stays live at the containing statement — the same leaf join
-/// `nested_call_record_argument` proves under the consumer's projected edge,
-/// here required of the complete returned roster.
-pub fn nested_call_result_loans(
+/// Returned leaves not installed in a local stay in the call's temporary
+/// carrier until its consuming edge. Borrowed ingress uses already-admitted
+/// operand authority; owned descriptor inputs retain their complete active
+/// leaf groups. Neither case extends a loan past the temporary's disposal.
+pub fn transient_call_record_loans(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: u32,
     expression: typed_trees::expression::ExpressionHandle,
+    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    residual_paths: &[Vec<checked_trees::CheckedUnitStructuralPathSegment>],
 ) -> bool {
     let Some(call) = program.expression_table.call_node(expression) else {
         return false;
@@ -1960,17 +1963,58 @@ pub fn nested_call_result_loans(
     let Some((destination, sources)) = reference_record_call_sources(program, call) else {
         return false;
     };
-    sources_replay_active_leaf_loans(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        call,
-        destination,
-        &sources,
-        |_| true,
-    )
+    !sources.is_empty()
+        && residual_paths
+            .iter()
+            .all(|path| sources.iter().any(|source| &source.path == path))
+        && sources
+            .iter()
+            .filter(|source| residual_paths.contains(&source.path))
+            .all(|source| {
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                } = source.source.source
+                else {
+                    return false;
+                };
+                let Some(parameter) = program
+                    .state_parameters(destination)
+                    .iter()
+                    .filter(|parameter| is_mutable_structural_parameter(program, parameter))
+                    .nth(parameter_index as usize)
+                else {
+                    return false;
+                };
+                if crate::reference_shell(program, parameter.type_reference).is_some() {
+                    // Borrowed ingress denotes the referent, not an owned slot
+                    // ending in Referent. Operand admission already checked its
+                    // exact storage, projection and access. The temporary may
+                    // attenuate that access, never promote it; it ends at this
+                    // call's consuming value edge rather than a local lifetime.
+                    let Some(actual) = arguments.get(parameter_index as usize) else {
+                        return false;
+                    };
+                    let Some(parent) = actual.access.borrow_access_kind() else {
+                        return false;
+                    };
+                    let Some(child) = source.source.access.borrow_access_kind() else {
+                        return false;
+                    };
+                    parent.direct_reborrow_effect(&child).is_some()
+                } else {
+                    call_actual_leaf_loans(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        statement_index,
+                        call,
+                        destination,
+                        source,
+                    )
+                    .is_some()
+                }
+            })
 }
 
 /// A projected argument crosses the stored carrier only after its exact local
