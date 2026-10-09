@@ -1,12 +1,12 @@
 use register_model::ValidatedRegisterConstraintCatalog;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
-    MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog,
-    MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SaturatingOperation, SelectedConstraintKeys,
-    ValidatedMachineEffectCatalog, validate_machine_effect_catalog,
+    IsaCatalogValidation, MachineAlternative, MachineAlternativeApplicability,
+    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SaturatingOperation, SelectedConstraintKeys, ValidatedMachineEffectCatalog,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -81,11 +81,9 @@ pub fn aarch64_machine_effect_catalog(
                 }
                 if semantic == MachineSemanticKind::Crash {
                     return Ok(crate::selected_form_encoding::crash::declaration(
-                        constraints
-                            .catalog().constraint(constraint)
-                            .ok_or(
-                                Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch,
-                            )?,
+                        constraints.catalog().constraint(constraint).ok_or(
+                            Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch,
+                        )?,
                     ));
                 }
                 if let MachineSemanticKind::TrappingInteger(form) = semantic {
@@ -163,30 +161,11 @@ fn canonical_aarch64_machine_effect_catalog(
     target: NativeTarget,
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> Result<std::sync::Arc<MachineEffectCatalog>, Aarch64MachineEffectCatalogValidationError> {
-    type Canonical = (
-        NativeTarget,
-        register_model::RegisterConstraintCatalogIdentity,
-        std::sync::Arc<MachineEffectCatalog>,
-    );
-    static CANONICAL: std::sync::OnceLock<std::sync::Mutex<Vec<Canonical>>> =
-        std::sync::OnceLock::new();
-    let cache = CANONICAL.get_or_init(Default::default);
-    let identity = constraints.identity();
-    if let Some(catalog) = cache.lock().ok().and_then(|cached| {
-        cached
-            .iter()
-            .find(|(seen_target, seen_identity, _)| {
-                *seen_target == target && *seen_identity == identity
-            })
-            .map(|(_, _, catalog)| catalog.clone())
-    }) {
-        return Ok(catalog);
-    }
-    let catalog = std::sync::Arc::new(aarch64_machine_effect_catalog(target, constraints)?);
-    if let Ok(mut cached) = cache.lock() {
-        cached.push((target, identity, catalog.clone()));
-    }
-    Ok(catalog)
+    selected_instructions::canonical_machine_effect_catalog(
+        target,
+        constraints,
+        aarch64_machine_effect_catalog,
+    )
 }
 
 pub fn validate_aarch64_machine_effect_catalog(
@@ -194,18 +173,25 @@ pub fn validate_aarch64_machine_effect_catalog(
     constraints: &ValidatedRegisterConstraintCatalog,
     catalog: MachineEffectCatalog,
 ) -> Result<ValidatedMachineEffectCatalog, Aarch64MachineEffectCatalogValidationError> {
-    if target.architecture != Architecture::Aarch64
-        || constraints.architecture() != Architecture::Aarch64
-    {
-        return Err(Aarch64MachineEffectCatalogValidationError::TargetArchitectureMismatch);
-    }
-    let canonical = canonical_aarch64_machine_effect_catalog(target, constraints)?;
-    let validated = validate_machine_effect_catalog(constraints, catalog)
-        .map_err(Aarch64MachineEffectCatalogValidationError::Structural)?;
-    if validated.catalog() != &*canonical {
-        return Err(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch);
-    }
-    Ok(validated)
+    selected_instructions::validate_isa_machine_effect_catalog(
+        Architecture::Aarch64,
+        target,
+        constraints,
+        catalog,
+        aarch64_machine_effect_catalog,
+    )
+    .map_err(|failure| match failure {
+        IsaCatalogValidation::ArchitectureMismatch => {
+            Aarch64MachineEffectCatalogValidationError::TargetArchitectureMismatch
+        }
+        IsaCatalogValidation::Structural(error) => {
+            Aarch64MachineEffectCatalogValidationError::Structural(error)
+        }
+        IsaCatalogValidation::SemanticMismatch => {
+            Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch
+        }
+        IsaCatalogValidation::Builder(error) => error,
+    })
 }
 
 /// The AArch64 encoding matrix declares one call/return ABI family per

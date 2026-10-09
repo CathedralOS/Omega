@@ -7,17 +7,17 @@ pub mod catalog;
 pub mod program;
 
 pub use catalog::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalog, MachineEffectCatalogIdentity, MachineEffectCatalogValidationError,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineIdentityBytes, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, ValidatedMachineEffectCatalog,
-    alternative_family_tag, encode_machine_alternative_identity,
+    IsaCatalogValidation, MachineAlternative, MachineAlternativeApplicability,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
+    MachineCleanupEffect, MachineEffectCatalog, MachineEffectCatalogIdentity,
+    MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineIdentityBytes, MachineLatencyKnowledge, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, ValidatedMachineEffectCatalog,
+    alternative_family_tag, canonical_machine_effect_catalog, encode_machine_alternative_identity,
     encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
     machine_effect_catalog_identity, saturating_family_tag, trapping_family_tag,
-    validate_machine_effect_catalog,
+    validate_isa_machine_effect_catalog, validate_machine_effect_catalog,
 };
 pub use program::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,

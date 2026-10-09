@@ -978,3 +978,74 @@ impl std::fmt::Display for MachineEffectCatalogValidationError {
 }
 
 impl std::error::Error for MachineEffectCatalogValidationError {}
+
+/// One ISA-owned catalog build memoized per process: an ISA effect catalog is
+/// a pure function of its target and register-constraint identities, so each
+/// canonical artifact is built once and shared by every validator.
+pub fn canonical_machine_effect_catalog<E>(
+    target: NativeTarget,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    build: impl FnOnce(
+        NativeTarget,
+        &ValidatedRegisterConstraintCatalog,
+    ) -> Result<MachineEffectCatalog, E>,
+) -> Result<std::sync::Arc<MachineEffectCatalog>, E> {
+    type Canonical = (
+        NativeTarget,
+        RegisterConstraintCatalogIdentity,
+        std::sync::Arc<MachineEffectCatalog>,
+    );
+    static CANONICAL: std::sync::OnceLock<std::sync::Mutex<Vec<Canonical>>> =
+        std::sync::OnceLock::new();
+    let cache = CANONICAL.get_or_init(Default::default);
+    let identity = constraints.identity();
+    if let Some(catalog) = cache.lock().ok().and_then(|cached| {
+        cached
+            .iter()
+            .find(|(seen_target, seen_identity, _)| {
+                *seen_target == target && *seen_identity == identity
+            })
+            .map(|(_, _, catalog)| catalog.clone())
+    }) {
+        return Ok(catalog);
+    }
+    let catalog = std::sync::Arc::new(build(target, constraints)?);
+    if let Ok(mut cached) = cache.lock() {
+        cached.push((target, identity, catalog.clone()));
+    }
+    Ok(catalog)
+}
+
+/// The validation envelope every ISA effect catalog shares: gate the target
+/// architecture, structurally validate, then compare to the ISA's canonical
+/// build. Each ISA error enum keeps its own variants and maps this outcome.
+#[derive(Debug)]
+pub enum IsaCatalogValidation<E> {
+    ArchitectureMismatch,
+    Structural(MachineEffectCatalogValidationError),
+    SemanticMismatch,
+    Builder(E),
+}
+
+/// Validate one ISA-declared effect catalog against its canonical build.
+/// `architecture` is the ISA's own `Architecture` variant and `build` its
+/// catalog declaration; both stay ISA-owned while the envelope is shared.
+pub fn validate_isa_machine_effect_catalog<E>(
+    architecture: target::Architecture,
+    target: NativeTarget,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    catalog: MachineEffectCatalog,
+    build: impl Fn(NativeTarget, &ValidatedRegisterConstraintCatalog) -> Result<MachineEffectCatalog, E>,
+) -> Result<ValidatedMachineEffectCatalog, IsaCatalogValidation<E>> {
+    if target.architecture != architecture || constraints.architecture() != architecture {
+        return Err(IsaCatalogValidation::ArchitectureMismatch);
+    }
+    let canonical = canonical_machine_effect_catalog(target, constraints, build)
+        .map_err(IsaCatalogValidation::Builder)?;
+    let validated = validate_machine_effect_catalog(constraints, catalog)
+        .map_err(IsaCatalogValidation::Structural)?;
+    if validated.catalog() != &*canonical {
+        return Err(IsaCatalogValidation::SemanticMismatch);
+    }
+    Ok(validated)
+}
