@@ -26,7 +26,7 @@ pub enum ObservationKnowledge {
 /// accidentally erase a callee, boundary, service, edge, cleanup, or crash
 /// payload while considering only its broad category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ObservationEventClass {
+pub(crate) enum ObservationEventClass {
     StructuralState,
     InternalCall,
     BoundaryCall,
@@ -86,13 +86,13 @@ pub struct PsiObservationModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PsiRegionBoundaryEdgeObservation {
+pub(crate) struct PsiRegionBoundaryEdgeObservation {
     pub source: NodeLocation,
     pub edge: OptimizationEdge,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PsiRegionFrontierObservation {
+pub(crate) struct PsiRegionFrontierObservation {
     pub site: OwnershipFrontierSite,
     /// Absence is explicit because synthetic/bare optimization units do not
     /// carry the verifier-owned source frontier catalog. A retained identity
@@ -101,7 +101,7 @@ pub struct PsiRegionFrontierObservation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PsiClosedRegionBlockObservation {
+pub(crate) struct PsiClosedRegionBlockObservation {
     pub block: BlockId,
     pub parameters: Vec<ValueDefinition>,
     pub nodes: Vec<PsiNodeObservation>,

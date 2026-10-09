@@ -63,7 +63,7 @@ impl PrePhysicalOptimizationManifest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PrePhysicalOptimizationManifestDecodeError {
+pub(crate) enum PrePhysicalOptimizationManifestDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),
