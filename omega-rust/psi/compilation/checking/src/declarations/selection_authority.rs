@@ -10,7 +10,6 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use source::SourceOrigin;
 use std::collections::HashSet;
-use symbols::SymbolKind;
 
 /// Package-neutral authority consulted before the compiler executes an
 /// authored machine or admits checked declaration selections.
@@ -94,14 +93,23 @@ pub fn validate_authored_declaration_selections(
             continue;
         }
 
-        // Installed primitive types, functions and type members have exact
+        // Installed primitive and mathematical declarations have exact
         // compiler identity but intentionally no authored source/package owner.
-        // Member identity checks the fixed parent and installed child handle;
-        // a user declaration with the same spelling gains no authority.
-        if matches!(
-            program.symbols.get(selected).kind,
-            SymbolKind::BuiltinType | SymbolKind::BuiltinFunction
-        ) || program.symbols.builtin_type_member(selected).is_some()
+        // Slot queries retain the installed handle, including a type member's
+        // fixed parent; a user declaration with the same spelling gains no
+        // authority. The fixed core vocabulary is mathematical, so its symbol
+        // kind alone cannot distinguish it from an authored definition.
+        if program.symbols.builtin_type_atom(selected).is_some()
+            || program
+                .symbols
+                .builtin_function_for_symbol(selected)
+                .is_some()
+            || program.symbols.builtin_type_member(selected).is_some()
+            || symbols::FixedCoreDeclaration::ALL
+                .into_iter()
+                .any(|declaration| {
+                    program.symbols.fixed_core_declaration_symbol(declaration) == Some(selected)
+                })
         {
             continue;
         }
