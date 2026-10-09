@@ -627,7 +627,7 @@ pub(super) fn build_traced(
         .filter(|(_, live)| **live)
         .flat_map(|(state, _)| state.successors())
         .any(|successor| successor.target_state == planned[0].state);
-    for (state_index, &(_, state)) in fused.iter().enumerate() {
+    for (state_index, &(owner, state)) in fused.iter().enumerate() {
         if !live_states[state_index] {
             continue;
         }
@@ -668,21 +668,25 @@ pub(super) fn build_traced(
                     // a descriptor copy rides any non-linear carrier, `copy`
                     // or affine, under the contents judgment the dispatch
                     // applies to the same carrier as a scrutinee subject.
-                    // The one-shot entry names the caller's custody: its loan
-                    // has no checked transfer to ride in on, so only the
-                    // one-record-deep view shape the invocation can spell is
-                    // admitted there — the wider contents family enters
-                    // exclusively through established edge custody.
-                    let view_carrier = if state_index == 0 && invocation_only_entry {
-                        parameter.multiplicity == Multiplicity::Unrestricted
-                            && validation::has_owned_or_shared_view_fields(program, reference())
-                    } else {
-                        validation::has_contents(
+                    // Invocation entry and state arrivals both retain every
+                    // borrowed field's opaque ingress identity. The source
+                    // loan roster supplies this authority, not copy permission
+                    // on an enclosing record or the descriptor's geometry.
+                    let source_parameter =
+                        &program.state_parameters(state)[parameter.position as usize];
+                    let view_carrier = validation::has_contents(
+                        program,
+                        reference(),
+                        validation::ContentsRequirement::OwnedOrSharedView,
+                    )
+                        && validation::reference_result_custody::stored_carrier_ingress_is_complete(
                             program,
+                            facts,
+                            owner.symbol,
+                            state.symbol,
+                            source_parameter.symbol,
                             reference(),
-                            validation::ContentsRequirement::OwnedOrSharedView,
-                        )
-                    };
+                        );
                     // A whole arrival carries its owner's eventual cleanup
                     // obligation. Its hook does not make the storage invalid;
                     // exact selected normal-edge actions dispose only what

@@ -1253,9 +1253,11 @@ pub fn terminal_call_reference_sources(
     )
 }
 
-/// A stored carrier transports its existing reference leaves. The source path
-/// names each borrowed referent; it does not authorize creating a fresh loan
-/// or moving storage through the referent boundary.
+/// A stored carrier transports its existing borrowed leaves. Reference leaves
+/// name a referent; sequence views name the descriptor itself, whose backing
+/// is retained by its captured loan. A view is not an explicit `Referent`
+/// crossing. Neither source form authorizes creating a fresh loan or moving
+/// the backing storage.
 pub fn record_carrier_sources(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -1268,6 +1270,26 @@ pub fn record_carrier_sources(
         path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         output: &mut Vec<checked_trees::CheckedReferenceResultSourcePlan>,
     ) -> Option<()> {
+        if let Some(shell) = crate::reference_shell(program, reference)
+            && shell.access == language_semantics::ReferenceAccess::Shared
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(crate::peel_declared_constraints(program, shell.referee),),
+                TypeReferenceNode::Slice { .. }
+            )
+        {
+            output.push(checked_trees::CheckedReferenceResultSourcePlan {
+                path: path.clone(),
+                source: checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source: carrier.clone(),
+                    path: path.clone(),
+                    type_identity: program.normalized_type_identity(reference).into_string(),
+                    access: CheckedStructuralAccess::SharedBorrow,
+                },
+            });
+            return Some(());
+        }
         if let Some((referent, access)) = stored_loan_parts(program, reference) {
             let mut source_path = path.clone();
             source_path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
@@ -1330,12 +1352,73 @@ pub fn record_carrier_sources(
         }
         Some(())
     }
-    if !is_reference_record(program, reference) {
+    if !reference_origin_expansion_is_bounded(program, reference)
+        || (!is_reference_record(program, reference)
+            && !crate::has_contents(
+                program,
+                reference,
+                crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView,
+            ))
+    {
         return None;
     }
     let mut output = Vec::new();
     visit(program, reference, &carrier, &mut Vec::new(), &mut output)?;
     Some(output)
+}
+
+/// An owned parameter retains every stored borrowed leaf as an opaque ingress
+/// origin. A storage classifier alone cannot supply this custody: join the
+/// producer's exact owner, state, parameter and declared leaf paths. State
+/// arrivals use the same roster as invocation entry; ordinary edge formation
+/// still proves the actual descriptor's access and backing lifetime.
+pub fn stored_carrier_ingress_is_complete(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    parameter: SymbolHandle,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let Some(carrier) = input_carrier_type(program, reference) else {
+        return false;
+    };
+    let Some(sources) = record_carrier_sources(
+        program,
+        carrier,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: parameter,
+        },
+    ) else {
+        return false;
+    };
+    let incoming = facts
+        .borrow
+        .incoming_references
+        .iter()
+        .filter_map(|(_, row)| {
+            (row.machine_symbol == machine
+                && row.state_symbol == state
+                && row.parameter_symbol == parameter)
+                .then_some(row)
+        })
+        .collect::<Vec<_>>();
+    if incoming.len() != sources.len() {
+        return false;
+    }
+    sources.iter().all(|source| {
+        let Some(path) = loan_owner_path(program, carrier, &source.path) else {
+            return false;
+        };
+        incoming
+            .iter()
+            .filter(|row| {
+                row.carrier_type == carrier
+                    && facts.borrow.owner_segments.span(row.owner_path) == Some(path.as_slice())
+            })
+            .count()
+            == 1
+    })
 }
 
 /// A readable input exposes its carrier's stored descriptors, not ownership
