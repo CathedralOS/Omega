@@ -2,16 +2,17 @@
 // implementation returns nine, so primitive addition cannot prove formation.
 trait ReplacementArithmetic {
     machine + combine(left: i16, right: i16) -> i16;
+}
+trait InheritedArithmetic : ReplacementArithmetic {
     machine restricted(left: i16, right: i16) -> i16
     requires left + right == 0i16;
 }
-trait InheritedArithmetic : ReplacementArithmetic { }
 Replacing satisfies InheritedArithmetic {
     machine combine(left: i16, right: i16) -> i16 { 9i16 }
     machine restricted(left: i16, right: i16) -> i16 { 0i16 }
 }
 machine caller(left: i16, right: i16)
 requires left == 0i16 && right == 0i16
-requires ReplacementArithmetic::restricted<Replacing>(left, right)
-    == ReplacementArithmetic::restricted<Replacing>(left, right) {}
+requires InheritedArithmetic::restricted<Replacing>(left, right)
+    == InheritedArithmetic::restricted<Replacing>(left, right) {}
 machine main() {}
