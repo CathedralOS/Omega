@@ -98,12 +98,12 @@ pub(crate) fn validate_optimized_program_storage_semantic_wrapper(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperContinuationDisposition {
+pub enum OptimizedProgramStorageSemanticWrapperContinuationDisposition {
     PrivateTerminalSymbolRequiredV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperRelocationKind {
+pub enum OptimizedProgramStorageSemanticWrapperRelocationKind {
     X86Relative32PrivateContinuationV1,
 }
 

@@ -1,44 +1,8 @@
-//! Exact UEFI x64 replay owned beside the physical entry-plan carrier.
-//!
-//! The bundled closed target package's authored `UefiX86_64::plan` machine is
-//! the single source definition of this calling policy; admission evaluation
-//! mints the contract's retained boundary plan. Custody checks here replay
-//! that retained evidence against the source-minted calling-plan commitment
-//! instead of consulting a second Rust copy of the policy. The only Rust
-//! constants below are the fixed package identity and the recorded commitment
-//! — evidence of the evaluation's output, never the policy itself.
-
-use calling_conventions::{
-    BoundaryEntryPlan, CallSignature, CallingPolicy, MachineRegister, MachineState,
-    MachineStateSet, RegisterSet, ValidatedBoundaryEntryPlan, ValueShape,
-    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
-};
-
-use super::ProgramEntryPhysicalContractPlan;
-
 const UEFI_X64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../../../source/library/std/targets/uefi_x86_64/entry.omg"
 ));
 
-/// Canonical checked-tree overload identity for `UefiPhysicalEntry::enter`.
-pub(crate) const UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
-    "named-callable(path(UefiPhysicalEntry::enter),parameters(",
-    "parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,",
-    "named\\(name\\(EfiImageHandle\\)\\)\\)\\,",
-    "parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,",
-    "ref\\(named\\(name\\(EfiSystemTable\\)\\)\\)\\)",
-    "),result-dispatch())",
-);
-/// Canonical normalized type identity of the opaque image-handle input.
-pub(crate) const UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY: &str = "named(name(EfiImageHandle))";
-/// Canonical normalized type identity of the shared system-table input.
-pub(crate) const UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY: &str = "ref(named(name(EfiSystemTable)))";
-/// Canonical normalized type identity of the physical status result.
-pub(crate) const UEFI_X64_STATUS_TYPE_IDENTITY: &str = "named(name(EfiStatus))";
-
-/// Strong commitment to the exact closed UEFI target-package source compiled
-/// into this plan owner.
 pub fn exact_uefi_x64_physical_contract_package_source_digest()
 -> super::ProgramEntryPhysicalContractPackageSourceDigest {
     super::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
@@ -46,70 +10,3 @@ pub fn exact_uefi_x64_physical_contract_package_source_digest()
         UEFI_X64_TARGET_PACKAGE_SOURCE,
     )
 }
-
-/// Domain-separated commitment to the canonical boundary-entry plan the
-/// bundled closed package's authored `UefiX86_64::plan` machine produces for
-/// `UefiPhysicalEntry::enter`'s exact signature. This is the
-/// `contract_commitment_digest` of the plan the source evaluation mints.
-/// Physical-entry replay checks the retained plan against this commitment.
-/// A change to that policy or the canonical
-/// calling-plan encoding requires recording its new commitment.
-pub(crate) const UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT: [u8; 32] = [
-    93, 215, 198, 244, 134, 45, 215, 214, 168, 250, 172, 114, 227, 233, 145, 103, 20, 89, 121, 37,
-    75, 65, 230, 111, 27, 124, 230, 128, 171, 181, 106, 135,
-];
-
-/// Replay independent validation of `plan` under the signature its own
-/// placements imply, then bind the result to the source-minted calling-plan
-/// commitment. Returns the canonical validated plan only when `plan` is
-/// exactly what the authored policy produced: a substituted, drifted, or
-/// foreign plan fails closed here even when every other pinned identity
-/// matches. A source digest alone never establishes plan correctness — the
-/// retained plan itself must reproduce the recorded commitment.
-pub(crate) fn replayed_uefi_x64_physical_calling_plan(
-    plan: &BoundaryEntryPlan,
-) -> Option<ValidatedBoundaryEntryPlan> {
-    let signature = CallSignature::of_placements(&plan.call.parameters, plan.call.result.as_ref());
-    let validated = validate_boundary_entry_plan(plan.clone(), &signature).ok()?;
-    (validated.plan() == plan
-        && validated.contract_commitment_digest() == UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT)
-        .then_some(validated)
-}
-
-/// Materialize the canonical plan the authored `UefiX86_64::plan` machine
-/// produces for the exact physical signature. The authored machine narrows
-/// the ordinary Microsoft-x64 boundary plan to the seven integer volatile
-/// registers and the machine-state classes they cover; everything else is the
-/// generic policy evaluation, and the result is admitted only because the
-/// replay above binds it to the source-minted commitment.
-///
-/// Production verdicts never consult this materialization. It exists to
-/// construct contract fixtures below the build layer, where source
-/// evaluation is unavailable.
-pub(crate) fn exact_uefi_x64_physical_boundary_entry_plan() -> ValidatedBoundaryEntryPlan {
-    let word = ValueShape::integer(8, 8);
-    let signature = CallSignature {
-        parameters: vec![word, word],
-        result: Some(word),
-    };
-    let mut plan = evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature)
-        .expect("the ordinary Microsoft-x64 boundary plan remains the authored policy's base")
-        .plan()
-        .clone();
-    plan.call.ordinary_clobbers = RegisterSet::new([
-        MachineRegister::X86Rax,
-        MachineRegister::X86Rcx,
-        MachineRegister::X86Rdx,
-        MachineRegister::X86R8,
-        MachineRegister::X86R9,
-        MachineRegister::X86R10,
-        MachineRegister::X86R11,
-    ]);
-    plan.state.permitted_transitive_use =
-        MachineStateSet::new([MachineState::GeneralRegisters, MachineState::Flags]);
-    replayed_uefi_x64_physical_calling_plan(&plan).expect(
-        "the authored UEFI x64 narrowing must replay the source-minted calling-plan commitment",
-    )
-}
-
-impl ProgramEntryPhysicalContractPlan {}

@@ -2,7 +2,6 @@
 //! diagnostic, derived boundary storage and fused service establishment
 //! receipt live beside it.
 
-pub(crate) mod boundary_entry_storage;
 pub(crate) mod diagnostic;
 pub(crate) mod root_role;
 pub(crate) mod service_establishment;

@@ -12,18 +12,7 @@ const MACOS_X86_64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
 ));
 
 /// Canonical checked-tree overload identity for `MacosX64PhysicalEntry::enter`.
-pub(crate) const MACOS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
-    "named-callable(path(MacosX64PhysicalEntry::enter),parameters(",
-    "parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,",
-    "named\\(name\\(i32\\)\\)\\)\\,",
-    "parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,",
-    "named\\(name\\(addr\\)\\)\\)\\,",
-    "parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,",
-    "named\\(name\\(addr\\)\\)\\)\\,",
-    "parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,",
-    "named\\(name\\(addr\\)\\)\\)",
-    "),result-dispatch())",
-);
+
 /// Canonical normalized type identity of the `argc` and result integers.
 pub const MACOS_X86_64_I32_TYPE_IDENTITY: &str = "named(name(i32))";
 /// Canonical normalized type identity of the `argv`, `envp`, and `apple`
