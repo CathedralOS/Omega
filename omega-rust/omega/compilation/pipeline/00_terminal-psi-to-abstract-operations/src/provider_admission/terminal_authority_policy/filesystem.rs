@@ -19,12 +19,9 @@
 //! plan, so both roles earn the row only under the exact retained occurrence.
 
 use effects::{
-    CheckedSyscallArgumentContractIdentity, NormalizedForeignArgumentContract,
-    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission,
-    SyscallTerminalMechanismIdentity, TerminalAuthorityDisposition, TerminalMechanismIdentity,
-    provider_plan::{ServiceMethod, ServiceSchema, ServiceSchemaDigest},
-};
-use sha2::{Digest, Sha256};
+    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition, TerminalMechanismIdentity,
+    provider_plan::{ServiceMethod, ServiceSchema, ServiceSchemaDigest}};
+
 
 use super::TerminalAuthorityPolicyRow;
 

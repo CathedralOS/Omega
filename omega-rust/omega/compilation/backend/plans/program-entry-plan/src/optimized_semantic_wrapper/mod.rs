@@ -29,19 +29,15 @@ mod validation;
 pub use encoding::{
     OptimizedProgramStorageSemanticWrapperEncodingError,
     StagedOptimizedProgramStorageSemanticWrapperEncoding,
-    select_optimized_program_storage_semantic_wrapper_encoding,
-};
-pub(crate) use encoding::{
-    validate_optimized_program_storage_semantic_wrapper_encoding};
+    select_optimized_program_storage_semantic_wrapper_encoding};
+
 pub use recipe::OptimizedProgramStorageSemanticReceiverLayout;
 
 use crate::{
     OptimizedProgramStoragePhysicalEntryDisposition, OptimizedProgramStorageSemanticEntryContract,
-    ProgramStorageEntryDiagnostic,
-};
+    ProgramStorageEntryDiagnostic};
 use crate::{
-    ProgramEntryExtentFieldRole, ProgramEntrySignatureIdentity, ProgramStorageEntryRootRole,
-};
+    ProgramEntryExtentFieldRole, ProgramEntrySignatureIdentity, ProgramStorageEntryRootRole};
 use calling_conventions::{CallingPolicy, MachineRegister};
 
 /// Construct the pure semantic wrapper recipe without selecting a Terminal
