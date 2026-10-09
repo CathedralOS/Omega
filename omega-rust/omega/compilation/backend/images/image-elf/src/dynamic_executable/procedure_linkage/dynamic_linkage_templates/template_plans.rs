@@ -13,7 +13,7 @@ use image::FinalImageSection;
 /// placed byte, or image-mutation capability.
 #[derive(Debug)]
 #[must_use = "validated GOT/PLT templates retain the exact linkage plan"]
-pub(crate) struct ValidatedElfProcedureLinkageTemplatePlan {
+pub struct ValidatedElfProcedureLinkageTemplatePlan {
     pub(crate) linkage: ValidatedElfProcedureLinkageRelocationPlan,
     pub(crate) contents: ElfProcedureLinkageTemplateContents,
     pub(crate) non_authoritative_template_compatibility_fingerprint: u64,

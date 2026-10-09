@@ -42,7 +42,7 @@ const GNU_HASH_WORD_BITS: u32 = u64::BITS;
 /// relocation milestones consume them.
 #[derive(Debug)]
 #[must_use = "validated ELF dynamic sections retain the exact preflight inputs"]
-pub(crate) struct ValidatedElfDynamicSectionPlan {
+pub struct ValidatedElfDynamicSectionPlan {
     inputs: PlannedElfDynamicLinkInputs,
     contents: ElfDynamicSectionContents,
 }

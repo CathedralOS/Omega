@@ -51,7 +51,7 @@ const CANONICAL_KINDS: [ElfDynamicRosterSectionKind; SECTION_COUNT] = [
 /// mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF section roster retains the complete name-table owner"]
-pub(crate) struct ValidatedElfDynamicSectionRoster {
+pub struct ValidatedElfDynamicSectionRoster {
     section_names: ValidatedElfSectionNameTablePlan,
     contents: ElfDynamicSectionRosterContents,
     non_authoritative_roster_compatibility_fingerprint: u64,

@@ -129,7 +129,7 @@ impl ElfAppliedDynamicAddress {
 /// loader, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "resolved ELF dynamic bytes retain placed-section and load-layout custody"]
-pub(crate) struct ValidatedElfResolvedDynamicTable {
+pub struct ValidatedElfResolvedDynamicTable {
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
     contents: ElfResolvedDynamicTableContents,
     non_authoritative_resolved_compatibility_fingerprint: u64,
