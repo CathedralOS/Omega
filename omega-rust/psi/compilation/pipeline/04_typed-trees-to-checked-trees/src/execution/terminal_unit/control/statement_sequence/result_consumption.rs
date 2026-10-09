@@ -70,7 +70,7 @@ fn captured_reference_result<'operation>(
         }
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. }
             if facts.values.structural_values.nodes.is_valid(*value)
-                && validation::reference_shell(
+                && validation::reference_result_custody::stored_loan_parts(
                     program,
                     facts
                         .values
