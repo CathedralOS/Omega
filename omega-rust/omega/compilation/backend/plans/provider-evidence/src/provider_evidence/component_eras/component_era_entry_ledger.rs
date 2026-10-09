@@ -8,7 +8,7 @@ use installation_evidence::InstalledArtifactOccurrenceDigest;
 use crate::{CoexistingExecutableTcbSet, ExecutableTcbProfileAcceptance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ComponentEraLedgerId(u64);
+pub(crate) struct ComponentEraLedgerId(u64);
 
 impl ComponentEraLedgerId {
     pub fn from_normalized_identity(identity: u64) -> Result<Self, String> {
@@ -24,7 +24,7 @@ impl ComponentEraLedgerId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProgramLocalRootEpochLeaseId(u64);
+pub(crate) struct ProgramLocalRootEpochLeaseId(u64);
 
 impl ProgramLocalRootEpochLeaseId {
     pub fn from_normalized_identity(identity: u64) -> Result<Self, String> {
@@ -40,14 +40,14 @@ impl ProgramLocalRootEpochLeaseId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ComponentEraEntryState {
+pub(crate) enum ComponentEraEntryState {
     Open,
     Closing,
     Quiescent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentEraCandidate {
+pub(crate) struct ComponentEraCandidate {
     pub era_identity: u64,
     /// Collision-resistant commitment derived from the exact installed
     /// artifact occurrence retained by runtime publication custody.
@@ -78,7 +78,7 @@ struct ComponentEraRecord {
 /// root installer from substituting a different ledger, era, entry contract,
 /// or published entry plan when it later returns the hold.
 #[derive(Debug, PartialEq, Eq)]
-pub struct ProgramLocalRootEpochLease {
+pub(crate) struct ProgramLocalRootEpochLease {
     identity: ProgramLocalRootEpochLeaseId,
     ledger: ComponentEraLedgerId,
     binding_contract_identity: String,
@@ -100,7 +100,7 @@ impl ProgramLocalRootEpochLease {
         self.ledger
     }
 
-    pub fn entry_contract_identity(&self) -> &str {
+    pub(crate) fn entry_contract_identity(&self) -> &str {
         &self.entry_contract_identity
     }
 
@@ -120,7 +120,7 @@ impl ProgramLocalRootEpochLease {
 /// Runtime proof for one atomic routing publication. The previous era and the
 /// candidate are both exact; visibility and closing are independent facts.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentEraPublicationReceipt {
+pub(crate) struct ComponentEraPublicationReceipt {
     publication_identity: u64,
     binding_contract_identity: String,
     entry_contract_identity: String,
@@ -136,7 +136,7 @@ pub struct ComponentEraPublicationReceipt {
 }
 
 impl ComponentEraPublicationReceipt {
-    pub fn from_runtime(
+    pub(crate) fn from_runtime(
         publication_identity: u64,
         ledger: &ComponentEraEntryLedger,
         candidate: &ComponentEraCandidate,
@@ -164,7 +164,7 @@ impl ComponentEraPublicationReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentEraEntryReceipt {
+pub(crate) struct ComponentEraEntryReceipt {
     invocation_identity: u64,
     binding_contract_identity: String,
     entry_contract_identity: String,
@@ -193,7 +193,7 @@ impl ComponentEraEntryReceipt {
 }
 
 #[derive(Debug)]
-pub struct ActiveComponentEraEntry {
+pub(crate) struct ActiveComponentEraEntry {
     invocation_identity: u64,
     binding_contract_identity: String,
     era_identity: u64,
@@ -211,7 +211,7 @@ impl ActiveComponentEraEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentEraLeaveReceipt {
+pub(crate) struct ComponentEraLeaveReceipt {
     invocation_identity: u64,
     binding_contract_identity: String,
     era_identity: u64,
@@ -232,7 +232,7 @@ impl ComponentEraLeaveReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentEraQuiescenceReceipt {
+pub(crate) struct ComponentEraQuiescenceReceipt {
     era_identity: u64,
     binding_contract_identity: String,
     residual_lifetime_cohort_holds: usize,
@@ -256,7 +256,7 @@ impl ComponentEraQuiescenceReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentEraRetirementReceipt {
+pub(crate) struct ComponentEraRetirementReceipt {
     retirement_identity: u64,
     era_identity: u64,
     binding_contract_identity: String,
@@ -289,7 +289,7 @@ impl ComponentEraRetirementReceipt {
 /// sets would create two authorities that disagree about whether an era may
 /// retire.
 #[derive(Debug, PartialEq, Eq)]
-pub struct ComponentEraEntryLedger {
+pub(crate) struct ComponentEraEntryLedger {
     identity: ComponentEraLedgerId,
     binding_contract_identity: String,
     entry_contract_identity: String,
@@ -345,7 +345,7 @@ impl ComponentEraEntryLedger {
         self.current_era
     }
 
-    pub fn binding_contract_identity(&self) -> &str {
+    pub(crate) fn binding_contract_identity(&self) -> &str {
         &self.binding_contract_identity
     }
 
@@ -629,7 +629,7 @@ macro_rules! recoverable_error {
 /// The checkable judgment of a rejected publication: which clause of the
 /// ledger's publication replay refused the candidate/receipt pair.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EraPublicationRejection {
+pub(crate) enum EraPublicationRejection {
     /// A zero identity or blank contract/plan coordinate failed the
     /// completeness precheck.
     IncompleteCandidate,
@@ -673,7 +673,7 @@ impl EraPublicationRejection {
 
 /// The checkable judgment of a rejected entry replay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EraEntryRejection {
+pub(crate) enum EraEntryRejection {
     /// No era has published: there is no current record to bind.
     NoPublishedEra,
     /// The ledger's current era is absent from its own roster.
@@ -697,7 +697,7 @@ impl EraEntryRejection {
 
 /// The checkable judgment of a rejected leave replay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EraLeaveRejection {
+pub(crate) enum EraLeaveRejection {
     /// The entry's era is absent from the ledger's live roster.
     EraNotLive,
     /// The receipt diverges from the active entry, or the invocation holds
@@ -718,7 +718,7 @@ impl EraLeaveRejection {
 
 /// The checkable judgment of a rejected quiescence replay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EraQuiescenceRejection {
+pub(crate) enum EraQuiescenceRejection {
     /// The receipt's era is absent from the ledger's live roster.
     EraNotLive,
     /// The era is not a fully-drained Closing record, or the receipt
@@ -740,7 +740,7 @@ impl EraQuiescenceRejection {
 
 /// The checkable judgment of a rejected retirement replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EraRetirementRejection {
+pub(crate) enum EraRetirementRejection {
     /// The receipt's era is absent from the ledger's live roster.
     EraNotLive,
     /// Program-local root epoch leases still pin the era.
@@ -771,7 +771,7 @@ impl EraRetirementRejection {
 
 /// The checkable judgment of a rejected epoch-lease acquisition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramLocalRootEpochLeaseAcquisitionRejection {
+pub(crate) enum ProgramLocalRootEpochLeaseAcquisitionRejection {
     /// The minted lease identity is already issued or consumed.
     IdentityConsumed,
     /// The request names an era that is not the ledger's current era.
@@ -806,7 +806,7 @@ impl ProgramLocalRootEpochLeaseAcquisitionRejection {
 /// stricter replay that additionally requires the lease's era to be the
 /// current open one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramLocalRootEpochLeaseValidationRejection {
+pub(crate) enum ProgramLocalRootEpochLeaseValidationRejection {
     /// The lease names an era absent from this ledger's roster.
     ForeignEra,
     /// A binding diverges from the retained era record or the ledger's
@@ -827,7 +827,7 @@ impl ProgramLocalRootEpochLeaseValidationRejection {
 
 /// The checkable judgment of a rejected epoch-lease release.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramLocalRootEpochLeaseReleaseRejection {
+pub(crate) enum ProgramLocalRootEpochLeaseReleaseRejection {
     /// The lease names an era absent from this ledger's roster.
     ForeignEra,
     /// A binding diverges from the retained era record, the ledger's
@@ -847,7 +847,7 @@ impl ProgramLocalRootEpochLeaseReleaseRejection {
 }
 
 #[derive(Debug)]
-pub struct EraPublicationError {
+pub(crate) struct EraPublicationError {
     candidate: ComponentEraCandidate,
     receipt: ComponentEraPublicationReceipt,
     rejection: EraPublicationRejection,
@@ -871,7 +871,7 @@ recoverable_error!(
 );
 
 #[derive(Debug)]
-pub struct EraLeaveError {
+pub(crate) struct EraLeaveError {
     entry: ActiveComponentEraEntry,
     receipt: ComponentEraLeaveReceipt,
     rejection: EraLeaveRejection,
@@ -901,7 +901,7 @@ recoverable_error!(
 );
 
 #[derive(Debug)]
-pub struct ProgramLocalRootEpochLeaseAcquisitionError {
+pub(crate) struct ProgramLocalRootEpochLeaseAcquisitionError {
     identity: ProgramLocalRootEpochLeaseId,
     era_identity: u64,
     entry_contract_identity: String,
@@ -931,7 +931,7 @@ impl ProgramLocalRootEpochLeaseAcquisitionError {
 }
 
 #[derive(Debug)]
-pub struct ProgramLocalRootEpochLeaseReleaseError {
+pub(crate) struct ProgramLocalRootEpochLeaseReleaseError {
     rejection: ProgramLocalRootEpochLeaseReleaseRejection,
 }
 

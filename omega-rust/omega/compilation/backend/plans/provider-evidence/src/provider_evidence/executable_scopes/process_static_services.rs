@@ -4,14 +4,14 @@
 /// service. The component framework validates this contract but does not infer
 /// a policy from the service's implementation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProcessStaticServicePolicy {
+pub(crate) enum ProcessStaticServicePolicy {
     RejectDuplicate,
     Versioned,
     AtomicTransfer { handover_contract_identity: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProcessStaticServiceContract {
+pub(crate) struct ProcessStaticServiceContract {
     pub service_identity: String,
     pub policy: ProcessStaticServicePolicy,
 }
@@ -19,7 +19,7 @@ pub struct ProcessStaticServiceContract {
 /// Candidate registration owned by one component era. Establishment evidence
 /// remains exact even though the process-static service outlives that era.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ServiceRegistrationCandidate {
+pub(crate) struct ServiceRegistrationCandidate {
     pub registration_identity: u64,
     pub component_era_identity: u64,
     pub logical_key: String,
@@ -28,7 +28,7 @@ pub struct ServiceRegistrationCandidate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ActiveServiceRegistration {
+pub(crate) struct ActiveServiceRegistration {
     registration_identity: u64,
     component_era_identity: u64,
     logical_key: String,
@@ -49,7 +49,7 @@ impl ActiveServiceRegistration {
         self.logical_key.as_str()
     }
 
-    pub fn version_identity(&self) -> Option<&str> {
+    pub(crate) fn version_identity(&self) -> Option<&str> {
         self.version_identity.as_deref()
     }
 
@@ -62,7 +62,7 @@ impl ActiveServiceRegistration {
 /// retirement of the old registration, and transfer of its obligations are
 /// independent facts; none is inferred from the others.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AtomicServiceHandoverReceipt {
+pub(crate) struct AtomicServiceHandoverReceipt {
     service_identity: String,
     handover_contract_identity: String,
     handover_receipt_identity: String,
@@ -118,7 +118,7 @@ impl AtomicServiceHandoverReceipt {
 /// Retained outcome of a successful transfer. The previous registration's
 /// obligation did not disappear; it moved to the exact new registration.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ServiceHandoverCompletion {
+pub(crate) struct ServiceHandoverCompletion {
     service_identity: String,
     logical_key: String,
     previous_registration_identity: u64,
@@ -156,7 +156,7 @@ impl ServiceHandoverCompletion {
 /// intentionally policy-neutral beyond enforcing the service's published
 /// collision/handover contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProcessStaticServiceRegistry {
+pub(crate) struct ProcessStaticServiceRegistry {
     contract: ProcessStaticServiceContract,
     active: Vec<ActiveServiceRegistration>,
     consumed_handover_receipts: Vec<String>,
@@ -246,7 +246,7 @@ impl From<ServiceRegistrationCandidate> for ActiveServiceRegistration {
 }
 
 #[derive(Debug)]
-pub struct ServiceRegistrationError {
+pub(crate) struct ServiceRegistrationError {
     diagnostic: String,
 }
 
@@ -258,7 +258,7 @@ impl ServiceRegistrationError {
 }
 
 #[derive(Debug)]
-pub struct ServiceHandoverError {
+pub(crate) struct ServiceHandoverError {
     candidate: ServiceRegistrationCandidate,
     receipt: AtomicServiceHandoverReceipt,
     diagnostic: String,

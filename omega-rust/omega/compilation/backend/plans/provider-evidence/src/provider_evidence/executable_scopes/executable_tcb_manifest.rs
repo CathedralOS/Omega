@@ -5,21 +5,21 @@ use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
 
 /// Why an executable entry belongs to the manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutableEntryOrigin {
+pub(crate) enum ExecutableEntryOrigin {
     StaticSelection,
     OmegaRuntimeAdmission,
 }
 
 /// The execution scope whose known executable entries are being described.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutionScope {
+pub(crate) enum ExecutionScope {
     CallerAddressSpace,
     IsolatedProvider(u64),
 }
 
 /// Exact identity of the provider selected for one boundary slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProviderIdentity {
+pub(crate) enum ProviderIdentity {
     NominalType(String),
     FreeExternalPlan(String),
 }
@@ -30,7 +30,7 @@ pub enum ProviderIdentity {
 /// names deliberately do not appear here: a path, module, or symbol is not a
 /// pinned executable-content identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExecutableIdentity {
+pub(crate) enum ExecutableIdentity {
     CurrentArtifactMachine(String),
     CurrentArtifactIntrinsic {
         target: String,
@@ -45,7 +45,7 @@ pub enum ExecutableIdentity {
 
 /// Evidence for how the executable implementation is supplied.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ImplementationEvidence {
+pub(crate) enum ImplementationEvidence {
     CheckedBody {
         machine: String,
     },
@@ -65,7 +65,7 @@ pub enum ImplementationEvidence {
 /// Containment guarantees remain independent; one receipt cannot imply the
 /// others merely because it names the same mechanism.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ContainmentGuarantee {
+pub(crate) enum ContainmentGuarantee {
     MemoryIsolation,
     ForcibleTermination,
     FaultContainment,
@@ -73,7 +73,7 @@ pub enum ContainmentGuarantee {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContainmentEvidence {
+pub(crate) struct ContainmentEvidence {
     pub guarantee: ContainmentGuarantee,
     pub evidence_identity: String,
 }
@@ -86,7 +86,7 @@ pub struct ContainmentEvidence {
 /// independent: only `executable_closure_evidence_identity` claims that this
 /// opaque executable cannot introduce unreported code in the named scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpaqueExecutableAdmissionCandidate {
+pub(crate) struct OpaqueExecutableAdmissionCandidate {
     /// Compact report coordinate; never sufficient to select a plan.
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
@@ -103,7 +103,7 @@ pub struct OpaqueExecutableAdmissionCandidate {
 /// Sealed admission whose provider, requirement, binding, and evidence have
 /// been matched against the selected-provider closure.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedOpaqueExecutableAdmission(OpaqueExecutableAdmissionCandidate);
+pub(crate) struct ValidatedOpaqueExecutableAdmission(OpaqueExecutableAdmissionCandidate);
 
 impl ValidatedOpaqueExecutableAdmission {
     pub const fn candidate(&self) -> &OpaqueExecutableAdmissionCandidate {
@@ -117,7 +117,7 @@ impl ValidatedOpaqueExecutableAdmission {
 /// canonical overload and blast-radius identity and is never empty for a
 /// static selected-plan entry.
 #[derive(Debug, Clone)]
-pub struct SelectedProviderRequirement {
+pub(crate) struct SelectedProviderRequirement {
     pub method: String,
     pub requirement_identity: String,
 }
@@ -133,7 +133,7 @@ impl PartialEq for SelectedProviderRequirement {
 impl Eq for SelectedProviderRequirement {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutableTcbEntry {
+pub(crate) struct ExecutableTcbEntry {
     pub provider_identity: ProviderIdentity,
     /// Compact report coordinate beside the authoritative plan digest.
     pub provider_plan_report_identity: u64,
@@ -151,7 +151,7 @@ pub struct ExecutableTcbEntry {
 
 /// Attributed reason a scope-relative executable inventory is not exhaustive.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IncompleteCause {
+pub(crate) enum IncompleteCause {
     SelectedOpaqueProvider {
         provider_identity: ProviderIdentity,
         provider_plan_report_identity: u64,
@@ -170,7 +170,7 @@ pub enum IncompleteCause {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OpaqueInProcessBinding {
+pub(crate) enum OpaqueInProcessBinding {
     Import {
         evaluated: crate::provider_plan::EvaluatedForeignImport,
     },
@@ -188,7 +188,7 @@ pub enum OpaqueInProcessBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ScopeCompleteness {
+pub(crate) enum ScopeCompleteness {
     Complete {
         scope: ExecutionScope,
         selected_provider_closure_report_identity: u64,
@@ -204,7 +204,7 @@ pub enum ScopeCompleteness {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpaqueClosureEvidence {
+pub(crate) struct OpaqueClosureEvidence {
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
     pub method: String,
@@ -215,7 +215,7 @@ pub struct OpaqueClosureEvidence {
 /// Evidence that one Omega-mediated runtime admission cannot introduce
 /// executable bytes beyond the pinned entry reported by the ledger.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeExecutableClosureEvidence {
+pub(crate) struct RuntimeExecutableClosureEvidence {
     pub provider_identity: ProviderIdentity,
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
@@ -228,7 +228,7 @@ pub struct RuntimeExecutableClosureEvidence {
 /// A loader path is intentionally absent: runtime code identity must already
 /// be pinned by content, signer, or an admitted platform profile.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OmegaRuntimeExecutableAdmissionCandidate {
+pub(crate) struct OmegaRuntimeExecutableAdmissionCandidate {
     pub provider_identity: ProviderIdentity,
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
@@ -247,7 +247,7 @@ struct ValidatedOmegaRuntimeExecutableAdmission(OmegaRuntimeExecutableAdmissionC
 /// runtime mediation boundary. It makes no claim about code introduced by an
 /// opaque provider outside that boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OmegaRuntimeExecutableLedger {
+pub(crate) struct OmegaRuntimeExecutableLedger {
     scope: ExecutionScope,
     admissions: Vec<ValidatedOmegaRuntimeExecutableAdmission>,
 }
@@ -259,7 +259,7 @@ pub struct OmegaRuntimeExecutableLedger {
 /// executable identity. Such rows remain attributed incompleteness causes
 /// until provider admission supplies pinned identity and containment evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutableTcbManifest {
+pub(crate) struct ExecutableTcbManifest {
     pub known_entries: Vec<ExecutableTcbEntry>,
     pub completeness: ScopeCompleteness,
 }

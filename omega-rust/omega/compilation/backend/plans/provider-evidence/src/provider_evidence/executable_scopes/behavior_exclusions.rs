@@ -81,7 +81,7 @@ pub struct BehaviorExclusions {
 }
 
 impl BehaviorExclusions {
-    pub fn from_selections(selections: impl IntoIterator<Item = BehaviorExclusion>) -> Self {
+    pub(crate) fn from_selections(selections: impl IntoIterator<Item = BehaviorExclusion>) -> Self {
         let mut exclusions = Self::default();
         for selection in selections {
             match selection {
@@ -111,11 +111,11 @@ impl BehaviorExclusions {
             && self.physical_authority_classes.is_empty()
     }
 
-    pub fn excludes_crash_cause(&self, cause: CrashCause) -> bool {
+    pub(crate) fn excludes_crash_cause(&self, cause: CrashCause) -> bool {
         self.crash_causes.contains(&cause)
     }
 
-    pub fn excludes_service(&self, service: ServiceId) -> bool {
+    pub(crate) fn excludes_service(&self, service: ServiceId) -> bool {
         self.services.contains(&service)
     }
 
@@ -123,7 +123,7 @@ impl BehaviorExclusions {
     /// mechanism-closure review then rejects every admitted mechanism whose
     /// exercised disposition contains it, independently of any receiver
     /// permission policy.
-    pub fn excludes_physical_authority_class(&self, class: TerminalAuthorityClass) -> bool {
+    pub(crate) fn excludes_physical_authority_class(&self, class: TerminalAuthorityClass) -> bool {
         self.physical_authority_classes.contains(&class)
     }
 
@@ -135,7 +135,7 @@ impl BehaviorExclusions {
         &self.services
     }
 
-    pub fn physical_authority_classes(&self) -> &[TerminalAuthorityClass] {
+    pub(crate) fn physical_authority_classes(&self) -> &[TerminalAuthorityClass] {
         &self.physical_authority_classes
     }
 
@@ -293,7 +293,7 @@ impl BoundaryServiceOwners {
     /// `owning_service_identity` maps a boundary's canonical identity to the
     /// service identity its trait declares, resolved against the module's
     /// service catalog. Boundaries the map cannot name have no owner here.
-    pub fn from_module(
+    pub(crate) fn from_module(
         module: &TerminalModule,
         owning_service_identity: &dyn Fn(&str) -> Option<String>,
     ) -> Self {
@@ -323,7 +323,7 @@ impl BoundaryServiceOwners {
     /// unrelated service `Endpoint` counts that service — conservative in
     /// the direction incomplete evidence already takes, rejecting the
     /// composition rather than dropping a possible invocation.
-    pub fn from_module_identities(module: &TerminalModule) -> Self {
+    pub(crate) fn from_module_identities(module: &TerminalModule) -> Self {
         Self::from_module(module, &canonical_requirement_owner)
     }
 
@@ -384,7 +384,7 @@ impl BehaviorExclusionReport {
 /// Boundary-to-service ownership is reconstructed from the module's canonical
 /// requirement identities so a source-free consumer replays the identical
 /// accounting.
-pub fn establish_behavior_exclusions(
+pub(crate) fn establish_behavior_exclusions(
     module: &TerminalModule,
     entries: &[MachineId],
     exclusions: &BehaviorExclusions,
@@ -695,6 +695,7 @@ fn nominal_cleanup_machines(terminator: &Terminator) -> impl Iterator<Item = Mac
 
 mod authored;
 pub use authored::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, authored_behavior_exclusion_set,
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
     authored_behavior_exclusion_set_in,
 };
+pub(crate) use authored::{ authored_behavior_exclusion_set};

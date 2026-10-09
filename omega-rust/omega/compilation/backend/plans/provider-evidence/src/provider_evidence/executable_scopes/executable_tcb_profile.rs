@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IncompleteScopePolicy {
+pub(crate) enum IncompleteScopePolicy {
     PermitAndMark,
     Reject,
 }
@@ -21,7 +21,7 @@ pub enum IncompleteScopePolicy {
 /// containment names axes, while the manifest entry retains the independently
 /// admitted evidence identity for each axis.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExactExecutableTcbAllowance {
+pub(crate) struct ExactExecutableTcbAllowance {
     pub provider_identity: ProviderIdentity,
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
@@ -35,7 +35,7 @@ pub struct ExactExecutableTcbAllowance {
 
 /// Ordinary build/deployment policy over one scope-relative TCB manifest.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutableTcbProfile {
+pub(crate) struct ExecutableTcbProfile {
     pub name: String,
     pub scope: ExecutionScope,
     /// Checked code in the artifact being evaluated can be admitted as a
@@ -46,7 +46,7 @@ pub struct ExecutableTcbProfile {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutableTcbProfileAcceptance {
+pub(crate) struct ExecutableTcbProfileAcceptance {
     profile: ExecutableTcbProfile,
     manifest: ExecutableTcbManifest,
     /// Nonempty only for the explicit `PermitAndMark` policy.
@@ -67,20 +67,20 @@ impl ExecutableTcbProfileAcceptance {
     }
 
 
-    pub fn marked_incomplete_causes(&self) -> &[IncompleteCause] {
+    pub(crate) fn marked_incomplete_causes(&self) -> &[IncompleteCause] {
         &self.marked_incomplete_causes
     }
 
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutableTcbProfileRejection {
+pub(crate) struct ExecutableTcbProfileRejection {
     pub profile: String,
     pub violations: Vec<ExecutableTcbProfileViolation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExecutableTcbProfileViolation {
+pub(crate) enum ExecutableTcbProfileViolation {
     EmptyProfileIdentity,
     DuplicateExactAllowance {
         provider_plan_report_identity: u64,
@@ -105,7 +105,7 @@ pub enum ExecutableTcbProfileViolation {
     },
 }
 
-pub fn evaluate_executable_tcb_profile(
+pub(crate) fn evaluate_executable_tcb_profile(
     manifest: &ExecutableTcbManifest,
     profile: &ExecutableTcbProfile,
 ) -> Result<ExecutableTcbProfileAcceptance, ExecutableTcbProfileRejection> {

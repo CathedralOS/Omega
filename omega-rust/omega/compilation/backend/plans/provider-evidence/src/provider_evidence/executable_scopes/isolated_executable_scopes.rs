@@ -9,7 +9,7 @@ use crate::{
 /// Deployment admission joining one caller-visible endpoint to the separate
 /// executable manifest for the isolated provider scope behind it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IsolatedExecutableScopeCandidate {
+pub(crate) struct IsolatedExecutableScopeCandidate {
     pub provider_identity: ProviderIdentity,
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
@@ -23,7 +23,7 @@ pub struct IsolatedExecutableScopeCandidate {
 
 /// Sealed endpoint/manifest pair retained by a scope set.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedIsolatedExecutableScope {
+pub(crate) struct AdmittedIsolatedExecutableScope {
     endpoint: ExecutableTcbEntry,
     manifest_receipt_identity: String,
     manifest: ExecutableTcbManifest,
@@ -51,7 +51,7 @@ impl AdmittedIsolatedExecutableScope {
 /// manifests. Child incompleteness never contaminates the parent's scope; the
 /// parent retains the exact endpoint and containment evidence instead.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutableTcbManifestSet {
+pub(crate) struct ExecutableTcbManifestSet {
     root: ExecutableTcbManifest,
     isolated: Vec<AdmittedIsolatedExecutableScope>,
 }
