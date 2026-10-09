@@ -188,6 +188,7 @@ use selected_instructions::{
 use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, PlaceId, ScalarType, ValueId};
 
 pub use rewrite::{spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy};
+#[cfg(test)]
 pub(crate) use validation::validate_runtime_spill_with_span_policy;
 
 /// How far a block's still-open shared reload interval may reach. The
