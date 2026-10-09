@@ -1454,40 +1454,8 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => decoded == [DecodedInstruction::Return],
-        SelectedInstructionKind::ConditionalBranchNonZero
-        | SelectedInstructionKind::ConditionalBranchU64LessThan
-        | SelectedInstructionKind::ConditionalBranchI64LessThan
-        | SelectedInstructionKind::Jump
-        | SelectedInstructionKind::Float32ToBits
-        | SelectedInstructionKind::Float64ToBits
-        | SelectedInstructionKind::BitsToFloat32
-        | SelectedInstructionKind::BitsToFloat64
-        | SelectedInstructionKind::Load8Indexed
-        | SelectedInstructionKind::CopyBytes
-        | SelectedInstructionKind::ZeroBytes
-        | SelectedInstructionKind::ScanByteSequence { .. }
-        | SelectedInstructionKind::LoadEncodedScalar
-        | SelectedInstructionKind::StoreEncodedScalar
-        | SelectedInstructionKind::CompareByteSequences
-        | SelectedInstructionKind::Load8 { .. }
-        | SelectedInstructionKind::Load16 { .. }
-        | SelectedInstructionKind::LoadPacked { .. }
-        | SelectedInstructionKind::StorePacked { .. }
-        | SelectedInstructionKind::Load32 { .. }
-        | SelectedInstructionKind::Load64 { .. }
-        | SelectedInstructionKind::Store { .. }
-        | SelectedInstructionKind::AddressOffset { .. }
-        | SelectedInstructionKind::Store64 { .. }
-        | SelectedInstructionKind::HostedExitProcessI32
-        | SelectedInstructionKind::HostedReadByte { .. }
-        | SelectedInstructionKind::SaveFloatingControl { .. }
-        | SelectedInstructionKind::RestoreFloatingControl { .. }
-        | SelectedInstructionKind::HostedWriteByteI32 { .. }
-        | SelectedInstructionKind::FrameAddress { .. }
-        | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::NormalizedForeignCall { .. }
-        | SelectedInstructionKind::CallScalar { .. } => false,
+        selected_instructions::layout_dependent_selected_transfers!()
+        | selected_instructions::dedicated_selected_forms!() => false,
     };
     if valid {
         Ok(())
@@ -2133,40 +2101,8 @@ pub(crate) fn footprint(
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => (vec![], vec![], false),
-        SelectedInstructionKind::ConditionalBranchNonZero
-        | SelectedInstructionKind::ConditionalBranchU64LessThan
-        | SelectedInstructionKind::ConditionalBranchI64LessThan
-        | SelectedInstructionKind::Jump
-        | SelectedInstructionKind::Float32ToBits
-        | SelectedInstructionKind::Float64ToBits
-        | SelectedInstructionKind::BitsToFloat32
-        | SelectedInstructionKind::BitsToFloat64
-        | SelectedInstructionKind::Load8Indexed
-        | SelectedInstructionKind::CopyBytes
-        | SelectedInstructionKind::ZeroBytes
-        | SelectedInstructionKind::ScanByteSequence { .. }
-        | SelectedInstructionKind::LoadEncodedScalar
-        | SelectedInstructionKind::StoreEncodedScalar
-        | SelectedInstructionKind::CompareByteSequences
-        | SelectedInstructionKind::Load8 { .. }
-        | SelectedInstructionKind::Load16 { .. }
-        | SelectedInstructionKind::LoadPacked { .. }
-        | SelectedInstructionKind::StorePacked { .. }
-        | SelectedInstructionKind::Load32 { .. }
-        | SelectedInstructionKind::Load64 { .. }
-        | SelectedInstructionKind::Store { .. }
-        | SelectedInstructionKind::AddressOffset { .. }
-        | SelectedInstructionKind::Store64 { .. }
-        | SelectedInstructionKind::HostedExitProcessI32
-        | SelectedInstructionKind::HostedReadByte { .. }
-        | SelectedInstructionKind::SaveFloatingControl { .. }
-        | SelectedInstructionKind::RestoreFloatingControl { .. }
-        | SelectedInstructionKind::HostedWriteByteI32 { .. }
-        | SelectedInstructionKind::FrameAddress { .. }
-        | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::NormalizedForeignCall { .. }
-        | SelectedInstructionKind::CallScalar { .. } => (vec![], vec![], false),
+        selected_instructions::layout_dependent_selected_transfers!()
+        | selected_instructions::dedicated_selected_forms!() => (vec![], vec![], false),
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::SaturatingDivide { .. }

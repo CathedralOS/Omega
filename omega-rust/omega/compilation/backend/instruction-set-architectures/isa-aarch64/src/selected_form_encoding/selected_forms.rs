@@ -620,42 +620,8 @@ fn encode_unchecked(
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => words.push(0xd65f_03c0),
-        SelectedInstructionKind::ConditionalBranchNonZero
-        | SelectedInstructionKind::ConditionalBranchU64LessThan
-        | SelectedInstructionKind::ConditionalBranchI64LessThan
-        | SelectedInstructionKind::Jump => {
-            return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
-        }
-        SelectedInstructionKind::Float32ToBits
-        | SelectedInstructionKind::Float64ToBits
-        | SelectedInstructionKind::BitsToFloat32
-        | SelectedInstructionKind::BitsToFloat64
-        | SelectedInstructionKind::CopyBytes
-        | SelectedInstructionKind::ZeroBytes
-        | SelectedInstructionKind::ScanByteSequence { .. }
-        | SelectedInstructionKind::LoadEncodedScalar
-        | SelectedInstructionKind::StoreEncodedScalar
-        | SelectedInstructionKind::CompareByteSequences
-        | SelectedInstructionKind::Load8Indexed
-        | SelectedInstructionKind::Load8 { .. }
-        | SelectedInstructionKind::Load16 { .. }
-        | SelectedInstructionKind::Load32 { .. }
-        | SelectedInstructionKind::Load64 { .. }
-        | SelectedInstructionKind::LoadPacked { .. }
-        | SelectedInstructionKind::StorePacked { .. }
-        | SelectedInstructionKind::Store { .. }
-        | SelectedInstructionKind::AddressOffset { .. }
-        | SelectedInstructionKind::Store64 { .. }
-        | SelectedInstructionKind::HostedExitProcessI32
-        | SelectedInstructionKind::HostedReadByte { .. }
-        | SelectedInstructionKind::SaveFloatingControl { .. }
-        | SelectedInstructionKind::RestoreFloatingControl { .. }
-        | SelectedInstructionKind::HostedWriteByteI32 { .. }
-        | SelectedInstructionKind::FrameAddress { .. }
-        | SelectedInstructionKind::CallUnit { .. }
-        | SelectedInstructionKind::CallAggregate { .. }
-        | SelectedInstructionKind::NormalizedForeignCall { .. }
-        | SelectedInstructionKind::CallScalar { .. } => {
+        selected_instructions::layout_dependent_selected_transfers!()
+        | selected_instructions::dedicated_selected_forms!() => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     }

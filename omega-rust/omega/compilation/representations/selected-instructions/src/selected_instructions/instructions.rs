@@ -526,3 +526,58 @@ impl SelectedInstructionKind {
         }
     }
 }
+
+/// The layout-dependent control transfers: conditional branches and jumps
+/// resolve through image layout rather than the scalar-register selected-form
+/// path. ISA validators, byte constructors and decode checks reject this
+/// roster uniformly, so it is spelled once here instead of per target.
+#[macro_export]
+macro_rules! layout_dependent_selected_transfers {
+    () => {
+        $crate::SelectedInstructionKind::ConditionalBranchNonZero
+            | $crate::SelectedInstructionKind::ConditionalBranchU64LessThan
+            | $crate::SelectedInstructionKind::ConditionalBranchI64LessThan
+            | $crate::SelectedInstructionKind::Jump
+    };
+}
+
+/// Kinds realized by dedicated encoders — float bit transfers, memory and
+/// byte-sequence forms, hosted services, floating control, calls and
+/// materialization — dispatched before the scalar-register path. The scalar
+/// path's validation, byte construction and decode checks reject this roster
+/// uniformly, so it is spelled once here instead of per target.
+#[macro_export]
+macro_rules! dedicated_selected_forms {
+    () => {
+        $crate::SelectedInstructionKind::Float32ToBits
+            | $crate::SelectedInstructionKind::Float64ToBits
+            | $crate::SelectedInstructionKind::BitsToFloat32
+            | $crate::SelectedInstructionKind::BitsToFloat64
+            | $crate::SelectedInstructionKind::CopyBytes
+            | $crate::SelectedInstructionKind::ZeroBytes
+            | $crate::SelectedInstructionKind::ScanByteSequence { .. }
+            | $crate::SelectedInstructionKind::LoadEncodedScalar
+            | $crate::SelectedInstructionKind::StoreEncodedScalar
+            | $crate::SelectedInstructionKind::CompareByteSequences
+            | $crate::SelectedInstructionKind::Load8Indexed
+            | $crate::SelectedInstructionKind::Load8 { .. }
+            | $crate::SelectedInstructionKind::Load16 { .. }
+            | $crate::SelectedInstructionKind::Load32 { .. }
+            | $crate::SelectedInstructionKind::Load64 { .. }
+            | $crate::SelectedInstructionKind::LoadPacked { .. }
+            | $crate::SelectedInstructionKind::StorePacked { .. }
+            | $crate::SelectedInstructionKind::Store { .. }
+            | $crate::SelectedInstructionKind::AddressOffset { .. }
+            | $crate::SelectedInstructionKind::Store64 { .. }
+            | $crate::SelectedInstructionKind::HostedExitProcessI32
+            | $crate::SelectedInstructionKind::HostedReadByte { .. }
+            | $crate::SelectedInstructionKind::SaveFloatingControl { .. }
+            | $crate::SelectedInstructionKind::RestoreFloatingControl { .. }
+            | $crate::SelectedInstructionKind::HostedWriteByteI32 { .. }
+            | $crate::SelectedInstructionKind::FrameAddress { .. }
+            | $crate::SelectedInstructionKind::CallUnit { .. }
+            | $crate::SelectedInstructionKind::CallAggregate { .. }
+            | $crate::SelectedInstructionKind::NormalizedForeignCall { .. }
+            | $crate::SelectedInstructionKind::CallScalar { .. }
+    };
+}
