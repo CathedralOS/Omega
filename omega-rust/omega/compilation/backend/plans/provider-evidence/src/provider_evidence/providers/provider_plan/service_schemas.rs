@@ -1,6 +1,7 @@
 //! Provider plan and service schema digests, service schemas, methods,
 //! progress premises and entry claims.
 
+use super::DigestFeed;
 use crate::provider_evidence::evidence_digest;
 use crate::provider_evidence::providers::provider_plan::ProviderPlanRow;
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
