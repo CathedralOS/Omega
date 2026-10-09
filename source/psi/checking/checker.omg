@@ -3,6 +3,7 @@ use psi::checking::contracts;
 use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::flow;
+use psi::checking::frames;
 use psi::checking::obligations;
 use psi::checking::places;
 use psi::checking::supply;
@@ -118,12 +119,20 @@ pub data Checker {
     callers: [u64; 32768];
     callees: [u64; 32768];
     call_count: u64;
+    // Write frames (frames.omg): per parameter, whether its body may replace
+    // an exclusive parameter's whole referent; per machine, whether its
+    // writes are unknown, and the data fields it may write, a row of 1,024
+    // per machine.
+    whole_writes: [bool; 16384];
+    unknown_writes: [bool; 2048];
+    field_writes: [bool; 2097152];
 }
 
 pub machine Checker::check(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
 crashes Trap
 {
     Checker::clear(checker, syntax);
+    Checker::derive_frames(checker, syntax, resolution, typing);
     transition { _ -> next_machine(checker, syntax, resolution, typing, 0) }
 
     state next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
@@ -831,35 +840,94 @@ crashes Trap
     state done() {}
 }
 
-// After a call, whatever an exclusive argument reaches may have changed.
-pub machine Checker::release_exclusive_arguments(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression)
+// After a machine call, what the callee may write through an exclusive
+// argument may have changed (frames.omg): everything below the argument when
+// the callee may replace its parameter's whole referent or its writes are
+// unknown, else each field place below it whose field the callee may write.
+pub machine Checker::release_exclusive_arguments(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, typing, expression, 0) }
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, callee);
+    let unknown: bool = Checker::writes_unknown(checker, callee);
+    transition { _ -> next(checker, syntax, typing, expression, callee, item, unknown, 0) }
 
-    state next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping) {
+    state next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, item: MachineItem, unknown: bool, offset: u64 in Trapping) {
         let count: u64 in Trapping = Checker::operand_count(expression);
         transition offset < count {
-            true -> argument(checker, syntax, typing, expression, offset)
+            true -> argument(checker, syntax, typing, expression, callee, item, unknown, offset)
             _ -> done()
         }
     }
 
-    state argument(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping) {
+    state argument(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, item: MachineItem, unknown: bool, offset: u64 in Trapping) {
         let handle: u64 in Trapping = Checker::operand(syntax, expression, offset);
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
         let value: Value = Checker::value_at(checker, handle);
-        let exclusive: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable;
+        let exclusive: bool = Checker::exclusive_value(typing, handle);
+        let whole: bool = Checker::writes_whole(checker, item.first_parameter + offset);
         transition exclusive && value.place > 0 {
-            true -> released(checker, syntax, typing, expression, offset, value.place)
-            _ -> next(checker, syntax, typing, expression, offset + 1)
+            true -> lent(checker, syntax, typing, expression, callee, item, unknown, offset, value.place, unknown || whole || offset >= item.parameter_count)
+            _ -> next(checker, syntax, typing, expression, callee, item, unknown, offset + 1)
         }
     }
 
-    state released(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, offset: u64 in Trapping, place: u64 in Trapping) {
+    state lent(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        typing: &Typing,
+        expression: Expression,
+        callee: u64 in Trapping,
+        item: MachineItem,
+        unknown: bool,
+        offset: u64 in Trapping,
+        place: u64 in Trapping,
+        whole: bool
+    ) {
+        transition whole {
+            true -> released(checker, syntax, typing, expression, callee, item, unknown, offset, place)
+            _ -> narrowed(checker, syntax, typing, expression, callee, item, unknown, offset, place)
+        }
+    }
+
+    state released(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, item: MachineItem, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
         Checker::forget_place(checker, typing, place);
-        transition { _ -> next(checker, syntax, typing, expression, offset + 1) }
+        transition { _ -> next(checker, syntax, typing, expression, callee, item, unknown, offset + 1) }
+    }
+
+    state narrowed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, item: MachineItem, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
+        Checker::forget_written_fields(checker, typing, place, callee);
+        transition { _ -> next(checker, syntax, typing, expression, callee, item, unknown, offset + 1) }
+    }
+
+    state done() {}
+}
+
+// Forget each field place strictly below `place` (one-based) whose field
+// `callee` may write, with everything inside it.
+pub machine Checker::forget_written_fields(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> next(checker, typing, place, callee, 0) }
+
+    state next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+        transition index < checker.place_count {
+            true -> visit(checker, typing, place, callee, index)
+            _ -> done()
+        }
+    }
+
+    state visit(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+        let candidate: Place = Checker::place_at(checker, index);
+        let inside: bool = Checker::within(checker, index + 1, place);
+        let written: bool = Checker::writes_field(checker, callee, candidate.handle);
+        transition index + 1 != place && inside && candidate.kind == PlaceKind::Field && written {
+            true -> forgotten(checker, typing, place, callee, index)
+            _ -> next(checker, typing, place, callee, index + 1)
+        }
+    }
+
+    state forgotten(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+        Checker::forget_place(checker, typing, index + 1);
+        transition { _ -> next(checker, typing, place, callee, index + 1) }
     }
 
     state done() {}

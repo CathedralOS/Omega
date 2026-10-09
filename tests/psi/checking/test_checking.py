@@ -491,6 +491,195 @@ def main() -> None:
         b"}",
     )
 
+    # Write frames: a machine call forgets, below an exclusive argument, only
+    # what its callee may write there: the fields it, its callees and its
+    # states store, or the whole referent it may replace.
+    accepted(
+        program,
+        "call-keeps-a-field-its-callee-does-not-write",
+        b"data L { a: u64; b: u64; }\n"
+        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: &mut L) {\n"
+        b"    transition { _ -> put(l) }\n"
+        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"}\n"
+        b"machine set(x: &mut u64) { x = 99; }\n"
+        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    transition l.a < 16 {\n"
+        b"        true -> ok(l, arr)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"        L::set_b(l);\n"
+        b"        arr[l.a]\n"
+        b"    }\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "call-forgets-a-field-its-callee-writes",
+        b"data L { a: u64; b: u64; }\n"
+        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: &mut L) {\n"
+        b"    transition { _ -> put(l) }\n"
+        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"}\n"
+        b"machine set(x: &mut u64) { x = 99; }\n"
+        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    transition l.a < 16 {\n"
+        b"        true -> ok(l, arr)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"        L::set_a(l);\n"
+        b"        arr[l.a]\n"
+        b"    }\n"
+        b"}",
+        "IndexOutOfBounds",
+        b"arr[l.a]",
+    )
+    rejected(
+        program,
+        "call-forgets-a-whole-referent-write",
+        b"data L { a: u64; b: u64; }\n"
+        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: &mut L) {\n"
+        b"    transition { _ -> put(l) }\n"
+        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"}\n"
+        b"machine set(x: &mut u64) { x = 99; }\n"
+        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    transition l.a < 16 {\n"
+        b"        true -> ok(l, arr)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"        L::reset(l);\n"
+        b"        arr[l.a]\n"
+        b"    }\n"
+        b"}",
+        "IndexOutOfBounds",
+        b"arr[l.a]",
+    )
+    rejected(
+        program,
+        "call-forgets-a-callees-callee-write",
+        b"data L { a: u64; b: u64; }\n"
+        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: &mut L) {\n"
+        b"    transition { _ -> put(l) }\n"
+        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"}\n"
+        b"machine set(x: &mut u64) { x = 99; }\n"
+        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    transition l.a < 16 {\n"
+        b"        true -> ok(l, arr)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"        L::outer(l);\n"
+        b"        arr[l.a]\n"
+        b"    }\n"
+        b"}",
+        "IndexOutOfBounds",
+        b"arr[l.a]",
+    )
+    rejected(
+        program,
+        "call-forgets-a-states-whole-write",
+        b"data L { a: u64; b: u64; }\n"
+        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: &mut L) {\n"
+        b"    transition { _ -> put(l) }\n"
+        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"}\n"
+        b"machine set(x: &mut u64) { x = 99; }\n"
+        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    transition l.a < 16 {\n"
+        b"        true -> ok(l, arr)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"        L::via(l);\n"
+        b"        arr[l.a]\n"
+        b"    }\n"
+        b"}",
+        "IndexOutOfBounds",
+        b"arr[l.a]",
+    )
+    accepted(
+        program,
+        "call-keeps-a-field-it-does-not-lend",
+        b"data L { a: u64; b: u64; }\n"
+        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: &mut L) {\n"
+        b"    transition { _ -> put(l) }\n"
+        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"}\n"
+        b"machine set(x: &mut u64) { x = 99; }\n"
+        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    transition l.a < 16 {\n"
+        b"        true -> ok(l, arr)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"        set(&mut l.b);\n"
+        b"        arr[l.a]\n"
+        b"    }\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "call-forgets-a-lent-field-written-whole",
+        b"data L { a: u64; b: u64; }\n"
+        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: &mut L) {\n"
+        b"    transition { _ -> put(l) }\n"
+        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"}\n"
+        b"machine set(x: &mut u64) { x = 99; }\n"
+        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    transition l.a < 16 {\n"
+        b"        true -> ok(l, arr)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"        set(&mut l.a);\n"
+        b"        arr[l.a]\n"
+        b"    }\n"
+        b"}",
+        "IndexOutOfBounds",
+        b"arr[l.a]",
+    )
+
     # Crash routes: Trapping operations and crash statements are sites, a
     # private machine without crash clauses infers its causes, and every
     # other machine must declare what it derives.

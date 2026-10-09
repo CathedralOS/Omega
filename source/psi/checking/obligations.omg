@@ -157,11 +157,11 @@ crashes Trap
     }
 
     // In the checking walk a call is recorded for crash routes and its
-    // callee's `requires` facts are owed as it is entered. A machine call's
-    // exclusive arguments may change everything below them; a jump only
-    // transfers its arguments, whose facts its state's arrival projects. Its result lies in its
-    // type's range, or, when its callee `ensures` facts, is a place those
-    // facts describe. The fact-gathering walks may visit a body several
+    // callee's `requires` facts are owed as it is entered. A machine call
+    // may change what its write frame says below its exclusive arguments
+    // (frames.omg); a jump only transfers its arguments, whose facts its
+    // state's arrival projects. Its result lies in its type's range, or,
+    // when its callee `ensures` facts, is a place those facts describe. The fact-gathering walks may visit a body several
     // times; a replayed call keeps the result its evaluation gave.
     state call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
         transition checker.replay {
@@ -207,12 +207,16 @@ crashes Trap
     }
 
     state released(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
-        Checker::release_exclusive_arguments(checker, syntax, typing, expression);
         let selection: Selection = Typing::selection(typing, node);
         transition selection {
-            Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, node, expression, row, handle)
+            Selection::Machine { handle } -> lent(checker, syntax, resolution, typing, node, expression, row, handle)
             _ -> typed(checker, node, row)
         }
+    }
+
+    state lent(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, machine: u64 in Trapping) {
+        Checker::release_exclusive_arguments(checker, syntax, typing, expression, machine);
+        transition { _ -> callee(checker, syntax, resolution, typing, node, expression, row, machine) }
     }
 
     state callee(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, machine: u64 in Trapping) {
