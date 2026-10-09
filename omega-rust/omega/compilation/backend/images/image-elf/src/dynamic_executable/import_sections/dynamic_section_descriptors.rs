@@ -58,7 +58,7 @@ const DYNAMIC_SECTION_KINDS: [ElfDynamicSectionKind; 7] = [
 /// program-header, image-mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF section descriptors retain the exact payload carrier"]
-pub(crate) struct ValidatedElfDynamicSectionDescriptorPlan {
+pub struct ValidatedElfDynamicSectionDescriptorPlan {
     payloads: ValidatedElfDynamicSectionPayloads,
     contents: ElfDynamicSectionDescriptorContents,
     non_authoritative_descriptor_compatibility_fingerprint: u64,

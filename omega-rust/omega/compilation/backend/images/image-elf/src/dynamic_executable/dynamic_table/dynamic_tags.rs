@@ -37,7 +37,7 @@ const ADDRESS_OBLIGATION_COUNT: usize = 9;
 /// `Elf64_Dyn`, program header, image mutation, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF dynamic tags retain the exact descriptor carrier"]
-pub(crate) struct ValidatedElfDynamicTagPlan {
+pub struct ValidatedElfDynamicTagPlan {
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
     contents: ElfDynamicTagContents,
     non_authoritative_tag_compatibility_fingerprint: u64,

@@ -41,7 +41,7 @@ const ELF64_GENERAL_SLOT_WIDTH: usize = 8;
 /// rows or eight-byte `.data` slots bound through general `.rela.dyn` rows.
 #[derive(Debug)]
 #[must_use = "validated procedure linkage retains the exact descriptor plan"]
-pub(crate) struct ValidatedElfProcedureLinkageRelocationPlan {
+pub struct ValidatedElfProcedureLinkageRelocationPlan {
     descriptors: ValidatedElfDynamicSectionDescriptorPlan,
     contents: ElfProcedureLinkageRelocationContents,
     non_authoritative_linkage_compatibility_fingerprint: u64,

@@ -26,7 +26,7 @@ const SHF_EXECINSTR: u64 = 0x4;
 /// segment, page permission, or absolute placement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub(crate) enum ElfRelativeSectionPayloadRegion {
+pub enum ElfRelativeSectionPayloadRegion {
     ReadOnly = 1,
     ReadExecute = 2,
     ReadWrite = 3,

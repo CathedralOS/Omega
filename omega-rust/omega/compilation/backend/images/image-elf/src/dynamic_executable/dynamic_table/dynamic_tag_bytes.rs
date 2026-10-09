@@ -32,7 +32,7 @@ const ELF64_DYNAMIC_VALUE_SIZE: u8 = 8;
 /// authority.
 #[derive(Debug)]
 #[must_use = "validated ELF dynamic bytes retain the exact semantic tag plan"]
-pub(crate) struct ValidatedElfDynamicTablePayload {
+pub struct ValidatedElfDynamicTablePayload {
     plan: ValidatedElfDynamicTagPlan,
     contents: ElfDynamicTablePayloadContents,
     non_authoritative_payload_compatibility_fingerprint: u64,

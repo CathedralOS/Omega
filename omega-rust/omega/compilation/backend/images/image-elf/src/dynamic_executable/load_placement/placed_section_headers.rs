@@ -43,7 +43,7 @@ pub(crate) type ElfAppliedSectionHeaderPlacement = ElfResolvedSectionHeaderPlace
 /// file placement, mutation, publication, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "applied ELF section headers retain the absolute load layout"]
-pub(crate) struct ValidatedElfPlacedSectionHeaderTable {
+pub struct ValidatedElfPlacedSectionHeaderTable {
     load_layout: ValidatedElfDynamicLoadLayout,
     contents: ElfPlacedSectionHeaderContents,
     non_authoritative_placed_compatibility_fingerprint: u64,

@@ -12,7 +12,7 @@ use target::TargetProfile;
 /// Replayed absolute geometry retaining the exact relative-layout owner.
 #[derive(Debug)]
 #[must_use = "validated dynamic ELF load layout retains all upstream payload custody"]
-pub(crate) struct ValidatedElfDynamicLoadLayout {
+pub struct ValidatedElfDynamicLoadLayout {
     pub(crate) relative: ValidatedElfRelativeSectionPayloadLayout,
     pub(crate) target: TargetProfile,
     pub(crate) image_base: u64,
