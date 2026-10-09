@@ -15,10 +15,10 @@ pub use abstract_operations::{
     AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicCoherenceViolation,
     AtomicModificationAfter, AtomicModificationAfterViolation, AtomicReadsFrom,
     AtomicReadsFromViolation, CompletionClaimSource, IntegerArithmetic, IntegerArithmeticOperands,
-    IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy,
-    StructuralCallFormal, StructuralTypeCatalog, ValueBinding, atomic, binding_arguments,
-    call_source, calls, control_flow, happens_before_atomic_coherence_violation, operations,
-    ownership, values,
+    IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftOperands,
+    IntegerShiftPolicy, StructuralCallFormal, StructuralTypeCatalog, ValueBinding, atomic,
+    binding_arguments, call_source, calls, control_flow, happens_before_atomic_coherence_violation,
+    operations, ownership, values,
 };
 pub use abstract_operations::{
     StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,

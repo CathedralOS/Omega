@@ -19,39 +19,26 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 fn proof_certified_exact_integer_zero_value_shift_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
-    let (source_operation, result, scalar_type, value, identity) = match operation {
-        O::IntegerShift {
-            psi_operation,
-            result,
-            value_type,
-            value,
-            policy: IntegerShiftPolicy::Exact { .. },
-            direction: IntegerShiftDirection::Left,
-            ..
-        } => (
-            *psi_operation,
-            *result,
-            *value_type,
-            *value,
-            ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue,
-        ),
-        O::IntegerShift {
-            psi_operation,
-            result,
-            value_type,
-            value,
-            policy: IntegerShiftPolicy::Exact { .. },
-            direction: IntegerShiftDirection::Right,
-            ..
-        } => (
-            *psi_operation,
-            *result,
-            *value_type,
-            *value,
-            ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue,
-        ),
-        _ => return Vec::new(),
+    let Some(operands) = operation.integer_shift() else {
+        return Vec::new();
     };
+    if !matches!(operands.policy, IntegerShiftPolicy::Exact { .. }) {
+        return Vec::new();
+    }
+    let identity = match operands.direction {
+        IntegerShiftDirection::Left => {
+            ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue
+        }
+        IntegerShiftDirection::Right => {
+            ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue
+        }
+    };
+    let (source_operation, result, scalar_type, value) = (
+        operands.psi_operation,
+        operands.result,
+        operands.value_type,
+        operands.value,
+    );
     vec![(
         ProofCertifiedScalarIdentityShape {
             source_operation,

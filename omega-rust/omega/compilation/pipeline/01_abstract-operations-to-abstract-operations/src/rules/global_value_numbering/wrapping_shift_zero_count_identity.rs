@@ -29,45 +29,24 @@ psi_optimization_rule_delegate!(
 );
 
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
-    match operation {
-        O::IntegerShift {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-            policy: IntegerShiftPolicy::Wrapping,
-            direction: IntegerShiftDirection::Left,
-        } => vec![TotalScalarIdentityShape {
-            source_operation: *psi_operation,
-            result: *result,
-            replacement: *value,
-            law_operand: *count,
-            scalar_type: *value_type,
-            law_operand_type: *count_type,
-            identity: TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
-            expected_law_value: count_type.zero(),
-        }],
-        O::IntegerShift {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-            policy: IntegerShiftPolicy::Wrapping,
-            direction: IntegerShiftDirection::Right,
-        } => vec![TotalScalarIdentityShape {
-            source_operation: *psi_operation,
-            result: *result,
-            replacement: *value,
-            law_operand: *count,
-            scalar_type: *value_type,
-            law_operand_type: *count_type,
-            identity: TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount,
-            expected_law_value: count_type.zero(),
-        }],
-        _ => Vec::new(),
+    let Some(operands) = operation.integer_shift() else {
+        return Vec::new();
+    };
+    if !matches!(operands.policy, IntegerShiftPolicy::Wrapping) {
+        return Vec::new();
     }
+    let identity = match operands.direction {
+        IntegerShiftDirection::Left => TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
+        IntegerShiftDirection::Right => TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount,
+    };
+    vec![TotalScalarIdentityShape {
+        source_operation: operands.psi_operation,
+        result: operands.result,
+        replacement: operands.value,
+        law_operand: operands.count,
+        scalar_type: operands.value_type,
+        law_operand_type: operands.count_type,
+        identity,
+        expected_law_value: operands.count_type.zero(),
+    }]
 }

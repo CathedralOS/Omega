@@ -1028,6 +1028,35 @@ impl AbstractOperation {
         (operands.arithmetic.operator() == operator).then_some(operands)
     }
 
+    /// One `IntegerShift` row's operand wiring — its authored operation,
+    /// result, value and count types, policy, direction and operand pair.
+    /// Every other shape admits no such operands.
+    pub fn integer_shift(&self) -> Option<IntegerShiftOperands> {
+        let Self::IntegerShift {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            policy,
+            direction,
+            value,
+            count,
+        } = self
+        else {
+            return None;
+        };
+        Some(IntegerShiftOperands {
+            psi_operation: *psi_operation,
+            result: *result,
+            value_type: *value_type,
+            count_type: *count_type,
+            policy: *policy,
+            direction: *direction,
+            value: *value,
+            count: *count,
+        })
+    }
+
     /// Whether the operation reads or writes an existing byte sequence —
     /// every `ByteSequence*` operation plus the structural field accessors
     /// over one. Establishment operations that produce a new sequence, and
@@ -1046,6 +1075,28 @@ impl AbstractOperation {
                 | Self::StructuralByteSequenceFieldByteStore { .. }
         )
     }
+}
+
+/// One `IntegerShift` row's operand wiring, as returned by
+/// [`AbstractOperation::integer_shift`].
+#[derive(Debug, Clone, Copy)]
+pub struct IntegerShiftOperands {
+    /// The authored Terminal operation this row realizes.
+    pub psi_operation: OperationId,
+    /// The scalar result the row defines.
+    pub result: ValueId,
+    /// The integer type of the shifted value and result.
+    pub value_type: IntegerType,
+    /// The integer type of the shift count.
+    pub count_type: IntegerType,
+    /// The wrapping or exact-policy payload the row carries.
+    pub policy: crate::IntegerShiftPolicy,
+    /// The shift direction.
+    pub direction: crate::IntegerShiftDirection,
+    /// The shifted value.
+    pub value: ValueId,
+    /// The shift count.
+    pub count: ValueId,
 }
 
 /// One `IntegerArithmetic` row's operand wiring, as returned by
