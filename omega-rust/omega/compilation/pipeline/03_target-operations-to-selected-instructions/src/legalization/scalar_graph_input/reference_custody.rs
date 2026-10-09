@@ -22,6 +22,7 @@ use super::{
 use crate::LegalizationError;
 use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::call_source;
+use optimization_unit_semantics::CallRegion;
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use terminal_psi::{
@@ -872,14 +873,6 @@ fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bo
                 requested,
                 StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
             )
-}
-
-/// Carrier storage and its pointees are distinct aliasing regions.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum CallRegion {
-    OrdinaryStorage,
-    CarrierStorage,
-    Referent,
 }
 
 mod call_paths;
