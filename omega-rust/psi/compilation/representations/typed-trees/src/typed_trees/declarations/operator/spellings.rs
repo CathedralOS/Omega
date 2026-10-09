@@ -7,7 +7,7 @@ use crate::typed_trees::declarations::operator::operand_signatures::normalized_o
 use crate::typed_trees::declarations::operator::type_matching::type_reference_matches;
 use crate::typed_trees::declarations::operator::{
     OperatorConstBinding, OperatorDefinition, SpelledOperator,
-    selected_trait_operator_meaning_exists,
+    selected_trait_operator_meaning_exists, trait_scope_operator_meaning_exists,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::operator_spelling::OperatorSpelling;
@@ -193,19 +193,44 @@ pub fn resolve_spelling_for_operand_types<'program>(
         .collect()
 }
 
-/// Admit builtin expression meaning only when neither declared nor selected
-/// trait meanings apply and every authored occurrence retains builtin custody.
+/// Admit builtin expression meaning only when neither declared nor the exact
+/// owner's trait meanings apply and every authored occurrence retains builtin
+/// custody. Abstract requirements retain their local/inherited trait scope;
+/// executable states retain their machine's selected implementations.
 /// Declared operators treat unknown operands as wildcard candidates, whereas
 /// selected trait matching requires at least one retained operand type. Callers
 /// excluding selected trait meaning must supply the actual operand types;
 /// absence of a later checked operator row is not builtin authority.
 pub fn has_builtin_spelled_expression_meaning(
     program: &TypedTrees,
-    machine_symbol: SymbolHandle,
+    owner_symbol: SymbolHandle,
     expression: crate::expression::ExpressionHandle,
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
+    // A state retains its machine's selected implementation; an abstract
+    // requirement retains the declaring trait's own applied operator scope.
+    // Neither may borrow builtin laws from a matching carrier alone.
+    let machine_symbol = program
+        .machine_holding_state(owner_symbol)
+        .map_or(owner_symbol, |machine| machine.symbol);
+    let abstract_trait_meaning = owner_symbol.is_valid() && {
+        let parent = program.symbols.get(owner_symbol).parent;
+        program.symbols.get(parent).kind == symbols::SymbolKind::Trait
+            && program
+                .trait_definition_by_symbol(parent)
+                .is_some_and(|definition| {
+                    program
+                        .trait_machine_signature_by_symbol(definition, owner_symbol)
+                        .is_some()
+                        && trait_scope_operator_meaning_exists(
+                            program,
+                            definition,
+                            spelling,
+                            operand_types,
+                        )
+                })
+    };
     // Existence only: both resolution walks stop at the first match instead
     // of materializing candidate sets whose per-candidate operand matching
     // allocates generic substitutions.
@@ -218,7 +243,8 @@ pub fn has_builtin_spelled_expression_meaning(
             .map(OperandType::from_reference)
             .collect::<Vec<_>>(),
         program.expression_table.source_span(expression),
-    ) && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
+    ) && !abstract_trait_meaning
+        && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
         && crate::closed_numeric::has_builtin_anonymous_operands(program, expression, spelling)
 }
 

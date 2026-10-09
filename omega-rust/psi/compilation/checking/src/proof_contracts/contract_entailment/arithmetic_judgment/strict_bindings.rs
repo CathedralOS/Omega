@@ -200,9 +200,7 @@ impl<'program> Engine<'program> {
         if self.strict_symbol_bindings.is_none() || self.proof_integer_formation {
             return true;
         }
-        let owner =
-            crate::machine_calls::calls::machine_state_by_symbol(self.program, self.source_owner)
-                .map_or(self.source_owner, |(machine, _)| machine.symbol);
+        let owner = self.source_owner;
         let operands = [binary.left, binary.right].map(|operand| self.source_result_type(operand));
         if matches!(
             binary.operator,

@@ -41,7 +41,6 @@ pub(crate) struct DeclaredIndexAlgebraLaws {
 /// contract roster, resolved to its structural-term pair.
 fn for_each_ensures_equality(
     program: &dyn crate::CheckingInput,
-    trait_definition: &TraitDefinition,
     signature: &typed_trees::signature::StateSignature,
     mut arm: impl FnMut(StructuralTerm, StructuralTerm),
 ) {
@@ -67,12 +66,6 @@ fn for_each_ensures_equality(
                 )
             });
             if operands.iter().any(Option::is_none)
-                || typed_trees::operator::trait_scope_operator_meaning_exists(
-                    program,
-                    trait_definition,
-                    language_core::OperatorSpelling::Equal,
-                    &operands,
-                )
                 || !typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
                     signature.symbol,
@@ -103,7 +96,7 @@ pub(crate) fn declared_index_algebra_laws(
             .iter()
             .map(|parameter| parameter.name.as_str().to_owned())
             .collect::<Vec<_>>();
-        for_each_ensures_equality(program, trait_definition, law, |left, right| {
+        for_each_ensures_equality(program, law, |left, right| {
             if commutativity_shape(&left, &right, &parameters).as_deref() == Some(requirement) {
                 laws.commutativity.push(law.name.as_str().to_owned());
             }
@@ -483,7 +476,7 @@ fn algebraic_law_slots<'program>(
                     .iter()
                     .map(|parameter| parameter.name.as_str().to_owned())
                     .collect();
-                for_each_ensures_equality(program, trait_definition, requirement, |left, right| {
+                for_each_ensures_equality(program, requirement, |left, right| {
                     if let Some(op) = commutativity_shape(&left, &right, &parameters) {
                         comm_laws.push((op, requirement.name.as_str().to_owned()));
                     }
