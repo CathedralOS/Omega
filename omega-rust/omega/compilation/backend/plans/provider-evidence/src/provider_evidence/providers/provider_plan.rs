@@ -17,6 +17,7 @@
 //! digest encoder and `tests.rs` the plan tests.
 
 mod digest_encoder;
+pub(crate) use digest_encoder::DigestFeed;
 mod evaluated_bindings;
 mod service_schemas;
 

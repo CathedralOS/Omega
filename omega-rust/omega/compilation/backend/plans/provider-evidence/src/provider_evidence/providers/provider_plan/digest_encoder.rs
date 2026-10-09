@@ -7,7 +7,57 @@ use crate::provider_evidence::providers::provider_plan::{
 use sha2::Digest;
 use sha2::Sha256;
 
+/// Shared framed-feed combinators for the crate's domain-tagged SHA-256
+/// encoders: every feed reduces to one `raw` update, with the length-prefix
+/// and tag separators defined once here.
+pub(crate) trait DigestFeed {
+    fn raw(&mut self, bytes: &[u8]);
+
+    fn byte(&mut self, value: u8) {
+        self.raw(&[value]);
+    }
+
+    fn bool(&mut self, value: bool) {
+        self.byte(u8::from(value));
+    }
+
+    fn len(&mut self, value: usize) {
+        self.raw(&(value as u64).to_le_bytes());
+    }
+
+    fn u64(&mut self, value: u64) {
+        self.raw(&value.to_le_bytes());
+    }
+
+    fn i64(&mut self, value: i64) {
+        self.raw(&value.to_le_bytes());
+    }
+
+    /// Length-framed byte feed: u64 little-endian length, then the payload.
+    fn bytes(&mut self, bytes: &[u8]) {
+        self.len(bytes.len());
+        self.raw(bytes);
+    }
+
+    fn string(&mut self, value: &str) {
+        self.bytes(value.as_bytes());
+    }
+
+    fn strings(&mut self, values: &[String]) {
+        self.len(values.len());
+        for value in values {
+            self.string(value);
+        }
+    }
+}
+
 pub(crate) struct ProviderPlanDigestEncoder(Sha256);
+
+impl DigestFeed for ProviderPlanDigestEncoder {
+    fn raw(&mut self, bytes: &[u8]) {
+        self.0.update(bytes);
+    }
+}
 
 impl ProviderPlanDigestEncoder {
     pub(crate) fn for_provider_plan() -> Self {
@@ -24,42 +74,6 @@ impl ProviderPlanDigestEncoder {
 
     pub(crate) fn finish(self) -> [u8; 32] {
         self.0.finalize().into()
-    }
-
-    fn byte(&mut self, value: u8) {
-        self.0.update([value]);
-    }
-
-    fn bool(&mut self, value: bool) {
-        self.byte(u8::from(value));
-    }
-
-    pub(crate) fn len(&mut self, value: usize) {
-        self.0.update((value as u64).to_le_bytes());
-    }
-
-    pub(crate) fn u64(&mut self, value: u64) {
-        self.0.update(value.to_le_bytes());
-    }
-
-    fn i64(&mut self, value: i64) {
-        self.0.update(value.to_le_bytes());
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        self.len(bytes.len());
-        self.0.update(bytes);
-    }
-
-    pub(crate) fn string(&mut self, value: &str) {
-        self.bytes(value.as_bytes());
-    }
-
-    fn strings(&mut self, values: &[String]) {
-        self.len(values.len());
-        for value in values {
-            self.string(value);
-        }
     }
 
     pub(crate) fn package_identity(

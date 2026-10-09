@@ -1,6 +1,7 @@
 //! The progress demands a component is bound to, and the digest that pins them.
 
 use crate::provider_evidence::evidence_digest;
+use crate::provider_evidence::providers::provider_plan::DigestFeed;
 use crate::{
     SelectedProviderClosureDigest, SelectedProviderPlanFacts,
     provider_plan::{ProviderPlanDigest, ServiceProgressSubject},
@@ -252,6 +253,12 @@ fn digest_manifest(
 
 struct ManifestDigestEncoder(Sha256);
 
+impl crate::provider_evidence::providers::provider_plan::DigestFeed for ManifestDigestEncoder {
+    fn raw(&mut self, bytes: &[u8]) {
+        self.0.update(bytes);
+    }
+}
+
 impl ManifestDigestEncoder {
     fn new() -> Self {
         let mut digest = Sha256::new();
@@ -261,22 +268,6 @@ impl ManifestDigestEncoder {
 
     fn finish(self) -> ComponentProgressManifestDigest {
         ComponentProgressManifestDigest::from_digest(self.0.finalize().into())
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        self.0.update((bytes.len() as u64).to_le_bytes());
-        self.0.update(bytes);
-    }
-
-    fn string(&mut self, value: &str) {
-        self.bytes(value.as_bytes());
-    }
-
-    fn strings(&mut self, values: &[String]) {
-        self.len(values.len());
-        for value in values {
-            self.string(value);
-        }
     }
 
     fn len(&mut self, len: usize) {

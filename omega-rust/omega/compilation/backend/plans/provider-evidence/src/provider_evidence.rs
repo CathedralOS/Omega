@@ -723,6 +723,14 @@ fn selected_closure_report_fingerprint(
 
 struct SelectedProviderClosureDigestEncoder(Sha256);
 
+impl crate::provider_evidence::providers::provider_plan::DigestFeed
+    for SelectedProviderClosureDigestEncoder
+{
+    fn raw(&mut self, bytes: &[u8]) {
+        self.0.update(bytes);
+    }
+}
+
 impl SelectedProviderClosureDigestEncoder {
     fn new() -> Self {
         let mut digest = Sha256::new();
