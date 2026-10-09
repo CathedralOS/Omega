@@ -19,3 +19,4 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }

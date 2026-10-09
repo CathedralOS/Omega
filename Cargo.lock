@@ -696,6 +696,7 @@ dependencies = [
  "optimization-core",
  "sha2",
  "target",
+ "terminal-psi",
 ]
 
 [[package]]
