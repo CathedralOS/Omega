@@ -6,7 +6,6 @@ use crate::staged_output_tree::{
     RetainedStagedOutputEntryKind, commitment_for_retained_entries, diagnostics,
 };
 use diagnostics::Diagnostic;
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -144,7 +143,7 @@ pub(crate) fn from_entries(
                         "build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte object ceiling"
                     )));
                 }
-                let digest: [u8; 32] = Sha256::digest(bytes).into();
+                let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes).into();
                 if distinct_content.insert((digest, length)) {
                     unique_file_bytes = unique_file_bytes
                         .checked_add(length)

@@ -1,5 +1,5 @@
 use register_model::RegisterOperandAccess;
-use sha2::{Digest, Sha256};
+
 use target::{Architecture, ObjectFormat};
 
 use crate::{
@@ -50,7 +50,7 @@ pub fn live_range_identity_from_digests(
     for digest in digests {
         bytes.extend_from_slice(digest);
     }
-    LiveRangeIdentity::from_bytes(Sha256::digest(bytes).into())
+    LiveRangeIdentity::from_bytes(crate::digest_encoder::content_identity(&bytes).into())
 }
 
 /// One function's share of `live_range_identity`.
@@ -170,7 +170,7 @@ pub fn live_range_function_digest(function: &crate::FunctionLiveRanges) -> [u8; 
         bytes.extend_from_slice(&pair.lower.0.to_le_bytes());
         bytes.extend_from_slice(&pair.higher.0.to_le_bytes());
     }
-    Sha256::digest(bytes).into()
+    crate::digest_encoder::content_identity(&bytes).into()
 }
 
 fn encode_fragments(bytes: &mut Vec<u8>, fragments: &[crate::LiveRangeFragment]) {

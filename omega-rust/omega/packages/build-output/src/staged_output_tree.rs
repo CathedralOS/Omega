@@ -6,7 +6,7 @@ use crate::capture::{StagedOutputEntry, StagedOutputEntryKind};
 use crate::materialization::materialize_retained_tree;
 use diagnostics::Diagnostic;
 use sha2::Digest;
-use sha2::Sha256;
+
 use std::collections::BTreeSet;
 use std::fmt;
 use std::path::Path;
@@ -98,7 +98,7 @@ impl PackageGeneratedSource {
     /// digest is recomputed over the supplied bytes, never carried.
     #[doc(hidden)]
     pub fn from_retained_parts(relative_path: Vec<u8>, bytes: Arc<[u8]>) -> Self {
-        let digest: [u8; 32] = Sha256::digest(bytes.as_ref()).into();
+        let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_ref()).into();
         Self {
             relative_path,
             bytes,
@@ -463,7 +463,7 @@ pub fn select_included_sources(
                 String::from_utf8_lossy(relative_path)
             )));
         }
-        let digest: [u8; 32] = Sha256::digest(bytes.as_ref()).into();
+        let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_ref()).into();
         selected.push(PackageGeneratedSource {
             relative_path: relative_path.clone(),
             bytes: Arc::clone(bytes),
@@ -500,61 +500,55 @@ pub(crate) fn commitment_for_retained_entries(
     entries: &[RetainedStagedOutputEntry],
 ) -> Option<BuildStagedOutputTreeCommitment> {
     let entry_count = u64::try_from(entries.len()).expect("staged-output entry ceiling fits u64");
-    let mut digest = Sha256::new();
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        STAGED_OUTPUT_TREE_COMMITMENT_DOMAIN,
+    );
     let mut distinct_content = BTreeSet::new();
     let mut file_bytes = 0u64;
-    digest.update(STAGED_OUTPUT_TREE_COMMITMENT_DOMAIN);
-    digest.update(STAGED_OUTPUT_TREE_SCHEMA_VERSION.to_le_bytes());
-    digest.update([STAGED_OUTPUT_ROOT_TAG]);
-    digest.update(entry_count.to_le_bytes());
+    digest.u32(STAGED_OUTPUT_TREE_SCHEMA_VERSION);
+    digest.byte(STAGED_OUTPUT_ROOT_TAG);
+    digest.u64(entry_count);
     for entry in entries {
         hash_field(&mut digest, &entry.relative_path);
         match &entry.kind {
             RetainedStagedOutputEntryKind::Directory => {
-                digest.update([0]);
-                digest.update(DIRECTORY_MODE.to_le_bytes());
+                digest.byte(0);
+                digest.u32(DIRECTORY_MODE);
             }
             RetainedStagedOutputEntryKind::File { bytes, executable } => {
-                let content_digest: [u8; 32] = Sha256::digest(bytes).into();
+                let content_digest: [u8; 32] =
+                    crate::digest_encoder::content_identity(bytes).into();
                 let content_length = u64::try_from(bytes.len()).ok()?;
                 if distinct_content.insert((content_digest, content_length)) {
                     file_bytes = file_bytes
                         .checked_add(content_length)
                         .filter(|total| *total <= MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES)?;
                 }
-                digest.update([1]);
-                digest.update(
-                    if *executable {
-                        EXECUTABLE_FILE_MODE
-                    } else {
-                        FILE_MODE
-                    }
-                    .to_le_bytes(),
-                );
-                digest.update(content_length.to_le_bytes());
-                digest.update(content_digest);
+                digest.byte(1);
+                digest.u32(if *executable {
+                    EXECUTABLE_FILE_MODE
+                } else {
+                    FILE_MODE
+                });
+                digest.u64(content_length);
+                digest.raw(&content_digest);
             }
             RetainedStagedOutputEntryKind::Symlink { target } => {
-                digest.update([2]);
-                digest.update(SYMLINK_MODE.to_le_bytes());
+                digest.byte(2);
+                digest.u32(SYMLINK_MODE);
                 hash_field(&mut digest, target);
             }
         }
     }
     Some(BuildStagedOutputTreeCommitment {
-        digest: digest.finalize().into(),
+        digest: digest.finish().into(),
         entry_count,
         file_bytes,
     })
 }
 
-fn hash_field(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update(
-        u64::try_from(bytes.len())
-            .expect("staged-output field length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(bytes);
+fn hash_field(digest: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
+    digest.bytes(bytes);
 }
 
 pub(crate) fn diagnostics(message: impl Into<String>) -> Vec<Diagnostic> {

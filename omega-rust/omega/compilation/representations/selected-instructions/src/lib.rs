@@ -5,6 +5,7 @@
 //! Start at [`selected_instructions::SelectedInstructionPlan`]. Its subordinate
 //! areas own control flow, values, instructions, calls, and target effects.
 
+mod digest_encoder;
 pub mod selected_instructions;
 pub use selected_instructions::{
     AddressFoldIdentity, ArchitecturalUnitAction, ArchitecturalUnitActionKind,

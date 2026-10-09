@@ -1,4 +1,4 @@
-use sha2::{Digest, Sha256};
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VirtualRegisterId(pub u32);
@@ -19,7 +19,7 @@ macro_rules! sha256_identity {
 
         impl $name {
             pub fn from_canonical_bytes(bytes: &[u8]) -> Self {
-                Self(Sha256::digest(bytes).into())
+                Self(crate::digest_encoder::content_identity(&bytes).into())
             }
 
             pub const fn from_bytes(bytes: [u8; 32]) -> Self {

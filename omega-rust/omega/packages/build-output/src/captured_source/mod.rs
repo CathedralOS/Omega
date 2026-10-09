@@ -15,7 +15,6 @@ use filesystem_authority::{
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRowKind,
     canonical_filesystem_metadata_path_is_canonical,
 };
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -46,7 +45,7 @@ impl CapturedSourceEntry {
     pub fn file(bytes: impl Into<Arc<[u8]>>, executable: bool) -> Self {
         let bytes = bytes.into();
         Self::File {
-            digest: Sha256::digest(bytes.as_ref()).into(),
+            digest: crate::digest_encoder::content_identity(bytes.as_ref()).into(),
             bytes,
             executable,
         }
@@ -57,7 +56,7 @@ impl CapturedSourceEntry {
     pub fn symlink(target: impl Into<Arc<[u8]>>) -> Self {
         let target = target.into();
         Self::Symlink {
-            digest: Sha256::digest(target.as_ref()).into(),
+            digest: crate::digest_encoder::content_identity(target.as_ref()).into(),
             target,
         }
     }

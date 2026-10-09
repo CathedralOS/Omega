@@ -28,12 +28,12 @@ fn identity_with_domain(
     plan: &PreAllocationMachineEffectPlan,
     domain: &[u8],
 ) -> PreAllocationMachineEffectIdentity {
-    use sha2::{Digest, Sha256};
+    
 
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(&encode_terminal_pre_allocation_machine_effect_content(plan));
-    PreAllocationMachineEffectIdentity::from_bytes(Sha256::digest(bytes).into())
+    PreAllocationMachineEffectIdentity::from_bytes(crate::digest_encoder::content_identity(&bytes).into())
 }
 
 pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(

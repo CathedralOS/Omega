@@ -15,7 +15,7 @@
 use optimization_unit::{FuelSettlement, PsiProvenance};
 use register_model::RegisterOperandAccess;
 use semantic_vocabulary::{IntegerSign, ScalarType};
-use sha2::{Digest, Sha256};
+
 
 use crate::{
     SaturatingCarrier, SaturatingOperation, SelectedFunction, SelectedInstruction,
@@ -118,7 +118,7 @@ pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] 
         }
         ordinary::encode_terminator(&mut bytes, &block.terminator);
     }
-    Sha256::digest(bytes).into()
+    crate::digest_encoder::content_identity(&bytes).into()
 }
 
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {

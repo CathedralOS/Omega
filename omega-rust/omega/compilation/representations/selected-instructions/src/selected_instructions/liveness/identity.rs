@@ -1,5 +1,5 @@
 use register_model::RegisterOperandAccess;
-use sha2::{Digest, Sha256};
+
 use target::{Architecture, ObjectFormat};
 
 use crate::{FunctionLiveness, LivenessIdentity, LivenessPlan};
@@ -47,7 +47,7 @@ pub fn liveness_identity_from_digests(
     for digest in digests {
         bytes.extend_from_slice(digest);
     }
-    LivenessIdentity(Sha256::digest(bytes).into())
+    LivenessIdentity(crate::digest_encoder::content_identity(&bytes).into())
 }
 
 /// One function's share of `liveness_identity`.
@@ -55,7 +55,7 @@ pub fn liveness_function_digest(function: &FunctionLiveness) -> [u8; 32] {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-register-liveness-function.v1\0");
     encode_function(&mut bytes, function);
-    Sha256::digest(bytes).into()
+    crate::digest_encoder::content_identity(&bytes).into()
 }
 
 fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {

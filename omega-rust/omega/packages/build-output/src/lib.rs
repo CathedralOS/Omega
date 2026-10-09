@@ -13,6 +13,7 @@
 //! `materialization` writes and verifies one, `portable_paths` holds
 //! the path rules both sides share, and `captured_source` owns source snapshots.
 
+mod digest_encoder;
 mod capture;
 mod captured_source;
 mod materialization;

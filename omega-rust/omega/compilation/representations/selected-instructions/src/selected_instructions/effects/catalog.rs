@@ -77,8 +77,8 @@ pub struct MachineEffectCatalogIdentity([u8; 32]);
 
 impl MachineEffectCatalogIdentity {
     pub(crate) fn from_canonical_bytes(bytes: &[u8]) -> Self {
-        use sha2::{Digest, Sha256};
-        Self(Sha256::digest(bytes).into())
+        
+        Self(crate::digest_encoder::content_identity(&bytes).into())
     }
 
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
