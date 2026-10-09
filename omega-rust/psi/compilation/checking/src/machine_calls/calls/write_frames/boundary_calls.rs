@@ -941,13 +941,8 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     } else {
         Vec::new()
     };
-    let parameters = program
-        .state_signature_parameters(signature)
-        .iter()
-        .collect::<Vec<_>>();
-    if parameters.len() != arguments.len() {
-        return None;
-    }
+    let parameters =
+        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
     let bindings = super::type_instantiation::signature_call_type_bindings_seeded(
         program,
         current_machine,
@@ -1091,13 +1086,8 @@ fn boundary_result_origins(
             source: FrameSourcePlace::from_expression(program, call.receiver),
         });
     }
-    let parameters = program
-        .state_signature_parameters(signature)
-        .iter()
-        .collect::<Vec<_>>();
-    if parameters.len() != arguments.len() {
-        return None;
-    }
+    let parameters =
+        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
     exclusive_boundary_result_origins(
         program,
         current_machine,

@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, TypeParameter, TypeParameterKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
-use typed_trees::signature::StateSignature;
+use typed_trees::signature::{StateParameter, StateSignature};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// In-flight formal→actual type-parameter bindings. Entries are pushed while
@@ -160,6 +160,20 @@ pub(super) fn trait_receiver_type_bindings(
     None
 }
 
+/// The signature's declared parameters once the call's argument count
+/// proves arity; callers bind or forward them positionally.
+pub(super) fn signature_arity_parameters<'a>(
+    program: &'a dyn crate::CheckingInput,
+    signature: &StateSignature,
+    arguments: &[ExpressionHandle],
+) -> Option<Vec<&'a StateParameter>> {
+    let parameters = program
+        .state_signature_parameters(signature)
+        .iter()
+        .collect::<Vec<_>>();
+    (parameters.len() == arguments.len()).then_some(parameters)
+}
+
 pub(super) fn signature_call_type_bindings_seeded(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -196,13 +210,7 @@ fn signature_call_type_bindings_in(
         return None;
     }
     let (state, _, _) = caller_statement_owner(program, current_machine, site)?;
-    let parameters = program
-        .state_signature_parameters(signature)
-        .iter()
-        .collect::<Vec<_>>();
-    if parameters.len() != arguments.len() {
-        return None;
-    }
+    let parameters = signature_arity_parameters(program, signature, arguments)?;
     for (parameter, argument) in parameters.iter().zip(arguments) {
         // An argument with no resolvable declared type contributes no
         // binding; the coverage check below still rejects a parameter left
