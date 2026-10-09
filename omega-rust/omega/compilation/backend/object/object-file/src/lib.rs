@@ -107,6 +107,7 @@
 //! (`normalized_imports` plus `unresolved_normalized_foreign_calls`), and the
 //! test `omgtro_version_2_covers_normalized_foreign_imports` pins it.
 
+mod codec_bytes;
 mod artifact_custody;
 pub(crate) mod cursor;
 mod fragment_container;

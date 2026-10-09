@@ -509,7 +509,7 @@ pub(crate) fn encode_relocation_free_object(
     let content = encode_plan_content(object)?;
     let mut bytes = Vec::with_capacity(44_usize.saturating_add(content.len()));
     bytes.extend_from_slice(CONTAINER_MAGIC);
-    bytes.extend_from_slice(&CONTAINER_VERSION.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, CONTAINER_VERSION.to_le_bytes());
     bytes.extend_from_slice(&object.identity.bytes());
     bytes.extend_from_slice(&content);
     Ok(RelocationFreeObjectContainer {
@@ -545,15 +545,15 @@ fn encode_plan_content(
 ) -> Result<Vec<u8>, RelocationFreeObjectError> {
     let mut output = Vec::new();
     output.extend_from_slice(&object.source_text_section.bytes());
-    output.extend_from_slice(&object.psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut output, object.psi.vocabulary_marker.get().to_le_bytes());
     output.extend_from_slice(object.psi.program_fingerprint.as_bytes());
-    output.extend_from_slice(&object.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut output, object.fuel_schedule.marker().to_le_bytes());
     output.extend_from_slice(&object.selected.bytes());
     output.extend_from_slice(&object.selections.bytes());
     encode_target(&mut output, object.target);
     encode_string(&mut output, &object.text_section.name)?;
-    output.extend_from_slice(&object.text_section.alignment.to_le_bytes());
-    output.extend_from_slice(&object.text_section.byte_count.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut output, object.text_section.alignment.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut output, object.text_section.byte_count.to_le_bytes());
     encode_bytes(&mut output, &object.text_section.bytes)?;
     output.push(1);
     output.extend_from_slice(
@@ -562,29 +562,29 @@ fn encode_plan_content(
             .to_le_bytes(),
     );
     for symbol in &object.symbols {
-        output.extend_from_slice(&symbol.symbol.get().to_le_bytes());
-        output.extend_from_slice(&symbol.source_function_index.to_le_bytes());
-        output.extend_from_slice(&symbol.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut output, symbol.symbol.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut output, symbol.source_function_index.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut output, symbol.machine.get().to_le_bytes());
         encode_string(&mut output, &symbol.name)?;
-        output.extend_from_slice(&symbol.section_offset.to_le_bytes());
-        output.extend_from_slice(&symbol.byte_count.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut output, symbol.section_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut output, symbol.byte_count.to_le_bytes());
         output.push(1);
         output.push(match symbol.role {
             RelocationFreeObjectSymbolRole::SemanticEntryV1 => 1,
             RelocationFreeObjectSymbolRole::PrivateFunctionV1 => 2,
         });
     }
-    output.extend_from_slice(&object.semantic_entry.get().to_le_bytes());
-    output.extend_from_slice(&object.semantic_entry_symbol.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut output, object.semantic_entry.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut output, object.semantic_entry_symbol.get().to_le_bytes());
     output.extend_from_slice(
         &u64::try_from(object.normalized_imports.len())
             .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
             .to_le_bytes(),
     );
     for import in &object.normalized_imports {
-        output.extend_from_slice(&import.symbol.get().to_le_bytes());
-        output.extend_from_slice(&import.boundary.get().to_le_bytes());
-        output.extend_from_slice(&import.ordinal.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut output, import.symbol.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut output, import.boundary.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut output, import.ordinal.to_le_bytes());
         encode_string(&mut output, &import.name)?;
     }
     output.extend_from_slice(
@@ -593,10 +593,10 @@ fn encode_plan_content(
             .to_le_bytes(),
     );
     for field in &object.unresolved_normalized_foreign_calls {
-        output.extend_from_slice(&field.symbol.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut output, field.symbol.get().to_le_bytes());
         encode_normalized_foreign_resolution(&mut output, &field.resolution);
     }
-    output.extend_from_slice(&object.relocation_record_count.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut output, object.relocation_record_count.to_le_bytes());
     output.push(match object.relocation_requirements {
         RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1 => {
             1
@@ -715,23 +715,23 @@ fn encode_normalized_foreign_resolution(
     output.push(match resolution.state {
         NormalizedForeignCallResolutionState::UnresolvedImportFieldV1 => 1,
     });
-    output.extend_from_slice(&resolution.caller.get().to_le_bytes());
-    output.extend_from_slice(&resolution.block.0.to_le_bytes());
-    output.extend_from_slice(&resolution.instruction.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.caller.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.block.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.instruction.0.to_le_bytes());
     resolution.invocation_site.encode_identity(output);
-    output.extend_from_slice(&resolution.boundary.get().to_le_bytes());
-    output.extend_from_slice(&resolution.ordinal.to_le_bytes());
-    output.extend_from_slice(&resolution.call_function_offset.to_le_bytes());
-    output.extend_from_slice(&resolution.call_section_offset.to_le_bytes());
-    output.extend_from_slice(&resolution.call_byte_count.to_le_bytes());
-    output.extend_from_slice(&resolution.opcode_function_offset.to_le_bytes());
-    output.extend_from_slice(&resolution.opcode_section_offset.to_le_bytes());
-    output.extend_from_slice(&resolution.field_function_offset.to_le_bytes());
-    output.extend_from_slice(&resolution.field_section_offset.to_le_bytes());
-    output.extend_from_slice(&resolution.next_instruction_function_offset.to_le_bytes());
-    output.extend_from_slice(&resolution.next_instruction_section_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.boundary.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.ordinal.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.call_function_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.call_section_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.call_byte_count.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.opcode_function_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.opcode_section_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.field_function_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.field_section_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.next_instruction_function_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.next_instruction_section_offset.to_le_bytes());
     output.push(resolution.field_byte_width);
-    output.extend_from_slice(&resolution.addend.to_le_bytes());
+    crate::codec_bytes::push_encoded(output, resolution.addend.to_le_bytes());
     encode_placed_callback_materializations(output, &resolution.callback_materializations);
 }
 
@@ -745,7 +745,7 @@ fn encode_placed_callback_materializations(
     output: &mut Vec<u8>,
     materializations: &[PlacedCallbackAddressMaterialization],
 ) {
-    output.extend_from_slice(&(materializations.len() as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(output, (materializations.len() as u64).to_le_bytes());
     for materialization in materializations {
         match materialization.destination {
             machine_code::CallbackAddressDestination::Register(register) => {
@@ -754,7 +754,7 @@ fn encode_placed_callback_materializations(
             }
             machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
                 output.push(2);
-                output.extend_from_slice(&byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(output, byte_offset.to_le_bytes());
             }
             machine_code::CallbackAddressDestination::RecordField {
                 root_register,
@@ -762,20 +762,20 @@ fn encode_placed_callback_materializations(
             } => {
                 output.push(3);
                 encode_machine_register(output, root_register);
-                output.extend_from_slice(&byte_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(output, byte_offset.to_le_bytes());
             }
         }
-        output.extend_from_slice(&materialization.code_function_offset.to_le_bytes());
-        output.extend_from_slice(&materialization.code_section_offset.to_le_bytes());
-        output.extend_from_slice(&materialization.code_byte_count.to_le_bytes());
+        crate::codec_bytes::push_encoded(output, materialization.code_function_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(output, materialization.code_section_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(output, materialization.code_byte_count.to_le_bytes());
         match materialization.encoding {
             PlacedCallbackAddressEncoding::X86_64Relative32 {
                 relocation_function_offset,
                 relocation_section_offset,
             } => {
                 output.push(1);
-                output.extend_from_slice(&relocation_function_offset.to_le_bytes());
-                output.extend_from_slice(&relocation_section_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(output, relocation_function_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(output, relocation_section_offset.to_le_bytes());
             }
             PlacedCallbackAddressEncoding::Aarch64PageAddress {
                 page_relocation_function_offset,
@@ -784,10 +784,10 @@ fn encode_placed_callback_materializations(
                 page_offset_relocation_section_offset,
             } => {
                 output.push(2);
-                output.extend_from_slice(&page_relocation_function_offset.to_le_bytes());
-                output.extend_from_slice(&page_relocation_section_offset.to_le_bytes());
-                output.extend_from_slice(&page_offset_relocation_function_offset.to_le_bytes());
-                output.extend_from_slice(&page_offset_relocation_section_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(output, page_relocation_function_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(output, page_relocation_section_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(output, page_offset_relocation_function_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(output, page_offset_relocation_section_offset.to_le_bytes());
             }
         }
     }
@@ -1090,8 +1090,8 @@ fn encode_target(output: &mut Vec<u8>, target: NativeTarget) {
         ObjectFormat::MachO => 2,
         ObjectFormat::Coff => 3,
     });
-    output.extend_from_slice(&(target.pointer_size as u64).to_le_bytes());
-    output.extend_from_slice(&(target.pointer_alignment as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(output, (target.pointer_size as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(output, (target.pointer_alignment as u64).to_le_bytes());
 }
 
 fn decode_target(cursor: &mut Cursor<'_>) -> Result<NativeTarget, RelocationFreeObjectDecodeError> {

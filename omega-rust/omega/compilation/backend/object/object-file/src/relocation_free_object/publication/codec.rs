@@ -139,14 +139,14 @@ pub(super) fn encode_manifest_content(record: &FunctionFragmentObjectContainerMa
     bytes.push(1);
     bytes.extend_from_slice(&record.source_text_section_manifest.bytes());
     bytes.extend_from_slice(&record.text_section.bytes());
-    bytes.extend_from_slice(&record.psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(record.psi.program_fingerprint.as_bytes());
-    bytes.extend_from_slice(&record.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.fuel_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&record.selections.bytes());
     bytes.extend_from_slice(&record.selected.bytes());
     bytes.extend_from_slice(&record.target.wire_identity_bytes());
-    bytes.extend_from_slice(&record.semantic_entry.get().to_le_bytes());
-    bytes.extend_from_slice(&record.semantic_entry_symbol.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.semantic_entry.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.semantic_entry_symbol.get().to_le_bytes());
     bytes.push(1);
     bytes.extend_from_slice(&record.object.bytes());
     bytes.extend_from_slice(&record.object_container.bytes());
@@ -157,13 +157,13 @@ pub(super) fn encode_manifest_content(record: &FunctionFragmentObjectContainerMa
         RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1 => 2,
         RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => 3,
     });
-    bytes.extend_from_slice(&record.statistics.sections.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.function_symbols.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.object_local_symbols.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.external_symbols.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.text_bytes.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.container_bytes.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.relocation_records.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.sections.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.function_symbols.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.object_local_symbols.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.external_symbols.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.text_bytes.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.container_bytes.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.relocation_records.to_le_bytes());
     bytes.extend_from_slice(&[1; 4]);
     bytes
 }

@@ -104,7 +104,7 @@ impl OptimizedObjectArtifactRecord {
         let content = encode_artifact_content(self);
         let mut encoded = Vec::with_capacity(44_usize.saturating_add(content.len()));
         encoded.extend_from_slice(ARTIFACT_MAGIC);
-        encoded.extend_from_slice(&ARTIFACT_VERSION.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, ARTIFACT_VERSION.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
         encoded.extend_from_slice(&content);
         encoded

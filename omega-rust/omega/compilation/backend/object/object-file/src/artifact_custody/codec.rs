@@ -19,7 +19,7 @@ pub(super) fn encode_artifact_content(record: &OptimizedObjectArtifactRecord) ->
     encode_optional_array(&mut bytes, record.debug_section);
     bytes.extend_from_slice(&record.selections.bytes());
     bytes.extend_from_slice(&record.target.wire_identity_bytes());
-    bytes.extend_from_slice(&record.semantic_entry.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.semantic_entry.get().to_le_bytes());
     bytes.extend_from_slice(&record.pre_physical_manifest.bytes());
     bytes.extend_from_slice(&record.post_allocation_manifest.bytes());
     bytes.extend_from_slice(&record.function_relative_manifest.bytes());
@@ -72,7 +72,7 @@ pub(super) fn encode_manifest_content(record: &OptimizedObjectArtifactManifest) 
     encode_psi(&mut bytes, record.psi);
     bytes.extend_from_slice(&record.selections.bytes());
     bytes.extend_from_slice(&record.target.wire_identity_bytes());
-    bytes.extend_from_slice(&record.semantic_entry.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, record.semantic_entry.get().to_le_bytes());
     bytes.extend_from_slice(&record.object_container_manifest.bytes());
     bytes.extend_from_slice(&record.object.bytes());
     bytes.extend_from_slice(&record.object_container.bytes());
@@ -85,10 +85,10 @@ pub(super) fn encode_statistics(
     bytes: &mut Vec<u8>,
     statistics: OptimizedObjectArtifactStatistics,
 ) {
-    bytes.extend_from_slice(&statistics.text_bytes.to_le_bytes());
-    bytes.extend_from_slice(&statistics.object_container_bytes.to_le_bytes());
-    bytes.extend_from_slice(&statistics.function_symbols.to_le_bytes());
-    bytes.extend_from_slice(&statistics.relocation_records.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, statistics.text_bytes.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, statistics.object_container_bytes.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, statistics.function_symbols.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, statistics.relocation_records.to_le_bytes());
 }
 
 pub(super) fn decode_statistics(
@@ -103,7 +103,7 @@ pub(super) fn decode_statistics(
 }
 
 pub(super) fn encode_psi(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
-    bytes.extend_from_slice(&identity.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, identity.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(identity.program_fingerprint.as_bytes());
 }
 
