@@ -133,5 +133,7 @@ pub use stages::{
     SelectedLoweringOptimizationCompletionIdentity,
 };
 
+pub(crate) use bundle::IdentityBundleDecodeError;
+pub(crate) use rules_and_facts::DuplicateOptimizationRuleIdentity;
 #[cfg(test)]
 mod tests;
