@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "1", "load1_end": 2.39, "load1_start": 2.08, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "1", "load1_end": 1.39, "load1_start": 1.34, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/atomics/runtime_atomic_bitwise_widths_exit built 5472ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/atomics/shared_receiver_atomic_store built 5511ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/borrows/mut_loan_local_write_through_exit built 4818ms exit:9 interpreter-exit:9 interpreter:agrees @944fb1232f17
@@ -24,6 +24,7 @@ pass/float/runtime_float_digit_separators_exit built 162056ms exit:0 interpreter
 pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interpreter-exit:92 interpreter:agrees @f64782b89114+wt
 pass/generics/runtime_grouped_decimal_const_argument_exit built 6818ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit built 6694ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189
+pass/layouts/runtime_selected_scalar_reference_codec_exit built 5077ms exit:0 interpreter-exit:0 interpreter:agrees @fd229197e710
 pass/modules/runtime_foreign_generic_scoped_constant_exit built 1465ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @743851d348c6+wt
 pass/operators/crash_routes built 662ms exit:0 interpreter-exit:0 interpreter:agrees @18e5a662881c+wt
 pass/optimizer/address_offset_selection_exit built 3256ms exit:0 interpreter-exit:0 interpreter:agrees @eca6cafd32e7
