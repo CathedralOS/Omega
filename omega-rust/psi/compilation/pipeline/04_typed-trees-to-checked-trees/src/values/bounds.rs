@@ -185,8 +185,23 @@ fn integer(
                 },
             )
         }
-        Expression::IntegerBitwiseNot { .. }
-        | Expression::Boolean(_)
+        Expression::IntegerBitwiseNot {
+            primitive_type,
+            operand,
+        } => {
+            let (_, bounds) = integer(operand, source)?;
+            let carrier = crate::values::integer_type(*primitive_type)?;
+            let low = crate::values::admitted_integer(carrier, &bounds.minimum)?;
+            let high = crate::values::admitted_integer(carrier, &bounds.maximum)?;
+            (
+                *primitive_type,
+                IntegerRange {
+                    minimum: crate::values::integer_magnitude(carrier.bitwise_not(high)?),
+                    maximum: crate::values::integer_magnitude(carrier.bitwise_not(low)?),
+                },
+            )
+        }
+        Expression::Boolean(_)
         | Expression::IeeeFloatLiteral { .. }
         | Expression::ImplementationSelection { .. } => return None,
     };
@@ -200,6 +215,27 @@ fn binary(
     right: IntegerRange,
 ) -> Option<IntegerRange> {
     use CheckedIntegerBinaryKind as Kind;
+    if matches!(kind, Kind::BitwiseAnd | Kind::BitwiseOr | Kind::BitwiseXor) {
+        let carrier = crate::values::integer_type(primitive)?;
+        let left = (
+            crate::values::admitted_integer(carrier, &left.minimum)?,
+            crate::values::admitted_integer(carrier, &left.maximum)?,
+        );
+        let right = (
+            crate::values::admitted_integer(carrier, &right.minimum)?,
+            crate::values::admitted_integer(carrier, &right.maximum)?,
+        );
+        let (low, high) = match kind {
+            Kind::BitwiseAnd => carrier.bitwise_and_bounds(left, right),
+            Kind::BitwiseOr => carrier.bitwise_or_bounds(left, right),
+            Kind::BitwiseXor => carrier.bitwise_xor_bounds(left, right),
+            _ => None,
+        }?;
+        return Some(IntegerRange {
+            minimum: crate::values::integer_magnitude(low),
+            maximum: crate::values::integer_magnitude(high),
+        });
+    }
     if matches!(
         kind,
         Kind::ExactRemainder | Kind::WrappingRemainder | Kind::SaturatingRemainder

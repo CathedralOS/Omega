@@ -20,24 +20,18 @@ pub(super) fn binary(
     let Some(carrier) = Carrier::new(primitive) else {
         return Interval::UNBOUNDED;
     };
-    let left = carrier.known_bits(left, left_known);
-    let right = carrier.known_bits(right, right_known);
-    let result = match operator {
-        BinaryOperator::BitwiseAnd => KnownBits {
-            ones: left.ones & right.ones,
-            zeros: left.zeros | right.zeros,
-        },
-        BinaryOperator::BitwiseOr => KnownBits {
-            ones: left.ones | right.ones,
-            zeros: left.zeros & right.zeros,
-        },
-        BinaryOperator::BitwiseXor => KnownBits {
-            ones: (left.ones & right.zeros) | (left.zeros & right.ones),
-            zeros: (left.ones & right.ones) | (left.zeros & right.zeros),
-        },
-        _ => return primitive_range(primitive).unwrap_or(Interval::UNBOUNDED),
+    let left = carrier.value_bounds(left, left_known);
+    let right = carrier.value_bounds(right, right_known);
+    let bounds = match operator {
+        BinaryOperator::BitwiseAnd => carrier.integer.bitwise_and_bounds(left, right),
+        BinaryOperator::BitwiseOr => carrier.integer.bitwise_or_bounds(left, right),
+        BinaryOperator::BitwiseXor => carrier.integer.bitwise_xor_bounds(left, right),
+        _ => None,
     };
-    carrier.hull(result)
+    bounds.map_or_else(
+        || primitive_range(primitive).unwrap_or(Interval::UNBOUNDED),
+        |(low, high)| project(value_number(low), value_number(high)),
+    )
 }
 
 /// A completed right shift uses the operand carrier's finite bounds, including
@@ -154,16 +148,8 @@ pub(super) fn complement_unsigned_value(primitive: PrimitiveType, value: u64) ->
     u64::try_from(value).ok()
 }
 
-#[derive(Clone, Copy)]
-struct KnownBits {
-    ones: u128,
-    zeros: u128,
-}
-
 struct Carrier {
     integer: IntegerType,
-    mask: u128,
-    sign_bit: u128,
 }
 
 impl Carrier {
@@ -175,13 +161,7 @@ impl Carrier {
             IntegerSign::Unsigned
         };
         let integer = IntegerType::new(sign, width).ok()?;
-        Some(Self {
-            integer,
-            // Source integer carriers are at most 64 bits, so these shifts
-            // remain strictly within the temporary u128 bit-pattern window.
-            mask: (1_u128 << width) - 1,
-            sign_bit: 1_u128 << (width - 1),
-        })
+        Some(Self { integer })
     }
 
     fn bounds(&self, interval: Interval) -> (i128, i128) {
@@ -199,59 +179,15 @@ impl Carrier {
         }
     }
 
-    fn known_bits(&self, interval: Interval, known: Option<u64>) -> KnownBits {
+    fn value_bounds(&self, interval: Interval, known: Option<u64>) -> (IntegerValue, IntegerValue) {
         if self.integer.sign() == IntegerSign::Unsigned
-            && let Some(value) = known
+            && let Some(value) = known.map(|value| IntegerValue::Unsigned(u128::from(value)))
+            && self.integer.admits(value)
         {
-            let bits = u128::from(value);
-            return if self.integer.admits(IntegerValue::Unsigned(bits)) {
-                KnownBits {
-                    ones: bits,
-                    zeros: !bits & self.mask,
-                }
-            } else {
-                KnownBits { ones: 0, zeros: 0 }
-            };
+            return (value, value);
         }
         let (low, high) = self.bounds(interval);
-        if low < 0 && high >= 0 {
-            return KnownBits { ones: 0, zeros: 0 };
-        }
-        let low = (low as u128) & self.mask;
-        let high = (high as u128) & self.mask;
-        let difference = low ^ high;
-        let variable = if difference == 0 {
-            0
-        } else {
-            (1_u128 << (u128::BITS - difference.leading_zeros())) - 1
-        };
-        let fixed = self.mask & !variable;
-        KnownBits {
-            ones: low & fixed,
-            zeros: !low & fixed,
-        }
-    }
-
-    fn hull(&self, bits: KnownBits) -> Interval {
-        let mut low = bits.ones;
-        let mut high = self.mask & !bits.zeros;
-        if self.integer.sign() == IntegerSign::Signed
-            && (bits.ones | bits.zeros) & self.sign_bit == 0
-        {
-            // An unknown sign bit gives the most negative admissible pattern
-            // as the floor and the greatest positive pattern as the ceiling.
-            low |= self.sign_bit;
-            high &= !self.sign_bit;
-        }
-        project(self.number(low), self.number(high))
-    }
-
-    fn number(&self, bits: u128) -> i128 {
-        if self.integer.sign() == IntegerSign::Signed && bits & self.sign_bit != 0 {
-            value_number(self.integer.minimum_value()) + (bits & !self.sign_bit) as i128
-        } else {
-            bits as i128
-        }
+        (self.value(low), self.value(high))
     }
 
     fn value(&self, number: i128) -> IntegerValue {

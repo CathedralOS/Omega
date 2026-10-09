@@ -4,6 +4,7 @@
 use crate::ValueId;
 use crate::proposition::PropositionError;
 use std::cmp::Ordering;
+mod bit_ranges;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IntegerSign {
