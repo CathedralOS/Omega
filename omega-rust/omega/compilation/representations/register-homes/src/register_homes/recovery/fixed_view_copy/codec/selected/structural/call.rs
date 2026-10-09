@@ -157,16 +157,16 @@ pub(super) fn decode_call(
             tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
         });
     }
-    let result_placement = match cursor.byte()? {
-        0 => None,
-        1 => Some(decode_placement(cursor)?),
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
-    let structural_result = match cursor.byte()? {
-        0 => None,
-        1 => Some(super::read_result::decode_result(cursor)?),
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
+    let result_placement = crate::cursor::optional(
+        cursor,
+        |c| Ok(decode_placement(c)?),
+        FixedViewCopyDecodeError::UnknownOption,
+    )?;
+    let structural_result = crate::cursor::optional(
+        cursor,
+        |c| Ok(super::read_result::decode_result(c)?),
+        FixedViewCopyDecodeError::UnknownOption,
+    )?;
     let count = cursor.length()?;
     let mut descriptor_origins = Vec::new();
     for _ in 0..count {

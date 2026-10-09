@@ -160,11 +160,11 @@ pub(super) fn decode_register(
         scalar_type,
         class,
         origin,
-        definition_site: match cursor.byte()? {
-            0 => None,
-            1 => Some(decode_definition_site(cursor)?),
-            tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-        },
+        definition_site: crate::cursor::optional(
+            cursor,
+            |c| Ok(decode_definition_site(c)?),
+            FixedViewCopyDecodeError::UnknownOption,
+        )?,
         entry_fixed_view: decode_option_u16(cursor)?.map(RegisterViewId),
     })
 }

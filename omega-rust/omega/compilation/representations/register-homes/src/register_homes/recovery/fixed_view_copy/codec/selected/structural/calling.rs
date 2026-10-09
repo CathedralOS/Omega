@@ -64,11 +64,11 @@ pub(super) fn decode_call_plan(
     for _ in 0..parameter_count {
         parameters.push(decode_placement(cursor)?);
     }
-    let result = match cursor.byte()? {
-        0 => None,
-        1 => Some(decode_placement(cursor)?),
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
+    let result = crate::cursor::optional(
+        cursor,
+        |c| Ok(decode_placement(c)?),
+        FixedViewCopyDecodeError::UnknownOption,
+    )?;
     let callback_count = cursor.length()?;
     let mut callback_materializations = Vec::with_capacity(callback_count.min(cursor.remaining()));
     for _ in 0..callback_count {

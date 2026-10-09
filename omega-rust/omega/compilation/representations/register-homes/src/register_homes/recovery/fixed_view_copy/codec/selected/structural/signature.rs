@@ -76,37 +76,39 @@ pub(super) fn decode_signature(
     for _ in 0..count {
         parameters.push(decode_parameter(cursor, true)?);
     }
-    let result = match cursor.byte()? {
-        0 => None,
-        1 => Some(terminal_psi::StructuralResultDeclaration {
-            place: decode_id(cursor, PlaceId::new)?,
-            structural_type: decode_id(cursor, StructuralTypeId::new)?,
-            multiplicity: decode_multiplicity(cursor)?,
-            qualifications: decode_ids(cursor, StructuralDomainId::new)?,
-            projected_qualifications: super::projected_qualifications::decode_projected(
-                cursor, true,
-            )?,
-            reference_sources: {
-                let count = cursor.length()?;
-                let mut sources = Vec::new();
-                for _ in 0..count {
-                    sources.push(terminal_psi::StructuralReferenceResultSource {
-                        path: decode_path(cursor)?,
-                        sources: {
-                            let count = cursor.length()?;
-                            let mut candidates = Vec::new();
-                            for _ in 0..count {
-                                candidates.push(decode_semantic_argument(cursor)?);
-                            }
-                            candidates
-                        },
-                    });
-                }
-                sources
-            },
-        }),
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
+    let result = crate::cursor::optional(
+        cursor,
+        |c| {
+            Ok(terminal_psi::StructuralResultDeclaration {
+                place: decode_id(c, PlaceId::new)?,
+                structural_type: decode_id(c, StructuralTypeId::new)?,
+                multiplicity: decode_multiplicity(c)?,
+                qualifications: decode_ids(c, StructuralDomainId::new)?,
+                projected_qualifications: super::projected_qualifications::decode_projected(
+                    c, true,
+                )?,
+                reference_sources: {
+                    let count = c.length()?;
+                    let mut sources = Vec::new();
+                    for _ in 0..count {
+                        sources.push(terminal_psi::StructuralReferenceResultSource {
+                            path: decode_path(c)?,
+                            sources: {
+                                let count = c.length()?;
+                                let mut candidates = Vec::new();
+                                for _ in 0..count {
+                                    candidates.push(decode_semantic_argument(c)?);
+                                }
+                                candidates
+                            },
+                        });
+                    }
+                    sources
+                },
+            })
+        },
+        FixedViewCopyDecodeError::UnknownOption,
+    )?;
     let count = cursor.length()?;
     let mut structural_places = Vec::new();
     for _ in 0..count {

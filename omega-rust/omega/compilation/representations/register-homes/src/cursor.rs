@@ -69,3 +69,20 @@ impl<'a> Cursor<'a> {
         usize::try_from(value).map_err(|_| TakeError::LengthOverflow)
     }
 }
+
+/// Tag-prefixed optional field: `0 => None`, `1 => Some(read(cursor))`,
+/// any other tag maps through `unknown_tag`.
+pub(crate) fn optional<T, E>(
+    cursor: &mut Cursor<'_>,
+    read: impl FnOnce(&mut Cursor<'_>) -> Result<T, E>,
+    unknown_tag: impl FnOnce(u8) -> E,
+) -> Result<Option<T>, E>
+where
+    E: From<Truncated>,
+{
+    match cursor.byte()? {
+        0 => Ok(None),
+        1 => Ok(Some(read(cursor)?)),
+        tag => Err(unknown_tag(tag)),
+    }
+}

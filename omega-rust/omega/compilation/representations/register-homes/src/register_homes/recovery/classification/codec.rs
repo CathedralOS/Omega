@@ -77,13 +77,11 @@ impl RecoveryClassificationPlan {
         let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
         for _ in 0..function_count {
             let machine = machine(&mut cursor)?;
-            let classification = match cursor.byte()? {
-                0 => None,
-                1 => Some(classification_row(&mut cursor)?),
-                tag => {
-                    return Err(RecoveryClassificationDecodeError::UnknownOption(tag));
-                }
-            };
+            let classification = crate::cursor::optional(
+                &mut cursor,
+                |c| Ok(classification_row(&mut *c)?),
+                RecoveryClassificationDecodeError::UnknownOption,
+            )?;
             functions.push(FunctionRecoveryClassification {
                 machine,
                 classification,

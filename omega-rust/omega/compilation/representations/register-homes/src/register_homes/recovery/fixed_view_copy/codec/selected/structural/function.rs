@@ -279,11 +279,11 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
     cursor: &mut Cursor<'_>,
     function: &mut SelectedFunction,
 ) -> Result<(), FixedViewCopyDecodeError> {
-    function.structural = match cursor.byte()? {
-        0 => None,
-        1 => Some(decode_signature(cursor)?),
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
+    function.structural = crate::cursor::optional(
+        cursor,
+        |c| Ok(decode_signature(c)?),
+        FixedViewCopyDecodeError::UnknownOption,
+    )?;
     let local_count = cursor.length()?;
     for _ in 0..local_count {
         function

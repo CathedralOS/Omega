@@ -279,16 +279,16 @@ fn decode_completion_claim_source(
     cursor: &mut Cursor<'_>,
 ) -> Result<CompletionClaimSource, FixedViewCopyDecodeError> {
     let claim = decode_id(cursor, ClaimId::new)?;
-    let entry = match cursor.byte()? {
-        0 => None,
-        1 => Some(decode_entry_claim(cursor)?),
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
-    let content = match cursor.byte()? {
-        0 => None,
-        1 => Some(decode_content_entry_claim(cursor)?),
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
+    let entry = crate::cursor::optional(
+        cursor,
+        |c| Ok(decode_entry_claim(c)?),
+        FixedViewCopyDecodeError::UnknownOption,
+    )?;
+    let content = crate::cursor::optional(
+        cursor,
+        |c| Ok(decode_content_entry_claim(c)?),
+        FixedViewCopyDecodeError::UnknownOption,
+    )?;
     Ok(CompletionClaimSource {
         claim,
         entry,

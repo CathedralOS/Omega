@@ -206,13 +206,11 @@ fn decode_native_callback_argument(
         placement: decode_placement(cursor)?,
     };
     let destination = decode_native_place(cursor)?;
-    let field_byte_offset = match cursor.byte()? {
-        0 => None,
-        1 => Some(
-            usize::try_from(cursor.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?,
-        ),
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
+    let field_byte_offset = crate::cursor::optional(
+        cursor,
+        |c| Ok(usize::try_from(c.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?),
+        FixedViewCopyDecodeError::UnknownOption,
+    )?;
     let registrar_boundary_entry_plan = BoundaryEntryPlan {
         call: decode_call_plan(cursor)?,
         state: decode_state_plan(cursor)?,
