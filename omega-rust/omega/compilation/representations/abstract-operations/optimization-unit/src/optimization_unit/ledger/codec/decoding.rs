@@ -7,11 +7,10 @@ use super::super::{
     PsiProvenance, PsiRealizationSite, PsiTransformationLedger, PsiTransformationLedgerDecodeError,
     PsiTransformationRecord, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
 };
-use crate::cursor::Cursor;
-use super::LEDGER_MAGIC;
+use super::{LEDGER_MAGIC, LedgerCursor};
 impl PsiTransformationLedger {
     pub fn decode(encoded: &[u8]) -> Result<Self, PsiTransformationLedgerDecodeError> {
-        let mut cursor = Cursor::new(encoded);
+        let mut cursor = LedgerCursor::new(encoded);
         if cursor.take(LEDGER_MAGIC.len())? != LEDGER_MAGIC {
             return Err(PsiTransformationLedgerDecodeError::WrongMagic);
         }
@@ -35,7 +34,7 @@ impl PsiTransformationLedger {
             let pruned_count = cursor.length()?;
             let mut pruned_machines = Vec::with_capacity(pruned_count.min(cursor.remaining()));
             for _ in 0..pruned_count {
-                let machine = semantic_id(u64::from_le_bytes(cursor.array()?), MachineId::new)?;
+                let machine = semantic_id(cursor.u64()?, MachineId::new)?;
                 let source_ordinal = cursor.u32()?;
                 pruned_machines.push(PrunedMachineCustody {
                     machine,
@@ -67,7 +66,7 @@ impl PsiTransformationLedger {
                 for _ in 0..fuel_count {
                     fuel.push(FuelSettlement {
                         site: decode_provenance(&mut cursor)?,
-                        units: u64::from_le_bytes(cursor.array()?),
+                        units: cursor.u64()?,
                     });
                 }
                 provenance.push(ProvenanceRewrite {
@@ -105,34 +104,34 @@ impl PsiTransformationLedger {
 }
 
 fn decode_realization_site(
-    cursor: &mut Cursor<'_>,
+    cursor: &mut LedgerCursor<'_>,
 ) -> Result<PsiRealizationSite, PsiTransformationLedgerDecodeError> {
     let tag = cursor.byte()?;
-    let machine = semantic_id(u64::from_le_bytes(cursor.array()?), MachineId::new)?;
+    let machine = semantic_id(cursor.u64()?, MachineId::new)?;
     match tag {
         1 => Ok(PsiRealizationSite::Node(NodeLocation {
             machine,
-            block: semantic_id(u64::from_le_bytes(cursor.array()?), BlockId::new)?,
+            block: semantic_id(cursor.u64()?, BlockId::new)?,
             node: cursor.u32()?,
         })),
         2 => Ok(PsiRealizationSite::Edge {
             machine,
-            edge: semantic_id(u64::from_le_bytes(cursor.array()?), EdgeId::new)?,
+            edge: semantic_id(cursor.u64()?, EdgeId::new)?,
         }),
         tag => Err(PsiTransformationLedgerDecodeError::UnknownRealizationSiteTag(tag)),
     }
 }
 
 fn decode_provenance(
-    cursor: &mut Cursor<'_>,
+    cursor: &mut LedgerCursor<'_>,
 ) -> Result<PsiProvenance, PsiTransformationLedgerDecodeError> {
     match cursor.byte()? {
         1 => Ok(PsiProvenance::Operation(semantic_id(
-            u64::from_le_bytes(cursor.array()?),
+            cursor.u64()?,
             OperationId::new,
         )?)),
         2 => Ok(PsiProvenance::Edge(semantic_id(
-            u64::from_le_bytes(cursor.array()?),
+            cursor.u64()?,
             EdgeId::new,
         )?)),
         tag => Err(PsiTransformationLedgerDecodeError::UnknownProvenanceTag(
