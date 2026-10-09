@@ -409,15 +409,17 @@ borrow, mutation, or transfer authority.
 ## Status
 
 Psi checking accepts the Exact, Wrapping, Saturating, and Trapping policies
-above; Terminal production covers part of the surface. Landed legs include
-boolean-to-integer conversion, unsigned saturating narrowing casts, wrapping
-casts for every fixed-integer pair, and Trapping arithmetic, shifts, and
-conversions in planned scalar values, which lower to `TrappingInteger`
-operations that are independently verified and interpreted with their
-operation-level `Trap` sites. Native realization checks each such operation's
-predicate in place and stops through the same architectural trap as a `Crash`
-terminator, on x86-64 and AArch64 at every fixed 8/16/32/64-bit carrier.
-Signed or mixed-sign saturating conversions still refuse at the check stage.
-The leg is tracked under `ARITHMETIC-POLICY-REALIZATION` on
-[TASKS.md](../../../TASKS.md); `integer_policy_realization.rs` and
-`trapping_operation_sites.rs` pin the realized split.
+above; Terminal production covers part of the surface. Integer `as` coercions
+preserve denotation under every target policy and require representability.
+The named machines of `core/numeric_conversion.omg` provide explicit wrapping,
+saturating, and trapping conversions across signed and unsigned fixed carriers.
+Boolean-to-integer conversion and Trapping arithmetic and shifts also lower
+through Terminal Psi. Trapping integer operations retain their operation-level
+`Trap` sites; native realization checks each predicate in place and stops
+through the same architectural trap as a `Crash` terminator on x86-64 and
+AArch64 at every fixed 8/16/32/64-bit carrier.
+
+Remaining host qualification and float crash-ceiling work is tracked under
+`ARITHMETIC-POLICY-REALIZATION` on [TASKS.md](../../../TASKS.md).
+The `core/numeric_*` and `core/qualified_integer_cast_*` corpus fixtures pin
+named conversion behavior and exact coercion formation separately.
