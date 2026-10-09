@@ -16,8 +16,8 @@ pub(super) use arguments::{
     evaluate_const_argument_expression, generic_const_integer_types,
 };
 pub(super) use domains::{
-    canonicalize_closed_domain_indices, const_expression_contains_name, domain_index_parameters,
-    integer_literal_value, qualified_const_name,
+    canonicalize_closed_domain_indices, domain_index_parameters, integer_literal_value,
+    qualified_const_name,
 };
 pub(crate) use fact_values::{
     ConstFactValue, ConstScalarSpelling, ConstScalarValue, evaluate_const_fact_binary,

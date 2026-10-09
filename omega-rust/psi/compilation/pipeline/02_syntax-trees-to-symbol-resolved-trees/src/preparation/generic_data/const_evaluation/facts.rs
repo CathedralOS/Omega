@@ -1105,7 +1105,7 @@ fn evaluate_domain_index_argument(
             // Open arguments (enclosing binders, names awaiting resolved
             // selection, or operators needing declaration authority) keep
             // their authored shape for the downstream pass.
-            if crate::preparation::generic_data::const_expression_contains_name(syntax, *expression)
+            if syntax.const_expression_contains_name(*expression)
                 || super::anonymous::requires_const_operator_selection(syntax, *expression)
             {
                 return Ok(None);

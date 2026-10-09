@@ -235,7 +235,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 let (expression, rest) =
                     parse_const_integer_expression_handle(syntax_trees, input)?;
                 if const_expression_requires_semantic_admission(syntax_trees, expression)
-                    || const_expression_contains_name(syntax_trees, expression)
+                    || syntax_trees.const_expression_contains_name(expression)
                 {
                     (
                         syntax_trees
@@ -409,21 +409,6 @@ fn const_expression_requires_semantic_admission(
             | BinaryOperator::BitwiseXor
     ) || const_expression_requires_semantic_admission(syntax_trees, binary.left)
         || const_expression_requires_semantic_admission(syntax_trees, binary.right)
-}
-
-fn const_expression_contains_name(
-    syntax_trees: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
-) -> bool {
-    match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Name(_) => true,
-        ExpressionNode::Binary(binary) => {
-            const_expression_contains_name(syntax_trees, binary.left)
-                || const_expression_contains_name(syntax_trees, binary.right)
-        }
-        ExpressionNode::Unary(unary) => const_expression_contains_name(syntax_trees, unary.operand),
-        _ => false,
-    }
 }
 
 /// Fold the first richer const-argument slice before generic-instance
@@ -621,7 +606,7 @@ pub(crate) fn parse_domain_argument_handles<'tokens, 'source>(
                     .type_references
                     .insert_named(Identifier::new(name, source_span))
             }
-            _ if const_expression_contains_name(syntax_trees, expression)
+            _ if syntax_trees.const_expression_contains_name(expression)
                 || const_expression_requires_semantic_admission(syntax_trees, expression) =>
             {
                 syntax_trees

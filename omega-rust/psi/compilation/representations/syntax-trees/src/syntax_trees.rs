@@ -19,7 +19,7 @@ mod tests;
 pub mod type_system;
 pub mod values;
 
-use crate::expression::ExpressionTable;
+use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::item::{
     Item, ItemHandle, ItemTable, Machine, MathematicalDefinition, MathematicalDefinitionHandle,
     TraitDefinition,
@@ -74,6 +74,20 @@ impl SyntaxTrees {
         let handle = self.insert_item(item);
         self.roots.items.push(handle);
         handle
+    }
+
+    /// Whether `expression` reaches a name leaf anywhere in its tree: the
+    /// const-eval producers ask this before attempting closed-integer folding.
+    pub fn const_expression_contains_name(&self, expression: ExpressionHandle) -> bool {
+        match self.expressions.expression(expression) {
+            ExpressionNode::Name(_) => true,
+            ExpressionNode::Binary(binary) => {
+                self.const_expression_contains_name(binary.left)
+                    || self.const_expression_contains_name(binary.right)
+            }
+            ExpressionNode::Unary(unary) => self.const_expression_contains_name(unary.operand),
+            _ => false,
+        }
     }
 
     /// Record one parsed top-level `let`/`boundary let` declaration. It is a
