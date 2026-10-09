@@ -57,17 +57,17 @@ pub fn encode_value_definition_site_identity(bytes: &mut Vec<u8>, site: ValueDef
     match site {
         ValueDefinitionSite::FunctionParameter(position) => {
             bytes.push(0);
-            bytes.extend_from_slice(&position.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
         }
         ValueDefinitionSite::BlockParameter { block, position } => {
             bytes.push(1);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&position.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
         }
         ValueDefinitionSite::Node { block, node } => {
             bytes.push(2);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&node.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, node.to_le_bytes());
         }
     }
 }

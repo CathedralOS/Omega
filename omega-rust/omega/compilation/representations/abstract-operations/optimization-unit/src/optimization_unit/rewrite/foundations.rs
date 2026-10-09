@@ -94,7 +94,7 @@ impl ProvenanceRewrite {
 
 /// Canonical byte framing for one rewrite location inside a candidate identity.
 pub fn encode_location(canonical: &mut Vec<u8>, location: NodeLocation) {
-    canonical.extend_from_slice(&location.machine.get().to_le_bytes());
-    canonical.extend_from_slice(&location.block.get().to_le_bytes());
-    canonical.extend_from_slice(&location.node.to_le_bytes());
+    crate::codec_bytes::push_encoded(canonical, location.machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(canonical, location.block.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(canonical, location.node.to_le_bytes());
 }

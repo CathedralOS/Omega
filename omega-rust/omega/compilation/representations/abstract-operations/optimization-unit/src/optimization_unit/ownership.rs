@@ -93,8 +93,8 @@ pub(crate) fn ownership_frontier_fact_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v1\0");
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
-    canonical.extend_from_slice(&psi.vocabulary_marker.get().to_le_bytes());
-    canonical.extend_from_slice(&machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
     encode_ownership_frontier_site(&mut canonical, site);
     encode_frontier_snapshot_identity(&mut canonical, snapshot);
     OwnershipFrontierFactIdentity::from_canonical_bytes(&canonical)
@@ -109,25 +109,25 @@ pub(crate) fn encode_ownership_frontier_site(bytes: &mut Vec<u8>, site: Ownershi
         OwnershipFrontierSite::EdgeExit(id) => (5, id.get()),
     };
     bytes.push(tag);
-    bytes.extend_from_slice(&identity.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
 }
 
 fn encode_frontier_snapshot_identity(bytes: &mut Vec<u8>, snapshot: &OwnershipFrontierSnapshot) {
     encode_frontier_len(bytes, snapshot.claims.len());
     for claim in &snapshot.claims {
-        bytes.extend_from_slice(&claim.claim.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
         encode_frontier_optional_id(bytes, claim.input.map(PlaceId::get));
         encode_frontier_path(bytes, &claim.path);
         encode_frontier_multiplicity(bytes, claim.multiplicity);
     }
     encode_frontier_len(bytes, snapshot.owned_places.len());
     for place in &snapshot.owned_places {
-        bytes.extend_from_slice(&place.place.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, place.place.get().to_le_bytes());
         encode_frontier_multiplicity(bytes, Some(place.multiplicity));
     }
     encode_frontier_len(bytes, snapshot.partial_custody.len());
     for partial in &snapshot.partial_custody {
-        bytes.extend_from_slice(&partial.place.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, partial.place.get().to_le_bytes());
         encode_frontier_len(bytes, partial.moved_paths.len());
         for path in &partial.moved_paths {
             encode_frontier_path(bytes, path);
@@ -146,7 +146,7 @@ fn encode_frontier_len(bytes: &mut Vec<u8>, len: usize) {
 fn encode_frontier_optional_id(bytes: &mut Vec<u8>, id: Option<u64>) {
     bytes.push(u8::from(id.is_some()));
     if let Some(id) = id {
-        bytes.extend_from_slice(&id.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, id.to_le_bytes());
     }
 }
 
@@ -156,7 +156,7 @@ fn encode_frontier_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
         match segment {
             StructuralPathSegment::Case(case) => {
                 bytes.push(7);
-                bytes.extend_from_slice(&case.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
             }
             StructuralPathSegment::Field(identity) => {
                 bytes.push(1);
@@ -165,18 +165,18 @@ fn encode_frontier_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
             }
             StructuralPathSegment::FixedIndex(index) => {
                 bytes.push(2);
-                bytes.extend_from_slice(&index.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.to_le_bytes());
             }
             StructuralPathSegment::Referent => bytes.push(3),
             StructuralPathSegment::FixedByteRange { start, end } => {
                 bytes.push(4);
-                bytes.extend_from_slice(&start.to_le_bytes());
-                bytes.extend_from_slice(&end.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, start.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, end.to_le_bytes());
             }
             StructuralPathSegment::RuntimeIndex { index, obligation } => {
                 bytes.push(5);
-                bytes.extend_from_slice(&index.get().to_le_bytes());
-                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             }
         }
     }

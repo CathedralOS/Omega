@@ -154,11 +154,11 @@ pub(crate) fn accepted_obligation_fact_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-accepted-obligation-fact.v1\0");
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
-    canonical.extend_from_slice(&psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, psi.vocabulary_marker.get().to_le_bytes());
     canonical.extend_from_slice(&proof_bundle_fingerprint);
-    canonical.extend_from_slice(&machine.get().to_le_bytes());
-    canonical.extend_from_slice(&operation.get().to_le_bytes());
-    canonical.extend_from_slice(&obligation.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, obligation.get().to_le_bytes());
     canonical.extend_from_slice(
         &u64::try_from(proposition.len())
             .expect("canonical proposition length fits u64")
@@ -237,10 +237,13 @@ pub(crate) fn proof_question_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-proof-question.v2\0");
     canonical.extend_from_slice(terminal_psi.program_fingerprint.as_bytes());
-    canonical.extend_from_slice(&terminal_psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut canonical,
+        terminal_psi.vocabulary_marker.get().to_le_bytes(),
+    );
     canonical.extend_from_slice(&proof_bundle_fingerprint);
     encode_proof_question_owner(&mut canonical, owner);
-    canonical.extend_from_slice(&obligation.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, obligation.get().to_le_bytes());
     encode_proof_question_class(&mut canonical, class);
     encode_proof_question_bytes(&mut canonical, proposition);
     encode_proof_question_byte_rows(&mut canonical, requirements);
@@ -257,14 +260,14 @@ fn encode_proof_question_owner(bytes: &mut Vec<u8>, owner: ProofQuestionOwner) {
             edge,
         } => {
             bytes.push(5);
-            bytes.extend_from_slice(&machine.get().to_le_bytes());
-            bytes.extend_from_slice(&header.get().to_le_bytes());
-            bytes.extend_from_slice(&edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, header.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
         }
         ProofQuestionOwner::Operation { machine, operation } => {
             bytes.push(1);
-            bytes.extend_from_slice(&machine.get().to_le_bytes());
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
         }
         ProofQuestionOwner::CallRequires {
             machine,
@@ -272,9 +275,9 @@ fn encode_proof_question_owner(bytes: &mut Vec<u8>, owner: ProofQuestionOwner) {
             requirement_position,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&machine.get().to_le_bytes());
-            bytes.extend_from_slice(&operation.get().to_le_bytes());
-            bytes.extend_from_slice(&requirement_position.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, requirement_position.to_le_bytes());
         }
         ProofQuestionOwner::NominalCleanupRequires {
             machine,
@@ -283,10 +286,10 @@ fn encode_proof_question_owner(bytes: &mut Vec<u8>, owner: ProofQuestionOwner) {
             requirement_position,
         } => {
             bytes.push(3);
-            bytes.extend_from_slice(&machine.get().to_le_bytes());
-            bytes.extend_from_slice(&edge.get().to_le_bytes());
-            bytes.extend_from_slice(&cleanup_position.to_le_bytes());
-            bytes.extend_from_slice(&requirement_position.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, cleanup_position.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, requirement_position.to_le_bytes());
         }
         ProofQuestionOwner::ContractEnsures {
             machine,
@@ -294,9 +297,9 @@ fn encode_proof_question_owner(bytes: &mut Vec<u8>, owner: ProofQuestionOwner) {
             clause_position,
         } => {
             bytes.push(4);
-            bytes.extend_from_slice(&machine.get().to_le_bytes());
-            bytes.extend_from_slice(&contract.get().to_le_bytes());
-            bytes.extend_from_slice(&clause_position.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, contract.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, clause_position.to_le_bytes());
         }
     }
 }
@@ -310,13 +313,13 @@ fn encode_proof_question_class(bytes: &mut Vec<u8>, class: ProofQuestionClass) {
             authority_identity,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&site.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, site.get().to_le_bytes());
             bytes.push(match kind {
                 ProofQuestionAdmissionKind::ForeignBoundaryGuarantee => 1,
                 ProofQuestionAdmissionKind::ProviderFact => 2,
                 ProofQuestionAdmissionKind::CheckedAssemblyClaim => 3,
             });
-            bytes.extend_from_slice(&authority_identity.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, authority_identity.get().to_le_bytes());
         }
     }
 }

@@ -262,18 +262,18 @@ pub(crate) fn encode_integer_type(canonical: &mut Vec<u8>, scalar_type: IntegerT
         IntegerSign::Signed => 1,
         IntegerSign::Unsigned => 2,
     });
-    canonical.extend_from_slice(&scalar_type.bits().to_le_bytes());
+    crate::codec_bytes::push_encoded(canonical, scalar_type.bits().to_le_bytes());
 }
 
 pub(crate) fn encode_integer_value(canonical: &mut Vec<u8>, value: IntegerValue) {
     match value {
         IntegerValue::Signed(value) => {
             canonical.push(1);
-            canonical.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(canonical, value.to_le_bytes());
         }
         IntegerValue::Unsigned(value) => {
             canonical.push(2);
-            canonical.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(canonical, value.to_le_bytes());
         }
     }
 }

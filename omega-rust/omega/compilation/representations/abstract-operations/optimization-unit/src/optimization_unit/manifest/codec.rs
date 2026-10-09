@@ -15,7 +15,7 @@ impl PrePhysicalOptimizationManifest {
         let content = encode_manifest_artifact_content(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
         encoded.extend_from_slice(PRE_PHYSICAL_MANIFEST_MAGIC);
-        encoded.extend_from_slice(&PRE_PHYSICAL_MANIFEST_VERSION.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut encoded, PRE_PHYSICAL_MANIFEST_VERSION.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
         encoded.extend_from_slice(&content);
         encoded
@@ -150,7 +150,7 @@ fn encode_statistics(bytes: &mut Vec<u8>, statistics: OptimizationStructuralStat
         statistics.optimization_facts,
         statistics.ownership_frontier_facts,
     ] {
-        bytes.extend_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
     }
 }
 
@@ -195,9 +195,12 @@ fn encode_manifest_body_prefix(
     canonical.push(match manifest.physical_data {
         PhysicalOptimizationDataStatus::UnavailableBeforePhysicalRealization => 1,
     });
-    canonical.extend_from_slice(&manifest.psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        canonical,
+        manifest.psi.vocabulary_marker.get().to_le_bytes(),
+    );
     canonical.extend_from_slice(manifest.psi.program_fingerprint.as_bytes());
-    canonical.extend_from_slice(&manifest.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(canonical, manifest.fuel_schedule.marker().to_le_bytes());
     canonical.extend_from_slice(&manifest.initial_unit.bytes());
     canonical.extend_from_slice(&manifest.final_unit.bytes());
     canonical.extend_from_slice(&manifest.projection.bytes());

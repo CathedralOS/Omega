@@ -26,9 +26,9 @@ pub(in crate::optimization_unit::ledger) fn encode_ledger(
 ) -> Vec<u8> {
     let mut encoded = Vec::new();
     encoded.extend_from_slice(LEDGER_MAGIC);
-    encoded.extend_from_slice(&psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut encoded, psi.vocabulary_marker.get().to_le_bytes());
     encoded.extend_from_slice(psi.program_fingerprint.as_bytes());
-    encoded.extend_from_slice(&fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut encoded, fuel_schedule.marker().to_le_bytes());
     encoded.extend_from_slice(&input.bytes());
     encoded.extend_from_slice(&output.bytes());
     encode_len(&mut encoded, records.len());
@@ -40,8 +40,8 @@ pub(in crate::optimization_unit::ledger) fn encode_ledger(
         encoded.extend_from_slice(&record.output.bytes());
         encode_len(&mut encoded, record.pruned_machines.len());
         for custody in &record.pruned_machines {
-            encoded.extend_from_slice(&custody.machine.get().to_le_bytes());
-            encoded.extend_from_slice(&custody.source_ordinal.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut encoded, custody.machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut encoded, custody.source_ordinal.to_le_bytes());
         }
         encode_len(&mut encoded, record.provenance.len());
         for row in &record.provenance {
@@ -61,7 +61,7 @@ pub(in crate::optimization_unit::ledger) fn encode_ledger(
             encode_len(&mut encoded, row.fuel.len());
             for settlement in &row.fuel {
                 encode_provenance(&mut encoded, settlement.site);
-                encoded.extend_from_slice(&settlement.units.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut encoded, settlement.units.to_le_bytes());
             }
         }
     }
@@ -72,11 +72,11 @@ fn encode_provenance(encoded: &mut Vec<u8>, provenance: PsiProvenance) {
     match provenance {
         PsiProvenance::Operation(operation) => {
             encoded.push(1);
-            encoded.extend_from_slice(&operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(encoded, operation.get().to_le_bytes());
         }
         PsiProvenance::Edge(edge) => {
             encoded.push(2);
-            encoded.extend_from_slice(&edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(encoded, edge.get().to_le_bytes());
         }
     }
 }
@@ -85,14 +85,14 @@ fn encode_realization_site(encoded: &mut Vec<u8>, site: PsiRealizationSite) {
     match site {
         PsiRealizationSite::Node(location) => {
             encoded.push(1);
-            encoded.extend_from_slice(&location.machine.get().to_le_bytes());
-            encoded.extend_from_slice(&location.block.get().to_le_bytes());
-            encoded.extend_from_slice(&location.node.to_le_bytes());
+            crate::codec_bytes::push_encoded(encoded, location.machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(encoded, location.block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(encoded, location.node.to_le_bytes());
         }
         PsiRealizationSite::Edge { machine, edge } => {
             encoded.push(2);
-            encoded.extend_from_slice(&machine.get().to_le_bytes());
-            encoded.extend_from_slice(&edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(encoded, machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(encoded, edge.get().to_le_bytes());
         }
     }
 }

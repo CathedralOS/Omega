@@ -31,6 +31,7 @@ use terminal_psi::{
     TerminalRootServiceReach,
 };
 
+mod codec_bytes;
 mod cursor;
 mod optimization_unit;
 

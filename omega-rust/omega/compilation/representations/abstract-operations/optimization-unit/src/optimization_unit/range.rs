@@ -97,9 +97,9 @@ pub fn value_range_fact_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-value-range-fact.v1\0");
     canonical.extend_from_slice(&valid_in.revision.bytes());
-    canonical.extend_from_slice(&valid_in.machine.get().to_le_bytes());
-    canonical.extend_from_slice(&valid_in.value.get().to_le_bytes());
-    canonical.extend_from_slice(&value.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, valid_in.machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, valid_in.value.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, value.get().to_le_bytes());
     encode_integer_type(&mut canonical, scalar_type);
     encode_integer_value(&mut canonical, minimum);
     encode_integer_value(&mut canonical, maximum);
@@ -116,7 +116,7 @@ pub fn value_range_fact_identity(
             canonical.push(2);
             canonical.extend_from_slice(&accepted.bytes());
             canonical.extend_from_slice(&question.bytes());
-            canonical.extend_from_slice(&operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
         }
     }
     match valid_in.scope {
@@ -127,9 +127,9 @@ pub fn value_range_fact_identity(
             operation,
         } => {
             canonical.push(2);
-            canonical.extend_from_slice(&block.get().to_le_bytes());
-            canonical.extend_from_slice(&node.to_le_bytes());
-            canonical.extend_from_slice(&operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut canonical, block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut canonical, node.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
         }
     }
     canonical.extend_from_slice(
@@ -138,7 +138,7 @@ pub fn value_range_fact_identity(
             .to_le_bytes(),
     );
     for block in &valid_in.dominated_blocks {
-        canonical.extend_from_slice(&block.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, block.get().to_le_bytes());
     }
     Some(ValueRangeFactIdentity::from_canonical_bytes(&canonical))
 }

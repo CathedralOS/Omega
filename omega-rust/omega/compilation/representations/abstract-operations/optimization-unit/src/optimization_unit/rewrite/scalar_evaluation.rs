@@ -137,8 +137,8 @@ pub fn literal_scalar_constant_fact_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-literal-scalar-constant-fact.v1\0");
     canonical.extend_from_slice(&input.bytes());
-    canonical.extend_from_slice(&machine.get().to_le_bytes());
-    canonical.extend_from_slice(&definition.value.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, definition.value.get().to_le_bytes());
     encode_scalar_type(&mut canonical, definition.scalar_type);
     encode_definition_site(&mut canonical, definition.site);
     match constant {
@@ -151,7 +151,7 @@ pub fn literal_scalar_constant_fact_identity(
             encode_integer_value(&mut canonical, value);
         }
     }
-    canonical.extend_from_slice(&support.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, support.get().to_le_bytes());
     Some(ScalarConstantFactIdentity::from_canonical_bytes(&canonical))
 }
 

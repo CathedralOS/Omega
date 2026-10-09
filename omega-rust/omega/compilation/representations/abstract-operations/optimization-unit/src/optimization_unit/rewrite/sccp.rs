@@ -94,21 +94,21 @@ pub fn derived_sccp_scalar_constant_fact_identity(
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-derived-sccp-scalar-constant-fact.v1\0");
     canonical.extend_from_slice(&input.bytes());
-    canonical.extend_from_slice(&machine.get().to_le_bytes());
-    canonical.extend_from_slice(&definition.value.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut canonical, definition.value.get().to_le_bytes());
     encode_scalar_type(&mut canonical, definition.scalar_type);
     encode_definition_site(&mut canonical, definition.site);
     encode_scalar_constant_value(&mut canonical, constant);
     encode_len(&mut canonical, snapshot.blocks.len());
     for row in &snapshot.blocks {
-        canonical.extend_from_slice(&row.block.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, row.block.get().to_le_bytes());
         canonical.push(u8::from(row.executable));
     }
     encode_len(&mut canonical, snapshot.edges.len());
     for row in &snapshot.edges {
-        canonical.extend_from_slice(&row.source.get().to_le_bytes());
-        canonical.extend_from_slice(&row.edge.get().to_le_bytes());
-        canonical.extend_from_slice(&row.target.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, row.source.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, row.edge.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, row.target.get().to_le_bytes());
         canonical.push(match row.state {
             SccpEdgeState::Executable => 1,
             SccpEdgeState::Inexecutable => 2,
@@ -117,7 +117,7 @@ pub fn derived_sccp_scalar_constant_fact_identity(
     }
     encode_len(&mut canonical, snapshot.values.len());
     for row in &snapshot.values {
-        canonical.extend_from_slice(&row.definition.value.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, row.definition.value.get().to_le_bytes());
         encode_scalar_type(&mut canonical, row.definition.scalar_type);
         encode_definition_site(&mut canonical, row.definition.site);
         match row.state {

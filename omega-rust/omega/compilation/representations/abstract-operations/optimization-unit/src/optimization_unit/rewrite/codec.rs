@@ -42,18 +42,18 @@ pub(super) fn encode_candidate(
             bytes.push(2);
             encode_len(&mut bytes, machines.len());
             for machine in machines {
-                bytes.extend_from_slice(&machine.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, machine.get().to_le_bytes());
             }
         }
     }
     encode_len(&mut bytes, affected_blocks.len());
     for block in affected_blocks {
-        bytes.extend_from_slice(&block.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, block.get().to_le_bytes());
     }
     encode_len(&mut bytes, substitutions.len());
     for substitution in substitutions {
-        bytes.extend_from_slice(&substitution.from.get().to_le_bytes());
-        bytes.extend_from_slice(&substitution.to.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, substitution.from.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, substitution.to.get().to_le_bytes());
         encode_scalar_type(&mut bytes, substitution.scalar_type);
     }
     encode_len(&mut bytes, provenance.len());
@@ -66,11 +66,11 @@ pub(super) fn encode_candidate(
             match source {
                 PsiProvenance::Operation(operation) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&operation.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
                 }
                 PsiProvenance::Edge(edge) => {
                     bytes.push(2);
-                    bytes.extend_from_slice(&edge.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
                 }
             }
         }
@@ -79,14 +79,14 @@ pub(super) fn encode_candidate(
             match settlement.site {
                 PsiProvenance::Operation(operation) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&operation.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
                 }
                 PsiProvenance::Edge(edge) => {
                     bytes.push(2);
-                    bytes.extend_from_slice(&edge.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
                 }
             }
-            bytes.extend_from_slice(&settlement.units.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, settlement.units.to_le_bytes());
         }
     }
     match witness {
@@ -140,9 +140,9 @@ pub(super) fn encode_candidate(
             bytes.push(2);
             encode_len(&mut bytes, witness.incoming.len());
             for incoming in &witness.incoming {
-                bytes.extend_from_slice(&incoming.source.get().to_le_bytes());
-                bytes.extend_from_slice(&incoming.edge.get().to_le_bytes());
-                bytes.extend_from_slice(&incoming.argument.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, incoming.source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, incoming.edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, incoming.argument.get().to_le_bytes());
             }
         }
         PsiRewriteWitness::StructuralIdentity => bytes.push(3),
@@ -171,129 +171,171 @@ pub(super) fn encode_candidate(
             bytes.extend_from_slice(&constant_fact.bytes());
         }
     }
-    bytes.extend_from_slice(&predicted_cost_delta.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, predicted_cost_delta.to_le_bytes());
     match patch {
         PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) => {
             bytes.push(1);
             encode_location(&mut bytes, patch.location);
-            bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.source_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
             encode_integer_type(&mut bytes, patch.scalar_type);
             encode_integer_value(&mut bytes, patch.constant);
         }
         PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) => {
             bytes.push(2);
             encode_location(&mut bytes, patch.location);
-            bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.source_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
             bytes.push(u8::from(patch.constant));
         }
         PsiRewritePatch::RemoveRedundantBlockParameter(patch) => {
             bytes.push(3);
-            bytes.extend_from_slice(&patch.machine.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.block.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.position.to_le_bytes());
-            bytes.extend_from_slice(&patch.parameter.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.replacement.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.block.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.position.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.parameter.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.replacement.get().to_le_bytes());
             encode_scalar_type(&mut bytes, patch.scalar_type);
         }
         PsiRewritePatch::FoldConstantConditional(patch) => {
             bytes.push(4);
             encode_location(&mut bytes, patch.location);
-            bytes.extend_from_slice(&patch.condition.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.condition.get().to_le_bytes());
             bytes.push(u8::from(patch.constant));
-            bytes.extend_from_slice(&patch.selected_edge.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.rejected_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.selected_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.rejected_edge.get().to_le_bytes());
         }
         PsiRewritePatch::ThreadLinearEmptyBlock(patch) => {
             bytes.push(5);
             encode_location(&mut bytes, patch.predecessor);
-            bytes.extend_from_slice(&patch.incoming_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.incoming_edge.get().to_le_bytes());
             encode_location(&mut bytes, patch.empty);
-            bytes.extend_from_slice(&patch.outgoing_edge.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.target.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.outgoing_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.target.get().to_le_bytes());
         }
         PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch) => {
             bytes.push(6);
             encode_location(&mut bytes, patch.empty);
-            bytes.extend_from_slice(&patch.outgoing_edge.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.target.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.outgoing_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.target.get().to_le_bytes());
         }
         PsiRewritePatch::MergeAdjacentBlock(patch) => {
             bytes.push(7);
             encode_location(&mut bytes, patch.predecessor);
-            bytes.extend_from_slice(&patch.incoming_edge.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.target.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.incoming_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.target.get().to_le_bytes());
         }
         PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
             bytes.push(8);
             encode_len(&mut bytes, patch.machines.len());
             for custody in &patch.machines {
-                bytes.extend_from_slice(&custody.machine.get().to_le_bytes());
-                bytes.extend_from_slice(&custody.source_ordinal.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, custody.machine.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, custody.source_ordinal.to_le_bytes());
             }
         }
         PsiRewritePatch::FuseSharedTerminalJump(patch) => {
             bytes.push(9);
             encode_location(&mut bytes, patch.predecessor);
-            bytes.extend_from_slice(&patch.incoming_edge.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.target.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.incoming_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.target.get().to_le_bytes());
         }
         PsiRewritePatch::RemoveDeadScalarNode(patch) => {
             bytes.push(10);
             encode_location(&mut bytes, patch.location);
-            bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.source_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
             encode_scalar_type(&mut bytes, patch.scalar_type);
         }
         PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch) => {
             bytes.push(11);
             encode_location(&mut bytes, patch.leader);
             encode_location(&mut bytes, patch.redundant);
-            bytes.extend_from_slice(&patch.leader_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.redundant_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.leader_result.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.redundant_result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.leader_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.redundant_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(&mut bytes, patch.leader_result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.redundant_result.get().to_le_bytes(),
+            );
             encode_scalar_type(&mut bytes, patch.scalar_type);
         }
         PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) => {
             bytes.push(12);
             encode_location(&mut bytes, patch.leader);
             encode_location(&mut bytes, patch.redundant);
-            bytes.extend_from_slice(&patch.leader_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.redundant_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.leader_result.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.redundant_result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.leader_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.redundant_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(&mut bytes, patch.leader_result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.redundant_result.get().to_le_bytes(),
+            );
             encode_scalar_type(&mut bytes, patch.scalar_type);
         }
         PsiRewritePatch::MergeNonAdjacentBlock(patch) => {
             bytes.push(13);
             encode_location(&mut bytes, patch.predecessor);
-            bytes.extend_from_slice(&patch.incoming_edge.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.target.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.incoming_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.target.get().to_le_bytes());
         }
         PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) => {
             bytes.push(14);
             encode_location(&mut bytes, patch.redundant);
-            bytes.extend_from_slice(&patch.redundant_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.redundant_result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.redundant_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.redundant_result.get().to_le_bytes(),
+            );
             encode_scalar_type(&mut bytes, patch.scalar_type);
-            bytes.extend_from_slice(&patch.parameter_position.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.parameter_position.to_le_bytes());
             encode_len(&mut bytes, patch.incoming.len());
             for incoming in &patch.incoming {
-                bytes.extend_from_slice(&incoming.source.get().to_le_bytes());
-                bytes.extend_from_slice(&incoming.edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, incoming.source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, incoming.edge.get().to_le_bytes());
                 encode_location(&mut bytes, incoming.leader);
-                bytes.extend_from_slice(&incoming.leader_operation.get().to_le_bytes());
-                bytes.extend_from_slice(&incoming.leader_result.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    incoming.leader_operation.get().to_le_bytes(),
+                );
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    incoming.leader_result.get().to_le_bytes(),
+                );
             }
         }
         PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) => {
             bytes.push(15);
             encode_location(&mut bytes, patch.location);
-            bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.result.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.replacement.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.source_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.replacement.get().to_le_bytes());
             encode_integer_type(&mut bytes, patch.scalar_type);
             bytes.push(match patch.identity {
                 ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroLeft => 1,
@@ -322,9 +364,12 @@ pub(super) fn encode_candidate(
         PsiRewritePatch::EliminateTotalScalarIdentity(patch) => {
             bytes.push(16);
             encode_location(&mut bytes, patch.location);
-            bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.result.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.replacement.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                patch.source_operation.get().to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(&mut bytes, patch.result.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.replacement.get().to_le_bytes());
             encode_integer_type(&mut bytes, patch.scalar_type);
             bytes.push(match patch.identity {
                 TotalScalarIdentityKind::WrappingIntegerAddZeroLeft => 1,
@@ -357,24 +402,27 @@ pub(super) fn encode_candidate(
         }
         PsiRewritePatch::SpecializeStateArgument(patch) => {
             bytes.push(17);
-            bytes.extend_from_slice(&patch.machine.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.dispatch.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.dispatch.get().to_le_bytes());
             encode_len(&mut bytes, patch.edges.len());
             for row in &patch.edges {
-                bytes.extend_from_slice(&row.incoming_edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.incoming_edge.get().to_le_bytes());
                 encode_location(&mut bytes, row.predecessor);
-                bytes.extend_from_slice(&row.parameter.get().to_le_bytes());
-                bytes.extend_from_slice(&row.argument.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.parameter.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.argument.get().to_le_bytes());
                 bytes.push(u8::from(row.constant));
-                bytes.extend_from_slice(&row.taken_edge.get().to_le_bytes());
-                bytes.extend_from_slice(&row.rejected_edge.get().to_le_bytes());
-                bytes.extend_from_slice(&row.resolved_target.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.taken_edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.rejected_edge.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    row.resolved_target.get().to_le_bytes(),
+                );
             }
         }
         PsiRewritePatch::SpecializeCaseMembership(patch) => {
             bytes.push(18);
-            bytes.extend_from_slice(&patch.machine.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.place.get().to_le_bytes());
             bytes.extend_from_slice(
                 &patch
                     .producer
@@ -385,24 +433,24 @@ pub(super) fn encode_candidate(
             encode_len(&mut bytes, patch.memberships.len());
             for row in &patch.memberships {
                 encode_location(&mut bytes, row.site);
-                bytes.extend_from_slice(&row.psi_operation.get().to_le_bytes());
-                bytes.extend_from_slice(&row.result.get().to_le_bytes());
-                bytes.extend_from_slice(&row.source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.psi_operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.result.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.source.get().to_le_bytes());
                 bytes.extend_from_slice(
                     &row.producer
                         .map(|producer| producer.get())
                         .unwrap_or(0)
                         .to_le_bytes(),
                 );
-                bytes.extend_from_slice(&row.observed_case.get().to_le_bytes());
-                bytes.extend_from_slice(&row.proven_case.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.observed_case.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.proven_case.get().to_le_bytes());
                 bytes.push(u8::from(row.outcome));
             }
         }
         PsiRewritePatch::SpecializeFieldValue(patch) => {
             bytes.push(19);
-            bytes.extend_from_slice(&patch.machine.get().to_le_bytes());
-            bytes.extend_from_slice(&patch.place.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, patch.place.get().to_le_bytes());
             bytes.extend_from_slice(
                 &patch
                     .producer
@@ -413,27 +461,33 @@ pub(super) fn encode_candidate(
             encode_len(&mut bytes, patch.reads.len());
             for row in &patch.reads {
                 encode_location(&mut bytes, row.site);
-                bytes.extend_from_slice(&row.psi_operation.get().to_le_bytes());
-                bytes.extend_from_slice(&row.result.get().to_le_bytes());
-                bytes.extend_from_slice(&row.source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.psi_operation.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.result.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.source.get().to_le_bytes());
                 encode_len(&mut bytes, row.path.len());
                 for segment in &row.path {
                     match segment {
                         CanonicalStructuralPathSegment::Field(identity) => {
                             bytes.push(1);
-                            bytes.extend_from_slice(&identity.get().to_le_bytes());
+                            crate::codec_bytes::push_encoded(
+                                &mut bytes,
+                                identity.get().to_le_bytes(),
+                            );
                         }
                         CanonicalStructuralPathSegment::FixedIndex(index) => {
                             bytes.push(2);
-                            bytes.extend_from_slice(&index.to_le_bytes());
+                            crate::codec_bytes::push_encoded(&mut bytes, index.to_le_bytes());
                         }
                         CanonicalStructuralPathSegment::Case(identity) => {
                             bytes.push(3);
-                            bytes.extend_from_slice(&identity.get().to_le_bytes());
+                            crate::codec_bytes::push_encoded(
+                                &mut bytes,
+                                identity.get().to_le_bytes(),
+                            );
                         }
                     }
                 }
-                bytes.extend_from_slice(&row.field.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, row.field.get().to_le_bytes());
                 bytes.extend_from_slice(
                     &row.producer
                         .map(|producer| producer.get())
@@ -451,7 +505,10 @@ pub(super) fn encode_candidate(
                     }
                     FieldValueResolution::Forward(forwarded) => {
                         bytes.push(3);
-                        bytes.extend_from_slice(&forwarded.initializer.get().to_le_bytes());
+                        crate::codec_bytes::push_encoded(
+                            &mut bytes,
+                            forwarded.initializer.get().to_le_bytes(),
+                        );
                         encode_scalar_type(&mut bytes, forwarded.scalar_type);
                         encode_len(&mut bytes, forwarded.uses.len());
                         for site in &forwarded.uses {
@@ -466,9 +523,9 @@ pub(super) fn encode_candidate(
 }
 
 pub(super) fn encode_location(bytes: &mut Vec<u8>, location: NodeLocation) {
-    bytes.extend_from_slice(&location.machine.get().to_le_bytes());
-    bytes.extend_from_slice(&location.block.get().to_le_bytes());
-    bytes.extend_from_slice(&location.node.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, location.machine.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, location.block.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, location.node.to_le_bytes());
 }
 
 pub(super) fn encode_realization_site(bytes: &mut Vec<u8>, site: PsiRealizationSite) {
@@ -479,8 +536,8 @@ pub(super) fn encode_realization_site(bytes: &mut Vec<u8>, site: PsiRealizationS
         }
         PsiRealizationSite::Edge { machine, edge } => {
             bytes.push(2);
-            bytes.extend_from_slice(&machine.get().to_le_bytes());
-            bytes.extend_from_slice(&edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
         }
     }
 }
