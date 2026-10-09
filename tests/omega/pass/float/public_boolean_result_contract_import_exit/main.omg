@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 
 // The public slot's exact Boolean guarantee must survive caller import.
 machine finite(value: f32) -> bool
-ensures result == FloatSemantics::is_finite(Float::meaning32(value)) {
+ensures result == F32::is_finite(value) {
     F32::is_finite(value)
 }
 

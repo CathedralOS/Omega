@@ -1,6 +1,6 @@
 //! Source-operator bindings for the closed float-projection catalog.
 //!
-//! The public proof projection is selected by its complete source identity and
+//! The sealed private proof projection is selected by its complete source identity and
 //! exact signature. A similarly named operator cannot acquire projection
 //! semantics, and a drifted canonical declaration fails before facts are built.
 

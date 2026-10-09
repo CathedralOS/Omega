@@ -1,6 +1,6 @@
 use omega::language::core::float_operations;
 machine category(value: f32) -> FloatClass
-ensures result == FloatSemantics::classify(FloatFormat::BINARY32, Float::meaning32(value)) {
+ensures result == F32::classify(value) {
     F32::classify(value)
 }
 machine main() crashes Trap {

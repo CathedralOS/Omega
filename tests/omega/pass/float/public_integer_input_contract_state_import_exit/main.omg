@@ -4,7 +4,9 @@ data Choice { case First; case Second; }
 
 // Calls in separate state arrivals retain the actual value passed to that path.
 machine rounded(value: i32, choice: Choice) -> f32
-ensures Float::meaning32(result) == FloatSemantics::from_integer(FloatFormat::BINARY32, value) {
+ensures
+    F32::classify(result) == F32::classify(F32::from_i32(value)) &&
+    (F32::is_nan(result) || result == F32::from_i32(value)) {
     transition choice {
         Choice::First -> first(value)
         Choice::Second -> second(value)
