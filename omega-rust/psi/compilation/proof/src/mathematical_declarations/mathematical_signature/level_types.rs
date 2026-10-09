@@ -5,7 +5,7 @@
 use crate::mathematical_declarations::FixedCore;
 use proof_admission::{Level, Term, TermHandle};
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::mathematical::{MathematicalType, MathematicalTypeHandle};
 use typed_trees::name::Identifier;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -110,20 +110,19 @@ impl<'a> Elaborator<'a> {
                 }))
             }
             MathematicalType::Application { callee, arguments } => {
-                let mut term = self.elaborate_mathematical_type(*callee)?;
+                let callee = self.elaborate_mathematical_type(*callee)?;
+                let mut inputs = Vec::new();
                 for argument in self
                     .program
                     .expression_table
                     .expression_handles(*arguments)
                     .to_vec()
                 {
-                    let argument = self.elaborate_expression(argument)?;
-                    term = self.arena.insert(Term::Apply {
-                        function: term,
-                        argument,
-                    });
+                    inputs.push(self.source_expression_input(argument)?);
                 }
-                Ok(term)
+                // A type application has no expression root. Its enclosing
+                // declaration span remains the exact diagnostic origin.
+                Ok(self.apply_source_inputs(ExpressionHandle::default(), callee, inputs))
             }
         }
     }

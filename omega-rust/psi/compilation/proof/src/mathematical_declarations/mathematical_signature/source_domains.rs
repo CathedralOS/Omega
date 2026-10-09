@@ -29,6 +29,7 @@ pub(super) struct SourceInput {
 
 pub(super) struct SourceInvocation {
     pub expression: ExpressionHandle,
+    pub span: Option<source::SourceSpan>,
     pub callee: TermHandle,
     pub inputs: Vec<SourceInput>,
     pub domains: Vec<TermHandle>,
@@ -36,6 +37,64 @@ pub(super) struct SourceInvocation {
 }
 
 impl Elaborator<'_> {
+    /// Construct all mathematical Apply spines and retain their source-domain
+    /// obligations together. Ordinary calls, generic terms and dependent type
+    /// applications differ in argument roles, never in application formation.
+    pub(super) fn apply_source_inputs(
+        &mut self,
+        expression: ExpressionHandle,
+        callee: TermHandle,
+        inputs: Vec<SourceInput>,
+    ) -> TermHandle {
+        let mut function = callee;
+        for input in &inputs {
+            function = self.arena.insert(Term::Apply {
+                function,
+                argument: input.term,
+            });
+        }
+        self.source_invocations.push(SourceInvocation {
+            expression,
+            span: if expression.is_valid() {
+                Some(self.program.expression_table.source_span(expression))
+            } else {
+                self.span
+            },
+            callee,
+            inputs,
+            domains: self.scope.iter().map(|entry| entry.domain).collect(),
+            level_arity: self.level_binders.len() as u32 + self.generalized_levels,
+        });
+        function
+    }
+
+    pub(super) fn source_expression_input(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Result<SourceInput, Vec<Diagnostic>> {
+        let term = self.elaborate_expression(expression)?;
+        let node = self.program.expression_table.expression(expression);
+        // A mathematical function's instantiated type and a type-valued
+        // declaration are calculus terms. Ordinary values keep the source
+        // result owner's complete reference, including arithmetic policy.
+        let reference = if matches!(node, typed_trees::expression::ExpressionNode::Call(call)
+            if self.authored_index.contains_key(&call.target_symbol))
+            || matches!(node, typed_trees::expression::ExpressionNode::Name(path)
+                if self.program.symbols.builtin_type_atom(path.symbol).is_some())
+        {
+            None
+        } else {
+            validation::mathematical_applications::operand_type_reference(self.program, expression)
+        };
+        Ok(SourceInput {
+            expression,
+            term,
+            domain: reference
+                .map(|reference| self.elaborate_type_reference(reference))
+                .transpose()?,
+        })
+    }
+
     pub(super) fn source_type_alias(
         &mut self,
         reference: TypeReferenceHandle,
@@ -91,6 +150,7 @@ impl Elaborator<'_> {
     ) -> Result<(), Vec<Diagnostic>> {
         let invocations = std::mem::take(&mut self.source_invocations);
         for invocation in invocations {
+            self.span = invocation.span;
             let context = invocation.domains.iter().fold(
                 Context::with_level_arity(invocation.level_arity).with_signature(signature.clone()),
                 |context, domain| context.extend(*domain),
@@ -231,6 +291,11 @@ impl Elaborator<'_> {
     }
 
     fn source_domain_error(&self, expression: ExpressionHandle, reason: String) -> Vec<Diagnostic> {
+        if !expression.is_valid() {
+            return self.refuse(format!(
+                "invalid dependent mathematical application: {reason}"
+            ));
+        }
         let mut diagnostics = self.refuse(format!(
             "invalid mathematical application `{}`: {reason}",
             self.program.render_proof_expression(

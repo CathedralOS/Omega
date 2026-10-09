@@ -525,10 +525,8 @@ impl<'a> Elaborator<'a> {
                 }
                 let target = call.target.clone();
                 let static_arguments = call.machine_arguments.clone();
-                let mut function =
+                let callee =
                     self.elaborate_callee(handle, target_symbol, &target, &static_arguments)?;
-                let callee = function;
-                let domains = self.scope.iter().map(|entry| entry.domain).collect();
                 let mut inputs = Vec::new();
                 for argument in self
                     .program
@@ -536,34 +534,9 @@ impl<'a> Elaborator<'a> {
                     .expression_handles(call.arguments)
                     .to_vec()
                 {
-                    let term = self.elaborate_expression(argument)?;
-                    let source_domain = if matches!(self.program.expression_table.expression(argument),
-                        ExpressionNode::Call(call) if self.authored_index.contains_key(&call.target_symbol))
-                        || matches!(self.program.expression_table.expression(argument),
-                            ExpressionNode::Name(path) if self.program.symbols.builtin_type_atom(path.symbol).is_some()) {
-                        None
-                    } else {
-                        validation::mathematical_applications::operand_type_reference(self.program, argument)
-                    }.map(|reference| self.elaborate_type_reference(reference)).transpose()?;
-                    inputs.push(source_domains::SourceInput {
-                        expression: argument,
-                        term,
-                        domain: source_domain,
-                    });
-                    function = self.arena.insert(Term::Apply {
-                        function,
-                        argument: term,
-                    });
+                    inputs.push(self.source_expression_input(argument)?);
                 }
-                self.source_invocations
-                    .push(source_domains::SourceInvocation {
-                        expression: handle,
-                        callee,
-                        inputs,
-                        domains,
-                        level_arity: self.level_binders.len() as u32 + self.generalized_levels,
-                    });
-                Ok(function)
+                Ok(self.apply_source_inputs(handle, callee, inputs))
             }
             ExpressionNode::Integer(literal) => {
                 let literal = literal.clone();

@@ -247,31 +247,21 @@ impl Elaborator<'_> {
                 levels.len()
             )));
         }
-        let mut function = self.arena.insert(Term::Constant {
+        let callee = self.arena.insert(Term::Constant {
             declaration: position,
             levels,
         });
-        let callee = function;
-        let mut inputs = Vec::with_capacity(terms.len());
-        for argument in terms {
-            inputs.push(super::source_domains::SourceInput {
+        let inputs = terms
+            .into_iter()
+            .map(|term| super::source_domains::SourceInput {
                 // Generic terms are already typed in the exact caller scope.
                 // No anonymous ordinary-expression landing is available here.
                 expression: ExpressionHandle::default(),
-                term: argument,
+                term,
                 domain: None,
-            });
-            function = self.arena.insert(Term::Apply { function, argument });
-        }
-        self.source_invocations
-            .push(super::source_domains::SourceInvocation {
-                expression,
-                callee,
-                inputs,
-                domains: self.scope.iter().map(|entry| entry.domain).collect(),
-                level_arity: self.level_binders.len() as u32 + self.generalized_levels,
-            });
-        Ok(function)
+            })
+            .collect();
+        Ok(self.apply_source_inputs(expression, callee, inputs))
     }
 
     fn binder_is_level(&self, binder: &TypeParameter) -> bool {
