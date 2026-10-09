@@ -2567,27 +2567,52 @@ crash and native exit behavior.
   remains the owning capability task's acceptance.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
-  Restore the remaining `regressed-from:` rows in
-  `tests/omega/corpus_native_macos_arm64.txt`. Read the live roster with
-  `python3 tools/corpus_scoreboard.py`; reproduce unchanged programs on current
-  main and route failures by cause, not by the revision that recorded them.
+  Restore the macOS ARM64 corpus rows that met their authored check, build or
+  runtime oracle and no longer do. Most goldens still claim these successes,
+  so `python3 tools/corpus_scoreboard.py` undercounts them: measure with
+  `python3 tools/corpus_gate.py` and `--native`, then route by cause, not by
+  the revision that recorded a row. Losses observed at 21cec730b99:
 
-  - `interrupt_table_canary` and `secondary_processor_canary` now select
-    providers but lack an executable intrinsic:
-    **CHECKED-ASM-LABEL-CONTRACTS** owns that dependency.
+  - Trait default rows: `pass/traits/runtime_inherited_trait_default_exit` and
+    `runtime_trait_default_requirement_scope_exit` stop in Terminal production
+    with "checked machine has no exact declaration owner".
+  - Hoisted operands: recast offsets and subslice bounds report `__hoist_14`
+    instead of the authored operand. `pass/dependent/{boundary_equality_recast_witness,call_requires_saved_local_arithmetic_bound}_compile`
+    and `pass/recast/runtime_interior_slice_congruent_offset_exit` reject;
+    `fail/ranges/slice_bound_unbound_container_binder_rejected` and five
+    `fail/recast/` fixtures lose their expected fragments.
+  - Argument domain weakening preempts the callee's requires check:
+    `fail/core/translation_unmap_before_activation` and
+    `fail/memory/bump_allocator_place_into_occupied` lose their fragments.
+  - Lowering declines: `pass/collections/policy_array_enum_element_dispatch_exit`
+    ("statement sequence: local data: structural call binding"),
+    `pass/domains/runtime_result_domain_machine_overload_exit` ("outer calls:
+    statement window") and `fail/ports/asm_port_in_unsettled` ("outer calls:
+    argument calls" instead of its pinned "call operation: target state").
+  - `pass/memory/bump_allocator_canary`: "cleanup effect dependency in
+    `exercise_fallible` has no exact structural residual disposition".
+  - `pass/tasks/task_runtime_machine_selection_compile` reads a `StartOutcome`
+    payload without case knowledge, which checking now refuses
+    ([data and literals](wiki/spec/language/data_and_literals.md)); its sibling
+    `fail/tasks/task_runtime_machine_selection_effect_mismatch` stops at
+    `Task::settle` specialization before its effect-ceiling fragment.
+  - `fail/build/build_effects_undeclared` reports "target-tagged machine has no
+    authored family member" instead of its effect refusal.
+  - `interrupt_table_canary` and `secondary_processor_canary` select providers
+    but lack an executable intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that
+    dependency.
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded
-    exit 70. A Linux host must remeasure them; never copy
-    another host's success. **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED** owns that
-    recording. An `Incomplete` proof-search diagnostic alone does not prove
-    extra capacity will solve the obligation; inspect the failed judgment.
+    exit 70. A Linux host must remeasure them; never copy another host's
+    success. **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED** owns that recording. An
+    `Incomplete` proof-search diagnostic alone does not prove extra capacity
+    will solve the obligation; inspect the failed judgment.
 
   Acceptance: every remaining loss reaches its authored check/build/runtime
   oracle and the corresponding host record is updated from that observation.
-  Preserve negative checks and source oracles. Already recovered borrow rows
-  are regression controls, not new repair assignments.
-
+  Preserve negative checks and source oracles. Already recovered rows are
+  regression controls, not new repair assignments.
 
 - **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED.**
   (split-of:NATIVE-GOLDEN-CANNOT-RECORD-A-REGRESSION)

@@ -1,17 +1,17 @@
 data Inner { value: u64; }
-machine Inner::inspect() {}
+machine Inner::inspect(inner: &Inner) {}
 
 data Outer { inner: Inner; }
 
-// A value path's head names this state's own binding. The receiver symbol
-// resolves to the path's last member, whose declaration parent is `Outer`,
-// so recovering the head from that symbol's declaration chain never reaches
-// the parameter. Both the entry parameter and a forwarded state parameter
-// must carry a nested receiver.
+// A nested argument path's head names this state's own binding. The path's
+// last member symbol has `Outer` as its declaration parent, so recovering the
+// head from that symbol's declaration chain never reaches the parameter. Both
+// the entry parameter and a forwarded state parameter must lend a nested
+// field explicitly.
 machine inspect(outer: &Outer) {
-    outer.inner.inspect();
+    Inner::inspect(&outer.inner);
     transition { _ -> finish(outer) }
     state finish(forwarded: &Outer) {
-        forwarded.inner.inspect();
+        Inner::inspect(&forwarded.inner);
     }
 }

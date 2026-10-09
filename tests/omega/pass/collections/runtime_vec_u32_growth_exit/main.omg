@@ -71,7 +71,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.v.len = 0;
     let r4a: Request = Pool::request4(&mut main.pool);
     let opened_e: u64 = Vec::open4(&mut main.v, r4a, &mut main.eb);
-    main.v.drain4(&mut main.eb, &mut main.out4);
+    Vec::drain4(&mut main.eb, &mut main.out4);
     Pool::release4(&mut main.pool);
 
     // ---- main lifecycle: open at rung 4 over caller-supplied b4 ----
@@ -106,7 +106,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // explicit backing return: drain the resident 16-rung store back to
     // caller-owned out16, then release the slot and close the handle.
-    main.v.drain16(&mut main.b16, &mut main.out16);
+    Vec::drain16(&mut main.b16, &mut main.out16);
     Pool::release16(&mut main.pool);
     let v_len: u64 = main.v.len;
     let v_live: u64 = main.v.live;
