@@ -223,7 +223,10 @@ fn expression_is_fact_observation_free(
         }
         ExpressionNode::Cast(cast) => expression_is_fact_observation_free(program, cast.value),
         ExpressionNode::Call(call) => {
-            !call.receiver.is_valid()
+            // A retained declaration qualifier is not a storage observation.
+            // Rejoin it to the exact selected target through the shared call
+            // owner; declaration spelling or namespace kind alone is no proof.
+            (!call.receiver.is_valid() || program.call_has_no_runtime_receiver_for_target(call))
                 && program
                     .expression_table
                     .expression_handles(call.arguments)
