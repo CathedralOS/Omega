@@ -152,7 +152,6 @@ impl ValidatedElfResolvedDynamicTable {
         self.non_authoritative_resolved_compatibility_fingerprint
     }
 
-    #[allow(dead_code)]
     pub(crate) fn into_parts(
         self,
     ) -> (

@@ -52,12 +52,10 @@ impl ValidatedElfIndexedSectionPayloadPlan {
         self.non_authoritative_payload_roster_compatibility_fingerprint
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn contents(&self) -> &ElfIndexedSectionPayloadContents {
         &self.contents
     }
 
-    #[allow(dead_code)]
     pub(crate) fn into_parts(
         self,
     ) -> (

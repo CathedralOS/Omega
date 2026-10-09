@@ -66,7 +66,6 @@ impl ValidatedElfPlacedSectionHeaderTable {
         self.non_authoritative_placed_compatibility_fingerprint
     }
 
-    #[allow(dead_code)]
     pub(crate) fn into_parts(
         self,
     ) -> (

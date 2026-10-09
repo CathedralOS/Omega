@@ -68,12 +68,10 @@ impl ValidatedElfSectionHeaderTableTemplate {
         self.non_authoritative_template_compatibility_fingerprint
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn contents(&self) -> &ElfSectionHeaderTableTemplateContents {
         &self.contents
     }
 
-    #[allow(dead_code)]
     pub(crate) fn into_parts(
         self,
     ) -> (

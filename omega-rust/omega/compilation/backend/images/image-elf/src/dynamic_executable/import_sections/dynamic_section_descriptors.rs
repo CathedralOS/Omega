@@ -88,12 +88,10 @@ impl ValidatedElfDynamicSectionDescriptorPlan {
         self.non_authoritative_descriptor_compatibility_fingerprint
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn contents(&self) -> &ElfDynamicSectionDescriptorContents {
         &self.contents
     }
 
-    #[allow(dead_code)]
     pub(crate) fn into_parts(
         self,
     ) -> (

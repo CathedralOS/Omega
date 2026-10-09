@@ -59,7 +59,6 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
         &self.contents
     }
 
-    #[allow(dead_code)]
     pub(crate) fn into_parts(
         self,
     ) -> (
