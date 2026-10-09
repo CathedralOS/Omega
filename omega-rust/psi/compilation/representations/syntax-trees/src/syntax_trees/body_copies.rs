@@ -20,6 +20,37 @@ use crate::syntax_trees::SyntaxTrees;
 use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use arena::{Handle, HandleSpan};
 
+/// `StateSignature` assembly shared by the value/node signature copies: both
+/// parameter types carry the same field roster verbatim.
+macro_rules! copied_state_signature {
+    ($self:ident, $other:ident, $signature:ident) => {{
+        StateSignature {
+            name: $signature.name.clone(),
+            spelling: $signature.spelling,
+            lifetime_parameters: $signature.lifetime_parameters.clone(),
+            type_parameters: $self.copy_type_parameter_span($other, $signature.type_parameters),
+            is_default: $signature.is_default,
+            parameters: $self.copy_state_parameter_handle_span($other, $signature.parameters),
+            native_callback_parameters: $signature.native_callback_parameters.clone(),
+            return_type: $self.copy_type_reference_handle($other, $signature.return_type),
+            service_reach_is_installation_bound: $signature.service_reach_is_installation_bound,
+            service_reach_keyword_source_spans: $signature
+                .service_reach_keyword_source_spans
+                .clone(),
+            service_reaches: $self.copy_item_identifier_span($other, $signature.service_reaches),
+            invokes: $self.copy_item_identifier_span($other, $signature.invokes),
+            suspends_keyword_source_spans: $signature.suspends_keyword_source_spans.clone(),
+            blocks_keyword_source_spans: $signature.blocks_keyword_source_spans.clone(),
+            suspends: $signature.suspends,
+            blocks: $signature.blocks,
+            contracts: $self.copy_capability_contract_span($other, $signature.contracts),
+            default_body: $self.copy_statement_handle_span($other, $signature.default_body),
+            terminates_guarantee: $signature.terminates_guarantee,
+            where_facts: $self.copy_domain_fact_span($other, $signature.where_facts),
+        }
+    }};
+}
+
 impl SyntaxCopy<'_> {
     pub fn copy_static_machine_argument(
         &mut self,
@@ -84,30 +115,7 @@ impl SyntaxCopy<'_> {
         other: &SyntaxTrees,
         signature: &StateSignature,
     ) -> StateSignature {
-        StateSignature {
-            name: signature.name.clone(),
-            spelling: signature.spelling,
-            lifetime_parameters: signature.lifetime_parameters.clone(),
-            type_parameters: self.copy_type_parameter_span(other, signature.type_parameters),
-            is_default: signature.is_default,
-            parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
-            native_callback_parameters: signature.native_callback_parameters.clone(),
-            return_type: self.copy_type_reference_handle(other, signature.return_type),
-            service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
-            service_reach_keyword_source_spans: signature
-                .service_reach_keyword_source_spans
-                .clone(),
-            service_reaches: self.copy_item_identifier_span(other, signature.service_reaches),
-            invokes: self.copy_item_identifier_span(other, signature.invokes),
-            suspends_keyword_source_spans: signature.suspends_keyword_source_spans.clone(),
-            blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
-            suspends: signature.suspends,
-            blocks: signature.blocks,
-            contracts: self.copy_capability_contract_span(other, signature.contracts),
-            default_body: self.copy_statement_handle_span(other, signature.default_body),
-            terminates_guarantee: signature.terminates_guarantee,
-            where_facts: self.copy_domain_fact_span(other, signature.where_facts),
-        }
+        copied_state_signature!(self, other, signature)
     }
 
     pub(crate) fn copy_state_signature_node(
@@ -115,30 +123,7 @@ impl SyntaxCopy<'_> {
         other: &SyntaxTrees,
         signature: &crate::item::StateSignatureNode,
     ) -> StateSignature {
-        StateSignature {
-            name: signature.name.clone(),
-            spelling: signature.spelling,
-            lifetime_parameters: signature.lifetime_parameters.clone(),
-            type_parameters: self.copy_type_parameter_span(other, signature.type_parameters),
-            is_default: signature.is_default,
-            parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
-            native_callback_parameters: signature.native_callback_parameters.clone(),
-            return_type: self.copy_type_reference_handle(other, signature.return_type),
-            service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
-            service_reach_keyword_source_spans: signature
-                .service_reach_keyword_source_spans
-                .clone(),
-            service_reaches: self.copy_item_identifier_span(other, signature.service_reaches),
-            invokes: self.copy_item_identifier_span(other, signature.invokes),
-            suspends_keyword_source_spans: signature.suspends_keyword_source_spans.clone(),
-            blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
-            suspends: signature.suspends,
-            blocks: signature.blocks,
-            contracts: self.copy_capability_contract_span(other, signature.contracts),
-            default_body: self.copy_statement_handle_span(other, signature.default_body),
-            terminates_guarantee: signature.terminates_guarantee,
-            where_facts: self.copy_domain_fact_span(other, signature.where_facts),
-        }
+        copied_state_signature!(self, other, signature)
     }
 
     pub(crate) fn copy_state_parameter_handle_span(

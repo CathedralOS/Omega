@@ -38,13 +38,22 @@ impl SelectedCall<'_> {
     /// Fold the captured call result through each authored conversion.
     pub(super) fn convert<Value: super::captured::CapturedValue>(
         &self,
-        mut value: Value,
+        value: Value,
     ) -> Option<Value> {
-        for conversion in &self.conversions {
-            value = value.convert(conversion)?;
-        }
-        Some(value)
+        convert_through(&self.conversions, value)
     }
+}
+
+/// The authored-conversion fold both selected operands share: peel each
+/// conversion in order, failing on the first that cannot apply.
+fn convert_through<Value: super::captured::CapturedValue>(
+    conversions: &[SelectedConversion],
+    mut value: Value,
+) -> Option<Value> {
+    for conversion in conversions {
+        value = value.convert(conversion)?;
+    }
+    Some(value)
 }
 
 /// A non-call operand under authored value conversions: the operand resolves
@@ -61,12 +70,9 @@ pub(super) struct SelectedOperand {
 impl SelectedOperand {
     pub(super) fn convert<Value: super::captured::CapturedValue>(
         &self,
-        mut value: Value,
+        value: Value,
     ) -> Option<Value> {
-        for conversion in &self.conversions {
-            value = value.convert(conversion)?;
-        }
-        Some(value)
+        convert_through(&self.conversions, value)
     }
 }
 
