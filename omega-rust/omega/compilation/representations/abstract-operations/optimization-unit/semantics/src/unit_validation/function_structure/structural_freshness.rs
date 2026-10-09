@@ -159,8 +159,7 @@ pub(super) fn structural_metadata_may_change(
         // Scalar stores target a separately validated primitive leaf, and byte
         // stores preserve length even when they replace the measured field's contents.
         O::StructuralByteSequenceFieldByteStore { .. }
-        | O::StructuralByteSequenceFieldLength { .. }
-        | O::StructuralByteSequenceFieldRead { .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceRead { .. }

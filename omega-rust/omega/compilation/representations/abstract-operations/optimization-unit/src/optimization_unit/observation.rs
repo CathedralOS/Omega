@@ -434,8 +434,7 @@ fn operation_observations(
         | O::ElementViewRead { .. }
         | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. }
-        | O::StructuralByteSequenceFieldLength { .. }
-        | O::StructuralByteSequenceFieldRead { .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldRead { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallStructural { .. }
         | O::Call { .. } => (vec![event(C::InternalCall)], May, May),

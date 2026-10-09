@@ -209,8 +209,7 @@ pub(crate) fn validate_operation_places(
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
         | O::ByteSequenceLength { source, .. }
-        | O::StructuralByteSequenceFieldLength { source, .. }
-        | O::StructuralByteSequenceFieldRead { source, .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. } => {
             require(*source, known)?;
         }

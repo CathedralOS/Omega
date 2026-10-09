@@ -79,8 +79,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::ByteSequencePredicate { .. }
         | O::ByteSequenceEqual { .. }
         | O::ByteSequenceLength { .. }
-        | O::StructuralByteSequenceFieldLength { .. }
-        | O::StructuralByteSequenceFieldRead { .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::ByteSequenceSubslice { .. } => byte_views::types_match(operation, definitions),
         O::EstablishElementView { .. }
         | O::ElementViewLength { .. }

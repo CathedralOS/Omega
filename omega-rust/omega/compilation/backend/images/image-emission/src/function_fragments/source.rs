@@ -72,8 +72,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
                 | AbstractOperation::StructuralScalarFieldRead { .. }
-                | AbstractOperation::StructuralByteSequenceFieldLength { .. }
-                | AbstractOperation::StructuralByteSequenceFieldRead { .. }
+                | abstract_operations::byte_len_or_field_read_pattern!(..)
                 | abstract_operations::byte_sequence_store_pair_pattern!( .. )
                 | AbstractOperation::StructuralByteViewFieldStore { .. }
                 | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }

@@ -212,18 +212,9 @@ pub(crate) fn validate_structural_root_operations(
                         return Err(catalog_mismatch(function));
                     }
                 }
-                O::StructuralByteSequenceFieldLength {
-                    source,
+                abstract_operations::byte_len_or_field_read_pattern!(source,
                     path,
-                    field,
-                    ..
-                }
-                | O::StructuralByteSequenceFieldRead {
-                    source,
-                    path,
-                    field,
-                    ..
-                } => {
+                    field, ..) => {
                     let geometry = if matches!(
                         path.first(),
                         Some(terminal_psi::StructuralPathSegment::Referent)

@@ -327,8 +327,7 @@ fn operation_effect(
         | O::ElementViewRead { .. }
         | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. }
-        | O::StructuralByteSequenceFieldLength { .. }
-        | O::StructuralByteSequenceFieldRead { .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldRead { .. }
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),
         O::AtomicEvent { event, .. } => {

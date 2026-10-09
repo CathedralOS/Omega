@@ -65,8 +65,7 @@ fn validate_byte_observations(
         Ok(())
     };
     match operation {
-        O::StructuralByteSequenceFieldLength { source, .. }
-        | O::StructuralByteSequenceFieldRead { source, .. } => observe(*source),
+        abstract_operations::byte_len_or_field_read_pattern!(source, ..) => observe(*source),
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             observe(left.source())?;
             observe(right.source())

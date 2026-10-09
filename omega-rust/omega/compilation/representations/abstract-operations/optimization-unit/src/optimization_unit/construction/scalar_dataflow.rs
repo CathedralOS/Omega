@@ -35,8 +35,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::ByteSequenceLength { result, .. }
         | O::ElementViewLength { result, .. }
         | O::ElementViewRead { result, .. }
-        | O::StructuralByteSequenceFieldLength { result, .. }
-        | O::StructuralByteSequenceFieldRead { result, .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(result, ..)
         | O::StructuralScalarFieldRead { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Scalar(result),

@@ -682,8 +682,7 @@ pub(crate) fn substitute_invariant_place_root(
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceLength { source, .. }
-        | O::StructuralByteSequenceFieldLength { source, .. }
-        | O::StructuralByteSequenceFieldRead { source, .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. } => source,
         _ => return false,
     };

@@ -248,8 +248,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::ElementViewRead { .. }
         | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. }
-        | O::StructuralByteSequenceFieldLength { .. }
-        | O::StructuralByteSequenceFieldRead { .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldRead { .. }
         | O::ReleaseReference { .. }
         // A restoration window's fields are structural places and

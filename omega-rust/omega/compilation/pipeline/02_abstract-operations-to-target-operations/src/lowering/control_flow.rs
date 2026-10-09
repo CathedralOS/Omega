@@ -280,8 +280,7 @@ pub(super) fn lower(
             | AbstractOperation::ByteSequenceRead { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
             | AbstractOperation::StructuralScalarFieldRead { result, .. }
-            | AbstractOperation::StructuralByteSequenceFieldLength { result, .. }
-            | AbstractOperation::StructuralByteSequenceFieldRead { result, .. }
+            | abstract_operations::byte_len_or_field_read_pattern!(result, ..)
             | AbstractOperation::StructuralCaseMembership { result, .. }
             | AbstractOperation::SelectImplementation { result, .. }
             | AbstractOperation::CallStructural {

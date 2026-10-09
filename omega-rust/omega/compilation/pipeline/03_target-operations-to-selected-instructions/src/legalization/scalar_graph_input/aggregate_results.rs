@@ -27,8 +27,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
                 matches!(
                     node.operation,
                     AbstractOperation::StructuralCaseMembership { .. }
-                        | AbstractOperation::StructuralByteSequenceFieldLength { .. }
-                        | AbstractOperation::StructuralByteSequenceFieldRead { .. }
+                        | abstract_operations::byte_len_or_field_read_pattern!(..)
                         | AbstractOperation::StructuralScalarFieldRead { .. }
                         | AbstractOperation::EstablishStructuralArray { .. }
                         | AbstractOperation::EstablishScalarArray { .. }

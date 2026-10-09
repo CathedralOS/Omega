@@ -1085,18 +1085,9 @@ pub(super) fn apply_operation(
         O::PrimitiveLocalStore { destination, .. } => {
             check_root_access(function, block, node, live, *destination)?
         }
-        O::StructuralByteSequenceFieldLength {
-            source,
+        abstract_operations::byte_len_or_field_read_pattern!(source,
             path,
-            field,
-            ..
-        }
-        | O::StructuralByteSequenceFieldRead {
-            source,
-            path,
-            field,
-            ..
-        } => {
+            field, ..) => {
             let region = super::storage_regions::projected(
                 function,
                 structural_types,

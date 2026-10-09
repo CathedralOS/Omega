@@ -659,8 +659,7 @@ fn shared_join_live_blocks(
                 | O::StructuralCaseMembership { .. }
                 | O::ByteSequenceLength { .. }
                 | O::ByteSequenceRead { .. }
-                | O::StructuralByteSequenceFieldLength { .. }
-                | O::StructuralByteSequenceFieldRead { .. } => true,
+                | abstract_operations::byte_len_or_field_read_pattern!(..) => true,
                 abstract_operations::jump_or_conditional_pattern!() => {
                     inputs
                         .iter()

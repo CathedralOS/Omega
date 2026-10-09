@@ -1221,3 +1221,11 @@ macro_rules! integer_equal_less_pair_pattern {
             | $crate::AbstractOperation::IntegerLessThan { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! byte_len_or_field_read_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::StructuralByteSequenceFieldLength { $($fields)* }
+            | $crate::AbstractOperation::StructuralByteSequenceFieldRead { $($fields)* }
+    };
+}

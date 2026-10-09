@@ -197,8 +197,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
-        | O::StructuralByteSequenceFieldLength { .. }
-        | O::StructuralByteSequenceFieldRead { .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldRead { .. }
         | abstract_operations::jump_or_conditional_pattern!()
         | O::StructuralCase { .. }
@@ -444,8 +443,7 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceLength { source, .. }
-        | O::StructuralByteSequenceFieldLength { source, .. }
-        | O::StructuralByteSequenceFieldRead { source, .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }
         | O::StructuralCase { source, .. } => {
             references.insert(*source);

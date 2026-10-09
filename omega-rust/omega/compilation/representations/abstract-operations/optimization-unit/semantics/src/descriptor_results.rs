@@ -385,18 +385,9 @@ fn adapt(
                         origins.retain(|(location, _)| location != &destination);
                     }
                 }
-                O::StructuralByteSequenceFieldLength {
-                    source,
+                abstract_operations::byte_len_or_field_read_pattern!(source,
                     path,
-                    field,
-                    ..
-                }
-                | O::StructuralByteSequenceFieldRead {
-                    source,
-                    path,
-                    field,
-                    ..
-                } => {
+                    field, ..) => {
                     if let Some(source) = location(*source, path, Some(*field)) {
                         step.inputs = vec![source];
                     } else {

@@ -637,18 +637,9 @@ fn scan_operation(
         O::ElementViewWrite { destination, .. } => {
             pending.attribute(context, *destination, Vec::new(), AccessKind::Write);
         }
-        O::StructuralByteSequenceFieldRead {
-            source,
+        abstract_operations::byte_len_or_field_read_pattern!(source,
             path,
-            field,
-            ..
-        }
-        | O::StructuralByteSequenceFieldLength {
-            source,
-            path,
-            field,
-            ..
-        } => {
+            field, ..) => {
             let mut view = runtime_prefix(path);
             with_field(&mut view, *field);
             pending.attribute(context, *source, view, AccessKind::Read);

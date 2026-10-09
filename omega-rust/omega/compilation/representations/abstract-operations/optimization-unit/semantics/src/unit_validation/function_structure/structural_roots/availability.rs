@@ -168,8 +168,7 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         | O::ElementViewLength { source, .. }
         | O::ElementViewRead { source, .. }
         | O::ElementViewSubslice { source, .. }
-        | O::StructuralByteSequenceFieldLength { source, .. }
-        | O::StructuralByteSequenceFieldRead { source, .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }
         | O::ReturnStructural { source, .. } => {
             vec![*source]

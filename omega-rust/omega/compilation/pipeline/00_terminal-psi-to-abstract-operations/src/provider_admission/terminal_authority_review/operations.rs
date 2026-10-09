@@ -72,8 +72,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::ElementViewRead { .. }
         | AbstractOperation::ElementViewWrite { .. }
         | AbstractOperation::ElementViewSubslice { .. }
-        | AbstractOperation::StructuralByteSequenceFieldLength { .. }
-        | AbstractOperation::StructuralByteSequenceFieldRead { .. }
+        | abstract_operations::byte_len_or_field_read_pattern!(..)
         | AbstractOperation::StructuralScalarFieldRead { .. }
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BooleanEqual { .. }
