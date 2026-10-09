@@ -41,21 +41,26 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     }
     let mut output = Vec::new();
     for operation in operations {
-        let Some((result, _)) = operation.discardable_structural_result() else {
-            continue;
-        };
-        let mut registered = results.iter().filter(|(binding, _)| binding == result);
-        let Some((_, facts::PlaceRoot::Symbol(owner))) = registered.next() else {
-            continue;
-        };
-        if registered.next().is_some() {
-            return None;
-        }
-        let (_, local) = program.state_local_declaration(state, *owner)?;
+        let (owner, formation) =
+            if let Some((result, _)) = operation.discardable_structural_result() {
+                let mut registered = results.iter().filter(|(binding, _)| binding == result);
+                let Some((_, facts::PlaceRoot::Symbol(owner))) = registered.next() else {
+                    continue;
+                };
+                if registered.next().is_some() {
+                    return None;
+                }
+                (*owner, result.statement_index)
+            } else if let Some((owner, formation, _)) = super::stores::receiver(operation) {
+                (owner, formation)
+            } else {
+                continue;
+            };
+        let (_, local) = program.state_local_declaration(state, owner)?;
         for (receiver, loan) in facts.borrow.loans.iter().filter(|(handle, loan)| {
             facts.borrow.state_owns_loan(borrowing, *handle)
-                && loan.owner_symbol == *owner
-                && loan.statement_index == result.statement_index as usize
+                && loan.owner_symbol == owner
+                && loan.statement_index == formation as usize
         }) {
             // Borrow attribution already knows the exact supplying occurrence
             // when a stored carrier moves through a call or constructor. Keep

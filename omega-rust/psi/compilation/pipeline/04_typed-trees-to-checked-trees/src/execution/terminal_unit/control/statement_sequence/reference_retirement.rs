@@ -15,6 +15,8 @@ type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
 
 mod transfers;
 use transfers::{Destination, transfers};
+pub(super) mod selections;
+pub(super) mod stores;
 pub(super) mod transport;
 
 pub(super) fn transferred_paths(
@@ -144,36 +146,52 @@ impl Retirement<'_> {
                         })
                 });
             }
-            if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                value,
-                calls,
-                ..
-            } = operation
-            {
-                if !local_carrier_loans(
-                    self.facts,
-                    self.machine,
-                    self.state.symbol,
-                    result,
-                    self.results,
-                )
-                .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
+            let construction =
+                if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } =
+                    operation
                 {
-                    return false;
-                }
-                let loan = self.facts.borrow.loans.get(child);
-                let Some((_, local)) = self
-                    .program
-                    .state_local_declaration(self.state, loan.owner_symbol)
-                else {
-                    return false;
+                    if !local_carrier_loans(
+                        self.facts,
+                        self.machine,
+                        self.state.symbol,
+                        result,
+                        self.results,
+                    )
+                    .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
+                    {
+                        return false;
+                    }
+                    let loan = self.facts.borrow.loans.get(child);
+                    let Some((_, local)) = self
+                        .program
+                        .state_local_declaration(self.state, loan.owner_symbol)
+                    else {
+                        return false;
+                    };
+                    let Some(path) = transport::carrier_path(
+                        self.program,
+                        local.type_reference,
+                        self.facts.borrow.loan_owner_path(loan),
+                    ) else {
+                        return false;
+                    };
+                    Some((operation, path))
+                } else {
+                    stores::construction(self, child, operation)
                 };
-                let Some(path) = transport::carrier_path(
-                    self.program,
-                    local.type_reference,
-                    self.facts.borrow.loan_owner_path(loan),
-                ) else {
+            if let Some((producer, path)) = construction {
+                let loan = self.facts.borrow.loans.get(child);
+                if let Some(call) = producer.call() {
+                    return loan.source_owner_symbol == parent.owner_symbol
+                        && call.structural_arguments.iter().any(|source| {
+                            source.access.borrow_access_kind().is_some()
+                                && self.source_captures_holder(source, parent)
+                        });
+                }
+                let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    value, calls, ..
+                } = producer
+                else {
                     return false;
                 };
                 let Some(sources) = validation::reference_result_custody::stored_carrier_sources(
@@ -351,11 +369,24 @@ impl Retirement<'_> {
         if loan.statement_index >= self.statement_index as usize {
             return true;
         }
+        if self.disposed(handle) {
+            return true;
+        }
         let mut holders = self.results.iter().filter(|(holder, root)| {
             *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
                 && holder.statement_index as usize == loan.statement_index
         });
-        let Some((holder, _)) = holders.next() else {
+        let holder = holders.next();
+        let stored = self.operations.iter().any(|operation| {
+            stores::receiver(operation).is_some_and(|(owner, formation, _)| {
+                owner == loan.owner_symbol && formation as usize == loan.statement_index
+            }) && stores::loans(self, operation).is_some_and(|groups| {
+                groups
+                    .iter()
+                    .any(|(_, group)| self.facts.borrow.loans_contain(*group, handle))
+            })
+        });
+        if holder.is_none() && !stored {
             // A captured place alias without an emitted descriptor ends at
             // checked weakening for every borrow access. Unknown and replaced
             // holders remain live; descendants are checked separately.
@@ -388,39 +419,43 @@ impl Retirement<'_> {
                     handle,
                 )
                 .is_some_and(|boundary| boundary <= self.statement_index);
-        };
+        }
         if holders.next().is_some() {
             return false;
         }
-        if self.operations.iter().chain(self.pending).any(|operation| match operation {
-            CheckedUnitEffectOperationPlan::ReleaseReference {
-                binding_ordinal, loans: released, defer_to_exit: false, ..
-            } => *binding_ordinal == holder.binding_ordinal && self.facts.borrow.loans_contain(*released, handle),
-            CheckedUnitEffectOperationPlan::ContinuationCleanup { cleanup_actions, .. } => {
-                cleanup_actions.iter().any(|discard| {
-                    discard.path().is_empty()
-                        && matches!(*discard.source(),
-                            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
-                                if binding_ordinal == holder.binding_ordinal)
-                })
-            }
-            _ => false,
-        }) {
-            return true;
-        }
-        let Some(transfers) = transfers(
-            self.program,
-            self.facts,
-            self.results,
-            holder.binding_ordinal,
-            self.operations,
-        ) else {
+        let source = holder.map_or(
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: loan.owner_symbol,
+            },
+            |(holder, _)| CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: holder.binding_ordinal,
+            },
+        );
+        let Ok(formation) = u32::try_from(loan.statement_index) else {
             return false;
         };
         let Some((_, local)) = self
             .program
             .state_local_declaration(self.state, loan.owner_symbol)
         else {
+            return false;
+        };
+        let Some(selection) = transport::carrier_path(
+            self.program,
+            local.type_reference,
+            self.facts.borrow.loan_owner_path(loan),
+        ) else {
+            return false;
+        };
+        let Some(transfers) = transfers::from_storage(
+            self.program,
+            self.facts,
+            self.results,
+            source,
+            formation,
+            &selection,
+            self.operations,
+        ) else {
             return false;
         };
         let owner_path = self.facts.borrow.loan_owner_path(loan);
@@ -488,6 +523,48 @@ impl Retirement<'_> {
                     }
                     continue;
                 }
+                Destination::Storage {
+                    symbol,
+                    statement_index,
+                    path,
+                } => {
+                    if statement_index >= self.statement_index {
+                        return false;
+                    }
+                    let Some((_, local)) = self.program.state_local_declaration(self.state, symbol)
+                    else {
+                        return false;
+                    };
+                    let Some(mut receiving_path) =
+                        validation::reference_result_custody::loan_owner_path(
+                            self.program,
+                            local.type_reference,
+                            &path,
+                        )
+                    else {
+                        return false;
+                    };
+                    receiving_path.extend_from_slice(&owner_path[selected.len()..]);
+                    let mut found_receiver = false;
+                    let retired = self
+                        .facts
+                        .borrow
+                        .loans
+                        .iter()
+                        .filter(|(_, receiver)| {
+                            receiver.owner_symbol == symbol
+                                && receiver.statement_index == statement_index as usize
+                                && self.facts.borrow.loan_owner_path(receiver) == receiving_path
+                        })
+                        .all(|(receiver, _)| {
+                            found_receiver = true;
+                            self.holder_retired_following(receiver, active)
+                        });
+                    if !retired || !found_receiver {
+                        return false;
+                    }
+                    continue;
+                }
                 Destination::Holder(destination, path) => (destination, path),
             };
             // Formation at this boundary establishes live custody; it is not
@@ -521,6 +598,106 @@ impl Retirement<'_> {
             }
         }
         found
+    }
+
+    /// Disposal ends an occurrence, not all future values in the same local.
+    /// Replacement's checked boundary captures the old destination after RHS
+    /// evaluation. A release instead names the exact retained loan group.
+    pub(super) fn disposed(&self, handle: arena::Handle<BorrowLoanFact>) -> bool {
+        let loan = self.facts.borrow.loans.get(handle);
+        self.operations
+            .iter()
+            .chain(self.pending)
+            .any(|operation| match operation {
+                CheckedUnitEffectOperationPlan::ReleaseReference {
+                    statement_index,
+                    loans,
+                    selection_complements,
+                    defer_to_exit: false,
+                    ..
+                } => {
+                    *statement_index <= self.statement_index
+                        && (self.facts.borrow.loans_contain(*loans, handle)
+                            || selection_complements.iter().any(|complement| {
+                                selections::disposes_candidate(self, handle, complement)
+                            }))
+                }
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary,
+                    cleanup_actions,
+                } => {
+                    let statement = match boundary {
+                        checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                            statement_index,
+                            ..
+                        }
+                        | checked_trees::CheckedUnitCleanupBoundary::StatementEntry {
+                            statement_index,
+                        } => *statement_index,
+                        _ => return false,
+                    };
+                    if statement > self.statement_index
+                        || statement as usize <= loan.statement_index
+                    {
+                        return false;
+                    }
+                    let Some((_, local)) = self
+                        .program
+                        .state_local_declaration(self.state, loan.owner_symbol)
+                    else {
+                        return false;
+                    };
+                    if self.operations.iter().any(|operation| {
+                        let CheckedUnitEffectOperationPlan::Store(store) = operation else {
+                            return false;
+                        };
+                        store.statement_index as usize > loan.statement_index
+                            && store.statement_index < statement
+                            && store.installed_value().is_some()
+                            && store.destination.root
+                                == (checked_trees::CheckedStoreRoot::Local {
+                                    symbol: loan.owner_symbol,
+                                })
+                            && validation::reference_result_custody::loan_owner_path(
+                                self.program,
+                                local.type_reference,
+                                &store.destination.path,
+                            )
+                            .is_some_and(|path| {
+                                self.facts.borrow.loan_owner_path(loan).starts_with(&path)
+                            })
+                    }) {
+                        // A later replacement receipt settles the installed
+                        // value, not an older occurrence moved out of this slot.
+                        return false;
+                    }
+                    cleanup_actions.iter().any(|discard| {
+                        let owner = match *discard.source() {
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                                Some(symbol)
+                            }
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal,
+                            } => self.results.iter().find_map(|(holder, root)| {
+                                (holder.binding_ordinal == binding_ordinal)
+                                    .then_some(root.as_symbol())
+                                    .flatten()
+                            }),
+                            _ => None,
+                        };
+                        owner == Some(loan.owner_symbol)
+                            && validation::reference_result_custody::loan_owner_path(
+                                self.program,
+                                local.type_reference,
+                                discard.path(),
+                            )
+                            .is_some_and(|path| {
+                                self.facts.borrow.loan_owner_path(loan).starts_with(&path)
+                            })
+                    })
+                }
+                _ => false,
+            })
     }
 }
 

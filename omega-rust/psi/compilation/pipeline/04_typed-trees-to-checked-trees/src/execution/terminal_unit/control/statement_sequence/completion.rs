@@ -223,10 +223,10 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 .is_some()
             {
                 retain_selected_sources(
+                    program,
                     facts,
-                    state.symbol,
+                    state,
                     root.statement_ordinal,
-                    &structural_results,
                     &mut operations,
                 )?;
             } else {

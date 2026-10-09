@@ -109,7 +109,7 @@ impl StructuralResults<'_> {
     }
 
     /// The completed whole value a borrowed-window repair stores back.
-    pub(super) fn repair_value(
+    pub(in crate::unit::attached_unit) fn repair_value(
         &self,
         binding_ordinal: u32,
         operations: &OperationBuffer,

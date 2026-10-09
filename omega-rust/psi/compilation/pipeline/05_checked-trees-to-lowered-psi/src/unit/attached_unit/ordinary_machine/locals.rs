@@ -11,38 +11,6 @@ use crate::unit::{
 };
 
 impl MachineEmission<'_> {
-    pub(super) fn release_reference(
-        &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
-    ) -> Result<Option<OperationKind>, LoweringError> {
-        let CheckedUnitEffectOperationPlan::ReleaseReference {
-            binding_ordinal,
-            path,
-            ..
-        } = operation
-        else {
-            unreachable!("dispatched release_reference")
-        };
-        let source = self
-            .structural_result_places
-            .get(*binding_ordinal as usize)
-            .ok_or(LoweringError::Unsupported(
-                "released reference result is absent",
-            ))?
-            .0
-            .as_ref()
-            .ok_or(LoweringError::Unsupported(
-                "released reference result is a projected alias",
-            ))?
-            .id;
-        Ok(Some(OperationKind::ReleaseReference {
-            source: self.evaluation.current_structural_place(source),
-            path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(
-                path,
-            )?,
-        }))
-    }
-
     pub(super) fn establish_scalar_array(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,

@@ -42,9 +42,9 @@ pub(crate) fn checked_unit_call_closure_including(
                     cleanup_actions, ..
                 } => Some(cleanup_actions),
                 CheckedUnitEffectOperationPlan::Complete {
-                    parameter_cleanup_actions,
+                    normal_cleanup_actions,
                     ..
-                } => Some(parameter_cleanup_actions),
+                } => Some(normal_cleanup_actions),
                 _ => None,
             })
             .flatten()

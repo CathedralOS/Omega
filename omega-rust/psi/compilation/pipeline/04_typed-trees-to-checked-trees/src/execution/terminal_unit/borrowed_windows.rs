@@ -127,6 +127,12 @@ pub(super) fn capture_assignment_destination(
             .map(|_| symbol),
         _ => None,
     };
+    if owned_local.is_some() && place.segments.is_empty() {
+        // Rebinding a variable evaluates no address or selector. Its prior
+        // occurrence may already be moved out; only projected or borrowed
+        // storage needs a pre-RHS physical destination capture.
+        return None;
+    }
     let (source, path) = if let Some(symbol) = owned_local {
         (
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },

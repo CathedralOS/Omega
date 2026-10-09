@@ -1043,28 +1043,36 @@ pub(super) fn is_suspended_storage_region(
         })
 }
 
-/// Moving a carrier preserves its loans, but cannot detach a suspended parent
-/// from a child that remains outside the selected subtree.
-pub(super) fn owned_transfer_is_suspended(
+/// Simultaneous carrier relocation preserves its complete parent/child cohort.
+/// Borrowed backing cannot move, nor can a parent detach from a child left
+/// outside the selected owned subtrees. Check the complete input roster before
+/// re-homing any descriptor; per-input checks would reject a transported child
+/// solely because it lives in another simultaneously transported carrier.
+pub(super) fn owned_transfers_are_suspended<'a>(
     function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
-    argument: &StructuralArgument,
+    arguments: impl Iterator<Item = &'a StructuralArgument> + Clone,
 ) -> bool {
     let selected = |carrier: PlaceId, path: &[StructuralPathSegment]| {
-        carrier == argument.place && path.starts_with(&argument.path)
-    };
-    is_suspended_storage_region(function, live, types, argument.place, &argument.path)
-        || live.references.iter().any(|((carrier, path), leaf)| {
-            selected(*carrier, path)
-                && live
-                    .references
-                    .iter()
-                    .any(|((child_carrier, child_path), child)| {
-                        child.parents.contains(&leaf.identity)
-                            && !selected(*child_carrier, child_path)
-                    })
+        arguments.clone().any(|argument| {
+            argument.access == StructuralAccess::Owned
+                && carrier == argument.place
+                && path.starts_with(&argument.path)
         })
+    };
+    arguments.clone().any(|argument| {
+        argument.access == StructuralAccess::Owned
+            && is_suspended_storage_region(function, live, types, argument.place, &argument.path)
+    }) || live.references.iter().any(|((carrier, path), leaf)| {
+        selected(*carrier, path)
+            && live
+                .references
+                .iter()
+                .any(|((child_carrier, child_path), child)| {
+                    child.parents.contains(&leaf.identity) && !selected(*child_carrier, child_path)
+                })
+    })
 }
 
 /// Reads, writes and establishments cannot touch a suspended referent, and a
@@ -1286,15 +1294,15 @@ pub(super) fn check_operation_access(
             ) else {
                 return true;
             };
-            owned_transfer_is_suspended(
+            owned_transfers_are_suspended(
                 function,
                 live,
                 types,
-                &StructuralArgument {
+                std::iter::once(&StructuralArgument {
                     place,
                     path: projection.path,
                     access: StructuralAccess::Owned,
-                },
+                }),
             )
         }
         _ => check_root_access(live, place),

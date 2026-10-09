@@ -8,9 +8,9 @@ use crate::checked_trees::flow::terminal::{
     CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use diagnostics::{CoverageForm, Diagnostic};
@@ -246,7 +246,9 @@ pub enum CheckedUnitEffectOperationPlan {
     },
     ReleaseReference {
         statement_index: u32,
-        binding_ordinal: u32,
+        /// Current descriptor storage, not necessarily its original producer.
+        /// A replacement keeps the receiving local while changing its value.
+        source: CheckedUnitStructuralArgumentSourcePlan,
         /// Exact stored descriptor; an empty path releases the result itself.
         path: Vec<CheckedUnitStructuralPathSegment>,
         /// A transition observes its operands before its selected edge closes
@@ -254,6 +256,9 @@ pub enum CheckedUnitEffectOperationPlan {
         defer_to_exit: bool,
         /// All alternative sources end together; the descriptor retires once.
         loans: arena::HandleSpan<crate::BorrowLoanFact>,
+        /// Anonymous selected complements close with the complete receiving
+        /// leaf cohort, independently of their scalar/root exit disposition.
+        selection_complements: Vec<CheckedUnitSelectedReferenceRetirementPlan>,
     },
     /// Establish the byte value declared by one local initializer.
     /// The binding retains its declared borrowed or owned carrier. Only the
@@ -376,9 +381,9 @@ pub enum CheckedUnitEffectOperationPlan {
     /// binding or scalar control result when present, and Unit otherwise.
     Complete {
         statement_index: u32,
-        /// Checked normal-edge parameter dispositions, including nominal hooks
+        /// Checked normal-edge storage dispositions, including nominal hooks
         /// and linear claims. These retain the owner's selected action order.
-        parameter_cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,
+        normal_cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,
         /// Exact local declaration coordinates cleaned before parameters, in
         /// reverse declaration order.
         trivial_affine_local_discard_ordinals: Vec<u32>,
@@ -386,6 +391,15 @@ pub enum CheckedUnitEffectOperationPlan {
         /// in reverse declaration order.
         trivial_affine_discards: Vec<u32>,
     },
+}
+
+/// One exact selected leaf and its anonymous complement slots. The receipt
+/// names the control join; the loan group authenticates the leaf lineage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitSelectedReferenceRetirementPlan {
+    pub selection: arena::Handle<crate::FlowOwnedSelectionReceipt>,
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
+    pub loans: arena::HandleSpan<crate::BorrowLoanFact>,
 }
 
 /// Operand preparation belongs to its consuming call and runs when that call
@@ -444,7 +458,7 @@ impl Default for CheckedStructuralValueCall {
             operands: CheckedOperandSequence::default(),
             operation: CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 0,
-                parameter_cleanup_actions: Vec::new(),
+                normal_cleanup_actions: Vec::new(),
                 trivial_affine_local_discard_ordinals: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },

@@ -39,3 +39,24 @@ The receiving-local variation uses the same nested helper operands, binds the
 returned carrier, then moves it
 into the enclosing record. Those transfers keep the same parents through both
 receiving holders; argument preparation cannot disappear from lifetime analysis.
+
+The replacement route moves an existing carrier into a mutable local, then
+replaces it with the other carrier. Replacement ends the old descriptor after
+evaluating the new value, so its backing becomes writable before the new
+target's read. The new backing becomes writable after that read while the
+replacement's scalar stamp remains live.
+
+Two further routes replace with a fresh constructor borrow and move a stored
+carrier out before refilling the slot from a third backing. The saved carrier's
+backing becomes writable after its read even while the later occurrence stays
+live. A local slot's reused name cannot merge those distinct loan occurrences.
+The occupied-refill variation replaces the slot again while the moved-out carrier
+stays live. That later replacement's cleanup must not retire the saved carrier.
+
+Both selections also consume a refilled mutable local while its earlier value
+survives in another local. Availability follows the receiving occurrence; an
+earlier move from that variable does not consume its new value.
+
+A copied-descriptor candidate keeps its original supplier independently live.
+Retiring the selected result and unselected complement cannot consume that
+supplier through shared ancestry; its later read still precedes restoration.

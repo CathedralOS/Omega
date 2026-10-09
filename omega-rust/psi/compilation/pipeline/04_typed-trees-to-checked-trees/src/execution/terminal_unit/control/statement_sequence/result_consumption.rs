@@ -123,6 +123,48 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     let mut pending = Vec::new();
     let mut retired = Vec::new();
     for operation in operations.iter().rev() {
+        let complements = super::reference_retirement::selections::closed_complements(
+            &super::reference_retirement::Retirement {
+                program,
+                facts,
+                machine,
+                state: authored_state,
+                statement_index,
+                results,
+                operations,
+                pending: &pending,
+                transported_loans: &transported_loans,
+            },
+        )?;
+        if !complements.is_empty() {
+            let release = pending.iter_mut().rev().find_map(|operation| {
+                if let CheckedUnitEffectOperationPlan::ReleaseReference {
+                    selection_complements,
+                    ..
+                } = operation
+                {
+                    Some(selection_complements)
+                } else {
+                    None
+                }
+            })?;
+            release.extend(complements);
+        }
+        let stored_releases = super::reference_retirement::stores::releases(
+            &super::reference_retirement::Retirement {
+                program,
+                facts,
+                machine,
+                state: authored_state,
+                statement_index,
+                results,
+                operations,
+                pending: &pending,
+                transported_loans: &transported_loans,
+            },
+            operation,
+        )?;
+        pending.extend(stored_releases);
         let reference_result =
             captured_reference_result(program, facts, machine, state, results, operation);
         if let Some((result, loans)) = reference_result {
@@ -155,8 +197,12 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. } if *released == loans)
             }) {
                 pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
-                    statement_index, binding_ordinal: result.binding_ordinal,
+                    statement_index,
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    },
                     path: Vec::new(), defer_to_exit: false, loans,
+                    selection_complements: Vec::new(),
                 });
                 // Explicit retirement consumes the descriptor now. Its
                 // producer cannot also discard that carrier at state exit.
@@ -300,10 +346,13 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             for (source, group) in leaf_releases {
                 pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
                     statement_index,
-                    binding_ordinal: result.binding_ordinal,
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    },
                     path: source.path,
                     defer_to_exit: false,
                     loans: group,
+                    selection_complements: Vec::new(),
                 });
             }
             continue;
@@ -399,7 +448,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             }) {
                 pending.push((boundary, CheckedUnitEffectOperationPlan::ReleaseReference {
                     statement_index: boundary,
-                    binding_ordinal: result.binding_ordinal,
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    },
                     path: Vec::new(),
                     defer_to_exit: matches!(
                         program.statement_table.statements(
@@ -408,6 +459,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                         StatementNode::Transition(_)
                     ),
                     loans,
+                    selection_complements: Vec::new(),
                 }));
             }
         }
@@ -415,7 +467,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     pending.sort_by_key(|(boundary, _)| *boundary);
     for (_, release) in &pending {
         if let CheckedUnitEffectOperationPlan::ReleaseReference {
-            binding_ordinal,
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
             defer_to_exit: false,
             ..
         } = release
@@ -438,13 +490,17 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
 /// complement until the actual death edge. Original producers must not also
 /// publish unconditional return drops for those same owners.
 pub(in crate::execution::terminal_unit) fn retain_selected_sources(
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    state: SymbolHandle,
+    state: &typed_trees::state::State,
     statement: u32,
-    sources: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut [CheckedUnitEffectOperationPlan],
 ) -> Option<()> {
-    let Some((_, receipt)) = facts.flow.ownership.owned_selection_at(state, statement) else {
+    let Some((_, receipt)) = facts
+        .flow
+        .ownership
+        .owned_selection_at(state.symbol, statement)
+    else {
         return Some(());
     };
     for source in facts
@@ -465,13 +521,25 @@ pub(in crate::execution::terminal_unit) fn retain_selected_sources(
         ) {
             continue;
         }
-        let (binding, _) = sources
-            .iter()
-            .find(|(_, root)| *root == facts::PlaceRoot::Symbol(source.symbol))?;
+        let storage =
+            super::super::super::local_storage::source(program, state, operations, source.symbol)?;
+        let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } = storage
+        else {
+            // Rebinding already transferred the RHS producer to current named
+            // storage. Selection owns that occurrence; its immutable birth
+            // has no unconditional return debt to retire again.
+            if matches!(
+                storage,
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            ) {
+                continue;
+            }
+            return None;
+        };
         let mut producers = operations.iter_mut().filter_map(|operation| {
             operation
                 .discardable_structural_result_mut()
-                .filter(|(result, _)| result.binding_ordinal == binding.binding_ordinal)
+                .filter(|(result, _)| result.binding_ordinal == binding_ordinal)
         });
         let (result, discard) = producers.next()?;
         if producers.next().is_some()

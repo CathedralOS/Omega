@@ -62,3 +62,31 @@ machine invalid_owned(first: &mut Cell, second: &mut Cell) -> i32 {
     second.value = 83;
     envelope.held.target.value
 }
+
+machine invalid_replacement(first: &mut Cell, second: &mut Cell) -> i32 {
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let first_input: Held = Held { target: &first_parent, stamp: 12 };
+    let second_input: Held = Held { target: &second_parent, stamp: 13 };
+    let mut held: Held = first_input;
+    held = second_input;
+    // Replacing the old carrier must not release the newly installed loan.
+    second.value = 83;
+    held.target.value
+}
+
+machine invalid_selected_refill(first: &mut Cell, second: &mut Cell, third: &mut Cell, selected: bool) -> i32 {
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let third_parent: &mut Cell = &mut third;
+    let first_input: Held = Held { target: &first_parent, stamp: 12 };
+    let second_input: Held = Held { target: &second_parent, stamp: 13 };
+    let third_input: Held = Held { target: &third_parent, stamp: 14 };
+    let mut held: Held = first_input;
+    let saved: Held = held;
+    held = second_input;
+    let chosen: Held = match selected { true -> held, false -> third_input };
+    // Refilling a variable does not retire the selected receiving value's loan.
+    second.value = 83;
+    chosen.target.value
+}

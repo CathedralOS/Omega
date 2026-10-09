@@ -14,6 +14,7 @@ use super::{
     CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan, case_emission,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 use language_semantics::PermissionEventSource;
 
 /// A call or constructed-value result that no automatic return discard
@@ -257,7 +258,7 @@ fn retired_in_body(
     // last use belongs to a transition remain for the selected edge to drop.
     for operation in &state.operations {
         if let CheckedUnitEffectOperationPlan::ReleaseReference {
-            binding_ordinal,
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
             path,
             defer_to_exit: false,
             ..

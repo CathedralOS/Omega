@@ -91,6 +91,7 @@ mod structural_results;
 pub(super) use structural_results::StructuralResults;
 mod loan_completions;
 mod locals;
+mod selection_retirement;
 mod stores;
 pub(super) use calls::CallInputs;
 
@@ -461,27 +462,38 @@ impl OperationFrame<'_, '_> {
         })
     }
 
-    /// End the established reference carrier: its place rejoins through the
-    /// same binding-ordinal view a call continuation uses.
+    /// End the exact current carrier through the shared storage namespace.
+    /// Replaced locals resolve their receiving home, not their birth result.
     fn release_reference(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::ReleaseReference {
-            binding_ordinal,
+            source,
             path,
+            selection_complements,
             ..
         } = operation
         else {
             unreachable!("dispatched release_reference")
         };
-        let source = self
-            .results
-            .continuation_place(*binding_ordinal, self.operations)?;
+        let (source, _) = self
+            .evaluation
+            .cleanup_storage(source, self.parameters, |binding| {
+                let value = self.results.repair_value(binding, self.operations)?;
+                Ok((value.place, value.structural_type))
+            })?;
         self.push_unit(OperationKind::ReleaseReference {
             source: self.evaluation.current_structural_place(source),
             path: lower_structural_path(path)?,
         });
+        self.retire_selection_complements(selection_complements)?;
+        if path.is_empty() {
+            // A whole descriptor release ends this physical owner. Keeping it
+            // in the selection frontier would move a dead parent on the next
+            // private edge; projected releases retain the owner's siblings.
+            self.evaluation.retire_structural_home(source);
+        }
         Ok(())
     }
 

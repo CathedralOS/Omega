@@ -20,7 +20,7 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<
         Vec<(
             &'program CheckedUnitNominalAffineCleanupPlan,
-            &'program CheckedUnitStructuralParameterPlan,
+            symbols::SymbolHandle,
         )>,
     > {
         let Some(checked) = self.checked else {
@@ -36,25 +36,23 @@ impl<'program> Evaluator<'program> {
             }
             for operation in &plan.operations {
                 let checked_trees::CheckedUnitEffectOperationPlan::Complete {
-                    parameter_cleanup_actions,
+                    normal_cleanup_actions,
                     ..
                 } = operation
                 else {
                     continue;
                 };
-                for action in parameter_cleanup_actions {
+                for action in normal_cleanup_actions {
                     let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
                         continue;
                     };
-                    let parameter = plan
-                        .structural_parameters
-                        .get(action.source_parameter_index().ok_or_else(|| {
-                            Halt::Unsupported("cleanup requires a parameter source".into())
-                        })? as usize)
-                        .ok_or_else(|| {
-                            Halt::Unsupported("cleanup source parameter is absent".into())
-                        })?;
-                    actions.push((action, parameter));
+                    let owner = self.normal_cleanup_owner(
+                        state,
+                        action,
+                        &plan.structural_parameters,
+                        &plan.operations,
+                    )?;
+                    actions.push((action, owner));
                 }
             }
         }
@@ -66,19 +64,75 @@ impl<'program> Evaluator<'program> {
                 return unsupported("nominal cleanup plan names another return state");
             }
             for cleanup in &plan.cleanups {
-                let parameter = plan
-                    .machine
-                    .structural_parameters
-                    .get(cleanup.source_parameter_index().ok_or_else(|| {
-                        Halt::Unsupported("cleanup requires a parameter source".into())
-                    })? as usize)
-                    .ok_or_else(|| {
-                        Halt::Unsupported("cleanup source parameter is absent".into())
-                    })?;
-                actions.push((cleanup, parameter));
+                let owner = self.normal_cleanup_owner(
+                    state,
+                    cleanup,
+                    &plan.machine.structural_parameters,
+                    &plan.machine.operations,
+                )?;
+                actions.push((cleanup, owner));
             }
         }
         Ok(actions)
+    }
+
+    /// Rejoin the same checked current-storage source for every body kind.
+    fn normal_cleanup_owner(
+        &self,
+        state: &State,
+        action: &CheckedUnitNominalAffineCleanupPlan,
+        parameters: &[CheckedUnitStructuralParameterPlan],
+        operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    ) -> EvalResult<symbols::SymbolHandle> {
+        Ok(match &action.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } => {
+                let parameter = parameters
+                    .get(*parameter_index as usize)
+                    .filter(|parameter| {
+                        !action.path.is_empty() || parameter.type_identity == action.type_identity
+                    })
+                    .ok_or_else(|| {
+                        Halt::Unsupported("normal cleanup parameter custody drifted".into())
+                    })?;
+                self.program
+                    .state_parameters(state)
+                    .get(parameter.position as usize)
+                    .ok_or_else(|| Halt::Unsupported("normal cleanup parameter is absent".into()))?
+                    .symbol
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                *symbol
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } => {
+                let result = operations
+                    .iter()
+                    .filter_map(|operation| operation.structural_result_binding())
+                    .find(|result| {
+                        // A projected action names the child type;
+                        // the result binding names its whole owner.
+                        result.binding_ordinal == *binding_ordinal
+                            && (!action.path.is_empty()
+                                || result.type_identity == action.type_identity)
+                    })
+                    .ok_or_else(|| {
+                        Halt::Unsupported("normal cleanup result binding is absent".into())
+                    })?;
+                let Some(typed_trees::statement::StatementNode::LocalData(local)) = self
+                    .program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .get(result.statement_index as usize)
+                else {
+                    return unsupported("normal cleanup result has no retained local binding");
+                };
+                local.symbol
+            }
+            _ => return unsupported("normal cleanup source has no retained runtime owner"),
+        })
     }
 
     pub(super) fn validate_normal_cleanup_selection(
@@ -166,62 +220,12 @@ impl<'program> Evaluator<'program> {
                 let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
                     continue;
                 };
-                let symbol = match &action.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index,
-                    } => {
-                        let parameter = plan
-                            .structural_parameters
-                            .get(*parameter_index as usize)
-                            .filter(|parameter| {
-                                !action.path.is_empty()
-                                    || parameter.type_identity == action.type_identity
-                            })
-                            .ok_or_else(|| {
-                                Halt::Unsupported("normal cleanup parameter custody drifted".into())
-                            })?;
-                        self.program
-                            .state_parameters(state)
-                            .get(parameter.position as usize)
-                            .ok_or_else(|| {
-                                Halt::Unsupported("normal cleanup parameter is absent".into())
-                            })?
-                            .symbol
-                    }
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                        symbol,
-                    } => *symbol,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    } => {
-                        let result = plan
-                            .operations
-                            .iter()
-                            .filter_map(|operation| operation.structural_result_binding())
-                            .find(|result| {
-                                result.binding_ordinal == *binding_ordinal
-                                    // A projected action names the child type;
-                                    // the result binding names its whole owner.
-                                    && (!action.path.is_empty()
-                                        || result.type_identity == action.type_identity)
-                            })
-                            .ok_or_else(|| {
-                                Halt::Unsupported("normal cleanup result binding is absent".into())
-                            })?;
-                        let Some(typed_trees::statement::StatementNode::LocalData(local)) = self
-                            .program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .get(result.statement_index as usize)
-                        else {
-                            return unsupported(
-                                "normal cleanup result has no retained local binding",
-                            );
-                        };
-                        local.symbol
-                    }
-                    _ => return unsupported("normal cleanup source has no retained runtime owner"),
-                };
+                let symbol = self.normal_cleanup_owner(
+                    state,
+                    action,
+                    &plan.structural_parameters,
+                    &plan.operations,
+                )?;
                 let source = frame.local_cell(symbol).ok_or_else(|| {
                     Halt::Unsupported("normal cleanup source binding is absent".into())
                 })?;
@@ -229,18 +233,10 @@ impl<'program> Evaluator<'program> {
             }
             return Ok(());
         }
-        for (action, parameter) in self.normal_cleanup_actions(machine, state)? {
-            if action.path.is_empty() && parameter.type_identity != action.type_identity {
-                return unsupported("normal cleanup source type custody drifted");
-            }
-            let source = self
-                .program
-                .state_parameters(state)
-                .get(parameter.position as usize)
-                .and_then(|parameter| frame.local_cell(parameter.symbol))
-                .ok_or_else(|| {
-                    Halt::Unsupported("normal cleanup source binding is absent".into())
-                })?;
+        for (action, owner) in self.normal_cleanup_actions(machine, state)? {
+            let source = frame.local_cell(owner).ok_or_else(|| {
+                Halt::Unsupported("normal cleanup source binding is absent".into())
+            })?;
             self.execute_nominal_cleanup(action, source)?;
         }
         Ok(())

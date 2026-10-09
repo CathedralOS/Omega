@@ -309,6 +309,20 @@ pub(super) fn validate_successors(
             if structural.len() != block.structural_parameters.len() {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            if references::owned_transfers_are_suspended(
+                function,
+                live,
+                structural_types,
+                structural
+                    .iter()
+                    .zip(&block.structural_parameters)
+                    .filter_map(|(binding, parameter)| {
+                        (parameter.access == terminal_psi::StructuralAccess::Owned)
+                            .then_some(&binding.argument)
+                    }),
+            ) {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
             for (binding, parameter) in structural.iter().zip(&block.structural_parameters) {
                 if is_address_join(parameter, structural_types) {
                     if binding.parameter != parameter.place
@@ -458,13 +472,6 @@ pub(super) fn validate_successors(
                     })
                     || binding.argument.access != parameter.access
                     || crosses_loan_leaf
-                    || (parameter.access == terminal_psi::StructuralAccess::Owned
-                        && references::owned_transfer_is_suspended(
-                            function,
-                            live,
-                            structural_types,
-                            &binding.argument,
-                        ))
                     || (!binding.argument.path.is_empty()
                         && (!abstract_operations::control_flow::address_joins::is_static_projection(
                             &binding.argument.path,

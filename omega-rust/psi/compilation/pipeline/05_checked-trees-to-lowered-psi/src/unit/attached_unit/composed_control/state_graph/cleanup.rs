@@ -9,9 +9,8 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCleanup};
 use crate::unit::unit_cleanup::CleanupRegion;
 use checked_trees::{
-    CheckedComposedUnitControlStatePlan, CheckedNormalCleanupAction,
-    CheckedScalarBranchDestination, CheckedUnitEffectOperationPlan, FlowClaimJoinExit,
-    FlowClaimJoinExitKind,
+    CheckedComposedUnitControlStatePlan, CheckedScalarBranchDestination,
+    CheckedUnitEffectOperationPlan, FlowClaimJoinExit, FlowClaimJoinExitKind,
 };
 use terminal_psi::{StructuralParameterDeclaration, TerminalAffineCleanupAction};
 
@@ -132,9 +131,7 @@ pub(super) fn selection(
         if retained.clone().next().is_some() {
             actions.extend(retained.cloned());
         } else {
-            actions.push(CleanupRegion::unconditional(
-                TerminalAffineCleanupAction::DiscardRoot(place),
-            ));
+            actions.extend(evaluation.normal_discard_regions(place, &evaluation.structural_types)?);
         }
     }
     Ok(())
@@ -171,36 +168,6 @@ pub(super) fn coordinate(
     Ok(row.exit)
 }
 
-/// Dispositions a continuation cleanup in the body already committed.
-///
-/// A receipt settles one value occurrence, not every later value stored at
-/// its source path. Establishing a replacement withdraws receipts for that
-/// subtree, so the new occurrence still receives its selected exit cleanup.
-/// A strict child store cannot revive a dead ancestor. Unreplaced receipts
-/// remain discharged, preventing duplicate disposal at the exit.
-fn discharged_in_body(
-    state: &CheckedComposedUnitControlStatePlan,
-) -> Vec<&CheckedNormalCleanupAction> {
-    let mut discharged: Vec<&CheckedNormalCleanupAction> = Vec::new();
-    for operation in &state.operations {
-        match operation {
-            CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                cleanup_actions, ..
-            } => discharged.extend(cleanup_actions),
-            CheckedUnitEffectOperationPlan::Store(store) => {
-                if let Some(destination) = store.window_place(&state.structural_parameters) {
-                    discharged.retain(|action| {
-                        action.source() != &destination.source
-                            || !action.path().starts_with(&destination.path)
-                    });
-                }
-            }
-            _ => {}
-        }
-    }
-    discharged
-}
-
 /// Carriers a deferred reference release leaves for this exit to retire.
 ///
 /// Stage 04 schedules a loan whose last use is the state's transition one
@@ -224,7 +191,7 @@ fn deferred_carrier_releases(
     // established is the first retired.
     for operation in state.operations.iter().rev() {
         let CheckedUnitEffectOperationPlan::ReleaseReference {
-            binding_ordinal,
+            source,
             path,
             defer_to_exit: true,
             ..
@@ -237,14 +204,16 @@ fn deferred_carrier_releases(
                 "deferred reference release is not its whole carrier",
             ));
         }
-        let (_, result) = operations
-            .structural_values
-            .iter()
-            .find(|(ordinal, _)| ordinal == binding_ordinal)
-            .ok_or(LoweringError::Unsupported(
-                "deferred reference release has no established carrier",
-            ))?;
-        let place = evaluation.current_structural_place(result.place());
+        let (place, _) = evaluation.cleanup_storage(source, &[], |binding| {
+            let (_, result) = operations
+                .structural_values
+                .iter()
+                .find(|(ordinal, _)| *ordinal == binding)
+                .ok_or(LoweringError::Unsupported(
+                    "deferred reference release has no established carrier",
+                ))?;
+            Ok((result.place(), result.structural_type()))
+        })?;
         if !carriers.contains(&place) {
             carriers.push(place);
         }
@@ -285,12 +254,12 @@ pub(super) fn for_exit_regions(
                 .map(|receiver| (signature.source, receiver))
         })
         .collect::<Vec<_>>();
-    let discharged = discharged_in_body(state);
     let rows = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
-        selected_exit
-            .actions
-            .iter()
-            .filter(|action| !discharged.iter().any(|committed| *committed == *action)),
+        crate::unit::unit_cleanup::outstanding_actions(
+            &selected_exit.actions,
+            &state.operations,
+            &state.structural_parameters,
+        ),
         catalogs.cleanup_control,
         &catalogs.structural_types,
         &catalogs.type_ids,
@@ -298,12 +267,12 @@ pub(super) fn for_exit_regions(
             let (place, root_type) =
                 evaluation.cleanup_storage(source, parameters, |binding_ordinal| {
                     let (_, result) = operations
-                    .structural_values
-                    .iter()
-                    .find(|(ordinal, _)| *ordinal == binding_ordinal)
-                    .ok_or(LoweringError::Unsupported(
-                        "cleanup result is not established",
-                    ))?;
+                        .structural_values
+                        .iter()
+                        .find(|(ordinal, _)| *ordinal == binding_ordinal)
+                        .ok_or(LoweringError::Unsupported(
+                            "cleanup result is not established",
+                        ))?;
                     Ok((result.place(), result.structural_type()))
                 })?;
             let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(

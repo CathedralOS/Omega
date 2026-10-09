@@ -474,7 +474,7 @@ pub(crate) fn emit(
         place,
         completed_declaration,
         emission.operations,
-        &emission.evaluation.block_structural_parameters,
+        emission.evaluation.structural_root_parameters(),
         arrival_claims,
     )?;
     emission.evaluation.establish_structural_binding(
@@ -515,13 +515,23 @@ fn prepare_owners(
     evaluation: &argument_evaluation::Evaluation,
     operations: &OperationBuffer,
 ) -> Result<Vec<argument_evaluation::StructuralValueOwner>, LoweringError> {
-    let available = |symbol: symbols::SymbolHandle| -> Result<bool, LoweringError> {
+    let source_parameters =
+        checked.state_parameters(crate::declarations::state_declaration(checked, state)?.1);
+    let available = |symbol: symbols::SymbolHandle,
+                     formation: u32|
+     -> Result<bool, LoweringError> {
         if !symbol.is_valid() {
             return Ok(true);
         }
+        // Parameter slots are ordering coordinates, not statement formations:
+        // state-entry owners precede every statement, including statement zero.
+        let entry = source_parameters
+            .iter()
+            .any(|parameter| parameter.symbol == symbol);
         for (_, receipt) in checked.facts.flow.ownership.owned_selections.iter() {
             if receipt.machine == machine
                 && receipt.state == state
+                && (entry || receipt.statement_ordinal > formation)
                 && receipt.statement_ordinal < statement
                 && checked
                     .facts
@@ -550,7 +560,8 @@ fn prepare_owners(
                 } => statement_index,
                 _ => continue,
             };
-            if ordinal >= statement as usize
+            if (!entry && ordinal <= formation as usize)
+                || ordinal >= statement as usize
                 || event.kind == language_semantics::PermissionEventKind::Establish
             {
                 continue;
@@ -566,7 +577,7 @@ fn prepare_owners(
     };
     let mut owners = Vec::new();
     for owner in &evaluation.structural_value_owners {
-        if available(owner.symbol)? {
+        if available(owner.symbol, owner.statement)? {
             owners.push(owner.clone());
         }
     }
@@ -578,9 +589,6 @@ fn prepare_owners(
         let Some(symbol) = root.as_symbol() else {
             continue;
         };
-        if owners.iter().any(|owner| owner.symbol == symbol) || !available(symbol)? {
-            continue;
-        }
         let local =
             checked
                 .facts
@@ -589,6 +597,11 @@ fn prepare_owners(
                 .ok_or(LoweringError::Unsupported(
                     "selection survivor has no authored local",
                 ))?;
+        if owners.iter().any(|owner| owner.symbol == symbol)
+            || !available(symbol, local.statement_index)?
+        {
+            continue;
+        }
         if checked.type_multiplicity(local.declared_type) != Multiplicity::Affine {
             continue;
         }
@@ -625,8 +638,6 @@ fn prepare_owners(
     // Selected parameter sources join the frontier as owners: their ingress
     // places are real signature places and their residual slots die on the
     // receipt's actual death edge like any local source.
-    let source_parameters =
-        checked.state_parameters(crate::declarations::state_declaration(checked, state)?.1);
     if let Some((_, receipt)) = checked
         .facts
         .flow
@@ -647,8 +658,8 @@ fn prepare_owners(
             {
                 continue;
             }
-            if parameter.is_const || parameter.is_mutable {
-                return unsupported("selection parameter source is not immutable owned ingress");
+            if parameter.is_const {
+                return unsupported("selection parameter source is not owned runtime ingress");
             }
             let declaration = evaluation
                 .structural_parameters
@@ -708,7 +719,7 @@ fn prepare_owners(
         .take_while(|local| local.statement_index < statement)
     {
         if checked.type_multiplicity(local.declared_type) == Multiplicity::Affine
-            && available(local.symbol)?
+            && available(local.symbol, local.statement_index)?
             && !owners.iter().any(|owner| owner.symbol == local.symbol)
         {
             return unsupported(
@@ -1524,15 +1535,13 @@ impl Emission<'_, '_, '_> {
         } else {
             if !self
                 .evaluation
-                .structural_parameters
-                .iter()
-                .map(|(_, parameter)| parameter)
-                .chain(&self.evaluation.block_structural_parameters)
+                .structural_root_parameters()
                 .any(|parameter| parameter.place == source)
             {
                 return unsupported("owned move has no source custody");
             }
-            // Entry identities have no operation result. Source replay joined
+            // Ingress identities have no operation result, including homes
+            // transported through already emitted private blocks. Replay joined
             // the exact Transfer/Establish pair, and ClaimBindings resolved
             // those identities without minting at this move. The receiver
             // independently derives the live set from the actual incoming edge.
@@ -1630,9 +1639,11 @@ impl Emission<'_, '_, '_> {
             self.evaluation
                 .selection_cleanups
                 .push(argument_evaluation::SelectionCleanup {
+                    selection: arena::Handle::invalid(),
                     selected: place,
                     sources: Vec::new(),
                     remaining: Vec::new(),
+                    retired_reference_paths: Vec::new(),
                     pass_through: continuation.pass_through,
                     next_operation: self.operations.next_identity,
                 });
@@ -2118,14 +2129,31 @@ impl Emission<'_, '_, '_> {
         self.evaluation
             .selection_cleanups
             .push(argument_evaluation::SelectionCleanup {
+                selection: self
+                    .checked
+                    .facts
+                    .flow
+                    .ownership
+                    .owned_selection_at(self.state, self.statement)
+                    .map(|(handle, _)| handle)
+                    .unwrap_or_default(),
                 selected: continuation.place,
                 sources: self
-                    .sources
+                    .owners
                     .iter()
                     .rev()
-                    .map(|source| source.place)
+                    .filter(|owner| self.source_at(owner.value.place).is_some())
+                    .map(|owner| owner.value.place)
                     .collect(),
-                remaining: continuation.residuals.iter().rev().copied().collect(),
+                remaining: self
+                    .owners
+                    .iter()
+                    .filter(|owner| self.source_at(owner.value.place).is_some())
+                    .skip(1)
+                    .zip(&continuation.residuals)
+                    .map(|(owner, receiving)| (owner.value.place, *receiving))
+                    .collect(),
+                retired_reference_paths: Vec::new(),
                 pass_through: continuation.pass_through.clone(),
                 next_operation: self.operations.next_identity,
             });

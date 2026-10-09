@@ -809,6 +809,7 @@ impl OperationFrame<'_, '_> {
     /// owner's restoration debt and require a spurious extraction.
     pub(super) fn rebind_structural_local(
         &mut self,
+        statement_index: u32,
         symbol: symbols::SymbolHandle,
         type_identity: &str,
         value: &CheckedUnitStructuralArgumentPlan,
@@ -817,23 +818,48 @@ impl OperationFrame<'_, '_> {
         if replacement.structural_type != lookup_type_id(self.type_ids, type_identity)? {
             return unsupported("owned rebind changes the local's declared type");
         }
+        if !self
+            .checked
+            .facts
+            .state_locals
+            .named(self.state, symbol)
+            .is_some_and(|local| local.is_mutable)
+        {
+            return unsupported("owned rebind names no mutable local declaration");
+        }
         let mut locals = self
             .evaluation
             .structural_locals
-            .iter_mut()
+            .iter()
             .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol));
-        let local = locals.next().ok_or(LoweringError::Unsupported(
-            "owned rebind lost the destination local",
-        ))?;
+        let old = locals.next();
         if locals.next().is_some()
-            || local.structural_type != replacement.structural_type
-            || local.argument.access != StructuralAccess::Owned
-            || !local.argument.path.is_empty()
+            || old.is_some_and(|local| {
+                local.structural_type != replacement.structural_type
+                    || local.argument.access != StructuralAccess::Owned
+                    || !local.argument.path.is_empty()
+            })
         {
             return unsupported("owned rebind has ambiguous or incompatible destination custody");
         }
-        local.argument.place = replacement.place;
-        local.result_binding_ordinal = value.source_structural_result_binding_ordinal();
+        // The declaration survives a consuming move; its old value binding
+        // does not. Assignment publishes one new current occurrence whether
+        // the preceding slot was occupied or vacated.
+        self.evaluation
+            .structural_locals
+            .retain(|local| local.root != facts::PlaceRoot::Symbol(symbol));
+        self.evaluation.structural_locals.push(
+            crate::expression_preparation::bindings::StructuralLocalBinding {
+                result_binding_ordinal: value.source_structural_result_binding_ordinal(),
+                root: facts::PlaceRoot::Symbol(symbol),
+                structural_type: replacement.structural_type,
+                argument: terminal_psi::StructuralArgument {
+                    place: replacement.place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+            },
+        );
         self.evaluation
             .structural_value_owners
             .retain(|owner| owner.symbol != symbol || owner.value.place == replacement.place);
@@ -844,6 +870,9 @@ impl OperationFrame<'_, '_> {
             .find(|owner| owner.value.place == replacement.place)
         {
             owner.symbol = symbol;
+            // Availability and cleanup order belong to this receiving event,
+            // not the supplying producer's older declaration statement.
+            owner.statement = statement_index;
         }
         Ok(())
     }
@@ -866,22 +895,22 @@ impl OperationFrame<'_, '_> {
             self.type_ids,
             |source, selected_path| {
                 let captured = match boundary {
-                checked_trees::CheckedUnitCleanupBoundary::Replacement {
-                    statement_index,
-                    destination,
-                    old_value,
-                    ..
-                } if destination.source == old_value.source
-                    && destination.path == old_value.path =>
-                {
-                    self.windows.captured_assignment_place(
-                        *statement_index,
-                        source,
-                        selected_path,
-                    )?
-                }
-                _ => None,
-            };
+                    checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                        statement_index,
+                        destination,
+                        old_value,
+                        ..
+                    } if destination.source == old_value.source
+                        && destination.path == old_value.path =>
+                    {
+                        self.windows.captured_assignment_place(
+                            *statement_index,
+                            source,
+                            selected_path,
+                        )?
+                    }
+                    _ => None,
+                };
                 if let Some(captured) = captured {
                     return Ok(captured);
                 }
@@ -906,15 +935,15 @@ impl OperationFrame<'_, '_> {
             },
             |cleanup, place, structural_type, path| {
                 crate::unit::unit_cleanup::lower_nominal_cleanup_action(
-                            cleanup,
-                            place,
-                            structural_type,
-                            path,
-                            self.calls.machine_ids,
-                            self.calls.cleanup_receivers,
-                            self.calls.requirement_counts,
-                            &mut self.calls.next_obligation_identity,
-                        )
+                    cleanup,
+                    place,
+                    structural_type,
+                    path,
+                    self.calls.machine_ids,
+                    self.calls.cleanup_receivers,
+                    self.calls.requirement_counts,
+                    &mut self.calls.next_obligation_identity,
+                )
             },
         )?;
         self.evaluation.continue_cleanup_regions(

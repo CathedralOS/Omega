@@ -286,7 +286,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
             service_reach: state_flow.service_reach,
             operations: vec![CheckedUnitEffectOperationPlan::Complete {
-                parameter_cleanup_actions: Vec::new(),
+                normal_cleanup_actions: Vec::new(),
                 statement_index: 0,
                 trivial_affine_local_discard_ordinals: Vec::new(),
                 trivial_affine_discards: Vec::new(),

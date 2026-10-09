@@ -229,8 +229,9 @@ pub(in crate::checks::multiplicity) fn record_statement(
                 consumed_paths.push(claim_path);
             }
         }
-        // A source is either an established immutable local or an immutable
-        // owned parameter: parameters carry their authored position as the
+        // A source is established storage in the current permission context.
+        // Mutability grants reassignment, not copying or weaker move rules.
+        // Parameters carry their authored position as the
         // source ordinal and their state-entry establishment as provenance.
         let parameter = program
             .state_parameters(state)
@@ -242,9 +243,9 @@ pub(in crate::checks::multiplicity) fn record_statement(
             parameter,
         )) = parameter
         {
-            if (parameter.is_const) || parameter.is_mutable {
+            if parameter.is_const {
                 return Err(Diagnostic::error(
-                    "owned match source must be an available whole immutable plain-affine local of the exact result type",
+                    "owned match source must be an available whole plain-affine local of the exact result type",
                 ));
             }
             (
@@ -262,11 +263,6 @@ pub(in crate::checks::multiplicity) fn record_statement(
                 .state_local_declaration(state, symbol)
                 .filter(|&(ordinal, _)| ordinal < statement_index)
                 .ok_or_else(unsupported)?;
-            if source_local.is_mutable || !source_local.initial_value.is_valid() {
-                return Err(Diagnostic::error(
-                    "owned match source must be an available whole immutable plain-affine local of the exact result type",
-                ));
-            }
             // A carrier source has no tracked root place: its linear children
             // are the custody roster. Their provenance is the single
             // establishment event the declaration's write recorded, and any
@@ -339,7 +335,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
                 || place.multiplicity != Multiplicity::Linear
             {
                 return Err(Diagnostic::error(
-                    "owned match source must be an available immutable owned local or parameter claim of the exact result type",
+                    "owned match source must be an available owned local or parameter claim of the exact result type",
                 ));
             }
             consumed.push(place);
@@ -355,14 +351,14 @@ pub(in crate::checks::multiplicity) fn record_statement(
         );
         if !source_ok {
             return Err(Diagnostic::error(
-                "owned match source must be an available immutable owned local or parameter claim of the exact result type",
+                "owned match source must be an available owned local or parameter claim of the exact result type",
             ));
         }
         if consumed.is_empty() {
             let place = root_place.ok_or_else(unsupported)?;
             if !place.live || !place.ever_established || place.conditional {
                 return Err(Diagnostic::error(
-                    "owned match source must be an available immutable owned local or parameter claim of the exact result type",
+                    "owned match source must be an available owned local or parameter claim of the exact result type",
                 ));
             }
         }
@@ -376,7 +372,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
             != program.normalized_type_identity(type_reference)
         {
             return Err(Diagnostic::error(
-                "owned match source must be an available whole immutable plain-affine local of the exact result type",
+                "owned match source must be an available whole plain-affine local of the exact result type",
             ));
         }
         // A source whose custody was borrowed joins the selection once every

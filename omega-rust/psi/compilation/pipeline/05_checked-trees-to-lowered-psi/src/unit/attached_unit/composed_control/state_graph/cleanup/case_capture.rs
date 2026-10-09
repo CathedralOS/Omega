@@ -19,7 +19,10 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn retire_capt
         .iter()
         .filter_map(|operation| {
             let CheckedUnitEffectOperationPlan::ReleaseReference {
-                binding_ordinal,
+                source:
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    },
                 path,
                 defer_to_exit: true,
                 ..

@@ -20,6 +20,8 @@ use checked_trees::CheckedUnitNominalAffineCleanupPlan;
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
 mod custody;
+mod dispositions;
+pub(crate) use dispositions::outstanding_actions;
 mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
@@ -83,9 +85,12 @@ pub(crate) fn lower_cleanup_conditions(
                     ))?
             };
             let (place, path) = storage(path)?;
-            let structural_type = terminal_psi::structural_type_by_identity(types, &condition.type_identity)
-                .map(|declaration| declaration.id)
-                .ok_or(LoweringError::Unsupported("cleanup condition has no structural type"))?;
+            let structural_type =
+                terminal_psi::structural_type_by_identity(types, &condition.type_identity)
+                    .map(|declaration| declaration.id)
+                    .ok_or(LoweringError::Unsupported(
+                        "cleanup condition has no structural type",
+                    ))?;
             let (_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
                 types,
                 structural_type,
@@ -123,9 +128,9 @@ pub(crate) fn continuation_cleanups(
                 cleanup_actions, ..
             } => Some(cleanup_actions),
             CheckedUnitEffectOperationPlan::Complete {
-                parameter_cleanup_actions,
+                normal_cleanup_actions,
                 ..
-            } => Some(parameter_cleanup_actions),
+            } => Some(normal_cleanup_actions),
             _ => None,
         })
         .flatten()

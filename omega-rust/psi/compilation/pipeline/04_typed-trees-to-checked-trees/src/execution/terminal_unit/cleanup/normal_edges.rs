@@ -33,11 +33,10 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
     )
 }
 
-/// Ordinary sequence completion owns parameter cleanup independently of its
-/// legacy local/result schedule. Select every parameter disposition from the
-/// same checked exits and action geometry as state graphs; multiplicity and
-/// nominal hooks do not choose another body builder.
-pub(in crate::execution::terminal_unit) fn parameter_cleanups(
+/// Sequence completion disposes current named storage through the same checked
+/// exits as state graphs. Anonymous evaluation results keep their own producer
+/// disposition; named locals must never revive an overwritten birth result.
+pub(in crate::execution::terminal_unit) fn sequence_cleanups(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
@@ -59,7 +58,12 @@ pub(in crate::execution::terminal_unit) fn parameter_cleanups(
                 .iter()
                 .position(|parameter| root == PlaceRoot::Symbol(parameter.symbol));
             let Some(position) = position else {
-                return Some(None);
+                return Some(super::super::local_storage::source(
+                    program,
+                    state,
+                    &plan.operations,
+                    root.as_symbol()?,
+                ));
             };
             let Some(index) = plan
                 .structural_parameters

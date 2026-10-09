@@ -105,5 +105,6 @@ pub use unit_effect_plans::{
     CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEffectPlans, CheckedUnitParameterStoragePlan, CheckedUnitPlanGap,
     CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
+    CheckedUnitSelectedReferenceRetirementPlan,
 };
 pub use unit_plans::CheckedUnitPlan;

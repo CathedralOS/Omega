@@ -1453,6 +1453,31 @@ pub fn local_record_loans(
         .statements(state.statement_nodes)
         .get(statement_index as usize)?
         .as_local_data()?;
+    local_place_loans(
+        program,
+        facts,
+        machine,
+        state,
+        local.symbol,
+        statement_index,
+        &[],
+    )
+}
+
+/// Join a local storage occurrence formed by a constructor, call or store.
+/// The declared leaf roster and exact activation are independent of the
+/// producer. A subtree replacement captures only leaves beneath its destination.
+pub fn local_place_loans(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    owner: SymbolHandle,
+    statement_index: u32,
+    selection: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<Vec<RecordLeafLoans>> {
+    let (_, local) = program.state_local_declaration(state, owner)?;
+    let selected_owner_path = loan_owner_path(program, local.type_reference, selection)?;
     let mut states = facts.borrow.states.iter().filter_map(|(_, borrowing)| {
         (borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol)
             .then_some(borrowing)
@@ -1471,7 +1496,14 @@ pub fn local_record_loans(
         .activations
         .span(flow.borrow_activations)?;
     let mut captured = Vec::new();
-    for (handle, _) in facts.borrow.loan_group(loans)? {
+    for (handle, loan) in facts.borrow.loan_group(loans)? {
+        if !facts
+            .borrow
+            .loan_owner_path(loan)
+            .starts_with(&selected_owner_path)
+        {
+            continue;
+        }
         let mut matching = activations
             .iter()
             .filter(|activation| activation.loan == handle);
@@ -1491,6 +1523,7 @@ pub fn local_record_loans(
         local.type_reference,
         local.symbol,
         &captured,
+        selection,
     )
 }
 
@@ -1504,6 +1537,7 @@ fn record_leaf_loan_groups(
     reference: TypeReferenceHandle,
     owner: SymbolHandle,
     loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
+    selection: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<RecordLeafLoans>> {
     let sources = record_carrier_sources(
         program,
@@ -1512,7 +1546,10 @@ fn record_leaf_loan_groups(
     )?;
     let mut grouped_count = 0usize;
     let mut output = Vec::with_capacity(sources.len());
-    for source in sources {
+    for source in sources
+        .into_iter()
+        .filter(|source| source.path.starts_with(selection))
+    {
         let owner_path = loan_owner_path(program, reference, &source.path)?;
         let access = source.source.access.borrow_access_kind()?;
         let mut group = arena::HandleSpan::empty();
@@ -1759,7 +1796,14 @@ fn active_record_loans(
     {
         return None;
     }
-    record_leaf_loan_groups(program, facts, local.type_reference, local.symbol, &loans)
+    record_leaf_loan_groups(
+        program,
+        facts,
+        local.type_reference,
+        local.symbol,
+        &loans,
+        &[],
+    )
 }
 
 /// Whole owned operands retain every captured leaf until their consuming call.

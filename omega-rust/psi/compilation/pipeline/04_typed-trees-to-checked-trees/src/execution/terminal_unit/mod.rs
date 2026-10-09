@@ -276,7 +276,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 &plan.structural_parameters,
                 &plan.operations,
             )?;
-            let normal = cleanup::normal_edges::parameter_cleanups(
+            let normal = cleanup::normal_edges::sequence_cleanups(
                 program,
                 facts,
                 &targets,
@@ -355,14 +355,14 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         Some(Some((selected, normal))) => {
             cleanup::temporary_actions::install(&mut plan.operations, selected);
             let Some(CheckedUnitEffectOperationPlan::Complete {
-                parameter_cleanup_actions,
+                normal_cleanup_actions,
                 trivial_affine_discards,
                 ..
             }) = plan.operations.last_mut()
             else {
                 return false;
             };
-            *parameter_cleanup_actions = normal;
+            *normal_cleanup_actions = normal;
             // Parameter dispositions now have one authority and one schedule.
             // The former affine-only reconstruction must not dispose them again.
             trivial_affine_discards.clear();
@@ -439,7 +439,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 )
                 .chain(
                     plan.operations.iter().filter_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::Complete { parameter_cleanup_actions, .. } => Some(parameter_cleanup_actions),
+                        CheckedUnitEffectOperationPlan::Complete { normal_cleanup_actions, .. } => Some(normal_cleanup_actions),
                         _ => None,
                     }).flatten().map(|action| action.type_identity()),
                 )

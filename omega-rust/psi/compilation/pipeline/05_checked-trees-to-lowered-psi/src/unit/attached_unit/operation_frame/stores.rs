@@ -104,7 +104,10 @@ impl OperationFrame<'_, '_> {
                 self.byte_sequence_store(store)
             }
             CheckedStoreLeaf::SumField => self.sum_field_store(store),
-            CheckedStoreLeaf::WindowRepair { type_identity, opening_binding } => {
+            CheckedStoreLeaf::WindowRepair {
+                type_identity,
+                opening_binding,
+            } => {
                 let Some(value) = store.installed_value() else {
                     return unsupported("window repair installs no whole value");
                 };
@@ -130,7 +133,7 @@ impl OperationFrame<'_, '_> {
                 if !store.destination.path.is_empty() {
                     return unsupported("owned rebind destination is not its whole local");
                 }
-                self.rebind_structural_local(symbol, type_identity, value)
+                self.rebind_structural_local(store.statement_index, symbol, type_identity, value)
             }
         }
     }

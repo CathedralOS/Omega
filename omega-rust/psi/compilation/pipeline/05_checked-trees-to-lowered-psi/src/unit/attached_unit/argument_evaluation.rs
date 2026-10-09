@@ -107,14 +107,18 @@ pub(crate) struct Evaluation {
     pub blocks: Vec<Block>,
 }
 
-/// Replace candidate roots only at their normal death edge. Both rosters are
-/// in reverse establishment order; physical source declarations stay intact.
+/// Replace candidate slots only at their normal death edge. The join retains
+/// each source slot's residual parameter; a rebind can change establishment
+/// order without changing the historical producer roster. This is slot
+/// correspondence, not a fixed donor identity for an alternative residual.
 /// An ordinary move has no residual candidates and only rebinds survivors.
 #[derive(Clone)]
 pub(crate) struct SelectionCleanup {
+    pub(crate) selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
     pub(crate) selected: PlaceId,
     pub(crate) sources: Vec<PlaceId>,
-    pub(crate) remaining: Vec<PlaceId>,
+    pub(crate) remaining: Vec<(PlaceId, PlaceId)>,
+    pub(crate) retired_reference_paths: Vec<(PlaceId, Vec<terminal_psi::StructuralPathSegment>)>,
     pub(crate) pass_through: Vec<(PlaceId, PlaceId)>,
     pub(crate) next_operation: u64,
 }
@@ -216,10 +220,13 @@ impl Evaluation {
                 (parameter.place, parameter.structural_type)
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                let local = crate::expression_preparation::bindings::structural_local_by_root(&self.structural_locals, facts::PlaceRoot::Symbol(symbol))
-                    .ok_or(LoweringError::Unsupported(
-                        "cleanup local is not established",
-                    ))?;
+                let local = crate::expression_preparation::bindings::structural_local_by_root(
+                    &self.structural_locals,
+                    facts::PlaceRoot::Symbol(symbol),
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "cleanup local is not established",
+                ))?;
                 if !local.argument.path.is_empty() {
                     return unsupported("cleanup local is not its whole owner");
                 }
@@ -238,7 +245,7 @@ impl Evaluation {
     /// results. Resolve their exact declarations without replaying a producer.
     pub(crate) fn structural_root_parameters(
         &self,
-    ) -> impl Iterator<Item = &StructuralParameterDeclaration> {
+    ) -> impl Iterator<Item = &StructuralParameterDeclaration> + Clone {
         self.structural_parameters
             .iter()
             .map(|(_, declaration)| declaration)
@@ -518,6 +525,18 @@ impl Evaluation {
         place
     }
 
+    /// Remove a retired physical occurrence from current source and transport
+    /// rosters. Historical declarations and shared type geometry stay intact.
+    pub(crate) fn retire_structural_home(&mut self, place: PlaceId) {
+        self.structural_value_owners
+            .retain(|owner| owner.value.place != place);
+        self.structural_locals
+            .retain(|local| local.argument.place != place);
+        let mut views = std::mem::take(&mut self.view_locals);
+        views.retain(|view| self.current_structural_place(view.place) != place);
+        self.view_locals = views;
+    }
+
     pub(crate) fn selection_return_discards(
         &self,
         mut roots: Vec<(PlaceId, bool)>,
@@ -561,11 +580,20 @@ impl Evaluation {
                 ))?
                 + 1;
             if start <= selected
-                || !roots[start..end]
+                || cleanup
+                    .sources
                     .iter()
-                    .filter(|(place, _)| cleanup.sources.contains(place))
-                    .map(|(place, _)| place)
-                    .eq(cleanup.sources.iter())
+                    .any(|source| roots.iter().filter(|(place, _)| place == source).count() != 1)
+                || cleanup.remaining.len() + 1 != cleanup.sources.len()
+                || cleanup.remaining.iter().any(|(source, _)| {
+                    !cleanup.sources.contains(source)
+                        || cleanup
+                            .remaining
+                            .iter()
+                            .filter(|(other, _)| other == source)
+                            .count()
+                            != 1
+                })
             {
                 return unsupported(
                     "owned selection cleanup source roster does not match its receipt",
@@ -577,25 +605,19 @@ impl Evaluation {
             {
                 return unsupported("owned selection source retains conflicting return disposal");
             }
-            // Candidates interleaved with other live owners share the joined
-            // frontier: a residual parameter stands at each surviving
-            // candidate's roster position in reverse order, the displaced
-            // candidate's row drops with the result parameter that displaced
-            // its slot, and transported owners keep their rebound parameter
-            // places at their own roster positions. Owners established
-            // between candidates therefore stay live in establishment order
-            // rather than being flattened into or out of the source run.
-            let mut remaining = cleanup.remaining.iter();
-            let mut source_rows = 0usize;
+            // Replace slots by their recorded join correspondence, never by
+            // zipping declaration order with current storage order. Interleaved
+            // pass-through owners retain their own rows; the displaced slot
+            // has no residual because the selected result owns that position.
             let replacement = roots[start..end]
                 .iter()
                 .filter_map(|(place, discard)| {
                     if cleanup.sources.contains(place) {
-                        source_rows += 1;
-                        if source_rows == cleanup.sources.len() {
-                            return None;
-                        }
-                        return remaining.next().map(|place| (*place, true));
+                        return cleanup
+                            .remaining
+                            .iter()
+                            .find(|(source, _)| source == place)
+                            .map(|(_, receiving)| (*receiving, true));
                     }
                     Some((
                         cleanup
@@ -608,11 +630,6 @@ impl Evaluation {
                     ))
                 })
                 .collect::<Vec<_>>();
-            if remaining.next().is_some() {
-                return unsupported(
-                    "owned selection cleanup residuals do not cover their source roster",
-                );
-            }
             roots.splice(start..end, replacement);
             for (place, _) in &mut roots {
                 if let Some((_, target)) = cleanup

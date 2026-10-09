@@ -42,10 +42,7 @@ impl Emission<'_, '_, '_> {
             })
             .or_else(|| {
                 self.evaluation
-                    .structural_parameters
-                    .iter()
-                    .map(|(_, parameter)| parameter)
-                    .chain(self.evaluation.block_structural_parameters.iter())
+                    .structural_root_parameters()
                     .find(|parameter| parameter.place == place)
                     .map(|parameter| {
                         (
@@ -137,11 +134,11 @@ impl Emission<'_, '_, '_> {
 /// Registration retains the completed storage contract, rather than creating
 /// an unqualified approximation of the value. Source replay and each emitted
 /// operation own establishment; a continuation owns its arrival declaration.
-pub(super) fn completed_result(
+pub(super) fn completed_result<'a>(
     place: PlaceId,
     declaration: &StructuralPlaceDeclaration,
     operations: &OperationBuffer,
-    parameters: &[StructuralParameterDeclaration],
+    mut parameters: impl Iterator<Item = &'a StructuralParameterDeclaration> + Clone,
     arrival_claims: &[terminal_psi::StructuralResultClaimBinding],
 ) -> Result<terminal_psi::StructuralOperationResult, LoweringError> {
     let mut producers = operations.iter().filter_map(|operation| {
@@ -153,7 +150,7 @@ pub(super) fn completed_result(
     });
     if let Some((producer, result)) = producers.next() {
         if producers.next().is_some()
-            || parameters.iter().any(|parameter| parameter.place == place)
+            || parameters.clone().any(|parameter| parameter.place == place)
             || declaration.kind
                 != (StructuralPlaceKind::OperationResult {
                     producer,
@@ -172,7 +169,6 @@ pub(super) fn completed_result(
         return unsupported("completed value has no producer or arrival declaration");
     };
     let parameter = parameters
-        .iter()
         .find(|parameter| parameter.place == place)
         .ok_or(LoweringError::Unsupported(
             "completed value has no current arrival",

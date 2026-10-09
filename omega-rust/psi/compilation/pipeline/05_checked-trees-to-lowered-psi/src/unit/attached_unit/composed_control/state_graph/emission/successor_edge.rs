@@ -565,11 +565,12 @@ impl StateGraphEmission<'_, '_> {
                 }
                 capture_parameters.push(StructuralParameterDeclaration {
                     place,
-                    position: u32::try_from(capture_parameters.len()).map_err(|_| LoweringError::Unsupported(
-                        "cleanup capture structural roster exceeds u32",
-                    ))?,
+                    position: u32::try_from(capture_parameters.len()).map_err(|_| {
+                        LoweringError::Unsupported("cleanup capture structural roster exceeds u32")
+                    })?,
                     structural_type: crate::terminal_identities::lookup_type_id(
-                        &self.catalogs.type_ids, &target_parameter.type_identity,
+                        &self.catalogs.type_ids,
+                        &target_parameter.type_identity,
                     )?,
                     multiplicity: crate::emission::borrowed_window::terminal_multiplicity(
                         target_parameter.multiplicity,
@@ -721,9 +722,10 @@ impl StateGraphEmission<'_, '_> {
                 if retained.peek().is_some() {
                     cleanup_regions.extend(retained.cloned());
                 } else {
-                    cleanup_regions.push(crate::unit::unit_cleanup::CleanupRegion::unconditional(
-                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(*place),
-                    ));
+                    cleanup_regions.extend(
+                        edge_evaluation
+                            .normal_discard_regions(*place, &edge_evaluation.structural_types)?,
+                    );
                 }
             }
             cleanup_regions.extend(previous.into_iter().filter(|region| {

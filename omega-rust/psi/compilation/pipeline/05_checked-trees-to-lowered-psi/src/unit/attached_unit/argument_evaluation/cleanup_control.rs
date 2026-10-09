@@ -31,6 +31,77 @@ pub(crate) struct CleanupEmission<'a> {
 }
 
 impl Evaluation {
+    /// Normal death disposes only the remaining partition of a selected
+    /// complement. Early descriptor retirement does not retire its home or
+    /// authorize a second whole-root disposal of the absent leaf.
+    pub(crate) fn normal_discard_regions(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+    ) -> Result<Vec<CleanupRegion>, LoweringError> {
+        let moved = self
+            .selection_cleanups
+            .iter()
+            .flat_map(|cleanup| &cleanup.retired_reference_paths)
+            .filter(|(source, _)| self.current_structural_place(*source) == place)
+            .map(|(_, path)| path.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        if moved.is_empty() {
+            return Ok(vec![CleanupRegion::unconditional(
+                TerminalAffineCleanupAction::DiscardRoot(place),
+            )]);
+        }
+        let root_type = self
+            .structural_root_parameters()
+            .find(|declaration| declaration.place == place)
+            .map(|declaration| declaration.structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "selected complement death lost its receiving declaration",
+            ))?;
+        let residuals =
+            terminal_semantics::partial_affine_residuals(types, root_type, &moved, usize::MAX)
+                .ok_or(LoweringError::Unsupported(
+                    "selected complement death has no exact remaining partition",
+                ))?;
+        let mut regions = Vec::new();
+        for (path, structural_type) in residuals {
+            let mut conditions = Vec::new();
+            for (position, segment) in path.iter().enumerate() {
+                let terminal_psi::StructuralPathSegment::Case(case) = segment else {
+                    continue;
+                };
+                let sum = terminal_semantics::runtime_structural_path_tip(
+                    types.iter(),
+                    root_type,
+                    &path[..position],
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "selected complement remaining case lost its carrier",
+                ))?;
+                conditions.push(crate::unit::unit_cleanup::CleanupCaseCondition {
+                    place,
+                    path: path[..position].to_vec(),
+                    structural_type: sum.id,
+                    case: *case,
+                });
+            }
+            regions.push(CleanupRegion {
+                conditions,
+                action: TerminalAffineCleanupAction::DiscardResidual(
+                    terminal_psi::StructuralAffineDiscard {
+                        place,
+                        path,
+                        structural_type,
+                    },
+                ),
+            });
+        }
+        regions.push(CleanupRegion::unconditional(
+            TerminalAffineCleanupAction::RetireHome(place),
+        ));
+        Ok(regions)
+    }
+
     /// Bind outgoing structural operands before cleanup can retire their old
     /// homes. The later edge forwards these whole captures, not their old paths.
     pub(crate) fn capture_cleanup_arguments(
@@ -406,7 +477,15 @@ impl CleanupEmission<'_> {
                 next_edge,
                 operations,
             )?;
-            self.cleanup_jump(join, join_parameters, Vec::new(), Vec::new(), values, next_edge, operations)?;
+            self.cleanup_jump(
+                join,
+                join_parameters,
+                Vec::new(),
+                Vec::new(),
+                values,
+                next_edge,
+                operations,
+            )?;
             *self.current = when_false;
             *self.parameters = when_false_parameters.clone();
             *values = when_false_parameters;

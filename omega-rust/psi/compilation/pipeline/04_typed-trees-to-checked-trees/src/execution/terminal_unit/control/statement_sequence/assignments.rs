@@ -189,13 +189,7 @@ pub(super) fn plan(
             .owned_selection_at(state.symbol, statement_index)
             .is_some()
         {
-            retain_selected_sources(
-                facts,
-                state.symbol,
-                statement_index,
-                structural_results,
-                &mut *operations,
-            )?;
+            retain_selected_sources(program, facts, state, statement_index, &mut *operations)?;
         } else {
             consume_value_places(facts, root.root, structural_results, &mut *operations)?;
         }

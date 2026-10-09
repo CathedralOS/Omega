@@ -165,12 +165,24 @@ pub(super) fn account(
                             .span_or_empty(receipt.sources)
                             .iter()
                             .any(|source| {
-                                source.statement_ordinal == result.statement_index
-                                    && matches!(
-                                        statements.get(result.statement_index as usize),
-                                        Some(StatementNode::LocalData(local))
-                                            if local.symbol == source.symbol
-                                    )
+                                let boundary = operations
+                                    .iter()
+                                    .position(|operation| {
+                                        operation.source_statement_index().is_some_and(
+                                            |statement| statement >= receipt.statement_ordinal,
+                                        )
+                                    })
+                                    .unwrap_or(operations.len());
+                                super::super::local_storage::source(
+                                    program,
+                                    state,
+                                    &operations[..boundary],
+                                    source.symbol,
+                                ) == Some(
+                                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                        binding_ordinal: result.binding_ordinal,
+                                    },
+                                )
                             })
                 });
         // A mutable view's result owner is its one checked loan release. A

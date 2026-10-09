@@ -288,10 +288,10 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => {}
                 CheckedUnitEffectOperationPlan::Complete {
-                    parameter_cleanup_actions,
+                    normal_cleanup_actions,
                     ..
                 } => {
-                    for cleanup in parameter_cleanup_actions
+                    for cleanup in normal_cleanup_actions
                         .iter()
                         .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
                     {

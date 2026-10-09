@@ -20,6 +20,11 @@ pub(super) enum Destination {
     Call {
         statement_index: u32,
     },
+    Storage {
+        symbol: SymbolHandle,
+        statement_index: u32,
+        path: Path,
+    },
     Unknown,
 }
 
@@ -47,7 +52,8 @@ struct Query<'a> {
     program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     results: &'a Results,
-    binding: u32,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    formation: u32,
     operations: &'a [CheckedUnitEffectOperationPlan],
 }
 
@@ -58,36 +64,106 @@ pub(super) fn transfers(
     binding: u32,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<Transfers> {
+    let formation = results
+        .iter()
+        .find(|(result, _)| result.binding_ordinal == binding)
+        .map_or(0, |(result, _)| result.statement_index);
+    from_storage(
+        program,
+        facts,
+        results,
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: binding,
+        },
+        formation,
+        &[],
+        operations,
+    )
+}
+
+pub(super) fn from_storage(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    results: &Results,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    formation: u32,
+    selection: &[CheckedUnitStructuralPathSegment],
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Option<Transfers> {
     let query = Query {
         program,
         facts,
         results,
-        binding,
+        source,
+        formation,
         operations,
     };
     let mut output = Transfers::default();
     for operation in operations {
+        if operation
+            .source_statement_index()
+            .is_some_and(|statement| statement < query.formation)
+        {
+            continue;
+        }
         output.append(query.operation(operation, &mut Vec::new())?);
+        // A receiving overwrite starts another occurrence at this slot. Its
+        // RHS still sees the old value; later moves belong to the new value.
+        // For a leaf query, unrelated sibling replacements do not end it.
+        if let CheckedUnitEffectOperationPlan::Store(store) = operation
+            && store.statement_index > formation
+            && store.installed_value().is_some()
+            && query.owner().is_some_and(|symbol| {
+                store.destination.root == (checked_trees::CheckedStoreRoot::Local { symbol })
+            })
+            && selection.starts_with(&store.destination.path)
+        {
+            break;
+        }
     }
     Some(output)
 }
 
 impl Query<'_> {
+    fn owner(&self) -> Option<SymbolHandle> {
+        match self.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => Some(symbol),
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                self.results.iter().find_map(|(result, root)| {
+                    (result.binding_ordinal == binding_ordinal)
+                        .then_some(root.as_symbol())
+                        .flatten()
+                })
+            }
+            _ => None,
+        }
+    }
     fn operation(
         &self,
         operation: &CheckedUnitEffectOperationPlan,
         active: &mut Vec<CheckedStructuralValueHandle>,
     ) -> Option<Transfers> {
         let mut output = Transfers::default();
-        // Calls and stores transfer custody, but without a retained receiving
-        // local they do not prove when that custody ends.
+        // A checked store names its receiving storage independently of the
+        // producer. External storage has no retiring holder in this activation.
         if let Some(call) = operation.call() {
             output.append(self.call(call));
         }
         if let Some(value) = operation.installed_value()
             && self.belongs(value)
         {
-            output.append(self.leaf(value.path.clone(), Destination::Unknown))
+            let destination = match operation {
+                CheckedUnitEffectOperationPlan::Store(store) => match store.destination.root {
+                    checked_trees::CheckedStoreRoot::Local { symbol } => Destination::Storage {
+                        symbol,
+                        statement_index: store.statement_index,
+                        path: store.destination.path.clone(),
+                    },
+                    _ => Destination::Unknown,
+                },
+                _ => Destination::Unknown,
+            };
+            output.append(self.leaf(value.path.clone(), destination))
         }
         if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
             operation
@@ -98,18 +174,19 @@ impl Query<'_> {
     }
     fn belongs(&self, argument: &CheckedUnitStructuralArgumentPlan) -> bool {
         argument.access == CheckedStructuralAccess::Owned
-            && match argument.source {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                    binding_ordinal == self.binding
-                }
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                    self.results.iter().any(|(result, root)| {
-                        result.binding_ordinal == self.binding
-                            && *root == facts::PlaceRoot::Symbol(symbol)
-                    })
-                }
-                _ => false,
-            }
+            && (argument.source == self.source
+                || match (&self.source, &argument.source) {
+                    (
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal,
+                        },
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                    ) => self.results.iter().any(|(result, root)| {
+                        result.binding_ordinal == *binding_ordinal
+                            && *root == facts::PlaceRoot::Symbol(*symbol)
+                    }),
+                    _ => false,
+                })
     }
 
     fn leaf(&self, source: Path, destination: Destination) -> Transfers {
