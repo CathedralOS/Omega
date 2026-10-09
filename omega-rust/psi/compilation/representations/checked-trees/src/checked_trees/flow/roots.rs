@@ -63,6 +63,7 @@ impl FlowBorrowLifetimeFacts {
 pub struct FlowOwnershipFacts {
     pub segments: Arena<facts::PlaceSegment>,
     pub permissions: Arena<FlowPermissionEventFact>,
+    pub loan_completions: Arena<super::FlowLoanCompletionFact>,
     pub claim_outcome_entries: Arena<FlowClaimOutcomeEntryFact>,
     pub claim_outcome_maps: Arena<FlowClaimOutcomeMapFact>,
     pub claim_join_receipts: Arena<super::FlowClaimJoinReceipt>,
@@ -84,6 +85,7 @@ impl FlowOwnershipFacts {
         Self {
             segments,
             permissions,
+            loan_completions: Arena::default(),
             claim_outcome_entries,
             claim_outcome_maps,
             claim_join_receipts: Arena::default(),

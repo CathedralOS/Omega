@@ -1220,6 +1220,12 @@ fn validate_claim_indices(
             .entry_claims
             .iter()
             .any(|entry| entry.claim == claim && matches_path(&entry.path))
+            || machine.loan_completions.iter().any(|completion| {
+                completion
+                    .claims
+                    .iter()
+                    .any(|binding| binding.claim == claim && matches_path(&binding.path))
+            })
             || machine.operations().any(|operation| {
                 let Some(result) = operation.result.structural() else {
                     return false;

@@ -39,18 +39,16 @@ fn affine_view_carrier(
 }
 
 // Inline invocation values can remain in ABI fragments without an addressable
-// home. Their no-code discard still keys on the exact owned affine declaration,
-// independently of the physical storage chosen for other arrivals.
+// home. Their no-code discard keys on the exact owned affine declaration.
+// The checked edge already selected disposal after settling live claims: a
+// type's possible guarded claims (or another parameter's claims) cannot decide
+// whether this storage exists on the selected edge.
 fn owned_arrival(function: &AbstractFunction, place: PlaceId) -> bool {
     function
         .structural_parameters
         .iter()
         .chain(function.block_structural_parameters())
-        .any(|parameter| {
-            parameter.place == place
-                && parameter.is_unqualified_owned_affine()
-                && function.entry_claims.is_empty()
-        })
+        .any(|parameter| parameter.place == place && parameter.is_unqualified_owned_affine())
 }
 
 fn owned_root_type(
@@ -65,7 +63,7 @@ fn owned_root_type(
     }
     if let Some(home) = live.structural_homes.get(&place) {
         return (home.multiplicity() == StructuralMultiplicity::Affine
-            && !home.has_claims()
+            && home.access() == StructuralAccess::Owned
             && home.qualifications().is_empty()
             && home.projected_qualifications().is_empty())
         .then_some(home.structural_type());
@@ -474,9 +472,9 @@ pub(super) fn lower_terminator(
             }
             let reference_bearing =
                 super::references::contains_reference(structural_types, result.structural_type);
-            if let Some(parameter) = function.structural_parameter(*source)
-            {
-                let actual = prepared.parameter(*source)
+            if let Some(parameter) = function.structural_parameter(*source) {
+                let actual = prepared
+                    .parameter(*source)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 let placement = prepared
                     .call_plan

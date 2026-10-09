@@ -76,7 +76,7 @@ pub(crate) fn emit_scalar_binding(
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
 ) -> Result<ValueId, LoweringError> {
-    match binding {
+    let result = match binding {
         LoweredScalarBinding::SelectedComparison {
             occurrence,
             source_machine,
@@ -232,5 +232,26 @@ pub(crate) fn emit_scalar_binding(
             operations,
             call_emission,
         ),
+    }?;
+    let completion = match binding {
+        LoweredScalarBinding::DirectCall(call) => {
+            Some((call.source_coordinate, &call.loan_completions))
+        }
+        LoweredScalarBinding::BoundaryCall(call) => {
+            Some((call.source_coordinate, &call.loan_completions))
+        }
+        LoweredScalarBinding::DynamicCall(call) => {
+            Some((call.source_coordinate, &call.loan_completions))
+        }
+        _ => None,
+    };
+    if let Some((coordinate, completions)) = completion {
+        crate::emission::loan_completions::emit(
+            completions,
+            coordinate,
+            operations,
+            call_emission,
+        )?;
     }
+    Ok(result)
 }

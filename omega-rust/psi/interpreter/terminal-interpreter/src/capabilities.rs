@@ -260,6 +260,7 @@ mod tests {
             structural_parameters: Vec::new(),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
             content_entry_claims: Vec::new(),
             result,
             entry: block_id,

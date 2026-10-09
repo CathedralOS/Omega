@@ -94,10 +94,19 @@ pub(crate) fn apply_recorded_statement_events(
                     place.live = false;
                 }
             }
-            PermissionEventKind::Establish => {
-                if place.live && place.multiplicity == Multiplicity::Linear {
+            PermissionEventKind::Establish | PermissionEventKind::Restore => {
+                if event.kind == PermissionEventKind::Establish
+                    && place.live
+                    && place.multiplicity == Multiplicity::Linear
+                {
                     diagnostics.push(Diagnostic::error(format!(
                         "assignment would overwrite live linear value `{}`; consume or transfer the existing obligation first",
+                        place.name
+                    )));
+                }
+                if event.kind == PermissionEventKind::Restore && !place.ever_established {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "exclusive call cannot restore unestablished owner `{}`",
                         place.name
                     )));
                 }

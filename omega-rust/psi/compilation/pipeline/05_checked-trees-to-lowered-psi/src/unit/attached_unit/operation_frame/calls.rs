@@ -121,7 +121,8 @@ impl OperationFrame<'_, '_> {
                 },
                 _,
             ) => self.dynamic_call(call, interface_identity, &inputs),
-        }
+        }?;
+        self.publish_loan_completions(call)
     }
 
     /// A retained scalar call result is the next dense value, so it also

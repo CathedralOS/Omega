@@ -1,6 +1,19 @@
 use crate::StructuralPathSegment;
 use semantic_vocabulary::{ClaimId, PlaceId};
 
+/// The caller-local custody returned at one exact owned storage region after
+/// an exclusive call completes normally. Payload paths are root-relative;
+/// stored case guards select which bindings exist. This is neither an owned
+/// argument transfer nor evidence that the displaced value survived.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoanCompletion {
+    pub operation: semantic_vocabulary::OperationId,
+    pub place: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
+    pub multiplicity: crate::StructuralMultiplicity,
+    pub claims: Vec<crate::StructuralResultClaimBinding>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EntryClaim {
     pub claim: ClaimId,

@@ -655,14 +655,16 @@ fn check_contents(
     // in Wrapper<Wrapper<Value>>. Expanding recursive by-value data is not a
     // finite owned carrier and must not make this classifier recurse forever.
     // A linear declaration is not plain owned storage. Explicit custody
-    // operations and structural construction still retain its finite carrier;
-    // their independent claim plans authorize transfer and establishment.
+    // operations and structural construction retain its finite carrier.
+    // Lending established storage in place likewise grants no copy, transfer
+    // or cleanup authority; the exact loan retains all owner obligations.
     if (data.properties.multiplicity == Multiplicity::Linear
         && !matches!(
             requirement,
             ContentsRequirement::LinearOwned
                 | ContentsRequirement::BorrowFree
                 | ContentsRequirement::StructuralConstruction
+                | ContentsRequirement::BorrowedStorage
         ))
         || active.iter().any(|ancestor| {
             matches!(ancestor, ContentType::Data(owner, _)

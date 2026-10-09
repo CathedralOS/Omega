@@ -15,7 +15,7 @@ pub use borrows::{
     TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
     TerminalReborrowSharedCohortMember,
 };
-pub use claims::{ClaimTransfer, CompletionReceipt, EntryClaim};
+pub use claims::{ClaimTransfer, CompletionReceipt, EntryClaim, LoanCompletion};
 pub use cleanup::{NominalAffineCleanup, StructuralAffineDiscard, TerminalAffineCleanupAction};
 pub use placement::{TerminalPlacedViewInput, canonical_placed_view_identity};
 pub use suspension::{

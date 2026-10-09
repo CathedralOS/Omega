@@ -26,6 +26,7 @@ fn comparison_module(operand_type: ScalarType, kind: OperationKind) -> TerminalM
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
             declared_service_reach: Vec::new(),
             closed_reach_application: None,
             published_service_ceiling: Vec::new(),

@@ -160,7 +160,7 @@ impl RemainingCustody {
         path: &[PlaceSegment],
     ) {
         match event.kind {
-            PermissionEventKind::Establish => {
+            PermissionEventKind::Establish | PermissionEventKind::Restore => {
                 // A strict child cannot revive its consumed containing owner.
                 self.excluded
                     .retain(|(root, removed)| *root != event.root || !removed.starts_with(path));

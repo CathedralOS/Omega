@@ -32,6 +32,7 @@ pub(crate) fn lower_scalar_call(
     claim_transfers: Vec<checked_trees::CheckedUnitClaimTransferPlan>,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
+    loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
     let target = if structural_arguments.is_empty() {
         crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find(
@@ -184,6 +185,7 @@ pub(crate) fn lower_scalar_call(
     // summary. Its structured-term checks and independent callee substitution
     // still reject an unsupported or mismatched executable continuation.
     Ok(LoweredDirectCallBinding {
+        loan_completions,
         source_coordinate: SourceCallCoordinate {
             state: caller_state,
             statement_index: usize::try_from(statement_ordinal).map_err(|_| {

@@ -80,8 +80,9 @@ pub use self::terminal::{
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralReturnPlan,
-    CheckedUnitStructuralTypePlan, checked_structural_type_by_identity, CheckedUnitStructuralTypeShape, forwards_qualified_parameter,
-    is_borrowed_view, is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    checked_structural_type_by_identity, forwards_qualified_parameter, is_borrowed_view,
+    is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
 };
 pub use borrow_lifetimes::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,
@@ -98,9 +99,9 @@ pub use operand::{FlowCaseAccessFact, FlowOperandChild, FlowOperandFact, FlowOpe
 pub use ownership::{
     FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
     FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,
-    FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowOwnedSelectionClaim,
-    FlowOwnedSelectionReceipt, FlowOwnedSelectionSource, FlowOwnedSelectionTransfer,
-    FlowPermissionEvaluation, FlowPermissionEventFact,
+    FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowLoanCompletionFact,
+    FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
+    FlowOwnedSelectionTransfer, FlowPermissionEvaluation, FlowPermissionEventFact,
 };
 pub use roots::{
     FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts, FlowFacts,

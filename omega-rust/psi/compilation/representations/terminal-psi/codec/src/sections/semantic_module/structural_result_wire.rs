@@ -212,7 +212,7 @@ pub(crate) fn decode_claim_bindings(
     })
 }
 
-fn encode_multiplicity(writer: &mut Writer, multiplicity: StructuralMultiplicity) {
+pub(crate) fn encode_multiplicity(writer: &mut Writer, multiplicity: StructuralMultiplicity) {
     writer.u8(match multiplicity {
         StructuralMultiplicity::Unrestricted => 1,
         StructuralMultiplicity::Affine => 2,
@@ -220,7 +220,9 @@ fn encode_multiplicity(writer: &mut Writer, multiplicity: StructuralMultiplicity
     });
 }
 
-fn decode_multiplicity(reader: &mut Reader<'_>) -> Result<StructuralMultiplicity, CodecError> {
+pub(crate) fn decode_multiplicity(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralMultiplicity, CodecError> {
     match reader.u8()? {
         1 => Ok(StructuralMultiplicity::Unrestricted),
         2 => Ok(StructuralMultiplicity::Affine),

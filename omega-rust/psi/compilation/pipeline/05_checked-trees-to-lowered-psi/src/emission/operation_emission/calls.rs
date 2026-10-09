@@ -87,6 +87,7 @@ impl PreparedStructuralArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredDirectCallBinding {
     pub(crate) source_coordinate: SourceCallCoordinate,
+    pub(crate) loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) arguments: Vec<LoweredDirectExpression>,

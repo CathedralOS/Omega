@@ -31,6 +31,7 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
         result: TerminalMachineResult::Unit,
         structural_places: Vec::new(),
         entry_claims: Vec::new(),
+        loan_completions: Vec::new(),
         declared_service_reach: Vec::new(),
         closed_reach_application: None,
         published_service_ceiling: Vec::new(),

@@ -6,6 +6,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum PermissionEventKind {
     Establish,
+    /// A normal exclusive-call completion returns established caller storage.
+    /// The callee accounts for displaced values; this joins the returned
+    /// storage's claim catalogue without pretending its old payload survived.
+    Restore,
     #[default]
     Transfer,
     Consume,

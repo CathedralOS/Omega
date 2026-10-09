@@ -12,9 +12,9 @@ omega update --project samples/cli/basics/borrowed_sum_repair
 omega run --both samples/cli/basics/borrowed_sum_repair/main.omg
 ```
 
-Current frontier: macOS ARM64 native execution returns 0, but Terminal
-execution fails with `ClaimTransferMismatch` when `consume(holder.choice)`
-joins the repaired `Success` tag to the caller's retained `Failure` claim.
-**BORROWED-STORAGE-RESTORATION** owns that loan-completion custody repair.
-The body is the original retagging reproduction, not a tag-preserving
-substitute; native success is not dual-engine acceptance.
+On macOS ARM64, native and Terminal execution both return 0. Normal exclusive
+call completion refreshes only the repaired field's caller-local payload
+claims, using its stored tag rather than retaining the old `Failure` claim.
+The body remains the original retagging reproduction, not a tag-preserving
+substitute. Matching-host execution on the other supported targets remains
+under **BORROWED-STORAGE-RESTORATION**.

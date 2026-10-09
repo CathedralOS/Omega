@@ -21,6 +21,7 @@ use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredDynamicCallBinding {
     pub(crate) source_coordinate: SourceCallCoordinate,
+    pub(crate) loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
     /// The authored call expression this invocation executes.
     pub(crate) source_expression: typed_trees::expression::ExpressionHandle,
     /// The instantiated slot the call targets.

@@ -135,6 +135,7 @@ mod tests {
             }),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
             published_service_ceiling: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),

@@ -287,6 +287,13 @@ impl TerminalExecution<'_> {
                 self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
             }
         }
+        let caller = self.program.verified_machine(self.current_machine)?;
+        let operation = caller
+            .block(&self.current)
+            .and_then(|block| block.operations.get(self.next_operation))
+            .ok_or_else(malformed)?
+            .id;
+        let loan_completions = self.loan_completions_for_operation(operation)?;
         self.next_operation += 1;
         self.live_claims = remaining_claims;
         let mut caller_structural_values = std::mem::take(&mut self.structural_values);
@@ -296,6 +303,7 @@ impl TerminalExecution<'_> {
             &mut caller_structural_values,
         )?;
         self.call_stack.push(SuspendedCall {
+            loan_completions,
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),

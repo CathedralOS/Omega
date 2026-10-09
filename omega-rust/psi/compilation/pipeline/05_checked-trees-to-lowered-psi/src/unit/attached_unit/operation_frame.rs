@@ -89,6 +89,7 @@ mod calls;
 mod dynamic_calls;
 mod structural_results;
 pub(super) use structural_results::StructuralResults;
+mod loan_completions;
 mod locals;
 mod stores;
 pub(super) use calls::CallInputs;

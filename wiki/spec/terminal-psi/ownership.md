@@ -136,6 +136,16 @@ or repeat the move on resume. Crash and process-exit abandonment retain their
 separate outcome rules. Lowering preserves these relationships without replacing
 the caller's storage by a staged copy.
 
+Normal exclusive-call completion returns custody of the checked caller region,
+not the identity of its displaced value. The completion names the exact call,
+owned home and root-relative region, together with the possible caller-local
+payload claim paths. Stored case guards select the live subset after the callee
+has restored the referent. Callee-local extraction claims do not become caller
+claims by matching bytes or renaming an old case's payload. Refresh only this
+region's claim roster and affine complement; a disjoint moved sibling remains
+moved. A crash, suspended call or abandoning boundary publishes no normal-return
+completion. Host boundaries join only after their authorized writeback.
+
 ## Roots, continuations, and order
 
 Parameter, named-local, and call-result roots retain distinct establishment

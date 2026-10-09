@@ -658,17 +658,21 @@ defines the complete product bar.
     Keep `runtime_known_case_scalar_call_exit` and
     `runtime_borrowed_sum_identity_restore_exit` (0) for typed-path call
     admission and stored-tag extraction; qualify these on remaining hosts.
-    Retagged loan completion remains red:
-    `omega run --both samples/cli/basics/borrowed_sum_repair/main.omg` returns
-    native 0 on macOS ARM64 but Terminal fails `ClaimTransferMismatch`.
-    Caller permission production and Terminal call completion must replace
-    the stale guarded payload roster after exclusive repair, preserving the
-    exact storage owner and disjoint siblings; do not reinterpret its old
-    `Failure` claim as `Success` or waive path agreement.
+    Keep `runtime_borrowed_sum_retag_exit` and
+    `runtime_borrowed_sum_empty_restore_exit` (0) for returned caller-local
+    claim rosters, empty/payload case changes, computed mutating calls and a
+    previously moved disjoint sibling; qualify remaining hosts.
+    Direct implicit replacement remains red on macOS ARM64:
+    `omega run --both samples/cli/basics/borrowed_sum_population/main.omg`
+    declines `populate`'s statement cleanup actions. The stage-04 cleanup
+    action planner requires a statically selected case, but assignment's
+    old sum needs runtime-selected nominal payload cleanup before the store.
+    Publish that selection through the shared cleanup/control-flow owner;
+    do not rewrite the sample to explicitly detach and drop its old value.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the
-  checked interpreter and supported native targets, without staging caller
+  common Terminal core and supported native targets, without staging caller
   storage. Keep `pass/ownership/runtime_borrowed_record_transform_exit`
   (exit 42), `pass/ownership/runtime_borrowed_projected_claim_transform_exit`
   (exit 42) and `pass/ownership/move_keyword_field_assignment` (exit 41).

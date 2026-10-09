@@ -3,6 +3,19 @@ use symbols::SymbolHandle;
 
 mod computation_custody;
 
+/// Caller-owned storage returned by one normal exclusive invocation. Claims
+/// are the Restore events at this call beneath this exact region; the region
+/// is retained separately because an empty or inactive case owns no payload.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowLoanCompletionFact {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub source: language_semantics::PermissionEventSource,
+    pub root: facts::PlaceRoot,
+    pub segments: HandleSpan<facts::PlaceSegment>,
+    pub multiplicity: language_semantics::Multiplicity,
+}
+
 /// Exact evaluation lane within a source statement. Guards precede the
 /// custody fork; target operands execute only on their selected edge.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]

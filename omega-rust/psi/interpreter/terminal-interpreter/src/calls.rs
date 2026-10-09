@@ -39,6 +39,7 @@ impl TerminalExecution<'_> {
     /// `SuspendedCall` carrying `result` as its continuation.
     pub(crate) fn suspend_with(&mut self, result: SuspendedCallResult) {
         self.call_stack.push(SuspendedCall {
+            loan_completions: Vec::new(),
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
@@ -508,6 +509,8 @@ impl TerminalExecution<'_> {
             }
         }
         boundary_arguments.commit(self)?;
+        let loan_completions = self.loan_completions_for_operation(operation.id)?;
+        self.complete_loan_custody(&loan_completions)?;
         self.effects.push(effect);
         Ok(OperationFlow::Advance)
     }

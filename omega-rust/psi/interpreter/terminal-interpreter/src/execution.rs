@@ -150,6 +150,7 @@ pub struct TerminalExecution<'artifact> {
 }
 
 pub(crate) struct SuspendedCall {
+    pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
     pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,

@@ -560,6 +560,23 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         if !strictly_increasing(machine.entry_claims.iter().map(|claim| claim.claim)) {
             return Err(CodecError::NonCanonicalOrder("entry claims by ClaimId"));
         }
+        if !strictly_increasing(
+            machine
+                .loan_completions
+                .iter()
+                .map(|completion| (completion.operation, completion.place, &completion.path)),
+        ) {
+            return Err(CodecError::NonCanonicalOrder(
+                "loan completions by call and owned region",
+            ));
+        }
+        for completion in &machine.loan_completions {
+            if !strictly_increasing(completion.claims.iter().map(|claim| claim.claim)) {
+                return Err(CodecError::NonCanonicalOrder(
+                    "loan completion claims by ClaimId",
+                ));
+            }
+        }
         if !strictly_increasing(machine.published_service_ceiling.iter().copied()) {
             return Err(CodecError::NonCanonicalOrder(
                 "machine published service ceiling by ServiceId",

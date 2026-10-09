@@ -60,7 +60,7 @@ pub use observation::{
     TerminalTraceV1TraceBuilder, TerminalTraceValueComparison,
 };
 pub use ownership::{
-    ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
+    ClaimTransfer, CompletionReceipt, EntryClaim, LoanCompletion, NominalAffineCleanup,
     RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
     RetainedBorrowPlaceRoot, StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity,
     TerminalAffineCleanupAction, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,

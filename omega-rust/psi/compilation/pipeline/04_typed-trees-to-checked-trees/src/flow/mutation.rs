@@ -24,6 +24,7 @@ mod receiver;
 mod summary;
 
 pub(crate) use ceiling::signature_ceiling_places;
+pub(crate) use ceiling::signature_ceiling_places_with_loans;
 pub(crate) use local_origins::close_storage_places_over_aliases_with_resolver;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;

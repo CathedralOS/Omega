@@ -38,6 +38,7 @@ pub(super) fn validate_machine(
     require_known_services(module, &machine.published_service_ceiling)?;
     validate_parameter_places(machine)?;
     validate_entry_claims(module, machine)?;
+    validate_loan_completions(module, machine)?;
     for operation in machine.operations() {
         validate_operation_foundation(module, machine, operation)?;
     }
@@ -127,6 +128,43 @@ fn validate_entry_claims(
             return malformed("entry claim cannot bind an unrestricted parameter");
         }
         validate_structural_path(module, parameter.structural_type, &claim.path)?;
+    }
+    Ok(())
+}
+
+/// Completion rows have an actual call, owned home and typed payload paths.
+/// This validates representation shape; source checking still owns exclusive
+/// authority and the callee's obligation to return established storage.
+fn validate_loan_completions(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Result<(), CodecError> {
+    for completion in &machine.loan_completions {
+        let operation = machine.operation(completion.operation).ok_or(
+            CodecError::MalformedStructuralFoundation("loan completion has no call operation"),
+        )?;
+        if !matches!(
+            &operation.kind,
+            terminal_psi::call_structural_argument_variants!(_arguments)
+        ) {
+            return malformed("loan completion is not a structural call");
+        }
+        let root = structural_place_type(machine, completion.place).ok_or(
+            CodecError::MalformedStructuralFoundation("loan completion has no owned home"),
+        )?;
+        if machine
+            .structural_parameter(completion.place)
+            .is_some_and(|parameter| parameter.access != terminal_psi::StructuralAccess::Owned)
+        {
+            return malformed("loan completion cannot own borrowed ingress");
+        }
+        validate_structural_path(module, root, &completion.path)?;
+        for claim in &completion.claims {
+            if !claim.path.starts_with(&completion.path) {
+                return malformed("loan completion claim lies outside its returned region");
+            }
+            validate_structural_path(module, root, &claim.path)?;
+        }
     }
     Ok(())
 }

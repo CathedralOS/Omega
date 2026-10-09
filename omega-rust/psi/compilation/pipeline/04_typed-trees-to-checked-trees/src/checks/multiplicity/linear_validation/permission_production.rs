@@ -22,6 +22,7 @@ pub(crate) fn apply_statement_permission_production(
     state_symbol: SymbolHandle,
     moves: &[crate::flow::DiscoveredMoveEvent],
     state_calls: &[checked_trees::FlowCallFact],
+    completion_regions: &[(PermissionEventSource, Vec<validation::CanonicalPlace>)],
     temporary_owners: &[temporary_results::TemporaryOwner],
     statement_index: usize,
     statement: &StatementNode,
@@ -31,12 +32,12 @@ pub(crate) fn apply_statement_permission_production(
     permission_events: &mut Vec<FlowPermissionEventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
     conditional_carrier_transfers: &mut Vec<usize>,
-) {
+) -> Result<(), diagnostics::Diagnostic> {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
     if matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#"))
     {
-        return;
+        return Ok(());
     }
 
     let event_start = permission_events.len();
@@ -146,112 +147,143 @@ pub(crate) fn apply_statement_permission_production(
             .unwrap_or(calls.len()),
         FlowOwnershipEventSource::Statement { .. } => calls.len(),
     });
-    for event in statement_moves {
-        if matches!(event.root, facts::PlaceRoot::Expression(_))
-            && !places.iter().any(|place| place.root == event.root)
-        {
-            temporary_results::append_whole_affine_transfer(
-                program,
-                facts,
-                machine_symbol,
-                state_symbol,
-                &calls,
-                event,
-                permission_events,
-            );
-            continue;
-        }
-        let event_path = facts
-            .flow
-            .ownership
-            .segments
-            .span_or_empty(event.segments)
-            .to_vec();
-        select_static_case_alternative(event.root, &event_path, places);
-        if program.state_by_symbol(state_symbol).is_some_and(|state| {
-            super::super::linear_obligations::move_event_is_production_target(
-                program,
-                state,
-                event,
-                &event_path,
-            )
-        }) {
-            continue;
-        }
-        let matching = places
+    for completed_call in calls.iter().map(Some).chain(std::iter::once(None)) {
+        let completed_source = completed_call.map(|call| PermissionEventSource::Call {
+            statement_index: call.statement_index,
+            call_ordinal: call.call_ordinal,
+            target_symbol: call.target_symbol,
+        });
+        for event in statement_moves
             .iter()
-            .enumerate()
-            .filter_map(|(index, place)| {
-                (place.root == event.root && move_selects_claim(&event_path, place))
-                    .then_some(index)
+            .copied()
+            .filter(|event| match completed_source {
+                Some(source) => permission_source(event.source) == source,
+                None => matches!(event.source, FlowOwnershipEventSource::Statement { .. }),
             })
-            .collect::<Vec<_>>();
-        if matching.is_empty() {
-            projected_affine::append_transfer(
-                program,
-                facts,
-                machine_symbol,
-                state_symbol,
-                event,
-                &event_path,
-                places,
-                remaining,
-                permission_events,
-            );
-            continue;
-        }
-        let kind = PermissionEventKind::Transfer;
-        for index in matching {
-            let claim_path = places[index].path.clone();
-            if places[index].ever_established
-                && !places[index].live
-                && places[index].case_excluded
-                && !event_path
-                    .iter()
-                    .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+        {
+            if matches!(event.root, facts::PlaceRoot::Expression(_))
+                && !places.iter().any(|place| place.root == event.root)
             {
+                temporary_results::append_whole_affine_transfer(
+                    program,
+                    facts,
+                    machine_symbol,
+                    state_symbol,
+                    &calls,
+                    event,
+                    permission_events,
+                );
                 continue;
             }
-            let segments = facts.flow.ownership.segments.insert_many(claim_path);
-            let place = &mut places[index];
-            let obligation_live = place.live && place.multiplicity == Multiplicity::Linear;
-            // This is a move of the carrier, not an extraction of its case
-            // payload. A checked callee may later prove the payload absent.
-            // Keep the occurrence until that correspondence is known; false
-            // duplicate moves and explicit payload projections are not in
-            // this list and must still reject during replay.
-            if obligation_live
-                && place.conditional
-                && place
-                    .path
-                    .strip_prefix(event_path.as_slice())
-                    .is_some_and(|suffix| {
-                        suffix
-                            .iter()
-                            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
-                    })
-            {
-                conditional_carrier_transfers.push(permission_events.len());
+            let event_path = facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(event.segments)
+                .to_vec();
+            select_static_case_alternative(event.root, &event_path, places);
+            if program.state_by_symbol(state_symbol).is_some_and(|state| {
+                super::super::linear_obligations::move_event_is_production_target(
+                    program,
+                    state,
+                    event,
+                    &event_path,
+                )
+            }) {
+                continue;
             }
-            permission_events.push(FlowPermissionEventFact {
-                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+            let matching = places
+                .iter()
+                .enumerate()
+                .filter_map(|(index, place)| {
+                    (place.root == event.root && move_selects_claim(&event_path, place))
+                        .then_some(index)
+                })
+                .collect::<Vec<_>>();
+            if matching.is_empty() {
+                projected_affine::append_transfer(
+                    program,
+                    facts,
+                    machine_symbol,
+                    state_symbol,
+                    event,
+                    &event_path,
+                    places,
+                    remaining,
+                    permission_events,
+                );
+                continue;
+            }
+            let kind = PermissionEventKind::Transfer;
+            for index in matching {
+                let claim_path = places[index].path.clone();
+                if places[index].ever_established
+                    && !places[index].live
+                    && places[index].case_excluded
+                    && !event_path
+                        .iter()
+                        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+                {
+                    continue;
+                }
+                let segments = facts.flow.ownership.segments.insert_many(claim_path);
+                let place = &mut places[index];
+                let obligation_live = place.live && place.multiplicity == Multiplicity::Linear;
+                // This is a move of the carrier, not an extraction of its case
+                // payload. A checked callee may later prove the payload absent.
+                // Keep the occurrence until that correspondence is known; false
+                // duplicate moves and explicit payload projections are not in
+                // this list and must still reject during replay.
+                if obligation_live
+                    && place.conditional
+                    && place
+                        .path
+                        .strip_prefix(event_path.as_slice())
+                        .is_some_and(|suffix| {
+                            suffix
+                                .iter()
+                                .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+                        })
+                {
+                    conditional_carrier_transfers.push(permission_events.len());
+                }
+                permission_events.push(FlowPermissionEventFact {
+                    evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+                    machine_symbol,
+                    state_symbol,
+                    source: permission_source(event.source),
+                    kind,
+                    multiplicity: place.multiplicity,
+                    access: PermissionAccess::Owned,
+                    claim_identity: place
+                        .claim_identity
+                        .unwrap_or(PermissionClaimIdentity::Unknown),
+                    provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
+                    root: event.root,
+                    segments,
+                    obligation_live,
+                });
+                place.live = false;
+            }
+            remaining.transfer_storage(event.root, &event_path);
+        }
+        if let Some(source) = completed_source
+            && let Some((_, regions)) = completion_regions
+                .iter()
+                .find(|(candidate, _)| *candidate == source)
+        {
+            super::loan_completions::restore(
+                program,
+                facts,
                 machine_symbol,
                 state_symbol,
-                source: permission_source(event.source),
-                kind,
-                multiplicity: place.multiplicity,
-                access: PermissionAccess::Owned,
-                claim_identity: place
-                    .claim_identity
-                    .unwrap_or(PermissionClaimIdentity::Unknown),
-                provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
-                root: event.root,
-                segments,
-                obligation_live,
-            });
-            place.live = false;
+                source,
+                regions,
+                places,
+                claim_identities,
+                permission_events,
+            )?;
         }
-        remaining.transfer_storage(event.root, &event_path);
     }
     temporary_results::append_constructed_argument_transfers(
         program,
@@ -413,6 +445,7 @@ pub(crate) fn apply_statement_permission_production(
     for event in &mut permission_events[event_start..] {
         event.evaluation = evaluation;
     }
+    Ok(())
 }
 
 fn move_selects_claim(event_path: &[facts::PlaceSegment], claim: &LinearPlace) -> bool {

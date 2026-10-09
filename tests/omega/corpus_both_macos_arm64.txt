@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.45, "load1_start": 3.44, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 2.06, "load1_start": 2.06, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -410,7 +410,9 @@ pass/ownership/runtime_borrowed_projected_claim_transform_exit built 1632ms exit
 pass/ownership/runtime_borrowed_projected_linear_return_exit built 1641ms exit:0 interpreter-exit:0 interpreter:agrees @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit built 1632ms exit:42 interpreter-exit:42 interpreter:agrees @461e97c328e8
 pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit built 1647ms exit:42 interpreter-exit:42 interpreter:agrees @32d2d2bb3d26
+pass/ownership/runtime_borrowed_sum_empty_restore_exit built 1736ms exit:0 interpreter-exit:0 interpreter:agrees @f9ffe97e8bcf+wt
 pass/ownership/runtime_borrowed_sum_identity_restore_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @a2adbadfe3b3+wt
+pass/ownership/runtime_borrowed_sum_retag_exit built 1734ms exit:0 interpreter-exit:0 interpreter:agrees @f9ffe97e8bcf+wt
 pass/ownership/runtime_borrowed_window_crash_exit built 1874ms exit:signal signal:5 interpreter:trapped @7d761e0fef5f
 pass/ownership/runtime_captured_construction_selector_exit built 1791ms exit:0 interpreter-exit:0 interpreter:agrees @441e8f33f8c7+wt
 pass/ownership/runtime_captured_replacement_selector_exit built 1791ms exit:0 interpreter-exit:0 interpreter:agrees @441e8f33f8c7+wt

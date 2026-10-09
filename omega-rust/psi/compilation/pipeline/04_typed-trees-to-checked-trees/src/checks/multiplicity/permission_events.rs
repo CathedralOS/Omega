@@ -65,6 +65,9 @@ pub(crate) fn prepare_permission_events(
     facts.flow.ownership.selection_transfers = arena::Arena::default();
     facts.flow.ownership.selection_transfer_claims = arena::Arena::default();
     let mut claim_identities = ClaimIdentityAllocator::default();
+    facts.flow.ownership.loan_completions = arena::Arena::default();
+    let call_frames = validation::CallFrameResolver::new(program);
+    let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
 
     let state_flows = facts
         .flow
@@ -132,6 +135,28 @@ pub(crate) fn prepare_permission_events(
             .calls
             .span_or_empty(state_flow.calls)
             .to_vec();
+        let completion_regions = if !places
+            .iter()
+            .any(|place| place.multiplicity == Multiplicity::Linear)
+        {
+            Vec::new()
+        } else {
+            match super::linear_validation::loan_completions::regions_for_calls(
+                program,
+                facts,
+                machine.symbol,
+                state.symbol,
+                &calls,
+                call_frames.as_ref(),
+                &mutation_summaries,
+            ) {
+                Ok(regions) => regions,
+                Err(diagnostic) => {
+                    selection_diagnostics.push(diagnostic);
+                    continue;
+                }
+            }
+        };
         let temporary_owners =
             temporary_results::temporary_owners(program, facts, machine, state, &calls);
         // Expression-owned completions need the same claim namespace as
@@ -227,13 +252,14 @@ pub(crate) fn prepare_permission_events(
                     }
                     let event_start = permission_events.len();
                     remaining.reserve(program, &statements[statement_index]);
-                    apply_statement_permission_production(
+                    if let Err(diagnostic) = apply_statement_permission_production(
                         program,
                         facts,
                         state_flow.machine_symbol,
                         state.symbol,
                         &moves,
                         &calls,
+                        &completion_regions,
                         &temporary_owners,
                         statement_index,
                         &statements[statement_index],
@@ -243,7 +269,10 @@ pub(crate) fn prepare_permission_events(
                         &mut permission_events,
                         &mut claim_identities,
                         &mut conditional_carrier_transfers,
-                    );
+                    ) {
+                        selection_diagnostics.push(diagnostic);
+                        return;
+                    }
                     temporary_results::append_owned_transfer(
                         facts,
                         machine.symbol,

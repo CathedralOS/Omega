@@ -205,8 +205,10 @@ fn argument_transport_requires_home(
 }
 
 /// Reconstruct nominal tag identity from the retained readable root contract.
-/// This lookup establishes shape and layout, not occurrence liveness: optimized
-/// ownership/dominance replay and exact legalized-source replay remain required.
+/// This lookup establishes shape and layout, not occurrence liveness. A tag
+/// observation neither copies nor consumes payload claims; their multiplicity
+/// and qualifications do not change its storage geometry. Source custody and
+/// readable access remain separate from this declaration/layout join.
 /// A path through a runtime element (`items[i]`) also yields each element's
 /// selector, obligation, stride and extent, rebuilt from declarations.
 #[allow(clippy::type_complexity)]
@@ -228,12 +230,7 @@ pub(super) fn membership_layout(
         .chain(source.block_structural_parameters())
         .find(|parameter| parameter.place == place);
     let identity = if let Some(parameter) = parameter {
-        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || !signature.entry_claims.is_empty()
-        {
+        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
             return None;
         }
         parameter.structural_type
@@ -242,13 +239,6 @@ pub(super) fn membership_layout(
         // ways its storage might have been initialized. The common lookup
         // authenticates its unique producer and exact place declaration.
         let (_, result) = operation_result(source, place)?;
-        if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !result.claims.is_empty()
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-        {
-            return None;
-        }
         result.structural_type
     };
     let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(

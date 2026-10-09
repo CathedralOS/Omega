@@ -108,7 +108,15 @@ impl TerminalExecution<'_> {
                 completed.value,
             )));
         };
+        let loan_completions = caller.loan_completions.clone();
         let expected = self.restore_return_caller(caller);
+        // Structural result rebinding was staged against the suspended caller.
+        // Install that candidate before loan completion so it cannot later
+        // overwrite the refreshed owner roster with the old saved frontier.
+        if let Some(claims) = completed.rebound_claims {
+            self.live_claims = claims;
+        }
+        self.complete_loan_custody(&loan_completions)?;
         match expected {
             SuspendedCallResult::NominalCleanups {
                 completed: cleanup,
@@ -152,9 +160,6 @@ impl TerminalExecution<'_> {
                             .is_some()
                         {
                             return Err(malformed());
-                        }
-                        if let Some(claims) = completed.rebound_claims {
-                            self.live_claims = claims;
                         }
                         if let Some(binding) = completed.byte_sequence {
                             self.byte_sequence_values.insert(result.place, binding);

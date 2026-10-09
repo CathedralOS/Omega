@@ -36,6 +36,9 @@ pub struct TerminalMachine {
     /// content projections. Content claims below refine these identities when
     /// present.
     pub entry_claims: Vec<EntryClaim>,
+    /// Exact ownership joins of normal exclusive-call completions, independent
+    /// of whether the call returns Unit, a scalar or a structural value.
+    pub loan_completions: Vec<crate::LoanCompletion>,
     /// Fixed authored service contribution, strictly ordered and parent-closed.
     /// This is a semantic contract input, not an inferred summary: an inert
     /// body retains its declaration, even when the same service also belongs

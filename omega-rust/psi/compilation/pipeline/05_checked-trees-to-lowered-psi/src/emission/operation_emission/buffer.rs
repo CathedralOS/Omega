@@ -196,6 +196,7 @@ pub(crate) struct OperationBuffer {
         ValueId,
     )>,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
+    pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     /// The module's selector interfaces and tables, by identity.
     pub(crate) dynamic_dispatch:
         std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
@@ -236,6 +237,7 @@ impl OperationBuffer {
             element_lengths: Vec::new(),
             field_byte_lengths: Vec::new(),
             source_calls: Vec::new(),
+            loan_completions: Vec::new(),
             selected_ieee_float_comparisons: Vec::new(),
             selected_integer_comparisons: Vec::new(),
             source_checked_obligations: Vec::new(),

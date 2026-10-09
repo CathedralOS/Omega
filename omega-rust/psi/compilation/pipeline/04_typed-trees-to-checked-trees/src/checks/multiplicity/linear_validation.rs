@@ -11,6 +11,7 @@ mod affine_cleanup;
 mod applied_events;
 mod claim_frontier;
 mod claim_provenance;
+pub(crate) mod loan_completions;
 mod permission_production;
 
 pub(crate) use affine_cleanup::append_owned_cleanup_permission_events;

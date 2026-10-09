@@ -70,6 +70,18 @@ pub(crate) fn encode_machine(
         writer.id(claim.input);
         encode_structural_path(writer, "entry claim path", &claim.path)?;
     }
+    writer.len("loan completions", machine.loan_completions.len())?;
+    for completion in &machine.loan_completions {
+        writer.id(completion.operation);
+        writer.id(completion.place);
+        encode_structural_path(writer, "loan completion region", &completion.path)?;
+        super::structural_result_wire::encode_multiplicity(writer, completion.multiplicity);
+        writer.len("loan completion claims", completion.claims.len())?;
+        for claim in &completion.claims {
+            writer.id(claim.claim);
+            encode_structural_path(writer, "loan completion claim path", &claim.path)?;
+        }
+    }
     encode_service_ceiling(writer, &machine.declared_service_reach)?;
     encode_service_ceiling(writer, &machine.published_service_ceiling)?;
     super::reach_application_wire::encode(writer, machine.closed_reach_application.as_ref())?;
@@ -149,6 +161,20 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
             path: decode_structural_path(reader)?,
         })
     })?;
+    let loan_completions = decode_counted(reader, |reader| {
+        Ok(terminal_psi::LoanCompletion {
+            operation: reader.id("OperationId")?,
+            place: reader.id("PlaceId")?,
+            path: decode_structural_path(reader)?,
+            multiplicity: super::structural_result_wire::decode_multiplicity(reader)?,
+            claims: decode_counted(reader, |reader| {
+                Ok(terminal_psi::StructuralResultClaimBinding {
+                    claim: reader.id("ClaimId")?,
+                    path: decode_structural_path(reader)?,
+                })
+            })?,
+        })
+    })?;
     let declared_service_reach = decode_ids(reader, "ServiceId")?;
     let published_service_ceiling = decode_ids(reader, "ServiceId")?;
     let closed_reach_application = super::reach_application_wire::decode(reader)?;
@@ -185,6 +211,7 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
         result,
         structural_places,
         entry_claims,
+        loan_completions,
         declared_service_reach,
         published_service_ceiling,
         closed_reach_application,

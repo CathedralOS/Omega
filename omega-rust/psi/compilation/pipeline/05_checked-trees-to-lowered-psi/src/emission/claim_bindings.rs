@@ -55,6 +55,20 @@ impl ClaimBindings<'_> {
         }
     }
 
+    /// Bind a source-checked normal-loan completion in this caller's namespace.
+    pub(crate) fn receive_loan_completion_claim(
+        &mut self,
+        identity: PermissionClaimIdentity,
+    ) -> Result<ClaimId, LoweringError> {
+        if identity == PermissionClaimIdentity::Unknown {
+            return unsupported("loan completion has no checked claim identity");
+        }
+        match lookup_claim_id(self.bindings(), identity) {
+            Ok(claim) => Ok(claim),
+            Err(_) => self.mint(identity),
+        }
+    }
+
     /// Bind one claim a structural call result carries. An identity this
     /// body already holds continues (an input returned on every exit keeps
     /// its transferred identity); any other identity is established in this
@@ -353,7 +367,11 @@ pub(crate) fn claim_established_here(
         && event.state_symbol == state
         && matches!(event.source, language_semantics::PermissionEventSource::Statement { statement_index: index }
             | language_semantics::PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
-        && event.kind == language_semantics::PermissionEventKind::Establish
+        && matches!(
+            event.kind,
+            language_semantics::PermissionEventKind::Establish
+                | language_semantics::PermissionEventKind::Restore
+        )
         && event.access == language_semantics::PermissionAccess::Owned
         && event.multiplicity == language_semantics::Multiplicity::Linear
         && event.obligation_live

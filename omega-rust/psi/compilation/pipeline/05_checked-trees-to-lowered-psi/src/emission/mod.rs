@@ -33,6 +33,7 @@ pub(crate) mod affine_cleanup;
 pub(crate) mod claim_bindings;
 pub(crate) mod control_flow;
 pub(crate) mod indexed_write;
+pub(crate) mod loan_completions;
 pub(crate) mod operation_emission;
 pub(crate) mod primitive_store;
 pub(crate) mod private_borrow_transport;

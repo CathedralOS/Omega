@@ -434,6 +434,17 @@ impl Expansion<'_> {
         {
             return unsupported("computed boundary or selector call has no claim transfer lane");
         }
+        let (_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
+        let loan_completions = crate::emission::loan_completions::prepare(
+            self.checked,
+            self.machine,
+            coordinate,
+            self.structural_types,
+            |root| {
+                site.bindings
+                    .owned_structural_home(root, self.checked.state_parameters(caller_state))
+            },
+        )?;
         let call = if let checked_trees::CheckedScalarCallee::Dynamic {
             slot,
             interface_identity,
@@ -455,6 +466,7 @@ impl Expansion<'_> {
             LoweredScalarBinding::DynamicCall(
                 crate::emission::operation_emission::dynamic_calls::LoweredDynamicCallBinding {
                     source_coordinate: coordinate,
+                    loan_completions,
                     source_expression: source.authored_expression,
                     slot: *slot,
                     interface_identity: interface_identity.clone(),
@@ -470,6 +482,7 @@ impl Expansion<'_> {
         } else if signature.boundary {
             LoweredScalarBinding::BoundaryCall(crate::emission::operation_emission::boundary_calls::LoweredBoundaryCallBinding {
                 source_coordinate: coordinate,
+                loan_completions,
                 source_expression: source.authored_expression,
                 target_machine,
                 result_type,
@@ -502,6 +515,7 @@ impl Expansion<'_> {
                     self.machine,
                     site.state,
                 )?,
+                loan_completions,
             )?)
         };
         if self.calls.contains(&coordinate) {

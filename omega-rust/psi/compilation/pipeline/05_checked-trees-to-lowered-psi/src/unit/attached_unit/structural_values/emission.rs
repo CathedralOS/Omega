@@ -321,33 +321,45 @@ pub(crate) fn emit(
         // under the stored field, replace whatever the root held there. Stores
         // apply in emission order after the root's establishment.
         for operation in &emission.operations.operations {
-            let OperationKind::StoreStructuralField {
+            if let OperationKind::StoreStructuralField {
                 destination,
                 path,
                 field: Some(field),
                 value,
             } = &operation.kind
-            else {
-                continue;
-            };
-            if *destination != projected.root || !value.path.is_empty() {
-                continue;
+                && *destination == projected.root
+                && value.path.is_empty()
+            {
+                let mut stored_path = path.clone();
+                stored_path.push(terminal_psi::StructuralPathSegment::Field(
+                    crate::structural_types::field_identity(emission.structural_types, *field)?,
+                ));
+                let stored_claims =
+                    completed_place_claims(emission.operations, value.place).collect::<Vec<_>>();
+                published_claims.retain(|claim| !claim.path.starts_with(&stored_path));
+                published_claims.extend(stored_claims.into_iter().map(|claim| {
+                    let mut path = stored_path.clone();
+                    path.extend(claim.path.iter().cloned());
+                    terminal_psi::StructuralResultClaimBinding {
+                        claim: claim.claim,
+                        path,
+                    }
+                }));
             }
-            let mut stored_path = path.clone();
-            stored_path.push(terminal_psi::StructuralPathSegment::Field(
-                crate::structural_types::field_identity(emission.structural_types, *field)?,
-            ));
-            let stored_claims =
-                completed_place_claims(emission.operations, value.place).collect::<Vec<_>>();
-            published_claims.retain(|claim| !claim.path.starts_with(&stored_path));
-            published_claims.extend(stored_claims.into_iter().map(|claim| {
-                let mut path = stored_path.clone();
-                path.extend(claim.path.iter().cloned());
-                terminal_psi::StructuralResultClaimBinding {
-                    claim: claim.claim,
-                    path,
-                }
-            }));
+            // Loan completion establishes custody at the existing home, not
+            // an operation result. Interleave it with stores; collecting all
+            // completions last would overwrite a later store's real claims.
+            for completion in emission
+                .operations
+                .loan_completions
+                .iter()
+                .filter(|completion| {
+                    completion.operation == operation.id && completion.place == projected.root
+                })
+            {
+                published_claims.retain(|claim| !claim.path.starts_with(&completion.path));
+                published_claims.extend(completion.claims.iter().cloned());
+            }
         }
         for binding in &result_claims {
             let mut published_path = alias_path.clone();

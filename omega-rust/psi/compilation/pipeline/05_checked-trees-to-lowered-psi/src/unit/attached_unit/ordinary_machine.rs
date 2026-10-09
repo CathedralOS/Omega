@@ -885,6 +885,7 @@ pub(super) fn emit(
     let OperationBuffer {
         scalar_block_invariants,
         source_calls,
+        loan_completions,
         selected_ieee_float_comparisons,
         selected_integer_comparisons,
         source_checked_obligations,
@@ -964,6 +965,7 @@ pub(super) fn emit(
         result: declared_result,
         structural_places,
         entry_claims: entry_claims.clone(),
+        loan_completions,
         published_service_ceiling: if let Some(provider) = provider_candidate_plans
             .iter()
             .find(|candidate| candidate.candidate == plan.machine)

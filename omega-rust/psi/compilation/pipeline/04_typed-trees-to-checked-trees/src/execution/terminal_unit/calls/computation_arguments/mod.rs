@@ -472,14 +472,6 @@ pub(crate) fn borrowed_storage_argument(
     // Eligibility belongs to the borrowed endpoint, not its unrelated siblings.
     // Root membership/access and the exact authored receiver loan are retained
     // independently; this never constructs or copies the enclosing record.
-    if !path.is_empty()
-        && !matches!(
-            program.type_multiplicity(reference),
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
-    {
-        return None;
-    }
     let identity = shapes.add_type(reference, &[], &[])?;
     // Borrow the established endpoint in place, including its shared view and
     // provider members. Contents are classified recursively from authored types:
@@ -502,11 +494,9 @@ pub(crate) fn borrowed_storage_argument(
     // A projected receiver still loans the complete selected referent. Its
     // transitive field closure is identical to a whole parameter's; the exact
     // root/path checks above retain custody of the enclosing storage.
+    // Lending neither copies nor transfers the owner's linear custody. The
+    // same exact loan applies to whole and projected established referents.
     let structural_referent = structural_root
-        && matches!(
-            program.type_multiplicity(reference),
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
         && validation::has_contents(
             program,
             reference,

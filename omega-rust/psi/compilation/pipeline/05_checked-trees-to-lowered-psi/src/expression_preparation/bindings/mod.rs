@@ -72,6 +72,48 @@ fn valid_structural_root(root: facts::PlaceRoot) -> bool {
     }
 }
 
+/// Resolve the existing owned home, retaining any projected alias prefix.
+/// Loan completion and computed-call preparation use the same binding join.
+pub(crate) fn owned_structural_home(
+    root: facts::PlaceRoot,
+    source_parameters: &[checked_trees::signature::StateParameter],
+    parameters: &[(u32, StructuralParameterDeclaration)],
+    locals: &[StructuralLocalBinding],
+) -> Result<(StructuralArgument, StructuralTypeId), LoweringError> {
+    let mut bindings = locals.iter().filter(|binding| binding.root == root);
+    let home = if let Some(binding) = bindings.next() {
+        if bindings.next().is_some() {
+            return unsupported("owned storage has duplicate source bindings");
+        }
+        (binding.argument.clone(), binding.structural_type)
+    } else {
+        let position = source_parameters
+            .iter()
+            .position(|parameter| Some(parameter.symbol) == root.as_symbol())
+            .ok_or(LoweringError::Unsupported(
+                "owned storage has no source binding",
+            ))?;
+        let (_, parameter) = parameters
+            .iter()
+            .find(|(source, _)| *source as usize == position)
+            .ok_or(LoweringError::Unsupported(
+                "owned storage lost its structural parameter",
+            ))?;
+        (
+            StructuralArgument {
+                place: parameter.place,
+                path: Vec::new(),
+                access: parameter.access,
+            },
+            parameter.structural_type,
+        )
+    };
+    if home.0.access != StructuralAccess::Owned {
+        return unsupported("loan completion cannot establish borrowed ingress custody");
+    }
+    Ok(home)
+}
+
 fn published_structural_type(
     parameters: &[(u32, StructuralParameterDeclaration)],
     locals: &[StructuralLocalBinding],
@@ -137,6 +179,18 @@ pub(crate) struct ScalarBindings {
 }
 
 impl ScalarBindings {
+    pub(crate) fn owned_structural_home(
+        &self,
+        root: facts::PlaceRoot,
+        source_parameters: &[checked_trees::signature::StateParameter],
+    ) -> Result<(StructuralArgument, StructuralTypeId), LoweringError> {
+        owned_structural_home(
+            root,
+            source_parameters,
+            &self.structural_parameters,
+            &self.structural_locals,
+        )
+    }
     /// The recorded scalar-ingress home of dense formal `index`, when present.
     fn scalar_parameter_home_row(
         &self,
