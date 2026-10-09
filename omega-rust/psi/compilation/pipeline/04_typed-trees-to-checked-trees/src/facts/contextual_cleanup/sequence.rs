@@ -13,7 +13,7 @@ use validation::CanonicalPlace;
 
 use crate::facts::boolean_predicates::{self, BoundPredicate};
 use crate::flow::{CleanupLeaf, StateMutationSummaryCache};
-use checked_trees::{CheckFacts, ContractProofFactKind};
+use checked_trees::{CheckFacts, CheckedBooleanExpression, ContractProofFactKind};
 use facts::{FactContextHandle, PlaceRoot, PlaceSegment, ScalarValue};
 use symbols::SymbolHandle;
 use typed_trees::{data::DataMember, expression::ExpressionHandle};
@@ -35,10 +35,14 @@ impl CurrentCleanupFacts {
         // contexts and consult their ordinary current-value join only for a
         // place untouched by every intervening hook. This neither replays an
         // initializer nor rereads the source of a captured copy.
+        let mut current_guarantees = Vec::new();
+        for predicate in guarantees {
+            append_guarantee_conjuncts(&mut current_guarantees, predicate);
+        }
         Self {
             entry_contexts: contexts.clone(),
             contexts,
-            guarantees,
+            guarantees: current_guarantees,
             ..Self::default()
         }
     }
@@ -141,10 +145,30 @@ impl CurrentCleanupFacts {
                 ContractProofFactKind::Ensures,
                 place,
             ) {
-                self.guarantees.push(predicate);
+                append_guarantee_conjuncts(&mut self.guarantees, predicate);
             }
         }
         Some(())
+    }
+}
+
+/// A checked conjunction establishes each conjunct independently. Retain each
+/// conjunct's exact observation bindings so a child hook's writes cannot erase
+/// a guarantee about an untouched sibling. Cross-field relations still carry
+/// both places, and disjunctions remain one proposition. These are admitted
+/// Boolean formulas, not source operator spellings or assumed body effects.
+fn append_guarantee_conjuncts(guarantees: &mut Vec<BoundPredicate>, mut predicate: BoundPredicate) {
+    if let CheckedBooleanExpression::And { left, right } = &predicate.expression {
+        let mut first = predicate.clone();
+        first.expression = *left.clone();
+        let second = *right.clone();
+        append_guarantee_conjuncts(guarantees, first);
+        predicate.expression = second;
+        append_guarantee_conjuncts(guarantees, predicate);
+    } else if let Some(predicate) = boolean_predicates::fold(&predicate, |_| None) {
+        // The ordinary predicate algebra prunes only observations absent from
+        // this formula; the retained bindings keep their captured identities.
+        guarantees.push(predicate);
     }
 }
 

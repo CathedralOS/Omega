@@ -1,7 +1,9 @@
 data Receipt [linear] { value: u64; }
 data Owner { first: Receipt; second: Receipt; }
 
-machine Receipt::drop(receipt: &mut Receipt) {
+machine Receipt::drop(receipt: &mut Receipt)
+requires receipt.value == 9
+{
     receipt.value = 0;
 }
 
