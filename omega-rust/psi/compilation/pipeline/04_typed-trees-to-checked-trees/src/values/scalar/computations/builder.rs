@@ -481,12 +481,6 @@ impl Builder<'_, '_> {
                 if let Some(selection) = self.integer_min_max(expression, &call, expected_type) {
                     return Some(selection);
                 }
-                if let Some(operator) = boundary_calls::boundary_operator(
-                    self.program,
-                    validation::call_target_symbol(self.program, &call),
-                ) {
-                    return self.boundary_operator_call(expression, &call, operator, expected_type);
-                }
                 if self
                     .program
                     .dynamic_slot_by_symbol(call.target_symbol)
@@ -497,42 +491,12 @@ impl Builder<'_, '_> {
                 if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
                     return None;
                 }
+                if let Some(target) = boundary_calls::bodyless_boundary_target(self.program, &call)
+                {
+                    return self.boundary_call(expression, &call, target, expected_type);
+                }
                 let (target_machine, target_state) =
                     validation::find_machine_by_entry_state(self.program, call.target_symbol)?;
-                // A bodyless boundary declaration has no checked body for this
-                // graph to embed. A whole-value statement call is the
-                // statement's own result operation (`record_root` leaves it
-                // there); a nested application instead becomes a boundary
-                // node that invokes the exact occurrence between its operands
-                // and its consumer. A `boundary machine` with an authored
-                // body stays an ordinary callee — the same predicate the call
-                // operation applies. A bodyless external leaf is the same
-                // boundary edge through its exact satisfied requirement.
-                if let Some((requirement, qualifier)) =
-                    validation::exact_external_leaf_boundary_requirement(
-                        self.program,
-                        call.target_symbol,
-                    )
-                {
-                    return self.external_boundary_call(
-                        expression,
-                        &call,
-                        requirement,
-                        qualifier,
-                        expected_type,
-                    );
-                }
-                if target_machine.supply_mode.is_boundary_declaration()
-                    && !target_machine.body_is_present
-                {
-                    return self.boundary_machine_call(
-                        expression,
-                        &call,
-                        target_machine,
-                        target_state,
-                        expected_type,
-                    );
-                }
                 let has_runtime_receiver =
                     !self
                         .program

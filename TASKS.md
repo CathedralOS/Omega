@@ -538,9 +538,9 @@ defines the complete product bar.
     pins nested claims, multiple claims per element and authored effect order;
     `linear_computed_call_claim_transfers_exit` pins computed operands.
     Reject second use, missing child consumption and wrong array type/extent
-    in `fail/ownership/linear_{constructor_call_member_second_use,array_constructor_duplicate_operand,array_member_scope_loss,array_call_argument_wrong_element,array_call_argument_wrong_extent}`.
-    Remaining: a computed boundary call has no completion-receipt lane;
-    the qualified-result
+    in `fail/ownership/linear_{constructor_call_member_second_use,array_constructor_duplicate_operand,array_member_scope_loss,array_call_argument_wrong_element,array_call_argument_wrong_extent,computed_boundary_second_use}`.
+    Remaining: computed binding receivers must retain their exact attachment
+    roots and receiver custody; the qualified-result
     boundary/reseated-field combination in
     `pass/ownership/linear_qualified_call_result_claims` still needs boundary
     realization. Preserve projected replacement and sibling custody in

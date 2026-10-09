@@ -64,10 +64,9 @@ impl<'a> Reviewer<'a> {
                         "selected checked adapter for `{requirement}` has incomplete or substituted provider custody"
                     ));
                 }
-                // Provider installation already admitted exactly one
-                // installed candidate matching this boundary's selected
-                // adapter; the join below recovers that row rather than
-                // re-counting the matches.
+                // Recover the exact installed row, without treating an absent
+                // catalog or projection as successful installation. The trust
+                // boundary reports missing custody rather than panicking.
                 // The installed candidate names the specialized provider
                 // instance for a closed requirement; the selected row's
                 // binding retains the authored generic provider template.
@@ -84,9 +83,12 @@ impl<'a> Reviewer<'a> {
                             && candidate.provider_identity == selected_plan.provider_type
                             && candidate.candidate_identity == realization_identity
                     })
-                    .expect(
-                        "checked provider installation admitted the selected adapter's exact candidate",
-                    );
+                    .ok_or_else(|| {
+                        format!(
+                            "reachable requirement `{requirement}` has no admitted installation for selected provider `{}` adapter `{realization_identity}`",
+                            selected_plan.provider_type
+                        )
+                    })?;
                 let schema = selected_plan.schema.identity_digest();
                 let provider_plan = selected_plan.identity_digest();
                 let nested = self

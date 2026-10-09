@@ -107,132 +107,37 @@ impl Builder<'_, '_> {
                 _ => return false,
             }
         };
-        boundary_operator(
-            self.program,
-            validation::call_target_symbol(self.program, call),
-        )
-        .is_some()
-            || validation::exact_external_leaf_boundary_requirement(
-                self.program,
-                call.target_symbol,
-            )
-            .is_some()
-            || validation::find_machine_by_entry_state(self.program, call.target_symbol)
-                .is_some_and(|(machine, _)| {
-                    machine.supply_mode.is_boundary_declaration() && !machine.body_is_present
-                })
+        bodyless_boundary_target(self.program, call).is_some()
     }
 
-    /// A nested application of a bodyless `boundary machine` declaration.
-    pub(super) fn boundary_machine_call(
+    /// The resolved declaration owns the signature; having an authored body
+    /// state is not a prerequisite for entering the shared operand evaluator.
+    pub(super) fn boundary_call(
         &mut self,
         expression: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
-        target_machine: &typed_trees::machine::Machine,
-        target_state: &typed_trees::state::State,
+        target: (symbols::SymbolHandle, symbols::SymbolHandle),
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        if call.receiver.is_valid()
-            || !self
-                .program
-                .call_has_no_runtime_receiver(call, target_machine, target_state)
-        {
+        let program = self.program;
+        let authored_target = validation::call_target_symbol(program, call);
+        // Namespace qualifiers have no runtime operand. A real receiver keeps
+        // its evaluation/custody requirement and cannot be silently discarded.
+        if !program.call_has_no_runtime_receiver_for_target(call) {
             return None;
         }
-        let operands = self
-            .program
+        let operands = program
             .expression_table
             .expression_handles(call.arguments)
             .to_vec();
         self.boundary_application(
             expression,
-            call.target_symbol,
-            (target_machine.symbol, target_state.symbol),
-            self.program.state_parameters(target_state),
-            target_state.return_type,
-            &operands,
-            expected_type,
-        )
-    }
-
-    /// A realized external leaf invokes its exact public boundary requirement.
-    /// Keep the authored leaf occurrence as source identity while the existing
-    /// boundary node names the requirement's executable contract.
-    pub(super) fn external_boundary_call(
-        &mut self,
-        expression: ExpressionHandle,
-        call: &typed_trees::expression::TableCallExpression,
-        requirement: symbols::SymbolHandle,
-        qualifier: symbols::SymbolHandle,
-        expected_type: PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
-        let (source_call, _) = self.call_ordinal(expression, call.target_symbol)?;
-        let source = self.flow.control.calls.get(source_call);
-        if source.has_receiver && source.receiver_symbol != qualifier {
-            return None;
-        }
-        let mut signatures = self
-            .program
-            .traits()
-            .iter()
-            .filter(|definition| definition.is_boundary)
-            .flat_map(|definition| self.program.trait_machine_signatures(definition))
-            .filter(|signature| signature.symbol == requirement);
-        let signature = signatures.next()?;
-        if signatures.next().is_some() {
-            return None;
-        }
-        let operands = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments)
-            .to_vec();
-        self.boundary_application(
-            expression,
-            call.target_symbol,
-            (requirement, requirement),
-            // The external realization already proves signature correspondence.
-            // Borrow occurrences still name the authored leaf's formal symbols.
-            validation::call_target_parameters(self.program, call.target_symbol)?,
-            signature.return_type,
-            &operands,
-            expected_type,
-        )
-    }
-
-    /// A nested application of a nongeneric legacy named boundary operator.
-    /// A qualifier receiver (`F64::`) is not an operand: the operand roster is
-    /// the one the operator's crash and requirement facts already use.
-    pub(super) fn boundary_operator_call(
-        &mut self,
-        expression: ExpressionHandle,
-        call: &typed_trees::expression::TableCallExpression,
-        operator: &typed_trees::operator::OperatorDefinition,
-        expected_type: PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
-        if !self.program.operator_type_parameters(operator).is_empty()
-            || !call.carries_only_positional_arguments()
-        {
-            return None;
-        }
-        let parameters = self.program.operator_parameters(operator);
-        let operands =
-            crate::facts::operator_crashes::named_call_operands(self.program, call, parameters)?;
-        if operands.len()
-            != self
-                .program
-                .expression_table
-                .expression_handles(call.arguments)
-                .len()
-        {
-            return None;
-        }
-        self.boundary_application(
-            expression,
-            operator.symbol,
-            (operator.symbol, operator.symbol),
-            parameters,
-            operator.return_type,
+            authored_target,
+            target,
+            // External leaves retain their authored formal identities while
+            // the public requirement owns the execution/result contract.
+            validation::call_target_parameters(program, authored_target)?,
+            validation::call_target_return_type(program, target.1)?,
             &operands,
             expected_type,
         )
@@ -283,16 +188,24 @@ impl Builder<'_, '_> {
     }
 }
 
-/// A legacy named boundary operator (`F64::from_i32`) names one requirement
-/// symbol for both its machine and state coordinates.
-pub(super) fn boundary_operator(
+/// Classify by callable ownership rather than syntax or a representative
+/// provider. Authored boundary bodies remain ordinary checked callees.
+pub(super) fn bodyless_boundary_target(
     program: &dyn ::validation::CheckingInput,
-    target: symbols::SymbolHandle,
-) -> Option<&typed_trees::operator::OperatorDefinition> {
-    program
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == target && operator.is_boundary)
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
+    let target = validation::call_target_symbol(program, call);
+    if let Some((requirement, _)) =
+        validation::exact_external_leaf_boundary_requirement(program, target)
+    {
+        return Some((requirement, requirement));
+    }
+    if let Some((machine, state)) = validation::find_machine_by_entry_state(program, target) {
+        return (machine.supply_mode.is_boundary_declaration() && !machine.body_is_present)
+            .then_some((machine.symbol, state.symbol));
+    }
+    crate::values::scalar::call_lowering::call_is_boundary(program, target)
+        .then_some((target, target))
 }
 
 /// The primitive carrier of a type that is bare or qualified only by an

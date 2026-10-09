@@ -8,6 +8,8 @@
 //! affine-return summary: a summary beside its ordinary body is not a second
 //! implementation. Missing or duplicate ordinary bodies still reject in
 //! `UnitBody::find`; provider signatures and custody are joined separately.
+//! Retained expression computations own boundary dependencies too. Scanning
+//! only statement operations can omit the supplier of an executable call.
 //!
 //! The catalog records every checked supplier, not the frontend's selected
 //! target. Family retention also roots satisfied requirements without a call:
@@ -133,6 +135,11 @@ pub(super) fn checked_unit_provider_candidates(
         })
         .chain(retained_requirements.iter().copied())
         .collect::<Vec<_>>();
+    for machine in closure {
+        boundary_symbols.extend(
+            crate::expression_preparation::computation_graph::boundary_targets(checked, *machine)?,
+        );
+    }
     boundary_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     boundary_symbols.dedup();
     let mut output = Vec::new();

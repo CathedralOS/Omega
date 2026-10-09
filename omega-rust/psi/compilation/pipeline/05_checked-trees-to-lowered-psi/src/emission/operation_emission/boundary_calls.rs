@@ -33,6 +33,7 @@ pub(crate) struct LoweredBoundaryCallBinding {
     pub(crate) result_policy: BoundaryResultPolicy,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
     pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
+    pub(crate) completion_receipts: Vec<crate::emission::claim_bindings::PreparedCompletionReceipt>,
 }
 
 pub(super) fn emit_boundary_call_binding(
@@ -49,16 +50,8 @@ pub(super) fn emit_boundary_call_binding(
     let (Some(target), None) = (targets.next(), targets.next()) else {
         return unsupported("nested boundary application has no unique lowered declaration");
     };
-    // Mixed computation operands use the shared non-linear call custody lane.
-    // Linear claims require their checked completion-receipt namespace and are
-    // not manufactured from a boundary's formal declaration at emission.
-    if call.structural_arguments.len() != target.structural.len()
-        || target
-            .structural
-            .iter()
-            .any(|parameter| parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear)
-    {
-        return unsupported("computed boundary arguments disagree with non-linear call custody");
+    if call.structural_arguments.len() != target.structural.len() {
+        return unsupported("computed boundary arguments disagree with their call shape");
     }
     let boundary = target.id;
     let requirement_count = target.requirement_count;
@@ -90,6 +83,10 @@ pub(super) fn emit_boundary_call_binding(
         .iter()
         .map(|argument| argument.emit(parameters, call_emission, next_value_identity, operations))
         .collect::<Result<Vec<_>, _>>()?;
+    let completion_receipts = crate::emission::claim_bindings::emit_completion_receipts(
+        &call.completion_receipts,
+        call_emission.claims.bindings(),
+    )?;
     // Match the statement call's declared requirement rows. Proof finalization
     // discharges these obligations at this exact operation and completed actuals.
     let requirement_obligations = (0..requirement_count)
@@ -132,7 +129,7 @@ pub(super) fn emit_boundary_call_binding(
             boundary,
             arguments,
             structural_arguments,
-            completion_receipts: Vec::new(),
+            completion_receipts,
             requirement_obligations,
         },
     });

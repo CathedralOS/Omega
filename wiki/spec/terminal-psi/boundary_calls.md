@@ -162,6 +162,13 @@ path without dropping sibling sources. Replay access attenuation and linear
 multiplicity separately. Path, receipt, provider, type, or qualification drift
 rejects. Claim transfer alone cannot prove residual content geometry.
 
+A boundary invocation inside an expression uses the same ordered operands
+and caller-local completion receipts as a statement invocation. Completing
+operand evaluation does not mint replacement claims. The retained computation
+graph contributes its boundary dependencies to provider discovery, including
+calls inside ordinary scalar helpers and constructed values; selected provider
+installation still joins the exact requirement and candidate identities.
+
 ## Assumed runtime relationships
 
 A root-selected [assumed binding contract](../build/assumed_binding_contracts.md)

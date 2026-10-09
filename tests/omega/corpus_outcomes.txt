@@ -1755,6 +1755,8 @@ fail/ownership/linear_call_result_field_scope_loss rejected 500ms expected @9c37
 	linear value `pair.left` reaches scope exit without being consumed or transferred
 fail/ownership/linear_case_result_second_transfer rejected 296ms expected @332ced10410b+wt
 	cannot use `returned` in machine `main` state `entry` (statement 3) after `returned` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `returned` first
+fail/ownership/linear_computed_boundary_second_use rejected 266ms expected @177bef659917+wt
+	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
 fail/ownership/linear_computed_call_argument_second_use rejected 799ms expected @c70a706629c8+wt
 	cannot use `local` in machine `main` state `entry` (statement 2) after `local` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `local` first
 fail/ownership/linear_computed_selector_second_use rejected 247ms expected @5df0f4bde029

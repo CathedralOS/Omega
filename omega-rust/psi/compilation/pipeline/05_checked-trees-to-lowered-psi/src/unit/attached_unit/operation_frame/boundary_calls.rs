@@ -274,18 +274,10 @@ impl OperationFrame<'_, '_> {
             &earlier,
             inputs.byte_places,
         )?;
-        let completion_receipts = completion_receipts
-            .iter()
-            .map(|settlement| {
-                Ok(CompletionReceipt {
-                    claim: lookup_claim_id(
-                        self.calls.claims.bindings(),
-                        settlement.claim_identity,
-                    )?,
-                    argument_index: settlement.argument_index,
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let completion_receipts = crate::emission::claim_bindings::emit_completion_receipts(
+            &crate::emission::claim_bindings::prepare_completion_receipts(completion_receipts),
+            self.calls.claims.bindings(),
+        )?;
         // One obligation per declared scalar `requires` row, in row order;
         // proof finalization discharges each at this call's actuals.
         let requirement_obligations = (0..*requirement_count)

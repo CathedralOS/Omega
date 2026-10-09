@@ -428,9 +428,6 @@ impl Expansion<'_> {
             statement_index: source.statement_index,
             call_ordinal: source.call_ordinal,
         };
-        if !claim_transfers.is_empty() && signature.boundary {
-            return unsupported("computed boundary call has no completion receipt lane");
-        }
         let (_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
         let loan_completions = crate::emission::loan_completions::prepare(
             self.checked,
@@ -495,6 +492,7 @@ impl Expansion<'_> {
                 )?,
                 arguments: scalar_actuals,
                 structural_arguments,
+                completion_receipts: crate::emission::claim_bindings::prepare_completion_receipts(&claim_transfers),
             })
         } else {
             LoweredScalarBinding::DirectCall(lower_scalar_call(

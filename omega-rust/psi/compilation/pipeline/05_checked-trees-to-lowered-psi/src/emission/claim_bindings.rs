@@ -152,6 +152,43 @@ pub(crate) struct PreparedClaimTransfer {
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
 }
 
+/// A boundary's normal-completion disposition names caller custody, not a
+/// provider-private ingress identity. Its argument supplies the selected path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PreparedCompletionReceipt {
+    identity: PermissionClaimIdentity,
+    argument_index: u32,
+}
+
+pub(crate) fn prepare_completion_receipts(
+    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+) -> Vec<PreparedCompletionReceipt> {
+    transfers
+        .iter()
+        .map(|transfer| PreparedCompletionReceipt {
+            identity: transfer.claim_identity,
+            argument_index: transfer.argument_index,
+        })
+        .collect()
+}
+
+/// Statement and computed boundary calls resolve the same captured caller
+/// occurrences. Lookup cannot manufacture a missing disposal obligation.
+pub(crate) fn emit_completion_receipts(
+    prepared: &[PreparedCompletionReceipt],
+    bindings: &[(PermissionClaimIdentity, ClaimId)],
+) -> Result<Vec<terminal_psi::CompletionReceipt>, LoweringError> {
+    prepared
+        .iter()
+        .map(|receipt| {
+            Ok(terminal_psi::CompletionReceipt {
+                claim: lookup_claim_id(bindings, receipt.identity)?,
+                argument_index: receipt.argument_index,
+            })
+        })
+        .collect()
+}
+
 /// A result binding retains its checked path for the machine namespace and
 /// its lowered path for the operation. No claim becomes live during preparation.
 #[derive(Debug, Clone, PartialEq, Eq)]

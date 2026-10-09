@@ -43,6 +43,36 @@ pub(crate) fn call_targets(
     collect_call_targets(checked, machine, false)
 }
 
+/// Boundary dependencies of retained computations and their constructed values.
+/// Discovery preserves the declaration identity; it neither selects a provider
+/// nor schedules an invocation.
+pub(crate) fn boundary_targets(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
+    let plans = &checked.facts.values.scalar_computations;
+    let roots = plans.roots_for_machine(machine);
+    let mut targets = Vec::new();
+    for handle in reachable_nodes(checked, &roots)? {
+        if let CheckedScalarComputationKind::Call {
+            callee: checked_trees::CheckedScalarCallee::Boundary { machine, .. },
+            ..
+        } = plans.nodes.get(handle).kind
+            && !targets.contains(&machine)
+        {
+            targets.push(machine);
+        }
+    }
+    for operation in value_call_operations(checked, machine)? {
+        if let Some(call) = operation.call().filter(|call| call.is_boundary())
+            && !targets.contains(&call.target.machine)
+        {
+            targets.push(call.target.machine);
+        }
+    }
+    Ok(targets)
+}
+
 /// Discovery only: source replay and each call's signature independently
 /// validate the structural lane before any invocation is published.
 pub(crate) fn structural_call_targets(
