@@ -15,15 +15,14 @@ impl RegisterHomeIdentity {
 
 use register_model::RegisterOperandAccess;
 use selected_instructions::VirtualFixedConstraintSite;
-use sha2::{Digest, Sha256};
 
 use crate::RegisterHomePlan;
 
 pub fn register_home_identity(plan: &RegisterHomePlan) -> RegisterHomeIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-register-homes.v7\0");
-    bytes.extend_from_slice(&encode_terminal_register_home_content(plan));
-    RegisterHomeIdentity(Sha256::digest(bytes).into())
+    RegisterHomeIdentity(crate::codec_bytes::domain_identity(
+        b"omega.terminal-register-homes.v7\0",
+        &encode_terminal_register_home_content(plan),
+    ))
 }
 
 pub(crate) fn encode_terminal_register_home_content(plan: &RegisterHomePlan) -> Vec<u8> {

@@ -7,7 +7,6 @@ use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
 
 pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-fixed-view-copies.v7\0");
     bytes.extend_from_slice(&plan.source_selected.bytes());
     bytes.extend_from_slice(&plan.source_ranges.bytes());
     bytes.extend_from_slice(&plan.source_legality.bytes());
@@ -49,7 +48,10 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         bytes.extend_from_slice(&copy.copy_constraint.variant.to_le_bytes());
     }
     bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
-    FixedViewCopyIdentity::from_canonical_bytes(&bytes)
+    FixedViewCopyIdentity::from_bytes(crate::codec_bytes::domain_identity(
+        b"omega.terminal-fixed-view-copies.v7\0",
+        &bytes,
+    ))
 }
 
 #[cfg(test)]

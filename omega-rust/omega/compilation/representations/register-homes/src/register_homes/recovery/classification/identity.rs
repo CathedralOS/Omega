@@ -1,7 +1,6 @@
 use optimization_unit::{FuelSettlement, PsiProvenance, encode_value_definition_site_identity};
 use selected_instructions::{SelectedInstructionProvenance, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerSign, ScalarType};
-use sha2::{Digest, Sha256};
 
 use crate::{
     NoAdmittedRecoveryReason, RecoveryClassification, RecoveryClassificationIdentity,
@@ -11,10 +10,10 @@ use crate::{
 pub fn recovery_classification_identity(
     plan: &RecoveryClassificationPlan,
 ) -> RecoveryClassificationIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-recovery-classification.v7\0");
-    bytes.extend_from_slice(&encode_terminal_recovery_classification_content(plan));
-    RecoveryClassificationIdentity(Sha256::digest(bytes).into())
+    RecoveryClassificationIdentity(crate::codec_bytes::domain_identity(
+        b"omega.terminal-recovery-classification.v7\0",
+        &encode_terminal_recovery_classification_content(plan),
+    ))
 }
 
 pub(crate) fn encode_terminal_recovery_classification_content(

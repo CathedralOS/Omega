@@ -67,3 +67,14 @@ where
     }
     Ok(())
 }
+
+/// The shared canonical identity formula: `Sha256(domain-tag ++ content)`.
+/// Every terminal artifact identity in this crate is this digest over its own
+/// authored domain tag and canonical content bytes.
+pub(crate) fn domain_identity(domain: &[u8], content: &[u8]) -> [u8; 32] {
+    use sha2::Digest;
+    let mut bytes = Vec::with_capacity(domain.len() + content.len());
+    bytes.extend_from_slice(domain);
+    bytes.extend_from_slice(content);
+    sha2::Sha256::digest(bytes).into()
+}
