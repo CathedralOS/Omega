@@ -95,7 +95,7 @@ impl ValidatedElfDynamicSectionRoster {
 /// Rejected numeric-roster planning with exact section-name-table custody.
 #[derive(Debug)]
 #[must_use = "ELF section-roster rejection retains the section-name table"]
-pub(crate) struct ElfDynamicSectionRosterPlanningError {
+pub struct ElfDynamicSectionRosterPlanningError {
     section_names: ValidatedElfSectionNameTablePlan,
     diagnostic: Diagnostic,
 }

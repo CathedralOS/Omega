@@ -92,7 +92,7 @@ impl ValidatedElfProcedureLinkageSectionDescriptorPlan {
 /// Rejected linkage-section descriptor planning with exact template custody.
 #[derive(Debug)]
 #[must_use = "ELF linkage-descriptor rejection retains the validated templates"]
-pub(crate) struct ElfProcedureLinkageSectionDescriptorPlanningError {
+pub struct ElfProcedureLinkageSectionDescriptorPlanningError {
     templates: ValidatedElfProcedureLinkageTemplatePlan,
     diagnostic: Diagnostic,
 }

@@ -98,7 +98,7 @@ impl ValidatedElfDynamicSectionPlan {
 /// Rejected address-free dynamic-section planning with exact input custody.
 #[derive(Debug)]
 #[must_use = "ELF dynamic-section rejection retains the exact preflight inputs"]
-pub(crate) struct ElfDynamicSectionPlanningError {
+pub struct ElfDynamicSectionPlanningError {
     inputs: PlannedElfDynamicLinkInputs,
     diagnostic: Diagnostic,
 }

@@ -28,8 +28,7 @@ pub(crate) mod floating_control;
 pub(crate) mod ieee_float_arithmetic;
 mod scan_byte_sequence;
 mod zero_bytes;
-pub use floating_control::{
-};
+
 pub(crate) use floating_control::{
     encode_x86_64_selected_floating_control_form, validate_x86_64_selected_floating_control_form};
 pub(crate) mod hosted_exit_process;

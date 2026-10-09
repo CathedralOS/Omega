@@ -28,8 +28,7 @@ mod manifest;
 mod validation;
 
 pub(crate) use codec::encode_sealed_optimized_program_storage_semantic_wrapper_object;
-pub use codec::{
-};
+
 pub(crate) use codec::{
     decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object,

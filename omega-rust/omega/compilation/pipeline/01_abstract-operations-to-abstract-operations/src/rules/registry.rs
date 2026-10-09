@@ -14,7 +14,7 @@ use semantic_vocabulary::{MachineId, ObligationId, OperationId};
 use crate::{AnalysisProduct, EffectSummaryAnalysis, UseDefinitionAnalysis};
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct RuleAnalysisView<'a> {
+pub struct RuleAnalysisView<'a> {
     products: RuleAnalysisProducts<'a>,
 }
 

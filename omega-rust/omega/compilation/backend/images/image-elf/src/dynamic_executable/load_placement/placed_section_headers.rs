@@ -80,7 +80,7 @@ impl ValidatedElfPlacedSectionHeaderTable {
 /// Rejected application retaining exact absolute-load-layout custody.
 #[derive(Debug)]
 #[must_use = "section-header placement rejection retains the absolute load layout"]
-pub(crate) struct ElfSectionHeaderPlacementApplicationError {
+pub struct ElfSectionHeaderPlacementApplicationError {
     load_layout: ValidatedElfDynamicLoadLayout,
     diagnostic: Diagnostic,
 }

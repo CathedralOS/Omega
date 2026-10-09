@@ -80,13 +80,11 @@ pub use program_entry_physical::{
     exact_windows_x86_64_physical_contract_package_source_digest,
 };
 pub use selected_entry::SelectedProgramStorageEntryPlan;
-pub use selected_entry::boundary_entry_storage::{
-};
+
 pub use selected_entry::diagnostic::ProgramStorageEntryDiagnostic;
 pub use selected_entry::root_role::ProgramStorageEntryRootRole;
 pub use selected_entry::service_establishment::ProgramEntryFusedServiceEstablishment;
-pub use uefi::uefi_handle_protocol::{
-};
+
 pub use uefi::uefi_os_handoff::{
     uefi_os_handoff_exhaustion_requires_error,
 };

@@ -91,7 +91,7 @@ impl ValidatedElfDynamicTagPlan {
 /// Rejected semantic dynamic-tag planning with exact descriptor custody.
 #[derive(Debug)]
 #[must_use = "ELF dynamic-tag rejection retains the eleven-section carrier"]
-pub(crate) struct ElfDynamicTagPlanningError {
+pub struct ElfDynamicTagPlanningError {
     descriptors: ValidatedElfProcedureLinkageSectionDescriptorPlan,
     diagnostic: Diagnostic,
 }

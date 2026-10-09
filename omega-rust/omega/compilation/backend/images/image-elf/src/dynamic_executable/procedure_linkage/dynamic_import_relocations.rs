@@ -99,7 +99,7 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
 /// Rejected procedure-linkage planning with exact descriptor custody.
 #[derive(Debug)]
 #[must_use = "ELF procedure-linkage rejection retains the descriptor plan"]
-pub(crate) struct ElfProcedureLinkageRelocationPlanningError {
+pub struct ElfProcedureLinkageRelocationPlanningError {
     descriptors: ValidatedElfDynamicSectionDescriptorPlan,
     diagnostic: Diagnostic,
 }

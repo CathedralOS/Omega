@@ -53,7 +53,7 @@ impl PlannedElfDynamicLinkInputs {
 /// Rejected dynamic-link input preflight with both original owned inputs.
 #[derive(Debug)]
 #[must_use = "ELF dynamic-link rejection retains the final image and interpreter input"]
-pub(crate) struct ElfDynamicLinkInputPlanningError {
+pub struct ElfDynamicLinkInputPlanningError {
     image: FinalImage,
     interpreter: NormalizedElfInterpreterPlan,
     diagnostic: Diagnostic,

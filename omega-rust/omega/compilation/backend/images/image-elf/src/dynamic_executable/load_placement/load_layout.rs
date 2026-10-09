@@ -27,8 +27,6 @@ mod validated_layout;
 
 pub(crate) use load_headers::public_section_kind;
 
-pub use load_headers::{
-};
 pub(crate) use load_headers::{
     ElfLoadImageMemoryPlacement, ElfLoadProgramHeader, ElfLoadProgramHeaderKind,
     ElfPlacedDynamicSection, ElfPlacedDynamicSectionKind, ElfResolvedSectionHeaderPlacement,

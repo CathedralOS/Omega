@@ -245,7 +245,7 @@ impl VerifiedPsiOptimizationSession {
 }
 
 #[derive(Debug)]
-pub(crate) struct OptimizationRun {
+pub struct OptimizationRun {
     /// Complete source-visible suite requested by the root build.
     pub selections: OptimizationSelections,
     /// Exact subset executed by this Psi-phase run.
@@ -304,7 +304,7 @@ impl OptimizationRun {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizationRunError {
+pub enum OptimizationRunError {
     InitialValidation(OptimizationUnitValidationError),
     Analysis(AnalysisManagerError),
     Proposal {

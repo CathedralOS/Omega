@@ -58,8 +58,7 @@ pub use register_model::{X86_64_RESTORE_FLOATING_CONTROL, X86_64_SAVE_FLOATING_C
 pub use selected_form_encoding::system_call::{
     encode_x86_64_selected_system_call_form, validate_x86_64_selected_system_call_form,
 };
-pub use selected_form_encoding::{
-};
+
 mod semantic_unit_wrapper_encoding;
 
 pub use fma::{
@@ -132,8 +131,7 @@ pub use selected_form_encoding::materialization::mov_r32_imm32::{
 pub use selected_form_encoding::materialization::mov_r64_imm32_sign_extended::{
     X86_64MovR64Imm32SignExtendedI64MaterializationError,
 };
-pub use selected_form_encoding::materialization::xor_zero::{
-};
+
 pub use selected_form_encoding::{
     ValidatedX86_64SelectedFormEncoding, X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET,
     X86_64CallbackAddressMaterialization, X86_64CallbackMaterializationDestination,

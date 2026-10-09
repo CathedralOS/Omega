@@ -73,7 +73,7 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
 /// Rejected GOT/PLT template planning with exact upstream custody.
 #[derive(Debug)]
 #[must_use = "ELF GOT/PLT template rejection retains the procedure-linkage plan"]
-pub(crate) struct ElfProcedureLinkageTemplatePlanningError {
+pub struct ElfProcedureLinkageTemplatePlanningError {
     pub(crate) linkage: ValidatedElfProcedureLinkageRelocationPlan,
     pub(crate) diagnostic: Diagnostic,
 }

@@ -107,7 +107,7 @@ impl ValidatedElfDynamicSectionDescriptorPlan {
 /// Rejected dynamic-section descriptor planning with exact payload custody.
 #[derive(Debug)]
 #[must_use = "ELF descriptor rejection retains the validated payload carrier"]
-pub(crate) struct ElfDynamicSectionDescriptorPlanningError {
+pub struct ElfDynamicSectionDescriptorPlanningError {
     payloads: ValidatedElfDynamicSectionPayloads,
     diagnostic: Diagnostic,
 }

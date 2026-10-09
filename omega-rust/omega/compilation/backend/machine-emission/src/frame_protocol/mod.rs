@@ -74,7 +74,7 @@ impl TargetFrameProtocolEncodingReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedTargetFrameProtocolEncoding {
+pub struct ValidatedTargetFrameProtocolEncoding {
     pub(in crate::frame_protocol) plan: std::sync::Arc<TargetFrameProtocolEncodingPlan>,
     pub(in crate::frame_protocol) receipt: TargetFrameProtocolEncodingReceipt,
 }

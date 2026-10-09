@@ -40,8 +40,6 @@ pub(crate) use source_evaluated_bindings::{
 pub use source_evaluated_bindings::{
     PreparedSourceEvaluatedBindings};
 
-pub use request::{
-};
 pub(crate) use request::{
     NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
 pub use request::{ NativeProviderSettlement,

@@ -87,7 +87,7 @@ impl ValidatedElfSectionHeaderTableTemplate {
 /// Rejected section-header serialization with exact numeric-roster custody.
 #[derive(Debug)]
 #[must_use = "ELF section-header serialization rejection retains the numeric roster"]
-pub(crate) struct ElfSectionHeaderTableSerializationError {
+pub struct ElfSectionHeaderTableSerializationError {
     roster: ValidatedElfDynamicSectionRoster,
     diagnostic: Diagnostic,
 }

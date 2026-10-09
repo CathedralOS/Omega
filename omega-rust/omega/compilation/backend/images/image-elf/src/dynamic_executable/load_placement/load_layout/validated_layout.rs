@@ -99,7 +99,7 @@ impl ValidatedElfDynamicLoadLayout {
 /// Rejected absolute placement with exact relative-layout custody.
 #[derive(Debug)]
 #[must_use = "dynamic ELF load-layout rejection retains the relative layout"]
-pub(crate) struct ElfDynamicLoadLayoutError {
+pub struct ElfDynamicLoadLayoutError {
     pub(crate) relative: ValidatedElfRelativeSectionPayloadLayout,
     pub(crate) diagnostic: Diagnostic,
 }

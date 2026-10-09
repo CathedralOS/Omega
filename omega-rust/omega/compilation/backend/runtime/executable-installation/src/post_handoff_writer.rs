@@ -363,7 +363,7 @@ pub struct ResolvedPostHandoffEntryWriterContext {
 /// generated writer may reach one activated mapping. The exact mapping
 /// evidence is sealed in `mapping`; compact receipt identity is report-only.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DestinationPreparationReceipt {
+pub struct DestinationPreparationReceipt {
     identity: DestinationPreparationReceiptId,
     mapping: MappingReceiptContext,
     required_write_rights: ExtentRights,
@@ -553,7 +553,7 @@ fn validate_post_handoff_destination_binding(
 }
 
 #[derive(Debug)]
-pub(crate) struct DestinationClaimError<'mapping, 'bytes> {
+pub struct DestinationClaimError<'mapping, 'bytes> {
     mapping: MappedExtent<'mapping>,
     receipt: DestinationPreparationReceipt,
     site: PlacementSite,

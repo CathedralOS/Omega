@@ -131,7 +131,7 @@ impl ValidatedElfDynamicExecutable {
 /// Rejected final-byte admission retaining the complete assembled-file owner.
 #[derive(Debug)]
 #[must_use = "dynamic ELF admission rejection retains assembled-file custody"]
-pub(crate) struct ElfDynamicExecutableAdmissionError {
+pub struct ElfDynamicExecutableAdmissionError {
     assembled: ValidatedElfAssembledDynamicFile,
     diagnostic: Diagnostic,
 }
@@ -157,7 +157,7 @@ impl std::error::Error for ElfDynamicExecutableAdmissionError {}
 /// Rejected file assembly retaining the exact resolved-linkage owner.
 #[derive(Debug)]
 #[must_use = "dynamic ELF assembly rejection retains resolved-linkage custody"]
-pub(crate) struct ElfDynamicFileAssemblyError {
+pub struct ElfDynamicFileAssemblyError {
     resolved_linkage: ValidatedElfResolvedProcedureLinkage,
     diagnostic: Diagnostic,
 }

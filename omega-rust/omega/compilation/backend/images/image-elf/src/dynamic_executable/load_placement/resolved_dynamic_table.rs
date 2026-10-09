@@ -166,7 +166,7 @@ impl ValidatedElfResolvedDynamicTable {
 /// Rejected internal `.dynamic` resolution with exact upstream custody.
 #[derive(Debug)]
 #[must_use = "dynamic-address rejection retains the placed section-header owner"]
-pub(crate) struct ElfDynamicAddressApplicationError {
+pub struct ElfDynamicAddressApplicationError {
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
     diagnostic: Diagnostic,
 }

@@ -129,7 +129,7 @@ impl TargetFrameLayoutReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedTargetFrameLayout {
+pub struct ValidatedTargetFrameLayout {
     pub(in crate::frame_layout) plan: std::sync::Arc<TargetFrameLayoutPlan>,
     pub(in crate::frame_layout) receipt: TargetFrameLayoutReceipt,
 }

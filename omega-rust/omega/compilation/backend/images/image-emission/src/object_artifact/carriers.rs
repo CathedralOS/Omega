@@ -52,7 +52,7 @@ pub struct ObjectArtifact {
 /// aligned. Every literal address field binds this symbol with the literal's
 /// pool offset as its addend.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ObjectByteLiteralPool {
+pub struct ObjectByteLiteralPool {
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
     pub byte_count: usize,
@@ -278,7 +278,7 @@ impl ObjectFunction {
 /// object's text section. Its artifact-local `MachineId` remains nested under
 /// this carrier and never joins the semantic program-function namespace.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ObjectCompilerPrivateFunction {
+pub struct ObjectCompilerPrivateFunction {
     pub identity: function_identity::MachineFunctionIdentity,
     pub source_psi: TerminalPsiIdentity,
     pub function: ObjectFunction,

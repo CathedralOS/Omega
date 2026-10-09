@@ -30,8 +30,7 @@ pub(crate) use template_plans::{
     ElfProcedureLinkagePlacementConstraint, ElfProcedureLinkagePlacementConstraintKind,
     ElfProcedureLinkageSemanticTarget,
 };
-pub use template_plans::{
-};
+
 pub(crate) use template_plans::{
     ElfProcedureLinkageTemplatePlanningError, ValidatedElfProcedureLinkageTemplatePlan};
 
