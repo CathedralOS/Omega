@@ -18,7 +18,7 @@ impl PreservationStorageCatalogIdentity {
     }
 }
 
-pub fn preservation_storage_catalog_identity(
+pub(crate) fn preservation_storage_catalog_identity(
     catalog: &PreservationStorageCatalog,
 ) -> PreservationStorageCatalogIdentity {
     let mut canonical = Vec::new();

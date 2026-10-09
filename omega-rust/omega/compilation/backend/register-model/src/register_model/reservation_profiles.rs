@@ -22,7 +22,7 @@ pub enum ReservationReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RegisterReservationOverlay {
+pub(crate) struct RegisterReservationOverlay {
     pub name: String,
     pub reason: ReservationReason,
     pub units: Vec<RegisterUnitId>,

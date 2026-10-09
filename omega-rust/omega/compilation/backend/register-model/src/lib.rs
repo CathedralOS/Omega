@@ -33,19 +33,21 @@ pub use register_model::identities::{
 pub use register_model::preservation_storage::{
     FrameAbiPreservationConvention, PreservationStorageCatalog, PreservationStorageCatalogIdentity,
     PreservationStorageCatalogValidationError, PreservationStorageGroup,
-    PreservationStorageGroupId, ValidatedPreservationStorageCatalog,
-    preservation_storage_catalog_identity, validate_preservation_storage_catalog,
+    PreservationStorageGroupId, ValidatedPreservationStorageCatalog, validate_preservation_storage_catalog,
 };
+pub(crate) use register_model::preservation_storage::{
+    preservation_storage_catalog_identity};
 pub use register_model::register_vocabulary::{
     RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView,
     RegisterViewId, RegisterWriteSemantics, sha256_length, sha256_register_units,
 };
-pub use register_model::reservation_profiles::{
-    RegisterReservationOverlay, RegisterReservationProfile,
+pub use register_model::reservation_profiles::{ RegisterReservationProfile,
     RegisterReservationProfileValidationError, ReservationReason,
     ValidatedRegisterReservationProfile, reservation_overlay, sorted_units,
     validate_register_reservation_profile,
 };
+pub(crate) use register_model::reservation_profiles::{
+    RegisterReservationOverlay};
 pub use register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterModelValidationError,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,

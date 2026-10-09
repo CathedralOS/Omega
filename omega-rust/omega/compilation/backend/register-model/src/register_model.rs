@@ -85,7 +85,7 @@ impl ValidatedPhysicalRegisterModel {
         self.identity
     }
 
-    pub fn into_model(self) -> PhysicalRegisterModel {
+    pub(crate) fn into_model(self) -> PhysicalRegisterModel {
         self.model
     }
 }
