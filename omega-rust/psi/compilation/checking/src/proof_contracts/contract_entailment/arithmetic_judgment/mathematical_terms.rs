@@ -147,12 +147,6 @@ impl Engine<'_> {
         if depth >= 128 {
             return unknown();
         }
-        if super::super::struct_trace() {
-            eprintln!(
-                "STRUCT mathematical judgment depth={depth} term={term:?} node={:?}",
-                view.arena.get(term),
-            );
-        }
         match view.arena.get(term) {
             Term::Squash { ty } => self.judge_mathematical_term(view, ty, captures, depth + 1),
             Term::Id { ty, left, right } if matches!(view.arena.get(ty), Term::Two) => {

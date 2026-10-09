@@ -795,7 +795,7 @@ enum BinderPlan {
 /// the dedicated `bool`/`addr` carriers, `Float32`/`Float64` the
 /// dedicated `f32`/`f64` carriers, and `Carrier` names an interned
 /// per-symbol `Type 0` assumption (`data` types, other builtin atoms).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum ScalarCarrier {
     Integer,
     Boolean,

@@ -312,13 +312,7 @@ pub(crate) fn source_operations_have_same_meaning(
             Some(&bindings),
         )
     };
-    let terms = (form(left), form(right));
-    if super::struct_trace() {
-        eprintln!(
-            "STRUCT scalar congruence owner={owner:?} expressions=[{left:?}, {right:?}] terms={terms:?}"
-        );
-    }
-    match terms {
+    match (form(left), form(right)) {
         (Some(left), Some(right)) => complete(&left) && complete(&right) && left == right,
         _ => false,
     }
