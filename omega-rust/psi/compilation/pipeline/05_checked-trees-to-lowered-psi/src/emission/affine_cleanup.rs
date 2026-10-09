@@ -10,10 +10,10 @@
 //! Cycles preserve the same finite carrier frontier; nominal cleanup remains
 //! outside this pass.
 use crate::lowering_error::{LoweringError, unsupported};
-use semantic_vocabulary::BlockId;
+use semantic_vocabulary::{BlockId, StructuralPlaceKind};
 use terminal_psi::{
     Block, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction, Terminator,
+    StructuralPlaceDeclaration, TerminalAffineCleanupAction, Terminator,
 };
 
 mod custody_flow;
