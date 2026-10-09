@@ -156,16 +156,8 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             // rosters and the ordinary argument storage contract.
             Ok((*psi_operation, result.value))
         }
-        AbstractOperation::ByteSequenceRead {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::StructuralByteSequenceFieldRead {
-            psi_operation,
-            result,
-            ..
-        } if result.scalar_type == ScalarType::Integer(u8_type()) => {
+        abstract_operations::byte_read_or_field_read_pattern!(psi_operation,
+            result, ..) if result.scalar_type == ScalarType::Integer(u8_type()) => {
             Ok((*psi_operation, result.value))
         }
         AbstractOperation::ByteSequenceLength {
@@ -305,8 +297,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         // byte read/length whose result type the representation fixes is a
         // malformed plan, not a missing lowering.
         AbstractOperation::IntegerConstant { .. }
-        | AbstractOperation::ByteSequenceRead { .. }
-        | AbstractOperation::StructuralByteSequenceFieldRead { .. }
+        | abstract_operations::byte_read_or_field_read_pattern!(..)
         | AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::ByteSequencePredicate { .. }
         | AbstractOperation::ByteSequenceEqual { .. }

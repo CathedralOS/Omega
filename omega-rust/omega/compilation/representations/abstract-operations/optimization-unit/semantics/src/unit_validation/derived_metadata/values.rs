@@ -38,8 +38,7 @@ pub(crate) fn expected_uses(
                 terminal_psi::RecordFieldValue::Structural(_) => None,
             })
             .collect(),
-        O::ByteSequenceRead { index, length, .. }
-        | O::StructuralByteSequenceFieldRead { index, length, .. } => vec![*index, *length],
+        abstract_operations::byte_read_or_field_read_pattern!(index, length, ..) => vec![*index, *length],
         O::ElementViewRead { index, length, .. } => vec![*index, *length],
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.length(), right.length()]

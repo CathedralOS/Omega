@@ -129,8 +129,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::EstablishReference { storage, .. } => {
             storage.iter().map(|view| view.byte_offset).collect()
         }
-        O::ByteSequenceRead { index, length, .. }
-        | O::StructuralByteSequenceFieldRead { index, length, .. } => vec![*index, *length],
+        abstract_operations::byte_read_or_field_read_pattern!(index, length, ..) => vec![*index, *length],
         O::ElementViewRead { index, length, .. } => vec![*index, *length],
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.length(), right.length()]

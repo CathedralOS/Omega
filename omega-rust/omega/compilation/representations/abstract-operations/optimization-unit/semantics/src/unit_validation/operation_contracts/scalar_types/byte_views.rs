@@ -29,18 +29,9 @@ pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDe
                 && scalar(*start) == scalar(*end)
                 && scalar(*start) == scalar(*length)
         }
-        O::ByteSequenceRead {
-            result,
+        abstract_operations::byte_read_or_field_read_pattern!(result,
             index,
-            length,
-            ..
-        }
-        | O::StructuralByteSequenceFieldRead {
-            result,
-            index,
-            length,
-            ..
-        } => {
+            length, ..) => {
             matches!(result.scalar_type, ScalarType::Integer(integer)
                 if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 8))
                 && matches!(scalar(*index), Some(ScalarType::Integer(integer))

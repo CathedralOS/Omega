@@ -110,16 +110,8 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             obligation,
             ..
         }
-        | O::ByteSequenceRead {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::StructuralByteSequenceFieldRead {
-            psi_operation,
-            obligation,
-            ..
-        }
+        | abstract_operations::byte_read_or_field_read_pattern!(psi_operation,
+            obligation, ..)
         | O::ElementViewSubslice {
             psi_operation,
             obligation,
