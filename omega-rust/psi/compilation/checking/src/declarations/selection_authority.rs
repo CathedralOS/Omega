@@ -94,14 +94,15 @@ pub fn validate_authored_declaration_selections(
             continue;
         }
 
-        // Primitive types and compiler builtin functions have exact semantic
-        // identity but intentionally have no package or authored toolchain
-        // source owner. They cannot be spoofed by a package declaration: the
-        // resolved symbol kind, not spelling, selects this lane.
+        // Installed primitive types, functions and type members have exact
+        // compiler identity but intentionally no authored source/package owner.
+        // Member identity checks the fixed parent and installed child handle;
+        // a user declaration with the same spelling gains no authority.
         if matches!(
             program.symbols.get(selected).kind,
             SymbolKind::BuiltinType | SymbolKind::BuiltinFunction
-        ) {
+        ) || program.symbols.builtin_type_member(selected).is_some()
+        {
             continue;
         }
 
