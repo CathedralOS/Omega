@@ -135,6 +135,7 @@ macro_rules! image_digest {
 
 mod aarch64_relocations;
 mod builder;
+pub mod codec_bytes;
 mod final_image;
 mod function_linkage;
 mod output;
@@ -151,25 +152,26 @@ pub use final_image::{
     FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
     FinalExecutableTextDigest, FinalImage, FinalImageImport, FinalImageImportPlan,
     FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
-    FinalImageSection, FinalImageSymbol, FinalImageSymbolDigest, FinalImageSymbolHandle, FinalInitializedDataDigest, PlacedDataGapBytesDigest, PlacedDataRegionBytesDigest, PlacedDataRegionInventory,
-    PlacedDataRegionInventoryDigest, PlacedExecutableGapBytesDigest,
+    FinalImageSection, FinalImageSymbol, FinalImageSymbolDigest, FinalImageSymbolHandle,
+    FinalInitializedDataDigest, PlacedDataGapBytesDigest, PlacedDataRegionBytesDigest,
+    PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, PlacedExecutableGapBytesDigest,
     PlacedExecutableRegion, PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
-    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, final_image_symbol_digest, place_data_extent,
-    place_data_regions, place_executable_regions,
+    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, final_image_symbol_digest,
+    place_data_extent, place_data_regions, place_executable_regions,
     validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
 };
-pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use output::{
-    CompilerEntryFootprintBindingDigest,
-    CompilerEntryRegionBindingDigest,
+    CompilerEntryFootprintBindingDigest, CompilerEntryRegionBindingDigest,
     CompilerFunctionValidationDigest, CompilerFunctionValidationEvidence,
     CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
     CompilerTextValidationEvidence, EmittedImageOutput, EncodedCompilerTextDigest,
     ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
     emitted_direct_executable_output,
 };
+pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use symbols::{
-    final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address, final_image_symbol_name,
+    final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address,
+    final_image_symbol_name,
 };
 pub use x86_64_relocations::apply_x86_64_relocations;
 

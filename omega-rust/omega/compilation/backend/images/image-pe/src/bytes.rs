@@ -2,18 +2,7 @@
 //! they write into already-emitted bytes.
 
 use diagnostics::Diagnostic;
-
-pub(crate) fn write_u16(bytes: &mut Vec<u8>, value: u16) {
-    bytes.extend(value.to_le_bytes());
-}
-
-pub(crate) fn write_u32(bytes: &mut Vec<u8>, value: u32) {
-    bytes.extend(value.to_le_bytes());
-}
-
-pub(crate) fn write_u64(bytes: &mut Vec<u8>, value: u64) {
-    bytes.extend(value.to_le_bytes());
-}
+pub(crate) use image::codec_bytes::{write_u16, write_u32, write_u64};
 
 pub(crate) fn write_u16_at(bytes: &mut [u8], offset: usize, value: u16) {
     bytes[offset..offset + 2].copy_from_slice(&value.to_le_bytes());

@@ -1,6 +1,8 @@
 //! Little-endian appends for the file, and big-endian ones for the code signature,
 //! which is the one structure here that is not little-endian.
 
+pub(crate) use image::codec_bytes::{write_u32, write_u64};
+
 pub(crate) fn write_be_u32(bytes: &mut Vec<u8>, value: u32) {
     bytes.extend(value.to_be_bytes());
 }
@@ -17,14 +19,6 @@ pub(crate) fn write_fixed_string_16(bytes: &mut Vec<u8>, value: &str) {
     );
     bytes.extend(value_bytes);
     bytes.resize(bytes.len() + (16 - value_bytes.len()), 0);
-}
-
-pub(crate) fn write_u32(bytes: &mut Vec<u8>, value: u32) {
-    bytes.extend(value.to_le_bytes());
-}
-
-pub(crate) fn write_u64(bytes: &mut Vec<u8>, value: u64) {
-    bytes.extend(value.to_le_bytes());
 }
 
 pub(crate) fn write_reserved_u32s(bytes: &mut Vec<u8>, count: usize) {
