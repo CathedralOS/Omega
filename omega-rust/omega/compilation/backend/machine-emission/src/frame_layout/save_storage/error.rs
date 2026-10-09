@@ -17,13 +17,9 @@ pub enum NonAuthoritativeCalleeSaveStorageError {
     },
 }
 
-impl std::fmt::Display for NonAuthoritativeCalleeSaveStorageError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "non-authoritative callee-save storage planning failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    NonAuthoritativeCalleeSaveStorageError,
+    "non-authoritative callee-save storage planning failed"
+);
 
 impl std::error::Error for NonAuthoritativeCalleeSaveStorageError {}

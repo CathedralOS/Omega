@@ -23,14 +23,10 @@ pub enum RelocationFreeTextSectionPlacementError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for RelocationFreeTextSectionPlacementError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized relocation-free text-section placement failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    RelocationFreeTextSectionPlacementError,
+    "optimized relocation-free text-section placement failed"
+);
 
 impl std::error::Error for RelocationFreeTextSectionPlacementError {}
 

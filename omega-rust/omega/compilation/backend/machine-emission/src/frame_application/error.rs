@@ -30,14 +30,10 @@ pub enum FunctionFragmentFrameApplicationError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for FunctionFragmentFrameApplicationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "function-fragment frame application failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    FunctionFragmentFrameApplicationError,
+    "function-fragment frame application failed"
+);
 
 impl std::error::Error for FunctionFragmentFrameApplicationError {}
 

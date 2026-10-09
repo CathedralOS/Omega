@@ -15,10 +15,6 @@ pub enum TargetFrameLayoutError {
     },
 }
 
-impl std::fmt::Display for TargetFrameLayoutError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "target frame layout failed: {self:?}")
-    }
-}
+failed_display!(TargetFrameLayoutError, "target frame layout failed");
 
 impl std::error::Error for TargetFrameLayoutError {}

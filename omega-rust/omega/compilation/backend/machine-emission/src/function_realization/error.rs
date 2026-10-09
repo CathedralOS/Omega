@@ -20,13 +20,9 @@ pub enum FunctionRelativeOptimizationRealizationError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for FunctionRelativeOptimizationRealizationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "function-relative optimization realization failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    FunctionRelativeOptimizationRealizationError,
+    "function-relative optimization realization failed"
+);
 
 impl std::error::Error for FunctionRelativeOptimizationRealizationError {}

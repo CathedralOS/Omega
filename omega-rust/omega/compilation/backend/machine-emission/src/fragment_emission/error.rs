@@ -18,14 +18,10 @@ pub enum FunctionFragmentEmissionError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for FunctionFragmentEmissionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized function-fragment emission failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    FunctionFragmentEmissionError,
+    "optimized function-fragment emission failed"
+);
 
 impl std::error::Error for FunctionFragmentEmissionError {}
 

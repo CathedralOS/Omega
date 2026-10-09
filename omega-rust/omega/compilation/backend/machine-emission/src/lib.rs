@@ -43,22 +43,28 @@
 //! The object join over placed text belongs to object-file and image-emission.
 
 // 1. Function-relative realization.
+/// `Display` for the crate's `<context> failed: {self:?}` error convention.
+macro_rules! failed_display {
+    ($type:ty, $message:literal) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, concat!($message, ": {:?}"), self)
+            }
+        }
+    };
+}
+
 mod codec_bytes;
 mod digest_encoder;
 mod function_realization;
 
-pub use function_realization::{
-    stage_fixed_frame_function_relative_realization,
-};
+pub use function_realization::stage_fixed_frame_function_relative_realization;
 
-pub use function_realization::{
-    FunctionRelativeOptimizationRealizationError,
-};
+pub use function_realization::FunctionRelativeOptimizationRealizationError;
 // Evidence the realization joins: frame geometry, frame bytes, exit contract.
 mod exit_contract;
 pub mod frame_layout;
 mod frame_protocol;
-
 
 pub use frame_protocol::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
@@ -66,34 +72,30 @@ pub use frame_protocol::{
     TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
 };
 
-
-pub use exit_contract::{ WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity, WholeFunctionExitEvidence,
-    WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
-    WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence,
+pub use exit_contract::{
+    WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
+    WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
+    WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence,
+    WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 // 2. Fragment emission.
 mod fragment_emission;
 
-pub use fragment_emission::{
-    stage_optimized_function_fragment_emission,
-};
+pub use fragment_emission::stage_optimized_function_fragment_emission;
 
-pub use fragment_emission::{ FunctionFragmentEmissionManifest,
-    FunctionFragmentEmissionManifestDecodeError, FunctionFragmentEmissionStage,
-    FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
-    StagedOptimizedFunctionFragmentEmissionSource,
+pub use fragment_emission::{
+    FunctionFragmentEmissionManifest, FunctionFragmentEmissionManifestDecodeError,
+    FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
+    FunctionFragmentEmissionUnavailableData, StagedOptimizedFunctionFragmentEmissionSource,
 };
 // 3. Frame application.
 mod frame_application;
 
-pub use frame_application::{
-    stage_function_fragment_frame_application,
-};
+pub use frame_application::stage_function_fragment_frame_application;
 
 pub use frame_application::{
-    FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,
-    function_fragment_frame_application_identity,
+    FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
+    FunctionFragmentFrameApplicationIdentity, function_fragment_frame_application_identity,
 };
 // 4. Text placement.
 mod text_placement;
@@ -105,7 +107,8 @@ pub use text_placement::{
 pub use text_placement::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
-    FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError, StagedOptimizedFixedFrameTextSection,
+    FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError,
+    StagedOptimizedFixedFrameTextSection,
 };
 // Private callback records projected from placed text.
 mod private_callback;
@@ -116,7 +119,4 @@ pub use private_callback::{
 
 // `code_layout<Machine>()` descriptions projected from placed text.
 
-
 // Target-owned x86-64 byte recipes outside the route.
-
-

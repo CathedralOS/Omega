@@ -15,13 +15,9 @@ pub(crate) enum TextPlacementError {
     ArtifactMismatch,
 }
 
-impl std::fmt::Display for TextPlacementError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized relocation-free text-section placement failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    TextPlacementError,
+    "optimized relocation-free text-section placement failed"
+);
 
 impl std::error::Error for TextPlacementError {}

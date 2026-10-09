@@ -25,13 +25,9 @@ pub(crate) enum FrameApplicationError {
     ArtifactMismatch,
 }
 
-impl std::fmt::Display for FrameApplicationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "function-fragment frame application failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    FrameApplicationError,
+    "function-fragment frame application failed"
+);
 
 impl std::error::Error for FrameApplicationError {}

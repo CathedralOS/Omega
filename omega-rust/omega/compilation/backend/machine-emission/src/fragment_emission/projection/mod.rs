@@ -13,7 +13,9 @@ mod production;
 mod statistics;
 mod validation;
 
-pub(crate) use statistics::{FunctionFragmentStatisticsOverflow, function_fragment_emission_statistics};
+pub(crate) use statistics::{
+    FunctionFragmentStatisticsOverflow, function_fragment_emission_statistics,
+};
 
 use machine_code::{FunctionFragmentEmissionPlan, ResolvedMachineProgram};
 
@@ -27,11 +29,10 @@ pub(crate) enum ResolvedFragmentEmissionError {
     ArtifactMismatch,
 }
 
-impl std::fmt::Display for ResolvedFragmentEmissionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "resolved fragment projection failed: {self:?}")
-    }
-}
+failed_display!(
+    ResolvedFragmentEmissionError,
+    "resolved fragment projection failed"
+);
 
 impl std::error::Error for ResolvedFragmentEmissionError {}
 

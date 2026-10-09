@@ -14,10 +14,9 @@ pub enum TargetFrameProtocolEncodingError {
     NonCanonicalEncoding,
 }
 
-impl std::fmt::Display for TargetFrameProtocolEncodingError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "target frame protocol encoding failed: {self:?}")
-    }
-}
+failed_display!(
+    TargetFrameProtocolEncodingError,
+    "target frame protocol encoding failed"
+);
 
 impl std::error::Error for TargetFrameProtocolEncodingError {}
