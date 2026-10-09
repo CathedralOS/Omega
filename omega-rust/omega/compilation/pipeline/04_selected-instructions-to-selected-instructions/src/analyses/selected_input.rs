@@ -1,7 +1,6 @@
 use crate::ValidatedStoredLoadForwarding;
 use crate::rewrites::unexecuted::{
-    ValidatedInflowRelocation, ValidatedInterchange, ValidatedMemberRunRelocation,
-    ValidatedScheduledRelocation,
+    ValidatedInterchange, ValidatedMemberRunRelocation, ValidatedScheduledRelocation,
 };
 use crate::{
     ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch,
@@ -89,8 +88,6 @@ validated_selected_analysis!(ValidatedStoredLoadForwarding);
 validated_selected_analysis!(ValidatedDeadCompare);
 
 validated_selected_analysis!(ValidatedEquivalentCompare);
-
-validated_selected_analysis!(ValidatedInflowRelocation);
 
 validated_selected_analysis!(ValidatedMemberRunRelocation);
 
