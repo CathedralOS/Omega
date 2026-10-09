@@ -42,11 +42,6 @@ const fn section_ordinal(section: SectionKind) -> SectionKindOrdinal {
 }
 
 impl ValidatedRelocationPlan {
-    /// The admitted plan, unchanged from what the caller supplied.
-    pub const fn plan(&self) -> &RelocationPlan {
-        &self.plan
-    }
-
     pub fn record_count(&self) -> usize {
         self.plan.record_count()
     }
@@ -131,10 +126,6 @@ pub(crate) struct RelocationAdmissionFailure {
 impl RelocationAdmissionFailure {
     pub const fn error(&self) -> &RelocationAdmissionError {
         &self.error
-    }
-
-    pub const fn plan(&self) -> &RelocationPlan {
-        &self.plan
     }
 
     pub fn into_parts(self) -> (RelocationPlan, RelocationAdmissionError) {
