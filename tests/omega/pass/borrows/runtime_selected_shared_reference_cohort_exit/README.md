@@ -12,6 +12,7 @@ omega run --both tests/omega/pass/borrows/runtime_selected_shared_reference_coho
 ```
 
 Both engines must exit zero for both selections and both descriptor retirement
-orders. Reading the original first must not restore parent mutation while the
-receiving copy remains live. Shared descriptor copying
+orders. The original-first route also retains a bare descriptor copy after
+the selected record's last reference read. Neither earlier retirement can
+restore parent mutation while that copy remains live. Shared descriptor copying
 must preserve the complete parent lineage and cohort; it never copies the Cell.

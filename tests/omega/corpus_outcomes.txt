@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.31, "load1_start": 1.81, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 3.83, "load1_start": 3.99, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -292,6 +292,9 @@ fail/borrows/constructor_reference_element_mismatch rejected 228ms expected @69d
 	construction of `Choice` field `bytes` expects reference `&mut [u16]`, but the source does not supply its carrier and access
 fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 253ms expected @1a0d1c0cd491+wt
 	cannot prove requires contract for call take_ascii from overwrite_copy: ascii_only(saved) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/borrows/copied_reference_cohort_live_source_write rejected 323ms expected @c514d22fd1cd+wt
+	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
 fail/borrows/direct_mutable_reference_from_immutable_bytes rejected 299ms expected @69d297ae3ee5
 	argument `bytes` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/direct_reference_array_duplicate_mutable rejected 2664ms expected @ccd480905812+wt
@@ -2451,6 +2454,7 @@ pass/borrows/runtime_returned_reference_array_restoration_exit checked 1330ms ch
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 1151ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_selected_reference_child_retirement_exit checked 1397ms check-target:macos_arm64 @2a4f3488664b+wt
 pass/borrows/runtime_selected_reference_nested_restoration_exit checked 1862ms check-target:macos_arm64 @c910d797b35a
+pass/borrows/runtime_selected_shared_reference_cohort_exit checked 1730ms check-target:macos_arm64 @c514d22fd1cd+wt
 pass/borrows/runtime_shared_qualified_view_cycle_exit checked 1705ms check-target:macos_arm64 @954364ed064e
 pass/borrows/runtime_shared_qualified_view_scalar_choice_exit checked 2700ms check-target:macos_arm64 @fb52befd538a
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit checked 1541ms check-target:macos_arm64 @b5d8c6882a8b+wt

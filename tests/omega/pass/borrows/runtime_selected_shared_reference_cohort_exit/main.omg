@@ -30,6 +30,7 @@ machine verify_original_first(cell: &mut Cell, selected: bool) -> bool {
     cell.ready = true;
     let message: Message = Message { body: &mut cell, stamp: 11 };
     let child: &Cell = &message.body;
+    let duplicate: &Cell = child;
     let held: Held = match selected {
         true -> Held { target: child, stamp: 12 },
         false -> Held { target: child, stamp: 13 }
@@ -37,10 +38,11 @@ machine verify_original_first(cell: &mut Cell, selected: bool) -> bool {
     let original: i32 [0..=100] = child.value;
     let observed: i32 [0..=100] = held.target.value;
     let ready: bool = held.target.ready;
+    let copied_observed: i32 [0..=100] = duplicate.value;
     cell.value = 81;
     let stamp: i32 = message.stamp;
     let held_stamp: i32 = held.stamp;
-    observed == 70 && original == 70 && ready && stamp == 11 &&
+    observed == 70 && original == 70 && copied_observed == 70 && ready && stamp == 11 &&
         held_stamp == (match selected { true -> 12, false -> 13 }) && cell.value == 81
 }
 
