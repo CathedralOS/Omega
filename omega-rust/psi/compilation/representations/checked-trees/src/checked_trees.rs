@@ -52,10 +52,9 @@ pub use facts::{
 
 pub use facts::{
     BlockingFacts, BuildBoundProgressDemand, CallServiceReachRows, CarryFacts, CheckFacts,
-    CheckedBoundaryAdapterDispatch, CheckedCallbackPlacementIdentity,
-    CheckedCallbackResourceReceipt, CheckedCrashCallSite, CheckedCrashOperatorSite,
-    CheckedCrashSite, CheckedEntryResourceEnvelope, CheckedFactCallProjection,
-    CheckedIntrinsicCallFact, CheckedMachineContractEnvelopeIdentity,
+    CheckedBoundaryAdapterDispatch, CheckedCallbackResourceReceipt, CheckedCrashCallSite,
+    CheckedCrashOperatorSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
+    CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedMachineContractEnvelopeIdentity,
     CheckedMachineContractRefinement, CheckedMachineResourceEnvelopes,
     CheckedMachineSpecializationIdentity, CheckedNominalMachineUse, CheckedPlacedViewInput,
     CheckedProofRankingRelation, CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent,

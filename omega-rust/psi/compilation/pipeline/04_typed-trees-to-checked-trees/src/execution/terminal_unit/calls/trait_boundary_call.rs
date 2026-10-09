@@ -189,8 +189,8 @@ pub(super) fn build(
     // operation, binder ordinal, and satisfaction row. The callback's
     // destination comes from one of two places — an ABI `native callback`
     // parameter declared at the same telescope ordinal, or a target-owned
-    // private slot whose `PrivateCallbackSlot` conformance supplied the
-    // evaluated boundary calling plan retained on the use.
+    // private slot whose placement Omega must supply. Neither requires an
+    // evaluated native ABI in the source callback's checked facts.
     let nominal_use_at_binder = |ordinal: usize, parameter: &typed_trees::data::TypeParameter| {
         let typed_trees::data::TypeParameterKind::Machine {
             contract:
@@ -222,7 +222,7 @@ pub(super) fn build(
                 };
                 match callback_parameters.get(ordinal) {
                     Some(callback) => parameter.name == callback.binder,
-                    None => nominal_use.callback_placement.is_some(),
+                    None => nominal_use.callback_entry.is_some(),
                 }
             });
     let routed_service_parameter_receiver = caller_parameters.iter().any(|parameter| {

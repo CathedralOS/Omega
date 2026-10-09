@@ -292,10 +292,10 @@ pub fn validate_nominal_callback_placement_bindings(
                     && realization.boundary_arguments.is_empty()
             })
             .collect::<Vec<_>>();
-        let Some(placement) = nominal_use.callback_placement else {
+        let Some(resource_receipt) = nominal_use.callback_entry else {
             if !matching.is_empty() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "nominal callback use for `{}` lost its evaluated boundary calling-plan identity",
+                    "nominal callback use for `{}` has a target calling plan without a checked callback entry",
                     nominal_use.canonical_requirement_overload
                 )));
             }
@@ -324,8 +324,6 @@ pub fn validate_nominal_callback_placement_bindings(
         if realization.report_fingerprint != realized_report_fingerprint
             || realization.commitment != realized_commitment
             || realization.exact_boundary_entry_plan() != validated.plan()
-            || placement.boundary_calling_plan_report_fingerprint != realized_report_fingerprint
-            || placement.boundary_calling_plan_commitment != realized_commitment
         {
             diagnostics.push(Diagnostic::error(format!(
                 "nominal callback use for `{}` does not bind its exact evaluated target calling plan",
@@ -380,16 +378,15 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         }
-        if placement.resource_receipt.contract_report_fingerprint()
+        if resource_receipt.contract_report_fingerprint()
             != nominal_use
                 .selected_actual_envelope
                 .contract_report_fingerprint
-            || placement.resource_receipt.contract_commitment()
+            || resource_receipt.contract_commitment()
                 != nominal_use.selected_actual_envelope.contract_commitment
             || nominal_use.selected_actual_envelope.contract_commitment
                 != actual_contract.commitment
-            || placement
-                .resource_receipt
+            || resource_receipt
                 .validate_against(resource_envelope)
                 .is_err()
         {
@@ -418,7 +415,7 @@ pub fn validate_nominal_callback_placement_bindings(
                 application_index: nominal_use.application_index,
                 static_machine_ordinal: nominal_use.static_machine_ordinal,
                 canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
-                contract_commitment: placement.resource_receipt.contract_commitment().as_bytes(),
+                contract_commitment: resource_receipt.contract_commitment().as_bytes(),
                 boundary_entry_plan: validated.plan().clone(),
                 private_materialization,
             },
@@ -676,7 +673,7 @@ fn bound_private_callback_materialization(
 /// layout pipeline has published its authoritative private-demand catalog.
 /// The target-neutral typed reports are deliberately not consulted here.
 pub fn close_outbound_callback_materializations(
-    mut checked: checked_trees::CheckedTrees,
+    checked: checked_trees::CheckedTrees,
     realizations: &mut [BoundaryCallingPlanRealization],
     native_target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
@@ -806,8 +803,6 @@ pub fn close_outbound_callback_materializations(
             ]);
         }
 
-        let old_report_fingerprint = realization.report_fingerprint;
-        let old_commitment = realization.commitment;
         let (demands, entries): (Vec<_>, Vec<_>) = demands.into_iter().unzip();
         signature.callback_demands = demands.clone();
         signature.callback_layout_catalog = entries.into_iter().flatten().collect();
@@ -877,15 +872,6 @@ pub fn close_outbound_callback_materializations(
             report_fingerprint: new_fingerprint,
             commitment: realization.commitment,
         });
-        reconcile_closed_callback_plan_identity(
-            &mut checked.facts.nominal_machine_uses.uses,
-            realization.boundary_trait,
-            realization.requirement_machine,
-            old_report_fingerprint,
-            old_commitment,
-            new_fingerprint,
-            realization.commitment,
-        );
     }
     // Target settlement still carries refined plan keys alongside this source
     // product until PROVIDER-SELECTION-AFTER-TERMINAL moves that boundary.
@@ -970,37 +956,6 @@ fn close_direct_callback_parameters(
         }
     }
     Ok(demands)
-}
-
-pub(crate) fn reconcile_closed_callback_plan_identity(
-    nominal_uses: &mut [checked_trees::CheckedNominalMachineUse],
-    boundary_trait: symbols::SymbolHandle,
-    requirement_machine: symbols::SymbolHandle,
-    old_report_fingerprint: u64,
-    old_commitment: typed_trees::typed_trees::BoundaryCallingPlanCommitment,
-    new_report_fingerprint: u64,
-    new_commitment: typed_trees::typed_trees::BoundaryCallingPlanCommitment,
-) {
-    for nominal_use in nominal_uses {
-        if nominal_use.satisfaction_trait == boundary_trait
-            && nominal_use.satisfaction_requirement == requirement_machine
-            && nominal_use.callback_placement.is_some_and(|placement| {
-                placement.boundary_calling_plan_report_fingerprint == old_report_fingerprint
-                    && placement.boundary_calling_plan_commitment == old_commitment
-            })
-        {
-            let resource_receipt = nominal_use
-                .callback_placement
-                .expect("matched callback placement")
-                .resource_receipt;
-            nominal_use.callback_placement =
-                Some(checked_trees::CheckedCallbackPlacementIdentity {
-                    boundary_calling_plan_report_fingerprint: new_report_fingerprint,
-                    boundary_calling_plan_commitment: new_commitment,
-                    resource_receipt,
-                });
-        }
-    }
 }
 
 pub(crate) fn validate_fresh_native_parameter_report_identity(

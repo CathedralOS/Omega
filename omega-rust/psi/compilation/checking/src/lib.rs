@@ -23,7 +23,7 @@ pub use value_custody::places::declaration_type_reference;
 
 pub use declarations::selection_resolution;
 pub use declarations::standard_declarations::{
-    standard_calling_traits, standard_calling_vocabularies,
+    boundary_has_explicit_calling_policy, standard_calling_vocabularies,
 };
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;

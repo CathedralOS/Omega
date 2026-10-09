@@ -2470,7 +2470,9 @@ crash and native exit behavior.
     selection and Extent capture remain producer-side. Exclusion admission now
     borrows unoptimized Terminal semantics before optimization; exact service
     owners travel in declarations, without a retained lowering clone or source
-    lookup. Finish callback and provider-installation joins without checked/lowered
+    lookup. Callback facts carry source entry resources, not target ABI hashes.
+    Move the remaining typed calling-plan table into realization-owned schema
+    inputs; finish callback and provider-installation joins without checked/lowered
     source inputs, then move initial source-dependent selection behind Terminal.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`

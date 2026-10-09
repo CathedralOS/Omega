@@ -18,7 +18,7 @@ pub(super) fn retain(
         .nominal_machine_uses
         .uses
         .iter()
-        .filter(|usage| usage.callback_placement.is_some())
+        .filter(|usage| usage.callback_entry.is_some())
         .map(|usage| {
             (
                 source_key(usage.site, usage.registration_operation),

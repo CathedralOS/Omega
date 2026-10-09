@@ -24,20 +24,6 @@ pub struct CheckedMachineContractRefinement {
     pub selected_actual_commitment: crate::MachineContractCommitment,
 }
 
-/// Exact target-closed calling-plan application selected for a nominal
-/// callback use. The target-owned plan and materialized signature remain
-/// outside Psi; this identity is the fail-closed join key used by later thunk
-/// placement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckedCallbackPlacementIdentity {
-    pub boundary_calling_plan_report_fingerprint: u64,
-    pub boundary_calling_plan_commitment: typed_trees::typed_trees::BoundaryCallingPlanCommitment,
-    /// Exact checked resource anchor selected for this callback entry. This is
-    /// compilation-local derivation custody, not a numeric resource claim or
-    /// installation receipt.
-    pub resource_receipt: CheckedCallbackResourceReceipt,
-}
-
 /// Source-independent receipt for the exact checked per-entry resource anchor
 /// selected by one nominal callback use.
 ///
@@ -157,9 +143,10 @@ pub struct CheckedNominalMachineUse {
     pub canonical_requirement_overload: String,
     pub published_requirement_envelope: CheckedMachineContractEnvelopeIdentity,
     pub selected_actual_envelope: CheckedMachineContractEnvelopeIdentity,
-    /// Present only when the nominal requirement owns an evaluated boundary
-    /// calling plan. Ordinary nominal machine parameters are not callbacks.
-    pub callback_placement: Option<CheckedCallbackPlacementIdentity>,
+    /// Present when the nominal boundary declares a calling policy. Psi keeps
+    /// the checked entry's resources, not an evaluated target ABI. Realization
+    /// must supply the exact calling application for this requirement.
+    pub callback_entry: Option<CheckedCallbackResourceReceipt>,
     /// Receipt for the callable-refinement judgment already discharged by
     /// static-machine admission. The endpoints remain explicit so consumers
     /// never infer the relationship merely from two nearby identities.
@@ -188,24 +175,15 @@ impl NominalMachineUseFacts {
             {
                 return Err("nominal machine use retained an empty envelope identity".to_owned());
             }
-            if nominal_use
-                .callback_placement
-                .is_some_and(|placement| placement.boundary_calling_plan_commitment.is_zero())
-            {
-                return Err(
-                    "nominal callback use retained an empty boundary calling-plan identity"
-                        .to_owned(),
-                );
-            }
-            if let Some(placement) = nominal_use.callback_placement {
-                placement.resource_receipt.validate()?;
-                if placement.resource_receipt.machine() != nominal_use.selected_machine
-                    || placement.resource_receipt.entry() != nominal_use.selected_entry
-                    || placement.resource_receipt.contract_report_fingerprint()
+            if let Some(receipt) = nominal_use.callback_entry {
+                receipt.validate()?;
+                if receipt.machine() != nominal_use.selected_machine
+                    || receipt.entry() != nominal_use.selected_entry
+                    || receipt.contract_report_fingerprint()
                         != nominal_use
                             .selected_actual_envelope
                             .contract_report_fingerprint
-                    || placement.resource_receipt.contract_commitment()
+                    || receipt.contract_commitment()
                         != nominal_use.selected_actual_envelope.contract_commitment
                 {
                     return Err(

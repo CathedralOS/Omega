@@ -1,6 +1,7 @@
 //! External leaf native shapes: the carriers an external conformance may
 //! expose and the diagnostics for those it may not.
 
+use crate::declarations::standard_declarations::boundary_has_explicit_calling_policy;
 use crate::declarations::standard_declarations::is_core_vector;
 use crate::declarations::traits::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
@@ -178,20 +179,6 @@ pub(crate) fn validate_external_via_expression(
             .with_source_span(source_span),
         );
     }
-}
-
-fn boundary_has_explicit_calling_policy(
-    program: &dyn crate::CheckingInput,
-    trait_definition: &TraitDefinition,
-) -> bool {
-    crate::declarations::standard_declarations::standard_calling_traits(program).is_some_and(
-        |(calling, _)| {
-            program
-                .trait_requirements(trait_definition)
-                .iter()
-                .any(|requirement| requirement.symbol == calling.symbol)
-        },
-    )
 }
 
 #[derive(Debug, Clone, Copy)]

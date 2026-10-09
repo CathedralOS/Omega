@@ -208,10 +208,9 @@ pub(crate) fn build_static_boundary_requirements(
         for signature in program.trait_machine_signatures(definition) {
             let type_parameters = program.state_signature_type_parameters(signature);
             // A `machine` binder without an ABI `native callback` entry takes
-            // its destination from a target-owned private slot: the cited
-            // `PrivateCallbackSlot` conformance evaluated a boundary calling
-            // plan, retained as `callback_placement` on each recorded use of
-            // this registrar.
+            // its destination from a target-owned private slot. Psi retains
+            // the source callback entry; the target calling policy supplies
+            // and checks its placement in Omega.
             let nominal_use_backs_binder =
                 |ordinal: usize, parameter: &typed_trees::data::TypeParameter| {
                     let typed_trees::data::TypeParameterKind::Machine {
@@ -231,7 +230,7 @@ pub(crate) fn build_static_boundary_requirements(
                                 == Some(ordinal)
                             && nominal_use.satisfaction_trait == trait_definition
                             && nominal_use.satisfaction_requirement == requirement
-                            && nominal_use.callback_placement.is_some()
+                            && nominal_use.callback_entry.is_some()
                     })
                 };
             let callback_telescope = signature.native_callback_parameters.len()

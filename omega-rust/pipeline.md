@@ -226,6 +226,11 @@ without retaining or rejoining checked-source callback placements.
 The native placement carries application/contract identity and its ABI recipe;
 the source-selected machine stays with the producer that compiles its body.
 Backend callback planning no longer depends on checked-tree records.
+Psi identifies callback uses from their declared calling policy and retains
+the exact checked entry resource receipt. Native ABI plan hashes are not
+callback checking facts; Omega binds the checked entry to its evaluated calling
+application without rewriting the nominal-use facts. The typed provider-schema
+table still retains target calling identities and must move to realization.
 
 Calling-policy evaluation retains its validated ABI application as backend-owned
 output. Native entry and registrar settlement consume that application, not the

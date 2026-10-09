@@ -105,9 +105,9 @@ pub use mutation::{
     MachineMutationFact, MutationFacts, PerformedIntegerWrite, StateWriteFramePlan,
 };
 pub use nominal_machine_uses::{
-    CheckedCallbackPlacementIdentity, CheckedCallbackResourceReceipt,
-    CheckedMachineContractEnvelopeIdentity, CheckedMachineContractRefinement,
-    CheckedNominalMachineUse, NominalMachineUseFacts, NominalMachineUseSite,
+    CheckedCallbackResourceReceipt, CheckedMachineContractEnvelopeIdentity,
+    CheckedMachineContractRefinement, CheckedNominalMachineUse, NominalMachineUseFacts,
+    NominalMachineUseSite,
 };
 pub use placement::CheckedPlacedViewInput;
 pub use provider_closed_requirements::CheckedProviderClosedRequirement;

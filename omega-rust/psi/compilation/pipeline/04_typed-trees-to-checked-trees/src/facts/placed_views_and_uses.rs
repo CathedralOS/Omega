@@ -86,11 +86,11 @@ pub(crate) fn build_nominal_machine_use_facts(
                 "admitted nominal machine use retained an empty contract-envelope identity",
             )]);
         }
-        let callback_placement = match program.boundary_calling_plan_identity(
-            nominal_use.satisfaction_trait,
-            nominal_use.satisfaction_requirement,
-        ) {
-            Some(boundary_calling_plan_identity) => {
+        let callback_entry = match program.traits().iter().find(|definition| {
+            definition.symbol == nominal_use.satisfaction_trait
+                && validation::boundary_has_explicit_calling_policy(program, definition)
+        }) {
+            Some(_) => {
                 let Some(resource_envelope) = contract_plans
                     .resource_envelope(nominal_use.selected_machine, nominal_use.selected_entry)
                 else {
@@ -107,22 +107,10 @@ pub(crate) fn build_nominal_machine_use_facts(
                             "admitted nominal callback resource receipt failed checked replay: {error}"
                         ))]
                 })?;
-                Some(checked_trees::CheckedCallbackPlacementIdentity {
-                    boundary_calling_plan_report_fingerprint: boundary_calling_plan_identity
-                        .report_fingerprint,
-                    boundary_calling_plan_commitment: boundary_calling_plan_identity.commitment,
-                    resource_receipt,
-                })
+                Some(resource_receipt)
             }
             None => None,
         };
-        if callback_placement
-            .is_some_and(|placement| placement.boundary_calling_plan_commitment.is_zero())
-        {
-            return Err(vec![diagnostics::Diagnostic::error(
-                "admitted nominal callback use is missing its evaluated boundary calling-plan identity",
-            )]);
-        }
         checked.push(checked_trees::CheckedNominalMachineUse {
             application_index: 0, // Assigned when the complete roster is frozen.
             site: match nominal_use.site {
@@ -148,7 +136,7 @@ pub(crate) fn build_nominal_machine_use_facts(
                 contract_report_fingerprint: actual_fingerprint,
                 contract_commitment: actual.commitment,
             },
-            callback_placement,
+            callback_entry,
             refinement: checked_trees::CheckedMachineContractRefinement {
                 published_requirement_report_fingerprint: published_fingerprint,
                 published_requirement_commitment: published_commitment,

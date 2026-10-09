@@ -11,16 +11,22 @@ use typed_trees::data::TypeParameterKind;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// Both checking and policy evaluation use the same exact declarations. A local
-/// trait with the same spelling cannot change foreign-carrier admission.
-pub fn standard_calling_traits(
+/// An authored boundary policy requires a callback ABI at realization, not a
+/// target plan during source checking. Join the resolved relationship rather
+/// than treating the presence of an evaluated native plan as source semantics.
+pub fn boundary_has_explicit_calling_policy(
     program: &dyn crate::CheckingInput,
-) -> Option<(&TraitDefinition, &TraitDefinition)> {
-    let vocabularies = standard_calling_vocabularies(program);
-    let [vocabulary] = vocabularies.as_slice() else {
-        return None;
-    };
-    Some(*vocabulary)
+    definition: &TraitDefinition,
+) -> bool {
+    definition.is_boundary
+        && standard_calling_vocabularies(program)
+            .iter()
+            .any(|(calling, _)| {
+                program
+                    .trait_requirements(definition)
+                    .iter()
+                    .any(|requirement| requirement.symbol == calling.symbol)
+            })
 }
 
 /// Every standard calling vocabulary the program loads, paired per declaring
