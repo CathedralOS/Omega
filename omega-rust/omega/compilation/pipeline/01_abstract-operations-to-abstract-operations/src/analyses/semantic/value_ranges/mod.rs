@@ -17,7 +17,7 @@ use semantic_vocabulary::{BlockId, MachineId};
 use crate::analyses::control_flow::dominators;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValueRangeAnalysis {
+pub struct ValueRangeAnalysis {
     pub facts: Vec<ValueRangeFact>,
 }
 

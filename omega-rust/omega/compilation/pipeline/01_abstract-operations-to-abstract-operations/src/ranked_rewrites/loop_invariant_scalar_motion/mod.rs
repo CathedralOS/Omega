@@ -324,7 +324,7 @@ impl AppliedLoopInvariantScalarMotion {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum LoopInvariantScalarMotionError {
+pub enum LoopInvariantScalarMotionError {
     CandidateBudgetExhausted {
         required: u64,
         limit: u64,

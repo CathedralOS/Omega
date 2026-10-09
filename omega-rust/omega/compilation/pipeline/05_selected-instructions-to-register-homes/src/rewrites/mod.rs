@@ -3,11 +3,9 @@
 mod rematerialization;
 
 pub(crate) use rematerialization::complete_optimized_active_resident_rematerialization;
-pub use rematerialization::{
-};
+
 pub(crate) use rematerialization::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,
-    StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
     stage_optimized_active_resident_rematerialization_pressure};

@@ -16,7 +16,7 @@ use terminal_psi::StructuralPathSegment;
 /// One storage view: a declared root plus an exact projection path in the
 /// frontier-claim vocabulary.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PlaceView {
+pub struct PlaceView {
     pub root: PlaceId,
     pub path: Vec<StructuralPathSegment>,
 }
@@ -25,7 +25,7 @@ pub(crate) struct PlaceView {
 /// what the declared roster establishes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) enum PlaceAliasRelation {
+pub enum PlaceAliasRelation {
     Overlapping,
     Disjoint,
     Unknown,
@@ -34,7 +34,7 @@ pub(crate) enum PlaceAliasRelation {
 /// One custody view the verifier admits live on this machine, with every
 /// frontier site holding it as evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PlaceAliasClaim {
+pub struct PlaceAliasClaim {
     pub view: PlaceView,
     pub sites: Vec<OwnershipFrontierSite>,
 }
@@ -43,7 +43,7 @@ pub(crate) struct PlaceAliasClaim {
 /// function's referenced-place set but missing from the declared roster —
 /// a state only an unverified seed can produce.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PlaceAliasRoot {
+pub struct PlaceAliasRoot {
     pub place: PlaceId,
     pub kind: Option<StructuralPlaceKind>,
 }
@@ -51,7 +51,7 @@ pub(crate) struct PlaceAliasRoot {
 /// One machine's complete declared-place roster plus the custody views the
 /// verifier projected onto it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PlaceAliasFunction {
+pub struct PlaceAliasFunction {
     pub machine: MachineId,
     pub roots: Vec<PlaceAliasRoot>,
     pub claims: Vec<PlaceAliasClaim>,
@@ -60,7 +60,7 @@ pub(crate) struct PlaceAliasFunction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PlaceAliasesAnalysis {
+pub struct PlaceAliasesAnalysis {
     pub functions: Vec<PlaceAliasFunction>,
 }
 

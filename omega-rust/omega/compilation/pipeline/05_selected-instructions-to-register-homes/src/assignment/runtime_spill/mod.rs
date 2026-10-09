@@ -365,7 +365,7 @@ pub(crate) struct RuntimeSpillFacts {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RuntimeSpillAllocationError {
+pub enum RuntimeSpillAllocationError {
     Rewrite(RuntimeSpillError),
     Rematerialization(RuntimeRematerializationError),
     Split(RuntimeSplitError),

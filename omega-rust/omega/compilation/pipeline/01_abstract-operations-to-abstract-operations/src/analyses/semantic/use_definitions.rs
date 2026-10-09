@@ -4,7 +4,7 @@ use semantic_vocabulary::{BlockId, MachineId, ValueId};
 use crate::analyses::block_dominates;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct UseDefinitionAnalysis {
+pub struct UseDefinitionAnalysis {
     pub definitions: Vec<(MachineId, ValueDefinition)>,
     pub uses: Vec<(MachineId, ValueUse)>,
 }

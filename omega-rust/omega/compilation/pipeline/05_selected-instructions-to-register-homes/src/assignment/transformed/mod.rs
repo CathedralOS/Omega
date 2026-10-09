@@ -276,7 +276,7 @@ impl StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizedPostSelectedLoweringHomeCustodyError {
+pub enum OptimizedPostSelectedLoweringHomeCustodyError {
     UpstreamSelectedLowering(OptimizedLiteralFoldCustodyError),
     Assignment(RegisterHomeError),
     Manifest(PostAllocationOptimizationManifestError),
@@ -392,7 +392,7 @@ impl StagedOptimizedPostPreAllocationHomeCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizedPostPreAllocationHomeCustodyError {
+pub enum OptimizedPostPreAllocationHomeCustodyError {
     UpstreamPreAllocation(OptimizedPreAllocationCustodyError),
     Assignment(RegisterHomeError),
     Manifest(PostAllocationOptimizationManifestError),

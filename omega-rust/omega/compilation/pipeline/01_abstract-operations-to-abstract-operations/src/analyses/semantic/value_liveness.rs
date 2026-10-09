@@ -5,14 +5,14 @@ use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{BlockId, MachineId, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NodeLiveness {
+pub struct NodeLiveness {
     pub node: u32,
     pub entry: Vec<ValueId>,
     pub exit: Vec<ValueId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValueLivenessBlock {
+pub struct ValueLivenessBlock {
     pub machine: MachineId,
     pub block: BlockId,
     pub entry: Vec<ValueId>,
@@ -21,7 +21,7 @@ pub(crate) struct ValueLivenessBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValueLivenessAnalysis {
+pub struct ValueLivenessAnalysis {
     pub blocks: Vec<ValueLivenessBlock>,
 }
 
