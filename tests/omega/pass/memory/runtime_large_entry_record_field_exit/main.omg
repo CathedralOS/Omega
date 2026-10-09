@@ -16,7 +16,7 @@ data Main {
     big: Big;
 }
 
-machine Big::fill(big: &mut Big, value: u8) {
+machine Big::fill(big: &mut Big, value: u8 in Trapping) {
     big.bytes[33554431] = value;
     big.length = 33554432;
 }
