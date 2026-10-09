@@ -8,7 +8,7 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, ScalarType, StructuralCaseId, StructuralFieldId,
 };
 use terminal_psi::{
-    StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
+    StructuralOperationResult, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 

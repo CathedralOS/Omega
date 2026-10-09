@@ -143,7 +143,6 @@ pub fn byte_field_root(
     root: PlaceId,
 ) -> Option<(StructuralTypeId, StructuralAccess)> {
     use semantic_vocabulary::StructuralPlaceKind;
-    use terminal_psi::StructuralMultiplicity;
 
     let place = function.structural_place(root)?;
     if !matches!(

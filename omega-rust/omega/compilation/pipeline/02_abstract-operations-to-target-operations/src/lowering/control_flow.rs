@@ -20,7 +20,7 @@ use target_operations::{
     TerminalPsiProvenance,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, TerminalAffineCleanupAction,
+    StructuralAccess, StructuralPathSegment, TerminalAffineCleanupAction,
 };
 mod aggregate_borrows;
 pub(super) mod aggregate_results;

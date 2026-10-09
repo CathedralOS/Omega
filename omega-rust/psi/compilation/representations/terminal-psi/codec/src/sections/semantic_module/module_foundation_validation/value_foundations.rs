@@ -4,7 +4,7 @@
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
+    Operation, OperationKind, OperationResult, StructuralFieldType,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
     find_structural_case,
 };

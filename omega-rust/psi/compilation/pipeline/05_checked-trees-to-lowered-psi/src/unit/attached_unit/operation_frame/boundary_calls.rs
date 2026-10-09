@@ -19,7 +19,7 @@ use crate::unit::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, ClaimId, CompletionReceipt,
     LoweringError, Multiplicity, Operation, OperationKind, OperationResult,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
-    allocate_dense, lookup_claim_id, lookup_type_id, place_id, terminal_scalar_type, unsupported,
+    allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
     value_id,
 };
 

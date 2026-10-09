@@ -3,7 +3,6 @@ use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
-use terminal_psi::StructuralMultiplicity;
 
 /// Resolve the establishment's exact home shape. The local's members arrive
 /// as their own store operations, so this input names the whole home rather

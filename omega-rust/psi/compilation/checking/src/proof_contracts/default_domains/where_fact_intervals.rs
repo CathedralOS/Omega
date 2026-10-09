@@ -417,7 +417,6 @@ fn field_is_unsigned(
     definition: &DataDefinition,
     field: &str,
 ) -> bool {
-    use typed_trees::types::PrimitiveType;
     program
         .data_members(definition)
         .iter()

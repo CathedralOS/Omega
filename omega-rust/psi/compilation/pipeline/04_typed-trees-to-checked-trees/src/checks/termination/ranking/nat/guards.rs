@@ -94,7 +94,6 @@ pub(super) fn guard_is_positive_parameter(
     guards: &[patterns::GuardFact],
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    use typed_trees::types::PrimitiveType;
     let nonnegative = matches!(
         program.primitive_type_reference(parameter.type_reference),
         Some(typed_trees::unsigned_integer_primitive_pattern!())

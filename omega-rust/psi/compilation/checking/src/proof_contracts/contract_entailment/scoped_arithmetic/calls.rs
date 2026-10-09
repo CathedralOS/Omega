@@ -21,7 +21,6 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
-use typed_trees::types::PrimitiveType;
 
 pub(super) struct ScopedCalls<'program> {
     program: &'program dyn crate::CheckingInput,
