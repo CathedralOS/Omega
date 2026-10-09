@@ -75,15 +75,6 @@ pub trait ProviderInstallationEvidence: std::fmt::Debug {
     fn installed_provider_calls(&self) -> Vec<InstalledProviderCallEvidence>;
 }
 
-/// Read-only projection of one opaque, installation-owned component progress
-/// acceptance. These compact identities enter the terminal installation
-/// record and artifact fingerprint, but never substitute for the retained
-/// acceptance value at publication.
-pub(crate) trait ComponentProgressAcceptanceEvidence: std::fmt::Debug {
-    fn component_progress_manifest_identity(&self) -> u64;
-    fn component_progress_acceptance_identity(&self) -> u64;
-}
-
 /// Relocation-free terminal object facts required to bind installed entry and
 /// fixed-fuel evidence.
 pub trait ObjectEvidence {

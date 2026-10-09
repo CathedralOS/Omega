@@ -90,39 +90,6 @@ impl ScalarStorageCodec {
     }
 }
 
-/// Native internal scalar-reference storage: original address plus codec word.
-/// Foreign thin-pointer calling conventions remain a separate ABI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ScalarReferenceDescriptorAbi {
-    pointer_size: usize,
-    pointer_alignment: usize,
-}
-
-impl ScalarReferenceDescriptorAbi {
-    pub const fn new(plan: RuntimeAbiPlan) -> Self {
-        Self {
-            pointer_size: plan.pointer_size,
-            pointer_alignment: plan.pointer_alignment,
-        }
-    }
-
-    pub const fn address_offset(self) -> usize {
-        0
-    }
-    pub const fn codec_offset(self) -> usize {
-        self.pointer_size
-    }
-    pub const fn word_size(self) -> usize {
-        self.pointer_size
-    }
-    pub const fn total_size(self) -> usize {
-        self.pointer_size * 2
-    }
-    pub const fn align(self) -> usize {
-        self.pointer_alignment
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::ScalarStorageCodec;
