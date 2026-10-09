@@ -53,14 +53,14 @@ pub(crate) fn validate_countdown_invariant_constant_placement_analysis(
 
 /// The exact insertion coordinate immediately before the unique preheader jump.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CountdownInvariantConstantDestination {
+pub(crate) struct CountdownInvariantConstantDestination {
     pub before: NodeLocation,
     pub entry_edge: CycleComponentEdge,
 }
 
 /// The exact certificate operation that consumes one invariant constant.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CountdownInvariantConstantConsumer {
+pub(crate) struct CountdownInvariantConstantConsumer {
     pub location: NodeLocation,
     pub psi_operation: OperationId,
     pub value_use: ValueUse,
@@ -68,7 +68,7 @@ pub struct CountdownInvariantConstantConsumer {
 
 /// One analysis-only placement fact. This is not a rewrite plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CountdownInvariantConstantPlacement {
+pub(crate) struct CountdownInvariantConstantPlacement {
     pub constant: CountdownInvariantIntegerConstant,
     pub destination: CountdownInvariantConstantDestination,
     pub consumer: CountdownInvariantConstantConsumer,
@@ -76,7 +76,7 @@ pub struct CountdownInvariantConstantPlacement {
 
 /// Exact zero/one placement facts keyed by their authenticated component.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnsignedCountdownInvariantConstantPlacements {
+pub(crate) struct UnsignedCountdownInvariantConstantPlacements {
     pub component: CycleComponentId,
     pub counted_loop: UnsignedCountdownLoopSummary,
     pub placements: Vec<CountdownInvariantConstantPlacement>,
@@ -84,14 +84,14 @@ pub struct UnsignedCountdownInvariantConstantPlacements {
 
 /// Replayable placement facts without mutation or execution authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CountdownInvariantConstantPlacementAnalysisSnapshot {
+pub(crate) struct CountdownInvariantConstantPlacementAnalysisSnapshot {
     pub revision: OptimizationUnitIdentity,
     pub terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub loops: Vec<UnsignedCountdownInvariantConstantPlacements>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedCountdownInvariantConstantPlacementAnalysis {
+pub(crate) struct ValidatedCountdownInvariantConstantPlacementAnalysis {
     snapshot: CountdownInvariantConstantPlacementAnalysisSnapshot,
 }
 
@@ -112,7 +112,7 @@ impl ValidatedCountdownInvariantConstantPlacementAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CountdownInvariantConstantPlacementAnalysisError {
+pub(crate) enum CountdownInvariantConstantPlacementAnalysisError {
     CountedLoop(CountedLoopAnalysisError),
     InvariantConstant(CountdownInvariantConstantAnalysisError),
     StaleUnitIdentity {

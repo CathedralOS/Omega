@@ -14,19 +14,19 @@ mod use_definitions;
 mod value_liveness;
 mod value_ranges;
 
-pub use effect_summaries::{EffectClass, EffectKnowledge, EffectSummaryAnalysis};
+pub(crate) use effect_summaries::{EffectClass, EffectKnowledge, EffectSummaryAnalysis};
 
-pub use ownership_frontiers::OwnershipFrontierAnalysis;
+pub(crate) use ownership_frontiers::OwnershipFrontierAnalysis;
 
-pub use place_access_summaries::PlaceAccessSummaryAnalysis;
+pub(crate) use place_access_summaries::PlaceAccessSummaryAnalysis;
 
-pub use place_aliases::PlaceAliasesAnalysis;
-pub use sparse_conditional_constants::{ExecutableEdgeAnalysis, ScalarConstantAnalysis};
+pub(crate) use place_aliases::PlaceAliasesAnalysis;
+pub(crate) use sparse_conditional_constants::{ExecutableEdgeAnalysis, ScalarConstantAnalysis};
 
-pub use use_definitions::UseDefinitionAnalysis;
-pub use value_liveness::ValueLivenessAnalysis;
+pub(crate) use use_definitions::UseDefinitionAnalysis;
+pub(crate) use value_liveness::ValueLivenessAnalysis;
 
-pub use value_ranges::ValueRangeAnalysis;
+pub(crate) use value_ranges::ValueRangeAnalysis;
 
 pub(super) use effect_summaries::effect_summaries;
 pub(super) use ownership_frontiers::ownership_frontiers;

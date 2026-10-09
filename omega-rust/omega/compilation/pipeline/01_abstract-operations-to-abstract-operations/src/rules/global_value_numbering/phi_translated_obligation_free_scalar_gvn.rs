@@ -15,7 +15,7 @@ use crate::rules::global_value_numbering::{exact_pure_scalar_effect, phi_transla
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct PhiTranslatedObligationFreeScalarGvnRule;
+pub(crate) struct PhiTranslatedObligationFreeScalarGvnRule;
 
 impl PhiTranslatedObligationFreeScalarGvnRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -88,8 +88,7 @@ impl PsiOptimizationRule for PhiTranslatedObligationFreeScalarGvnRule {
 
             for (key, redundant, redundant_operation, redundant_result, scalar_type) in &expressions
             {
-                let Some(block) = function.block(redundant.block)
-                else {
+                let Some(block) = function.block(redundant.block) else {
                     continue;
                 };
                 let parameter_values = block

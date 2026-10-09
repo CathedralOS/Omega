@@ -55,7 +55,7 @@ fn proof_certified_exact_integer_multiply_by_zero_shapes(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;
+pub(crate) struct LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;
 
 impl LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule {
     pub fn contract() -> OptimizationRuleContract {

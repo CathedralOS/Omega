@@ -249,6 +249,3 @@ pub(in crate::rules::global_value_numbering) fn total_scalar_expression(
     };
     Some(row)
 }
-
-
-

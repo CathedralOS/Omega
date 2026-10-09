@@ -8,10 +8,10 @@ use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, ServiceId};
 use super::semantically_reachable_blocks;
 
 /// The effect lattice is the observation knowledge verbatim.
-pub type EffectKnowledge = optimization_unit::ObservationKnowledge;
+pub(crate) type EffectKnowledge = optimization_unit::ObservationKnowledge;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum EffectClass {
+pub(crate) enum EffectClass {
     PureScalar,
     StructuralState,
     InternalCall,
@@ -21,7 +21,7 @@ pub enum EffectClass {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeEffectSummary {
+pub(crate) struct NodeEffectSummary {
     pub machine: MachineId,
     pub block: BlockId,
     pub node: u32,
@@ -37,7 +37,7 @@ pub struct NodeEffectSummary {
 impl NodeEffectSummary {
     /// Whether the row still reads as the unit's unmodified pure-scalar
     /// baseline: current revision and no observed effect of any kind.
-    pub fn is_pure_scalar_baseline(&self, revision: OptimizationUnitIdentity) -> bool {
+    pub(crate) fn is_pure_scalar_baseline(&self, revision: OptimizationUnitIdentity) -> bool {
         self.revision == revision
             && self.class == EffectClass::PureScalar
             && self.observable == EffectKnowledge::No
@@ -48,7 +48,7 @@ impl NodeEffectSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EffectSummaryAnalysis {
+pub(crate) struct EffectSummaryAnalysis {
     pub nodes: Vec<NodeEffectSummary>,
     pub functions: Vec<FunctionEffectSummary>,
 }
@@ -68,7 +68,7 @@ impl EffectSummaryAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionEffectSummary {
+pub(crate) struct FunctionEffectSummary {
     pub machine: MachineId,
     pub observable: EffectKnowledge,
     pub structural_state: EffectKnowledge,

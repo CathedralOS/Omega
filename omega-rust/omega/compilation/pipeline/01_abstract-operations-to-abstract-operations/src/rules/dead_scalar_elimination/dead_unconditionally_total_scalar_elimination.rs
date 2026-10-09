@@ -14,7 +14,7 @@ use crate::rules::node_elision::{DeadScalarShape, propose_unproved_dead_scalar_n
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct DeadUnconditionallyTotalScalarEliminationRule;
+pub(crate) struct DeadUnconditionallyTotalScalarEliminationRule;
 
 impl DeadUnconditionallyTotalScalarEliminationRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -35,7 +35,12 @@ impl DeadUnconditionallyTotalScalarEliminationRule {
     }
 }
 
-psi_optimization_rule_delegate!(DeadUnconditionallyTotalScalarEliminationRule, propose = propose_unproved_dead_scalar_nodes, contract = Self::contract(),classify);
+psi_optimization_rule_delegate!(
+    DeadUnconditionallyTotalScalarEliminationRule,
+    propose = propose_unproved_dead_scalar_nodes,
+    contract = Self::contract(),
+    classify
+);
 
 pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
     let (source_operation, result, scalar_type) = match operation {

@@ -14,7 +14,7 @@ use semantic_vocabulary::{MachineId, ObligationId, OperationId};
 use crate::{AnalysisProduct, EffectSummaryAnalysis, UseDefinitionAnalysis};
 
 #[derive(Debug, Clone, Copy)]
-pub struct RuleAnalysisView<'a> {
+pub(crate) struct RuleAnalysisView<'a> {
     products: RuleAnalysisProducts<'a>,
 }
 
@@ -88,7 +88,7 @@ impl<'a> RuleAnalysisView<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RuleProposalError {
+pub(crate) enum RuleProposalError {
     MissingAnalysis(AnalysisKind),
     InvalidCandidate(PsiRewriteCandidateError),
     MissingAcceptedObligation {
@@ -109,7 +109,7 @@ impl std::error::Error for RuleProposalError {}
 /// Immutable executable rule declaration. Candidate enumeration is added by
 /// the rule-engine layer; the registry itself depends only on stable contracts
 /// and cannot mutate a compilation or another registry.
-pub trait PsiOptimizationRule: std::fmt::Debug + Send + Sync {
+pub(crate) trait PsiOptimizationRule: std::fmt::Debug + Send + Sync {
     fn contract(&self) -> OptimizationRuleContract;
 
     fn propose(
@@ -120,7 +120,7 @@ pub trait PsiOptimizationRule: std::fmt::Debug + Send + Sync {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RuleScheduleKey {
+pub(crate) struct RuleScheduleKey {
     pub pass: OptimizationPassIdentity,
     pub rule: OptimizationRuleIdentity,
 }
@@ -135,7 +135,7 @@ impl RuleScheduleKey {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RuleRegistryError {
+pub(crate) enum RuleRegistryError {
     UnsupportedOptimization(PsiOptimization),
     UnsupportedOptimizationCombination,
     DuplicateRule(OptimizationRuleIdentity),
@@ -160,7 +160,7 @@ impl std::error::Error for RuleRegistryError {}
 /// preserves the pass manager's caller-supplied canonical order instead of
 /// sorting opaque identity digests, so schedule order remains meaningful.
 #[derive(Debug, Clone)]
-pub struct OrderedRuleRegistry {
+pub(crate) struct OrderedRuleRegistry {
     rules: Arc<[Arc<dyn PsiOptimizationRule>]>,
     pass: Option<OptimizationPassIdentity>,
     identity: OptimizationRuleSetIdentity,

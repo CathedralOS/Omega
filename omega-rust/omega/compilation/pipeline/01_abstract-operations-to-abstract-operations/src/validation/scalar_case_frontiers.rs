@@ -41,8 +41,7 @@ pub(crate) fn rewrite_relocated_case_result_frontiers(
     relocated: &BTreeMap<MachineId, BTreeSet<PlaceId>>,
 ) {
     for (machine, places) in relocated {
-        let Some(function) = unit.function(*machine)
-        else {
+        let Some(function) = unit.function(*machine) else {
             continue;
         };
         for place in places {

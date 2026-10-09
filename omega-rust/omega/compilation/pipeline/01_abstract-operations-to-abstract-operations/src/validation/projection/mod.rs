@@ -15,7 +15,7 @@ use terminal_psi::TerminalPsiIdentity;
 /// Seal the projection receipt of a run this compile produced. The ledger
 /// records the initial unit identity it started from; the rewrites were
 /// validated as the pass manager committed them.
-pub fn seal_optimized_abstract_plan_projection(
+pub(crate) fn seal_optimized_abstract_plan_projection(
     final_unit: &PsiOptimizationUnit,
     selections: &OptimizationSelections,
     psi_selections: &OptimizationSelections,

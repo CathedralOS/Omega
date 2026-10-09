@@ -14,7 +14,7 @@ use crate::rules::node_elision::{DeadScalarShape, propose_proof_certified_dead_s
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ProofCertifiedDeadScalarEliminationRule;
+pub(crate) struct ProofCertifiedDeadScalarEliminationRule;
 
 impl ProofCertifiedDeadScalarEliminationRule {
     pub fn contract() -> OptimizationRuleContract {

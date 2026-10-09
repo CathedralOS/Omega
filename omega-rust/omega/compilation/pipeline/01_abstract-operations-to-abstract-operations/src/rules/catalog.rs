@@ -28,7 +28,7 @@ enum PsiPassCatalogPayload {
 
 /// One visible route from an exact Psi selection to its scheduled pass step.
 #[derive(Clone, Copy)]
-pub struct PsiPassCatalogEntry {
+pub(crate) struct PsiPassCatalogEntry {
     optimization: PsiOptimization,
     payload: PsiPassCatalogPayload,
 }
@@ -70,7 +70,7 @@ impl PsiPassCatalogEntry {
 /// The single built-in Psi enable/disable and ordering table. The relocation
 /// boundary schedules last: it relocates the invariants the rewrite passes
 /// leave behind into each component's unique preheader.
-pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 9] = [
+pub(crate) const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 9] = [
     PsiPassCatalogEntry::new(
         PsiOptimization::SparseConditionalConstantPropagation,
         sparse_conditional_constant_propagation::built_in_registrations,

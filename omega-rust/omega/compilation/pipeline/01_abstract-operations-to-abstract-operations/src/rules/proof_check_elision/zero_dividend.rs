@@ -58,7 +58,7 @@ fn proof_certified_integer_zero_dividend_shapes(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LiveProofCertifiedIntegerZeroDividendEliminationRule;
+pub(crate) struct LiveProofCertifiedIntegerZeroDividendEliminationRule;
 
 impl LiveProofCertifiedIntegerZeroDividendEliminationRule {
     pub fn contract() -> OptimizationRuleContract {

@@ -57,7 +57,7 @@ fn proof_certified_integer_divide_by_one_shapes(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LiveProofCertifiedIntegerDivideByOneEliminationRule;
+pub(crate) struct LiveProofCertifiedIntegerDivideByOneEliminationRule;
 
 impl LiveProofCertifiedIntegerDivideByOneEliminationRule {
     pub fn contract() -> OptimizationRuleContract {

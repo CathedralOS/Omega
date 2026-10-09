@@ -8,7 +8,7 @@ use crate::rules::global_value_numbering::dominating_contract;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct DominatorTotalScalarGvnRule;
+pub(crate) struct DominatorTotalScalarGvnRule;
 
 impl DominatorTotalScalarGvnRule {
     pub fn contract() -> OptimizationRuleContract {

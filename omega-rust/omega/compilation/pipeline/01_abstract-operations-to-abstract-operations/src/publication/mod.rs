@@ -24,7 +24,7 @@ use crate::validation::{
 };
 use crate::{OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration};
 use abstract_operations::AbstractOperationPlan;
-pub use error::OptimizedAbstractProjectionError;
+pub(crate) use error::OptimizedAbstractProjectionError;
 use optimization_core::{
     BaselineDecisionLog, ExternalDecisionLog, OptimizationIdentityBundle,
     OptimizationPassManifestRecord, OptimizationSelections,
@@ -35,7 +35,7 @@ use optimization_unit::{
 use std::sync::Arc;
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
 
-pub fn publish_optimization_run(
+pub(crate) fn publish_optimization_run(
     run: OptimizationRun,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizedAbstractProjectionError> {
     if run.psi_selections() != &run.selections().for_phase(OptimizationExecutionPhase::Psi) {

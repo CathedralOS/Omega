@@ -21,7 +21,7 @@ use crate::{
 mod apply;
 mod propose;
 
-pub fn propose_countdown_invariant_constant_relocations(
+pub(crate) fn propose_countdown_invariant_constant_relocations(
     session: &VerifiedPsiOptimizationSession,
     candidate_limit: u64,
 ) -> Result<
@@ -31,7 +31,7 @@ pub fn propose_countdown_invariant_constant_relocations(
     propose::all(session, candidate_limit)
 }
 
-pub fn apply_countdown_invariant_constant_relocation(
+pub(crate) fn apply_countdown_invariant_constant_relocation(
     session: VerifiedPsiOptimizationSession,
     validated: ValidatedCountdownInvariantConstantRelocation,
 ) -> Result<AppliedCountdownInvariantConstantRelocation, CountdownInvariantConstantRelocationError>
@@ -52,7 +52,7 @@ fn validator_identity() -> OptimizationValidatorIdentity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CountdownInvariantConstantRelocation {
+pub(crate) struct CountdownInvariantConstantRelocation {
     constant: CountdownInvariantIntegerConstant,
     destination: NodeLocation,
 }
@@ -68,7 +68,7 @@ impl CountdownInvariantConstantRelocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CountdownInvariantConstantRelocationCandidate {
+pub(crate) struct CountdownInvariantConstantRelocationCandidate {
     identity: OptimizationCandidateIdentity,
     input: OptimizationUnitIdentity,
     output: OptimizationUnitIdentity,
@@ -99,7 +99,7 @@ impl CountdownInvariantConstantRelocationCandidate {
 }
 
 #[derive(Debug)]
-pub struct ValidatedCountdownInvariantConstantRelocation {
+pub(crate) struct ValidatedCountdownInvariantConstantRelocation {
     candidate: CountdownInvariantConstantRelocationCandidate,
     output: PsiOptimizationUnit,
     provenance: Vec<ProvenanceRewrite>,
@@ -116,7 +116,7 @@ impl ValidatedCountdownInvariantConstantRelocation {
 }
 
 #[derive(Debug)]
-pub struct AppliedCountdownInvariantConstantRelocation {
+pub(crate) struct AppliedCountdownInvariantConstantRelocation {
     session: VerifiedPsiOptimizationSession,
     candidate: CountdownInvariantConstantRelocationCandidate,
     ledger: PsiTransformationLedger,
@@ -135,13 +135,13 @@ impl AppliedCountdownInvariantConstantRelocation {
         &self.ledger
     }
 
-    pub fn into_session(self) -> VerifiedPsiOptimizationSession {
+    pub(crate) fn into_session(self) -> VerifiedPsiOptimizationSession {
         self.session
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CountdownInvariantConstantRelocationError {
+pub(crate) enum CountdownInvariantConstantRelocationError {
     Placement(CountdownInvariantConstantPlacementAnalysisError),
     CandidateBudgetExhausted {
         required: u64,
@@ -219,4 +219,3 @@ fn candidate_identity(
     }
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)
 }
-

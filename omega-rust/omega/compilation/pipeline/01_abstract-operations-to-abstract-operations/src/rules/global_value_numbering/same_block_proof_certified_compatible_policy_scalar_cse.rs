@@ -16,7 +16,7 @@ use crate::rules::node_elision::node_elision_accounting;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
+pub(crate) struct SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
 
 impl SameBlockProofCertifiedCompatiblePolicyScalarCseRule {
     pub fn contract() -> OptimizationRuleContract {

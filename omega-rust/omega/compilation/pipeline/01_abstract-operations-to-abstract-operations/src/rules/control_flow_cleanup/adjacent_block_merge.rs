@@ -22,7 +22,7 @@ use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct AdjacentBlockMergeRule;
+pub(crate) struct AdjacentBlockMergeRule;
 
 impl AdjacentBlockMergeRule {
     pub fn contract() -> OptimizationRuleContract {

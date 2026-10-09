@@ -29,14 +29,14 @@ mod scalar_case_frontiers;
 
 pub(crate) use scalar_case_frontiers::rewrite_relocated_case_result_frontiers;
 
-pub use context::{
+pub(crate) use context::{
     ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
     validate_transformed_psi_cycle_components, validate_verified_psi_cycle_components,
 };
-pub use prephysical_manifest::{
-    PrePhysicalOptimizationManifestError, ValidatedPrePhysicalOptimizationManifest,
-    project_pre_physical_optimization_manifest,
+pub use prephysical_manifest::ValidatedPrePhysicalOptimizationManifest;
+pub(crate) use prephysical_manifest::{
+    PrePhysicalOptimizationManifestError, project_pre_physical_optimization_manifest,
 };
-pub use projection::{
+pub(crate) use projection::{
     ValidatedOptimizedAbstractPlanProjection, seal_optimized_abstract_plan_projection,
 };

@@ -48,8 +48,7 @@ pub(crate) fn admissible_scalar_leaf_relocation(node: &OptimizationNode) -> bool
         | O::BooleanConstant { psi_operation, .. } => *psi_operation,
         _ => return false,
     };
-    operation_shape_spine(node, psi_operation)
-        && node.uses.is_empty()
+    operation_shape_spine(node, psi_operation) && node.uses.is_empty()
 }
 
 /// Side-effect-free total scalar computations are the second operation class

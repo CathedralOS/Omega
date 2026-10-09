@@ -83,9 +83,7 @@ pub(super) fn dispatch_evidence<'a>(
     }) {
         return None;
     }
-    let arm_edge = |edge: EdgeId| {
-        node.edge(edge)
-    };
+    let arm_edge = |edge: EdgeId| node.edge(edge);
     Some(DispatchEvidence {
         unit,
         function,
@@ -190,8 +188,7 @@ pub(super) fn admit_incoming_edge(
     if !edge.structural_bindings.is_empty() || !edge.cleanup_actions.is_empty() {
         return None;
     }
-    let binding = edge
-        .binding(evidence.parameter)?;
+    let binding = edge.binding(evidence.parameter)?;
     let fact = constants.facts.iter().find(|fact| {
         fact.valid_in.machine == evidence.machine
             && fact.valid_in.revision == evidence.unit.identity
@@ -218,8 +215,7 @@ pub(super) fn admit_incoming_edge(
     if !resolved.structural_bindings.is_empty() || !resolved.cleanup_actions.is_empty() {
         return None;
     }
-    let resolved_block = evidence
-        .function.block(resolved.target)?;
+    let resolved_block = evidence.function.block(resolved.target)?;
     if !resolved_block.structural_parameters.is_empty() {
         return None;
     }
@@ -256,9 +252,7 @@ fn delivered_argument(
     let mut owner_block = owner_block;
     let mut argument = argument;
     for _ in 0..evidence.function.blocks.len() {
-        let Some(block) = evidence
-            .function.block(owner_block)
-        else {
+        let Some(block) = evidence.function.block(owner_block) else {
             break;
         };
         if !block
@@ -284,9 +278,7 @@ fn delivered_argument(
         else {
             break;
         };
-        let Some(binding) = predecessor_edge
-            .binding(argument)
-        else {
+        let Some(binding) = predecessor_edge.binding(argument) else {
             break;
         };
         argument = binding.argument;
@@ -318,8 +310,7 @@ fn call_result_constant(
             O::Call { result, callee, .. } if *result == argument => Some(*callee),
             _ => None,
         })?;
-    let callee_function = evidence
-        .unit.function(callee)?;
+    let callee_function = evidence.unit.function(callee)?;
     let mut returned = callee_function
         .block_nodes()
         .filter_map(|node| match &node.operation {

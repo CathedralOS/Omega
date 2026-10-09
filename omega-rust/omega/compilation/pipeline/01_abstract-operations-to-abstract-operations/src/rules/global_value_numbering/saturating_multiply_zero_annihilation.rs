@@ -1,9 +1,7 @@
 //! The exact saturating multiply-zero rule, and the closed semantic partition
 //! (`classify`) it proposes over.
 
-use abstract_operations::{
-    AbstractOperation as O, IntegerOverflowPolicy,
-};
+use abstract_operations::{AbstractOperation as O, IntegerOverflowPolicy};
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
 
@@ -14,7 +12,7 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SaturatingMultiplyZeroAnnihilationRule;
+pub(crate) struct SaturatingMultiplyZeroAnnihilationRule;
 
 impl SaturatingMultiplyZeroAnnihilationRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -24,7 +22,12 @@ impl SaturatingMultiplyZeroAnnihilationRule {
     }
 }
 
-psi_optimization_rule_delegate!(SaturatingMultiplyZeroAnnihilationRule, propose = propose_total_scalar_identities, contract = Self::contract(),classify);
+psi_optimization_rule_delegate!(
+    SaturatingMultiplyZeroAnnihilationRule,
+    propose = propose_total_scalar_identities,
+    contract = Self::contract(),
+    classify
+);
 
 /// Return the two saturating multiplication annihilation laws in canonical
 /// left-zero/right-zero order. The zero operand is also the replacement.

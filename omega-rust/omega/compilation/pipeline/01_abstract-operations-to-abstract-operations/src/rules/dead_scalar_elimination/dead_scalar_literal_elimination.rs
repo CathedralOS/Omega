@@ -14,7 +14,7 @@ use crate::rules::node_elision::{DeadScalarShape, propose_unproved_dead_scalar_n
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct DeadScalarLiteralEliminationRule;
+pub(crate) struct DeadScalarLiteralEliminationRule;
 
 impl DeadScalarLiteralEliminationRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -35,7 +35,12 @@ impl DeadScalarLiteralEliminationRule {
     }
 }
 
-psi_optimization_rule_delegate!(DeadScalarLiteralEliminationRule, propose = propose_unproved_dead_scalar_nodes, contract = Self::contract(),classify);
+psi_optimization_rule_delegate!(
+    DeadScalarLiteralEliminationRule,
+    propose = propose_unproved_dead_scalar_nodes,
+    contract = Self::contract(),
+    classify
+);
 
 pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
     match operation {

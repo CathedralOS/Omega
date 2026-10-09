@@ -202,7 +202,7 @@ mod validate;
 /// tail of the component's unique preheader, ahead of the terminator that
 /// owns the entry edges and ahead of any already-relocated
 /// countdown-certificate constants owned by the dedicated countdown boundary.
-pub fn propose_loop_invariant_scalar_motion(
+pub(crate) fn propose_loop_invariant_scalar_motion(
     session: &VerifiedPsiOptimizationSession,
     candidate_limit: u64,
 ) -> Result<Vec<LoopInvariantScalarMotionCandidate>, LoopInvariantScalarMotionError> {
@@ -212,7 +212,7 @@ pub fn propose_loop_invariant_scalar_motion(
 /// Independently replay the proposal for `candidate`, reconstruct the
 /// transformed session, and retain the provenance rows that carry each moved
 /// node's source custody into the ledger.
-pub fn validate_loop_invariant_scalar_motion(
+pub(crate) fn validate_loop_invariant_scalar_motion(
     session: &VerifiedPsiOptimizationSession,
     candidate: &LoopInvariantScalarMotionCandidate,
 ) -> Result<ValidatedLoopInvariantScalarMotion, LoopInvariantScalarMotionError> {
@@ -221,7 +221,7 @@ pub fn validate_loop_invariant_scalar_motion(
 
 /// Apply one independently validated candidate atomically and bind the
 /// transformed unit to a fresh verified session.
-pub fn apply_loop_invariant_scalar_motion(
+pub(crate) fn apply_loop_invariant_scalar_motion(
     session: VerifiedPsiOptimizationSession,
     validated: ValidatedLoopInvariantScalarMotion,
 ) -> Result<AppliedLoopInvariantScalarMotion, LoopInvariantScalarMotionError> {
@@ -261,7 +261,7 @@ pub(crate) fn contract() -> OptimizationRuleContract {
 }
 
 #[derive(Debug)]
-pub struct ValidatedLoopInvariantScalarMotion {
+pub(crate) struct ValidatedLoopInvariantScalarMotion {
     candidate: LoopInvariantScalarMotionCandidate,
     output: PsiOptimizationUnit,
     provenance: Vec<ProvenanceRewrite>,
@@ -282,7 +282,7 @@ impl ValidatedLoopInvariantScalarMotion {
 }
 
 #[derive(Debug)]
-pub struct AppliedLoopInvariantScalarMotion {
+pub(crate) struct AppliedLoopInvariantScalarMotion {
     session: VerifiedPsiOptimizationSession,
     candidate: LoopInvariantScalarMotionCandidate,
     ledger: PsiTransformationLedger,
@@ -324,7 +324,7 @@ impl AppliedLoopInvariantScalarMotion {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LoopInvariantScalarMotionError {
+pub(crate) enum LoopInvariantScalarMotionError {
     CandidateBudgetExhausted {
         required: u64,
         limit: u64,

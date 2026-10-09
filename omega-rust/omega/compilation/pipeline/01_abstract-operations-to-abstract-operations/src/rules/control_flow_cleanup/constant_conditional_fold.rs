@@ -18,7 +18,7 @@ use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ConstantConditionalFoldRule;
+pub(crate) struct ConstantConditionalFoldRule;
 
 impl ConstantConditionalFoldRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -146,13 +146,12 @@ fn conditional_fold_accounting(
     rejected_edge: EdgeId,
     reachable: &BTreeSet<BlockId>,
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
-    let decision_node = function.block(decision.block)?
+    let decision_node = function
+        .block(decision.block)?
         .nodes
         .get(usize::try_from(decision.node).ok()?)?;
-    let selected = decision_node
-        .edge(selected_edge)?;
-    let rejected = decision_node
-        .edge(rejected_edge)?;
+    let selected = decision_node.edge(selected_edge)?;
+    let rejected = decision_node.edge(rejected_edge)?;
     let selected_site = PsiRealizationSite::Edge {
         machine: function.machine,
         edge: selected_edge,

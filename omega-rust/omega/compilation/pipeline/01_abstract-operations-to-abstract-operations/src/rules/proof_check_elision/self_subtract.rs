@@ -15,7 +15,7 @@ use crate::rules::proof_check_elision::identity_rewrite::propose_proof_certified
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LiveProofCertifiedExactIntegerSelfSubtractEliminationRule;
+pub(crate) struct LiveProofCertifiedExactIntegerSelfSubtractEliminationRule;
 
 impl LiveProofCertifiedExactIntegerSelfSubtractEliminationRule {
     pub fn contract() -> OptimizationRuleContract {

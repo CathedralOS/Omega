@@ -17,12 +17,12 @@ use semantic_vocabulary::{BlockId, MachineId};
 use crate::analyses::control_flow::dominators;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValueRangeAnalysis {
+pub(crate) struct ValueRangeAnalysis {
     pub facts: Vec<ValueRangeFact>,
 }
 
 impl ValueRangeAnalysis {
-    pub fn fact_applies_at(
+    pub(crate) fn fact_applies_at(
         &self,
         fact: &ValueRangeFact,
         unit: &PsiOptimizationUnit,

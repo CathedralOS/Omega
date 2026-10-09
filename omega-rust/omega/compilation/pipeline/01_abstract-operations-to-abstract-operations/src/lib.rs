@@ -28,8 +28,10 @@ mod rules;
 mod state_specialization;
 pub mod validation;
 
-pub use abstract_optimization::{AbstractOptimizationError, optimize_abstract_operations};
-pub use publication::{OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan};
+pub use abstract_optimization::AbstractOptimizationError;
+pub use abstract_optimization::optimize_abstract_operations;
+pub(crate) use publication::OptimizedAbstractProjectionError;
+pub use publication::ValidatedOptimizedAbstractPlan;
 
 pub(crate) use analyses::{AnalysisManager, AnalysisProduct, compute_analysis};
 pub(crate) use analyses::{
@@ -52,11 +54,9 @@ pub(crate) use analyses::{
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
 pub(crate) use optimization_unit::ScalarConstantValue;
-pub use pass_manager::OptimizationRunError;
 pub(crate) use pass_manager::PsiValidatedCandidateDeclaration;
 pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
 pub(crate) use pass_manager::{OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit};
-pub use ranked_rewrites::LoopInvariantScalarMotionError;
 pub(crate) use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError,
@@ -68,31 +68,14 @@ pub(crate) use rules::registry::{
 /// plan above.
 #[cfg(feature = "test-support")]
 pub mod test_support {
-    pub use crate::abstract_optimization::{
-        replay_psi_pipeline, run_psi_pipeline, run_psi_registry,
-    };
+    pub use crate::abstract_optimization::run_psi_pipeline;
+
     pub use crate::analyses::{
-        AnalysisManager, AnalysisProduct, AnalysisRevision, ValueRangeFact, ValueRangeScope,
-        ValueRangeSupport, compute_analysis, value_range_fact_identity,
+        AnalysisRevision, ValueRangeFact, ValueRangeScope, ValueRangeSupport,
+        value_range_fact_identity,
     };
-    pub use crate::analyses::{
-        CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
-        CountdownInvariantConstantPlacementAnalysisError,
-        CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
-        CountedLoopAnalysisError, CountedLoopAnalysisSnapshot,
-    };
-    pub use crate::pass_manager::{
-        OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit,
-        VerifiedPsiOptimizationSession, baseline_psi_cost_model_identity,
-    };
-    pub use crate::publication::publish_optimization_run;
-    pub use crate::ranked_rewrites::{
-        CountdownInvariantConstantRelocationError, LoopInvariantScalarMotionError,
-        apply_countdown_invariant_constant_relocation, apply_loop_invariant_scalar_motion,
-        propose_countdown_invariant_constant_relocations, propose_loop_invariant_scalar_motion,
-        validate_loop_invariant_scalar_motion,
-    };
-    pub use crate::rules::{
-        PSI_PASS_CATALOG, WrappingIntegerAddConstantsRule, built_in_psi_registry,
-    };
+
+    pub use crate::pass_manager::{OptimizationRunUsage, PsiOptimizationCommit};
+
+    pub use crate::rules::WrappingIntegerAddConstantsRule;
 }

@@ -15,12 +15,11 @@ pub(super) fn rederive_components(
     // may retain other cyclic bodies, but a later revision must not silently
     // discard a cyclic body that this invocation admitted into its seed.
     for seed in seed_functions {
-        let machine = module.machine(seed.machine)
-            .ok_or(
-                OptimizationUnitValidationError::RankedCycleTopologyMismatch {
-                    machine: seed.machine,
-                },
-            )?;
+        let machine = module.machine(seed.machine).ok_or(
+            OptimizationUnitValidationError::RankedCycleTopologyMismatch {
+                machine: seed.machine,
+            },
+        )?;
         let invalid = || OptimizationUnitValidationError::RankedCycleTopologyMismatch {
             machine: machine.id,
         };
@@ -37,8 +36,7 @@ pub(super) fn rederive_components(
             // A new current cycle there receives no admitted-machine authority.
             continue;
         }
-        let function = unit.function(machine.id)
-            .ok_or_else(invalid)?;
+        let function = unit.function(machine.id).ok_or_else(invalid)?;
         let current = topology::derive_components(&graph::optimization_graph(function));
         if current != terminal {
             return Err(invalid());

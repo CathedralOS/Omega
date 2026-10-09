@@ -13,7 +13,7 @@ use crate::rules::global_value_numbering::total_scalar_identities::{
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SaturatingNeutralArithmeticIdentityRule;
+pub(crate) struct SaturatingNeutralArithmeticIdentityRule;
 
 impl SaturatingNeutralArithmeticIdentityRule {
     pub fn contract() -> OptimizationRuleContract {

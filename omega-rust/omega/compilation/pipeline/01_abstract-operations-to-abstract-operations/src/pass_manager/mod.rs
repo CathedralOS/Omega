@@ -58,12 +58,12 @@ use terminal_psi_to_abstract_operations::{
 
 /// Identity of the deterministic structural cost policy used by every current
 /// target-neutral Psi pass.
-pub fn baseline_psi_cost_model_identity() -> TargetCostModelIdentity {
+pub(crate) fn baseline_psi_cost_model_identity() -> TargetCostModelIdentity {
     TargetCostModelIdentity::from_canonical_bytes(b"omega.psi-baseline-structural-cost-model.v1")
 }
 
 #[derive(Debug)]
-pub struct VerifiedPsiOptimizationSession {
+pub(crate) struct VerifiedPsiOptimizationSession {
     input: VerifiedPsiOptimizationInput,
     unit: PsiOptimizationUnit,
     /// Validated at construction in every build, so malformed cycle topology
@@ -104,7 +104,7 @@ impl VerifiedPsiOptimizationSession {
 
     /// Rebinds analysis custody to an independently validated transformed
     /// revision. This grants no transformation authority.
-    pub fn from_transformed(
+    pub(crate) fn from_transformed(
         input: VerifiedPsiOptimizationInput,
         unit: PsiOptimizationUnit,
     ) -> Result<Self, OptimizationUnitValidationError> {
@@ -145,14 +145,14 @@ impl VerifiedPsiOptimizationSession {
 
     /// Independently reconstructed, revision-bound counted-loop facts. This
     /// grants analysis custody only, never cyclic rewrite or execution rights.
-    pub fn counted_loop_analysis(
+    pub(crate) fn counted_loop_analysis(
         &self,
     ) -> Result<ValidatedCountedLoopAnalysis, CountedLoopAnalysisError> {
         analyze_counted_loops(&self.unit, &self.cycle_components)
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn validate_counted_loop_analysis(
+    pub(crate) fn validate_counted_loop_analysis(
         &self,
         candidate: &CountedLoopAnalysisSnapshot,
     ) -> Result<ValidatedCountedLoopAnalysis, CountedLoopAnalysisError> {
@@ -161,7 +161,7 @@ impl VerifiedPsiOptimizationSession {
 
     /// Exact input-free integer constants owned by the authenticated countdown
     /// relation. This grants analysis custody only and cannot move a node.
-    pub fn countdown_invariant_constant_analysis(
+    pub(crate) fn countdown_invariant_constant_analysis(
         &self,
     ) -> Result<ValidatedCountdownInvariantConstantAnalysis, CountdownInvariantConstantAnalysisError>
     {
@@ -172,7 +172,7 @@ impl VerifiedPsiOptimizationSession {
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn validate_countdown_invariant_constant_analysis(
+    pub(crate) fn validate_countdown_invariant_constant_analysis(
         &self,
         candidate: &CountdownInvariantConstantAnalysisSnapshot,
     ) -> Result<ValidatedCountdownInvariantConstantAnalysis, CountdownInvariantConstantAnalysisError>
@@ -210,7 +210,7 @@ impl VerifiedPsiOptimizationSession {
 
     /// Exact preheader insertion and consumer coordinates for the authenticated
     /// countdown constants. This remains analysis-only and cannot move a node.
-    pub fn countdown_invariant_constant_placement_analysis(
+    pub(crate) fn countdown_invariant_constant_placement_analysis(
         &self,
     ) -> Result<
         ValidatedCountdownInvariantConstantPlacementAnalysis,
@@ -226,7 +226,7 @@ impl VerifiedPsiOptimizationSession {
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn validate_countdown_invariant_constant_placement_analysis(
+    pub(crate) fn validate_countdown_invariant_constant_placement_analysis(
         &self,
         candidate: &CountdownInvariantConstantPlacementAnalysisSnapshot,
     ) -> Result<
@@ -245,7 +245,7 @@ impl VerifiedPsiOptimizationSession {
 }
 
 #[derive(Debug)]
-pub struct OptimizationRun {
+pub(crate) struct OptimizationRun {
     /// Complete source-visible suite requested by the root build.
     pub selections: OptimizationSelections,
     /// Exact subset executed by this Psi-phase run.
@@ -304,7 +304,7 @@ impl OptimizationRun {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizationRunError {
+pub(crate) enum OptimizationRunError {
     InitialValidation(OptimizationUnitValidationError),
     Analysis(AnalysisManagerError),
     Proposal {
@@ -344,7 +344,7 @@ pub enum OptimizationRunError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CandidateContractAxis {
+pub(crate) enum CandidateContractAxis {
     Input,
     Rule,
     RequiredAnalyses,
@@ -353,7 +353,7 @@ pub enum CandidateContractAxis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExternalDecisionReplayError {
+pub(crate) enum ExternalDecisionReplayError {
     Schema(ExternalDecisionSchemaError),
     ContextMismatch(ExternalDecisionContextAxis),
     DuplicateDecision {
@@ -379,7 +379,7 @@ pub enum ExternalDecisionReplayError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExternalDecisionContextAxis {
+pub(crate) enum ExternalDecisionContextAxis {
     Schema,
     Source,
     Selections,

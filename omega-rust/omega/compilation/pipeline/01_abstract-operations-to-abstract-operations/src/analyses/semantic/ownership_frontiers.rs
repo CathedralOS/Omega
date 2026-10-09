@@ -6,7 +6,7 @@ use semantic_vocabulary::MachineId;
 /// The site remains a source Terminal-Psi site; consumers must match that exact
 /// site rather than treating the snapshot as a timeless function-wide fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OwnershipFrontierAnalysisFact {
+pub(crate) struct OwnershipFrontierAnalysisFact {
     pub identity: OwnershipFrontierFactIdentity,
     pub revision: OptimizationUnitIdentity,
     pub machine: MachineId,
@@ -15,7 +15,7 @@ pub struct OwnershipFrontierAnalysisFact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OwnershipFrontierAnalysis {
+pub(crate) struct OwnershipFrontierAnalysis {
     pub facts: Vec<OwnershipFrontierAnalysisFact>,
 }
 

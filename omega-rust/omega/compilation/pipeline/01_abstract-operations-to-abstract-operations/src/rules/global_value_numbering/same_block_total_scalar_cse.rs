@@ -1,16 +1,14 @@
 //! Obligation-free same-block common-subexpression elimination.
 
 use optimization_core::{OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
-    PsiOptimizationUnit, PsiRewriteCandidate,
-};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use super::expression_keys::total_scalar_expression;
 use crate::rules::global_value_numbering::same_block_contract;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SameBlockTotalScalarCseRule;
+pub(crate) struct SameBlockTotalScalarCseRule;
 
 impl SameBlockTotalScalarCseRule {
     pub fn contract() -> OptimizationRuleContract {

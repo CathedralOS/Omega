@@ -12,49 +12,48 @@ pub(super) use call_graph::call_graph;
 pub(super) use components::block_components;
 
 #[cfg(any(test, feature = "test-support"))]
-pub use countdown_induction::CountedLoopAnalysisSnapshot;
+pub(crate) use countdown_induction::CountedLoopAnalysisSnapshot;
 pub(crate) use countdown_induction::analyze_counted_loops;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use countdown_induction::validate_counted_loop_analysis;
-pub use countdown_induction::{
+pub(crate) use countdown_induction::{
     CountedLoopAnalysisError, UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
 };
 
 pub(crate) use countdown_invariant_constant_placement::analyze_countdown_invariant_constant_placement;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use countdown_invariant_constant_placement::validate_countdown_invariant_constant_placement_analysis;
-pub use countdown_invariant_constant_placement::{
+pub(crate) use countdown_invariant_constant_placement::{
     CountdownInvariantConstantPlacementAnalysisError,
     ValidatedCountdownInvariantConstantPlacementAnalysis,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use countdown_invariant_constant_placement::{
+pub(crate) use countdown_invariant_constant_placement::{
     CountdownInvariantConstantPlacementAnalysisSnapshot,
     UnsignedCountdownInvariantConstantPlacements,
 };
 
 #[cfg(any(test, feature = "test-support"))]
-pub use countdown_invariant_constants::CountdownInvariantConstantAnalysisSnapshot;
+pub(crate) use countdown_invariant_constants::CountdownInvariantConstantAnalysisSnapshot;
 pub(crate) use countdown_invariant_constants::analyze_countdown_invariant_constants;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use countdown_invariant_constants::validate_countdown_invariant_constant_analysis;
-pub use countdown_invariant_constants::{
+pub(crate) use countdown_invariant_constants::validate_moved_constant_locations;
+pub(crate) use countdown_invariant_constants::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantRole,
     CountdownInvariantIntegerConstant, ValidatedCountdownInvariantConstantAnalysis,
 };
-pub(crate) use countdown_invariant_constants::validate_moved_constant_locations;
 pub(crate) use dominance::block_dominates;
 pub(super) use dominance::dominators;
 pub(super) use graph::control_flow;
 pub(super) use loops::loops;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ExitKind {
+pub(crate) enum ExitKind {
     Normal,
     Crash,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockControlFlow {
+pub(crate) struct BlockControlFlow {
     pub block: BlockId,
     pub predecessors: Vec<BlockId>,
     pub successors: Vec<BlockId>,
@@ -70,15 +69,15 @@ pub struct FunctionControlFlow {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ControlFlowAnalysis {
+pub(crate) struct ControlFlowAnalysis {
     pub functions: Vec<FunctionControlFlow>,
 }
 
-pub type BlockDominators = (BlockId, Vec<BlockId>);
-pub type FunctionDominators = (MachineId, Vec<BlockDominators>);
+pub(crate) type BlockDominators = (BlockId, Vec<BlockId>);
+pub(crate) type FunctionDominators = (MachineId, Vec<BlockDominators>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DominatorAnalysis {
+pub(crate) struct DominatorAnalysis {
     pub functions: Vec<FunctionDominators>,
 }
 
@@ -91,7 +90,7 @@ impl DominatorAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StronglyConnectedComponentAnalysis {
+pub(crate) struct StronglyConnectedComponentAnalysis {
     pub functions: Vec<(MachineId, Vec<Vec<BlockId>>)>,
 }
 
@@ -104,7 +103,7 @@ impl StronglyConnectedComponentAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoopRegion {
+pub(crate) struct LoopRegion {
     /// Natural-loop header when one node dominates every entry. `None` marks
     /// an irreducible region with multiple entries.
     pub header: Option<BlockId>,
@@ -113,12 +112,12 @@ pub struct LoopRegion {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoopAnalysis {
+pub(crate) struct LoopAnalysis {
     pub functions: Vec<(MachineId, Vec<LoopRegion>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallGraphAnalysis {
+pub(crate) struct CallGraphAnalysis {
     /// Static calls and semantic machine transitions that must keep a target
     /// reachable, including nominal cleanup invoked on return.
     pub callees: Vec<(MachineId, Vec<MachineId>)>,

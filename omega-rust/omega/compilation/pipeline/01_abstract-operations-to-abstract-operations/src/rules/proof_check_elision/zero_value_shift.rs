@@ -53,7 +53,7 @@ fn proof_certified_exact_integer_zero_value_shift_shapes(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule;
+pub(crate) struct LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule;
 
 impl LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule {
     pub fn contract() -> OptimizationRuleContract {

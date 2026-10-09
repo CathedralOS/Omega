@@ -13,7 +13,7 @@ use crate::rules::proof_check_elision::identity_rewrite::propose_proof_certified
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LiveProofCertifiedIntegerSelfDivideEliminationRule;
+pub(crate) struct LiveProofCertifiedIntegerSelfDivideEliminationRule;
 
 impl LiveProofCertifiedIntegerSelfDivideEliminationRule {
     pub fn contract() -> OptimizationRuleContract {

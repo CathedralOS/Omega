@@ -8,8 +8,8 @@ use crate::rules::catalog::BuiltInRuleRegistration;
 mod dead_scalar_literal_elimination;
 mod dead_unconditionally_total_scalar_elimination;
 
-pub use dead_scalar_literal_elimination::DeadScalarLiteralEliminationRule;
-pub use dead_unconditionally_total_scalar_elimination::DeadUnconditionallyTotalScalarEliminationRule;
+pub(crate) use dead_scalar_literal_elimination::DeadScalarLiteralEliminationRule;
+pub(crate) use dead_unconditionally_total_scalar_elimination::DeadUnconditionallyTotalScalarEliminationRule;
 
 /// The exact local rule order for this pass.
 pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {

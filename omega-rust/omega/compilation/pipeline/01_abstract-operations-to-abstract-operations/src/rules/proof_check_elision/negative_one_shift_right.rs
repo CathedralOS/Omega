@@ -43,7 +43,7 @@ fn proof_certified_exact_signed_integer_negative_one_shift_right_shapes(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule;
+pub(crate) struct LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule;
 
 impl LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule {
     pub fn contract() -> OptimizationRuleContract {

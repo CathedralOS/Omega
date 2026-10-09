@@ -79,7 +79,7 @@ use optimization_core::{
 use crate::{OrderedRuleRegistry, RuleRegistryError};
 
 #[cfg(any(test, feature = "test-support"))]
-pub use catalog::PSI_PASS_CATALOG;
+pub(crate) use catalog::PSI_PASS_CATALOG;
 
 /// One scheduled Psi pass: either a fixed-point rewrite registry over
 /// `PsiRewriteCandidate`s under analysis-manager custody, or a session-level
@@ -142,7 +142,7 @@ impl PsiPassStep {
 pub use sparse_conditional_constant_propagation::WrappingIntegerAddConstantsRule;
 
 #[cfg(any(test, feature = "test-support"))]
-pub fn built_in_psi_registry(
+pub(crate) fn built_in_psi_registry(
     selections: &OptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
     let projection = selections.project_psi();

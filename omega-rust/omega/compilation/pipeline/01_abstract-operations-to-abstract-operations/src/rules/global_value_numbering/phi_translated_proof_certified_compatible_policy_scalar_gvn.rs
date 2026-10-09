@@ -17,7 +17,7 @@ use crate::rules::global_value_numbering::phi_translated_contract;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule;
+pub(crate) struct PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule;
 
 impl PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -116,8 +116,7 @@ impl PsiOptimizationRule for PhiTranslatedProofCertifiedCompatiblePolicyScalarGv
                 obligation_fact,
             ) in redundants
             {
-                let Some(join) = function.block(redundant.block)
-                else {
+                let Some(join) = function.block(redundant.block) else {
                     continue;
                 };
                 let parameter_values = join
