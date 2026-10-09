@@ -28,24 +28,26 @@
 //! real described-and-verified component.
 
 pub mod component_description;
-pub mod component_verification;
+pub(crate) mod component_verification;
 mod publication;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 
 pub use component_description::{
-    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescription, ComponentDescriptionFacts,
-    ComponentEntry, ComponentEntryKind, CustodyConstraint, CustodyEvidence, CustodyKind,
-    DescribeError, DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportContract,
+    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescriptionFacts,
+    DescribeError,
+    decode_component_description, description_subject,
+    encode_component_description,
+};
+pub(crate) use component_description::{ ComponentDescription,
+    ComponentEntry, ComponentEntryKind, CustodyConstraint, CustodyEvidence, CustodyKind, DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportContract,
     ExportSurface, ImportSlot, InstallationObligation, InstallationServiceBound, ObligationKind,
     OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
-    StackDemandFacts, canonical_entry_contract_identity, component_description_identity,
-    decode_component_description, describe_component_facts, description_subject,
-    encode_component_description, port_mechanism_assumption, requirement_contract_identity,
-    requirement_export_identity,
-};
-pub use component_verification::{
-    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
+    StackDemandFacts, canonical_entry_contract_identity, component_description_identity, describe_component_facts, port_mechanism_assumption, requirement_contract_identity,
+    requirement_export_identity};
+pub use component_verification::{ ComponentVerificationRequest, IndependentRealizationMismatch,
     VerifiedComponent, verify_component,
 };
+pub(crate) use component_verification::{
+    ComponentVerificationRejection};
 pub use publication::publish_component_description;

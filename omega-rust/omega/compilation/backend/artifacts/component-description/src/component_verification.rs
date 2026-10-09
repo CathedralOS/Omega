@@ -321,7 +321,7 @@ impl VerifiedComponent {
     /// digest a demanded `ImportSlot::contract_identity` carries — so a
     /// consumer joins demand to supply by equality without parsing the
     /// surface's opaque identity string.
-    pub fn export_contracts(&self) -> &[ExportContract] {
+    pub(crate) fn export_contracts(&self) -> &[ExportContract] {
         &self.export_contracts
     }
 
@@ -338,7 +338,7 @@ impl VerifiedComponent {
     /// Every retained installation-bound reach row with its declared
     /// conservative bound — the roster of bounds installation still owes,
     /// published separately from the concrete reach's `ServiceCeiling` rows.
-    pub fn service_bounds(&self) -> &[InstallationServiceBound] {
+    pub(crate) fn service_bounds(&self) -> &[InstallationServiceBound] {
         &self.description.service_bounds
     }
 
