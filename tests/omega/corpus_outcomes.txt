@@ -3112,8 +3112,7 @@ pass/data/runtime_zeroed_first_case_enum_payload_exit checked 1146ms check-targe
 pass/data/runtime_zeroed_first_case_float_payload_exit checked 1144ms check-target:macos_arm64
 pass/dependent/boundary_equality_recast_witness_compile checked 1282ms @ebf381240e20+wt
 pass/dependent/boundary_requires_caller_field_extent_compile checked 298ms @2d8ed253669f
-pass/dependent/call_requires_saved_local_arithmetic_bound_compile rejected 543ms regressed-from:checked @ebf381240e20+wt
-	cannot prove requires contract for call inner from Main::outer: items.len < n (needs fact `rest.len < capacity` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 660ms @8f47bd821a9e+wt
 pass/dependent/case_where_common_field_window checked 288ms @2d8ed253669f
 pass/dependent/case_where_equality_bounds_subtraction checked 1436ms @be8e4cb5674c+wt
 pass/dependent/case_where_generic_type_bound_coverage checked 292ms @2d8ed253669f

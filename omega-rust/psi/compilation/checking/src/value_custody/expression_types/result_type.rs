@@ -370,6 +370,20 @@ fn result_type(
         }
         ExpressionNode::Member(member) => result_type(program, owner, member.receiver, active)
             .and_then(|receiver| {
+                // A compiler-owned measure (`len`, `capacity`) of a fixed array
+                // or slice is a `u64` count, not a declared data field.
+                if crate::collection_operations::collection_measure_member(
+                    program,
+                    member,
+                    crate::collection_operations::MeasureReceiver::Declared(receiver),
+                )
+                .is_some()
+                {
+                    return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                        program,
+                        BuiltinTypeAtom::U64,
+                    );
+                }
                 let data =
                     crate::value_custody::places::data_definition_for_type(program, receiver)?;
                 if let Some(instance) = data.generic_instance {

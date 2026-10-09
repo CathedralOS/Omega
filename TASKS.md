@@ -2602,9 +2602,6 @@ crash and native exit behavior.
   `python3 tools/corpus_gate.py` and `--native`, then route by cause, not by
   the revision that recorded a row. Losses observed at ebf381240e2:
 
-  - `pass/dependent/call_requires_saved_local_arithmetic_bound_compile` no
-    longer proves `items.len < n` from `let n: u64 = items.len + 1`; it
-    checked before 70f52a27868, whose operand hoisting hid this refusal.
   - Read-selector capture (ebf381240e2) names `__hoist_14` instead of the
     authored index: `fail/collections/non_integer_index_rejected` loses its
     fragment.
