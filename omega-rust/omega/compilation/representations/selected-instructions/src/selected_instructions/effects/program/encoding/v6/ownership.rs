@@ -1,5 +1,5 @@
 use super::{
-    ClaimId, Cursor, EffectLink, ObligationId, OwnershipEvent, PlaceId,
+    ClaimId, Cursor, ObligationId, OwnershipEvent, PlaceId,
     PreAllocationMachineEffectDecodeError, StructuralTypeId, decode_ids, decode_machine,
 };
 pub fn decode_ownership(
