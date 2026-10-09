@@ -254,11 +254,15 @@ fn validate_function(
     Ok(())
 }
 
-fn validate_fixup(
-    source: Option<FunctionFragmentInternalMachineFixup>,
-    candidate: Option<FunctionFragmentInternalMachineFixup>,
+fn validate_shifted_fixup<F>(
+    source: Option<F>,
+    candidate: Option<F>,
     shift: u64,
-) -> Result<(), FrameApplicationError> {
+    shift_fixup: impl Fn(&mut F, u64) -> Result<(), FrameApplicationError>,
+) -> Result<(), FrameApplicationError>
+where
+    F: PartialEq,
+{
     let Some(mut expected) = source else {
         return if candidate.is_none() {
             Ok(())
@@ -266,11 +270,19 @@ fn validate_fixup(
             Err(FrameApplicationError::ArtifactMismatch)
         };
     };
-    compute::shift_fixup(&mut expected, shift)?;
+    shift_fixup(&mut expected, shift)?;
     if candidate != Some(expected) {
         return Err(FrameApplicationError::ArtifactMismatch);
     }
     Ok(())
+}
+
+fn validate_fixup(
+    source: Option<FunctionFragmentInternalMachineFixup>,
+    candidate: Option<FunctionFragmentInternalMachineFixup>,
+    shift: u64,
+) -> Result<(), FrameApplicationError> {
+    validate_shifted_fixup(source, candidate, shift, compute::shift_fixup)
 }
 
 fn validate_foreign_fixup(
@@ -278,18 +290,7 @@ fn validate_foreign_fixup(
     candidate: Option<FunctionFragmentNormalizedForeignCallFixup>,
     shift: u64,
 ) -> Result<(), FrameApplicationError> {
-    let Some(mut expected) = source else {
-        return if candidate.is_none() {
-            Ok(())
-        } else {
-            Err(FrameApplicationError::ArtifactMismatch)
-        };
-    };
-    compute::shift_foreign_fixup(&mut expected, shift)?;
-    if candidate != Some(expected) {
-        return Err(FrameApplicationError::ArtifactMismatch);
-    }
-    Ok(())
+    validate_shifted_fixup(source, candidate, shift, compute::shift_foreign_fixup)
 }
 
 fn check_bytes(bytes: &[u8], offset: u64, expected: &[u8]) -> Result<(), FrameApplicationError> {
