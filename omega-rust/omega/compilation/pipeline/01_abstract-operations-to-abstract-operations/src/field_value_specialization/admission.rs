@@ -6,7 +6,7 @@
 //! gate lives in `optimization_unit` so the independent validator derives
 //! the same roster rather than trusting this enumeration.
 
-use super::{FieldValueRow, O, PsiOptimizationFunction, PsiOptimizationUnit, ScalarType};
+use super::{FieldValueRow, PsiOptimizationFunction, PsiOptimizationUnit, ScalarType};
 use crate::representation_specialization::admission::bound_place;
 use optimization_unit::{
     FieldEvidence, ForwardedFieldValue, FunctionAnalysis, NodeLocation, OptimizationBlock,
@@ -104,22 +104,12 @@ fn forwarded_resolution(
             if !referenced {
                 continue;
             }
-            if matches!(
-                &use_node.operation,
-                O::ByteSequenceRead { .. }
-                    | O::ByteSequencePredicate { .. }
-                    | O::ByteSequenceEqual { .. }
-                    | O::StructuralByteSequenceFieldRead { .. }
-                    | O::ByteSequenceWrite { .. }
-                    | O::ByteSequenceSubslice { .. }
-                    | O::ByteSequenceStore { .. }
-                    | O::StructuralByteSequenceFieldStore { .. }
-                    | O::StructuralByteSequenceFieldByteStore { .. }
-            ) || use_node
-                .operation
-                .runtime_indices()
-                .iter()
-                .any(|(index, _)| *index == result)
+            if use_node.operation.operates_on_byte_sequence_storage()
+                || use_node
+                    .operation
+                    .runtime_indices()
+                    .iter()
+                    .any(|(index, _)| *index == result)
             {
                 return None;
             }

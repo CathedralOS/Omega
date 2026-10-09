@@ -992,4 +992,23 @@ impl AbstractOperation {
             | Self::Crash { .. } => None,
         }
     }
+
+    /// Whether the operation reads or writes an existing byte sequence —
+    /// every `ByteSequence*` operation plus the structural field accessors
+    /// over one. Establishment operations that produce a new sequence, and
+    /// length queries, are outside this roster.
+    pub fn operates_on_byte_sequence_storage(&self) -> bool {
+        matches!(
+            self,
+            Self::ByteSequenceRead { .. }
+                | Self::ByteSequencePredicate { .. }
+                | Self::ByteSequenceEqual { .. }
+                | Self::StructuralByteSequenceFieldRead { .. }
+                | Self::ByteSequenceWrite { .. }
+                | Self::ByteSequenceSubslice { .. }
+                | Self::ByteSequenceStore { .. }
+                | Self::StructuralByteSequenceFieldStore { .. }
+                | Self::StructuralByteSequenceFieldByteStore { .. }
+        )
+    }
 }
