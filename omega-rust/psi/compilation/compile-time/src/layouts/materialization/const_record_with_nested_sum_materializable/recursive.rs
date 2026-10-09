@@ -59,13 +59,7 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
         &self.children
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
+    materialization_accessors!();
 
     /// Independently rederive the typed value, path geometry, and complete bytes.
     pub fn replay_against(

@@ -91,13 +91,7 @@ impl ValidatedConstRecordSumArrayElementSelection {
         self.selected_case_ordinal
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
+    materialization_accessors!();
 }
 
 /// Exact materialization custody for one closed record containing exactly one
@@ -133,13 +127,7 @@ impl ValidatedConstRecordWithSumArrayMaterialization {
         &self.elements
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
+    materialization_accessors!();
 
     /// Reconstruct the exact outer layout, compact array layout, every indexed
     /// selected sum, and the staged whole-record image.
@@ -271,13 +259,7 @@ impl ValidatedConstRecordWithSumArraysMaterialization {
         &self.arrays
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
+    materialization_accessors!();
 
     pub fn replay_against(
         &self,
@@ -438,13 +420,7 @@ impl ValidatedConstRecordWithSumMaterialization {
         self.byte_order
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
+    materialization_accessors!();
 
     /// Independently replay the outer layout and the complete caller-supplied
     /// conventional nested-sum layout. Compact report fingerprints are checked

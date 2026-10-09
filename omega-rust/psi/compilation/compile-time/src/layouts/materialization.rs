@@ -19,6 +19,20 @@ use super::schema_reflection::{
 };
 use crate::BuildTimeAdmissionPlan;
 
+/// The staged-materialization accessors every product keeps: the emitted
+/// bytes and the report coordinate that admitted them.
+macro_rules! materialization_accessors {
+    () => {
+        pub fn bytes(&self) -> &[u8] {
+            &self.bytes
+        }
+
+        pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
+            self.non_authoritative_materialization_report_fingerprint
+        }
+    };
+}
+
 mod const_materializable;
 mod const_record_with_nested_sum_materializable;
 mod const_record_with_sum_materializable;

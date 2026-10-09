@@ -100,13 +100,7 @@ impl ValidatedConstRecordArrayElementSelection {
         &self.value
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
+    materialization_accessors!();
 }
 
 /// Value-sensitive custody for one direct fixed-array-of-records field in
@@ -179,13 +173,7 @@ impl ValidatedConstRecordWithNestedSumRecordMaterialization {
         &self.inner
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
+    materialization_accessors!();
 
     /// Re-resolve the exact outer field and independently reconstruct both
     /// record layers and every selected child sum.
@@ -315,13 +303,7 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
         &self.inner_records
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
-    }
+    materialization_accessors!();
 
     pub fn replay_against(
         &self,
