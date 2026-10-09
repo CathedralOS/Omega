@@ -1,5 +1,5 @@
 use diagnostics::Diagnostic;
-use facts::{FactPayload, QualificationEvidence};
+use facts::QualificationEvidence;
 use language_semantics::{CarryPolicy, CarrySuspension};
 
 mod activation;
@@ -54,12 +54,10 @@ impl ClaimCarryContext<'_> {
                     // evidence denotes a live claim entry.
                     continue;
                 }
-                let permission = match fact.payload {
-                    FactPayload::CarryPermission { permission, .. }
-                    | FactPayload::ContractCarryPermission { permission, .. } => Some(permission),
-                    FactPayload::CarryOrigin { .. } => None,
-                    _ => continue,
-                };
+                if !fact.payload.is_carry_claim() {
+                    continue;
+                }
+                let permission = fact.payload.carry_permission();
                 let Some(place) = fact.place.as_place() else {
                     continue;
                 };
@@ -356,12 +354,10 @@ fn derive_claim_carry_policies(
         if fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::None {
             continue;
         }
-        let permission = match fact.payload {
-            FactPayload::CarryPermission { permission, .. }
-            | FactPayload::ContractCarryPermission { permission, .. } => Some(permission),
-            FactPayload::CarryOrigin { .. } => None,
-            _ => continue,
-        };
+        if !fact.payload.is_carry_claim() {
+            continue;
+        }
+        let permission = fact.payload.carry_permission();
         let Some(place) = fact.place.as_place() else {
             continue;
         };

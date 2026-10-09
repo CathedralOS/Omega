@@ -343,6 +343,27 @@ impl FactPayload {
         }
     }
 
+    /// Whether the payload denotes a resource-provenance claim — an
+    /// established permission or an undischarged carry origin.
+    pub const fn is_carry_claim(self) -> bool {
+        matches!(
+            self,
+            Self::CarryPermission { .. }
+                | Self::ContractCarryPermission { .. }
+                | Self::CarryOrigin { .. }
+        )
+    }
+
+    /// The policy a carry claim grants, absent for an undischarged origin.
+    /// Non-carry payloads admit nothing.
+    pub const fn carry_permission(self) -> Option<language_semantics::CarryPermission> {
+        match self {
+            Self::CarryPermission { permission, .. }
+            | Self::ContractCarryPermission { permission, .. } => Some(permission),
+            _ => None,
+        }
+    }
+
     /// Resolve a comparison only when its arm belongs to the named dispatch.
     /// Handles from another dispatch (or arena generation) confer no evidence.
     pub fn match_pattern_comparison(

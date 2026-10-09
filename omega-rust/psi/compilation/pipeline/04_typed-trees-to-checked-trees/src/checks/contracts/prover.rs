@@ -254,10 +254,8 @@ pub(super) fn semantic_contexts_prove_contract_fact(
             entry_contexts.iter().any(|entry_context| {
                 let context = semantic.contexts.get(*entry_context);
                 semantic.context_view(context).facts().any(|candidate| {
-                    let candidate_permission = match candidate.payload {
-                        FactPayload::CarryPermission { permission, .. }
-                        | FactPayload::ContractCarryPermission { permission, .. } => permission,
-                        _ => return false,
+                    let Some(candidate_permission) = candidate.payload.carry_permission() else {
+                        return false;
                     };
                     let Some(candidate_place) = candidate.place.as_place() else {
                         return false;

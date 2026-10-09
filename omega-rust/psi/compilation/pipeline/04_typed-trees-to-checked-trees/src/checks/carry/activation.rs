@@ -19,12 +19,7 @@ pub(super) fn build_machine_activation_carry_facts(
     let mut carry_facts = symbols::SymbolKeyMap::<SymbolHandle, Vec<&facts::Fact>>::default();
     for (_, fact) in semantic.facts.iter() {
         if fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::None
-            || !matches!(
-                fact.payload,
-                facts::FactPayload::CarryPermission { .. }
-                    | facts::FactPayload::ContractCarryPermission { .. }
-                    | facts::FactPayload::CarryOrigin { .. }
-            )
+            || !fact.payload.is_carry_claim()
         {
             continue;
         }
@@ -95,12 +90,10 @@ fn established_claim_carry_policy(
     let mut claims = Vec::<(String, facts::QualificationEvidence, CarryPolicy)>::new();
 
     for fact in carry_facts {
-        let permission = match fact.payload {
-            facts::FactPayload::CarryPermission { permission, .. }
-            | facts::FactPayload::ContractCarryPermission { permission, .. } => Some(permission),
-            facts::FactPayload::CarryOrigin { .. } => None,
-            _ => continue,
-        };
+        if !fact.payload.is_carry_claim() {
+            continue;
+        }
+        let permission = fact.payload.carry_permission();
         let Some(place) = fact.place.as_place() else {
             continue;
         };
