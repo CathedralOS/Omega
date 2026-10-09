@@ -1,4 +1,4 @@
-// A discarded call advances the path without replacing its eventual result.
+// A preceding value binding advances the path without replacing its eventual result.
 machine identity(value: bool) -> bool
 ensures result == value { value }
 
@@ -6,7 +6,7 @@ machine forwarded(value: bool) -> bool
 ensures result == value {
     transition { _ -> finish(value) }
     state finish(observed: bool) -> bool {
-        identity(false) || identity(false);
+        let unused: bool = identity(false) || identity(false);
         observed
     }
 }

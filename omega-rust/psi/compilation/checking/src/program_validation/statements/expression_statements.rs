@@ -1,4 +1,6 @@
-//! An expression statement: the state's return value shape and domain.
+//! Expression statements distinguish evaluated Unit/Never work from the
+//! actual state return. A preceding value expression cannot silently publish
+//! or discard a non-Unit result; calls retain their separate explicit-use gate.
 
 use super::{StatementOutputs, StatementScope};
 use crate::value_custody::expression_types::ExpressionTypeOwner;
@@ -9,6 +11,7 @@ use crate::{
 };
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn validate(
     scope: &StatementScope<'_>,
@@ -45,6 +48,60 @@ pub(super) fn validate(
             numerics::arithmetic::ArithmeticDomain::Exact,
             &format!(
                 "machine `{}` state `{state_name}` call operands",
+                machine.name
+            ),
+            diagnostics,
+            arithmetic_decisions,
+        );
+        return;
+    }
+    if scope.statement_index.checked_add(1)
+        != Some(
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .len(),
+        )
+    {
+        let result_type = crate::expression_result_type_reference(
+            program,
+            machine.symbol,
+            Some(state.symbol),
+            *expression,
+        );
+        let permits_statement = result_type.is_some_and(|result| {
+            let carrier = crate::value_custody::places::peel_declared_constraints(program, result);
+            match program.type_reference_table.type_reference(carrier) {
+                TypeReferenceNode::Unit => true,
+                TypeReferenceNode::Named { symbol, .. } => {
+                    program.symbols.builtin_type_atom(*symbol)
+                        == Some(symbols::BuiltinTypeAtom::Never)
+                }
+                _ => false,
+            }
+        });
+        if !permits_statement {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{state_name}` expression statement discards its non-Unit value; consume the value or discard a call explicitly with `_ = call(...);`",
+                machine.name,
+            )));
+        }
+        // Strict use and arithmetic formation are independent. Disposition
+        // cannot waive the evaluated expression's partial-operation checks.
+        let primitive = result_type.and_then(|result| program.primitive_type_reference(result));
+        let domain = result_type.map_or(numerics::arithmetic::ArithmeticDomain::Exact, |result| {
+            program.arithmetic_domain_for_type_reference(result)
+        });
+        arithmetic_domains::validate_value_range_retaining_decisions(
+            program,
+            machine,
+            Some(state),
+            *expression,
+            value_environment,
+            primitive,
+            domain,
+            &format!(
+                "machine `{}` state `{state_name}` expression statement",
                 machine.name
             ),
             diagnostics,
