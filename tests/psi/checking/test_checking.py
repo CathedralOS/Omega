@@ -1220,6 +1220,40 @@ def main() -> None:
         b"    match i { 2 -> match j { 1 -> a[i + j] _ -> a[i] } _ -> 0 }\n"
         b"}",
     )
+    accepted(
+        program,
+        "match-constant-pattern-selects-equality",
+        b"const LAST: u64 = 3;\nmachine f(a: &[u8; 4], i: u64) -> u8 { match i { LAST -> a[i], _ -> 0 } }",
+    )
+    accepted(
+        program,
+        "transition-constant-path-selects-equality",
+        b"data Bounds { x: u8; }\nconst Bounds::LAST: u64 = 3;\n"
+        b"machine f(a: &[u8; 4], i: u64) -> u8 {\n"
+        b"    transition i {\n"
+        b"        Bounds::LAST -> at(a, i)\n"
+        b"        _ -> none()\n"
+        b"    }\n"
+        b"\n"
+        b"    state at(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
+        b"    state none() -> u8 { 0 }\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "match-constant-pattern-outside-the-array",
+        b"const PAST: u64 = 4;\nmachine f(a: &[u8; 4], i: u64) -> u8 { match i { PAST -> a[i], _ -> 0 } }",
+        "IndexOutOfBounds",
+        b"a[i]",
+    )
+    accepted(program, "literal-constant-is-its-value", b"const LAST: u64 = 3;\nmachine f(a: &[u8; 4]) -> u8 { a[LAST] }")
+    rejected(
+        program,
+        "literal-constant-outside-the-array",
+        b"const PAST: u64 = 4;\nmachine f(a: &[u8; 4]) -> u8 { a[PAST] }",
+        "IndexOutOfBounds",
+        b"a[PAST]",
+    )
     accepted(program, "match-landed-arms-meet-the-domain", small + b"machine f(c: u8) -> u64 { take(match c { 0 -> 1, _ -> 3 }) }")
     rejected(
         program,

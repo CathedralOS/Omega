@@ -6085,7 +6085,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   arm on its own pattern's facts, joins the arms after it and widens its
   value to their hull. Every transition and match covers its subject: a
   wildcard or the guard `true`, both Booleans, every case, or complementary
-  `==`/`!=` or `== true`/`== false` guards. A machine binder's
+  `==`/`!=` or `== true`/`== false` guards. A value pattern (a literal, or
+  a path or name denoting no case) selects by equality over an
+  intrinsically comparable subject, and checking values a constant at its
+  landed literal. A machine binder's
   call is typed through its contract, and a generic call's static machine
   arguments bind its machine binders, each argument's signature refining its
   contract under the call's bindings and binding the callee's other generic

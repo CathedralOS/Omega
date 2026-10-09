@@ -50,7 +50,8 @@ crashes Trap
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
     let integer: bool = row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin);
     transition expression.kind {
-        ExpressionKind::Name -> name(checker, resolution, typing, handle, type_handle)
+        ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
+        ExpressionKind::Path -> path(syntax, resolution, typing, handle, type_handle, row)
         ExpressionKind::Integer -> literal(typing, handle)
         ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle)
         ExpressionKind::Unary -> unary(checker, expression, row, integer)
@@ -59,8 +60,22 @@ crashes Trap
         _ -> typed(row)
     }
 
-    state name(checker: &mut Checker, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
-        let value: Value = Checker::name_value(checker, resolution, typing, handle, type_handle);
+    state name(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+        let value: Value = Checker::name_value(checker, syntax, resolution, typing, handle, type_handle);
+        value
+    }
+
+    // A path to a constant is its value; any other path, its type's.
+    state path(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow) -> Value {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+        transition binding {
+            ValueBinding::Constant { constant } -> constant(syntax, typing, constant, type_handle)
+            _ -> typed(row)
+        }
+    }
+
+    state constant(syntax: &SyntaxTrees, typing: &Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+        let value: Value = Checker::constant_value(syntax, typing, constant, type_handle);
         value
     }
 

@@ -434,22 +434,36 @@ crashes Trap
     state done() {}
 }
 
-// A literal or case pattern, already typed, meets the subject: a literal
-// lands at the subject's type, through references, and a case names a case
-// of the subject's data; `_` has no pattern. The named case plus one; zero
-// for any other arm or a rejection.
+// A literal or case pattern, already typed, meets the subject: a case names
+// a case of the subject's data, and a value pattern (a literal, or a path
+// or name denoting no case, such as a constant) lands at the subject's
+// type, through references, and selects by equality, so that type must
+// compare intrinsically (wiki/spec/language/patterns.md: scalars use value
+// patterns); `_` has no pattern. The named case plus one; zero for any
+// other arm or a rejection.
 pub machine Typer::pattern_head(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let base: u64 in Trapping = Typer::referent(typer, subject_type);
     transition arm.kind {
         ArmPatternKind::Case -> case_pattern(typer, syntax, resolution, arm, base)
-        ArmPatternKind::Literal -> literal(typer, syntax, arm, base)
+        ArmPatternKind::Literal -> value(typer, syntax, arm, base)
         _ -> none()
     }
 
-    state literal(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, base: u64 in Trapping) -> u64 in Trapping {
+    state value(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, base: u64 in Trapping) -> u64 in Trapping {
         let admitted: bool = Typer::admit(typer, syntax, base, arm.pattern, false);
+        let integer: bool = Typer::intrinsic_equality(typer, syntax, base);
+        let float: bool = Typer::float_like(typer, base);
+        transition !admitted || integer || float {
+            true -> none()
+            _ -> incomparable(typer, syntax, arm)
+        }
+    }
+
+    state incomparable(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) -> u64 in Trapping {
+        let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedEquality, pattern.source_span);
         transition { _ -> none() }
     }
 
@@ -458,6 +472,15 @@ crashes Trap
         let subject_row: TypeRow = TypeTable::row(&typer.output.types, base);
         transition binding {
             ValueBinding::DataCase { item, data_case } -> named_case(typer, syntax, arm, subject_row, item, data_case)
+            _ -> valued(typer, syntax, arm, base)
+        }
+    }
+
+    // A path or name denoting no case is a value pattern; binders belong
+    // only to a case.
+    state valued(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, base: u64 in Trapping) -> u64 in Trapping {
+        transition arm.field_count == 0 {
+            true -> value(typer, syntax, arm, base)
             _ -> other_data(typer, syntax, arm)
         }
     }

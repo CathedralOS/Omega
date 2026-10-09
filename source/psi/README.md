@@ -296,7 +296,10 @@ value of type `Never`, a shared-reference parameter implicitly lending its
 referent or accepting an exclusive loan, or a payload-free case of generic data
 meeting any application. A construction names each of its record's or case's
 fields once; a case pattern names a case of its subject's data and types its
-binders by the payload; a transition's or match's arms cover its subject
+binders by the payload, and a value pattern (a literal, or a path or name
+denoting no case, such as a constant) lands at the subject's type, which
+must compare intrinsically, and selects by equality; a transition's or
+match's arms cover its subject
 ([`typing/coverage.omg`](typing/coverage.omg)): one is `_` or the guard
 `true`, they name both Booleans of a Boolean subject or every case of its
 data, or two guards compare one expression with `true` and with `false`, or
@@ -386,7 +389,9 @@ subject plus an exact offset) when it is one, and an interval
 ([`checking/evaluation.omg`](checking/evaluation.omg)); exact integers are
 shared with typing ([`integers/integers.omg`](integers/integers.omg)). A guard
 holding or failing, the left operand of `&&` (or failing `||`) for its right
-operand, an integer literal arm, a `let` and an assignment add facts
+operand, a value pattern's arm (the subject equals it), a `let` and an
+assignment add facts, and a constant whose initializer is an anonymous
+integer tree is that value
 ([`checking/facts.omg`](checking/facts.omg),
 [`checking/flow.omg`](checking/flow.omg)); a write forgets the place and
 everything inside it, and a machine call, below each exclusive argument,

@@ -925,6 +925,43 @@ def main() -> None:
         b"match c { _ -> 1 }",
     )
 
+    # A value pattern, a literal or a path or name denoting no case, meets
+    # the subject's type and selects by equality, so that type compares
+    # intrinsically; it covers nothing.
+    accepted(
+        program,
+        "match-constant-pattern",
+        b"const LIMIT: u8 = 9;\nmachine f(c: u8) -> u8 { match c { LIMIT -> 1, _ -> 2 } }",
+        ((b"LIMIT!2", "u8"),),
+    )
+    accepted(
+        program,
+        "match-parameter-pattern",
+        b"machine f(c: u8, d: u8) -> u8 { match c { d -> 1, _ -> 2 } }",
+        ((b"d!2", "u8"),),
+    )
+    accepted(
+        program,
+        "transition-constant-path-pattern",
+        b"data Size { value: u8; }\nconst Size::MAX: u8 = 9;\n"
+        b"machine f(c: u8) { transition c { Size::MAX -> g() _ -> g() } state g() {} }",
+        ((b"Size::MAX!2", "u8"),),
+    )
+    rejected(
+        program,
+        "value-pattern-needs-intrinsic-equality",
+        b"data P { x: u8; }\nconst P::ZERO: P = P { x: 0 };\nmachine f(p: P) -> u8 { match p { P::ZERO -> 1, _ -> 2 } }",
+        "UnsupportedEquality",
+        b"P::ZERO!2",
+    )
+    rejected(
+        program,
+        "value-pattern-is-not-coverage",
+        b"const LIMIT: u8 = 9;\nmachine f(c: u8) -> u8 { match c { LIMIT -> 1 } }",
+        "UncoveredDispatch",
+        b"match c { LIMIT -> 1 }",
+    )
+
     # A transition's arms cover its subject, as a match's do; without one,
     # complementary guards (`x == true` and `x == false`, `l == r` and
     # `l != r`) or a `true` guard close the dispatch.

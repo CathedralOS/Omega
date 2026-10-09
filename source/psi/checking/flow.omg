@@ -1090,7 +1090,7 @@ crashes Trap
         transition { _ -> subject_facts(checker, syntax, resolution, typing, statement, arm, true, pattern) }
     }
 
-    // Passing over a case establishes nothing.
+    // Passing over a case or a value pattern establishes nothing.
     state case_arm(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
@@ -1102,7 +1102,7 @@ crashes Trap
         unknown: Value
     ) {
         transition chosen {
-            true -> subject_facts(checker, syntax, resolution, typing, statement, arm, chosen, unknown)
+            true -> pattern_value(checker, syntax, resolution, typing, statement, arm)
             _ -> done()
         }
     }
@@ -1125,12 +1125,13 @@ crashes Trap
 }
 
 // The facts of an arm being selected (`chosen`) or passed over, from the
-// current values of its subject and patterns (`pattern` is an integer
-// literal pattern's): a guard holds or fails, a Boolean literal arm makes
-// the subject hold or fail, and an integer literal arm makes the subject
-// equal it. Passing over a literal arm of an integer subject establishes
-// nothing. A case arm's binders are places of their payload types, and a
-// chosen case arm assumes its case's own `where` facts.
+// current values of its subject and patterns (`pattern` is a value
+// pattern's): a guard holds or fails, a Boolean literal arm makes the
+// subject hold or fail, and another value pattern, an integer literal or a
+// path denoting no case, makes the subject equal it. Passing over a value
+// pattern establishes nothing. A case arm's binders are places of their
+// payload types, and a chosen case arm assumes its case's own `where`
+// facts.
 pub machine Checker::arm_facts(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
@@ -1146,7 +1147,7 @@ crashes Trap
     transition arm.kind {
         ArmPatternKind::Guard -> assumed(checker, syntax, arm.pattern, chosen)
         ArmPatternKind::Literal -> literal(checker, syntax, subject, pattern, arm, chosen)
-        ArmPatternKind::Case -> case_arm(checker, syntax, resolution, typing, subject, arm, chosen)
+        ArmPatternKind::Case -> case_arm(checker, syntax, resolution, typing, subject, pattern, arm, chosen)
         _ -> done()
     }
 
@@ -1179,18 +1180,38 @@ crashes Trap
         Checker::constrain_difference(checker, pattern, subject_value, zero);
     }
 
-    state case_arm(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, chosen: bool) {
+    state case_arm(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        subject: u64 in Trapping,
+        pattern: Value,
+        arm: TransitionArm,
+        chosen: bool
+    ) {
         let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
         transition chosen {
-            true -> matched(checker, syntax, resolution, typing, subject, arm, binding)
+            true -> matched(checker, syntax, resolution, typing, subject, pattern, arm, binding)
             _ -> done()
         }
     }
 
-    state matched(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, binding: ValueBinding) {
+    // A case pattern assumes its case's facts; a path denoting no case is a
+    // value pattern, which the subject equals.
+    state matched(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        subject: u64 in Trapping,
+        pattern: Value,
+        arm: TransitionArm,
+        binding: ValueBinding
+    ) {
         transition binding {
             ValueBinding::DataCase { item, data_case } -> selected(checker, syntax, resolution, typing, subject, arm, data_case)
-            _ -> done()
+            _ -> equal(checker, subject, pattern)
         }
     }
 

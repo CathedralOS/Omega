@@ -496,6 +496,7 @@ crashes Trap
 // binding a state, machine or data declaration is no place.
 pub machine Checker::name_value(
     checker: &mut Checker,
+    syntax: &SyntaxTrees,
     resolution: &NameResolution,
     typing: &Typing,
     handle: u64 in Trapping,
@@ -505,6 +506,7 @@ crashes Trap
 {
     let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
     transition binding {
+        ValueBinding::Constant { constant } -> constant_value(syntax, typing, constant, type_handle)
         ValueBinding::Local { statement } -> rooted(checker, typing, PlaceKind::Local, statement, type_handle)
         ValueBinding::Parameter { parameter } -> parameter(checker, typing, parameter, type_handle)
         ValueBinding::PatternBinder { field } -> rooted(checker, typing, PlaceKind::Binder, field, type_handle)
@@ -513,6 +515,11 @@ crashes Trap
         ValueBinding::ReturnedValue { machine } -> returned(checker)
         ValueBinding::DomainSubject { domain } -> subject(checker)
         _ -> unbounded()
+    }
+
+    state constant_value(syntax: &SyntaxTrees, typing: &Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+        let value: Value = Checker::constant_value(syntax, typing, constant, type_handle);
+        value
     }
 
     // A domain predicate's subject binder: the value it is decided for.
@@ -604,6 +611,32 @@ crashes Trap
 
     state unbounded() -> Value {
         let value: Value = Value::unknown();
+        value
+    }
+}
+
+// A constant's value: exact when its initializer is an anonymous integer
+// tree landed at its fixed-integer type, else its type's range.
+pub machine Checker::constant_value(syntax: &SyntaxTrees, typing: &Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> Value
+crashes Trap
+{
+    let declaration: ConstantItem = SyntaxTrees::constant_item(syntax, constant);
+    let adaptation: Adaptation = Typing::adaptation(typing, declaration.value);
+    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+    let integer: bool = row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin);
+    transition adaptation == Adaptation::Landed && integer {
+        true -> exact(typing, declaration)
+        _ -> typed(row)
+    }
+
+    state exact(typing: &Typing, declaration: ConstantItem) -> Value {
+        let landed: ExactInteger = Typing::value(typing, declaration.value);
+        let value: Value = Value::constant(landed);
+        value
+    }
+
+    state typed(row: TypeRow) -> Value {
+        let value: Value = Value::typed(row);
         value
     }
 }

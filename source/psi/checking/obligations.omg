@@ -35,7 +35,7 @@ crashes Trap
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
     let integer: bool = row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin);
     transition expression.kind {
-        ExpressionKind::Name -> name(checker, resolution, typing, handle, type_handle)
+        ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
         ExpressionKind::Integer -> literal(checker, typing, handle)
         ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle)
         ExpressionKind::Index -> index(checker, syntax, typing, handle, expression, row, checking)
@@ -53,8 +53,8 @@ crashes Trap
         Checker::close_match(checker, syntax, resolution, typing, handle, checking);
     }
 
-    state name(checker: &mut Checker, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, type_handle: u64 in Trapping) {
-        let value: Value = Checker::name_value(checker, resolution, typing, handle, type_handle);
+    state name(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, type_handle: u64 in Trapping) {
+        let value: Value = Checker::name_value(checker, syntax, resolution, typing, handle, type_handle);
         Checker::set_value(checker, handle, value);
     }
 
@@ -339,7 +339,25 @@ crashes Trap
     state path(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, checking: bool) {
         let constrained: bool = Checker::constrained(syntax, typing, type_handle);
         let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
-        transition checking && constrained {
+        let constructing: bool = checking && constrained;
+        transition binding {
+            ValueBinding::Constant { constant } -> constant(checker, syntax, typing, handle, constant, type_handle)
+            _ -> case_path(checker, syntax, resolution, typing, handle, expression, row, binding, constructing)
+        }
+    }
+
+    state case_path(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        row: TypeRow,
+        binding: ValueBinding,
+        constructing: bool
+    ) {
+        transition constructing {
             true -> case_value(checker, syntax, resolution, typing, handle, expression, row, binding)
             _ -> typed(checker, handle, row)
         }
@@ -350,6 +368,11 @@ crashes Trap
             ValueBinding::DataCase { item, data_case } -> constructed(checker, syntax, resolution, typing, handle, expression, row, item, true, data_case, 0, 0)
             _ -> typed(checker, handle, row)
         }
+    }
+
+    state constant(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, constant: u64 in Trapping, type_handle: u64 in Trapping) {
+        let value: Value = Checker::constant_value(syntax, typing, constant, type_handle);
+        Checker::set_value(checker, handle, value);
     }
 
     state constructed(

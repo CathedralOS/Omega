@@ -315,11 +315,11 @@ crashes Trap
     state done() {}
 }
 
-// A literal pattern's value, already evaluated; unknown for any other arm.
+// A pattern's value, already evaluated; unknown for `_`.
 machine Checker::pattern_value(checker: &Checker, arm: TransitionArm) -> Value
 crashes Trap
 {
-    transition arm.kind == ArmPatternKind::Literal {
+    transition arm.kind == ArmPatternKind::Literal || arm.kind == ArmPatternKind::Case {
         true -> literal(checker, arm)
         _ -> unknown()
     }
