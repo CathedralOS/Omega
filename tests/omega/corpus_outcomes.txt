@@ -744,6 +744,8 @@ fail/calls/nested_call_argument_constraints_unproven rejected 531ms expected @9e
 	cannot prove call argument `30.0` satisfies bounded parameter `value` for `admit` in `terminal.entry`; expected 0..=0.5
 	cannot prove call argument `40.0` satisfies bounded parameter `value` for `admit` in `nested.entry`; expected 0..=0.5
 	cannot prove call argument `left / right` satisfies `finite` for bounded parameter `value` for `finite` in `divided.entry`
+fail/calls/non_unit_compound_expression_requires_use rejected 279ms expected @4a6e7ac34b03
+	machine `invalid` state `entry` expression statement discards its non-Unit value; consume the value or discard a call explicitly with `_ = call(...);`
 fail/calls/nontail_value_self_call_rejected rejected 70ms expected @5181ccde6df7+wt
 	`Main::triple(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> triple(..)` on a measured machine, or iterate with an explicit stack.
 	exact arithmetic in machine `Main::triple` state `triple` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `triple(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
@@ -1397,6 +1399,8 @@ fail/float/integer_to_float_semantics_lookalike rejected 35ms expected @f277acaa
 fail/float/local_initializer_range_unproven rejected 666ms expected @9ef088fc5f88+wt
 	cannot prove initializer `20.0` satisfies the bounded value of machine `literal` state `entry` local `bounded`; expected 0..=0.5
 	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
+fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 495ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from invalid at statement 0: reflexive<f32>(value)
 fail/float/named_argument_format_rejected rejected 244ms expected @2d8ed253669f
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/named_call_computed_policy_erasure rejected 547ms expected @cba4ef8c9ab1
@@ -1422,12 +1426,32 @@ fail/float/named_trapping_index_operand_requires_site_coverage rejected 1275ms e
 fail/float/negated_ordered_guard_cast rejected 479ms expected @aef1e846927f+wt
 	machine `Guarded::convert` state `bounded` cannot prove Exact float-to-`i32` cast operand `guarded.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `Guarded::convert` state `bounded` cannot prove unqualified `I32::from_f64` operand `guarded.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/normal_call_guarantee_inactive_match_arm rejected 13871ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from invalid at statement 1: result == F32.is_finite(value)
+fail/float/normal_call_guarantee_skipped_short_circuit rejected 14086ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from invalid at statement 1: result == F32.is_finite(value)
 fail/float/policy_cast_requires_unchanged_denotation rejected 512ms expected @8794607e5caa+wt
 	machine `fractional_saturating` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `fractional_trapping` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `lossy_format` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove Exact float-to-`u8` cast operand `300.0` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove unqualified `U8::from_f64` operand `300.0` is finite and truncates into `u8`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `u8 in Trapping` or `u8 in Saturating`
+fail/float/private_float_projection_selection rejected 30861ms expected @4a6e7ac34b03
+	package `private_float_projection_selection` (0101010101010101010101010101010101010101010101010101010101010101) selects private operator `Float::meaning32`
+fail/float/public_boolean_result_contract_false rejected 14090ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from finite at statement 0: result == F32.is_finite(value)
+fail/float/public_boolean_result_contract_lookalike rejected 14002ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from finite at statement 0: result == F32.is_finite(value)
+fail/float/public_boolean_result_contract_retains_actual rejected 31665ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from finite at statement 0: result == F32.is_finite(value)
+fail/float/public_class_contract_ieee_equality_retains_zero_sign rejected 31913ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from category at statement 0: result == F32.classify(value)
+fail/float/public_class_result_contract_retains_actual rejected 32454ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from category at statement 0: result == F32.classify(value)
+fail/float/public_class_state_contract_retains_entry_subject rejected 32200ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from category at statement 0: result == F32.classify(value); no exact incoming reference origin for value
+fail/float/public_integer_result_contract_retains_policy rejected 31674ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from increment at statement 1: result == saturating_increment(value)
 fail/float/qualified_conversion_requires_operand_proof rejected 492ms expected @dc1b984d179f
 	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -1826,6 +1850,21 @@ fail/proofs/linear_range_sum_false_twin rejected 244ms expected @2d8ed253669f
 	machine `false_sum_of_bounded` cannot prove ensures contract proof fact `a + b >= 2 && a + b <= 19` from the requires contract
 fail/proofs/machine_parameterized_runtime_data_rejected rejected 245ms expected @2d8ed253669f
 	data `RuntimeCallback` is parameterized by a static machine but has a runtime layout; `<machine ...>` on data is reserved for proof-only families (recursive data has no layout)
+fail/proofs/mathematical_function_argument_carrier rejected 65ms expected @4a6e7ac34b03
+	invalid mathematical application `apply(wide(), value)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/mathematical_generic_argument_carrier rejected 64ms expected @4a6e7ac34b03
+	invalid mathematical application `identity(value)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/mathematical_generic_argument_policy rejected 73ms expected @4a6e7ac34b03
+	invalid mathematical application `identity(value)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/mathematical_opaque_operation_source_meaning rejected 512ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from bad at statement 0: same()
+fail/proofs/mathematical_result_carrier rejected 66ms expected @4a6e7ac34b03
+	invalid mathematical application `256`: mathematical result does not preserve its declared carrier and policy
+fail/proofs/mathematical_term_in_runtime_arguments rejected 280ms expected @4a6e7ac34b03
+	mathematical terms are proof-only and cannot be used as executable values or statements
+	mathematical terms are proof-only and cannot be used as executable values or statements
+	machine `main` state `entry`: value call `identity(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+	machine `main` state `entry`: value call `identity(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/proofs/mutable_ranked_accumulator_wrong_step rejected 1159ms expected @c5d32a00863
 	cannot prove ensures contract for exit from accumulate at statement 3: result == total
 fail/proofs/nat_exact_subtraction_requires_order rejected 676ms expected @2d8ed253669f
@@ -1840,12 +1879,41 @@ fail/proofs/nat_unmeasured_recursion_rejected rejected 289ms expected @2d8ed2536
 	recursive proof machine `spin` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
 fail/proofs/nonlinear_square_range_false_twin rejected 162ms expected @2d8ed253669f
 	machine `false_square_bounded` cannot prove ensures contract proof fact `a * a >= 0 && a * a <= 99` from the requires contract
+fail/proofs/normal_call_guarantee_mutating_initializer rejected 492ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from invalid at statement 2: result == 3
+fail/proofs/normal_return_expression_statement_is_not_return rejected 1712ms expected @4a6e7ac34b03
+	cannot prove ensures contract for exit from invalid at statement 1: result == true
 fail/proofs/order_antisymmetry_false_twin rejected 322ms expected @2d8ed253669f
 	machine `false_antisymmetric_distinct` ensures contract proof fact `a != b` is disproved: the requires contract entails its negation
 fail/proofs/order_asymmetry_refuted rejected 177ms expected @2d8ed253669f
 	machine `false_order_asymmetry` ensures contract proof fact `j < i` is disproved: the requires contract entails its negation
 fail/proofs/order_transitivity_false_twin rejected 228ms expected @2d8ed253669f
 	machine `false_transitive_order` ensures contract proof fact `c < a` is disproved: the requires contract entails its negation
+fail/proofs/ordinary_denotational_call_requires_normal_return rejected 1536ms expected @4a6e7ac34b03
+	specification call `partial` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
+	specification call `partial` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
+	specification call `partial` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
+	specification call `partial` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
+fail/proofs/ordinary_denotational_call_requires_termination rejected 1569ms expected @4a6e7ac34b03
+	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
+	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
+	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
+	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
+fail/proofs/ordinary_denotational_operator_requires_normal_return rejected 428ms expected @4a6e7ac34b03
+	specification call `Partial::value` has no observation-free, reach-free, crash-free value denotation
+	specification call `Partial::value` has no observation-free, reach-free, crash-free value denotation
+	specification call `Partial::value` has no observation-free, reach-free, crash-free value denotation
+	specification call `Partial::value` has no observation-free, reach-free, crash-free value denotation
+fail/proofs/ordinary_denotational_requirement_requires_normal_return rejected 460ms expected @4a6e7ac34b03
+	specification call `value` has no observation-free, reach-free, crash-free value denotation
+	specification call `value` has no observation-free, reach-free, crash-free value denotation
+	specification call `value` has no observation-free, reach-free, crash-free value denotation
+	specification call `value` has no observation-free, reach-free, crash-free value denotation
+fail/proofs/ordinary_denotational_requirement_requires_termination rejected 442ms expected @4a6e7ac34b03
+	specification call `value` is not denotational: the selected machine is not unconditionally terminating
+	specification call `value` is not denotational: the selected machine is not unconditionally terminating
+	specification call `value` is not denotational: the selected machine is not unconditionally terminating
+	specification call `value` is not denotational: the selected machine is not unconditionally terminating
 fail/proofs/polynomial_false_expand rejected 265ms expected @2d8ed253669f
 	machine `binomial_wrong` ensures contract proof fact `mul(add(a, b), add(c, d)) == add(add(mul(a, c), mul(a, d)), add(mul(b, c), mul(b, c)))` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 fail/proofs/proof_bignum_constant_false rejected 264ms expected @2d8ed253669f
@@ -2838,6 +2906,7 @@ pass/calls/runtime_value_call_single_execution_exit checked 1342ms check-target:
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 1473ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_value_call_terminal_exit checked 37709ms check-target:macos_arm64 @ca8c127c90c5
 pass/calls/scalar_callee_borrowed_primitive_reads_exit checked 1888ms check-target:macos_arm64 @ff6d0c077d78+wt
+pass/calls/scalar_expression_binding_evaluation_order_exit checked 3334ms check-target:macos_arm64 @4a6e7ac34b03
 pass/calls/scalar_local_record_view_call_exit checked 973ms check-target:macos_arm64 @d16744b4f8fb
 pass/calls/scalar_range_argument_exit checked 706ms check-target:macos_arm64 @4cab6512b4bb
 pass/calls/scalar_return_after_unit_call_exit checked 1343ms check-target:macos_arm64 @63377f7122bb+wt
@@ -3406,6 +3475,14 @@ pass/float/named_provider_multiply_then_add_exit checked 4722ms check-target:mac
 pass/float/named_provider_negate_is_nan_exit checked 5868ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nearest_even_binary_arithmetic_exit checked 5916ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nested_float_operator_applications_exit checked 9657ms check-target:macos_arm64 @2d8ed253669f
+pass/float/public_boolean_result_contract_import_exit checked 52777ms check-target:macos_arm64 @d8a6671a4728
+pass/float/public_boolean_result_contract_match_import_exit checked 59165ms check-target:macos_arm64 @4a6e7ac34b03
+pass/float/public_boolean_result_contract_short_circuit_import_exit checked 61872ms check-target:macos_arm64 @4a6e7ac34b03
+pass/float/public_class_result_contract_import_exit checked 61764ms check-target:macos_arm64 @4a6e7ac34b03
+pass/float/public_integer_input_contract_guarded_import_exit checked 62148ms check-target:macos_arm64 @4a6e7ac34b03
+pass/float/public_integer_input_contract_import_exit checked 62657ms check-target:macos_arm64 @4a6e7ac34b03
+pass/float/public_integer_input_contract_state_import_exit checked 62295ms check-target:macos_arm64 @4a6e7ac34b03
+pass/float/public_integer_result_contract_import_exit checked 62473ms check-target:macos_arm64 @4a6e7ac34b03
 pass/float/qualified_integer_source_exact_float_coercion_exit checked 6292ms check-target:macos_arm64 @d0e40a213f35
 pass/float/runtime_coercion_future_policy_exit checked 5024ms check-target:macos_arm64 @8794607e5caa+wt
 pass/float/runtime_exact_format_narrowing_exit checked 4634ms check-target:macos_arm64 @4ea513cebecf+wt
@@ -3722,10 +3799,13 @@ pass/proofs/kernel_integer_subtract_bound checked 297ms @2d8ed253669f
 pass/proofs/kernel_integer_subtract_order checked 298ms @2d8ed253669f
 pass/proofs/kernel_theorem_equality_certificates checked 1247ms check-target:macos_arm64 @2d8ed253669f
 pass/proofs/machine_parameterized_data_compile checked 299ms @2d8ed253669f
+pass/proofs/mathematical_predicate_contract_import_exit checked 3822ms check-target:macos_arm64 @4a6e7ac34b03
 pass/proofs/named_witness_static_trait_plural_compile checked 341ms @6a63ff5f8dac
 pass/proofs/nat_exact_subtraction_compile checked 281ms @2d8ed253669f
 pass/proofs/nat_metric_triangle_compile checked 354ms @2d8ed253669f
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit checked 5104ms check-target:macos_arm64 @2d8ed253669f
+pass/proofs/normal_return_expression_statement_sequence_exit checked 3806ms check-target:macos_arm64 @4a6e7ac34b03
+pass/proofs/ordinary_denotational_requirement_published_termination_exit checked 3695ms check-target:macos_arm64 @4a6e7ac34b03
 pass/proofs/polynomial_expand_core_nat checked 1195ms check-target:macos_arm64 @2d8ed253669f
 pass/proofs/proof_addition_commutativity checked 296ms @2d8ed253669f
 pass/proofs/proof_bag_view_reflexivity checked 325ms @2d8ed253669f

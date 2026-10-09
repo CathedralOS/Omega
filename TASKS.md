@@ -5300,32 +5300,6 @@ wait for Cathedral's instruction coverage. The interpreter is
   Verify bytes separately from execution; hosted runs never execute raw port
   I/O.
 
-- **FLOAT-PROVIDERS.** Complete the `FloatSemantics` obligations of the actual
-  `Float`, `F32`/`F64` and conversion slots under
-  [FloatMeaning](wiki/spec/terminal-psi/mathematical_values.md#floatmeaning).
-  Extend checked source contract reasoning and its scalar consequences.
-  - Ordinary wrappers cannot prove symbolic relations to selected public
-    slots, such as `finite(value: f32) -> bool` returning `F32::is_finite(value)`
-    with `ensures result == F32::is_finite(value)`. Canonical meaning projections
-    remain private; public classification and IEEE comparison together express
-    their signed-zero-sensitive, payload-erased relation for float results.
-    Generalize normal-return imports and specification application normalization
-    in `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/`,
-    proving requires before substituting captured actuals and each result
-    occurrence. Preserve public contract selection, result policy, normal path
-    scope, and existing mathematical-machine proofs. Boolean, classification
-    and integer results retain their own typed source carriers; follow
-    [PCC removal](#pcc-removal).
-  - Preserve closed integer-source behavior with
-    `python3 tools/corpus_gate.py --both --filter
-    closed_integer_conversion_predicate_proof_exit,qualified_integer_source_exact_float_coercion_exit,symbolic_integer_conversion_finite_requires_exit`.
-  Acceptance: corpus fixtures where slot contracts and imported
-  call/operator results discharge those obligations; false claims, lookalike
-  declarations and changed operands/formats/results reject. IEEE Boolean
-  comparison stays distinct from structural meaning equality (NaNs, signed
-  zeros). **OPERATOR-BOUNDARY-CALLS** owns executable provider installation;
-  **X86-FMA-PROVIDER-TRANSPORT** owns native FMA.
-
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Consume the selector/data
   separation from **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION** in Omega
   lowering and native execution under [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md).
