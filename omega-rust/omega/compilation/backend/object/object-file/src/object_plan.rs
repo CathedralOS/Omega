@@ -95,7 +95,7 @@ pub struct ObjectPlan {
 }
 
 impl ObjectPlan {
-    pub fn with_layout(target: NativeTarget, layout: ObjectFileLayout) -> Self {
+    pub(crate) fn with_layout(target: NativeTarget, layout: ObjectFileLayout) -> Self {
         Self { target, layout }
     }
 

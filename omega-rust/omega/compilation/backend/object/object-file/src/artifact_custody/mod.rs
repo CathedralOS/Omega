@@ -38,7 +38,7 @@ const MANIFEST_VERSION: u32 = 1;
 mod codec;
 mod reconstruction;
 
-pub fn stage_validated_optimized_object_artifact(
+pub(crate) fn stage_validated_optimized_object_artifact(
     terminal: terminal_codec::CanonicalTerminalArtifact,
     source: StagedOptimizedRelocationFreeObjectContainer,
 ) -> Result<StagedValidatedOptimizedObjectArtifact, OptimizedObjectArtifactError> {
@@ -68,7 +68,7 @@ pub fn stage_validated_optimized_object_artifact_shared(
     })
 }
 
-pub fn validate_optimized_object_artifact(
+pub(crate) fn validate_optimized_object_artifact(
     staged: &StagedValidatedOptimizedObjectArtifact,
 ) -> Result<OptimizedObjectArtifactCustodyReceipt, OptimizedObjectArtifactError> {
     validate_optimized_relocation_free_object_container(&staged.source)
@@ -98,17 +98,17 @@ pub fn validate_optimized_object_artifact(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedObjectArtifactStage {
+pub(crate) enum OptimizedObjectArtifactStage {
     ValidatedOptimizedObjectArtifactV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedObjectArtifactUnavailableData {
+pub(crate) enum OptimizedObjectArtifactUnavailableData {
     Unavailable,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct OptimizedObjectArtifactStatistics {
+pub(crate) struct OptimizedObjectArtifactStatistics {
     pub text_bytes: u64,
     pub object_container_bytes: u64,
     pub function_symbols: u64,
@@ -349,7 +349,7 @@ impl StagedValidatedOptimizedObjectArtifact {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptimizedObjectArtifactCustodyReceipt {
+pub(crate) struct OptimizedObjectArtifactCustodyReceipt {
     psi_artifact: [u8; 32],
     object_container_manifest: FunctionFragmentObjectContainerManifestIdentity,
     object: RelocationFreeObjectPlanIdentity,
@@ -401,7 +401,7 @@ pub enum OptimizedObjectArtifactError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedObjectArtifactRecordDecodeError {
+pub(crate) enum OptimizedObjectArtifactRecordDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),
@@ -422,7 +422,7 @@ impl From<crate::cursor::Truncated> for OptimizedObjectArtifactRecordDecodeError
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedObjectArtifactManifestDecodeError {
+pub(crate) enum OptimizedObjectArtifactManifestDecodeError {
     WrongMagic,
     UnsupportedVersion(u32),
     UnknownStage(u8),

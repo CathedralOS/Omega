@@ -115,22 +115,24 @@ mod object_plan;
 mod relocation_free_object;
 mod target_matrix;
 
-pub use artifact_custody::{
-    OptimizedObjectArtifactCustodyReceipt, OptimizedObjectArtifactError,
+pub use artifact_custody::{ OptimizedObjectArtifactError, StagedValidatedOptimizedObjectArtifact,
+    stage_validated_optimized_object_artifact_shared,
+};
+pub(crate) use artifact_custody::{
+    OptimizedObjectArtifactCustodyReceipt,
     OptimizedObjectArtifactManifest, OptimizedObjectArtifactManifestDecodeError,
     OptimizedObjectArtifactRecord, OptimizedObjectArtifactRecordDecodeError,
     OptimizedObjectArtifactStage, OptimizedObjectArtifactStatistics,
-    OptimizedObjectArtifactUnavailableData, StagedValidatedOptimizedObjectArtifact,
-    ValidatedOptimizedObjectArtifactManifest, stage_validated_optimized_object_artifact,
-    stage_validated_optimized_object_artifact_shared, validate_optimized_object_artifact,
-};
+    OptimizedObjectArtifactUnavailableData,
+    ValidatedOptimizedObjectArtifactManifest, stage_validated_optimized_object_artifact, validate_optimized_object_artifact};
 pub use fragment_container::{
     RelocationFreeObjectContainerError, StagedOptimizedRelocationFreeObjectContainer,
-    StagedRelocationFreeObjectContainerCustodyReceipt,
-    ValidatedFunctionFragmentObjectContainerManifest,
     stage_optimized_relocation_free_object_container,
     validate_optimized_relocation_free_object_container,
 };
+pub(crate) use fragment_container::{
+    StagedRelocationFreeObjectContainerCustodyReceipt,
+    ValidatedFunctionFragmentObjectContainerManifest};
 /// The relocation-free lane's text-section input is machine-code
 /// representation data, re-exported here for existing consumers.
 pub use machine_code::{
@@ -142,44 +144,52 @@ pub use machine_code::{
     relocation_free_text_section_identity,
 };
 pub use names::{
-    entry_symbol_name, normalized_foreign_import_symbol_name, object_entry_symbol_name,
-    object_function_symbol, object_symbol_handle_by_foreign_locator, object_symbol_handle_by_name,
-    object_symbol_name, private_function_symbol_name, section_name, symbol_section_name,
+    entry_symbol_name, normalized_foreign_import_symbol_name,
+    object_function_symbol, object_symbol_handle_by_foreign_locator,
+    object_symbol_name, section_name,
 };
-pub use object_plan::container::{
-    ObjectContainerInput, ObjectContainerOutput, emit_omega_object_container,
+pub(crate) use names::{ object_entry_symbol_name, object_symbol_handle_by_name, private_function_symbol_name, symbol_section_name};
+pub use object_plan::container::{ ObjectContainerOutput,
 };
+pub(crate) use object_plan::container::{
+    ObjectContainerInput, emit_omega_object_container};
 pub use object_plan::relocations::admission::{
-    RelocationAdmissionError, RelocationAdmissionFailure, ValidatedRelocationPlan,
-    admit_relocation_plan,
 };
+pub(crate) use object_plan::relocations::admission::{
+    RelocationAdmissionError, RelocationAdmissionFailure, ValidatedRelocationPlan,
+    admit_relocation_plan};
 pub use object_plan::relocations::{
-    RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, RelocationRecordSet,
+    RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
     boundary_relocation_origin, relocation_kind_tag,
 };
+pub(crate) use object_plan::relocations::{ RelocationRecordSet};
 pub use object_plan::sections::{SectionKind, SectionPlan};
 pub use object_plan::symbols::{
     FunctionSymbolPlan, NormalizedImportPlan, ObjectSymbolHandle, SymbolKind, SymbolPlan,
     SymbolSection,
 };
-pub use object_plan::{ObjectFileLayout, ObjectPlan};
+pub use object_plan::{ ObjectPlan};
+pub(crate) use object_plan::{ObjectFileLayout};
 pub use relocation_free_object::publication::{
+};
+pub(crate) use relocation_free_object::publication::{
     FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerManifestDecodeError,
     FunctionFragmentObjectContainerStage, FunctionFragmentObjectContainerStatistics,
-    FunctionFragmentObjectContainerUnavailableData, relocation_free_object_statistics,
-};
+    FunctionFragmentObjectContainerUnavailableData, relocation_free_object_statistics};
 pub use relocation_free_object::text_section::{
-    RelocationFreeObjectFromTextError, construct_relocation_free_object_from_text,
-    validate_relocation_free_object_from_text,
 };
+pub(crate) use relocation_free_object::text_section::{
+    RelocationFreeObjectFromTextError, construct_relocation_free_object_from_text,
+    validate_relocation_free_object_from_text};
 pub use relocation_free_object::{
-    ObjectLocalSymbolId, RelocationFreeFunctionSymbol, RelocationFreeObjectContainer,
-    RelocationFreeObjectDecodeError, RelocationFreeObjectError,
+    ObjectLocalSymbolId, RelocationFreeFunctionSymbol,
     RelocationFreeObjectNormalizedImport, RelocationFreeObjectPlan,
     RelocationFreeObjectRelocationRequirements, RelocationFreeObjectSymbolLinkage,
     RelocationFreeObjectSymbolPolicy, RelocationFreeObjectSymbolRole,
     RelocationFreeObjectTextSection, RelocationFreeObjectUnresolvedForeignCall,
     canonical_normalized_foreign_import_symbol_name, canonical_private_machine_symbol_name,
-    decode_relocation_free_object, encode_relocation_free_object, validate_relocation_free_object,
 };
-pub use target_matrix::{ObjectTargetPolicy, object_target_policy};
+pub(crate) use relocation_free_object::{ RelocationFreeObjectContainer,
+    RelocationFreeObjectDecodeError, RelocationFreeObjectError,
+    decode_relocation_free_object, encode_relocation_free_object, validate_relocation_free_object};
+pub(crate) use target_matrix::{ObjectTargetPolicy, object_target_policy};

@@ -2,7 +2,7 @@
 use super::FunctionFragmentObjectContainerStatistics;
 use crate::{RelocationFreeObjectContainer, RelocationFreeObjectError, RelocationFreeObjectPlan};
 
-pub fn relocation_free_object_statistics(
+pub(crate) fn relocation_free_object_statistics(
     object: &RelocationFreeObjectPlan,
     container: &RelocationFreeObjectContainer,
 ) -> Result<FunctionFragmentObjectContainerStatistics, RelocationFreeObjectError> {
