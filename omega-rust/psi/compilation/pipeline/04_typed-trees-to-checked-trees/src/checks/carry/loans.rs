@@ -4,6 +4,9 @@
 //! this call's entry constraints, never reconstruct an active roster from the
 //! historical loans' last-use indices. Parent and supplier occurrences stay
 //! distinct, including dependencies whose descriptor is no longer current.
+//! Captured operand referents retain backing needed by the incomplete callee,
+//! including constructed children with no named caller descriptor. Both routes
+//! use the same owned-storage coordinate join before closing backing liveness.
 //! This graph names logical demands; it establishes no StackLease or permission
 //! to park. Incoming and unresolved actuals still require a per-value join.
 
@@ -49,35 +52,20 @@ pub(super) fn retain_call_frontier(
                 identity: loan.incoming_reference,
             }
         } else {
-            source_values
-                .iter()
-                .find(|value| {
-                    value.symbol == loan.root_symbol && value.available_before(call.statement_index)
-                })
-                .filter(|value| {
-                    // The entry tracker models contained descriptors, not the
-                    // root borrowed parameter permission. Without an exact
-                    // captured identity for that permission, a root view's
-                    // referent remains unresolved; its slot is never backing.
-                    let reference =
-                        validation::peel_declared_constraints(program, value.type_reference);
-                    reference.is_valid()
-                        && validation::reference_shell(program, reference).is_none()
-                        && !matches!(
-                            program.type_reference_table.type_reference(reference),
-                            typed_trees::types::TypeReferenceNode::Slice { .. }
-                        )
-                })
-                .map_or(SuspensionCrossingLoanBacking::Unresolved, |value| {
-                    SuspensionCrossingLoanBacking::StateValue {
-                        origin: value.origin,
-                    }
-                })
+            owned_backing_origin(
+                program,
+                source_values,
+                loan.root_symbol,
+                call.statement_index,
+            )
+            .map_or(SuspensionCrossingLoanBacking::Unresolved, |origin| {
+                SuspensionCrossingLoanBacking::StateValue { origin }
+            })
         };
         SuspensionCrossingLoanFact {
             loan: handle,
             active_at_call: current.contains(&handle),
-            retained_for_continuation: false,
+            retained_for_crossing: false,
             backing,
         }
     }));
@@ -85,6 +73,86 @@ pub(super) fn retain_call_frontier(
         loans,
         operands: call.operands,
     })
+}
+
+/// A root view denotes caller-supplied storage, never its descriptor slot.
+/// The entry tracker models contained descriptors, not the root borrowed
+/// parameter permission; absent that captured identity, backing stays unknown.
+fn owned_backing_origin(
+    program: &dyn ::validation::CheckingInput,
+    source_values: &[StateCarryValue<'_>],
+    root: symbols::SymbolHandle,
+    statement_index: usize,
+) -> Option<checked_trees::SuspensionCrossingValueOrigin> {
+    source_values
+        .iter()
+        .find(|value| value.symbol == root && value.available_before(statement_index))
+        .filter(|value| {
+            let reference = validation::peel_declared_constraints(program, value.type_reference);
+            reference.is_valid()
+                && validation::reference_shell(program, reference).is_none()
+                && !matches!(
+                    program.type_reference_table.type_reference(reference),
+                    typed_trees::types::TypeReferenceNode::Slice { .. }
+                )
+        })
+        .map(|value| value.origin)
+}
+
+/// The callee may still be using its completed actual while the caller has no
+/// later use. Traverse that retained value tree, not argument syntax or the
+/// current descriptor roster: a later operand may already have replaced the
+/// descriptor which supplied an earlier actual. Empty referents remain unknown
+/// or detached; this operation establishes no borrow-free or parking permission.
+pub(super) fn retain_operand_backing(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    frontier: SuspensionCrossingBorrowFrontier,
+    source_values: &[StateCarryValue<'_>],
+    statement_index: usize,
+    live_symbols: &mut Vec<symbols::SymbolHandle>,
+) -> Result<(), Diagnostic> {
+    let missing_capture =
+        || Diagnostic::error("suspension argument has no retained operand capture".to_owned());
+    let mut pending = flow
+        .control
+        .operands
+        .span(frontier.operands)
+        .ok_or_else(missing_capture)?
+        .iter()
+        .collect::<Vec<_>>();
+    // Flow appends each constructed child's capture after evaluating its own
+    // children. These producer-owned edges form a tree, not a graph needing a
+    // repeated linear membership search for every array or record element.
+    while let Some(operand) = pending.pop() {
+        for referent in flow
+            .control
+            .operand_referents
+            .span(operand.referents)
+            .ok_or_else(missing_capture)?
+        {
+            let Some(root) = referent.root.as_symbol() else {
+                continue;
+            };
+            if owned_backing_origin(program, source_values, root, statement_index).is_some()
+                && !live_symbols.contains(&root)
+            {
+                live_symbols.push(root);
+            }
+        }
+        for child in flow
+            .control
+            .operand_children
+            .span(operand.children)
+            .ok_or_else(missing_capture)?
+        {
+            if !flow.control.operands.is_valid(child.value) {
+                return Err(missing_capture());
+            }
+            pending.push(flow.control.operands.get(child.value));
+        }
+    }
+    Ok(())
 }
 
 fn append_dependency(
@@ -150,7 +218,7 @@ pub(super) fn retain_backing_values(
         let Some(entry) = frontier.iter_mut().find(|entry| entry.loan == handle) else {
             continue;
         };
-        entry.retained_for_continuation = true;
+        entry.retained_for_crossing = true;
         if let SuspensionCrossingLoanBacking::StateValue { origin } = entry.backing {
             let symbol = match origin {
                 checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, .. }

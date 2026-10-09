@@ -43,6 +43,10 @@ retains exact call-entry loan occurrences, their parent/supplier dependency
 closure, logical backing coordinates and captured operand facts. A live loan
 retains its backing's independent carry demand, including backing reached
 through another carrier; replaced occurrences do not revive old backing.
+Captured actual referents and constructed children also retain backing needed
+only by the incomplete callee, without a later caller use or named descriptor.
+Both sources enter the same backing-liveness closure; the capture tree is not
+re-evaluated at invocation.
 Incoming referents stay distinct from the parameter slots holding descriptors.
 These checked demands are not yet a preservation proof or a canonical Terminal
 loan graph. Activation-wide analysis in stage 04 still assigns
@@ -55,5 +59,5 @@ cancellation joins remain separate requirements.
 descriptor carry permissions that would otherwise bypass this missing join,
 including a generic carrier, a slice and an argument used only by the call.
 `fail/concurrency/suspend_with_indirect_resource_backing` pins the independent
-resource demand, current replacement and nested backing retention. Portable
-fields do not erase an explicitly stricter data carry floor.
+resource demand, current replacement, nested backing and call-only constructed
+actuals. Portable fields do not erase an explicitly stricter data carry floor.

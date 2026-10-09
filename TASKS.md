@@ -5261,9 +5261,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     first rejects the live reference's strict type policy. Checked crossings
     retain exact call-entry loan occurrences, parent/supplier dependency closure,
     captured operands and logical backing coordinates. Continuation-live loans
-    retain backing demands to a fixed point; descriptor replacement keeps only
-    current occurrences. Incoming referents remain a separate namespace from
-    descriptor slots. Keep `fail/concurrency/suspend_with_indirect_resource_backing`
+    retain backing demands to a fixed point; captured actual referents and
+    constructed children also retain backing needed only by the incomplete
+    callee. Descriptor replacement keeps only current occurrences. Incoming
+    referents remain a separate namespace from descriptor slots. Keep
+    `fail/concurrency/suspend_with_indirect_resource_backing`
     for resource floors and indirect backing. The canonical Terminal frontier
     retains current structural access but no loan lineage/lifetime relation;
     activation-wide analysis separately treats borrow formation as strict.

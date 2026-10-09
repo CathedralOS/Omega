@@ -92,9 +92,10 @@ pub struct SuspensionCrossingLoanFact {
     /// False for a dependency retained solely by a current descendant. This
     /// does not reactivate an expired/replaced descriptor or restore access.
     pub active_at_call: bool,
-    /// Selected by a continuation-live carrier or its dependency closure.
-    /// Call-only actuals have their separate captured operand frontier.
-    pub retained_for_continuation: bool,
+    /// Selected by retained storage or its dependency closure, including
+    /// backing needed only by the incomplete callee's captured operands.
+    /// This demand neither reactivates a descriptor nor establishes access.
+    pub retained_for_crossing: bool,
     pub backing: SuspensionCrossingLoanBacking,
 }
 
