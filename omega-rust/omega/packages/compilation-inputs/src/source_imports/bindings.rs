@@ -35,14 +35,14 @@ impl ImportOccurrence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedSourceImport {
+pub(crate) struct ResolvedSourceImport {
     pub(super) occurrence: ImportOccurrence,
     pub path: PathBuf,
     pub(super) requires_module: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PendingPackageImport {
+pub(crate) struct PendingPackageImport {
     pub(super) occurrence: ImportOccurrence,
     /// The importer's checked instance. Retained so exact-target resolution
     /// joins the resolved target under the same instance even when the
@@ -54,7 +54,7 @@ pub struct PendingPackageImport {
 impl PendingPackageImport {
     /// The checked instance this request was discovered under. The exact
     /// resolution joins its target under the importer's instance.
-    pub fn importer_scope(&self) -> DependencyScope {
+    pub(crate) fn importer_scope(&self) -> DependencyScope {
         self.scope
     }
 
@@ -127,7 +127,7 @@ fn same_source_path(
             .is_ok_and(|path| path == resolved)
 }
 
-pub fn retain_module_import_bindings(
+pub(crate) fn retain_module_import_bindings(
     storage: &SourceStorage,
 ) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
     if storage.resolved_imports.is_empty() {

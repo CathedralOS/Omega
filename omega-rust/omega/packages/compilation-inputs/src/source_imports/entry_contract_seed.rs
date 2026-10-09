@@ -10,7 +10,7 @@ use crate::source_imports::SourceStorage;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::PathBuf;
 
-pub struct EntryContractSeed {
+pub(crate) struct EntryContractSeed {
     source: PathBuf,
     root: PathBuf,
     closed_subtree: bool,
@@ -19,7 +19,7 @@ pub struct EntryContractSeed {
 impl EntryContractSeed {
     /// Register only bundled fallback custody, then hand the selected source
     /// to the loading stage. Ordinary suppliers keep their package identity.
-    pub fn register_custody(self, storage: &mut SourceStorage) -> PathBuf {
+    pub(crate) fn register_custody(self, storage: &mut SourceStorage) -> PathBuf {
         if self.closed_subtree {
             storage.register_toolchain_contract_root(self.source.clone(), self.root.clone());
             storage.register_toolchain_contract_dir(self.root);
@@ -30,7 +30,7 @@ impl EntryContractSeed {
 
 /// One seed per catalogued profile that owns a physical entry contract
 /// package, skipping any contract source the storage already holds.
-pub fn entry_contract_seeds(
+pub(crate) fn entry_contract_seeds(
     package_inputs: Option<&PackageCompilationInputs>,
     source_storage: &SourceStorage,
 ) -> Result<Vec<EntryContractSeed>, Vec<diagnostics::Diagnostic>> {

@@ -102,11 +102,11 @@ struct PackageCompilationSourceRecord {
 }
 
 impl PackageCompilationInputs {
-    pub fn source_filesystem(&self) -> &source::SourceFileSystem {
+    pub(crate) fn source_filesystem(&self) -> &source::SourceFileSystem {
         &self.source.filesystem
     }
 
-    pub fn captured_source_input(
+    pub(crate) fn captured_source_input(
         &self,
         identity: PackageKeyIdentity,
     ) -> Option<&build_output::CapturedBuildSourceInput> {

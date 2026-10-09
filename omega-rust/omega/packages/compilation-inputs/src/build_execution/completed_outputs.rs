@@ -73,7 +73,7 @@ impl RetainedBuildOutputs {
     pub fn files(&self) -> &BuildStagedOutputTree {
         &self.tree
     }
-    pub fn manifest_bytes(&self) -> &[u8] {
+    pub(crate) fn manifest_bytes(&self) -> &[u8] {
         &self.manifest
     }
     pub fn published_directory(&self) -> Option<&Path> {

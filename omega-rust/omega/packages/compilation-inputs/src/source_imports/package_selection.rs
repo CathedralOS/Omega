@@ -14,7 +14,7 @@ use syntax_trees::identifier::Identifier;
 use tokens::{PunctuationKind, TokenKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ReconciledPackageImport {
+pub(crate) enum ReconciledPackageImport {
     Toolchain(PathBuf),
     /// An import authored inside a closed toolchain contract source. It owns
     /// no package identity, so its path closes inside the registered contract
@@ -32,7 +32,7 @@ pub enum ReconciledPackageImport {
 /// Physical source lookup is target-independent. Generated-source selection
 /// and physical/generated collision rejection remain exact-child work.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReconciledPackageImportRequest {
+pub(crate) struct ReconciledPackageImportRequest {
     pub(super) package: semantic_vocabulary::PackageKeyIdentity,
     pub(super) expected_root: PathBuf,
     pub(super) relative_path: PathBuf,
@@ -51,7 +51,7 @@ pub struct ReconciledPackageImportRequest {
 /// import; the compile still rejects, but by naming the declaration that would
 /// close the gap instead of an unresolvable requester-relative source path.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MissingDependencyEdge {
+pub(crate) struct MissingDependencyEdge {
     authored_path: String,
     alias: String,
     package: String,
@@ -102,7 +102,7 @@ impl ReconciledPackageImportRequest {
         Ok(Some(resolved))
     }
 
-    pub fn resolve_for_exact_target(
+    pub(crate) fn resolve_for_exact_target(
         &self,
         packages: &PackageCompilationInputs,
         scope: DependencyScope,
@@ -192,7 +192,7 @@ fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
 /// context (wiki/spec/build/scoped_execution.md). Which execution profile a
 /// package's target-scoped rows select against follows its checked source
 /// instance, independently of the edges used to resolve names inside it.
-pub fn source_import_scope(
+pub(crate) fn source_import_scope(
     packages: &PackageCompilationInputs,
     instance_scope: DependencyScope,
     source_path: &Path,
@@ -207,7 +207,7 @@ pub fn source_import_scope(
     }
 }
 
-pub fn reconciled_package_import(
+pub(crate) fn reconciled_package_import(
     requesting_source: &Path,
     members: &[Identifier],
     requester: Option<semantic_vocabulary::PackageKeyIdentity>,

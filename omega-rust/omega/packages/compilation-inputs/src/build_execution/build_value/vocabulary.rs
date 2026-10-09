@@ -11,7 +11,7 @@ const BUILD_MACHINE: &str = "build";
 /// filename scan nor a machine-name handoff is authority.
 /// A wrong-arity build machine still refuses at evaluation with the arity
 /// error (pinned by fail/build/build_machine_wrong_arity).
-pub fn is_build_machine(
+pub(crate) fn is_build_machine(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     build_source_id: Option<source::SourceId>,
@@ -66,7 +66,7 @@ fn is_exact_toolchain_build_filesystem_facet_call(
     })
 }
 
-pub fn build_reaches_filesystem_facet(
+pub(crate) fn build_reaches_filesystem_facet(
     typed: &TypedTrees,
     operational: &flow_effects::OperationalPlan,
     root: SymbolHandle,

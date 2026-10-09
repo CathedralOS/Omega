@@ -2,7 +2,7 @@ use super::SourceStorage;
 use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectRoots {
+pub(crate) struct ProjectRoots {
     pub sources: Vec<std::path::PathBuf>,
     pub build: Option<std::path::PathBuf>,
 }
@@ -83,7 +83,7 @@ fn companion_root_names(root_name: Option<&str>) -> &'static [&'static str] {
 /// publication: its one authored name supplies the `.app` basename and
 /// executable leaf, and its `artifact_only` modifier narrows the admitted
 /// route (wiki/spec/build/macos_application.md).
-pub fn validate_selected_build_role(
+pub(crate) fn validate_selected_build_role(
     source_storage: &SourceStorage,
     build_source_id: Option<source::SourceId>,
 ) -> Result<Option<build_declarations::ApplicationDeclaration>, Vec<Diagnostic>> {
@@ -111,7 +111,7 @@ pub fn validate_selected_build_role(
 /// Exact project-root scopes and the selected canonical Build source.
 /// Loading and parsing consume the scoped paths; only this selection rejoins
 /// the resulting source id, so a Product instance cannot impersonate Build.
-pub struct ProjectSourceSelection {
+pub(crate) struct ProjectSourceSelection {
     sources: Vec<(std::path::PathBuf, source::DependencyScope)>,
     build_path: Option<std::path::PathBuf>,
 }

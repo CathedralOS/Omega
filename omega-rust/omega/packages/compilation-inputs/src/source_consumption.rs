@@ -313,7 +313,7 @@ fn canonical_root_role(role: super::BuildDeclarationKind) -> u8 {
 /// This establishes source identity, not semantic validity. Both pre-build
 /// admission and final checked publication use the same projection.
 #[doc(hidden)]
-pub fn derive_consumed_source_units<'source>(
+pub(crate) fn derive_consumed_source_units<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
     generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<Vec<ConsumedSourceUnit>, Vec<Diagnostic>> {

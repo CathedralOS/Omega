@@ -92,7 +92,7 @@ impl Default for CheckedSourceCacheLimits {
 
 /// Whether one capture replayed a retained index or rebuilt it from source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedSourceCacheOutcome {
+pub(crate) enum CheckedSourceCacheOutcome {
     /// The live stat fingerprint matched a verified retained record; no file
     /// bytes were rehashed.
     Warm,
@@ -107,7 +107,7 @@ pub enum CheckedSourceCacheOutcome {
 /// racing writer's record, or an I/O failure on derived data); the returned
 /// index is always freshly verified regardless.
 #[derive(Debug, Clone)]
-pub struct CachedSourceIndex {
+pub(crate) struct CachedSourceIndex {
     index: CanonicalFilesystemMetadataIndex,
     outcome: CheckedSourceCacheOutcome,
     record_stored: bool,
@@ -148,7 +148,7 @@ impl CheckedSourceCache {
     }
 
     /// Open an existing cache directory with explicit capacity limits.
-    pub fn open_with_limits(
+    pub(crate) fn open_with_limits(
         directory: impl AsRef<Path>,
         limits: CheckedSourceCacheLimits,
     ) -> Result<Self, String> {

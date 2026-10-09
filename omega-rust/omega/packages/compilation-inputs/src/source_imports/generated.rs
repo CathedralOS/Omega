@@ -136,7 +136,7 @@ pub fn admit_generated_extension(
 
 /// One admitted dependency source instance. The same logical path may appear
 /// in both scopes; package identity and bytes stay borrowed from its bundle.
-pub struct DependencyGeneratedSource<'source> {
+pub(crate) struct DependencyGeneratedSource<'source> {
     pub logical_path: std::path::PathBuf,
     pub source: &'source build_output::PackageGeneratedSource,
     pub package: semantic_vocabulary::PackageKeyIdentity,
@@ -158,7 +158,7 @@ impl<'source> DependencyGeneratedSource<'source> {
 
 /// Admit the dependency bundle's ordered, scope-qualified paths before loading
 /// any generated unit. Physical collisions and same-scope duplicates reject.
-pub fn admit_dependency_generated_sources(
+pub(crate) fn admit_dependency_generated_sources(
     package_inputs: &crate::PackageCompilationInputs,
 ) -> Result<Vec<DependencyGeneratedSource<'_>>, Vec<Diagnostic>> {
     let filesystem = package_inputs.source_filesystem();

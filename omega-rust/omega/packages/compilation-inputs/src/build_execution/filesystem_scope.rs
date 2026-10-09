@@ -135,7 +135,7 @@ fn resolved_write_fence(path: &Path) -> PathBuf {
 
 impl BuildMachineFilesystemScope {
     /// Establish the physical write fence before granting captured or host access.
-    pub fn establish_filesystem_access(
+    pub(crate) fn establish_filesystem_access(
         &self,
     ) -> Result<BuildMachineFilesystemAccess, Vec<Diagnostic>> {
         self.ensure_write_roots()?;
@@ -143,7 +143,7 @@ impl BuildMachineFilesystemScope {
         Ok(self.filesystem_access())
     }
 
-    pub fn for_root(
+    pub(crate) fn for_root(
         root_path: &Path,
         build_dir: PathBuf,
         sponsor: Option<BuildMachineFilesystemSponsor>,
@@ -172,7 +172,7 @@ impl BuildMachineFilesystemScope {
     }
 
     #[doc(hidden)]
-    pub fn for_package_root(
+    pub(crate) fn for_package_root(
         source_root: PathBuf,
         build_dir: PathBuf,
         sponsor: Option<BuildMachineFilesystemSponsor>,
@@ -198,7 +198,7 @@ impl BuildMachineFilesystemScope {
 
     /// Bind the root package occurrence and authored declaration role whose
     /// validated inputs produced this scope.
-    pub fn with_package_activation(
+    pub(crate) fn with_package_activation(
         mut self,
         root_package_identity: semantic_vocabulary::PackageKeyIdentity,
         root_role: crate::BuildDeclarationKind,
@@ -213,7 +213,7 @@ impl BuildMachineFilesystemScope {
     /// It is a request fact (the compiler host when the request names none),
     /// never inferred here from the compiler process. `None` records an
     /// admitted host no catalogued profile describes rather than naming one.
-    pub fn with_execution_profile(
+    pub(crate) fn with_execution_profile(
         mut self,
         build_execution_profile: Option<target::TargetProfile>,
     ) -> Self {
@@ -225,7 +225,7 @@ impl BuildMachineFilesystemScope {
     /// immutable input inventory.
     ///
     /// Its canonical metadata must match the binding's validated index.
-    pub fn with_captured_source_input(
+    pub(crate) fn with_captured_source_input(
         mut self,
         input: CapturedBuildSourceInput,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -286,7 +286,7 @@ impl BuildMachineFilesystemScope {
         self
     }
 
-    pub fn named_input_facet(&self) -> build_time_evaluation::BuildTimeValue {
+    pub(crate) fn named_input_facet(&self) -> build_time_evaluation::BuildTimeValue {
         use build_time_evaluation::BuildTimeValue;
         BuildTimeValue::Struct {
             type_name: "$OmegaBuildInputSlots".to_owned(),
@@ -309,7 +309,7 @@ impl BuildMachineFilesystemScope {
         }
     }
 
-    pub fn named_input_inventory(
+    pub(crate) fn named_input_inventory(
         &self,
         root: BuildMachineFilesystemGrantRootIdentity,
     ) -> Option<BuildCapturedSourceInventory> {
@@ -334,7 +334,7 @@ impl BuildMachineFilesystemScope {
     /// complete before its result may publish. Each name is a canonical
     /// slash-separated relative path naming exactly one sealed regular file
     /// in the final staged-output tree.
-    pub fn with_required_outputs(
+    pub(crate) fn with_required_outputs(
         mut self,
         required_outputs: impl IntoIterator<Item = Vec<u8>>,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -445,7 +445,7 @@ impl BuildMachineFilesystemScope {
     /// or sponsorship alone. Generic sponsors may point at existing host data.
     /// Here every read uses captured membership, and the only write root belongs
     /// to a fresh private session whose shared owner also handles cleanup.
-    pub fn is_private_snapshot_execution(&self, access: &BuildMachineFilesystemAccess) -> bool {
+    pub(crate) fn is_private_snapshot_execution(&self, access: &BuildMachineFilesystemAccess) -> bool {
         let BuildMachineFilesystemAccess::CapturedScoped {
             sponsor: Some(sponsor),
             grants,

@@ -381,7 +381,7 @@ pub fn capture_package_source_input(
 /// so a request cannot silently omit a file the assembled program needed;
 /// members outside the root (toolchain and injected sources) are not this
 /// inventory's members and are skipped.
-pub fn capture_scoped_source_input(
+pub(crate) fn capture_scoped_source_input(
     source_root: &Path,
     request: &BuildSourceCaptureRequest,
     required_members: impl IntoIterator<Item = PathBuf>,

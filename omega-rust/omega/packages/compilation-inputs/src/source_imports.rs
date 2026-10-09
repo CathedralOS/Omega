@@ -14,25 +14,28 @@ mod package_selection;
 mod paths;
 mod project;
 
-pub use bindings::{PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings};
-pub use build_prelude::{BuildPrelude, prepare_build_prelude};
+pub(crate) use bindings::{PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings};
+pub(crate) use build_prelude::{ prepare_build_prelude};
 pub(crate) use entry_contract_seed::EntryContractSource;
-pub use entry_contract_seed::{EntryContractSeed, entry_contract_seeds};
+pub(crate) use entry_contract_seed::{ entry_contract_seeds};
 pub use frontier::{
-    SourceFile, SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
+    SourceFile,
 };
-pub use generated::{
-    DependencyGeneratedSource, GeneratedSourceExtension, admit_dependency_generated_sources,
+pub(crate) use frontier::{ SourceStorage, ToolchainContractCustody, validate_package_source_frontier};
+pub use generated::{ GeneratedSourceExtension,
     admit_generated_extension,
 };
+pub(crate) use generated::{
+    DependencyGeneratedSource, admit_dependency_generated_sources};
 pub use package_selection::{
-    MissingDependencyEdge, ReconciledPackageImport, ReconciledPackageImportRequest,
-    reconciled_package_import, source_import_scope,
 };
-pub use paths::{bundled_core_root, bundled_omega_root};
-pub use project::{
-    ProjectRoots, ProjectSourceSelection, project_roots, validate_selected_build_role,
+pub(crate) use package_selection::{ ReconciledPackageImport, ReconciledPackageImportRequest,
+    reconciled_package_import, source_import_scope};
+pub use paths::{bundled_core_root};
+pub(crate) use paths::{ bundled_omega_root};
+pub use project::{ project_roots,
 };
+pub(crate) use project::{ ProjectSourceSelection, validate_selected_build_role};
 
 use crate::PackageCompilationInputs;
 use bindings::{ImportOccurrence, direct_source_import};
@@ -46,7 +49,7 @@ use syntax_trees::{ParsedSources, SyntaxTrees};
 
 /// Discover standalone imports without interpreting dependency declarations.
 /// Package aliases are meaningful only on the reconciled package-aware path.
-pub fn discover_imports(
+pub(crate) fn discover_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     root_path: &Path,
@@ -127,7 +130,7 @@ fn standalone_source_root(default_root: &Path, source: &Path) -> Result<PathBuf,
 
 /// Resolve imports exclusively through a reconciled, requester-local package
 /// graph. This path never reads or combines dependency rows from `build.omg`.
-pub fn discover_imports_with_packages(
+pub(crate) fn discover_imports_with_packages(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     packages: &PackageCompilationInputs,
@@ -147,7 +150,7 @@ pub fn discover_imports_with_packages(
 }
 
 #[derive(Clone, Copy)]
-pub enum PackageImportPhase {
+pub(crate) enum PackageImportPhase {
     TargetIndependent,
     ExactTarget(Option<semantic_vocabulary::PackageKeyIdentity>),
 }
@@ -157,7 +160,7 @@ pub enum PackageImportPhase {
 /// Each returned path carries the checked instance it joins under: the
 /// importer's own scope. A source both scopes import loads twice — the two
 /// instances share source bytes and package identity but nothing else.
-pub fn discover_package_imports(
+pub(crate) fn discover_package_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     packages: &PackageCompilationInputs,

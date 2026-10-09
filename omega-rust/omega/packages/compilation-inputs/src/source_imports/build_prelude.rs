@@ -5,7 +5,7 @@ use super::SourceStorage;
 /// Source and scoped aliases to append together before name resolution.
 /// The bindings name the next source id in the supplied storage; the caller
 /// must append this prelude before appending any other source.
-pub struct BuildPrelude {
+pub(crate) struct BuildPrelude {
     pub source: String,
     pub bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 }
@@ -13,7 +13,7 @@ pub struct BuildPrelude {
 /// Supply the prelude only for the selected build entry when that source has
 /// no authored Build declaration. A product-local Build retains its identity;
 /// only the build source receives an alias to the toolchain declaration.
-pub fn prepare_build_prelude(
+pub(crate) fn prepare_build_prelude(
     source_storage: &SourceStorage,
     build_source_id: Option<source::SourceId>,
 ) -> Option<BuildPrelude> {
