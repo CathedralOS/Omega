@@ -162,7 +162,8 @@ fn check_program(
     // carry this context through the checking flow; no consumer discovers it
     // by thread or address. Metadata publication waits until checking ends.
     let typed_program = program;
-    let program = validation::CheckingContext::new(&typed_program);
+    let program = validation::CheckingContext::new(&typed_program)
+        .with_prepared_mathematics(mathematics.prepared_view());
     validation::validate_selected_attached_method_bounds(&program)?;
     let mut validated =
         prepare_typed_program(&program, &opaque_property_receipts, admits_pending_inputs)?;
@@ -191,7 +192,6 @@ fn check_program(
         validated.operational,
         validated.service_reaches,
         validated.validation_facts,
-        mathematics,
         &mutation_summaries,
     )?;
     let program = program.with_prepared_effect_plans(&prepared_effects);
@@ -242,6 +242,7 @@ fn check_program(
     // source. No cloned typed program or consumer fallback supplies this ledger.
     let finalized = validation::CheckingContext::new(&program)
         .with_authored_declaration_selections(&facts.finalized_selections)
+        .with_prepared_mathematics(mathematics.prepared_view())
         .with_prepared_effect_plans(&prepared_effects);
     validation::validate_reserved_cleanup_selections(&finalized)?;
     validation::validate_declaration_visibility(&finalized)?;
@@ -270,6 +271,10 @@ fn check_program(
         crate::facts::provider_closed_requirements::record_provider_closed_requirements(&finalized);
     drop(finalized);
 
+    // Mathematical terms remained borrowed by every source judgment. Transfer
+    // their checked metadata only after the final context has been dropped.
+    facts.proof.mathematical_declarations = mathematics.declarations;
+    facts.proof.mathematical_signature = mathematics.signature;
     let mut checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;
     target_families::reject_unbound_family_references(&checked)?;

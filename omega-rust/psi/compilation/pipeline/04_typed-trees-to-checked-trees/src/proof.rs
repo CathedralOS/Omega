@@ -50,7 +50,6 @@ pub(crate) fn build_proof_facts_with_operators(
     proof_plan: &proof::obligations::ProofPlan,
     borrow: &BorrowFacts,
     operators: &CheckedOperatorFacts,
-    mathematics: proof::mathematical_declarations::CheckedMathematics,
 ) -> Result<ProofFacts, Vec<diagnostics::Diagnostic>> {
     let mut obligations = arena::Arena::with_capacity(proof_plan.obligations.len());
     let mut contract_facts = arena::Arena::with_capacity(estimated_contract_fact_capacity(program));
@@ -206,10 +205,6 @@ pub(crate) fn build_proof_facts_with_operators(
     let contract_exits =
         build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
     let proposition_vocabulary = build_checked_proposition_vocabulary(program);
-    let proof::mathematical_declarations::CheckedMathematics {
-        declarations: mathematical_declarations,
-        signature: mathematical_signature,
-    } = mathematics;
 
     Ok(ProofFacts {
         obligations,
@@ -222,8 +217,6 @@ pub(crate) fn build_proof_facts_with_operators(
         contract_exits,
         contract_operator_uses,
         proposition_vocabulary,
-        mathematical_declarations,
-        mathematical_signature,
         ..ProofFacts::default()
     })
 }

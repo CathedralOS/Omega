@@ -120,6 +120,26 @@ impl<'a> Elaborator<'a> {
                     )
                 ))
             })?;
+        let references = [binary.left, binary.right].map(|operand| {
+            validation::mathematical_applications::operand_type_reference(self.program, operand)
+        });
+        let identity = !matches!(carrier, ScalarCarrier::Float32 | ScalarCarrier::Float64)
+            && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                self.program,
+                self.source_owner,
+                handle,
+                language_core::OperatorSpelling::Equal,
+                &references,
+            );
+        if !identity {
+            // IEEE comparison and custom operators produce a Boolean. Typing
+            // their proposition does not authorize reflexive resident-value
+            // identity, including the NaN case of x == x.
+            let left = self.open_term(handle)?;
+            let right = self.boolean_literal(true);
+            let ty = self.carrier_term(ScalarCarrier::Boolean);
+            return Ok(self.arena.insert(Term::Id { ty, left, right }));
+        }
         let mut left = self.scalar_operand_term(binary.left, carrier)?;
         let mut right = self.scalar_operand_term(binary.right, carrier)?;
         // `Id` endpoints order canonically — `x == y` and `y == x`
@@ -145,14 +165,29 @@ impl<'a> Elaborator<'a> {
         let carrier = self
             .operand_carrier(binary.left)
             .or_else(|| self.operand_carrier(binary.right));
-        if carrier != Some(ScalarCarrier::Integer) {
-            return Err(self.refuse(format!(
-                "order relation `{}` denotes only over fixed non-address integers",
-                self.program.render_proof_expression(
-                    handle,
-                    typed_trees::proposition::ProofSubstitutions::None
-                )
-            )));
+        let references = [binary.left, binary.right].map(|operand| {
+            validation::mathematical_applications::operand_type_reference(self.program, operand)
+        });
+        let spelling = match binary.operator {
+            BinaryOperator::Less => language_core::OperatorSpelling::Less,
+            BinaryOperator::LessOrEqual => language_core::OperatorSpelling::LessEqual,
+            BinaryOperator::Greater => language_core::OperatorSpelling::Greater,
+            BinaryOperator::GreaterOrEqual => language_core::OperatorSpelling::GreaterEqual,
+            _ => unreachable!("order relation"),
+        };
+        if carrier != Some(ScalarCarrier::Integer)
+            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                self.program,
+                self.source_owner,
+                handle,
+                spelling,
+                &references,
+            )
+        {
+            let left = self.open_term(handle)?;
+            let right = self.boolean_literal(true);
+            let ty = self.carrier_term(ScalarCarrier::Boolean);
+            return Ok(self.arena.insert(Term::Id { ty, left, right }));
         }
         let left = self.integer_operand(binary.left)?;
         let right = self.integer_operand(binary.right)?;

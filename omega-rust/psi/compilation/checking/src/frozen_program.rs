@@ -53,6 +53,12 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
         None
     }
+
+    fn prepared_mathematics(
+        &self,
+    ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
+        None
+    }
 }
 
 impl Deref for dyn CheckingInput + '_ {
@@ -126,6 +132,8 @@ pub struct CheckingContext<'program> {
     program: &'program TypedTrees,
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
     prepared_effects: Option<&'program PreparedEffectPlans>,
+    prepared_mathematics:
+        Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     memos: CheckingMemos,
 }
 
@@ -135,6 +143,7 @@ impl<'program> CheckingContext<'program> {
             program,
             finalized_selections: None,
             prepared_effects: None,
+            prepared_mathematics: None,
             memos: CheckingMemos::default(),
         }
     }
@@ -156,6 +165,18 @@ impl<'program> CheckingContext<'program> {
     /// in later judgments, so no source-only memo survives this phase change.
     pub fn with_prepared_effect_plans(mut self, plans: &'program PreparedEffectPlans) -> Self {
         self.prepared_effects = Some(plans);
+        self.memos = CheckingMemos::default();
+        self
+    }
+
+    /// Mathematical applications were formed and reduced before this phase.
+    /// Their immutable arena and whole-value captures share the invocation's
+    /// lifetime, not a global cache or a later source reconstruction.
+    pub fn with_prepared_mathematics(
+        mut self,
+        mathematics: Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
+    ) -> Self {
+        self.prepared_mathematics = mathematics;
         self.memos = CheckingMemos::default();
         self
     }
@@ -199,6 +220,12 @@ impl CheckingInput for CheckingContext<'_> {
 
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
         self.prepared_effects
+    }
+
+    fn prepared_mathematics(
+        &self,
+    ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
+        self.prepared_mathematics
     }
 }
 
@@ -277,6 +304,15 @@ impl CheckingInput for CheckingProjection<'_> {
         match self.projected {
             Some(_) => None,
             None => self.original.prepared_effect_plans(),
+        }
+    }
+
+    fn prepared_mathematics(
+        &self,
+    ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
+        match self.projected {
+            Some(_) => None,
+            None => self.original.prepared_mathematics(),
         }
     }
 }

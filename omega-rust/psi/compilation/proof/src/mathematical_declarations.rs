@@ -20,6 +20,7 @@ use mathematical_signature::check_mathematical_signature;
 pub struct CheckedMathematics {
     pub declarations: Vec<checked_trees::CheckedMathematicalDeclaration>,
     pub signature: Option<checked_trees::CheckedMathematicalSignature>,
+    pub applications: validation::mathematical_applications::PreparedMathematicalApplications,
 }
 
 /// Elaborate every mathematical declaration into its checked record and its
@@ -32,9 +33,23 @@ pub fn check_mathematical_declarations(
         return Ok(CheckedMathematics::default());
     }
     let declarations = build_checked_mathematical_declarations(program)?;
-    let signature = check_mathematical_signature(program)?.into_checked_evidence();
+    let (signature, applications) = check_mathematical_signature(program)?.into_checked_evidence();
     Ok(CheckedMathematics {
         declarations,
         signature: Some(signature),
+        applications,
     })
+}
+
+impl CheckedMathematics {
+    pub fn prepared_view(
+        &self,
+    ) -> Option<validation::mathematical_applications::PreparedMathematicalView<'_>> {
+        Some(
+            validation::mathematical_applications::PreparedMathematicalView {
+                arena: &self.signature.as_ref()?.arena,
+                applications: &self.applications,
+            },
+        )
+    }
 }

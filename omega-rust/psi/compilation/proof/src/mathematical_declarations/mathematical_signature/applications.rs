@@ -23,6 +23,7 @@ impl Elaborator<'_> {
             ExpressionHandle,
             proof_admission::TermHandle,
             Vec<proof_admission::TermHandle>,
+            Vec<super::PreparedCapture>,
         )>,
         Vec<Diagnostic>,
     > {
@@ -53,6 +54,8 @@ impl Elaborator<'_> {
             self.level_binders.clear();
             self.level_names.clear();
             self.generalized_levels = 0;
+            self.captured_expressions.clear();
+            let mut captures = Vec::new();
             let mut pending = self
                 .program
                 .expression_table
@@ -67,55 +70,43 @@ impl Elaborator<'_> {
                 }
                 seen.push(operand);
                 let node = self.program.expression_table.expression(operand);
-                if let ExpressionNode::Name(path) = node
-                    && (path.symbol.is_valid()
-                        || validation::reserved_result_place(self.program, operand).is_some())
-                    && !self.authored_index.contains_key(&path.symbol)
-                    && self
-                        .program
-                        .symbols
-                        .builtin_type_member(path.symbol)
-                        .is_none()
-                    && !self.scope.iter().any(|entry| {
-                        if path.symbol.is_valid() {
-                            entry.symbol == Some(path.symbol)
-                        } else {
-                            self.program
-                                .expression_table
-                                .name_path_members(path.members)
-                                .last()
-                                .is_some_and(|name| entry.symbol.is_none() && entry.name == *name)
-                        }
-                    })
+                let mathematical = matches!(node, ExpressionNode::Call(call) if self.authored_index.contains_key(&call.target_symbol));
+                let model_bound = matches!(node, ExpressionNode::Name(path) if self.program.symbols.builtin_type_member(path.symbol).is_some());
+                if !mathematical
+                    && !model_bound
                     && let Some(reference) =
                         validation::mathematical_applications::operand_type_reference(
                             self.program,
                             operand,
                         )
                 {
-                    let name = self
-                        .program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .last()
-                        .cloned()
-                        .unwrap_or_default();
-                    let symbol = path.symbol.is_valid().then_some(path.symbol);
+                    // Capture the complete evaluated value. Splitting a fixed
+                    // Wrapping computation into source leaves would silently
+                    // replace its denotation with unbounded arithmetic.
                     let domain = self.elaborate_type_reference(reference)?;
-                    self.push_scope(symbol, name, domain);
+                    let position = self.scope.len();
+                    self.push_scope(None, Identifier::default(), domain);
+                    self.captured_expressions.push((operand, position));
+                    captures.push(super::PreparedCapture {
+                        expression: operand,
+                        source_type: reference,
+                    });
+                } else {
+                    validation::expression_traversal::children(self.program, node, |child| {
+                        pending.push(child)
+                    });
                 }
-                validation::expression_traversal::children(self.program, node, |child| {
-                    pending.push(child)
-                });
             }
             let term = self.elaborate_expression(expression)?;
             applications.push((
                 expression,
                 term,
                 self.scope.iter().map(|entry| entry.domain).collect(),
+                captures,
             ));
         }
         self.scope.clear();
+        self.captured_expressions.clear();
         Ok(applications)
     }
 

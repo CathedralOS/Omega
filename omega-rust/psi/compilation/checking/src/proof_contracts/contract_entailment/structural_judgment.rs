@@ -1452,6 +1452,27 @@ impl<'program> StructuralJudge<'program> {
         if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
             return StructuralJudgment::Unknown;
         }
+        if program
+            .expression_table
+            .call_node(fact)
+            .is_some_and(|call| {
+                crate::mathematical_applications::selected_definition(program, call).is_some()
+            })
+        {
+            // Mathematical facts consume their prepared term in the same
+            // judgment entrance, including proof-only Strict results. A result
+            // carrier or source call shape does not select another body walk.
+            let mut engine =
+                super::arithmetic_judgment::Engine::for_proof_integer_formation(self.program);
+            return match engine.judge_mathematical_application(fact) {
+                super::arithmetic_judgment::Judgment::Proven => StructuralJudgment::Proven,
+                super::arithmetic_judgment::Judgment::Refuted
+                | super::arithmetic_judgment::Judgment::ConstantFalse => {
+                    StructuralJudgment::Refuted
+                }
+                super::arithmetic_judgment::Judgment::Unknown { .. } => StructuralJudgment::Unknown,
+            };
+        }
         let Some(binary) = program.expression_table.binary_node(fact) else {
             // A boolean-valued proof call is itself a proposition. Resolve a
             // closed checked application exactly as `call == true`; N6

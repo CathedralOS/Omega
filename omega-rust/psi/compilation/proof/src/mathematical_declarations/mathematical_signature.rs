@@ -1,111 +1,29 @@
-//! Kernel-term elaboration for mathematical `let`/`boundary let`
-//! declarations (PROOF-CONTRACT-MIGRATION).
+//! Prepare mathematical declarations and source applications before checking.
 //!
-//! `mathematical_declarations` records each authored declaration onto the
-//! checked surface as identity strings; this module re-walks the typed
-//! mirror (`typed_trees::mathematical`) and elaborates every declaration
-//! into a `mathematical_core::signature::Declaration` — a closed
-//! `level_arity`/`ty`/`body` triple over `TermArena` handles — then runs
-//! `check_signature` so the kernel itself re-decides that each statement
-//! is a type and each transparent body inhabits it. A `boundary let` is a
-//! named assumption (`body: None`).
+//! One checked signature owns dependent telescopes, universe instantiation and
+//! capture-avoiding beta reduction. Ordinary application consumers borrow its
+//! reduced terms with the exact caller captures; they do not rediscover a body
+//! from source arity or substitute reconstructed expression trees.
 //!
-//! Scope model:
+//! Kernel typing and source meaning remain separate. Fixed integer carriers
+//! share Int for formation, while source intake retains exact bounded carrier
+//! and arithmetic policy. Open source operations are functions over their
+//! inputs, never scope-dependent zero-argument constants. Their retained source
+//! operation identity does not turn an assumption into a value law. IEEE and
+//! custom comparisons likewise do not acquire the kernel's reflexive Id law.
 //!
-//! - `u: core::Level` binders become universe parameters (`level_arity`)
-//!   in authored order and take no term position; every other binder and
-//!   every telescope parameter is a term entry whose domain is elaborated
-//!   under the entries before it. The declared type folds to nested `Pi`
-//!   and a body to nested `Lambda` over the same ordered entries, so the
-//!   λ-spine reuses each entry's domain handle: entry `k`'s domain was
-//!   built in the context of entries `0..k`, which is exactly the context
-//!   both the `Pi` domain position and the `Lambda` domain annotation
-//!   occupy. A named arrow binder scopes over its codomain while that
-//!   codomain elaborates.
-//! - A binder whose carrier is `core::Type<u>` elaborates to
-//!   `Sort::Type(Level::Parameter u)`; a bare `T` or unapplied
-//!   `core::Type` binder claims the next fresh universe parameter, so the
-//!   generalized level telescope is deterministic and published exactly
-//!   by `level_arity` (the spec's generalization rule) — it is never
-//!   silently pinned to a fixed level. `core::Strict<v>` elaborates to
-//!   `Sort::Strict` and `core::Squash<A>` to `Squash`.
-//! - Fixed integer carriers (`i8`–`u64` and the `Int`/`UInt` proof
-//!   integers) share the bounded denotation's `Int : Type 0` carrier;
-//!   `bool` and `addr` share one dedicated carrier each, kept distinct
-//!   from `Int` because the bounded vocabulary's order relations are
-//!   fixed non-address integers. `f32` and `f64` intern one dedicated
-//!   `Type 0` carrier per format, kept distinct so an `f32` element
-//!   never denotes into `f64`. The unit type `()` interns one dedicated
-//!   `Unit : Type 0` carrier of its own. Every other resolved non-core
-//!   symbol —
-//!   authored `data` types, other builtin atoms — interns a per-symbol
-//!   `Declaration::assumption(0, Type 0)` in the shared signature prefix
-//!   (the `bounded_denotation` pattern), so later declarations can
-//!   reference earlier ones through `Term::Constant`.
-//! - Machine-valued body expressions denote into the same bounded
-//!   vocabulary: closed integer arithmetic evaluates to `Int` literal
-//!   constants interned by exact value, open `+`/`-` share the
-//!   `IntAdd`/`IntSub` function assumptions, comparisons and `&&`/`||`
-//!   denote `Type 0` propositions (`IntLt`/`IntLe`, `Id` over the
-//!   operand's scalar carrier, right-nested `Σ`, and the tagged
-//!   `Σ(t : Two). caseTwo` sum), `!=` denotes the interned `Not`
-//!   assumption applied to the shared-carrier `Id`, a bare `bool`
-//!   subject `x` means `x = true`, and a `core::Strict` result wraps
-//!   the proposition in `Squash` at the authored boundary. Float literals intern one
-//!   constant per exact value at their format carrier — `1.5` and
-//!   `1.50` share — and unlanded literals defer to the demanded
-//!   carrier exactly as anonymous integer literals do. Every other
-//!   machine expression whose scalar carrier is determinable — open
-//!   products, quotients, shifts and bitwise operations including
-//!   float arithmetic at its format carrier, unary `~`/`!`, field
-//!   projections and casts — interns an opaque assumption constant
-//!   keyed by the expression's own structure, the same rule the
-//!   bounded denotation applies to open terms it does not name
-//!   (`MathTermKey::Open`,
-//!   `scalar_integer_terms`): `x * y` and `x * y` share one constant,
-//!   `x * y` and `x * z` do not. Machine calls follow the same rule:
-//!   the callee carries no kernel declaration, so `next(x)` interns
-//!   opaquely at the machine's declared result carrier, while calls
-//!   hauling machine, evidence, quotient or operational payload still
-//!   refuse. Member calls keep refusing — resolution leaves their
-//!   `target_symbol` unbound inside `let` bodies. `data` literals and
-//!   `match` expressions intern the same way: the literal inhabits its
-//!   type's interned carrier, and a match denotes at the one carrier
-//!   every arm inhabits.
-//! - Explicit generic applications follow the callee's ordered telescope:
-//!   level binders instantiate `Constant.levels`, while the remaining binders
-//!   form ordinary `Apply` terms before the ordinary argument prefix. A binder
-//!   that claimed a generalized universe parameter infers it from the supplied
-//!   type argument: the argument's inferred sort is `Type l`, so `l` is the
-//!   instantiation. Authored `core::Level` arguments may all be omitted when
-//!   supplied type arguments determine each one through its `core::Type<u>`
-//!   carrier. Undetermined levels require explicit arguments. The kernel
-//!   rechecks every level's scope and every dependent application, including
-//!   repeated constraints on one level; inference grants no resizing.
-//! - Inside a declaration, references resolve symbols first (parameters,
-//!   binders, earlier declarations) and fall back to names only for the
-//!   symbol-less nodes the mirror carries — a parameter used as a call
-//!   callee arrives with an invalid `target_symbol`, and an arrow binder
-//!   only ever scopes by name. An unresolved name refuses rather than
-//!   guessing.
-//!
-//! This leg refuses loudly rather than denoting what it cannot decide:
-//! level arguments omitted where no explicit type argument determines them
-//! (a bare reference to a generalized declaration), references to the declaration being elaborated or a later one,
-//! machine/evidence/quotient/private-layout call payloads, borrow /
-//! constrained / dynamic-trait / array / slice type references,
-//! computed level expressions other than literals, order relations over
-//! non-integer operands — floats included, since `IntLt`/`IntLe` are
-//! fixed non-address integers only — scalar equality over operands
-//! whose carriers differ or cannot be determined, a whole-body float
-//! literal with no landing to determine its carrier, and every body
-//! expression whose scalar carrier cannot be determined at all
-//! (matches, aggregates, indexing, strings, ranges, borrows, atomics).
+//! Level binders instantiate Constant levels; other binders occupy the same
+//! ordered Pi/Lambda telescope. Strict results wrap relevant propositions in
+//! Squash. A boundary mathematical declaration supplies a typed neutral term,
+//! not an equality or normal-return guarantee. Executable operations embedded
+//! in mathematical roots still pass the ordinary Requires/totality gates.
 
 mod applications;
 mod carriers;
 mod denotation_keys;
+mod dependencies;
 mod level_types;
+mod normalization;
 mod operand_terms;
 mod propositions;
 mod scope;
@@ -113,6 +31,10 @@ mod scope;
 use std::collections::{BTreeMap, HashMap};
 
 use numerics::bignum::BigInt;
+use validation::mathematical_applications::{
+    PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
+    PreparedMathematicalApplications,
+};
 
 use super::{FixedCore, FixedCoreVocabulary};
 use proof_admission::{
@@ -142,6 +64,7 @@ pub(crate) struct CheckedMathematicalSignature {
     /// Kernel signature position of each authored declaration, in
     /// authored declaration order.
     authored: Vec<u32>,
+    prepared: PreparedMathematicalApplications,
 }
 
 impl CheckedMathematicalSignature {
@@ -151,12 +74,18 @@ impl CheckedMathematicalSignature {
     /// its list through `Rc`, which the checked tree cannot hold without
     /// losing `Send`, so the record keeps the plain `Vec`; the codec
     /// producer rebuilds `Signature::from_declarations`.
-    pub(crate) fn into_checked_evidence(self) -> checked_trees::CheckedMathematicalSignature {
-        checked_trees::CheckedMathematicalSignature {
+    pub(crate) fn into_checked_evidence(
+        self,
+    ) -> (
+        checked_trees::CheckedMathematicalSignature,
+        PreparedMathematicalApplications,
+    ) {
+        let signature = checked_trees::CheckedMathematicalSignature {
             arena: self.arena,
             declarations: self.signature.declarations().to_vec(),
             authored: self.authored,
-        }
+        };
+        (signature, self.prepared)
     }
 }
 
@@ -257,6 +186,9 @@ struct Elaborator<'a> {
     address_bound: Option<u32>,
     /// Source span of the declaration under elaboration, for diagnostics.
     span: Option<SourceSpan>,
+    source_owner: SymbolHandle,
+    captured_expressions: Vec<(ExpressionHandle, usize)>,
+    prepared: PreparedMathematicalApplications,
 }
 
 /// Elaborate every mathematical declaration of `program` into a kernel
@@ -300,6 +232,9 @@ pub(crate) fn check_mathematical_signature(
         fixed_core: FixedCoreVocabulary::resolve(&program.symbols),
         address_bound: None,
         span: None,
+        source_owner: SymbolHandle::default(),
+        captured_expressions: Vec::new(),
+        prepared: PreparedMathematicalApplications::default(),
     };
     for definition in program.mathematical_definitions() {
         elaborator.elaborate_declaration(definition)?;
@@ -316,6 +251,7 @@ impl<'a> Elaborator<'a> {
         &mut self,
         definition: &MathematicalDefinition,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        self.source_owner = definition.symbol;
         self.span = self.program.symbols.symbol_source_span(definition.symbol);
         self.level_binders.clear();
         self.level_names.clear();
@@ -507,6 +443,13 @@ impl<'a> Elaborator<'a> {
         &mut self,
         handle: ExpressionHandle,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        if let Some((_, position)) = self
+            .captured_expressions
+            .iter()
+            .find(|(expression, _)| *expression == handle)
+        {
+            return Ok(self.scope_variable(*position));
+        }
         match self.program.expression_table.expression(handle) {
             ExpressionNode::Name(path) => {
                 let symbol = path.symbol;
@@ -696,7 +639,7 @@ impl<'a> Elaborator<'a> {
                         ))
                     }
                 })?;
-        for (expression, term, domains) in applications {
+        for (expression, term, domains, captures) in applications {
             let context = domains.into_iter().fold(
                 Context::empty().with_signature(signature.clone()),
                 |context, domain| context.extend(domain),
@@ -713,12 +656,88 @@ impl<'a> Elaborator<'a> {
                     ))
                 },
             )?;
+            let term = normalization::normalize(&mut self.arena, &signature, term, &mut budget)
+                .map_err(|error| {
+                    self.refuse(format!(
+                        "mathematical application reduction failed: {error:?}"
+                    ))
+                })?;
+            let captures = self.prepared.captures.insert_many(captures);
+            self.prepared.applications.append(PreparedApplication {
+                expression,
+                term,
+                captures,
+            });
         }
+        self.retain_constant_meanings();
         Ok(CheckedMathematicalSignature {
             arena: self.arena,
             signature,
             authored: self.authored,
+            prepared: self.prepared,
         })
+    }
+
+    fn retain_constant_meanings(&mut self) {
+        let mut retain = |declaration, meaning| {
+            self.prepared.constants.append(PreparedConstant {
+                declaration,
+                meaning,
+            });
+        };
+        for ((_, value), position) in &self.numeric_literals {
+            retain(*position, PreparedConstantMeaning::Integer(value.clone()));
+        }
+        for (value, position) in self.boolean_literals.iter().enumerate() {
+            if let Some(position) = position {
+                retain(*position, PreparedConstantMeaning::Boolean(value != 0));
+            }
+        }
+        if let Some(position) = self.integer {
+            retain(position, PreparedConstantMeaning::IntegerCarrier);
+        }
+        if let Some(position) = self.boolean {
+            retain(position, PreparedConstantMeaning::BooleanCarrier);
+        }
+        if let Some(position) = self.address {
+            retain(position, PreparedConstantMeaning::AddressCarrier);
+        }
+        if let Some(position) = self.address_bound {
+            if let Some(symbol) = self
+                .program
+                .symbols
+                .builtin_type_member_symbol(symbols::BuiltinTypeMember::AddressBound)
+            {
+                retain(position, PreparedConstantMeaning::AddressBound(symbol));
+            }
+        }
+        if let Some(position) = self.integer_add {
+            retain(
+                position,
+                PreparedConstantMeaning::IntegerOperation(BinaryOperator::Add),
+            );
+        }
+        if let Some(position) = self.integer_subtract {
+            retain(
+                position,
+                PreparedConstantMeaning::IntegerOperation(BinaryOperator::Subtract),
+            );
+        }
+        if let Some(position) = self.integer_less_than {
+            retain(
+                position,
+                PreparedConstantMeaning::IntegerRelation(BinaryOperator::Less),
+            );
+        }
+        if let Some(position) = self.integer_less_or_equal {
+            retain(
+                position,
+                PreparedConstantMeaning::IntegerRelation(BinaryOperator::LessOrEqual),
+            );
+        }
+        if let Some(position) = self.proposition_negation {
+            retain(position, PreparedConstantMeaning::Negation);
+        }
     }
 
     fn refuse(&self, message: String) -> Vec<diagnostics::Diagnostic> {

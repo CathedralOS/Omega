@@ -260,6 +260,34 @@ impl<'a> Elaborator<'a> {
             let carrier = self.integer_carrier();
             return Ok(self.numeric_literal(carrier, value));
         }
+        if validation::mathematical_applications::operand_type_reference(self.program, handle)
+            .is_some_and(|reference| {
+                self.program
+                    .primitive_type_reference(reference)
+                    .is_some_and(|primitive| primitive.is_fixed_integer())
+                    && self.program.arithmetic_domain_for_type_reference(reference)
+                        != numerics::arithmetic::ArithmeticDomain::Exact
+            })
+        {
+            return self.open_term(handle);
+        }
+        let references = [binary.left, binary.right].map(|operand| {
+            validation::mathematical_applications::operand_type_reference(self.program, operand)
+        });
+        let spelling = match binary.operator {
+            BinaryOperator::Add => language_core::OperatorSpelling::Add,
+            BinaryOperator::Subtract => language_core::OperatorSpelling::Subtract,
+            _ => return self.open_term(handle),
+        };
+        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+            self.program,
+            self.source_owner,
+            handle,
+            spelling,
+            &references,
+        ) {
+            return self.open_term(handle);
+        }
         let position = match binary.operator {
             BinaryOperator::Add => self.integer_add(),
             BinaryOperator::Subtract => self.integer_subtract(),
@@ -278,13 +306,9 @@ impl<'a> Elaborator<'a> {
         }))
     }
 
-    /// The denotation for a machine expression the composing vocabulary
-    /// does not name: an opaque assumption at the expression's
-    /// determined scalar carrier, interned by the expression's own
-    /// structure — the `MathTermKey::Open`/`scalar_integer_terms` rule
-    /// of the bounded denotation. `x * y` and `x * y` name one constant
-    /// while `x * y` and `x * z` do not; an expression whose carrier
-    /// cannot be determined refuses.
+    /// A source operation is a function of its free captured values. The
+    /// checked kernel applies that dependency spine during beta substitution;
+    /// an operation in one declaration never becomes a scope-free scalar atom.
     pub(super) fn open_term(
         &mut self,
         handle: ExpressionHandle,
@@ -292,18 +316,139 @@ impl<'a> Elaborator<'a> {
         let Some(carrier) = self.operand_carrier(handle) else {
             return Err(self.unsupported_expression(handle));
         };
+        if let Some(meaning) =
+            validation::mathematical_applications::integer_embedding_meaning(self.program, handle)
+        {
+            return self.embedding_term(handle, meaning);
+        }
+        let mut dependencies = Vec::new();
+        let mut pending = vec![handle];
+        let mut seen = Vec::new();
+        while let Some(expression) = pending.pop() {
+            if !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
+                || seen.contains(&expression)
+            {
+                continue;
+            }
+            seen.push(expression);
+            if let Some((_, position)) = self
+                .captured_expressions
+                .iter()
+                .find(|(captured, _)| *captured == expression)
+            {
+                if !dependencies.contains(position) {
+                    dependencies.push(*position);
+                }
+                continue;
+            }
+            let node = self.program.expression_table.expression(expression);
+            if let ExpressionNode::Name(path) = node {
+                let name = self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .last();
+                if let Some(position) = self.scope.iter().rposition(|entry| {
+                    if path.symbol.is_valid() {
+                        entry.symbol == Some(path.symbol)
+                    } else {
+                        entry.symbol.is_none() && name.is_some_and(|name| *name == entry.name)
+                    }
+                }) {
+                    if !dependencies.contains(&position) {
+                        dependencies.push(position);
+                    }
+                }
+            }
+            validation::expression_traversal::children(self.program, node, |child| {
+                pending.push(child)
+            });
+        }
+        let mut index = 0;
+        while index < dependencies.len() {
+            let position = dependencies[index];
+            super::dependencies::free_positions(
+                &self.arena,
+                self.scope[position].domain,
+                position,
+                &mut dependencies,
+            );
+            index += 1;
+        }
+        dependencies.sort_unstable();
         let mut key = Vec::new();
         self.write_carrier_key(carrier, &mut key);
         self.write_expression_key(handle, &mut key);
         let position = match self.open_terms.get(&key) {
             Some(&position) => position,
             None => {
-                let ty = self.carrier_term(carrier);
+                let mut domains = Vec::new();
+                for (index, position) in dependencies.iter().enumerate() {
+                    let old = self.scope[..*position]
+                        .iter()
+                        .map(|entry| entry.domain)
+                        .collect::<Vec<_>>();
+                    domains.push(super::dependencies::rebind_domain(
+                        &mut self.arena,
+                        self.scope[*position].domain,
+                        &old,
+                        &dependencies[..index],
+                    ));
+                }
+                let mut ty = self.carrier_term(carrier);
+                for domain in domains.iter().rev() {
+                    ty = self.arena.insert(Term::Pi {
+                        domain: *domain,
+                        codomain: ty,
+                    });
+                }
                 let position = self.push_assumption(ty);
                 self.open_terms.insert(key, position);
+                self.prepared.constants.append(super::PreparedConstant {
+                    declaration: position,
+                    meaning: super::PreparedConstantMeaning::SourceOperation {
+                        expression: handle,
+                        source_type: validation::mathematical_applications::operand_type_reference(
+                            self.program,
+                            handle,
+                        )
+                        .unwrap_or_default(),
+                    },
+                });
                 position
             }
         };
-        Ok(self.constant(position))
+        let mut function = self.constant(position);
+        for position in dependencies {
+            let argument = self.scope_variable(position);
+            function = self.arena.insert(Term::Apply { function, argument });
+        }
+        Ok(function)
+    }
+
+    fn embedding_term(
+        &mut self,
+        handle: ExpressionHandle,
+        meaning: super::PreparedConstantMeaning,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let (_, argument) = validation::integer_embedding_argument(self.program, handle)
+            .ok_or_else(|| self.unsupported_expression(handle))?;
+        let source = self
+            .operand_carrier(argument)
+            .ok_or_else(|| self.unsupported_expression(argument))?;
+        let argument = self.scalar_operand_term(argument, source)?;
+        let domain = self.carrier_term(source);
+        let codomain = self.integer_constant();
+        let ty = self.arena.insert(Term::Pi { domain, codomain });
+        let position = self.push_assumption(ty);
+        self.prepared.constants.append(super::PreparedConstant {
+            declaration: position,
+            meaning,
+        });
+        let function = self.constant(position);
+        Ok(self.arena.insert(Term::Apply { function, argument }))
     }
 }

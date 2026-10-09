@@ -5,6 +5,11 @@
 
 mod expressions;
 pub use expressions::{definition_roots, expression_nodes};
+mod prepared;
+pub use prepared::{
+    PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
+    PreparedMathematicalApplications, PreparedMathematicalView, integer_embedding_meaning,
+};
 
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};

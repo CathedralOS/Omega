@@ -2287,6 +2287,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "proof-admission",
  "semantic-vocabulary",
  "sha2",
  "source",
