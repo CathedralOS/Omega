@@ -12,25 +12,26 @@
 mod optimization_core;
 
 pub use optimization_core::contracts::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, CoreContractDecodeError,
-    InvalidOptimizationRuleContract, InvalidOptimizationWorkBudget, OPTIMIZATION_REFERENCE_EXTENT,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OPTIMIZATION_REFERENCE_EXTENT,
     OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationRuleContract,
     OptimizationSafetyClass, OptimizationWorkBudget,
 };
+pub(crate) use optimization_core::contracts::{ CoreContractDecodeError,
+    InvalidOptimizationRuleContract, InvalidOptimizationWorkBudget};
 pub use optimization_core::decisions::{
     BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,
-    BaselineDecisionOutcome, BaselineDecisionRecord, BaselineDecisionRecordError,
+    BaselineDecisionOutcome, BaselineDecisionRecordError,
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
     ExternalDecisionLog, ExternalDecisionPoint, ExternalDecisionSchemaError,
     ValidatedCandidateSummary, external_psi_decision_schema_v2_identity,
     psi_target_neutral_decision_target_v2_identity,
 };
+pub(crate) use optimization_core::decisions::{ BaselineDecisionRecord};
 pub use optimization_core::identities::{
-    AcceptedObligationFactIdentity, CanonicalIdentityEncoder, DuplicateOptimizationRuleIdentity,
+    AcceptedObligationFactIdentity, CanonicalIdentityEncoder,
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, IdentityBundleDecodeError,
-    IdentityDecodeError, NativeOptimizationProjectionIdentity, OptimizationCandidateIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity, OptimizationCandidateIdentity,
     OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
     OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,
@@ -50,11 +51,14 @@ pub use optimization_core::identities::{
     TargetCostModelIdentity, TerminalRelocationFreeTextSectionIdentity,
     TransformationLedgerIdentity, ValueRangeFactIdentity,
 };
+pub(crate) use optimization_core::identities::{ DuplicateOptimizationRuleIdentity, IdentityBundleDecodeError,
+    IdentityDecodeError};
 pub use optimization_core::manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
-    OptimizationFactReferenceDecodeError, OptimizationManifestDecodeError,
     OptimizationPassManifestRecord, OptimizationWorkUsage,
 };
+pub(crate) use optimization_core::manifest::{
+    OptimizationFactReferenceDecodeError, OptimizationManifestDecodeError};
 #[cfg(any(test, feature = "test-support"))]
 pub use optimization_core::mutation_matrix::{
     MutationOutcome, OneFieldSubstitutionMatrix, custody_field_inventory,
@@ -67,10 +71,11 @@ pub use optimization_core::rollback::{
     OptimizationRollbackSettlement,
 };
 pub use optimization_core::{
-    encode_option_u64, hex,
-    DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
+    encode_option_u64, hex, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
     OptimizationPhaseMismatch, OptimizationPhaseSelections, OptimizationSelectionIdentity,
     OptimizationSelections, PostTerminalOptimizationSelectionProjection,
-    PostTerminalOptimizationSelections, PreTerminalOptimizationSelection,
-    PsiOptimizationSelectionProjection, SelectionDecodeError,
+    PostTerminalOptimizationSelections,
+    PsiOptimizationSelectionProjection,
 };
+pub(crate) use optimization_core::{
+    DuplicateOptimization, PreTerminalOptimizationSelection, SelectionDecodeError};

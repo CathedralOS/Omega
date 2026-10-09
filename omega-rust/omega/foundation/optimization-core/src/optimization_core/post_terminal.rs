@@ -61,7 +61,7 @@ impl PostTerminalOptimizationSelections {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PreTerminalOptimizationSelection(pub Optimization);
+pub(crate) struct PreTerminalOptimizationSelection(pub Optimization);
 
 impl fmt::Display for PreTerminalOptimizationSelection {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

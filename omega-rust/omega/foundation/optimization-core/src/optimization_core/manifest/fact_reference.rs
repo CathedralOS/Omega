@@ -17,7 +17,7 @@ pub enum OptimizationFactReference {
 
 impl OptimizationFactReference {
     /// One closed fact-family tag followed by its exact 32-byte identity.
-    pub const ENCODED_LENGTH: usize = 33;
+    pub(crate) const ENCODED_LENGTH: usize = 33;
 
     /// Encode one fact reference in the canonical representation shared by
     /// decision manifests and external policy schemas.
@@ -65,7 +65,7 @@ impl OptimizationFactReference {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizationFactReferenceDecodeError {
+pub(crate) enum OptimizationFactReferenceDecodeError {
     WrongLength { expected: usize, actual: usize },
     UnknownTag(u8),
 }
