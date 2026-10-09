@@ -1,1 +1,3 @@
 uncovered Trap result-policy site
+machine `scale`
+machine `wrong_format`

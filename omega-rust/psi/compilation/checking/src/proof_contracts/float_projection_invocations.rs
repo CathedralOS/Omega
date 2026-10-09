@@ -33,7 +33,7 @@ pub struct ValidatedFloatMeaningEqualityProposition {
     pub right: ExpressionHandle,
 }
 
-pub(crate) fn exact_projection_operation(
+pub fn exact_projection_operation(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<(

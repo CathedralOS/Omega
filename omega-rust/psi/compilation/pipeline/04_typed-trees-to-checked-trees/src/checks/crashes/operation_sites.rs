@@ -98,14 +98,11 @@ pub(super) fn raw_result_is_finite(
         operation.selected,
         &operands,
     );
-    let operand_labels =
-        crate::facts::operator_crashes::named_call_operand_labels(program, parameters, &operands);
-    let raw_label = crate::labels::instantiate_operator_contract_expression_label_with_labels(
-        program,
-        parameters,
-        &operand_labels,
-        raw_result,
-    );
+    let Some(raw_label) = crate::labels::instantiated_float_semantic_label(
+        program, facts, raw_result, parameters, &operands,
+    ) else {
+        return false;
+    };
     // The Boolean query uses the existing exact fact-label vocabulary; the
     // predicate's identity comes from the closed sealed semantic catalog.
     let finite = program.operators().iter().find(|candidate| {
@@ -131,6 +128,8 @@ pub(super) fn raw_result_is_finite(
                 &facts.semantic,
                 *context,
                 &required,
+            ) || crate::labels::context_proves_float_semantic_predicate(
+                program, facts, *context, &required,
             )
         })
 }

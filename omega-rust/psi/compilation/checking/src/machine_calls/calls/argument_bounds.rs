@@ -19,7 +19,7 @@ pub(super) fn report_argument_bounds(
     argument: ExpressionHandle,
     parameter: &StateParameter,
     target_name: &str,
-    retains_primitive_float_policy: bool,
+    retains_float_result_policy: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(parameter_primitive) = program.primitive_type_reference(parameter.type_reference)
@@ -53,7 +53,7 @@ pub(super) fn report_argument_bounds(
     // Primitive Float adapters consume the evaluated operand policy, including
     // computed operands. Ordinary parameter delivery uses its declared policy.
     let target_domain =
-        if retains_primitive_float_policy && parameter_domain == ArithmeticDomain::Exact {
+        if retains_float_result_policy && parameter_domain == ArithmeticDomain::Exact {
             let mut arithmetic_diagnostics = Vec::new();
             let (_, _, operand_domain) = arithmetic_domains::validate_value_range(
                 program,

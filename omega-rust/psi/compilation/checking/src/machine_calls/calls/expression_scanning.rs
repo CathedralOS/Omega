@@ -5,8 +5,8 @@
 //! diagnostics emitted at those scan sites.
 
 use super::{
-    free_machine_entry_state, machine_state_by_symbol,
-    primitive_float_operator_retains_argument_policy, register_read_mnemonic, user_asm_contract,
+    free_machine_entry_state, machine_state_by_symbol, register_read_mnemonic,
+    selected_float_operation_retains_argument_policy, user_asm_contract,
     validate_asm_operand_constraint, validate_call_arguments_with_environments,
     validate_machine_call_type_parameter_bounds, validate_value_call_argument_classes,
 };
@@ -462,7 +462,7 @@ fn validate_expression_call_bounds(
             call.target.as_str(),
             parameters,
             writable_roots,
-            primitive_float_operator_retains_argument_policy(program, operator.symbol),
+            selected_float_operation_retains_argument_policy(program, operator.symbol),
             &[],
             diagnostics,
         );
@@ -740,8 +740,7 @@ fn validate_named_float_to_integer_call(
     ) {
         return;
     }
-    let path = program
-        .operator_path_string(operator.name);
+    let path = program.operator_path_string(operator.name);
     diagnostics.push(Diagnostic::error(format!(
         "machine `{}` state `{}` cannot prove unqualified `{}` operand `{}` is finite and truncates into `{}`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `{} in Trapping` or `{} in Saturating`",
         current_machine.name,

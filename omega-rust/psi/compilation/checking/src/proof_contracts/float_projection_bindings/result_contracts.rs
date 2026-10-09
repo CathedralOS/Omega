@@ -161,3 +161,64 @@ fn semantic_term_uses_only_inputs(
         _ => false,
     }
 }
+
+/// A public wellness query may expose a sealed Boolean semantic predicate in
+/// its normal-return result equation. Consumers can transport an observed
+/// Boolean polarity through that equation without exposing private projections
+/// as package-callable APIs.
+pub fn float_boolean_semantic_contract(
+    program: &dyn crate::CheckingInput,
+    operator: &OperatorDefinition,
+) -> Option<ExpressionHandle> {
+    if program.primitive_type_reference(operator.return_type) != Some(PrimitiveType::Bool) {
+        return None;
+    }
+    for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
+        program,
+        program.operator_contracts(operator),
+    ) {
+        let Some(equality) = program.expression_table.binary_node(expression) else {
+            continue;
+        };
+        if equality.operator != BinaryOperator::Equal
+            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                operator.symbol,
+                expression,
+                language_core::OperatorSpelling::Equal,
+                &[Some(operator.return_type), Some(operator.return_type)],
+            )
+        {
+            continue;
+        }
+        for (result, predicate) in [
+            (equality.left, equality.right),
+            (equality.right, equality.left),
+        ] {
+            if crate::reserved_result_owner(program, result).map(|owner| owner.0)
+                != Some(operator.symbol)
+            {
+                continue;
+            }
+            let Some(call) = program.expression_table.call_node(predicate) else {
+                continue;
+            };
+            let Some((row, _)) =
+                resolve_named_expression_call(program, call).and_then(|selected| {
+                    super::semantic_operations::exact_toolchain_float_semantic_contract(
+                        program, selected,
+                    )
+                })
+            else {
+                continue;
+            };
+            let mut remaining_work = 1024;
+            if row.result == FloatSemanticValueKind::Bool
+                && semantic_term_uses_only_inputs(program, operator, predicate, &mut remaining_work)
+            {
+                return Some(predicate);
+            }
+        }
+    }
+    None
+}

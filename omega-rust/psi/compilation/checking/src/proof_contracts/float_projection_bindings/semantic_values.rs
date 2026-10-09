@@ -181,7 +181,7 @@ fn closed_projection_expression(
                 .find(|(parameter, _)| *parameter == path.symbol)?;
             closed_projection_expression(operation, program, *operand, remaining_work, &[])
         }
-        ExpressionNode::Cast(cast) => {
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
             // An admitted numeric cast preserves denotation; it is not a
             // rounding operation or a result-policy failure site.
             closed_projection_expression(operation, program, cast.value, remaining_work, inputs)

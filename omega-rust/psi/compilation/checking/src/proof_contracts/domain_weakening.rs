@@ -100,7 +100,7 @@ pub(crate) fn validate_argument_domain_weakening(
     value: ExpressionHandle,
     target_type: TypeReferenceHandle,
     owner: &str,
-    retains_primitive_float_policy: bool,
+    retains_float_result_policy: bool,
     callee_parameter: Option<&StateParameter>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -127,9 +127,7 @@ pub(crate) fn validate_argument_domain_weakening(
 
     let dropped = source
         .iter()
-        .filter(|atom| {
-            !(retains_primitive_float_policy && matches!(atom, DomainAtom::Arithmetic(_)))
-        })
+        .filter(|atom| !(retains_float_result_policy && matches!(atom, DomainAtom::Arithmetic(_))))
         .filter(|atom| atom_requires_explicit_removal(program, atom))
         // A domain the callee states as a `requires` premise about this exact
         // parameter is CONSUMED by the call, not erased by it: the caller must

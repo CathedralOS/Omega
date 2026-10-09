@@ -341,8 +341,7 @@ fn requirement_call_result_type(
     if !definition.type_parameters.is_empty() {
         return None;
     }
-    let signature = program
-        .trait_machine_signature_by_symbol(definition, target)?;
+    let signature = program.trait_machine_signature_by_symbol(definition, target)?;
     if !signature.type_parameters.is_empty() || !signature.return_type.is_valid() {
         return None;
     }
@@ -386,9 +385,9 @@ pub(crate) fn validate_call_arguments_handles(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let retains_primitive_float_policy = callee_state.is_some_and(|state| {
+    let retains_float_result_policy = callee_state.is_some_and(|state| {
         machine_state_by_symbol(program, state.symbol).is_some_and(|(machine, _)| {
-            primitive_float_operator_retains_argument_policy(program, machine.symbol)
+            selected_float_operation_retains_argument_policy(program, machine.symbol)
         })
     });
     validate_call_arguments_with_environments(
@@ -400,16 +399,17 @@ pub(crate) fn validate_call_arguments_handles(
         target_name,
         parameters,
         writable_roots,
-        retains_primitive_float_policy,
+        retains_float_result_policy,
         &[],
         diagnostics,
     );
 }
 
-/// Primitive Float arithmetic reaches call validation after token lowering.
-/// Its sealed operation adapter retains operand policy; an ordinary named
-/// requirement cannot acquire that adapter from its namespace or result type.
-pub(crate) fn primitive_float_operator_retains_argument_policy(
+/// A selected sealed float operation retains each evaluated operand policy
+/// through its result adapter. Spelled arithmetic and named requirements use
+/// the same identity and semantic-result contract; a namespace or float return
+/// type alone grants no policy transport.
+pub(crate) fn selected_float_operation_retains_argument_policy(
     program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> bool {
@@ -421,7 +421,8 @@ pub(crate) fn primitive_float_operator_retains_argument_policy(
             program.primitive_type_reference(operator.return_type),
             Some(PrimitiveType::F32 | PrimitiveType::F64)
         )
-        || typed_trees::operator::primitive_float_binary_semantics(program, operator).is_none()
+        || !(crate::float_result_semantic_contract(program, operator).is_some()
+            || crate::numeric_float_conversion_contract(program, operator).is_some())
     {
         return false;
     }
@@ -439,7 +440,7 @@ pub(crate) fn validate_call_arguments_with_environments(
     target_name: &str,
     parameters: &[StateParameter],
     writable_roots: &WritableRoots<'_, '_>,
-    retains_primitive_float_policy: bool,
+    retains_float_result_policy: bool,
     argument_environments: &[ValueEnvironment],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -452,7 +453,7 @@ pub(crate) fn validate_call_arguments_with_environments(
         target_name,
         parameters,
         writable_roots,
-        retains_primitive_float_policy,
+        retains_float_result_policy,
         argument_environments,
         |argument, required| argument_matches_carrier(program, argument, required),
         diagnostics,
@@ -471,7 +472,7 @@ fn validate_call_arguments_with_type_correspondence(
     target_name: &str,
     parameters: &[StateParameter],
     writable_roots: &WritableRoots<'_, '_>,
-    retains_primitive_float_policy: bool,
+    retains_float_result_policy: bool,
     argument_environments: &[ValueEnvironment],
     type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
     diagnostics: &mut Vec<Diagnostic>,
@@ -555,7 +556,7 @@ fn validate_call_arguments_with_type_correspondence(
                 *argument,
                 parameter,
                 target_name,
-                retains_primitive_float_policy,
+                retains_float_result_policy,
                 diagnostics,
             );
         }
@@ -610,7 +611,7 @@ fn validate_call_arguments_with_type_correspondence(
             *argument,
             parameter.type_reference,
             &slot_context,
-            retains_primitive_float_policy,
+            retains_float_result_policy,
             Some(parameter),
             diagnostics,
         );
@@ -723,8 +724,8 @@ fn validate_value_call_argument_classes(
             diagnostics,
         );
     }
-    let retains_primitive_float_policy =
-        primitive_float_operator_retains_argument_policy(program, callee_machine.symbol);
+    let retains_float_result_policy =
+        selected_float_operation_retains_argument_policy(program, callee_machine.symbol);
     for (argument, parameter) in arguments
         .iter()
         .zip(program.state_parameters(callee_state).iter())
@@ -799,7 +800,7 @@ fn validate_value_call_argument_classes(
                 *argument,
                 parameter,
                 callee_state.name.as_str(),
-                retains_primitive_float_policy,
+                retains_float_result_policy,
                 diagnostics,
             );
         }
@@ -836,7 +837,7 @@ fn validate_value_call_argument_classes(
             *argument,
             parameter.type_reference,
             &slot_context,
-            retains_primitive_float_policy,
+            retains_float_result_policy,
             Some(parameter),
             diagnostics,
         );

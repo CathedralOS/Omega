@@ -203,7 +203,7 @@ pub(super) fn validate_resolved_call_arguments(
         target,
         program.state_parameters(entry),
         writable_roots,
-        primitive_float_operator_retains_argument_policy(program, callee.symbol),
+        selected_float_operation_retains_argument_policy(program, callee.symbol),
         &[],
         |argument, required| {
             crate::value_custody::expression_types::argument_matches_carrier_with_substitutions(
