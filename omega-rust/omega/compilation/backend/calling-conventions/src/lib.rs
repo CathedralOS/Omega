@@ -15,6 +15,7 @@
 //! libraries.
 
 mod aggregate_layout;
+mod fnv1a;
 mod boundary_application;
 mod boundary_values;
 mod callback_materializations;

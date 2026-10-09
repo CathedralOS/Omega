@@ -11,14 +11,14 @@ use sha2::Digest;
 use sha2::Sha256;
 
 pub(crate) struct Fnv1a {
-    compact: u64,
+    compact: crate::fnv1a::Fnv1a,
     strong: Option<Sha256>,
 }
 
 impl Fnv1a {
     pub(crate) const fn new() -> Self {
         Self {
-            compact: 0xcbf29ce484222325,
+            compact: crate::fnv1a::Fnv1a::new(),
             strong: None,
         }
     }
@@ -28,13 +28,13 @@ impl Fnv1a {
         strong.update((domain.len() as u64).to_le_bytes());
         strong.update(domain);
         Self {
-            compact: 0xcbf29ce484222325,
+            compact: crate::fnv1a::Fnv1a::new(),
             strong: Some(strong),
         }
     }
 
     pub(crate) const fn finish(self) -> u64 {
-        self.compact
+        self.compact.finish()
     }
 
     pub(crate) fn finish_strong(self) -> [u8; 32] {
@@ -42,10 +42,7 @@ impl Fnv1a {
     }
 
     fn bytes(&mut self, bytes: &[u8]) {
-        for byte in bytes {
-            self.compact ^= u64::from(*byte);
-            self.compact = self.compact.wrapping_mul(0x100000001b3);
-        }
+        self.compact.bytes(bytes);
         if let Some(strong) = &mut self.strong {
             strong.update(bytes);
         }
