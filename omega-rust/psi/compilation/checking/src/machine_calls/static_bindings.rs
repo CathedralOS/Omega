@@ -148,7 +148,7 @@ pub fn validate_static_machine_bindings(
                         &mut diagnostics,
                     );
                 }
-                StaticMachineBindingValue::RuntimeValue(_)
+                StaticMachineBindingValue::RuntimeValue { .. }
                 | StaticMachineBindingValue::Machine(_)
                 | StaticMachineBindingValue::Conformance(_) => {}
             }
@@ -258,9 +258,7 @@ fn validate_conformance_bindings(
         else {
             continue;
         };
-        let Some(selected) = program
-            .conformance_by_symbol(argument.symbol)
-        else {
+        let Some(selected) = program.conformance_by_symbol(argument.symbol) else {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` binds `{}` to a symbol that is not a named conformance",
                 machine.name, bound.binder_name,
@@ -314,9 +312,10 @@ fn conformance_arguments_match(
                 program.normalized_type_identity(actual).into_string(),
             )),
             StaticMachineBindingValue::Const(actual)
-            | StaticMachineBindingValue::RuntimeValue(actual) => {
-                Some((binding.parameter, program.display_type_reference(actual)))
-            }
+            | StaticMachineBindingValue::RuntimeValue {
+                type_reference: actual,
+                ..
+            } => Some((binding.parameter, program.display_type_reference(actual))),
             _ => None,
         })
         .collect::<Vec<_>>();

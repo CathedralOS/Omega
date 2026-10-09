@@ -165,17 +165,19 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
             expression,
             typed_trees::expression::OpenIndexNormalization {
                 index_type,
-                // Version 2 admits single-law algebras. Version 1 canonicalized
-                // an open index only when its carrier declared commutativity and
-                // associativity together, so a commutativity-only algebra reached
-                // the structural form; under version 2 its operands sort. That is
-                // a canonical-form change, which contracts.md makes an explicit
-                // compatibility event rather than a silent one.
-                normalizer_version: 2,
+                // Version 3 retains exact providers even without AC laws and
+                // shares their identity with established fact operands. An
+                // alias is diagnostic payload, never algebra identity.
+                normalizer_version: 3,
             },
             operations,
         ));
     }
+    // Facts and indices must describe the same selected operation before any
+    // specialization copies them. Binding only index syntax leaves a fact's
+    // `+` unqualified and lets token-only matching borrow a foreign algebra.
+    // These are ordinary lexical conformance bounds, not ambient satisfiers.
+    let fact_operations = bind_machine_index_operations(program);
     if diagnostics.is_empty() {
         for (expression, normalization, operations) in normalizations {
             program
@@ -189,6 +191,13 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
                     .index_expression_authority_mut(expression)
                     .operation = Some(operation);
             }
+        }
+        for operation in fact_operations {
+            let expression = operation.expression;
+            program
+                .expression_table
+                .index_expression_authority_mut(expression)
+                .operation = Some(operation);
         }
         Ok(())
     } else {
@@ -311,6 +320,46 @@ fn normalize_open_index_expression_operations(
     else {
         return;
     };
+    let candidates = bound_index_operations(program, machine, expression, index_type, spelling);
+    let [operation] = candidates.as_slice() else {
+        diagnostics.push(Diagnostic::error(format!(
+            "open index operator `{}` requires one exact conformance bound on machine `{}` supplying a `{}` operation spelled `{}`, but {} were found",
+            spelling.symbol(),
+            machine.name,
+            type_reference_label(program, index_type),
+            spelling.symbol(),
+            candidates.len()
+        )));
+        return;
+    };
+    operations.push(operation.clone());
+    normalize_open_index_expression_operations(
+        program,
+        binary.left,
+        index_type,
+        Some(owner),
+        operations,
+        diagnostics,
+    );
+    normalize_open_index_expression_operations(
+        program,
+        binary.right,
+        index_type,
+        Some(owner),
+        operations,
+        diagnostics,
+    );
+}
+
+/// One selection operation serves index syntax and ordinary fact operands.
+/// A selected operation retains identity even when neither law permits rewriting.
+fn bound_index_operations(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    expression: ExpressionHandle,
+    index_type: TypeReferenceHandle,
+    spelling: language_core::operator_spelling::OperatorSpelling,
+) -> Vec<typed_trees::expression::OpenIndexOperationSelection> {
     let mut candidates = Vec::new();
     for bound in &machine.conformance_bounds {
         let Some(trait_definition) = program.trait_definition_by_symbol(bound.trait_symbol) else {
@@ -334,62 +383,82 @@ fn normalize_open_index_expression_operations(
             if !type_references_match(program, *argument, index_type) {
                 continue;
             }
-            candidates.push((bound, trait_definition, requirement));
+            let laws = crate::proof_contracts::contract_entailment::declared_index_algebra_laws(
+                program,
+                trait_definition,
+                requirement.name.as_str(),
+            );
+            candidates.push(typed_trees::expression::OpenIndexOperationSelection {
+                expression,
+                spelling,
+                operator: requirement.symbol,
+                operand_type: index_type,
+                provider: bound.binder,
+                application: None,
+                algebra_trait: trait_definition.symbol,
+                algebra_requirement: requirement.name.as_str().to_owned(),
+                algebra_alias: Some(bound.binder_name.as_str().to_owned()),
+                commutativity_licensed: !laws.commutativity.is_empty(),
+                associativity_licensed: !laws.associativity.is_empty(),
+            });
         }
     }
-    let [(bound, trait_definition, requirement)] = candidates.as_slice() else {
-        diagnostics.push(Diagnostic::error(format!(
-            "open index operator `{}` requires one exact conformance bound on machine `{}` supplying a `{}` operation spelled `{}`, but {} were found",
-            spelling.symbol(),
-            machine.name,
-            type_reference_label(program, index_type),
-            spelling.symbol(),
-            candidates.len()
-        )));
-        return;
-    };
-    let laws = crate::proof_contracts::contract_entailment::declared_index_algebra_laws(
-        program,
-        trait_definition,
-        requirement.name.as_str(),
-    );
-    // The bound supplies the operation either way; the carrier trait's checked
-    // law slots decide which rewrites the selection authorizes. Commutativity
-    // licenses reordering and associativity licenses reassociation, and one
-    // never implies the other, so record the selection as soon as either slot
-    // is declared and carry both answers. With neither the expression keeps
-    // its structural identity — the operation stays usable, the rewrites stay
-    // unauthorized.
-    if !laws.commutativity.is_empty() || !laws.associativity.is_empty() {
-        operations.push(typed_trees::expression::OpenIndexOperationSelection {
-            expression,
-            spelling,
-            operator: requirement.symbol,
-            operand_type: index_type,
-            provider: bound.binder,
-            algebra_trait: trait_definition.symbol,
-            algebra_requirement: requirement.name.as_str().to_owned(),
-            algebra_alias: Some(bound.binder_name.as_str().to_owned()),
-            commutativity_licensed: !laws.commutativity.is_empty(),
-            associativity_licensed: !laws.associativity.is_empty(),
-        });
-    }
-    normalize_open_index_expression_operations(
-        program,
-        binary.left,
-        index_type,
-        Some(owner),
-        operations,
-        diagnostics,
-    );
-    normalize_open_index_expression_operations(
-        program,
-        binary.right,
-        index_type,
-        Some(owner),
-        operations,
-        diagnostics,
-    );
+    candidates
+}
+
+fn bind_machine_index_operations(
+    program: &dyn crate::CheckingInput,
+) -> Vec<typed_trees::expression::OpenIndexOperationSelection> {
+    let mut operations = Vec::new();
+    program.for_each_machine_state_contract_frame(|machine, state, contracts, _| {
+        if machine.conformance_bounds.is_empty() {
+            return;
+        }
+        let mut expressions = Vec::new();
+        for contract in contracts {
+            crate::expression_traversal::collect_contract_facts(
+                program,
+                contract.facts,
+                &mut expressions,
+            );
+        }
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            crate::expression_traversal::collect_statement_expression_trees(
+                program,
+                statement,
+                &mut expressions,
+            );
+        }
+        for expression in expressions {
+            let Some(binary) = program.expression_table.binary_node(expression) else {
+                continue;
+            };
+            let Some(spelling) =
+                typed_trees::operator::arithmetic_operator_spelling(binary.operator)
+            else {
+                continue;
+            };
+            let operand_type =
+                crate::expression_result_type_reference(program, machine, state, binary.left)
+                    .or_else(|| {
+                        crate::expression_result_type_reference(
+                            program,
+                            machine,
+                            state,
+                            binary.right,
+                        )
+                    });
+            let Some(operand_type) = operand_type else {
+                continue;
+            };
+            let candidates =
+                bound_index_operations(program, machine, expression, operand_type, spelling);
+            if let [operation] = candidates.as_slice() {
+                operations.push(operation.clone());
+            }
+        }
+    });
+    operations
 }
 
 /// A trait requirement spelled for index normalization must be the binary

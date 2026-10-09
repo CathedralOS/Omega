@@ -399,13 +399,6 @@ fn instantiate_call_domain_membership_instance(
     if arguments.is_empty() || arguments.len() != index_parameters.len() {
         return;
     }
-    let Some(state) = validation::find_state_in_machine(
-        program,
-        call.caller_machine_symbol,
-        call.caller_state_symbol,
-    ) else {
-        return;
-    };
     let Some(site) = validation::find_call_site(
         program,
         call.caller_machine_symbol,
@@ -415,22 +408,13 @@ fn instantiate_call_domain_membership_instance(
     ) else {
         return;
     };
-    let (target_symbol, machine_arguments) = match &site {
-        validation::CallSite::Statement(call) => {
-            (call.target_symbol, call.machine_arguments.as_ref())
-        }
-        validation::CallSite::Expression { call, .. } => {
-            (call.target_symbol, call.machine_arguments.as_ref())
-        }
+    let application = match &site {
+        validation::CallSite::Statement(call) => call.authored_machine_application,
+        validation::CallSite::Expression { call, .. } => call.authored_machine_application,
         validation::CallSite::TransitionNamed { .. } => return,
     };
-    let substitutions = crate::facts::index_compatibility::bound_index_substitutions(
-        program,
-        state,
-        call.statement_index,
-        target_symbol,
-        machine_arguments,
-    );
+    let substitutions =
+        crate::facts::index_compatibility::bound_index_substitutions(program, application);
     if substitutions.is_empty() {
         return;
     }
@@ -506,18 +490,17 @@ fn bound_index_argument_reference(
     program: &dyn ::validation::CheckingInput,
     bound: &crate::facts::index_compatibility::BoundIndexArgument,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
+    if let crate::facts::index_compatibility::BoundIndexArgument::Reference(reference) = bound {
+        return Some(*reference);
+    }
     program
         .type_reference_table
         .named_references()
-        .find(|(_, symbol, name)| match bound {
+        .find(|(_, symbol, _)| match bound {
             crate::facts::index_compatibility::BoundIndexArgument::Subject(subject) => {
                 *symbol == *subject
             }
-            crate::facts::index_compatibility::BoundIndexArgument::Literal(spelling) => {
-                *name == spelling.as_str()
-                    || (name.parse::<i128>().is_ok()
-                        && name.parse::<i128>().ok() == spelling.parse::<i128>().ok())
-            }
+            _ => false,
         })
         .map(|(handle, _, _)| handle)
 }

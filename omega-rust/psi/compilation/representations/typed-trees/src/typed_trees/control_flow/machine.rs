@@ -91,6 +91,12 @@ pub struct Machine {
 }
 
 impl Machine {
+    /// Type/const/machine and conformance telescopes both require substitution.
+    /// Invocation lifetimes alone erase without producing a separate body.
+    pub fn has_specialization_parameters(&self) -> bool {
+        !self.type_parameters.is_empty() || !self.conformance_bounds.is_empty()
+    }
+
     /// Whether a caller reaches this declaration's authored body as an
     /// ordinary checked callee.
     ///

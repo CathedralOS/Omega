@@ -33,8 +33,11 @@ pub(super) fn candidate_bindings(candidate: &Candidate) -> Vec<StaticMachineBind
         .enumerate()
     {
         if let Some(actual) = actual {
-            let value = if candidate.runtime_value_bindings[ordinal].is_some() {
-                StaticMachineBindingValue::RuntimeValue(*actual)
+            let value = if let Some(argument) = &candidate.runtime_value_bindings[ordinal] {
+                StaticMachineBindingValue::RuntimeValue {
+                    type_reference: *actual,
+                    subject: argument.symbol,
+                }
             } else {
                 StaticMachineBindingValue::Const(*actual)
             };
@@ -148,6 +151,13 @@ pub(super) fn retain_instance(
     instance: SymbolHandle,
 ) -> StaticMachineApplicationHandle {
     let mut bindings = candidate_bindings(candidate);
+    // Runtime callers share a carrier-specialized instance. No one caller's
+    // subject belongs to that instance's static tuple.
+    for binding in &mut bindings {
+        if let StaticMachineBindingValue::RuntimeValue { subject, .. } = &mut binding.value {
+            *subject = SymbolHandle::invalid();
+        }
+    }
     if source.is_some() {
         super::body_cloning::copy_binding_type_payloads(source, program, &mut bindings, &[]);
     }

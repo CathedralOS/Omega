@@ -729,6 +729,14 @@ pub(super) fn copy_cloned_expression_type_payloads(
         if let Some(operation) = &mut authority.operation {
             operation.operand_type =
                 copy_type_reference(source, program, operation.operand_type, symbols);
+            if let Some(application) = &mut operation.application {
+                copy_static_argument_type_payloads(
+                    source,
+                    program,
+                    std::slice::from_mut(application),
+                    symbols,
+                );
+            }
         }
         *program
             .expression_table
@@ -852,9 +860,19 @@ pub(super) fn copy_binding_type_payloads(
     for binding in bindings {
         match &mut binding.value {
             StaticMachineBindingValue::Type(reference)
-            | StaticMachineBindingValue::Const(reference)
-            | StaticMachineBindingValue::RuntimeValue(reference) => {
+            | StaticMachineBindingValue::Const(reference) => {
                 *reference = copy_type_reference(source, program, *reference, symbols);
+            }
+            StaticMachineBindingValue::RuntimeValue {
+                type_reference,
+                subject,
+            } => {
+                *type_reference = copy_type_reference(source, program, *type_reference, symbols);
+                if let Some((_, replacement)) =
+                    symbols.iter().find(|(original, _)| *original == *subject)
+                {
+                    *subject = *replacement;
+                }
             }
             StaticMachineBindingValue::Machine(argument)
             | StaticMachineBindingValue::Conformance(argument) => {

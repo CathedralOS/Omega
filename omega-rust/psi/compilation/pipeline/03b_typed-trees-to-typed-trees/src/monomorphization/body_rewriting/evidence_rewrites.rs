@@ -2,10 +2,16 @@
 
 use crate::monomorphization::{Candidate, StateSignature, StaticMachineArgument, SymbolHandle};
 
+pub(crate) struct EvidenceArgumentRewrite {
+    pub(crate) binder: SymbolHandle,
+    pub(crate) argument: StaticMachineArgument,
+    pub(crate) alias: typed_trees::name::Identifier,
+}
+
 pub(crate) fn evidence_argument_rewrites(
     program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
-) -> Vec<(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)> {
+) -> Vec<EvidenceArgumentRewrite> {
     candidate
         .template
         .evidence_parameters
@@ -24,7 +30,11 @@ pub(crate) fn evidence_argument_rewrites(
                     typed_trees::name::Identifier::generated("<unnamed-conformance>")
                 })
             };
-            Some((binder, binding.symbol, alias))
+            Some(EvidenceArgumentRewrite {
+                binder,
+                argument: binding.clone(),
+                alias,
+            })
         })
         .collect()
 }
@@ -35,7 +45,8 @@ pub(crate) fn evidence_argument_rewrites(
 pub(crate) fn rewrite_index_algebra(
     program: &mut typed_trees::TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
-    rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
+    rewrites: &[EvidenceArgumentRewrite],
+    static_rewrites: &[(SymbolHandle, StaticMachineArgument)],
 ) {
     if program
         .expression_table
@@ -47,13 +58,27 @@ pub(crate) fn rewrite_index_algebra(
     let authority = program
         .expression_table
         .index_expression_authority_mut(expression);
-    if let Some(operation) = &mut authority.operation
-        && let Some((_, provider, alias)) = rewrites
-            .iter()
-            .find(|(binder, _, _)| *binder == operation.provider)
+    let Some(operation) = &mut authority.operation else {
+        return;
+    };
+    if let Some(application) = &mut operation.application {
+        super::machine_arguments::substitute_forwarded_machine_arguments(
+            std::slice::from_mut(application),
+            static_rewrites,
+            &[],
+        );
+    }
+    if let Some(rewrite) = rewrites
+        .iter()
+        .find(|rewrite| rewrite.binder == operation.provider)
     {
-        operation.provider = *provider;
-        operation.algebra_alias = Some(alias.as_str().to_owned());
+        operation.provider = rewrite.argument.symbol;
+        operation.application = rewrite
+            .argument
+            .application
+            .as_ref()
+            .map(|_| rewrite.argument.clone());
+        operation.algebra_alias = Some(rewrite.alias.as_str().to_owned());
     }
 }
 

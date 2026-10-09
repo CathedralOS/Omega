@@ -458,9 +458,15 @@ pub fn visit_static_machine_bindings(
         use crate::static_applications::StaticMachineBindingValue;
         match &binding.value {
             StaticMachineBindingValue::Type(reference)
-            | StaticMachineBindingValue::Const(reference)
-            | StaticMachineBindingValue::RuntimeValue(reference) => {
+            | StaticMachineBindingValue::Const(reference) => {
                 visit_type_reference(program, retained, *reference)
+            }
+            StaticMachineBindingValue::RuntimeValue {
+                type_reference,
+                subject,
+            } => {
+                visit_type_reference(program, retained, *type_reference);
+                visit_symbol(retained, *subject);
             }
             StaticMachineBindingValue::Machine(argument)
             | StaticMachineBindingValue::Conformance(argument) => {
@@ -961,6 +967,15 @@ pub fn visit_expression(
 ) {
     if !expression.is_valid() || !retained.expression(expression) {
         return;
+    }
+    if let Some(operation) = program.expression_table.open_index_operation(expression) {
+        visit_symbol(retained, operation.provider);
+        visit_symbol(retained, operation.operator);
+        visit_symbol(retained, operation.algebra_trait);
+        visit_type_reference(program, retained, operation.operand_type);
+        if let Some(application) = &operation.application {
+            visit_static_argument(program, retained, application);
+        }
     }
     for occurrence in program
         .expression_table

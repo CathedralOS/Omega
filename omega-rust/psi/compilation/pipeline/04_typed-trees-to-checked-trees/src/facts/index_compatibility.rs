@@ -9,7 +9,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 mod index_terms;
 mod instance_collection;
@@ -17,7 +17,7 @@ mod labels;
 mod substitutions;
 mod unevidenced_diagnostics;
 
-use index_terms::{bound_index_arguments_equal, index_argument_term, is_closed_index_argument};
+use index_terms::{bound_index_arguments_equal, is_closed_index_argument};
 use instance_collection::{
     CompatibilityKey, StateCallIndex, append_call_result_ensured_instances,
     collect_type_indexed_instances, construction_field_type, expression_indexed_instances,
@@ -273,8 +273,8 @@ fn append_expression_compatibilities(
     // this boundary. Recompute this for recursive literal members as well as
     // top-level stores/returns.
     let contexts = state_calls.contexts_after_value(statement_index, value, contexts);
-    let mut substitutions = enclosing_call_substitutions(program, state, state_calls, point);
-    for substitution in value_call_substitutions(program, state, statement_index, value) {
+    let mut substitutions = enclosing_call_substitutions(program, state_calls, point);
+    for substitution in value_call_substitutions(program, value) {
         if !substitutions
             .iter()
             .any(|(binder, _)| *binder == substitution.0)
@@ -313,7 +313,7 @@ fn append_expression_compatibilities(
                     .arguments
                     .iter()
                     .chain(&expected.arguments)
-                    .all(|argument| is_closed_index_argument(program, *argument))
+                    .all(|argument| is_closed_index_argument(program, *argument, &Vec::new()))
                 {
                     IndexCompatibilityDischarge::ClosedEvaluation
                 } else {
@@ -330,21 +330,22 @@ fn append_expression_compatibilities(
                 &expected.arguments,
                 &substitutions,
             ) {
-                // The two instances differ only in spelling: substituting
-                // the call's bound index arguments makes every position
-                // denote the same subject or literal. No normalization work
-                // is needed -- the bound index IS the compared index.
+                // Simultaneous call bindings and the same selected laws compose
+                // in the canonical normalizer, without manufacturing typed nodes.
                 if actual
                     .arguments
                     .iter()
                     .chain(&expected.arguments)
-                    .all(|argument| {
-                        index_argument_term(program, *argument, &substitutions).is_closed()
-                    })
+                    .all(|argument| is_closed_index_argument(program, *argument, &substitutions))
                 {
                     IndexCompatibilityDischarge::ClosedEvaluation
                 } else {
-                    IndexCompatibilityDischarge::LicensedNormalization { operation_count: 0 }
+                    IndexCompatibilityDischarge::LicensedNormalization {
+                        operation_count: selected_operation_count(
+                            program,
+                            actual.arguments.iter().chain(&expected.arguments).copied(),
+                        ),
+                    }
                 }
             } else if let Some(facts) = established_index_equalities(
                 program,
@@ -477,38 +478,5 @@ fn append_expression_compatibilities(
             }
         }
         _ => {}
-    }
-}
-
-/// substitution. Identically spelled positions need no equality fact; this is
-/// spelling identity, not the index equality `index_terms_equal` decides.
-fn index_arguments_structurally_equal(
-    program: &dyn ::validation::CheckingInput,
-    left: TypeReferenceHandle,
-    right: TypeReferenceHandle,
-) -> bool {
-    if left == right {
-        return true;
-    }
-    match (
-        program.type_reference_table.type_reference(left),
-        program.type_reference_table.type_reference(right),
-    ) {
-        (TypeReferenceNode::ConstExpression(left), TypeReferenceNode::ConstExpression(right)) => {
-            program
-                .expression_table
-                .expressions_structurally_equal(*left, *right)
-        }
-        (
-            TypeReferenceNode::Named {
-                symbol: left_symbol,
-                name: left_name,
-            },
-            TypeReferenceNode::Named {
-                symbol: right_symbol,
-                name: right_name,
-            },
-        ) => left_symbol == right_symbol && left_name.as_str() == right_name.as_str(),
-        _ => false,
     }
 }

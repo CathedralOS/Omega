@@ -64,12 +64,12 @@ machine add_indexed<const A: u64, const B: u64, Algebra satisfies IndexAdd<u64>>
     70 as i64 in Indexed<A + B>
 }
 
-// The caller renames and permutes its const and evidence binders. The separate
-// reorder_indexed boundary below exercises the selected algebra's AC laws.
+// Renamed and permuted binders retain the selected operation. The reordered
+// result composes its AC laws with the established concrete equality below.
 machine forward_indexed<const RightIndex: u64, const LeftIndex: u64, Addition satisfies IndexAdd<u64>>(
     left: i64 in Indexed<LeftIndex>,
     right: i64 in Indexed<RightIndex>
-) -> i64 in Indexed<LeftIndex + RightIndex> {
+) -> i64 in Indexed<RightIndex + LeftIndex> {
     add_indexed<LeftIndex, RightIndex, Addition>(left, right)
 }
 

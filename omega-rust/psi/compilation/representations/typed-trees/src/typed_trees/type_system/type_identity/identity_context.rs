@@ -23,6 +23,9 @@ pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
     pub(crate) substitution_semantics: SubstitutionSemantics,
     pub(crate) active_const_substitutions: &'binders [SymbolHandle],
+    pub(crate) index_substitutions:
+        &'binders [(SymbolHandle, super::IndexIdentityArgument<'binders>)],
+    pub(crate) invalid_index_argument: Option<&'binders Cell<bool>>,
     pub(crate) exact_toolchain_sources: &'binders [(source::SourceId, [u8; 32])],
     pub(crate) missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
     pub(crate) qualification: TypeIdentityQualification,
@@ -320,16 +323,17 @@ pub(crate) fn normalize_index_expression(
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             let fallback = members.joined_path();
-            if let Some(identity) = substitution::index(program, path.symbol, &fallback, context) {
+            let symbol = if path.symbol.is_valid() {
+                path.symbol
+            } else if members.len() == 1 {
+                path.head_symbol
+            } else {
+                SymbolHandle::invalid()
+            };
+            if let Some(identity) = substitution::index(program, symbol, &fallback, context) {
                 return identity;
             }
-            normalize_const_or_nominal_name(
-                program,
-                path.symbol,
-                fallback.as_str(),
-                "const-name",
-                context,
-            )
+            substitution::index_name(program, symbol, fallback.as_str(), context)
         }
         ExpressionNode::Binary(binary) => {
             let Some(selection) = open_index_operation_selection(program, expression) else {
@@ -361,7 +365,7 @@ pub(crate) fn normalize_index_expression(
                 .chain(operands),
             )
         }
-        ExpressionNode::Integer(value) => atom("integer", &value.to_string()),
+        ExpressionNode::Integer(value) => substitution::index_integer(value, context),
         ExpressionNode::Unary(unary) => compound(
             match unary.operator {
                 crate::expression::UnaryOperator::BitwiseNot => "bitwise-not",

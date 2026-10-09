@@ -47,8 +47,12 @@ pub struct StaticMachineBinding {
 pub enum StaticMachineBindingValue {
     Type(TypeReferenceHandle),
     Const(TypeReferenceHandle),
-    /// The carrier only: ordinary call operands retain and check the subject.
-    RuntimeValue(TypeReferenceHandle),
+    /// Calls retain their exact runtime index subject beside its carrier.
+    /// Shared instances have no caller subject (zero), only the carrier.
+    RuntimeValue {
+        type_reference: TypeReferenceHandle,
+        subject: SymbolHandle,
+    },
     Machine(StaticMachineArgument),
     Conformance(StaticMachineArgument),
 }
@@ -67,9 +71,14 @@ impl StaticMachineBinding {
         match &mut self.value {
             StaticMachineBindingValue::Machine(argument)
             | StaticMachineBindingValue::Conformance(argument) => argument.remap_symbols(symbols),
-            StaticMachineBindingValue::Type(_)
-            | StaticMachineBindingValue::Const(_)
-            | StaticMachineBindingValue::RuntimeValue(_) => {}
+            StaticMachineBindingValue::RuntimeValue { subject, .. } => {
+                if let Some((_, replacement)) =
+                    symbols.iter().find(|(source, _)| *source == *subject)
+                {
+                    *subject = *replacement;
+                }
+            }
+            StaticMachineBindingValue::Type(_) | StaticMachineBindingValue::Const(_) => {}
         }
     }
 }

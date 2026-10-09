@@ -127,6 +127,8 @@ pub(super) fn refresh_generic_call_results(
         );
         let evidence_rewrites =
             super::body_rewriting::evidence_argument_rewrites(program, &candidate);
+        let static_rewrites =
+            super::body_rewriting::forwarded_static_argument_rewrites(program, &candidate);
         let expressions = program
             .expression_table
             .iter_expressions()
@@ -134,7 +136,12 @@ pub(super) fn refresh_generic_call_results(
             .map(|(expression, _)| expression)
             .collect::<Vec<_>>();
         for expression in expressions {
-            super::body_rewriting::rewrite_index_algebra(program, expression, &evidence_rewrites);
+            super::body_rewriting::rewrite_index_algebra(
+                program,
+                expression,
+                &evidence_rewrites,
+                &static_rewrites,
+            );
         }
         // A runtime-bound `Value` slot cannot appear in an open caller's
         // inferred result: forwarded selections only bind static subjects, so
@@ -168,7 +175,7 @@ pub(super) fn refresh(program: &mut TypedTrees) -> Vec<SymbolHandle> {
     let selected_returns = program
         .machines()
         .iter()
-        .filter(|machine| program.machine_type_parameters(machine).is_empty())
+        .filter(|machine| !machine.has_specialization_parameters())
         .flat_map(|machine| program.machine_states(machine))
         .map(|state| (state.symbol, state.return_type))
         .collect::<Vec<_>>();

@@ -194,7 +194,7 @@ pub(super) fn collect_call_selections(
                             &call.machine_arguments,
                             program.statement_table.expression_handles(call.arguments),
                             None,
-                            !program.machine_type_parameters(machine).is_empty(),
+                            machine.has_specialization_parameters(),
                         ) {
                             upsert_selection(&mut selections, selection);
                         }
@@ -218,7 +218,7 @@ pub(super) fn collect_call_selections(
                                 program.expression_table.expression_handles(call.arguments),
                                 (local.type_reference.is_valid() && !local.type_is_inferred)
                                     .then_some(local.type_reference),
-                                !program.machine_type_parameters(machine).is_empty(),
+                                machine.has_specialization_parameters(),
                             ) {
                                 upsert_selection(&mut selections, selection);
                             }
@@ -242,7 +242,7 @@ pub(super) fn collect_call_selections(
                                 &call.machine_arguments,
                                 program.expression_table.expression_handles(call.arguments),
                                 None,
-                                !program.machine_type_parameters(machine).is_empty(),
+                                machine.has_specialization_parameters(),
                             ) {
                                 upsert_selection(&mut selections, selection);
                             }
@@ -329,7 +329,7 @@ pub(super) fn collect_call_selections(
                     &call.machine_arguments,
                     program.expression_table.expression_handles(call.arguments),
                     None,
-                    !program.machine_type_parameters(machine).is_empty(),
+                    machine.has_specialization_parameters(),
                 ) {
                     upsert_selection(&mut selections, selection);
                 }

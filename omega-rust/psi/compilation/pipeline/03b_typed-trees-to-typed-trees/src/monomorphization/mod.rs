@@ -471,7 +471,10 @@ fn apply_call_specializations(
     candidate_index: usize,
     changed_owners: &mut Vec<SymbolHandle>,
 ) -> Result<bool, Vec<Diagnostic>> {
-    let groups = unique_complete_selections(program, selections, candidate_index);
+    // A complete telescope is not yet an admitted application. Malformed
+    // source arguments must retain their ordinary diagnostic during grouping.
+    let groups = unique_complete_selections(program, selections, candidate_index)
+        .map_err(|diagnostic| vec![diagnostic])?;
     if groups.is_empty() {
         return Ok(false);
     }

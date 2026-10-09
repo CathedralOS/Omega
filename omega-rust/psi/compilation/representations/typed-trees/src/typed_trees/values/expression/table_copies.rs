@@ -128,6 +128,9 @@ impl ExpressionTable {
         if self.index_expression_authority(root).is_some() {
             let authority = self.index_expression_authority_mut(root);
             if let Some(operation) = &mut authority.operation {
+                if let Some(application) = &mut operation.application {
+                    application.remap_symbols(symbols);
+                }
                 for symbol in [
                     &mut operation.provider,
                     &mut operation.operator,

@@ -56,6 +56,9 @@ pub(crate) fn substitute_forwarded_machine_arguments(
             .find(|(parameter, _)| *parameter == argument.symbol)
         {
             *argument = replacement.clone();
+            // The actual is already in the caller's scope. Recursing into it
+            // would apply the callee's telescope a second time.
+            continue;
         } else if let Some((_, symbol, name)) = rewrites
             .iter()
             .find(|(parameter, _, _)| *parameter == argument.symbol)
@@ -128,6 +131,19 @@ pub(crate) fn forwarded_static_argument_rewrites(
                         .as_ref()
                         .cloned()
                         .map(|binding| (*parameter, binding))
+                }),
+        )
+        .chain(
+            candidate
+                .template
+                .evidence_parameters
+                .iter()
+                .zip(&candidate.evidence_bindings)
+                .filter_map(|(parameter, binding)| {
+                    binding
+                        .as_ref()
+                        .cloned()
+                        .map(|binding| (parameter.binder, binding))
                 }),
         )
         .collect()

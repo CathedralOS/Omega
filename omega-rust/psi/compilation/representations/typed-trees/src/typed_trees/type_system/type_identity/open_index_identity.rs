@@ -19,20 +19,19 @@ pub(crate) fn open_index_algebra_identity(
     selection: &crate::expression::OpenIndexOperationSelection,
     context: &TypeIdentityContext<'_>,
 ) -> String {
-    if context.qualification == TypeIdentityQualification::Ordinary {
-        return format!(
-            "{}::{} as {}",
-            program.symbols.display_path(selection.algebra_trait, "::"),
-            selection.algebra_requirement,
-            selection.algebra_alias.as_deref().unwrap_or("<default>")
-        );
-    }
     compound(
         "open-index-algebra",
         [
             atom(
                 "provider",
-                &context.name(program, selection.provider, "<unresolved-provider>"),
+                &super::substitution::index_argument(
+                    program,
+                    selection.application.as_ref().map_or(
+                        super::IndexIdentityArgument::Subject(selection.provider),
+                        super::IndexIdentityArgument::StaticArgument,
+                    ),
+                    context,
+                ),
             ),
             atom(
                 "trait",
@@ -43,10 +42,6 @@ pub(crate) fn open_index_algebra_identity(
                 ),
             ),
             atom("requirement", &selection.algebra_requirement),
-            atom(
-                "alias",
-                selection.algebra_alias.as_deref().unwrap_or("<default>"),
-            ),
         ],
     )
 }
@@ -76,14 +71,15 @@ fn same_open_index_ac_authority(
     program: &TypedTrees,
     left: &crate::expression::OpenIndexOperationSelection,
     right: &crate::expression::OpenIndexOperationSelection,
+    context: &TypeIdentityContext<'_>,
 ) -> bool {
     left.operator == right.operator
-        && left.provider == right.provider
+        && open_index_algebra_identity(program, left, context)
+            == open_index_algebra_identity(program, right, context)
         && program.normalized_type_identity(left.operand_type)
             == program.normalized_type_identity(right.operand_type)
         && left.algebra_trait == right.algebra_trait
         && left.algebra_requirement == right.algebra_requirement
-        && left.algebra_alias == right.algebra_alias
         && left.commutativity_licensed == right.commutativity_licensed
         && left.associativity_licensed == right.associativity_licensed
 }
@@ -151,8 +147,9 @@ fn collect_licensed_ac_operands(
 ) {
     if let Some(binary) = program.expression_table.binary_node(expression)
         && binary.operator == operator
-        && open_index_operation_selection(program, expression)
-            .is_some_and(|selection| same_open_index_ac_authority(program, authority, selection))
+        && open_index_operation_selection(program, expression).is_some_and(|selection| {
+            same_open_index_ac_authority(program, authority, selection, context)
+        })
     {
         collect_licensed_ac_operands(program, binary.left, operator, authority, context, operands);
         collect_licensed_ac_operands(

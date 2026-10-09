@@ -32,6 +32,8 @@ pub struct OpenIndexOperationSelection {
     pub operator: SymbolHandle,
     pub operand_type: TypeReferenceHandle,
     pub provider: SymbolHandle,
+    /// Exact applied conformance operands; an unapplied provider uses its symbol.
+    pub application: Option<super::StaticMachineArgument>,
     pub algebra_trait: SymbolHandle,
     pub algebra_requirement: String,
     pub algebra_alias: Option<String>,

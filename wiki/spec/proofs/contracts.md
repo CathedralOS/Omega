@@ -269,6 +269,13 @@ algebra instance, normalized operation-contract identity, canonical expression,
 compatibility evidence, and normalizer version. That version is provenance;
 changing the canonical form is an explicit language compatibility event.
 
+Index normalizer version 3 retains the exact selected provider and applied
+conformance operands, including operations with neither AC law. Aliases remain
+diagnostic names. Closed integer leaves share canonical value identity across
+expression and named-const forms. Established equality operands use this same
+normalizer under simultaneous call bindings; they do not change declared type
+identities or license an operation from a different conformance application.
+
 ## Axioms and receiving policy
 
 A theorem's meaning includes its calculus and exact transitive assumptions.

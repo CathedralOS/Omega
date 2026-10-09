@@ -49,6 +49,39 @@ use crate::types::TypeReferenceHandle;
 use std::cell::Cell;
 use symbols::SymbolHandle;
 
+/// An index operand or a simultaneous caller-side replacement. These are
+/// borrowed views over existing custody, never synthetic expression nodes.
+#[derive(Clone, Copy)]
+pub enum IndexIdentityArgument<'argument> {
+    TypeReference(TypeReferenceHandle),
+    Expression(crate::expression::ExpressionHandle),
+    Subject(SymbolHandle),
+    Literal(&'argument str),
+    StaticArgument(&'argument crate::expression::StaticMachineArgument),
+}
+
+/// Compare static indices and local fact operands through the same licensed
+/// normalizer as type identity. Replacements belong to the caller's scope and
+/// are therefore simultaneous: a swapped telescope must not bind twice.
+/// Invalid custody cannot produce an identity that compares equal to itself.
+pub fn normalized_index_identity(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
+) -> Option<String> {
+    let invalid = Cell::new(false);
+    let identity = substitution::index_argument(
+        program,
+        argument,
+        &TypeIdentityContext {
+            index_substitutions: substitutions,
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
 /// Normalize a symbolic expression with declaration-local binder identities.
 /// This shares the index-expression normalizer: renaming a bound subject does
 /// not change a predicate, while references outside the binder list retain
@@ -350,6 +383,7 @@ impl TypedTrees {
                 exact_toolchain_sources: &[],
                 missing_exact_nominal_owner: None,
                 qualification: request.qualification,
+                ..TypeIdentityContext::default()
             },
         ))
     }
@@ -375,6 +409,7 @@ impl TypedTrees {
                 exact_toolchain_sources: request.exact_toolchain_sources,
                 missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
                 qualification: TypeIdentityQualification::PackageQualified,
+                ..TypeIdentityContext::default()
             },
         ));
         (!missing_exact_nominal_owner.get()).then_some(identity)
@@ -405,12 +440,12 @@ impl TypedTrees {
                 exact_toolchain_sources,
                 missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
                 qualification: TypeIdentityQualification::PackageQualified,
+                ..TypeIdentityContext::default()
             }
             .qualify_non_binder_name(self, symbol, path),
         );
         (!missing_exact_nominal_owner.get()).then_some(identity)
     }
-
 
     /// Normalize the dispatch-bearing domain set on the outer result value.
     /// Reference and nested constrained shells are transparent; domains inside
@@ -555,8 +590,7 @@ impl TypedTrees {
         &self,
         operator: &crate::operator::OperatorDefinition,
     ) -> callable_identity::CallableIdentityParts {
-        let path = self
-            .operator_path_string(operator.name);
+        let path = self.operator_path_string(operator.name);
         let flags = self
             .operator_parameters(operator)
             .iter()

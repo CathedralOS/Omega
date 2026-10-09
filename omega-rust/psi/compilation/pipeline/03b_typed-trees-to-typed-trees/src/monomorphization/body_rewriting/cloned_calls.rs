@@ -79,10 +79,14 @@ pub(crate) fn rewrite_cloned_calls(
             .map(|rewrite| (rewrite.placeholder, rewrite.target, rewrite.name.clone())),
     );
     let mut argument_rewrites = machine_rewrites;
-    argument_rewrites.extend(evidence_argument_rewrites(
-        source.unwrap_or(program),
-        candidate,
-    ));
+    let evidence_rewrites = evidence_argument_rewrites(source.unwrap_or(program), candidate);
+    argument_rewrites.extend(evidence_rewrites.iter().map(|rewrite| {
+        (
+            rewrite.binder,
+            rewrite.argument.symbol,
+            rewrite.alias.clone(),
+        )
+    }));
     let static_argument_rewrites =
         forwarded_static_argument_rewrites(source.unwrap_or(program), candidate);
     for (state_index, state) in program
@@ -217,7 +221,12 @@ pub(crate) fn rewrite_cloned_calls(
         .map(|(handle, _)| handle)
         .collect();
     for handle in handles {
-        rewrite_index_algebra(program, handle, &argument_rewrites);
+        rewrite_index_algebra(
+            program,
+            handle,
+            &evidence_rewrites,
+            &static_argument_rewrites,
+        );
         let clone_state_arguments = match program.expression_table.expression(handle).clone() {
             ExpressionNode::Call(snapshot)
                 if state_symbols

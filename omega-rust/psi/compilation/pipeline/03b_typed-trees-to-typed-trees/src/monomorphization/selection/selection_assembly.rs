@@ -257,7 +257,7 @@ pub(crate) fn unique_complete_selections(
     program: &dyn ::validation::CheckingInput,
     selections: &[CallSelection],
     candidate_index: usize,
-) -> Vec<(SpecializationKey, Vec<usize>)> {
+) -> Result<Vec<(SpecializationKey, Vec<usize>)>, diagnostics::Diagnostic> {
     let mut groups: Vec<(SpecializationKey, Vec<usize>)> = Vec::new();
     for (selection_index, selection) in selections.iter().enumerate() {
         if selection.candidate_index != candidate_index
@@ -298,10 +298,9 @@ pub(crate) fn unique_complete_selections(
                         program,
                         binding.as_ref().expect("complete selection"),
                     )
-                    .expect("validated complete conformance application")
-                    .report_fingerprint
+                    .map(|application| application.report_fingerprint)
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, _>>()?,
         };
         if let Some((_, members)) = groups.iter_mut().find(|(existing, _)| *existing == key) {
             members.push(selection_index);
@@ -309,5 +308,5 @@ pub(crate) fn unique_complete_selections(
             groups.push((key, vec![selection_index]));
         }
     }
-    groups
+    Ok(groups)
 }

@@ -78,7 +78,7 @@ pub(super) fn collect(program: &dyn ::validation::CheckingInput) -> Vec<Candidat
         .machines()
         .iter()
         .enumerate()
-        .filter(|(_, machine)| !program.machine_type_parameters(machine).is_empty())
+        .filter(|(_, machine)| machine.has_specialization_parameters())
         .map(|(machine_index, _)| from_machine(program, machine_index))
         .collect()
 }
