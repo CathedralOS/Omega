@@ -14,7 +14,6 @@ pub use fixed_precolored_segment_homes::{
 pub(crate) use fixed_precolored_segment_homes::{
     StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
     StagedOptimizedFixedPrecoloredSegmentHomes,
-    validate_optimized_fixed_precolored_segment_home_custody,
 };
 pub use fixed_view_copies::{
     OptimizedFixedViewCopyCustodyError, stage_optimized_fixed_view_copies,

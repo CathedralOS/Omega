@@ -1,21 +1,2 @@
-use std::collections::BTreeMap;
 
-use semantic_vocabulary::MachineId;
 
-use crate::FixedPrecoloredSegmentHomeError;
-use register_homes::FunctionFixedPrecoloredSplitRequirements;
-
-pub(super) fn requirements(
-    functions: &[FunctionFixedPrecoloredSplitRequirements],
-) -> Result<
-    BTreeMap<MachineId, &FunctionFixedPrecoloredSplitRequirements>,
-    FixedPrecoloredSegmentHomeError,
-> {
-    let mut indexed = BTreeMap::new();
-    for function in functions {
-        if indexed.insert(function.machine, function).is_some() {
-            return Err(FixedPrecoloredSegmentHomeError::RootMismatch);
-        }
-    }
-    Ok(indexed)
-}

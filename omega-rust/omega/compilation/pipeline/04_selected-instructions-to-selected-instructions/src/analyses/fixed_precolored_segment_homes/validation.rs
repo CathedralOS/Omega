@@ -1,63 +1,12 @@
 use std::collections::BTreeSet;
 
-use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile, infrastructure_environment_agrees,
-};
 
 use crate::{
     FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
-    ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
-    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
-    ValidatedLiveRanges,
-};
+    ValidatedFixedPrecoloredSegmentHomes};
 use register_homes::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePlan,
-    FixedPrecoloredSplitRequirementPolicy, fixed_precolored_segment_home_plan_identity,
-};
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_fixed_precolored_segment_homes(
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    fixed: &ValidatedFixedPrecoloredIntervals,
-    requirements: &ValidatedFixedPrecoloredSplitRequirements,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-    candidate: FixedPrecoloredSegmentHomePlan,
-) -> Result<ValidatedFixedPrecoloredSegmentHomes, FixedPrecoloredSegmentHomeError> {
-    validate_roots(
-        ranges,
-        legality,
-        fixed,
-        requirements,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        &candidate,
-    )?;
-    let expected = super::replay::replay(
-        ranges,
-        requirements,
-        physical,
-        candidate.policy,
-        candidate.budget,
-    )?;
-    if candidate.usage != expected.usage {
-        return Err(FixedPrecoloredSegmentHomeError::UsageMismatch);
-    }
-    if candidate.functions != expected.functions {
-        return Err(FixedPrecoloredSegmentHomeError::NonCanonicalFunctions);
-    }
-    seal_fixed_precolored_segment_homes(candidate)
-}
-
+    FixedPrecoloredSegmentHomePlan,
+    fixed_precolored_segment_home_plan_identity};
 /// Admit a freshly produced plan with its receipt; the producer calls this
 /// instead of replaying its own output.
 pub(crate) fn seal_fixed_precolored_segment_homes(
@@ -95,60 +44,8 @@ pub(crate) fn seal_fixed_precolored_segment_homes(
         usage: candidate.usage,
         function_count: candidate.functions.len(),
         domain_count,
-        assignment_count,
-    };
+        assignment_count};
     Ok(ValidatedFixedPrecoloredSegmentHomes {
         plan: candidate,
-        receipt,
-    })
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_roots(
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    fixed: &ValidatedFixedPrecoloredIntervals,
-    requirements: &ValidatedFixedPrecoloredSplitRequirements,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-    candidate: &FixedPrecoloredSegmentHomePlan,
-) -> Result<(), FixedPrecoloredSegmentHomeError> {
-    if candidate.split_requirements != requirements.receipt().identity()
-        || candidate.fixed_intervals != fixed.receipt().identity()
-        || candidate.ranges != ranges.receipt().identity()
-        || candidate.legality != legality.receipt().identity()
-        || candidate.register_environment != register_environment
-        || candidate.allocator_availability != legality.receipt().allocator_availability()
-        || candidate.optimization_unit != ranges.receipt().optimization_unit()
-        || candidate.fuel_schedule != ranges.receipt().fuel_schedule()
-        || candidate.target != ranges.plan().target
-        || requirements.receipt().fixed_intervals() != fixed.receipt().identity()
-        || requirements.receipt().ranges() != ranges.receipt().identity()
-        || requirements.receipt().legality() != legality.receipt().identity()
-        || requirements.receipt().register_environment() != register_environment
-        || requirements.receipt().allocator_availability()
-            != legality.receipt().allocator_availability()
-        || requirements.receipt().optimization_unit() != ranges.receipt().optimization_unit()
-        || requirements.receipt().fuel_schedule() != ranges.receipt().fuel_schedule()
-        || requirements.receipt().target() != ranges.plan().target
-        || requirements.receipt().policy()
-            != FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1
-        || fixed.receipt().policy()
-            != FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1
-        || legality.receipt().ranges() != ranges.receipt().identity()
-        || !infrastructure_environment_agrees(
-            ranges.plan().target,
-            physical,
-            constraints,
-            reservations,
-            selected_keys,
-            register_environment,
-        )
-    {
-        return Err(FixedPrecoloredSegmentHomeError::RootMismatch);
-    }
-    Ok(())
+        receipt})
 }

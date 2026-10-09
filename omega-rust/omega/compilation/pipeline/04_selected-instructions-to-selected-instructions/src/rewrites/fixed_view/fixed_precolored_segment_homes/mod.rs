@@ -6,9 +6,7 @@
 
 mod compute;
 mod custody;
-mod validation;
 
-pub(crate) use validation::validate_optimized_fixed_precolored_segment_home_custody;
 
 use optimization_core::OptimizationWorkBudget;
 

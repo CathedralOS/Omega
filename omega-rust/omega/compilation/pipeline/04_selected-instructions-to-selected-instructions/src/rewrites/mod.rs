@@ -118,7 +118,7 @@ pub(crate) use allocation_recovery::{
     FixedViewCopyValidationReceipt, FunctionPressureRematerialization,
     PressureRematerializationAction, PressureRematerializationPlan,
     PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
-    validate_fixed_view_copies,
+
 };
 pub use allocation_recovery::{
     AllocationRecoveryRuleCatalogError, FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan,
@@ -168,7 +168,7 @@ pub(crate) use fixed_view::{
     StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
     StagedOptimizedFixedPrecoloredSegmentHomes, StagedOptimizedFixedViewCopies,
     StagedOptimizedFixedViewCopyCustodyReceipt,
-    validate_optimized_fixed_precolored_segment_home_custody,
+
 };
 pub use literal_folds::{
     OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,

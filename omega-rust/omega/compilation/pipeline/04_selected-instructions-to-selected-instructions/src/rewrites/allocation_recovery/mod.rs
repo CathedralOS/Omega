@@ -20,7 +20,7 @@ pub use fixed_view_copy::{
     FixedViewCopySourceEvidence, ValidatedFixedViewCopies, fixed_view_copy_identity,
 };
 pub(crate) use fixed_view_copy::{
-    FixedViewCopyError, FixedViewCopyValidationReceipt, validate_fixed_view_copies,
+    FixedViewCopyError, FixedViewCopyValidationReceipt,
 };
 pub(crate) use pressure_rematerialization::pressure_rematerialization_identity;
 pub(crate) use pressure_rematerialization::{
