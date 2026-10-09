@@ -29,7 +29,6 @@ pub use elf_loader::{
     ELF_INTERPRETER_TARGET_PROFILES,
     NormalizedElfInterpreterPlan, declared_elf_interpreter_default, normalize_elf_interpreter_plan,
 };
-pub(crate) use elf_loader::{ ElfInterpreterPlanValidationError};
 pub use explicit_target_set::ExplicitTargetSet;
 pub use foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
@@ -40,8 +39,6 @@ pub use target_profile::{
     ProgramEntryPhysicalContractPackage, ProgramEntryReceiverProvisioning, ProgramEntrySchema,
     ProgramEntrySlotDeclaration, ProgramEntryVisibleParameters, TargetProfile,
 };
-pub(crate) use target_profile::{
-    TargetProfileIdentity, TargetRequiredRootSlotDeclaration};
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetSemantics, UefiX86_64,
 };
