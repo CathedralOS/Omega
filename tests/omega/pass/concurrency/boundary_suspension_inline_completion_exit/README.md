@@ -21,3 +21,24 @@ The source-selected checked provider completes inline. The requirement still
 declares possible suspension, so lowering must retain its exact requirement
 identity and checked live bindings rather than rejecting every such call. This is
 not evidence of parking, concurrency, cancellation or task settlement.
+
+## Retained-loan implementation frontier
+
+To reproduce the next missing capability without changing the provider, add
+`let loan: &i32 = &addressed;` after `observed`, add
+`let retained_observation: bool = observe(loan);` after the suspending call,
+and require `retained_observation` in the final guard. The same run command
+currently refuses the call because `loan` has the fully strict carry policy.
+The working fixture deliberately keeps its loans within completed helper calls.
+
+The repair needs one per-value loan-to-backing join, not a permissive reference
+type or an exception for an inline provider. Checked `BorrowLoanFact` rows
+already retain the source occurrence, captured referent, owner path, available
+parent lineage and last use; these are not physical backing or pinning evidence.
+The checked suspension frontier records no loan relation, and
+`retention/suspension_call_plan.rs::source_binding` retains the structural home
+and path but drops `StructuralArgument::access`. Activation-wide analysis in
+stage 04 also assigns every borrow formation a strict CPU/thread contribution.
+Carry those loan obligations into the canonical frontier and activation envelope
+before relaxing admission; runtime backing, preservation and cancellation joins
+remain separate requirements.

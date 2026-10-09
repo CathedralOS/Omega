@@ -5177,10 +5177,15 @@ wait for Cathedral's instruction coverage. The interpreter is
     `task_frame_summary` (`task_plans/stack_graphs.rs`) measures checked locals
     and parked arguments; the activation plan describes shape, not backing.
     Keep unresolved-call refusal and same-stack/separately provisioned demand.
-  - Suspension production in
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`:
-    retained reference/slice loans still need exact backing, lifetime and
-    per-value carry evidence. Keep
+  - Retained reference/slice loans need a per-value backing, lifetime and access
+    join in stage 04 `checks/carry.rs`, its activation envelope and stage 05
+    `retention/suspension_call_plan.rs`. The
+    [local-loan reproduction](tests/omega/pass/concurrency/boundary_suspension_inline_completion_exit/README.md#retained-loan-implementation-frontier)
+    first rejects the live reference's strict type policy. The canonical frontier
+    drops borrower access and retains no loan lineage/lifetime relation;
+    activation-wide analysis separately treats borrow formation as strict.
+    Connect the existing checked loan facts to all three consumers before
+    relaxing admission, without a reference-type or inline-provider exception. Keep
     `pass/concurrency/boundary_suspension_inline_completion_exit` (0) as the
     inline boundary-completion control, not a park/resume witness.
     Keep storage lifetime, pinning, aliasing,
