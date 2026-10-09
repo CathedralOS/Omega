@@ -355,17 +355,14 @@ pub fn conservation_report_fingerprint(
     algebra: &ContentAlgebraIdentity,
     equation: &ContentConservationEquation,
 ) -> u64 {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"content-conservation-v1");
     encode_algebra(algebra, &mut bytes);
     encode_content_conservation_term(equation.left(), &mut bytes);
     encode_content_conservation_term(equation.right(), &mut bytes);
-    bytes.into_iter().fold(OFFSET, |mut hash, byte| {
-        hash ^= u64::from(byte);
-        hash.wrapping_mul(PRIME)
-    })
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(&bytes);
+    hash.finish()
 }
 
 pub fn content_conservation_plan_bytes(plan: &ContentConservationPlan) -> Vec<u8> {
@@ -443,15 +440,12 @@ pub fn projection_report_fingerprint(
     algebra: &ContentAlgebraIdentity,
     expression: &ContentProjectionExpression,
 ) -> u64 {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
     let mut bytes = Vec::new();
     encode_algebra(algebra, &mut bytes);
     encode_projection(expression, &mut bytes);
-    bytes.into_iter().fold(OFFSET, |mut hash, byte| {
-        hash ^= u64::from(byte);
-        hash.wrapping_mul(PRIME)
-    })
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(&bytes);
+    hash.finish()
 }
 
 /// Recompute the same compact projection report coordinate after frontend
@@ -501,8 +495,6 @@ pub fn terminal_projection_report_fingerprint(
             }
         }
     }
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
     let mut bytes = Vec::new();
     match algebra.kind {
         semantic_vocabulary::ContentAlgebraKind::IntervalSet => {
@@ -528,10 +520,9 @@ pub fn terminal_projection_report_fingerprint(
             encode_terminal_scalar(magnitude, &mut bytes);
         }
     }
-    bytes.into_iter().fold(OFFSET, |mut hash, byte| {
-        hash ^= u64::from(byte);
-        hash.wrapping_mul(PRIME)
-    })
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(&bytes);
+    hash.finish()
 }
 
 fn encode_algebra(algebra: &ContentAlgebraIdentity, output: &mut Vec<u8>) {
