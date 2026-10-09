@@ -306,9 +306,7 @@ fn operation_effect(
         | O::StructuralLeafCopy { .. }
         | O::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
         | abstract_operations::establish_byte_literal_triple_pattern!(..)
-        | O::EstablishZeroedStructural { .. }
-        | O::EstablishStructuralLocal { .. }
-        | O::EstablishRecord { .. }
+        | abstract_operations::structural_establish_triple_pattern!(..)
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)

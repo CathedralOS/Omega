@@ -1142,9 +1142,7 @@ fn write_destination(
             })
             && function.operations.iter().any(|operation| {
                 let result = match operation {
-                    AbstractOperation::EstablishRecord { result, .. }
-                    | AbstractOperation::EstablishZeroedStructural { result, .. }
-                    | AbstractOperation::EstablishStructuralLocal { result, .. }
+                    abstract_operations::structural_establish_triple_pattern!(result, ..)
                     | AbstractOperation::StructuralLeafCopy { result, .. }
                     | AbstractOperation::CallStructural {
                         result: AbstractStructuralCallResult::Structural { result, .. },

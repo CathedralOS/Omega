@@ -1332,3 +1332,12 @@ macro_rules! primitive_local_triple_pattern {
             | $crate::AbstractOperation::WriteOnlyPrimitiveStore { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! structural_establish_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::EstablishZeroedStructural { $($fields)* }
+            | $crate::AbstractOperation::EstablishStructuralLocal { $($fields)* }
+            | $crate::AbstractOperation::EstablishRecord { $($fields)* }
+    };
+}

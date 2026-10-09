@@ -39,9 +39,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::StructuralScalarFieldStore { .. }
         | AbstractOperation::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
         | abstract_operations::establish_byte_literal_triple_pattern!(..)
-        | AbstractOperation::EstablishZeroedStructural { .. }
-        | AbstractOperation::EstablishStructuralLocal { .. }
-        | AbstractOperation::EstablishRecord { .. }
+        | abstract_operations::structural_establish_triple_pattern!(..)
         // Reference establishment/release are compile-time custody markers;
         // they carry no call, boundary, or physical edge of their own.
         | AbstractOperation::EstablishReference { .. }

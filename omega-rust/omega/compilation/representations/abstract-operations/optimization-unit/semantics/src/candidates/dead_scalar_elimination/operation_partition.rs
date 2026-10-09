@@ -35,9 +35,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::AtomicEvent { .. }
         | O::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
         | abstract_operations::establish_byte_literal_triple_pattern!(..)
-        | O::EstablishZeroedStructural { .. }
-        | O::EstablishStructuralLocal { .. }
-        | O::EstablishRecord { .. }
+        | abstract_operations::structural_establish_triple_pattern!(..)
         | O::CallStructural { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }
