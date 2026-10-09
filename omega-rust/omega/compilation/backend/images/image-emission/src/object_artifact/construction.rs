@@ -26,7 +26,7 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
 
 /// Construct an object that owns semantic program functions and a disjoint,
 /// placement-identified compiler-private callback-function roster.
-pub fn build_object_artifact_with_private_functions(
+pub(crate) fn build_object_artifact_with_private_functions(
     plan: &MachineCodePlanWithPrivateFunctions,
 ) -> Result<ObjectArtifact, ObjectError> {
     build_object_artifact_with_x86_feature_profile(&plan.plan, &plan.private_functions, None, None)
@@ -35,7 +35,7 @@ pub fn build_object_artifact_with_private_functions(
 /// Construct the bounded source-free object seam for feature-requiring scalar
 /// x86 FMA. The profile is explicit because `NativeTarget` deliberately
 /// collapses Windows and UEFI x86-64 physical layouts.
-pub fn build_feature_required_x86_fma_object_artifact(
+pub(crate) fn build_feature_required_x86_fma_object_artifact(
     plan: &MachineCodePlan,
     profile: target::TargetProfile,
 ) -> Result<ObjectArtifact, ObjectError> {
@@ -53,7 +53,7 @@ pub fn build_feature_required_x86_fma_object_artifact(
 /// an object whose generic F32/F64 FMA slots may enter executable emission.
 /// Ordinary and feature-required-only builders retain their fail-closed
 /// baseline behavior.
-pub fn build_admitted_x86_fma_object_artifact(
+pub(crate) fn build_admitted_x86_fma_object_artifact(
     plan: &MachineCodePlan,
     provider: target::AdmittedX86ScalarFmaProvider,
 ) -> Result<ObjectArtifact, ObjectError> {

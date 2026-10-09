@@ -494,7 +494,7 @@ pub fn producer_instruction(
 /// claims the home's defining operation and whose result register is the
 /// home's source value. Exactly one such instruction may exist — reads staged
 /// over several instructions still define the value exactly once.
-pub fn scalar_observation_producer(
+pub(crate) fn scalar_observation_producer(
     function: &selected_instructions::SelectedFunction,
     operation: semantic_vocabulary::OperationId,
     source_value: semantic_vocabulary::ValueId,

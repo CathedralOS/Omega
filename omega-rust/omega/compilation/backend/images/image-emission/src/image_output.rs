@@ -285,7 +285,7 @@ fn validate_x86_scalar_fma_provider(artifact: &ObjectArtifact) -> Result<(), Dia
     Ok(())
 }
 
-pub fn emit_object_container(artifact: &ObjectArtifact) -> ObjectContainer {
+pub(crate) fn emit_object_container(artifact: &ObjectArtifact) -> ObjectContainer {
     ObjectContainer {
         psi: artifact.psi,
         output: emit_omega_object_container(ObjectContainerInput {
@@ -332,7 +332,7 @@ pub fn can_emit_executable_image(target: NativeTarget) -> bool {
 /// build-bound identity enters only through
 /// [`crate::ExecutableImageEmissionRequest::Direct`]
 /// (wiki/spec/build/macos_application.md).
-pub fn emit_direct_executable_image(
+pub(crate) fn emit_direct_executable_image(
     artifact: &ObjectArtifact,
     subsystem: u16,
 ) -> Result<ExecutableImage, Diagnostic> {

@@ -22,21 +22,23 @@ mod record_validation;
 mod resource_tests;
 mod semantic_code_attribution;
 
-pub use codec::envelope::{decode_installation_record, encode_installation_record};
+pub(crate) use codec::envelope::{decode_installation_record, encode_installation_record};
 pub use installation_errors::InstallationError;
 pub use record_construction::{
+};
+pub(crate) use record_construction::{
     InstallationStackError, build_installation_record, build_installation_record_with_evidence,
     build_installation_record_with_provider_executions,
     build_installation_record_with_selected_provider_plans_and_evidence,
-    derive_installation_stack_demand,
-};
+    derive_installation_stack_demand};
 pub use record_types::{
+};
+pub(crate) use record_types::{
     ImageFingerprint, InitializedDataFingerprint, InstallationFingerprint, InstallationRecord,
     InstalledCompilerPrivateFunction, InstalledComponentProgress, InstalledForeignCallStack,
     InstalledFunction, InstalledImageSections, InstalledInternalUnitCall,
-    InstalledInternalUnitScalarCall, InstalledStructuralReturn, SelectedProviderPlanReportIdentity,
-};
-pub use record_validation::{installation_fingerprint, validate_installation_record};
+    InstalledInternalUnitScalarCall, InstalledStructuralReturn, SelectedProviderPlanReportIdentity};
+pub(crate) use record_validation::{installation_fingerprint, validate_installation_record};
 
 use crate::object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
 use crate::object_artifact::replay::boundary::completion_receipts::{
@@ -90,7 +92,7 @@ use codec::wire::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u12
 /// identities for the bound image; marker 96 records carry no complete-custody
 /// digests.
 /// Marker 109 retains typed paths and Case guards in internal call transfers.
-pub const INSTALLATION_FORMAT_MARKER: u16 = 110;
+pub(crate) const INSTALLATION_FORMAT_MARKER: u16 = 110;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer

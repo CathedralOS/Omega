@@ -35,7 +35,7 @@ use crate::installation_record::{InstallationError, InstallationRecord};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSIINST\0";
 
-pub fn encode_installation_record(
+pub(crate) fn encode_installation_record(
     record: &InstallationRecord,
 ) -> Result<Vec<u8>, InstallationError> {
     validate_record_shape(record)?;
@@ -107,7 +107,7 @@ pub fn encode_installation_record(
     Ok(bytes)
 }
 
-pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, InstallationError> {
+pub(crate) fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, InstallationError> {
     let mut reader = Reader::new(bytes);
     let DecodedInstallationHeader {
         psi,

@@ -103,7 +103,7 @@ fn align(value: u64, alignment: u64, invalid: &dyn Fn() -> Diagnostic) -> Result
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HostedReceiverPartitions {
+pub(crate) struct HostedReceiverPartitions {
     pub saved_continuation_offset: u64,
     pub stack_offset: u64,
     pub stack_byte_count: u64,
