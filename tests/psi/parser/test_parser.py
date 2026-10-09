@@ -1671,6 +1671,18 @@ def expression_form_cases(program: str) -> None:
     )
     assert actual.expressions[6] == (MATCH, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0,
                                      *span(source, b"match c { 2 -> 1, 13 -> 2, _ -> 3 }")), actual.expressions
+    # Commas between arms are optional.
+    source = b"machine f(c: i32) -> u8 { match c { 2 -> 1 13 -> 2, _ -> 3 } }"
+    actual = declaration_accepted(
+        program, "match-arms-without-commas", source,
+        match_arms=(
+            (LITERAL, 1, 2, *span(source, b"2 -> 1")),
+            (LITERAL, 3, 4, *span(source, b"13 -> 2")),
+            (WILDCARD, 0, 5, *span(source, b"_ -> 3")),
+        ),
+    )
+    assert actual.expressions[6] == (MATCH, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0,
+                                     *span(source, b"match c { 2 -> 1 13 -> 2, _ -> 3 }")), actual.expressions
     source = b"machine f(c: i32) { x = match c { 1 -> A::B, _ -> A::C, }; }"
     actual = declaration_accepted(
         program, "assigned-match-with-trailing-comma", source,
@@ -1755,8 +1767,6 @@ def expression_form_cases(program: str) -> None:
          {"type_reference_count": 2, "parameter_count": 1, "expression_count": 2}),
         ("match-value", b"machine f(x: u8) -> u8 { match x { 1 -> } }", 175, b"}", 1,
          {"type_reference_count": 2, "parameter_count": 1, "expression_count": 2}),
-        ("match-arm-end", b"machine f(x: u8) -> u8 { match x { 1 -> 2 3 -> 4 } }", 176, b"3", 1,
-         {"type_reference_count": 2, "parameter_count": 1, "expression_count": 3}),
         ("match-destructure-belongs-to-transition", b"machine f(x: u8) -> u8 { match x { P { a } -> 1 } }",
          174, b"{", 3, {"type_reference_count": 2, "parameter_count": 1, "expression_count": 2}),
         ("match-subject-is-no-construction", b"machine f(x: u8) -> u8 { match S { a: 1 } { _ -> 1 } }",

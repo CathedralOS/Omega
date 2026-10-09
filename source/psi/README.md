@@ -61,7 +61,7 @@ operators in the reference grammar's two precedence tiers, memberships
 `value in Domain {& Domain}` or `{| Domain}` between those tiers (one
 connective per membership; an indexed domain `AtMost<8>` rejects), and
 value-position `match subject { pattern -> value, ... }` whose arms are `_` or
-value patterns and keep their own table, all on explicit stacks rather than
+value patterns, commas between them optional, and keep their own table, all on explicit stacks rather than
 recursion. Every type position (fields, payload fields,
 generic binders, parameters, return types, `let` types and casts) shares one
 grammar in [`parse/types.omg`](parse/types.omg): references `&[mut] T`, arrays
@@ -309,9 +309,16 @@ explicit static arguments `path<arguments>(...)`, one per non-lifetime
 parameter, and by unifying each parameter's type with its argument's type;
 every parameter must be bound, each argument is admitted at its substituted
 parameter type, and the result is substituted the same way. A construction
-of generic data infers its arguments from its fields' values. Value-position
-matches, memberships and equality needing a declared conformance reject as
-unsupported rather than typing partially. Carrier facts beyond the qualifier
+of generic data infers its arguments from its fields' values. A
+value-position match ([`typing/matches.omg`](typing/matches.omg)) admits its
+patterns at its subject as a transition arm's head, gives its arms' values
+one type (the first arm value of a fixed type; the others are of that type,
+anonymous numbers landing there, or `Never`) and must cover its subject
+with a wildcard, both Booleans or every case of its data; a match whose
+arms are anonymous numbers is an anonymous choice, which lands arm by arm
+at its destination and is no subject or operand. Memberships and equality
+needing a declared conformance reject as unsupported rather than typing
+partially. Carrier facts beyond the qualifier
 (unbounded `UInt`/`Int` storage, ranges) belong to checking. A constant is a
 value of its declared type, and each constant's value types against that type
 like a `let` initializer. A trait application's row takes no type. A call
@@ -382,7 +389,11 @@ what its callee's write frame may change: everything when the callee may
 replace the whole referent or its writes are unknown, else the field places
 whose fields it, its callees or its states store
 ([`checking/frames.omg`](checking/frames.omg), derived before any body is
-checked). A body assumes its `requires`
+checked). A value-position match's arms each run on the facts after its
+subject, their own pattern selected and earlier ones passed over as a
+transition's arms are; the facts after it are its arms' join and its value
+their hull, and an arm value landed at a qualified match type proves the
+qualification ([`checking/matches.omg`](checking/matches.omg)). A body assumes its `requires`
 facts, and an established value's `where` facts hold of its fields
 ([`checking/domains.omg`](checking/domains.omg)), installed field by field as
 the fields become places, in every zone a join or restore may later meet. A

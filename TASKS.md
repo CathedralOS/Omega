@@ -6063,8 +6063,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   assignment to a name holding an exclusive loan writes its referent. Anonymous floats land once at `f32` or `f64` and formats never
   mix; a generic machine call binds its parameters from explicit static
   arguments and by unifying parameter and argument types, and a generic
-  construction infers its data's arguments from its fields; value-position
-  matches, memberships, trait requirement calls, generic conformance members,
+  construction infers its data's arguments from its fields; memberships,
+  trait requirement calls, generic conformance members,
   target-scoped family calls, case domain qualifiers and equality
   needing a declared conformance reject as unsupported (core's theorems over
   `Nat`, `Seq` and record values wait on owner decision
@@ -6078,7 +6078,13 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   qualification disappears implicitly, and a qualified parameter assumes
   the predicates while arguments, returns, qualified locals, stores and
   casts prove them unless they carry the qualification; routed domains and
-  byte predicates are established only by carrying them. A machine binder's
+  byte predicates are established only by carrying them. A value-position
+  match's patterns meet its subject, its arms' values meet one type (arms of
+  anonymous numbers land arm by arm at its destination) and its arms cover
+  the subject (a wildcard, both Booleans or every case); checking runs each
+  arm on its own pattern's facts, joins the arms after it and widens its
+  value to their hull. Constant paths as match patterns and transition
+  coverage are not judged yet. A machine binder's
   call is typed through its contract, and a generic call's static machine
   arguments bind its machine binders, each argument's signature refining its
   contract under the call's bindings and binding the callee's other generic

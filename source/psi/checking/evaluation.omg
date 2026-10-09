@@ -90,6 +90,23 @@ pub machine Value::clamped(value: Value, builtin: BuiltinType) -> Value {
     Value { place: value.place, known: value.known, subject: value.subject, offset: value.offset, ceiling: ceiling, floor: floor }
 }
 
+// The interval of a value, without its place or term.
+pub machine Value::interval(value: Value) -> Value {
+    let unknown: Value = Value::unknown();
+    Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: value.ceiling, floor: value.floor }
+}
+
+// The least interval holding both values' (a floor is stored negated, so
+// the greater floor is the lower bound).
+pub machine Value::hull(left: Value, right: Value) -> Value {
+    let left_ceiling: bool = Bound::at_most(right.ceiling, left.ceiling);
+    let left_floor: bool = Bound::at_most(right.floor, left.floor);
+    let ceiling: Bound = Value::pick(left_ceiling, left.ceiling, right.ceiling);
+    let floor: Bound = Value::pick(left_floor, left.floor, right.floor);
+    let unknown: Value = Value::unknown();
+    Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
+}
+
 machine Value::pick(first: bool, when: Bound, otherwise: Bound) -> Bound {
     transition first {
         true -> chosen(when)

@@ -7,6 +7,7 @@ use psi::typing::admission;
 use psi::typing::calls;
 use psi::typing::generics;
 use psi::typing::literals;
+use psi::typing::matches;
 use psi::typing::operators;
 use psi::typing::references;
 use psi::typing::typer;
@@ -80,13 +81,17 @@ crashes Trap
         ExpressionKind::Construct -> construct(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Apply -> application()
         ExpressionKind::Membership -> unsupported(typer, expression)
-        ExpressionKind::Match -> unsupported(typer, expression)
+        ExpressionKind::Match -> matched(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Float -> float_literal(typer, index)
         ExpressionKind::Range -> range(typer, syntax, index, expression)
     }
 
     state range(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         Typer::type_range(typer, syntax, index, expression);
+    }
+
+    state matched(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+        Typer::type_match(typer, sources, syntax, resolution, index, expression);
     }
 
     // A static application `path<arguments>` names a machine application

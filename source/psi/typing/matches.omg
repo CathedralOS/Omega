@@ -1,0 +1,618 @@
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+use psi::typing::admission;
+use psi::typing::statements;
+use psi::typing::typer;
+
+// A value-position match (wiki/spec/language/patterns.md): `match subject {
+// pattern -> value, ... }` produces the value of its first arm whose pattern
+// matches. The subject is a value, and each arm's pattern, typed with the
+// match's other children, meets it as a transition arm's head does
+// (`Typer::pattern_head`): `_`, a literal of the subject's type, or a case
+// of its data. The arms' values are compatible: the first
+// arm value of a fixed type gives the match its type, and every other arm
+// value has that type, lands there as an anonymous number, or is `Never`.
+// A match whose arms fix no type is an anonymous choice: it has no value of
+// its own and lands arm by arm where its destination is known
+// (`Typer::land_choice`). The arms cover the subject: a wildcard, both
+// Booleans of a Boolean subject, or every case of the subject's data.
+pub machine Typer::type_match(
+    typer: &mut Typer,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    index: u64 in Trapping,
+    expression: Expression
+)
+crashes Trap
+{
+    let subject_type: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
+    let subject_row: TypeRow = TypeTable::row(&typer.output.types, subject_type);
+    transition subject_type == 0 || subject_row.kind == TypeKind::AnonymousChoice {
+        true -> subject_absent(typer, syntax, expression)
+        _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, 0)
+    }
+
+    state subject_absent(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+        let subject: Expression = SyntaxTrees::expression(syntax, expression.left);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NotAValue, subject.source_span);
+    }
+
+    state pattern(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        expression: Expression,
+        subject_type: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        transition offset < expression.count && typer.output.accepted {
+            true -> arm_pattern(typer, sources, syntax, resolution, index, expression, subject_type, offset)
+            _ -> patterns_typed(typer, syntax, resolution, index, expression, subject_type)
+        }
+    }
+
+    state arm_pattern(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        expression: Expression,
+        subject_type: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        let named: u64 in Trapping = Typer::pattern_head(typer, syntax, resolution, arm, subject_type);
+        transition { _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, offset + 1) }
+    }
+
+    state patterns_typed(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        expression: Expression,
+        subject_type: u64 in Trapping
+    ) {
+        let covered: bool = Typer::match_covered(typer, syntax, resolution, expression, subject_type);
+        transition !typer.output.accepted {
+            true -> done()
+            _ -> coverage(typer, syntax, index, expression, covered)
+        }
+    }
+
+    state coverage(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, covered: bool) {
+        transition covered {
+            true -> values(typer, syntax, index, expression)
+            _ -> uncovered(typer, expression)
+        }
+    }
+
+    state uncovered(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UncoveredMatch, expression.source_span);
+    }
+
+    state values(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        let result_type: u64 in Trapping = Typer::match_result(typer, syntax, expression);
+        transition result_type > 0 {
+            true -> fixed(typer, syntax, index, expression, result_type)
+            _ -> unfixed(typer, syntax, index, expression)
+        }
+    }
+
+    state fixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, result_type: u64 in Trapping) {
+        Typing::set_expression_type(&mut typer.output, index, result_type);
+        Typer::admit_arms(typer, syntax, expression, result_type);
+    }
+
+    // Every arm value is an anonymous number, an anonymous choice or
+    // `Never`; a match of `Never` arms is `Never` too.
+    state unfixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        let anonymous: bool = Typer::anonymous_arm(typer, syntax, expression);
+        transition anonymous {
+            true -> choice(typer, index)
+            _ -> never(typer, syntax, index, expression)
+        }
+    }
+
+    state choice(typer: &mut Typer, index: u64 in Trapping) {
+        let choice_row: TypeRow = TypeRow::of(TypeKind::AnonymousChoice);
+        let choice_type: u64 in Trapping = TypeTable::intern(&mut typer.output.types, choice_row);
+        Typing::set_expression_type(&mut typer.output, index, choice_type);
+    }
+
+    state never(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first);
+        let never_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
+        Typing::set_expression_type(&mut typer.output, index, never_type);
+    }
+
+    state done() {}
+}
+
+// An anonymous number, an anonymous choice or `Never`: an arm value that
+// fixes no match type.
+machine Typer::unfixed_type(typer: &Typer, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    let never: bool = Typer::never_type(typer, handle);
+    row.kind == TypeKind::AnonymousInteger || row.kind == TypeKind::AnonymousFloat
+        || row.kind == TypeKind::AnonymousChoice || never
+}
+
+// The type of the match's first arm value of a fixed type, or zero.
+machine Typer::match_result(typer: &Typer, syntax: &SyntaxTrees, expression: Expression) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> arm(typer, syntax, expression, 0) }
+
+    state arm(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
+        transition offset < expression.count {
+            true -> candidate(typer, syntax, expression, offset)
+            _ -> found(0)
+        }
+    }
+
+    state candidate(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
+        let unfixed: bool = Typer::unfixed_type(typer, value_type);
+        transition unfixed {
+            true -> arm(typer, syntax, expression, offset + 1)
+            _ -> found(value_type)
+        }
+    }
+
+    state found(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
+// Whether some arm value is an anonymous number or an anonymous choice.
+machine Typer::anonymous_arm(typer: &Typer, syntax: &SyntaxTrees, expression: Expression) -> bool
+crashes Trap
+{
+    transition { _ -> arm(typer, syntax, expression, 0) }
+
+    state arm(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> bool {
+        transition offset < expression.count {
+            true -> candidate(typer, syntax, expression, offset)
+            _ -> answer(false)
+        }
+    }
+
+    state candidate(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> bool {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
+        let never: bool = Typer::never_type(typer, value_type);
+        transition never {
+            true -> arm(typer, syntax, expression, offset + 1)
+            _ -> answer(true)
+        }
+    }
+
+    state answer(anonymous: bool) -> bool {
+        anonymous
+    }
+}
+
+// Each arm value meets the match's type exactly, as an anonymous number that
+// lands there, or as `Never`. An arm qualified differently, or one that would
+// meet it only by a loan or a membership, is incompatible.
+machine Typer::admit_arms(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, result_type: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> arm(typer, syntax, expression, result_type, 0) }
+
+    state arm(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, result_type: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < expression.count && typer.output.accepted {
+            true -> admission(typer, syntax, expression, result_type, offset)
+            _ -> done()
+        }
+    }
+
+    state admission(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, result_type: u64 in Trapping, offset: u64 in Trapping) {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        let admission: Admission = Typer::admission(typer, syntax, result_type, arm.target);
+        transition admission {
+            Admission::Exact -> arm(typer, syntax, expression, result_type, offset + 1)
+            Admission::Landed -> landed(typer, syntax, expression, result_type, offset, arm)
+            _ -> incompatible(typer, syntax, arm, admission)
+        }
+    }
+
+    state landed(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        expression: Expression,
+        result_type: u64 in Trapping,
+        offset: u64 in Trapping,
+        arm: TransitionArm
+    ) {
+        let admitted: bool = Typer::admit(typer, syntax, result_type, arm.target, false);
+        transition { _ -> arm(typer, syntax, expression, result_type, offset + 1) }
+    }
+
+    state incompatible(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, admission: Admission) {
+        let value: Expression = SyntaxTrees::expression(syntax, arm.target);
+        transition admission == Admission::OutOfRange {
+            true -> rejected(typer, value, TypeDiagnosticCode::LiteralOutOfRange)
+            _ -> rejected(typer, value, TypeDiagnosticCode::MismatchedTypes)
+        }
+    }
+
+    state rejected(typer: &mut Typer, value: Expression, code: TypeDiagnosticCode) {
+        Typing::reject(&mut typer.output, code, value.source_span);
+    }
+
+    state done() {}
+}
+
+// Whether the arms cover every value of the subject: a wildcard arm, both
+// Boolean literals of a Boolean subject, or a case arm for each case of the
+// subject's data. Other literal ladders need a wildcard.
+machine Typer::match_covered(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, subject_type: u64 in Trapping) -> bool
+crashes Trap
+{
+    let wildcard: bool = Typer::arm_present(syntax, resolution, expression, ArmPatternKind::Wildcard, false, 0);
+    let base: u64 in Trapping = Typer::referent(typer, subject_type);
+    let row: TypeRow = TypeTable::row(&typer.output.types, base);
+    transition wildcard {
+        true -> answer(true)
+        _ -> shaped(typer, syntax, resolution, expression, base, row)
+    }
+
+    state shaped(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, base: u64 in Trapping, row: TypeRow) -> bool {
+        transition row.kind == TypeKind::Data {
+            true -> data(syntax, resolution, expression, row.item)
+            _ -> boolean(typer, syntax, resolution, expression, base)
+        }
+    }
+
+    state boolean(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, base: u64 in Trapping) -> bool {
+        let holds: bool = Typer::arm_present(syntax, resolution, expression, ArmPatternKind::Literal, true, 0);
+        let fails: bool = Typer::arm_present(syntax, resolution, expression, ArmPatternKind::Literal, false, 0);
+        let covered: bool = base == typer.output.boolean && holds && fails;
+        transition { _ -> answer(covered) }
+    }
+
+    // A record has no cases for its arms to name.
+    state data(syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, item: u64 in Trapping) -> bool {
+        let declared: DataItem = SyntaxTrees::data_item(syntax, item);
+        transition declared.case_count > 0 {
+            true -> case(syntax, resolution, expression, declared, 0)
+            _ -> answer(false)
+        }
+    }
+
+    state case(syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, declared: DataItem, offset: u64 in Trapping) -> bool {
+        transition offset < declared.case_count {
+            true -> case_named(syntax, resolution, expression, declared, offset)
+            _ -> answer(true)
+        }
+    }
+
+    state case_named(syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, declared: DataItem, offset: u64 in Trapping) -> bool {
+        let named: bool = Typer::arm_present(syntax, resolution, expression, ArmPatternKind::Case, false, declared.first_case + offset);
+        transition named {
+            true -> case(syntax, resolution, expression, declared, offset + 1)
+            _ -> answer(false)
+        }
+    }
+
+    state answer(covered: bool) -> bool {
+        covered
+    }
+}
+
+// Whether the match has an arm of pattern `kind`: for a literal, the Boolean
+// `flag`; for a case, the data case `data_case`.
+machine Typer::arm_present(
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    expression: Expression,
+    kind: ArmPatternKind,
+    flag: bool,
+    data_case: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    transition { _ -> arm(syntax, resolution, expression, kind, flag, data_case, 0) }
+
+    state arm(
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        kind: ArmPatternKind,
+        flag: bool,
+        data_case: u64 in Trapping,
+        offset: u64 in Trapping
+    ) -> bool {
+        transition offset < expression.count {
+            true -> candidate(syntax, resolution, expression, kind, flag, data_case, offset)
+            _ -> answer(false)
+        }
+    }
+
+    state candidate(
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        kind: ArmPatternKind,
+        flag: bool,
+        data_case: u64 in Trapping,
+        offset: u64 in Trapping
+    ) -> bool {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        transition arm.kind == kind {
+            true -> same_kind(syntax, resolution, expression, kind, flag, data_case, offset, arm)
+            _ -> arm(syntax, resolution, expression, kind, flag, data_case, offset + 1)
+        }
+    }
+
+    state same_kind(
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        kind: ArmPatternKind,
+        flag: bool,
+        data_case: u64 in Trapping,
+        offset: u64 in Trapping,
+        arm: TransitionArm
+    ) -> bool {
+        transition kind {
+            ArmPatternKind::Literal -> literal(syntax, resolution, expression, kind, flag, data_case, offset, arm)
+            ArmPatternKind::Case -> case_pattern(syntax, resolution, expression, kind, flag, data_case, offset, arm)
+            _ -> answer(true)
+        }
+    }
+
+    state literal(
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        kind: ArmPatternKind,
+        flag: bool,
+        data_case: u64 in Trapping,
+        offset: u64 in Trapping,
+        arm: TransitionArm
+    ) -> bool {
+        let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
+        transition pattern.kind == ExpressionKind::Boolean && pattern.flag == flag {
+            true -> answer(true)
+            _ -> arm(syntax, resolution, expression, kind, flag, data_case, offset + 1)
+        }
+    }
+
+    state case_pattern(
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        kind: ArmPatternKind,
+        flag: bool,
+        data_case: u64 in Trapping,
+        offset: u64 in Trapping,
+        arm: TransitionArm
+    ) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
+        let named: u64 in Trapping = Typer::named_case(binding);
+        transition named == data_case + 1 {
+            true -> answer(true)
+            _ -> arm(syntax, resolution, expression, kind, flag, data_case, offset + 1)
+        }
+    }
+
+    state answer(present: bool) -> bool {
+        present
+    }
+}
+
+// The data case a binding names, plus one; zero for any other binding.
+machine Typer::named_case(binding: ValueBinding) -> u64 in Trapping {
+    transition binding {
+        ValueBinding::DataCase { item, data_case } -> found(data_case + 1)
+        _ -> found(0)
+    }
+
+    state found(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
+// How an anonymous choice lands: `Landed`, or the first arm value that does
+// not land and why.
+pub data ChoiceLanding [copy] {
+    admission: Admission;
+    value: u64 in Trapping;
+}
+
+// Whether the anonymous choice rooted at `root` lands at `destination`: every
+// anonymous number among its arm values, and among the arm values of the
+// anonymous choices among them, lands there. Those are exactly the matches
+// of its tree still typed as a choice: any other match in the tree has
+// taken a type, and a choice anywhere else, such as a subject or an
+// operand, has been rejected.
+pub machine Typer::choice_landing(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping) -> ChoiceLanding
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    let wanted: TypeRow = TypeTable::row(&typer.output.types, destination);
+    transition { _ -> node(typer, syntax, wanted, tree.first_row, root) }
+
+    state node(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, low: u64 in Trapping, handle: u64 in Trapping) -> ChoiceLanding {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        let handle_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
+        let row: TypeRow = TypeTable::row(&typer.output.types, handle_type);
+        transition expression.kind == ExpressionKind::Match && row.kind == TypeKind::AnonymousChoice {
+            true -> arm(typer, syntax, wanted, low, handle, expression, 0)
+            _ -> next(typer, syntax, wanted, low, handle)
+        }
+    }
+
+    state next(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, low: u64 in Trapping, handle: u64 in Trapping) -> ChoiceLanding {
+        transition handle > low {
+            true -> node(typer, syntax, wanted, low, handle - 1)
+            _ -> landed(handle)
+        }
+    }
+
+    state landed(handle: u64 in Trapping) -> ChoiceLanding {
+        ChoiceLanding { admission: Admission::Landed, value: handle }
+    }
+
+    state arm(
+        typer: &Typer,
+        syntax: &SyntaxTrees,
+        wanted: TypeRow,
+        low: u64 in Trapping,
+        handle: u64 in Trapping,
+        expression: Expression,
+        offset: u64 in Trapping
+    ) -> ChoiceLanding {
+        transition offset < expression.count {
+            true -> arm_value(typer, syntax, wanted, low, handle, expression, offset)
+            _ -> next(typer, syntax, wanted, low, handle)
+        }
+    }
+
+    state arm_value(
+        typer: &Typer,
+        syntax: &SyntaxTrees,
+        wanted: TypeRow,
+        low: u64 in Trapping,
+        handle: u64 in Trapping,
+        expression: Expression,
+        offset: u64 in Trapping
+    ) -> ChoiceLanding {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
+        let row: TypeRow = TypeTable::row(&typer.output.types, value_type);
+        let number: bool = row.kind == TypeKind::AnonymousInteger || row.kind == TypeKind::AnonymousFloat;
+        transition number {
+            true -> number_value(typer, syntax, wanted, low, handle, expression, offset, arm.target)
+            _ -> arm(typer, syntax, wanted, low, handle, expression, offset + 1)
+        }
+    }
+
+    state number_value(
+        typer: &Typer,
+        syntax: &SyntaxTrees,
+        wanted: TypeRow,
+        low: u64 in Trapping,
+        handle: u64 in Trapping,
+        expression: Expression,
+        offset: u64 in Trapping,
+        value: u64 in Trapping
+    ) -> ChoiceLanding {
+        let admission: Admission = Typer::literal_admission(typer, value, wanted);
+        transition admission == Admission::Landed {
+            true -> arm(typer, syntax, wanted, low, handle, expression, offset + 1)
+            _ -> refused(admission, value)
+        }
+    }
+
+    state refused(admission: Admission, value: u64 in Trapping) -> ChoiceLanding {
+        ChoiceLanding { admission: admission, value: value }
+    }
+}
+
+// Land the anonymous choice rooted at `root` at `destination`, which
+// `Typer::choice_landing` admits: the choice takes the destination's type,
+// each anonymous number among its arm values lands there, and each anonymous
+// choice among them takes the type too and lands its own arms when the walk,
+// which visits parents first, reaches it.
+pub machine Typer::land_choice(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping)
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    Typing::set_expression_type(&mut typer.output, root, destination);
+    transition { _ -> node(typer, syntax, destination, tree.first_row, root) }
+
+    state node(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, low: u64 in Trapping, handle: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        let handle_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
+        transition expression.kind == ExpressionKind::Match && handle_type == destination {
+            true -> arm(typer, syntax, destination, low, handle, expression, 0)
+            _ -> next(typer, syntax, destination, low, handle)
+        }
+    }
+
+    state next(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, low: u64 in Trapping, handle: u64 in Trapping) {
+        transition handle > low {
+            true -> node(typer, syntax, destination, low, handle - 1)
+            _ -> done()
+        }
+    }
+
+    state arm(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        destination: u64 in Trapping,
+        low: u64 in Trapping,
+        handle: u64 in Trapping,
+        expression: Expression,
+        offset: u64 in Trapping
+    ) {
+        transition offset < expression.count {
+            true -> arm_value(typer, syntax, destination, low, handle, expression, offset)
+            _ -> next(typer, syntax, destination, low, handle)
+        }
+    }
+
+    state arm_value(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        destination: u64 in Trapping,
+        low: u64 in Trapping,
+        handle: u64 in Trapping,
+        expression: Expression,
+        offset: u64 in Trapping
+    ) {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
+        let row: TypeRow = TypeTable::row(&typer.output.types, value_type);
+        transition row.kind {
+            TypeKind::AnonymousInteger -> number(typer, syntax, destination, low, handle, expression, offset, arm.target)
+            TypeKind::AnonymousFloat -> number(typer, syntax, destination, low, handle, expression, offset, arm.target)
+            TypeKind::AnonymousChoice -> choice(typer, syntax, destination, low, handle, expression, offset, arm.target)
+            _ -> arm(typer, syntax, destination, low, handle, expression, offset + 1)
+        }
+    }
+
+    state number(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        destination: u64 in Trapping,
+        low: u64 in Trapping,
+        handle: u64 in Trapping,
+        expression: Expression,
+        offset: u64 in Trapping,
+        value: u64 in Trapping
+    ) {
+        Typing::set_expression_type(&mut typer.output, value, destination);
+        Typing::set_adaptation(&mut typer.output, value, Adaptation::Landed);
+        transition { _ -> arm(typer, syntax, destination, low, handle, expression, offset + 1) }
+    }
+
+    state choice(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        destination: u64 in Trapping,
+        low: u64 in Trapping,
+        handle: u64 in Trapping,
+        expression: Expression,
+        offset: u64 in Trapping,
+        value: u64 in Trapping
+    ) {
+        Typing::set_expression_type(&mut typer.output, value, destination);
+        transition { _ -> arm(typer, syntax, destination, low, handle, expression, offset + 1) }
+    }
+
+    state done() {}
+}

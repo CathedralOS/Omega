@@ -5,6 +5,7 @@ use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::flow;
 use psi::checking::frames;
+use psi::checking::matches;
 use psi::checking::obligations;
 use psi::checking::places;
 use psi::checking::qualification;
@@ -63,9 +64,14 @@ pub data Checker {
     context_operators: [u64; 64];
     context_first: u64;
     context_count: u64;
+    // The tree's value-position matches (matches.omg), each with its next
+    // arm event pending.
+    matches: [u64; 16];
+    match_events: [u64; 16];
+    match_count: u64;
     assumptions: [u64; 128];
     assumption_count: u64;
-    // Saved zones: open `&&`/`||` contexts and transition arms.
+    // Saved zones: open `&&`/`||` contexts, transition arms and matches.
     saved: [Zone; 8];
     saved_owners: [u64; 8];
     saved_count: u64;
@@ -276,6 +282,7 @@ crashes Trap
     checker.saved_count = 0;
     checker.frame_count = 0;
     checker.context_count = 0;
+    checker.match_count = 0;
     checker.replay = false;
     checker.substituting = false;
     checker.returning = false;

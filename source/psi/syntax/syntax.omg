@@ -829,7 +829,6 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedMatchPattern;
     case ExpectedMatchArrow;
     case ExpectedMatchValue;
-    case ExpectedMatchArmEnd;
     case EmptyMatch;
     case ExpectedPatternRename;
     case ExpectedEvidenceTrait;

@@ -306,7 +306,6 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedMatchPattern -> parse_diagnostic(parser_harness, output, 173)
             ParseDiagnosticCode::ExpectedMatchArrow -> parse_diagnostic(parser_harness, output, 174)
             ParseDiagnosticCode::ExpectedMatchValue -> parse_diagnostic(parser_harness, output, 175)
-            ParseDiagnosticCode::ExpectedMatchArmEnd -> parse_diagnostic(parser_harness, output, 176)
             ParseDiagnosticCode::EmptyMatch -> parse_diagnostic(parser_harness, output, 177)
             ParseDiagnosticCode::ExpectedPatternRename -> parse_diagnostic(parser_harness, output, 178)
             ParseDiagnosticCode::ExpectedEvidenceTrait -> parse_diagnostic(parser_harness, output, 179)

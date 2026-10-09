@@ -634,6 +634,7 @@ machine TypingHarness::kind_tag(value: TypeKind) -> u8 {
         TypeKind::Unit -> tag(8)
         TypeKind::AnonymousInteger -> tag(9)
         TypeKind::AnonymousFloat -> tag(10)
+        TypeKind::AnonymousChoice -> tag(11)
     }
 
     state tag(number: u8) -> u8 {
@@ -752,6 +753,7 @@ machine TypingHarness::diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
         TypeDiagnosticCode::SilentDiscard -> tag(35)
         TypeDiagnosticCode::DiscardsNoCall -> tag(36)
         TypeDiagnosticCode::PropositionArgumentCount -> tag(37)
+        TypeDiagnosticCode::UncoveredMatch -> tag(38)
     }
 
     state tag(number: u8) -> u8 {

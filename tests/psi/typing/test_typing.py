@@ -13,7 +13,7 @@ from pathlib import Path
 # source/psi/resolution/resolution.omg.
 KINDS = (
     "Absent", "Builtin", "Data", "Reference", "Array", "Slice", "GenericParameter",
-    "StaticInteger", "Unit", "AnonymousInteger", "AnonymousFloat",
+    "StaticInteger", "Unit", "AnonymousInteger", "AnonymousFloat", "AnonymousChoice",
 )
 BUILTIN_SPELLINGS = (
     "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "addr",
@@ -32,6 +32,7 @@ DIAGNOSTICS = (
     "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
     "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
     "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
+    "UncoveredMatch",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
 ADAPTATIONS = ("", "landed", "lent", "qualified")
@@ -107,6 +108,8 @@ class Observation:
             return "{integer}"
         if kind == "AnonymousFloat":
             return "{float}"
+        if kind == "AnonymousChoice":
+            return "{choice}"
         return "absent"
 
 
@@ -807,16 +810,124 @@ def main() -> None:
         b"g(1)",
     )
 
-    # Expression forms typing does not judge yet reject at the expression
-    # rather than leaving it untyped: a value-position match and a case
-    # membership both resolve. A renamed pattern field types as its field.
+    # A value-position match (wiki/spec/language/patterns.md): its patterns
+    # meet its subject, its arms' values meet one type and its arms cover the
+    # subject. Arms of anonymous numbers make an anonymous choice that lands
+    # arm by arm where its destination is known.
+    accepted(
+        program,
+        "match-anonymous-arms-land-at-the-result",
+        b"machine f(c: u8) -> u64 { match c { 1 -> 20, 7 -> 300, _ -> 4 } }",
+        (
+            (b"match c { 1 -> 20, 7 -> 300, _ -> 4 }", "u64"),
+            (b"1", "u8"), (b"7", "u8"), (b"20", "u64"), (b"300", "u64"), (b"4!2", "u64"),
+        ),
+        adaptations=((b"1", "landed"), (b"20", "landed"), (b"4!2", "landed"), (b"match c { 1 -> 20, 7 -> 300, _ -> 4 }", "")),
+    )
+    accepted(
+        program,
+        "match-typed-arm-fixes-the-result",
+        b"data K { case A; case B; }\nmachine f(k: &K, x: u8) -> u8 { match k { K::A -> x, K::B -> 9 } }",
+        ((b"match k { K::A -> x, K::B -> 9 }", "u8"), (b"K::A", "D0"), (b"x!2", "u8"), (b"9", "u8")),
+        adaptations=((b"9", "landed"), (b"x!2", "")),
+    )
+    accepted(
+        program,
+        "match-boolean-arms-cover",
+        b"machine f(b: bool, x: u16) -> u16 { match b { true -> x, false -> 0 } }",
+        ((b"match b { true -> x, false -> 0 }", "u16"), (b"true", "bool"), (b"0", "u16")),
+    )
+    accepted(
+        program,
+        "match-nested-choice-lands-through",
+        b"machine f(a: u8, b: u8) -> u32 { match a { 0 -> match b { 0 -> 1 _ -> 2 } _ -> 3 } }",
+        (
+            (b"match a { 0 -> match b { 0 -> 1 _ -> 2 } _ -> 3 }", "u32"),
+            (b"match b { 0 -> 1 _ -> 2 }", "u32"),
+            (b"1", "u32"), (b"2!2", "u32"), (b"3!2", "u32"), (b"0!2", "u8"),
+        ),
+        adaptations=((b"1", "landed"), (b"3!2", "landed"), (b"match b { 0 -> 1 _ -> 2 }", "")),
+    )
+    accepted(
+        program,
+        "match-wildcard-has-no-pattern",
+        b"machine g(v: u16) -> u16 { v }\nmachine f(c: u8, d: u16) -> u16 { match c { 0 -> d, _ -> 8 } }",
+        ((b"v!2", "u16"), (b"8!2", "u16")),
+    )
+    accepted(
+        program,
+        "match-choice-lands-at-an-argument",
+        b"machine g(v: u16) -> u16 { v }\nmachine f(c: u8) -> u16 { g(match c { 0 -> 5, _ -> 8 }) }",
+        ((b"match c { 0 -> 5, _ -> 8 }", "u16"), (b"5", "u16"), (b"8!2", "u16")),
+    )
     rejected(
         program,
-        "match-is-unsupported",
-        b"machine f(c: u8) -> u8 { match c { 1 -> 2, _ -> 3 } }",
-        "UnsupportedExpression",
-        b"match c { 1 -> 2, _ -> 3 }",
+        "match-literal-ladder-needs-a-wildcard",
+        b"machine f(c: u8) -> u8 { match c { 1 -> 2, 3 -> 4 } }",
+        "UncoveredMatch",
+        b"match c { 1 -> 2, 3 -> 4 }",
     )
+    rejected(
+        program,
+        "match-misses-a-case",
+        b"data K { case A; case B; }\nmachine f(k: K) -> u8 { match k { K::A -> 1 } }",
+        "UncoveredMatch",
+        b"match k { K::A -> 1 }",
+    )
+    rejected(
+        program,
+        "match-misses-a-boolean",
+        b"machine f(b: bool) -> u8 { match b { true -> 1 } }",
+        "UncoveredMatch",
+        b"match b { true -> 1 }",
+    )
+    rejected(
+        program,
+        "match-arms-of-two-types",
+        b"machine f(c: u8, x: u8, y: u16) -> u8 { match c { 0 -> x, _ -> y } }",
+        "MismatchedTypes",
+        b"y!2",
+    )
+    rejected(
+        program,
+        "match-arms-of-two-domains",
+        b"domain i64::Km(value) requires value >= 0;\ndomain i64::Miles(value) requires value >= 0;\n"
+        b"machine f(b: bool, near: i64 in Km, far: i64 in Miles) -> i64 in Km { match b { true -> near, false -> far } }",
+        "MismatchedTypes",
+        b"far!2",
+    )
+    rejected(
+        program,
+        "match-arm-outside-the-result",
+        b"machine f(c: u8, x: u8) -> u8 { match c { 0 -> x, _ -> 300 } }",
+        "LiteralOutOfRange",
+        b"300",
+    )
+    rejected(
+        program,
+        "match-choice-arm-outside-the-destination",
+        b"machine f(c: u8) -> u8 { match c { 0 -> 1, _ -> 300 } }",
+        "LiteralOutOfRange",
+        b"300",
+    )
+    rejected(
+        program,
+        "match-pattern-of-other-data",
+        b"data K { case A; }\ndata L { case B; }\nmachine f(k: K) -> u8 { match k { L::B -> 1, _ -> 2 } }",
+        "CaseOfOtherData",
+        b"L::B",
+    )
+    rejected(
+        program,
+        "match-choice-is-no-subject",
+        b"machine f(c: u8) -> u8 { match match c { _ -> 1 } { _ -> 2 } }",
+        "NotAValue",
+        b"match c { _ -> 1 }",
+    )
+
+    # Expression forms typing does not judge yet reject at the expression
+    # rather than leaving it untyped: a case membership resolves. A renamed
+    # pattern field types as its field.
     rejected(
         program,
         "membership-is-unsupported",

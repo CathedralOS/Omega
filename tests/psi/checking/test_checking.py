@@ -1161,6 +1161,74 @@ def main() -> None:
              "DomainUnproven", b"raw!2")
     accepted(program, "byte-predicate-domain-carried", text + b"machine f(view: &[u8] in Text) { show(view); }")
 
+    # A value-position match: each arm runs on the facts after its subject,
+    # its own pattern selected and every earlier one passed over; the facts
+    # after the match are its arms' join and its value their hull. An arm
+    # value landed at a qualified match type proves the qualification.
+    accepted(
+        program,
+        "match-arm-assumes-its-literal",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i { 3 -> a[i], _ -> 0 } }",
+    )
+    rejected(
+        program,
+        "match-passed-over-literal-bounds-nothing",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i { 9 -> 0, _ -> a[i] } }",
+        "IndexOutOfBounds",
+        b"a[i]",
+    )
+    accepted(
+        program,
+        "match-boolean-arms-assume-their-subject",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i < 4 { false -> 0, true -> a[i] } }",
+    )
+    accepted(
+        program,
+        "match-passed-over-boolean-holds-after",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i < 4 { false -> 0, _ -> a[i] } }",
+    )
+    rejected(
+        program,
+        "match-arm-facts-stay-in-their-arm",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i < 4 { true -> 0, false -> a[i] } }",
+        "IndexOutOfBounds",
+        b"a[i]",
+    )
+    rejected(
+        program,
+        "match-join-keeps-only-shared-facts",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { let x: u8 = match i < 4 { true -> a[i], false -> 0 }; a[i] }",
+        "IndexOutOfBounds",
+        b"a[i]!2",
+    )
+    accepted(
+        program,
+        "match-value-is-its-arms-hull",
+        b"machine f(a: &[u8; 4], c: u8) -> u8 { let i: u64 = match c { 0 -> 1, 1 -> 3, _ -> 2 }; a[i] }",
+    )
+    rejected(
+        program,
+        "match-hull-reaches-every-arm",
+        b"machine f(a: &[u8; 4], c: u8) -> u8 { let i: u64 = match c { 0 -> 1, 1 -> 4, _ -> 2 }; a[i] }",
+        "IndexOutOfBounds",
+        b"a[i]",
+    )
+    accepted(
+        program,
+        "match-nested-arms-keep-their-facts",
+        b"machine f(a: &[u8; 4], i: u64, j: u64) -> u8 {\n"
+        b"    match i { 2 -> match j { 1 -> a[i + j] _ -> a[i] } _ -> 0 }\n"
+        b"}",
+    )
+    accepted(program, "match-landed-arms-meet-the-domain", small + b"machine f(c: u8) -> u64 { take(match c { 0 -> 1, _ -> 3 }) }")
+    rejected(
+        program,
+        "match-landed-arm-proves-the-domain",
+        small + b"machine f(c: u8) -> u64 { take(match c { 0 -> 1, _ -> 9 }) }",
+        "DomainUnproven",
+        b"9",
+    )
+
     # A `const` extent serves every specialization, so its body proves no
     # index below it.
     rejected(

@@ -684,27 +684,24 @@ crashes Trap
         }
     }
 
+    // A comma between arms is optional, as between a transition's arms.
     state match_arm_delimiter(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
         let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
-        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
         let next: ExpressionFrame = Parser::match_frame(frame, ExpressionFrameKind::MatchPattern, frame.callee, frame.start);
         transition separator {
             true -> match_separator(parser, input, next)
-            _ -> match_arm_close(parser, input, next, closing)
+            _ -> match_following(parser, input, next)
         }
     }
 
     state match_separator(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
         Parser::take_current(parser, input);
-        Parser::replace_top_frame(parser, frame);
-        transition { _ -> match_arm(parser, input, frame) }
+        transition { _ -> match_following(parser, input, frame) }
     }
 
-    state match_arm_close(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, closing: bool) {
-        transition closing {
-            true -> match_close(parser, input, frame)
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedMatchArmEnd)
-        }
+    state match_following(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::replace_top_frame(parser, frame);
+        transition { _ -> match_arm(parser, input, frame) }
     }
 
     state match_close(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {

@@ -236,16 +236,16 @@ crashes Trap
     state done() {}
 }
 
-// An arm's pattern: a guard is Boolean; a literal meets the subject's type;
-// a case names a case of the subject's data and binds its fields.
+// An arm's pattern: a guard is Boolean, a literal or a case meets the
+// subject as its head does, and a case binds its fields.
 machine Typer::type_pattern(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping)
 crashes Trap
 {
     transition arm.kind {
         ArmPatternKind::Guard -> guard(typer, sources, syntax, resolution, arm)
         ArmPatternKind::Wildcard -> done()
-        ArmPatternKind::Literal -> literal(typer, sources, syntax, resolution, arm, subject_type)
-        ArmPatternKind::Case -> case_pattern(typer, sources, syntax, resolution, arm, subject_type)
+        ArmPatternKind::Literal -> head(typer, sources, syntax, resolution, arm, subject_type)
+        ArmPatternKind::Case -> head(typer, sources, syntax, resolution, arm, subject_type)
     }
 
     state guard(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm) {
@@ -257,27 +257,21 @@ crashes Trap
         }
     }
 
-    state literal(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) {
+    state head(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) {
         Typer::type_tree(typer, sources, syntax, resolution, arm.pattern);
-        let base: u64 in Trapping = Typer::referent(typer, subject_type);
         transition typer.output.accepted {
-            true -> literal_admit(typer, syntax, arm, base)
+            true -> headed(typer, sources, syntax, resolution, arm, subject_type)
             _ -> done()
         }
     }
 
-    state literal_admit(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, base: u64 in Trapping) {
-        let admitted: bool = Typer::admit(typer, syntax, base, arm.pattern, false);
-    }
-
-    state case_pattern(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) {
-        Typer::type_tree(typer, sources, syntax, resolution, arm.pattern);
-        let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
+    state headed(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) {
+        let named: u64 in Trapping = Typer::pattern_head(typer, syntax, resolution, arm, subject_type);
         let base: u64 in Trapping = Typer::referent(typer, subject_type);
         let subject_row: TypeRow = TypeTable::row(&typer.output.types, base);
-        transition binding {
-            ValueBinding::DataCase { item, data_case } -> named_case(typer, sources, syntax, resolution, arm, subject_row, item, data_case)
-            _ -> other_data(typer, syntax, arm)
+        transition named > 0 && typer.output.accepted {
+            true -> named_case(typer, sources, syntax, resolution, arm, subject_row, named - 1)
+            _ -> done()
         }
     }
 
@@ -288,14 +282,10 @@ crashes Trap
         resolution: &NameResolution,
         arm: TransitionArm,
         subject_row: TypeRow,
-        item: u64 in Trapping,
         data_case: u64 in Trapping
     ) {
-        let declared: DataItem = SyntaxTrees::data_item(syntax, item);
-        transition subject_row.kind == TypeKind::Data && subject_row.item == item {
-            true -> fields(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, 0)
-            _ -> other_data(typer, syntax, arm)
-        }
+        let declared: DataItem = SyntaxTrees::data_item(syntax, subject_row.item);
+        transition { _ -> fields(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, 0) }
     }
 
     state fields(
@@ -418,23 +408,61 @@ crashes Trap
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotBoolean, pattern.source_span);
     }
 
-    state other_data(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) {
-        let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
-        transition typer.output.accepted {
-            true -> other_data_reject(typer, pattern)
-            _ -> done()
-        }
-    }
-
-    state other_data_reject(typer: &mut Typer, pattern: Expression) {
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::CaseOfOtherData, pattern.source_span);
-    }
-
     state unknown_field(typer: &mut Typer, pattern_field: PatternField) {
         Typing::reject(&mut typer.output, TypeDiagnosticCode::UnknownPatternField, pattern_field.source_span);
     }
 
     state done() {}
+}
+
+// A literal or case pattern, already typed, meets the subject: a literal
+// lands at the subject's type, through references, and a case names a case
+// of the subject's data; `_` has no pattern. The named case plus one; zero
+// for any other arm or a rejection.
+pub machine Typer::pattern_head(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, subject_type: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let base: u64 in Trapping = Typer::referent(typer, subject_type);
+    transition arm.kind {
+        ArmPatternKind::Case -> case_pattern(typer, syntax, resolution, arm, base)
+        ArmPatternKind::Literal -> literal(typer, syntax, arm, base)
+        _ -> none()
+    }
+
+    state literal(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, base: u64 in Trapping) -> u64 in Trapping {
+        let admitted: bool = Typer::admit(typer, syntax, base, arm.pattern, false);
+        transition { _ -> none() }
+    }
+
+    state case_pattern(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, arm: TransitionArm, base: u64 in Trapping) -> u64 in Trapping {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
+        let subject_row: TypeRow = TypeTable::row(&typer.output.types, base);
+        transition binding {
+            ValueBinding::DataCase { item, data_case } -> named_case(typer, syntax, arm, subject_row, item, data_case)
+            _ -> other_data(typer, syntax, arm)
+        }
+    }
+
+    state named_case(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, subject_row: TypeRow, item: u64 in Trapping, data_case: u64 in Trapping) -> u64 in Trapping {
+        transition subject_row.kind == TypeKind::Data && subject_row.item == item {
+            true -> named(data_case + 1)
+            _ -> other_data(typer, syntax, arm)
+        }
+    }
+
+    state other_data(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) -> u64 in Trapping {
+        let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::CaseOfOtherData, pattern.source_span);
+        transition { _ -> none() }
+    }
+
+    state named(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
 }
 
 // An arm's target. A call selecting a state is a jump; a terminal call or

@@ -37,6 +37,9 @@ pub data TypeKind [copy] {
     // Landing rounds once (wiki/spec/language/numeric_values.md); the value
     // is evaluation's, not typing's.
     case AnonymousFloat;
+    // A value-position match whose arms are anonymous numbers: it has no
+    // value of its own, and lands arm by arm where its destination is known.
+    case AnonymousChoice;
 }
 
 // Fields a kind does not carry are zero.
@@ -136,6 +139,8 @@ pub data TypeDiagnosticCode [copy] {
     case DiscardsNoCall;
     // A proposition applied to more or fewer arguments than its parameters.
     case PropositionArgumentCount;
+    // A match whose arms leave a value of its subject unmatched.
+    case UncoveredMatch;
 }
 
 pub data TypeDiagnostic [copy] {
