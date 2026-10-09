@@ -2080,6 +2080,8 @@ fail/providers/computed_binding_receiver_fabricated_carrier rejected 881ms expec
 	opaque boundary data `Binding` has no public constructor; a boundary provider must establish its values
 fail/providers/consuming_requirement_without_provider rejected 6663ms expected @e4c5f1527652+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+fail/providers/foreign_address_fixed_carrier_mismatch rejected 520ms expected @365e35212c0c
+	provider machine `Imports::release` for top-level boundary requirement `AddressProbe::release` parameter 0 expects `pointer: addr`, got `pointer: u64`
 fail/providers/named_provider_wrong_requirement_owner rejected 18ms expected @693920652f41
 	closed conformance `WrongProvider satisfies CounterOperations` has no inherited requirement slot `OtherOperations::read`
 fail/providers/nested_binding_missing_establishment rejected 93091ms expected @6289e072ebd6
@@ -3973,11 +3975,14 @@ pass/providers/component_owner_provider_override_compile checked 626ms check-tar
 pass/providers/direct_boundary_array_snapshot_exit checked 2938ms check-target:macos_arm64 @36ad3370c97a
 pass/providers/external_boundary_requirement_via_exit checked 8941ms check-target:macos_arm64 @5ce9755c44a5+wt
 pass/providers/external_leaf_dllimport_compile checked 808ms check-target:macos_arm64 @2d8ed253669f
+pass/providers/foreign_address_result_release_exit checked 4696ms check-target:linux_x86_64 @365e35212c0c
+pass/providers/foreign_indirect_record_distinct_exit checked 4820ms check-target:linux_x86_64 @365e35212c0c
 pass/providers/foreign_indirect_record_relay_exit checked 7141ms check-target:linux_x86_64 @ce0ed8ee8e37
 pass/providers/foreign_indirect_record_result_exit checked 6924ms check-target:linux_x86_64 @ce0ed8ee8e37
 pass/providers/foreign_multiregister_result_exit checked 5866ms check-target:macos_arm64 @cfe60a3a242
 pass/providers/foreign_out_parameter_write_observed_exit checked 11330ms check-target:macos_arm64 @22d7c734257c+wt
 pass/providers/foreign_owned_record_exit checked 5220ms check-target:macos_arm64 @cfe60a3a242
+pass/providers/foreign_packed_record_reuse_exit checked 3993ms check-target:linux_x86_64 @365e35212c0c
 pass/providers/foreign_record_result_exit checked 4756ms check-target:macos_arm64 @cfe60a3a242
 pass/providers/foreign_register_record_reuse_exit checked 5459ms check-target:linux_x86_64 @ce0ed8ee8e37
 pass/providers/generic_provider_structural_result_composition_exit checked 3447ms check-target:macos_arm64 @9719c66eb4a

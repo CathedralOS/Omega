@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 2.2, "load1_start": 2.31, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 1.46, "load1_start": 1.0, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -843,8 +843,11 @@ pass/providers/direct_boundary_array_snapshot_exit rejected 2300ms regressed-fro
 	terminal-artifact production failed: Lowering(Unsupported("copied record lost its established local"))
 pass/providers/external_boundary_requirement_via_exit built 942ms exit:21 @9baafc0ace88
 pass/providers/external_leaf_dllimport_compile built 783ms @2d8ed253669f+wt
+pass/providers/foreign_address_result_release_exit built 5698ms exit:70 @365e35212c0c
+pass/providers/foreign_indirect_record_distinct_exit built 6177ms exit:70 @365e35212c0c
 pass/providers/foreign_indirect_record_relay_exit built 7200ms exit:70 @ce0ed8ee8e37
 pass/providers/foreign_indirect_record_result_exit built 7657ms exit:70 @ce0ed8ee8e37
+pass/providers/foreign_packed_record_reuse_exit built 4059ms exit:70 @365e35212c0c
 pass/providers/foreign_register_record_reuse_exit built 5552ms exit:70 @ce0ed8ee8e37
 pass/providers/generic_provider_structural_result_composition_exit built 7206ms exit:0 @9719c66eb4a
 pass/providers/kernel_import_result_chain_exit built 4147ms exit:70 @ce0ed8ee8e37
