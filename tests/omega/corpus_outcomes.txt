@@ -3058,6 +3058,7 @@ pass/effects/generic_callback_schema_reach checked 315ms @2d8ed253669f
 pass/effects/nominal_callback_const_reach checked 300ms @2d8ed253669f
 pass/effects/nominal_callback_dependency checked 302ms @2d8ed253669f
 pass/effects/structural_callback_reach checked 324ms @2d8ed253669f
+pass/entry/nested_where_record_binding_field_exit checked 2202ms check-target:macos_arm64 @a6c61016fcf2+wt
 pass/entry/service_borrowed_slice_call checked 725ms check-target:macos_arm64 @2d8ed253669f
 pass/errors/returned_case_payload_from_parameter_exit checked 2545ms check-target:macos_arm64 @5798b57ae772+wt
 pass/errors/runtime_result_match_exit checked 2045ms check-target:macos_arm64 @2d8ed253669f

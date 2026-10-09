@@ -1,0 +1,21 @@
+// A ProgramEntry receiver establishes a Binding field reached through a
+// nested record whose data `where` facts its zero value satisfies. The facts
+// constrain the record's scalar field; they do not hide the record's service
+// field from establishment. Exit 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Session where retries <= 3 {
+    console: Binding<Console>;
+    retries: u64;
+}
+
+data Main {
+    session: Session;
+}
+
+machine Main::main(main: &mut Main)
+reaches Console
+{
+    main.session.console.exit_process(70);
+}

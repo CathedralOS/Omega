@@ -448,8 +448,10 @@ fn collect_service_fields<'a>(
 
 /// The nested source data definition a record field names, under the same
 /// guards the receiver-eligibility walk applies: a nominal non-generic
-/// definition with no authored `where` facts. Refined references stay
-/// unresolved rather than stripping a constraint to reach nested fields.
+/// definition whose checked zero value is a member of its declared domain.
+/// Data `where` facts the zero value satisfies constrain other fields; they
+/// do not hide a nested service field. Refined references stay unresolved
+/// rather than stripping a constraint to reach nested fields.
 fn nested_source_record(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
@@ -462,10 +464,7 @@ fn nested_source_record(
     checked.data_definitions().iter().find(|definition| {
         definition.symbol == *symbol
             && checked.data_type_parameters(definition).is_empty()
-            && checked
-                .proof_facts
-                .span_or_empty(definition.where_facts)
-                .is_empty()
+            && !validation::data_requires_establishment(&checked.typed, definition)
     })
 }
 
