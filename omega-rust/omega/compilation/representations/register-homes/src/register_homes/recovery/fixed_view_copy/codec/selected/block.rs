@@ -501,7 +501,7 @@ fn decode_case(
         tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
     };
     let case = decode_id(cursor, semantic_vocabulary::StructuralCaseId::new)?;
-    let case_tag = i32::from_le_bytes(cursor.array()?);
+    let case_tag = cursor.i32()?;
     let count = cursor.length()?;
     let mut payloads = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {

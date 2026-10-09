@@ -63,6 +63,13 @@ impl<'a> Cursor<'a> {
     pub(crate) fn i128(&mut self) -> Result<i128, Truncated> {
         Ok(i128::from_le_bytes(self.array()?))
     }
+    pub(crate) fn i32(&mut self) -> Result<i32, Truncated> {
+        Ok(i32::from_le_bytes(self.array()?))
+    }
+
+    pub(crate) fn i64(&mut self) -> Result<i64, Truncated> {
+        Ok(i64::from_le_bytes(self.array()?))
+    }
 
     pub(crate) fn length(&mut self) -> Result<usize, TakeError> {
         let value = self.u64().map_err(|_| TakeError::Truncated)?;

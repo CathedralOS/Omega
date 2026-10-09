@@ -260,7 +260,7 @@ fn decode_call_binding(
         let target_name = decode_string(cursor)?;
         let target = TargetProfile::from_canonical_target_name(&target_name)
             .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
-        let number = i64::from_le_bytes(cursor.array::<8>()?);
+        let number = cursor.i64()?;
         let provider_plan_report_identity = cursor.u64()?;
         let provider_plan_commitment = cursor.array::<32>()?;
         let requirement_identity = decode_string(cursor)?;
