@@ -2,7 +2,7 @@
 """`git bisect run` over corpus_gate.py blames the right commit.
 
 A throwaway repository commits a fake corpus_runner (a python script that
-prints records from a committed data file) across six commits: one fixture
+writes records from a committed data file) across six commits: one fixture
 regresses at a known commit, and a later commit breaks the runner outright.
 The gate's --bisect mapping must name the regression — never the
 infrastructure failure, which maps to skip.
@@ -21,16 +21,17 @@ GATE = Path(__file__).resolve().parents[1] / "corpus_gate.py"
 RECORDS = Path(__file__).resolve().parents[1] / "corpus_records.py"
 
 RUNNER = """#!/usr/bin/env python3
+import os
 import sys
 from pathlib import Path
 data = (Path(__file__).resolve().parent / "data.txt").read_text()
 if "runner-broken" in data:
     sys.exit(2)
 status = "rejected" if "regressed" in data else "built"
-sys.stdout.write(
+Path(os.environ["OMEGA_CORPUS_RECORDS"]).write_text(
     "pass/alpha/kept checked 10ms\\n"
     "run/alpha/moving built 20ms exit:0\\n"
-    f"run/alpha/subject {status} 30ms\\n")
+    f"run/alpha/subject {status} 30ms\\n", encoding="utf-8")
 """
 
 

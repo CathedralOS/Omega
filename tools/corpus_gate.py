@@ -406,8 +406,14 @@ def run_runner(binary: Path) -> list[dict]:
         prefix="corpus-records-", suffix=".txt", delete=False)
     records_file.close()
     env["OMEGA_CORPUS_RECORDS"] = records_file.name
-    proc = subprocess.Popen([str(binary)], cwd=ROOT, text=True, env=env,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        proc = subprocess.Popen([str(binary)], cwd=ROOT, text=True, env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except OSError as error:
+        # No runner started: do not leak its records file or blame a fixture.
+        os.unlink(records_file.name)
+        raise InfrastructureFailure(
+            f"corpus_gate: cannot launch runner {binary}: {error}") from error
     buffered_stderr = collections.deque(maxlen=2000)
 
     def stream_progress():

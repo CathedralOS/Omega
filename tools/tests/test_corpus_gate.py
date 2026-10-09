@@ -402,6 +402,41 @@ class MainVerdicts(unittest.TestCase):
              patch.object(sys, "argv", argv):
             self.assertEqual(corpus_gate.main(), 125)
 
+    def test_runner_launch_errors_skip_bisect_and_leave_no_records_file(self):
+        self.write_golden([record("pass/a/x")])
+        original = self.golden.read_text()
+        create_records_file = tempfile.NamedTemporaryFile
+        records_paths = []
+
+        def create_local_records_file(**options):
+            records_file = create_records_file(dir=self.root, **options)
+            records_paths.append(Path(records_file.name))
+            return records_file
+
+        for error in (FileNotFoundError("runner missing"),
+                      PermissionError("runner not executable"),
+                      OSError("runner format unsupported")):
+            for flags, expected_code in (((), 4), (("--bisect",), 125)):
+                argv = ["corpus_gate", "--runner", "unlaunchable", "--record",
+                        "--golden", str(self.golden), "--json",
+                        str(self.json_path), *flags]
+                with self.subTest(error=type(error).__name__, flags=flags), \
+                     patch.object(corpus_gate, "ROOT", self.root), \
+                     patch.object(corpus_gate, "host_target", return_value="macos_arm64"), \
+                     patch.object(corpus_gate.tempfile, "NamedTemporaryFile",
+                                  side_effect=create_local_records_file), \
+                     patch.object(corpus_gate.subprocess, "Popen", side_effect=error), \
+                     patch.dict(corpus_gate.os.environ, {}, clear=True), \
+                     patch.object(sys, "argv", argv):
+                    self.assertEqual(corpus_gate.main(), expected_code)
+                    self.assertEqual(self.golden.read_text(), original)
+                    document = json.loads(self.json_path.read_text())
+                    self.assertEqual(document["verdict"], "infrastructure_failed")
+                    self.assertEqual(document["exit_code"], expected_code)
+                    self.assertIn("unlaunchable", document["infrastructure_error"])
+                    self.assertIn(str(error), document["infrastructure_error"])
+                    self.assertFalse(records_paths[-1].exists())
+
     def test_bisect_maps_regressed_to_bad_and_moves_to_good(self):
         golden = [record("pass/a/x", status="built")]
         regressed = [record("pass/a/x", status="rejected")]
