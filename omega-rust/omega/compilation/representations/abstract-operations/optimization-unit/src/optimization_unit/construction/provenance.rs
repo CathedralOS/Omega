@@ -56,9 +56,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::IeeeFloatCompare { psi_operation, .. }
         | O::FloatResultPolicy { psi_operation, .. }
         | O::BooleanConstant { psi_operation, .. }
-        | O::ByteSequenceRead { psi_operation, .. }
-        | O::ByteSequencePredicate { psi_operation, .. }
-        | O::ByteSequenceEqual { psi_operation, .. }
+        | abstract_operations::byte_read_predicate_equal_pattern!(psi_operation, ..)
         | O::ByteSequenceWrite { psi_operation, .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( psi_operation, .. )
         | O::StructuralByteViewFieldStore { psi_operation, .. }

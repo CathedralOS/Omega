@@ -420,9 +420,7 @@ fn operation_observations(
         // fresh owned value: a structural-state event that no pass may erase
         // or reorder against other observations of the same storage.
         | O::StructuralLeafCopy { .. }
-        | O::ByteSequenceRead { .. }
-        | O::ByteSequencePredicate { .. }
-        | O::ByteSequenceEqual { .. }
+        | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::EstablishElementView { .. }

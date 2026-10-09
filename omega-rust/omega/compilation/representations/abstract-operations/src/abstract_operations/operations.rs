@@ -1305,3 +1305,12 @@ macro_rules! call_or_call_structural_pattern {
             | $crate::AbstractOperation::CallStructural { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! byte_read_predicate_equal_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::ByteSequenceRead { $($fields)* }
+            | $crate::AbstractOperation::ByteSequencePredicate { $($fields)* }
+            | $crate::AbstractOperation::ByteSequenceEqual { $($fields)* }
+    };
+}

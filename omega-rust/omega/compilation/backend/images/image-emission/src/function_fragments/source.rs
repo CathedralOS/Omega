@@ -391,9 +391,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::ByteSequenceLength { .. }
                 | AbstractOperation::ByteSequenceWrite { .. }
-                | AbstractOperation::ByteSequenceRead { .. }
-                | AbstractOperation::ByteSequencePredicate { .. }
-                | AbstractOperation::ByteSequenceEqual { .. }
+                | abstract_operations::byte_read_predicate_equal_pattern!(..)
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
                 AbstractOperation::EstablishElementView { .. }
                 | AbstractOperation::ElementViewLength { .. }

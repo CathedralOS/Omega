@@ -75,9 +75,7 @@ pub(crate) fn operation_scalar_types_match(
         O::EstablishByteSequenceConcatenation { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | abstract_operations::byte_sequence_write_pair_pattern!(..)
-        | O::ByteSequenceRead { .. }
-        | O::ByteSequencePredicate { .. }
-        | O::ByteSequenceEqual { .. }
+        | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceLength { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::ByteSequenceSubslice { .. } => byte_views::types_match(operation, definitions),

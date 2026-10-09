@@ -360,21 +360,7 @@ pub(super) fn lower(
                 removed_scalar_expression(&mut values, function.machine, result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
         }
-        AbstractOperation::ByteSequenceRead {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ByteSequencePredicate {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ByteSequenceEqual {
-            psi_operation,
-            result,
-            ..
-        } => {
+        abstract_operations::byte_read_predicate_equal_pattern!(psi_operation,result, ..) => {
             let expression = values
                 .remove(&result.value)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?

@@ -130,9 +130,7 @@ pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
     matches!(
         abstracted,
         AbstractOperation::ByteSequenceLength { .. }
-            | AbstractOperation::ByteSequenceRead { .. }
-            | AbstractOperation::ByteSequencePredicate { .. }
-            | AbstractOperation::ByteSequenceEqual { .. }
+            | abstract_operations::byte_read_predicate_equal_pattern!(..)
             | AbstractOperation::ElementViewLength { .. }
             | AbstractOperation::ElementViewRead { .. }
             | abstract_operations::integer_equal_less_pair_pattern!(..)
@@ -342,21 +340,7 @@ pub(super) fn observation(
             result,
             ..
         }
-        | AbstractOperation::ByteSequenceRead {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ByteSequencePredicate {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ByteSequenceEqual {
-            psi_operation,
-            result,
-            ..
-        }
+        | abstract_operations::byte_read_predicate_equal_pattern!(psi_operation,result, ..)
         | AbstractOperation::ElementViewLength {
             psi_operation,
             result,

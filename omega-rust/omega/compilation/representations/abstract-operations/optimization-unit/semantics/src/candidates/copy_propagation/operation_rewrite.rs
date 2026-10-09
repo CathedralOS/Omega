@@ -150,9 +150,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
         | abstract_operations::scalar_read_or_membership_pattern!(..)
-        | O::ByteSequenceRead { .. }
-        | O::ByteSequencePredicate { .. }
-        | O::ByteSequenceEqual { .. }
+        | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceWrite { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | O::StructuralByteViewFieldStore { .. }

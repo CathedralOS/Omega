@@ -51,9 +51,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         // only the producer's own partition may retire a verified operation.
         | O::ScalarRepresentationView { .. }
         | O::FloatResultPolicy { .. }
-        | O::ByteSequenceRead { .. }
-        | O::ByteSequencePredicate { .. }
-        | O::ByteSequenceEqual { .. }
+        | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceWrite { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | O::StructuralByteViewFieldStore { .. }

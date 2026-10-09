@@ -177,16 +177,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         } if result.scalar_type == ScalarType::Integer(u64_type()) => {
             Ok((*psi_operation, result.value))
         }
-        AbstractOperation::ByteSequencePredicate {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ByteSequenceEqual {
-            psi_operation,
-            result,
-            ..
-        } if result.scalar_type == ScalarType::Boolean => Ok((*psi_operation, result.value)),
+        abstract_operations::byte_read_predicate_equal_pattern!(psi_operation,result, ..) if result.scalar_type == ScalarType::Boolean => Ok((*psi_operation, result.value)),
         AbstractOperation::ElementViewRead {
             psi_operation,
             result,
@@ -291,8 +282,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         AbstractOperation::IntegerConstant { .. }
         | abstract_operations::byte_read_or_field_read_pattern!(..)
         | AbstractOperation::ByteSequenceLength { .. }
-        | AbstractOperation::ByteSequencePredicate { .. }
-        | AbstractOperation::ByteSequenceEqual { .. }
+        | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
             Err(NodeRejection::Malformed)
         }

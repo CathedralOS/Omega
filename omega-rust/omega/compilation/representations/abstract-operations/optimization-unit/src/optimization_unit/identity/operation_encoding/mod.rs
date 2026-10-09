@@ -53,9 +53,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         O::IntegerConstant { .. }
         | O::BooleanConstant { .. }
         | O::StructuralScalarFieldRead { .. }
-        | O::ByteSequenceRead { .. }
-        | O::ByteSequencePredicate { .. }
-        | O::ByteSequenceEqual { .. }
+        | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceWrite { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )
         | O::StructuralByteViewFieldStore { .. }

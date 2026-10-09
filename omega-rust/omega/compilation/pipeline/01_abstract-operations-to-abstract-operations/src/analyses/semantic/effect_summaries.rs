@@ -313,9 +313,7 @@ fn operation_effect(
         | O::EstablishRecord { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
-        | O::ByteSequenceRead { .. }
-        | O::ByteSequencePredicate { .. }
-        | O::ByteSequenceEqual { .. }
+        | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::EstablishElementView { .. }
