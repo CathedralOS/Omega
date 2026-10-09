@@ -202,13 +202,17 @@ pub fn data_has_contents(
         };
         arguments
     };
-    let resolved = ContentType::Data(
-        data.symbol,
-        arguments
+    let resolved = ContentType::Data {
+        symbol: data.symbol,
+        // This declaration input has no authored application row. Its exact
+        // telescope supplies the fields; a fabricated reference must not select
+        // a retained closed view belonging to another application.
+        application: TypeReferenceHandle::invalid(),
+        arguments: arguments
             .into_iter()
             .map(|(_, argument)| argument)
             .collect(),
-    );
+    };
     check_contents(
         program,
         &resolved,
