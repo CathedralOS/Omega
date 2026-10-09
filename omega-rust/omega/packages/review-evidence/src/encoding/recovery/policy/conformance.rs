@@ -5,19 +5,11 @@ use super::{
     identity::{nominal, type_identity},
     reader::Reader,
 };
-use crate::encoding::{CONFORMANCE_POLICY_MAGIC, PACKAGE_CONFORMANCE_POLICY_VERSION};
 use crate::record::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
     PackagePolicyConformanceRow,
 };
 
-impl PackagePolicyClosedConformanceApplication {
-    super::recover_canonical_component!(
-        CONFORMANCE_POLICY_MAGIC,
-        PACKAGE_CONFORMANCE_POLICY_VERSION,
-        application,
-    );
-}
 
 pub(in crate::encoding::recovery) fn application(
     reader: &mut Reader<'_>,
