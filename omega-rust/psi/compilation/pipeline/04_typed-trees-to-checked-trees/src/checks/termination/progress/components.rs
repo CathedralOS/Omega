@@ -1,4 +1,7 @@
-//! Close private progress assumptions only within a validated recursive component.
+//! Close private progress assumptions within independently ranked recursion.
+//!
+//! Runtime and erased proof components retain their own checked call-edge
+//! authority. State-cycle ranking alone does not authorize a recursive call.
 
 use super::CheckedProgressSummary;
 use crate::checks::termination::progress::machine_summaries::{
@@ -14,9 +17,17 @@ pub(super) fn derive_summaries(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
+    proof_components: &[validation::ValidatedProofRecursiveComponent],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<CheckedProgressSummary> {
-    let components = validation::validated_runtime_recursive_components(program);
+    let mut components = validation::validated_runtime_recursive_components(program);
+    components.extend(proof_components.iter().map(|component| {
+        component
+            .members
+            .iter()
+            .map(|member| member.machine)
+            .collect::<Vec<_>>()
+    }));
     let mut summaries = program
         .machines()
         .iter()

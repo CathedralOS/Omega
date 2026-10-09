@@ -31,13 +31,12 @@ pub(super) fn finite_projection_limit(
         .iter()
         .filter(|machine| component.contains(&machine.symbol))
     {
-        // The shared runtime ranking currently admits one entry state and no
-        // internal state loop. Rebinding through multiple states needs its own
-        // finite transport judgment before it can extend this component rule.
-        let [entry] = program.machine_states(machine) else {
-            return None;
-        };
-        parameter_count = parameter_count.checked_add(program.state_parameters(entry).len())?;
+        // Each state formal is a distinct transport root. The exact call
+        // argument walk below includes local arrivals as well as nested calls;
+        // finite-prefix growth therefore counts the whole activation graph.
+        for state in program.machine_states(machine) {
+            parameter_count = parameter_count.checked_add(program.state_parameters(state).len())?;
+        }
         for (_, state) in flow
             .control
             .states
