@@ -4,6 +4,32 @@
 //! projected once into owned current facts and then dropped; no later stage
 //! inspects or replays allocation history.
 
+/// The `AllocationOutput` every `project_allocation` impl publishes: the
+/// staged producer's current facts plus the placed program view it selected
+/// and the per-route evidence variant — those three expressions are the only
+/// parts that differ, so they arrive as arguments.
+macro_rules! allocation_output {
+    ($self:expr, $placed:expr, $selected:expr, $evidence:expr) => {
+        AllocationOutput {
+            program: register_homes::AllocatedProgramRef {
+                selected: $placed,
+                homes: $self.homes().plan(),
+            },
+            selected: $selected,
+            liveness: $self.liveness(),
+            ranges: $self.ranges(),
+            legality: $self.legality(),
+            homes: $self.homes(),
+            manifest: $self.post_allocation_manifest(),
+            environment: $self.register_environment(),
+            target_input: $self.optimized_target_owner(),
+            selections: $self.selections(),
+            budget: $self.budget_per_pass(),
+            evidence: $evidence,
+        }
+    };
+}
+
 mod baseline;
 mod current;
 mod fixed_view;
