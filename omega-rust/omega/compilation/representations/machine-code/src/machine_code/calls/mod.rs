@@ -23,10 +23,11 @@ pub use fixups::{
 };
 pub use foreign::{Aarch64ForeignCallFloatingControlRecord, ForeignCallRelocation};
 pub use internal::{
-    InstalledProviderUnitScalarCallRecord, InternalCallRelocation, InternalStructuralCallResult,
-    InternalStructuralResultHomeRecord, InternalUnitCallRecord, InternalUnitCallSource,
+    InstalledProviderUnitScalarCallRecord, InternalCallRelocation, InternalStructuralCallResult, InternalUnitCallRecord, InternalUnitCallSource,
     InternalUnitScalarCallRecord, StructuralCallScalarReturnEvidence, unit_call_arguments,
 };
+pub(crate) use internal::{
+    InternalStructuralResultHomeRecord};
 pub use results::{
     ForeignCallScalarResultRecord, InternalUnitScalarCallResultRecord, StructuralReturnRecord,
 };

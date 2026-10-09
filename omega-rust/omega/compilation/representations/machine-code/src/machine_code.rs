@@ -33,7 +33,7 @@ pub use calls::{
     Aarch64ForeignCallFloatingControlRecord, CallbackAddressDestination, CallbackAddressEncoding,
     CallbackAddressMaterialization, ForeignCallRelocation, ForeignCallScalarArgumentRecord,
     ForeignCallScalarResultRecord, InstalledProviderUnitScalarCallRecord, InternalCallRelocation,
-    InternalStructuralCallResult, InternalStructuralResultHomeRecord,
+    InternalStructuralCallResult,
     InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitCallSource,
     InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallArgumentRecord,
     InternalUnitScalarCallRecord, InternalUnitScalarCallResultRecord,
@@ -44,12 +44,14 @@ pub use calls::{
     SelectedFormNormalizedForeignCallFixupState, StructuralCallScalarReturnEvidence,
     StructuralReturnRecord, arguments, callbacks, foreign, internal, results, unit_call_arguments,
 };
+pub(crate) use calls::{ InternalStructuralResultHomeRecord};
 pub use control_flow::{
-    BooleanStructuralConditionEvidence, BooleanStructuralFieldRead,
+    BooleanStructuralConditionEvidence,
     ScalarConditionalBranchEvidence, ScalarConditionalCondition, ScalarControlBlockEvidence,
     ScalarControlFlowEvidence, ScalarControlTerminatorEvidence,
     ScalarDirectConditionalBranchEvidence, ScalarDivisionBranchEvidence, ScalarJoinBranchEvidence,
 };
+pub(crate) use control_flow::{ BooleanStructuralFieldRead};
 pub use encoding::{
     DeferredControlEncodingReason, ResolvedPhysicalAddress, SelectedFormDecodedFootprint,
     SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan, SelectedFormEncodedRowStore,
@@ -66,30 +68,33 @@ pub use fragments::{
     FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
     FunctionFragmentEmissionUnavailableData, FunctionFragmentInstructionSpan,
     FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
-    FunctionFragmentInternalMachineFixupState, FunctionFragmentJumpEvidence,
+    FunctionFragmentInternalMachineFixupState,
     FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
-    FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance, fixups,
-    function_fragment_emission_identity, identity, publication,
+    FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance, fixups, identity, publication,
 };
+pub(crate) use fragments::{ FunctionFragmentJumpEvidence,
+    function_fragment_emission_identity};
 pub use functions::{
-    CompilerPrivateMachineCodeFunction, MachineCodeFunction, MachineCodePlanWithPrivateFunctions,
+    CompilerPrivateMachineCodeFunction, MachineCodeFunction,
     WholeFunctionCrashEvidence, WholeFunctionEntryAssumption, WholeFunctionExitContract,
     WholeFunctionExitContractIdentity, WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody,
     WholeFunctionExitPolicy, WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
     WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
     WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence, exit_contract, exit_policy_tag,
+    WholeFunctionReturnValueEvidence, exit_contract,
     whole_function_exit_contract_identity,
 };
+pub(crate) use functions::{ MachineCodePlanWithPrivateFunctions, exit_policy_tag};
 pub use implementation_tables::{
     FunctionFragmentImplementationTableAddressFixup, ImplementationTableReference,
     PlacedImplementationTableAddress, SelectedFormImplementationTableAddressFixup,
 };
 pub use instructions::{
     X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,
-    X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord, X86ScalarFmaOperandRecord, x86_fma,
-    x86_scalar_fma_fragment_identity,
+    X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord, x86_fma,
 };
+pub(crate) use instructions::{ X86ScalarFmaOperandRecord,
+    x86_scalar_fma_fragment_identity};
 pub use layout::text_section::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
@@ -113,16 +118,14 @@ pub use ownership::{
     UnitContinuationRecord,
 };
 pub use provenance::{SemanticCodeAttribution, SemanticCodeSite, semantic_code_site};
-pub use storage::{
-    Aarch64ReturnLinkEvidence, CalleeSaveFrameSlot, FrameProtocolByteSpan, FrameUnwindPlan,
+pub use storage::{ CalleeSaveFrameSlot, FrameProtocolByteSpan, FrameUnwindPlan,
     FrameUnwindRestore, FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol,
     FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,
-    FunctionNonAuthoritativeCalleeSaveStorage, FunctionSpillFrameRequirements,
+    FunctionNonAuthoritativeCalleeSaveStorage,
     FunctionTargetFrameLayout, FunctionTargetFrameProtocolEncoding, LocalStorageFrameSlot,
     NonAuthoritativeCalleeSaveSlot, NonAuthoritativeCalleeSaveSlotId,
     NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
-    NonAuthoritativeCalleeSaveStoragePolicy, NonAuthoritativeSpillFrameRequirementIdentity,
-    NonAuthoritativeSpillFrameRequirementPlan, NonAuthoritativeSpillFrameRequirementPolicy,
+    NonAuthoritativeCalleeSaveStoragePolicy,
     OutgoingAbiFrameArea, ParameterFunctionAbiRecord, ReturnAddressFrameCustody,
     ScalarCallStackEvidence, ScalarStackEvidence, ScalarStackMutation, ScalarStackMutationKind,
     ScalarStructuralScalarFieldStoreRecord, StackAdjustmentPair, StackProbePlan,
@@ -137,6 +140,9 @@ pub use storage::{
     parameters, scalars, stack, stores, target_frame_layout_identity,
     target_frame_protocol_encoding_identity,
 };
+pub(crate) use storage::{
+    Aarch64ReturnLinkEvidence, FunctionSpillFrameRequirements, NonAuthoritativeSpillFrameRequirementIdentity,
+    NonAuthoritativeSpillFrameRequirementPlan, NonAuthoritativeSpillFrameRequirementPolicy};
 
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;

@@ -3,6 +3,7 @@
 pub mod x86_fma;
 pub use x86_fma::{
     X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,
-    X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord, X86ScalarFmaOperandRecord,
-    x86_scalar_fma_fragment_identity,
+    X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
 };
+pub(crate) use x86_fma::{ X86ScalarFmaOperandRecord,
+    x86_scalar_fma_fragment_identity};

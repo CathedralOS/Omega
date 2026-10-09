@@ -159,7 +159,7 @@ pub fn whole_function_exit_contract_identity(
     WholeFunctionExitContractIdentity::from_bytes(hasher.finalize().into())
 }
 
-pub fn exit_policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
+pub(crate) fn exit_policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
     match policy {
         WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1 => 1,
         WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => 2,

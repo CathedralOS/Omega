@@ -98,7 +98,7 @@ impl X86ScalarFmaFragment {
     }
 }
 
-pub fn x86_scalar_fma_fragment_identity(fragment: &X86ScalarFmaFragment) -> Option<[u8; 32]> {
+pub(crate) fn x86_scalar_fma_fragment_identity(fragment: &X86ScalarFmaFragment) -> Option<[u8; 32]> {
     if fragment.target.architecture != Architecture::X86_64 {
         return None;
     }

@@ -8,9 +8,10 @@ pub mod publication;
 
 pub use control_flow::{
     FunctionFragmentBranchEvidence, FunctionFragmentConditionalBranchEvidence,
-    FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
-    FunctionFragmentJumpEvidence, FunctionFragmentSuccessorProvenance,
+    FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance, FunctionFragmentSuccessorProvenance,
 };
+pub(crate) use control_flow::{
+    FunctionFragmentJumpEvidence};
 pub use fixups::{
     FunctionFragmentCallbackMaterialization, FunctionFragmentCallbackMaterializationEncoding,
     FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
@@ -19,7 +20,7 @@ pub use fixups::{
     FunctionFragmentNormalizedForeignCallFixupState,
 };
 pub use functions::{FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentInstructionSpan};
-pub use identity::function_fragment_emission_identity;
+pub(crate) use identity::function_fragment_emission_identity;
 pub use publication::{
     FunctionFragmentEmissionManifest, FunctionFragmentEmissionManifestDecodeError,
     FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
