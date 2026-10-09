@@ -1,9 +1,9 @@
 //! Stable Git cache identities, metadata records, and cache diagnostics.
 
-use sha2::{Digest, Sha256};
+
 
 use crate::git::request::GitExecutionTransport;
-use crate::identity::digest::{append_framed_bytes, format_sha256, hash_bytes};
+use crate::identity::digest::{append_framed_bytes, format_sha256};
 use crate::limits::GIT_CACHE_POLICY;
 
 pub(crate) fn git_cache_identity(
@@ -11,12 +11,12 @@ pub(crate) fn git_cache_identity(
     requested_rev: &str,
     execution_transport: GitExecutionTransport,
 ) -> String {
-    let mut hasher = Sha256::new();
-    hash_bytes(&mut hasher, GIT_CACHE_POLICY);
-    hash_bytes(&mut hasher, url.as_bytes());
-    hash_bytes(&mut hasher, requested_rev.as_bytes());
-    hash_bytes(&mut hasher, execution_transport.cache_tag());
-    format_sha256(&hasher.finalize())
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    hasher.bytes(GIT_CACHE_POLICY);
+    hasher.bytes(url.as_bytes());
+    hasher.bytes(requested_rev.as_bytes());
+    hasher.bytes(execution_transport.cache_tag());
+    format_sha256(&hasher.finish())
 }
 
 pub(crate) fn git_cache_metadata(

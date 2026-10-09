@@ -20,51 +20,51 @@ pub(super) fn issue_local_source_resolution_observation(
 ) -> LocalSourceResolutionObservation {
     let custody_identity =
         local_snapshot_custody_identity(canonical_live_root, &final_snapshot.content_identity);
-    let mut hasher = Sha256::new();
-    hash_field(&mut hasher, LOCAL_RESOLUTION_OBSERVATION_DOMAIN);
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    hasher.bytes(LOCAL_RESOLUTION_OBSERVATION_DOMAIN);
     hash_u64(
         &mut hasher,
         u64::from(LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION),
     );
-    hash_field(&mut hasher, LOCAL_SNAPSHOT_POLICY);
-    hash_field(&mut hasher, LOCAL_SNAPSHOT_CUSTODY_POLICY);
+    hasher.bytes(LOCAL_SNAPSHOT_POLICY);
+    hasher.bytes(LOCAL_SNAPSHOT_CUSTODY_POLICY);
     hash_path(&mut hasher, requested_root);
     hash_path(&mut hasher, canonical_live_root);
     hash_path(&mut hasher, publication_root);
     hash_path(&mut hasher, &final_snapshot.root);
-    hash_usize(&mut hasher, final_snapshot.file_count);
-    hash_u64(&mut hasher, final_snapshot.byte_count);
-    hash_field(&mut hasher, final_snapshot.content_identity.as_bytes());
-    hash_usize(&mut hasher, limits.max_entries);
-    hash_u64(&mut hasher, limits.max_bytes);
-    hash_usize(&mut hasher, limits.max_depth);
-    hash_field(&mut hasher, custody_identity.as_bytes());
+    hasher.bytes(&final_snapshot.file_count.to_le_bytes());
+    hasher.bytes(&final_snapshot.byte_count.to_le_bytes());
+    hasher.bytes(final_snapshot.content_identity.as_bytes());
+    hasher.bytes(&limits.max_entries.to_le_bytes());
+    hasher.bytes(&limits.max_bytes.to_le_bytes());
+    hasher.bytes(&limits.max_depth.to_le_bytes());
+    hasher.bytes(custody_identity.as_bytes());
     hash_field(&mut hasher, b"final-exact-tree-rehash-complete");
     hash_field(&mut hasher, b"resolved");
 
     LocalSourceResolutionObservation {
         schema_version: LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION,
-        identity: format_sha256(&hasher.finalize()),
+        identity: format_sha256(&hasher.finish()),
         custody_identity,
     }
 }
 
-fn hash_field(hasher: &mut Sha256, value: &[u8]) {
-    hash_bytes(hasher, value);
+fn hash_field(hasher: &mut crate::digest_encoder::DomainDigestEncoder, value: &[u8]) {
+    hasher.bytes(value);
 }
 
-fn hash_u64(hasher: &mut Sha256, value: u64) {
-    hash_field(hasher, &value.to_le_bytes());
+fn hash_u64(hasher: &mut crate::digest_encoder::DomainDigestEncoder, value: u64) {
+    hasher.bytes(&value.to_le_bytes());
 }
 
-fn hash_usize(hasher: &mut Sha256, value: usize) {
+fn hash_usize(hasher: &mut crate::digest_encoder::DomainDigestEncoder, value: usize) {
     hash_u64(
         hasher,
         u64::try_from(value).expect("compiler-owned source ceilings fit canonical u64"),
     );
 }
 
-fn hash_path(hasher: &mut Sha256, path: &Path) {
+fn hash_path(hasher: &mut crate::digest_encoder::DomainDigestEncoder, path: &Path) {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;

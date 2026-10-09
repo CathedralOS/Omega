@@ -10,6 +10,7 @@
 //! admission belong to `package-manager`.
 
 mod custody;
+mod digest_encoder;
 mod error;
 pub mod git;
 pub(crate) mod identity;

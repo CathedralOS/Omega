@@ -9,10 +9,10 @@ macro_rules! domain_digest {
 
         impl $name {
             pub fn derive(canonical_evidence: &[u8]) -> Self {
-                let mut hasher = Sha256::new();
-                hash_field(&mut hasher, $domain);
-                hash_field(&mut hasher, canonical_evidence);
-                Self(hasher.finalize().into())
+                let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
+                hasher.bytes($domain);
+                hasher.bytes(canonical_evidence);
+                Self(hasher.finish())
             }
 
             pub fn parse_hex(value: &str) -> Result<Self, IdentityError> {
