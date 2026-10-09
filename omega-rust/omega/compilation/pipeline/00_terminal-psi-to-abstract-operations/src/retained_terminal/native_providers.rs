@@ -74,7 +74,7 @@ impl TerminalNativeRealizationProposal {
         // lowering preserves that operation identity into the D29 physical child;
         // bitwise IEEE ordering needs no independent foreign-provider settlement.
         if self.post_terminal_optimizations().selections() != inputs.optimization_selections {
-            return Err(diagnostic(
+            return Err(diagnostics::error_in_context(
                 "Terminal native proposal",
                 "receiving lowerer selections differ from the exact post-Terminal build proposal",
             ));
@@ -88,7 +88,7 @@ impl TerminalNativeRealizationProposal {
             .callback_arguments
             .as_deref()
             .ok_or_else(|| {
-                diagnostic(
+                diagnostics::error_in_context(
                     "Terminal callback custody",
                     "callback placement has no private registrar materialization",
                 )
@@ -117,8 +117,4 @@ impl TerminalNativeRealizationProposal {
             compiler_builtins,
         })
     }
-}
-
-fn diagnostic(context: &str, message: impl std::fmt::Display) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!("{context}: {message}"))]
 }

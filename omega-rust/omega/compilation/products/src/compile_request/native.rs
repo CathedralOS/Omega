@@ -112,7 +112,7 @@ impl RetainedNativeRealizationRequest<'_> {
     > {
         let (artifact, proposal) = retained.into_parts();
         let proposal = proposal.ok_or_else(|| {
-            diagnostic(
+            diagnostics::error_in_context(
                 "retained Terminal product",
                 "source-evaluated import realization requires one native proposal",
             )
@@ -126,7 +126,7 @@ impl RetainedNativeRealizationRequest<'_> {
             )
             .map_err(|error| {
                 use image_emission::ImageApplicationMetadataError;
-                diagnostic(
+                diagnostics::error_in_context(
                     "Terminal native proposal",
                     match error {
                         ImageApplicationMetadataError::SubsystemMismatch =>
@@ -158,8 +158,4 @@ impl RequestedNativeArtifactError {
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }
-}
-
-fn diagnostic(context: &str, message: impl std::fmt::Display) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!("{context}: {message}"))]
 }

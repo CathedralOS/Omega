@@ -317,7 +317,7 @@ fn exact_demanded_import_plans<'proposal>(
                 exact.insert(requirement.clone(), *plan);
             }
             _ => {
-                return Err(diagnostic(
+                return Err(diagnostics::error_in_context(
                     "Terminal native proposal",
                     format!(
                         "demanded source-evaluated import `{requirement}` resolves to {} selected import plans",
@@ -342,13 +342,13 @@ where
     for import in imports {
         let requirement = import.provider_execution.requirement_identity();
         if !seen.insert(requirement) {
-            return Err(diagnostic(
+            return Err(diagnostics::error_in_context(
                 "source-evaluated import settlement",
                 format!("requirement `{requirement}` was supplied more than once"),
             ));
         }
         let provider_plan = exact_plans.get(requirement).copied().ok_or_else(|| {
-            diagnostic(
+            diagnostics::error_in_context(
                 "source-evaluated import settlement",
                 format!("requirement `{requirement}` is not a demanded selected import"),
             )
@@ -356,7 +356,7 @@ where
         if provider_plan.report_fingerprint()
             != import.provider_execution.provider_plan_report_identity()
         {
-            return Err(diagnostic(
+            return Err(diagnostics::error_in_context(
                 "source-evaluated import settlement",
                 format!(
                     "execution evidence for `{requirement}` names a different provider-plan report coordinate"
@@ -373,14 +373,10 @@ where
         .keys()
         .find(|requirement| !seen.contains(requirement.as_str()))
     {
-        return Err(diagnostic(
+        return Err(diagnostics::error_in_context(
             "source-evaluated import settlement",
             format!("demanded import `{missing}` has no supplied execution and stack custody"),
         ));
     }
     Ok(settlements)
-}
-
-fn diagnostic(context: &str, message: impl std::fmt::Display) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!("{context}: {message}"))]
 }

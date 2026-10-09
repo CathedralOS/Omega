@@ -2,7 +2,7 @@
 //! These records are proposals: settlement independently rejoins the selected
 //! provider, retained external row and validated supervisor-entry plan.
 
-use super::{SourceEvaluatedBindingExecution, diagnostic, fnv1a, nonzero};
+use super::{SourceEvaluatedBindingExecution, fnv1a, nonzero};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use std::collections::BTreeSet;
@@ -33,7 +33,7 @@ pub(super) fn prepare_system_calls<'plan>(
                 .filter(|row| row.requirement_identity == requirement)
                 .count();
             if count != 1 {
-                return Err(diagnostic(
+                return Err(diagnostics::error_in_context(
                     "source-evaluated syscall",
                     format!(
                         "demanded requirement `{requirement}` resolves to {count} selected rows"
