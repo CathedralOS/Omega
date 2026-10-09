@@ -21,6 +21,8 @@ macro_rules! bounded_limits {
 pub(crate) use bounded_limits;
 
 mod build_session;
+mod hex;
+pub(crate) use hex::Hex;
 pub mod declarations;
 pub mod lock;
 pub mod operations;

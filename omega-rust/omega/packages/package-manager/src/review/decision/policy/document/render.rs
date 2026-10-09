@@ -1,6 +1,7 @@
-use super::output::{Hex, Output};
+use super::output::Output;
 use super::sources::{package_key, path, resolution};
 use super::{PackagePolicyDecisionSubject as Subject, PackagePolicyReviewError};
+use crate::Hex;
 use crate::review::{
     PackagePolicyChangeKind, PackagePolicyChangeSet, PackagePolicyReplacementSite,
 };

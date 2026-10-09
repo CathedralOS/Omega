@@ -169,12 +169,4 @@ fn validate_order(previous: Option<Subject>, subject: Subject) -> Result<(), Err
     Ok(())
 }
 
-struct Hex<'digest>(&'digest [u8; 32]);
-impl fmt::Display for Hex<'_> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in self.0 {
-            write!(formatter, "{byte:02x}")?;
-        }
-        Ok(())
-    }
-}
+use crate::Hex;
