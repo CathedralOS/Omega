@@ -230,7 +230,7 @@ impl CompileRequest {
     /// Supply an explicit receiving permission policy to every current
     /// destination; calling this is the only way a request claims receiver
     /// admission, including when the supplied policy is explicitly empty.
-    pub fn with_terminal_authority_permission_policy(
+    pub(crate) fn with_terminal_authority_permission_policy(
         mut self,
         policy: TerminalAuthorityPermissionPolicy,
     ) -> Self {

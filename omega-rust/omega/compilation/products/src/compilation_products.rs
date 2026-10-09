@@ -210,7 +210,7 @@ impl CompileReport {
         }
     }
 
-    pub fn from_build_outputs(
+    pub(crate) fn from_build_outputs(
         root_path: PathBuf,
         source_file_count: usize,
         outputs: crate::RetainedBuildOutputs,
@@ -223,7 +223,7 @@ impl CompileReport {
     }
 
     /// Attach companions only after the requested primary product checked.
-    pub fn with_build_outputs(
+    pub(crate) fn with_build_outputs(
         mut self,
         outputs: Option<crate::RetainedBuildOutputs>,
         expected_observation: Option<package_compilation::BuildObservationIdentity>,
@@ -389,7 +389,7 @@ impl CompileReport {
         Ok(report)
     }
 
-    pub fn from_retained_native_artifact(
+    pub(crate) fn from_retained_native_artifact(
         root_path: PathBuf,
         source_file_count: usize,
         artifact: RetainedNativeArtifact,
@@ -410,7 +410,7 @@ impl CompileReport {
     /// Retain one dynamically linked ELF payload. Like
     /// [`Self::from_retained_native_artifact`], publication later installs it
     /// as a flat file.
-    pub fn from_retained_dynamic_elf_artifact(
+    pub(crate) fn from_retained_dynamic_elf_artifact(
         root_path: PathBuf,
         source_file_count: usize,
         artifact: DynamicElfNativeArtifact,
@@ -430,7 +430,7 @@ impl CompileReport {
 
     /// Retain whichever image class native realization produced. The direct
     /// and dynamic ELF payloads keep their separate report variants.
-    pub fn from_requested_native_artifact(
+    pub(crate) fn from_requested_native_artifact(
         root_path: PathBuf,
         source_file_count: usize,
         artifact: native_artifact::RequestedNativeArtifact,
@@ -536,7 +536,7 @@ impl CompileReport {
     /// `CFBundleIdentifier` — checked against the CodeDirectory identity
     /// already bound into the signed bytes. Only a retained-native report
     /// can carry them.
-    pub fn with_application_metadata(
+    pub(crate) fn with_application_metadata(
         mut self,
         application: NativeApplicationMetadata,
     ) -> Result<Self, &'static str> {
@@ -579,7 +579,7 @@ impl CompileReport {
             .and_then(|application| application.identifier.as_ref())
     }
 
-    pub fn from_retained_terminal_artifact(
+    pub(crate) fn from_retained_terminal_artifact(
         root_path: PathBuf,
         source_file_count: usize,
         artifact: RetainedTerminalArtifact,
@@ -608,7 +608,7 @@ impl CompileReport {
 
     /// Attach the subtractive build overlay only when the published Psi and
     /// pending native proposal carry its exact effective selection.
-    pub fn with_terminal_optimization_rollback(
+    pub(crate) fn with_terminal_optimization_rollback(
         mut self,
         rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<Self, &'static str> {
@@ -631,7 +631,7 @@ impl CompileReport {
     }
 
 
-    pub fn executable_publication(&self) -> Option<&ExecutablePublicationReceipt> {
+    pub(crate) fn executable_publication(&self) -> Option<&ExecutablePublicationReceipt> {
         match &self.product {
             CompileProduct::NativeExecutable(product) => Some(&product.executable),
             _ => None,
