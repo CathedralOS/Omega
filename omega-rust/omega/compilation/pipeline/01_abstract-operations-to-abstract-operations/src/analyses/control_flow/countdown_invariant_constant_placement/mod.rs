@@ -86,15 +86,6 @@ impl ValidatedCountdownInvariantConstantPlacementAnalysis {
         Self { snapshot }
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn loops(&self) -> &[UnsignedCountdownInvariantConstantPlacements] {
-        &self.snapshot.loops
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub const fn snapshot(&self) -> &CountdownInvariantConstantPlacementAnalysisSnapshot {
-        &self.snapshot
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
