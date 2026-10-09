@@ -219,9 +219,8 @@ pub fn elaborate_task_activation_plans(
     Ok(TaskActivationPlanSet { activations })
 }
 
-
 fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
-    let mut hash = StableHash::new();
+    let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x53);
     hash.string("fixed-nonmoving-stack-v1");
     hash.byte(match target.architecture {
@@ -235,7 +234,7 @@ fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
     });
     hash.usize(target.pointer_size);
     hash.usize(target.pointer_alignment);
-    hash.finish()
+    hash.finish_normalized()
 }
 
 /// The concrete per-parameter layouts a start signature marshals under, in
@@ -274,7 +273,7 @@ fn signature_layout_report_fingerprint(
         layout::TypeLayout,
     )],
 ) -> u64 {
-    let mut hash = StableHash::new();
+    let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x51);
     for (type_reference, layout) in layouts {
         hash.string(program.normalized_type_identity(*type_reference).as_str());
@@ -282,7 +281,7 @@ fn signature_layout_report_fingerprint(
         hash.usize(layout.alignment);
         hash.byte(0xff);
     }
-    hash.finish()
+    hash.finish_normalized()
 }
 
 fn entry_report_fingerprint(
@@ -290,7 +289,7 @@ fn entry_report_fingerprint(
     machine: &checked_trees::machine::Machine,
     entry: &checked_trees::state::State,
 ) -> u64 {
-    let mut hash = StableHash::new();
+    let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x45);
     hash.string(machine.name.as_str());
     hash.string(entry.name.as_str());
@@ -304,7 +303,7 @@ fn entry_report_fingerprint(
     }
     hash.byte(0xfe);
     hash.string(program.normalized_type_identity(entry.return_type).as_str());
-    hash.finish()
+    hash.finish_normalized()
 }
 
 fn calling_plan_report_fingerprint(
@@ -313,7 +312,7 @@ fn calling_plan_report_fingerprint(
     arguments_report_fingerprint: u64,
     outcome_report_fingerprint: u64,
 ) -> u64 {
-    let mut hash = StableHash::new();
+    let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(match target.architecture {
         Architecture::Aarch64 => 1,
         Architecture::X86_64 => 2,
@@ -328,7 +327,7 @@ fn calling_plan_report_fingerprint(
     hash.u64(entry_report_fingerprint);
     hash.u64(arguments_report_fingerprint);
     hash.u64(outcome_report_fingerprint);
-    hash.finish()
+    hash.finish_normalized()
 }
 
 fn normalized_id<T>(
@@ -336,43 +335,4 @@ fn normalized_id<T>(
     constructor: impl FnOnce(u64) -> Result<T, task_plans::TaskPlanDiagnostic>,
 ) -> Result<T, Vec<Diagnostic>> {
     constructor(identity.max(1)).map_err(|error| vec![Diagnostic::error(error.to_string())])
-}
-
-struct StableHash(u64);
-
-impl StableHash {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-
-    fn new() -> Self {
-        Self(Self::OFFSET)
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(Self::PRIME);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in bytes {
-            self.byte(*byte);
-        }
-    }
-
-    fn string(&mut self, value: &str) {
-        self.bytes(value.as_bytes());
-        self.byte(0);
-    }
-
-    fn usize(&mut self, value: usize) {
-        self.u64(value as u64);
-    }
-
-    fn u64(&mut self, value: u64) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    fn finish(self) -> u64 {
-        self.0.max(1)
-    }
 }

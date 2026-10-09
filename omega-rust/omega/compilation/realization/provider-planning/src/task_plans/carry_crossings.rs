@@ -226,7 +226,7 @@ fn live_place_identity(
     crossing: &checked_trees::SuspensionCrossingCarryFact,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> u64 {
-    let mut hash = super::StableHash::new();
+    let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x4c);
     hash.string(&program.typed.symbols.display_path(crossing.machine, "::"));
     hash.string(&program.typed.symbols.display_path(crossing.state, "::"));
@@ -253,7 +253,7 @@ fn live_place_identity(
             hash.usize(position);
         }
     }
-    hash.finish()
+    hash.finish_normalized()
 }
 
 /// Stable identity of a live value's checked type: the canonical type
@@ -262,14 +262,14 @@ fn live_type_identity(
     program: &CheckedTrees,
     live: &checked_trees::SuspensionCrossingLiveValueFact,
 ) -> u64 {
-    let mut hash = super::StableHash::new();
+    let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x54);
     hash.string(
         program
             .normalized_type_identity(live.type_reference)
             .as_str(),
     );
-    hash.finish()
+    hash.finish_normalized()
 }
 
 /// Stable identity of one live claim attached to a crossing place. The
@@ -291,7 +291,7 @@ fn live_claim_identity(
             "task activation carry crossing retains a live claim whose identity never resolved",
         )]);
     };
-    let mut hash = super::StableHash::new();
+    let mut hash = crate::fnv1a::Fnv1a::new();
     hash.byte(0x43);
     hash.string(&program.typed.symbols.display_path(machine_symbol, "::"));
     hash.string(&program.typed.symbols.display_path(state_symbol, "::"));
@@ -314,7 +314,7 @@ fn live_claim_identity(
         language_semantics::PermissionEventSource::StateExit => hash.byte(4),
     }
     hash.u64(u64::from(ordinal));
-    semantic_vocabulary::ClaimId::new(hash.finish()).ok_or_else(|| {
+    semantic_vocabulary::ClaimId::new(hash.finish_normalized()).ok_or_else(|| {
         vec![Diagnostic::error(
             "task activation carry crossing claim identity resolved to the reserved zero \
              coordinate",

@@ -1,6 +1,6 @@
 //! Task start selections and activation targets.
 
-use crate::task_plans::{StableHash, entry_report_fingerprint};
+use crate::{fnv1a::Fnv1a, task_plans::entry_report_fingerprint};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use symbols::JoinedPath;
@@ -194,7 +194,7 @@ fn append_task_start_selection(
             return;
         }
     };
-    let mut hash = StableHash::new();
+    let mut hash = Fnv1a::new();
     hash.string("task-runtime-requirement-specialization-v1");
     hash.string(
         program
@@ -211,7 +211,7 @@ fn append_task_start_selection(
         requirement,
         target_machine: target_machine.symbol,
         target_entry: target_entry.symbol,
-        report_fingerprint: hash.finish(),
+        report_fingerprint: hash.finish_normalized(),
         operation,
     };
     if !selections.contains(&selection) {
