@@ -782,13 +782,11 @@ defines the complete product bar.
     and Terminal controls for conditional establishment, descendant identity
     transport, disjoint affine complements and exact linear hook disposition.
     Keep `runtime_parent_hook_preserves_linear_descendants_exit` as the intact
-    nominal receiver and retained child-claim control. Apply parent hook
-    guarantees before checking linear descendants' cleanup prerequisites:
-    when `Receipt::drop` requires `receipt.value == 9`, a computed temporary
-    whose parent ensures both child values equal 9 still rejects during source
-    checking: "cannot prove automatic cleanup requires at selected edge from
-    main state entry after statement 0: Owner.first does not establish
-    Receipt::drop clause `receipt.value == 9`".
+    nominal receiver and retained child-claim control, with child cleanup
+    prerequisites established by the parent hook's conjunction. Keep
+    `fail/drops/parent_cleanup_{missing_child_guarantee,wrong_child_guarantee,cross_field_guarantee_retired,disjunction_not_conjunction,requires_before_guarantees}`
+    as missing/wrong facts, relation invalidation, disjunction and hook-entry
+    prerequisite controls.
     Scalar materialization
     of moved linear places and claim-bearing call results remains unfinished;
     an anonymous returned owner without a unique conserved claim map must

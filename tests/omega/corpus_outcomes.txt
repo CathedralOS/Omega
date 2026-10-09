@@ -1213,6 +1213,17 @@ fail/drops/owned_replacement_old_hook_prerequisite rejected 428ms expected @04d0
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
 fail/drops/owned_replacement_transferred_source_read rejected 336ms expected @04d0fbe9d97c
 	cannot use `replacement.value` in machine `main` state `entry` (statement 3) after `replacement` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `replacement` first
+fail/drops/parent_cleanup_cross_field_guarantee_retired rejected 857ms expected @1f217d58bd73+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.first does not establish Receipt::drop clause `receipt.value == 9`
+fail/drops/parent_cleanup_disjunction_not_conjunction rejected 1132ms expected @1f217d58bd73+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.second does not establish Receipt::drop clause `receipt.value == 9`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.first does not establish Receipt::drop clause `receipt.value == 9`
+fail/drops/parent_cleanup_missing_child_guarantee rejected 1100ms expected @1f217d58bd73+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.first does not establish Receipt::drop clause `receipt.value == 9`
+fail/drops/parent_cleanup_requires_before_guarantees rejected 974ms expected @1f217d58bd73+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner does not establish Owner::drop clause `owner.first.value == 9 && owner.second.value == 13`
+fail/drops/parent_cleanup_wrong_child_guarantee rejected 1076ms expected @1f217d58bd73+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Owner.first does not establish Receipt::drop clause `receipt.value == 9`
 fail/drops/partial_move_inside_nominal_child rejected 323ms expected @04d0fbe9d97c
 	cannot partially move a value of `Token` because `Token::drop` requires the whole value
 fail/drops/read_after_conditional_call_move rejected 462ms expected @9beb2be72f2d+wt
