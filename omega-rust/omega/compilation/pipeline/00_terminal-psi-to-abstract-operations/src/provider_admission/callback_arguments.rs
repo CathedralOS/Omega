@@ -7,14 +7,16 @@
 
 use diagnostics::Diagnostic;
 
-/// Admit callback arguments in occurrence order. Direct parameters and private
+/// Project callback arguments in occurrence order. Direct parameters and private
 /// fields retain their distinct destinations and the exact registrar context.
+/// `None` means at least one callback has no target materialization; Terminal
+/// production remains valid, but native admission must reject that proposal.
 /// This does not validate the thunk body, admit registration, or replace the
 /// target lowerer's independent application replay.
-pub fn admit_native_callback_arguments(
+pub(crate) fn project_native_callback_arguments(
     placements: &[backend_plan::BoundNominalCallbackPlacement],
     occurrences: &[backend_plan::TerminalCallbackOccurrenceProposal],
-) -> Result<Vec<crate::AdmittedNativeCallbackArgument>, Vec<Diagnostic>> {
+) -> Result<Option<Vec<crate::AdmittedNativeCallbackArgument>>, Vec<Diagnostic>> {
     let mut admitted = Vec::with_capacity(occurrences.len());
     let mut admitted_placements = std::collections::BTreeSet::new();
     for occurrence in occurrences {
@@ -28,9 +30,9 @@ pub fn admit_native_callback_arguments(
             .ok_or_else(|| {
                 callback_error("callback occurrence names an absent retained placement")
             })?;
-        let materialization = placement.private_materialization.as_ref().ok_or_else(|| {
-            callback_error("callback placement has no private registrar materialization")
-        })?;
+        let Some(materialization) = placement.private_materialization.as_ref() else {
+            return Ok(None);
+        };
         let application = materialization
             .destination_parameter_application()
             .map_err(|error| callback_error(error.0))?;
@@ -51,7 +53,7 @@ pub fn admit_native_callback_arguments(
             registrar_application_commitment: materialization.registrar_application_commitment,
         });
     }
-    Ok(admitted)
+    Ok(Some(admitted))
 }
 
 fn callback_error(message: impl std::fmt::Display) -> Vec<Diagnostic> {

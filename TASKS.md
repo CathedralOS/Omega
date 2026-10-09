@@ -2067,7 +2067,9 @@ crash and native exit behavior.
     canonical artifact; stage 05 selects shape-specific routes. Callback body
     identity lives in Terminal machines and demands; native callback identities
     use the caller's Terminal identity and placement ordinal, not source handles.
-    Callback ABI/resource planning still needs a source-free production input.
+    Native re-entry retains produced callback bodies and ABI/argument rows,
+    not checked-source placement records. Initial callback ABI/resource
+    planning still needs a source-free production input.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming
     stage's declared inputs. Add one workspace architecture gate derived from

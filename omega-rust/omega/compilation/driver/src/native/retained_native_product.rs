@@ -20,10 +20,9 @@ pub fn realize_retained_native_artifact(
 > {
     let recoverable_image_request = request.image_request.clone();
     let result = (|| {
-        let (artifact, callback_placements, proposal) = request.prepare_terminal(retained)?;
+        let (artifact, proposal) = request.prepare_terminal(retained)?;
         let prepared = proposal.prepare_native_providers(
             &artifact,
-            &callback_placements,
             RetainedNativeProviderInputs {
                 optimization_selections: request.optimization_selections,
                 accepted_package_permissions: &request

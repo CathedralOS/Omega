@@ -108,6 +108,14 @@ pub fn project_terminal_native_realization_proposal(
         artifact.view(),
         request.callback_thunks,
     )?;
+    // Close source placements while their producer still owns them. Re-entry
+    // borrows these native rows; it never retains the checked-source records.
+    let callback_arguments = crate::provider_admission::project_native_callback_arguments(
+        callback_placements,
+        &callback_occurrences,
+    )?;
+    backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     let boundary_application_coverage = request.boundaries.settle(artifact)?;
     let comparisons = crate::comparison_settlement::settle_comparison_occurrences(
         terminal_module,
@@ -138,6 +146,7 @@ pub fn project_terminal_native_realization_proposal(
         },
         TerminalNativeOccurrences {
             callbacks: callback_occurrences,
+            callback_arguments,
             ieee_float_comparisons: comparisons.ieee_float,
             integer_comparisons: comparisons.integer,
         },
@@ -189,6 +198,7 @@ fn project_callback_occurrences(
                     })?;
             Ok(crate::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
+                placement.application_index,
                 application.registrar,
                 placement
                     .private_materialization
@@ -198,6 +208,7 @@ fn project_callback_occurrences(
                     .map_err(|error| vec![Diagnostic::error(error.0)])?,
                 callback_thunk_identity,
                 callback_thunk_artifact,
+                placement.boundary_entry_plan.clone(),
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

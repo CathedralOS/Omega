@@ -29,6 +29,9 @@ pub struct TerminalNativeProviders {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeOccurrences {
     pub callbacks: Vec<TerminalCallbackOccurrenceProposal>,
+    /// None retains an unmaterialized target callback, not an empty roster.
+    /// Such a Terminal product remains usable, but cannot enter native lowering.
+    pub callback_arguments: Option<Vec<crate::AdmittedNativeCallbackArgument>>,
     pub ieee_float_comparisons: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
     pub integer_comparisons: Vec<TerminalIntegerComparisonOccurrenceProposal>,
 }
@@ -149,43 +152,33 @@ impl TerminalNativeRealizationProposal {
     }
 }
 
-/// Canonical Terminal artifact coupled to every exact checked callback
-/// placement and target-constrained native proposal that crossed its
-/// production boundary.
+/// Canonical Terminal artifact and its target-constrained native proposal.
 ///
-/// Callback rows remain target-owned compiler evidence rather than Terminal-
-/// Psi vocabulary. Keeping them in the same retained product prevents an
-/// artifact-only consuming escape from silently discarding the sidecar. This
-/// carrier grants no registration, invocation, address, or lifetime authority.
+/// The proposal owns callback ABI and materialization rows; no checked-source
+/// placement survives this boundary. This carrier grants no registration,
+/// invocation, address, or lifetime authority.
 #[derive(Debug)]
 pub struct RetainedTerminalArtifact {
     artifact: terminal_codec::CanonicalTerminalArtifact,
-    callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
     native_realization_proposal: Option<TerminalNativeRealizationProposal>,
 }
 
 impl RetainedTerminalArtifact {
-    /// Couple the artifact with the callback placements and native proposal
+    /// Couple the artifact with the complete native proposal
     /// this compile produced beside it. The proposal's producer already
     /// joined every unit to this artifact; the carrier adds no second replay.
     pub fn new_with_native_realization_proposal(
         artifact: terminal_codec::CanonicalTerminalArtifact,
-        callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
         native_realization_proposal: TerminalNativeRealizationProposal,
     ) -> Self {
         Self {
             artifact,
-            callback_placements,
             native_realization_proposal: Some(native_realization_proposal),
         }
     }
 
     pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.artifact
-    }
-
-    pub fn callback_placements(&self) -> &[backend_plan::BoundNominalCallbackPlacement] {
-        &self.callback_placements
     }
 
     pub const fn native_realization_proposal(&self) -> Option<&TerminalNativeRealizationProposal> {
@@ -196,13 +189,8 @@ impl RetainedTerminalArtifact {
         self,
     ) -> (
         terminal_codec::CanonicalTerminalArtifact,
-        Vec<backend_plan::BoundNominalCallbackPlacement>,
         Option<TerminalNativeRealizationProposal>,
     ) {
-        (
-            self.artifact,
-            self.callback_placements,
-            self.native_realization_proposal,
-        )
+        (self.artifact, self.native_realization_proposal)
     }
 }

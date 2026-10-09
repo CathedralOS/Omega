@@ -6,7 +6,7 @@
 //! `admit_native_providers` independently checks those inputs, settles external
 //! executions, and admits the exact checked-provider installation and authority
 //! closure retained by the plan.
-//! `admit_native_callback_arguments` projects exact retained callback
+//! `project_native_callback_arguments` projects exact retained callback
 //! destinations for the lowerer's independent target/application replay.
 //! Retained builtin proposals keep their plan-index custody here as well;
 //! preparation never replaces independent native admission.
@@ -25,12 +25,12 @@ pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
 mod terminal_authority_review;
 
-pub use diagnostics::realization_error;
-pub use callback_arguments::admit_native_callback_arguments;
+pub(crate) use callback_arguments::project_native_callback_arguments;
 pub use compiler_builtins::{
     CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal, demanded_boundary_identities,
     derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
 };
+pub use diagnostics::realization_error;
 
 pub use source_evaluated_bindings::{
     PreparedSourceEvaluatedBindings, SourceEvaluatedImportSettlement,

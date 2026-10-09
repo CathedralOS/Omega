@@ -5,8 +5,6 @@
 //! native admission then borrows only executable and ABI evidence. These checks
 //! do not replace callback interface admission or final object/image replay.
 
-use crate::BoundNominalCallbackPlacement;
-
 /// Canonical callback body. Its entry retains the declaration chosen by Psi;
 /// native preparation joins that identity to the caller's portable demand.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,26 +40,32 @@ impl TerminalCallbackThunkArtifact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackOccurrenceProposal {
     placement_index: usize,
+    application_index: u32,
     terminal_operation: semantic_vocabulary::OperationId,
     destination_parameter_application: Option<calling_conventions::NativeParameterApplication>,
     callback_thunk_identity: function_identity::MachineFunctionIdentity,
     callback_thunk_artifact: TerminalCallbackThunkArtifact,
+    boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
 }
 
 impl TerminalCallbackOccurrenceProposal {
     pub fn new(
         placement_index: usize,
+        application_index: u32,
         terminal_operation: semantic_vocabulary::OperationId,
         destination_parameter_application: Option<calling_conventions::NativeParameterApplication>,
         callback_thunk_identity: function_identity::MachineFunctionIdentity,
         callback_thunk_artifact: TerminalCallbackThunkArtifact,
+        boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
     ) -> Self {
         Self {
             placement_index,
+            application_index,
             terminal_operation,
             destination_parameter_application,
             callback_thunk_identity,
             callback_thunk_artifact,
+            boundary_entry_plan,
         }
     }
 
@@ -106,27 +110,22 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
     pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
 }
 
-/// Join the caller's portable demand to the callback entry, then borrow native
-/// inputs in occurrence order. No source arena or lowering stage is consulted.
+/// Close produced callback bodies against the caller's portable demands.
+/// The proposal producer performs this join once before retaining native inputs.
 ///
 /// This is the body/placement projection, not complete callback admission.
 /// Callers separately validate occurrence coverage, registrar destinations,
 /// the thunk's native interface, and the canonical program and proof.
-pub fn admitted_native_callback_thunks<'artifact>(
+pub fn validate_callback_thunk_joins(
     caller: terminal_codec::TerminalArtifactView<'_>,
-    placements: &'artifact [BoundNominalCallbackPlacement],
-    occurrences: &'artifact [TerminalCallbackOccurrenceProposal],
-) -> Result<Vec<NativeCallbackThunkSettlement<'artifact>>, &'static str> {
+    occurrences: &[TerminalCallbackOccurrenceProposal],
+) -> Result<(), &'static str> {
     let module = caller.module();
-    let mut admitted = Vec::with_capacity(occurrences.len());
     for occurrence in occurrences {
-        let placement = placements
-            .get(occurrence.placement_index())
-            .ok_or("callback thunk occurrence names an absent retained placement")?;
         let thunk = occurrence.callback_thunk_artifact();
         let application = module
             .callback_applications
-            .binary_search_by_key(&placement.application_index, |row| row.application_index)
+            .binary_search_by_key(&occurrence.application_index, |row| row.application_index)
             .ok()
             .map(|ordinal| &module.callback_applications[ordinal])
             .ok_or("callback thunk has no portable application")?;
@@ -141,23 +140,29 @@ pub fn admitted_native_callback_thunks<'artifact>(
         );
         if declaration != &application.body
             || application.registrar != occurrence.terminal_operation()
-            || application.static_machine_ordinal != placement.static_machine_ordinal
-            || application.requirement != placement.canonical_requirement_overload
-            || application.body.contract
-                != placement.resource_receipt.contract_commitment().as_bytes()
             || expected_function != Some(occurrence.callback_thunk_identity())
         {
             return Err(
                 "callback thunk body or function identity drifted from its retained placement",
             );
         }
-        admitted.push(NativeCallbackThunkSettlement {
+    }
+    Ok(())
+}
+
+/// Borrow complete producer-owned bodies and ABI plans in occurrence order.
+/// Re-entry does not repeat the producer's declaration and registrar joins.
+pub fn native_callback_thunks(
+    occurrences: &[TerminalCallbackOccurrenceProposal],
+) -> Vec<NativeCallbackThunkSettlement<'_>> {
+    occurrences
+        .iter()
+        .map(|occurrence| NativeCallbackThunkSettlement {
             terminal_operation: occurrence.terminal_operation(),
             placement_index: occurrence.placement_index(),
             callback_function: occurrence.callback_thunk_identity(),
-            artifact: thunk.artifact(),
-            boundary_entry_plan: &placement.boundary_entry_plan,
-        });
-    }
-    Ok(admitted)
+            artifact: occurrence.callback_thunk_artifact().artifact(),
+            boundary_entry_plan: &occurrence.boundary_entry_plan,
+        })
+        .collect()
 }

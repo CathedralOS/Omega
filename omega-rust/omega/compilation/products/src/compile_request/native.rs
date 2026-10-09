@@ -106,12 +106,11 @@ impl RetainedNativeRealizationRequest<'_> {
     ) -> Result<
         (
             terminal_codec::CanonicalTerminalArtifact,
-            Vec<backend_plan::BoundNominalCallbackPlacement>,
             crate::TerminalNativeRealizationProposal,
         ),
         Vec<Diagnostic>,
     > {
-        let (artifact, callback_placements, proposal) = retained.into_parts();
+        let (artifact, proposal) = retained.into_parts();
         let proposal = proposal.ok_or_else(|| {
             diagnostic(
                 "retained Terminal product",
@@ -139,7 +138,7 @@ impl RetainedNativeRealizationRequest<'_> {
                     },
                 )
             })?;
-        Ok((artifact, callback_placements, proposal))
+        Ok((artifact, proposal))
     }
 }
 

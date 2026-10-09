@@ -25,7 +25,7 @@ pub struct RetainedNativeProviderInputs<'input> {
 pub struct PreparedRetainedNativeProviders<'input> {
     proposal: &'input TerminalNativeRealizationProposal,
     pub bindings: PreparedSourceEvaluatedBindings<'input>,
-    callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
+    callbacks: &'input [crate::AdmittedNativeCallbackArgument],
     pub callback_thunks: Vec<backend_plan::NativeCallbackThunkSettlement<'input>>,
     compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
 }
@@ -53,7 +53,7 @@ impl PreparedRetainedNativeProviders<'_> {
                 external_binding_rows: proposal.providers().external_bindings.as_slice(),
                 settlements,
                 compiler_builtins: &self.compiler_builtins,
-                native_callbacks: &self.callbacks,
+                native_callbacks: self.callbacks,
                 terminal_authority_policy,
                 terminal_authority_permission_policy: receiving_permissions,
             },
@@ -67,7 +67,6 @@ impl TerminalNativeRealizationProposal {
     pub fn prepare_native_providers<'input>(
         &'input self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-        callback_placements: &'input [backend_plan::BoundNominalCallbackPlacement],
         inputs: RetainedNativeProviderInputs<'input>,
     ) -> Result<PreparedRetainedNativeProviders<'input>, Vec<Diagnostic>> {
         // Proposal validation rejoins each IEEE comparison to its exact selected
@@ -84,18 +83,18 @@ impl TerminalNativeRealizationProposal {
             self.package_terminal_authority_permissions(),
             inputs.accepted_package_permissions,
         )?;
-        let native_callbacks = crate::provider_admission::admit_native_callback_arguments(
-            callback_placements,
-            self.occurrences().callbacks.as_slice(),
-        )?;
-        let callback_thunks = backend_plan::admitted_native_callback_thunks(
-            artifact.view(),
-            callback_placements,
-            self.occurrences().callbacks.as_slice(),
-        )
-        .map_err(|error| diagnostic("Terminal callback thunk custody", error))?;
-        debug_assert_eq!(callback_placements.len(), native_callbacks.len());
-        debug_assert_eq!(callback_placements.len(), callback_thunks.len());
+        let callbacks = self
+            .occurrences()
+            .callback_arguments
+            .as_deref()
+            .ok_or_else(|| {
+                diagnostic(
+                    "Terminal callback custody",
+                    "callback placement has no private registrar materialization",
+                )
+            })?;
+        let callback_thunks =
+            backend_plan::native_callback_thunks(self.occurrences().callbacks.as_slice());
 
         let module = artifact.semantic_module();
         let demanded = crate::provider_admission::demanded_boundary_identities(module)?;
@@ -113,7 +112,7 @@ impl TerminalNativeRealizationProposal {
         Ok(PreparedRetainedNativeProviders {
             proposal: self,
             bindings,
-            callbacks: native_callbacks,
+            callbacks,
             callback_thunks,
             compiler_builtins,
         })

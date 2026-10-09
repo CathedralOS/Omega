@@ -9,7 +9,7 @@ mod callback_artifacts;
 mod callback_placements;
 pub use callback_artifacts::{
     NativeCallbackThunkSettlement, TerminalCallbackOccurrenceProposal,
-    TerminalCallbackThunkArtifact, admitted_native_callback_thunks,
+    TerminalCallbackThunkArtifact, native_callback_thunks, validate_callback_thunk_joins,
 };
 pub use callback_placements::{
     BoundCallbackPrivateMaterialization, BoundNominalCallbackPlacement,

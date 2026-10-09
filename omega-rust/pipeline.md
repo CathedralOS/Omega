@@ -218,7 +218,9 @@ execution preparation and settlement.
 Provider grants resolve through backend provider evidence.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only
-handoff.
+handoff. Callback proposal production now closes source placements into body,
+ABI and argument records once; retained native re-entry borrows those records
+without retaining or rejoining checked-source callback placements.
 
 [`omega/compilation/realization/trust-model/`](omega/compilation/realization/trust-model/README.md)
 owns trust obligation reconstruction and admission, consuming source

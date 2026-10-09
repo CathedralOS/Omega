@@ -151,7 +151,6 @@ pub(crate) fn produce_retained_terminal_artifact(
     let artifact =
         compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
             artifact,
-            callback_placements,
             native_realization_proposal,
         );
     Ok(ProducedRetainedTerminal { artifact })
