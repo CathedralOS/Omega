@@ -1,0 +1,4 @@
+owner: Codex / w6 reference binding
+provenance: model=gpt-6.1-sol effort=medium implementation_agent=/root/reference_join model_basis=explicit_worker_configuration coordinator=/root runtime_model=unreported
+ticket: 1d001c13f9914af383deaa4e054f7854
+published_utc: 2026-10-09T22:46:28.607012+00:00
