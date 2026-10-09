@@ -132,7 +132,13 @@ impl SelectedConstraintKeys {
                 }
                 return match form.operand_count() {
                     1 => match form.operation {
-                        crate::IeeeFloatArithmeticOperation::FromInteger(
+                        crate::IeeeFloatArithmeticOperation::IsNan
+                        | crate::IeeeFloatArithmeticOperation::IsInfinite
+                        | crate::IeeeFloatArithmeticOperation::IsFinite
+                        | crate::IeeeFloatArithmeticOperation::IsNormal
+                        | crate::IeeeFloatArithmeticOperation::IsSubnormal
+                        | crate::IeeeFloatArithmeticOperation::Classify
+                        | crate::IeeeFloatArithmeticOperation::FromInteger(
                             crate::IeeeFloatIntegerCarrier::U64,
                         )
                         | crate::IeeeFloatArithmeticOperation::TruncateToInteger {

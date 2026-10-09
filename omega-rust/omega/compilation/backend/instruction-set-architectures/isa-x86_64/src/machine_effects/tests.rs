@@ -32,6 +32,42 @@ fn constraints() -> ValidatedRegisterConstraintCatalog {
 }
 
 #[test]
+fn raw_bit_classification_catalog_admits_real_flag_clobbers() {
+    let constraints = constraints();
+    let catalog = x86_64_machine_effect_catalog(NativeTarget::linux_x64(), &constraints).unwrap();
+    let physical = x86_64_physical_register_model();
+    let flags = &physical.view_named("rflags").unwrap().units;
+    for format in [
+        selected_instructions::IeeeFloatFormat::Binary32,
+        selected_instructions::IeeeFloatFormat::Binary64,
+    ] {
+        for operation in [
+            IeeeFloatArithmeticOperation::IsNan,
+            IeeeFloatArithmeticOperation::IsInfinite,
+            IeeeFloatArithmeticOperation::IsFinite,
+            IeeeFloatArithmeticOperation::IsNormal,
+            IeeeFloatArithmeticOperation::IsSubnormal,
+            IeeeFloatArithmeticOperation::Classify,
+        ] {
+            let row = catalog
+                .declaration_by_semantic(MachineSemanticKind::NearestIeeeFloatArithmetic(
+                    IeeeFloatArithmeticForm { operation, format },
+                ))
+                .unwrap();
+            assert_eq!(row.constraint, crate::X86_64_IEEE_FLOAT_CONVERSION_CONTROL);
+            let encoded = &row.alternatives[0].encoded;
+            assert!(
+                flags
+                    .iter()
+                    .all(|unit| encoded.implicit_unit_clobbers.contains(unit))
+            );
+            assert_eq!(encoded.external_operand_reads, [0]);
+            assert_eq!(encoded.external_operand_writes, [1]);
+        }
+    }
+}
+
+#[test]
 fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
     use SaturatingCarrier::{I64, U64};
     use SaturatingOperation::{Add, Divide, Multiply, Remainder, Subtract};
