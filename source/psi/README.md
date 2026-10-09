@@ -230,12 +230,14 @@ bare candidates, or several domains at once reject). These value bindings are
 indexed by expression handle. A machine's `requires` and `ensures` facts and
 a state's `requires` facts bind in their body's parameter scope, `result` in
 an `ensures` fact naming the returned value unless a parameter spells it, and
-a data declaration's `where` facts bind its fields bare
-([`resolve/facts.omg`](resolve/facts.omg)). A proposition applies only as a
+a data declaration's `where` facts bind its fields bare, and a case's own
+`where` facts that case's payload fields first, then the declaration's
+fields ([`resolve/facts.omg`](resolve/facts.omg)); another case's payload is
+not in scope. A proposition applies only as a
 whole fact (`requires P(x)`): inside a larger fact it rejects as unsupported,
 and in a body, a transition target or a constant's value, where a value is
-computed, it rejects as proof-only. A case's own `where` facts,
-domain predicates and proposition bodies bind no names here; which
+computed, it rejects as proof-only. Domain predicates and proposition
+bodies bind no names here; which
 requirement a member or row fills, row completeness and a domain's
 establishment obligations are checking's.
 
@@ -300,11 +302,14 @@ unsupported.
 Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
 `requires` and `ensures` fact and each state's `requires` fact over its
 parameters (`result` has the machine's result type) and each data
-declaration's `where` fact over its fields is a Boolean. A proposition
+declaration's `where` fact over its fields, and each case's own `where` fact
+over its payload fields and those fields, is a Boolean. A proposition
 application is a Boolean statement that selects nothing: its arguments meet
 the proposition's parameters by ordinary admission, a generic proposition's
-bound as a generic machine call's are. A case's own
-`where` facts are not bound or typed yet. A machine that `satisfies` a
+bound as a generic machine call's are. Each construction field and pattern
+field records the member it denotes, a common or a payload field, found by
+one search ([`typing/calls.omg`](typing/calls.omg)); an assignment to a name
+holding an exclusive loan writes its referent. A machine that `satisfies` a
 requirement must have the requirement's signature with the trait's type
 parameters replaced by the clause's arguments, and its `via` payload and a
 `terminates by` witness type like expressions
@@ -319,8 +324,10 @@ expression statement's value must be Unit or `Never`, and `_ =` must precede
 a call.
 
 Checking follows typing ([`checking/checker.omg`](checking/checker.omg)) and
-records its results in [`checks/checks.omg`](checks/checks.omg): the first
-rejection and each machine's crash routes. It owns the definedness and
+records its results in [`checks/checks.omg`](checks/checks.omg): each
+rejected machine's first rejection, in the order found and up to 64, and
+each machine's crash routes; a machine's checking stops at its first
+rejection and the next machine's begins. It owns the definedness and
 contract obligations of wiki/spec/language/numeric_values.md and
 wiki/spec/language/state_contracts.md with one relational engine: a closed
 difference-bound zone over a body's integer subjects
@@ -334,13 +341,22 @@ shared with typing ([`integers/integers.omg`](integers/integers.omg)). A guard
 holding or failing, the left operand of `&&` (or failing `||`) for its right
 operand, an integer literal arm, a `let` and an assignment add facts
 ([`checking/facts.omg`](checking/facts.omg),
-[`checking/flow.omg`](checking/flow.omg)); a write or an exclusive argument
-forgets the place and everything inside it. A body assumes its `requires`
+[`checking/flow.omg`](checking/flow.omg)); a write forgets the place and
+everything inside it, and a machine call, below each exclusive argument,
+what its callee's write frame may change: everything when the callee may
+replace the whole referent or its writes are unknown, else the field places
+whose fields it, its callees or its states store
+([`checking/frames.omg`](checking/frames.omg), derived before any body is
+checked). A body assumes its `requires`
 facts, and an established value's `where` facts hold of its fields
 ([`checking/domains.omg`](checking/domains.omg)), installed field by field as
-the fields become places. A state's facts are the join of what every reached
-jump projects onto its integer parameters and the fields below its other
-arguments ([`checking/arrivals.omg`](checking/arrivals.omg)), gathered to a
+the fields become places, in every zone a join or restore may later meet. A
+state's facts are the join of what every reached jump projects onto its
+integer parameters and up to 40 field paths below its other arguments
+([`checking/arrivals.omg`](checking/arrivals.omg)): the paths its own reads,
+the states it jumps to and its callees' `requires` facts demand, with the
+fields a `where` fact names beside a demanded one
+([`checking/demand.omg`](checking/demand.omg)), gathered to a
 fixed point and widened when a join keeps loosening around a cycle; a state
 no jump reaches owes nothing. Each reached body is then walked once more: an
 index lies in `0..len`, an Exact (unqualified) operation's result fits its
@@ -367,9 +383,13 @@ routes settle over the call graph: a private machine without crash clauses
 publishes what it derives, and any other machine must declare every cause it
 derives (wiki/spec/language/effects.md). A construction of data carrying
 `where` facts proves them with each field name standing for the value it
-writes, zero for an omitted common field. An untyped fact is never proved,
-and a case's own `where` facts reject as unsupported rather than passing
-unchecked. A proposition application states what no zone fact expresses:
+writes, zero for an omitted field, together with the constructed case's
+own `where` facts over its payload values; a payload-free case value
+(`Type::Case`) proves them over zero fields. A chosen case arm assumes its
+case's facts, payload names standing for its binders and common names for
+the subject's fields, and a store into a field a case's fact names rejects
+as unproved, the active case being unknown there. An untyped fact is never
+proved. A proposition application states what no zone fact expresses:
 assumed, it establishes nothing, and where it must hold it rejects as an
 unsupported fact.
 
@@ -414,12 +434,12 @@ without an observation when resolution rejects. It types the whole psi
 package as one source set, and a source set filling the expression table.
 
 [`tests/psi/checking/test-checking.sh`](../../tests/psi/checking/test-checking.sh)
-does the same for checking: its harness observes the diagnostic and its
-span and each machine's declared and derived crash causes, exits 247 with
+does the same for checking: its harness observes each rejection's diagnostic
+and span and each machine's declared and derived crash causes, exits 247 with
 an observation when checking rejects, and exits without one when an earlier
 phase rejects. Each case pins one judgment with an accepted program and its
 invalid twin. It requires the whole psi package to reach a checking verdict
-and reports the first obligation it cannot prove there.
+and prints every rejection there; the package checks with none.
 
 [`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
 does the same for name resolution. Its input is a source set framed like
@@ -474,7 +494,7 @@ owns bounded token selection and trivia traversal;
 | `types/` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |
 | `typing/` | Owns typing from resolved syntax to the type table and annotations. | Absorb only into the canonical checker that subsumes its judgments. |
 | `integers/` | Owns exact integer values and arithmetic shared by literal folding and bounds reasoning. | Absorb only into a successor exact-arithmetic owner both consumers share. |
-| `checks/` | Owns checking's result: the first rejection and each machine's crash routes. | Absorb into a later Psi representation only with equivalent verdicts and routes. |
+| `checks/` | Owns checking's result: each rejected machine's first rejection and each machine's crash routes. | Absorb into a later Psi representation only with equivalent verdicts and routes. |
 | `checking/` | Owns definedness, contract and crash-route checking over typed syntax with one difference-bound engine. | Absorb only into the canonical checker that proves the same obligations. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
