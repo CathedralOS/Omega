@@ -20,6 +20,7 @@ use super::{
     OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
     OptimizedProgramStorageSemanticWrapperObjectUnavailableData,
 };
+use crate::cursor::{Cursor, TakeError, Truncated};
 use isa_x86_64::ValidatedX86_64SemanticUnitWrapperTemplate;
 use object_file::ObjectLocalSymbolId;
 use optimization_core::{
@@ -204,10 +205,10 @@ fn decode_plan_content(
     let source_signature = cursor.array()?;
     let psi = decode_psi(cursor)?;
     let target = decode_target(cursor)?;
-    let text_section_name = cursor.string()?;
+    let text_section_name = string(&mut *cursor)?;
     let text_section_alignment = u64::from_le_bytes(cursor.array()?);
-    let text_bytes = cursor.bytes()?;
-    let symbol_count = cursor.len()?;
+    let text_bytes = cursor.length_prefixed()?.to_vec();
+    let symbol_count = cursor.length()?;
     let mut symbols = Vec::with_capacity(symbol_count);
     for _ in 0..symbol_count {
         let symbol = decode_symbol_id(cursor)?;
@@ -225,7 +226,7 @@ fn decode_plan_content(
             }
             _ => return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag),
         };
-        let name = cursor.string()?;
+        let name = string(&mut *cursor)?;
         let section_offset = u64::from_le_bytes(cursor.array()?);
         let byte_count = u64::from_le_bytes(cursor.array()?);
         let role = match cursor.byte()? {
@@ -471,64 +472,24 @@ fn decode_symbol_id(
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidSymbol)
 }
 
-struct Cursor<'a> {
-    bytes: &'a [u8],
-    offset: usize,
+impl From<Truncated> for OptimizedProgramStorageSemanticWrapperObjectDecodeError {
+    fn from(_: Truncated) -> Self {
+        Self::Truncated
+    }
 }
 
-impl<'a> Cursor<'a> {
-    const fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, offset: 0 }
+impl From<TakeError> for OptimizedProgramStorageSemanticWrapperObjectDecodeError {
+    fn from(error: TakeError) -> Self {
+        match error {
+            TakeError::Truncated => Self::Truncated,
+            TakeError::LengthOverflow => Self::InvalidLength,
+        }
     }
+}
 
-    fn take(
-        &mut self,
-        count: usize,
-    ) -> Result<&'a [u8], OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
-        let end = self
-            .offset
-            .checked_add(count)
-            .ok_or(OptimizedProgramStorageSemanticWrapperObjectDecodeError::Truncated)?;
-        let bytes = self
-            .bytes
-            .get(self.offset..end)
-            .ok_or(OptimizedProgramStorageSemanticWrapperObjectDecodeError::Truncated)?;
-        self.offset = end;
-        Ok(bytes)
-    }
-
-    fn array<const N: usize>(
-        &mut self,
-    ) -> Result<[u8; N], OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::Truncated)
-    }
-
-    fn byte(&mut self) -> Result<u8, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn len(&mut self) -> Result<usize, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
-        usize::try_from(u64::from_le_bytes(self.array()?))
-            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidLength)
-    }
-
-    fn bytes(
-        &mut self,
-    ) -> Result<Vec<u8>, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
-        let count = self.len()?;
-        Ok(self.take(count)?.to_vec())
-    }
-
-    fn string(
-        &mut self,
-    ) -> Result<String, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
-        String::from_utf8(self.bytes()?)
-            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidUtf8)
-    }
-
-    const fn remaining(&self) -> usize {
-        self.bytes.len() - self.offset
-    }
+fn string(
+    cursor: &mut Cursor<'_>,
+) -> Result<String, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
+    String::from_utf8(cursor.length_prefixed()?.to_vec())
+        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidUtf8)
 }
