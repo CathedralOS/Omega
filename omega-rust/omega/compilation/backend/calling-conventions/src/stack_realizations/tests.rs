@@ -1,13 +1,12 @@
 //! Stack realization tests: arrival contexts, entry stack epochs and closures.
 
 use super::{
-    ArrivalContextId, ArrivalContextStackDomain, EntryStack,
+    ArrivalContextId, EntryStack,
     InstalledEntryFactIdentity,
     Preemption, ValidatedX86_64InstalledHardwareEntryFacts,
     X86_64ArrivalMechanism, X86_64GateKind, X86_64HardwareStackSelection,
     X86_64InstalledArrivalContext, X86_64InstalledHardwareEntryFacts, X86_64TargetProfileIdentity,
-    validate_entry_stack_domain_closure,
-    validate_x86_64_installed_hardware_entry_facts,
+validate_x86_64_installed_hardware_entry_facts,
 };
 
 fn installed_identity() -> InstalledEntryFactIdentity {

@@ -1,8 +1,8 @@
 use super::{integer_signature, strict_x86_entry};
 use crate::plans::{
     BoundaryPlanDiagnostic, BoundaryPlanResult, CallSignature, CallingPolicy,
-    CallingPolicyRejection, EntryControl, EntryStack, MachineRegime, MachineRegister, MachineState,
-    MachineStateSet, Preemption, ProviderExitRealization, RegisterSet, StateFootprintEvidence,
+    CallingPolicyRejection, EntryStack, MachineRegime, MachineRegister, MachineState,
+    MachineStateSet, Preemption, RegisterSet, StateFootprintEvidence,
     StatePlan, SystemVEightbyteClass, ValueShape, encode_state_plan_identity,
 evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan, validate_boundary_plan_result,

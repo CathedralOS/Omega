@@ -665,42 +665,6 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
 ///
 /// The first consumer is Darwin `open(path, flags, mode)`. Aggregate variadic
 /// values remain fail-closed until an actual native binding needs their Apple
-/// ABI classification.
-
-fn call_plan_stack_extent(plan: &CallPlan) -> Result<u32, PlanDiagnostic> {
-    plan.parameters
-        .iter()
-        .flat_map(|placement| &placement.locations)
-        .try_fold(0, |extent, location| {
-            let end = match *location {
-                ValueLocation::Register { .. } => 0,
-                ValueLocation::Stack {
-                    stack_byte_offset,
-                    byte_size,
-                    ..
-                } => stack_end(stack_byte_offset, byte_size.max(8))?,
-                ValueLocation::Indirect {
-                    pointer,
-                    copy_stack_byte_offset,
-                    byte_size,
-                    ..
-                } => {
-                    let pointer_end = match pointer {
-                        IndirectPointerLocation::Register(_) => 0,
-                        IndirectPointerLocation::Stack {
-                            stack_byte_offset, ..
-                        } => stack_end(stack_byte_offset, 8)?,
-                    };
-                    let copy_end = match copy_stack_byte_offset {
-                        Some(offset) => stack_end(offset, align_up(byte_size, 8)?)?,
-                        None => 0,
-                    };
-                    pointer_end.max(copy_end)
-                }
-            };
-            Ok(extent.max(end))
-        })
-}
 
 fn evaluate_split_bank_call(
     policy: CallingPolicy,
