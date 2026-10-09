@@ -94,17 +94,17 @@ pub(crate) fn validate_optimized_program_storage_semantic_wrapper(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperContinuationDisposition {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperContinuationDisposition {
     PrivateTerminalSymbolRequiredV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperRelocationKind {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperRelocationKind {
     X86Relative32PrivateContinuationV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperEncodingDisposition {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperEncodingDisposition {
     /// A target realization must select, emit, and independently replay one
     /// concrete encoding before any byte or object custody exists.
     TargetEncodingRequiredV1,
@@ -113,7 +113,7 @@ pub enum OptimizedProgramStorageSemanticWrapperEncodingDisposition {
 /// One symbolic relocation requirement. The downstream object join must bind
 /// its target to the exact private Terminal entry symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptimizedProgramStorageSemanticWrapperRelocationRequirement {
+pub(crate) struct OptimizedProgramStorageSemanticWrapperRelocationRequirement {
     call_step_index: usize,
     byte_width: u8,
     addend: i64,
@@ -150,7 +150,7 @@ impl OptimizedProgramStorageSemanticWrapperRelocationRequirement {
 /// emitted semantic child; the slot is the 16-aligned zeroed region the
 /// wrapper provisions before binding its address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptimizedProgramStorageSemanticReceiverStorage {
+pub(crate) struct OptimizedProgramStorageSemanticReceiverStorage {
     byte_count: u32,
     alignment: u32,
     slot_byte_count: u32,
@@ -177,7 +177,7 @@ impl OptimizedProgramStorageSemanticReceiverStorage {
 
 /// One compiler-owned action in the exact semantic wrapper.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperStep {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperStep {
     EnterFunction,
     ReserveOutgoingStackFrame {
         byte_count: u32,
