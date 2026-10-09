@@ -16,7 +16,7 @@ pub(crate) enum PackageReviewTraitCompositionKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageReviewTraitParent {
+pub struct PackageReviewTraitParent {
     pub(crate) kind: PackageReviewTraitCompositionKind,
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) lifetime_arguments: Vec<u32>,

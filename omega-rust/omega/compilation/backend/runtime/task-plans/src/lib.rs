@@ -43,7 +43,6 @@ pub use task_plans::stack_composition::{
     UnresolvedCallKind, UnresolvedCallSite, ValidatedTaskStackFrameSummary, admit_same_stack_contribution, compose_task_stack_demand, project_wcsu_stack_plan, task_stack_frame_validation_identity,
     validate_task_stack_frame_summary,
 };
-pub(crate) use task_plans::stack_composition;
 pub use task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing,
     LiveCarryDemand, LiveCarryStorage, TaskArgumentLayout,

@@ -64,7 +64,7 @@ impl LegalizationValidationReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum LegalizationError {
+pub enum LegalizationError {
     /// The raw target, abstract, and optimization-unit custody disagree, or a
     /// node's own payload violates its representation. This names a producer
     /// or consumer defect, never a missing lowering. `machine` and `operation`

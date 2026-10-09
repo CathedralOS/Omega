@@ -30,7 +30,7 @@ pub use machine_code::{
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedWholeFunctionExitContract {
+pub struct ValidatedWholeFunctionExitContract {
     contract: std::sync::Arc<WholeFunctionExitContract>,
 }
 

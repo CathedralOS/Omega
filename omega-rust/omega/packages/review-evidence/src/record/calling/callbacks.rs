@@ -6,7 +6,7 @@ use crate::record::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyCallbacks {
+pub struct PackagePolicyCallbacks {
     pub(crate) binders: Vec<PackagePolicyCallbackBinder>,
     pub(crate) demands: Vec<PackagePolicyCallbackDemand>,
     pub(crate) materializations: Vec<PackagePolicyCallbackMaterialization>,

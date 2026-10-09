@@ -15,7 +15,7 @@ use target::TargetProfile;
 
 /// Explicit checked context metadata; retaining it grants no compilation authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PackageCheckedContext {
+pub struct PackageCheckedContext {
     purpose: DependencyPurpose,
     target: TargetProfile,
     build_execution_profile: Option<TargetProfile>,

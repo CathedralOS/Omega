@@ -68,14 +68,14 @@ impl ProofQuestionOwner {
 /// Source-independent mirror of the proof-admission classification retained
 /// at optimizer admission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum ProofQuestionAdmissionKind {
+pub enum ProofQuestionAdmissionKind {
     ForeignBoundaryGuarantee,
     ProviderFact,
     CheckedAssemblyClaim,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum ProofQuestionClass {
+pub enum ProofQuestionClass {
     Derivable,
     AdmissionAuthorized {
         site: AdmissionSiteId,

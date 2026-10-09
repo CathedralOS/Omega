@@ -16,7 +16,7 @@ pub struct RelocationPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RelocationRecordSet {
+pub struct RelocationRecordSet {
     pub records: Arena<RelocationRecord>,
 }
 

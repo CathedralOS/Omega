@@ -32,7 +32,7 @@ impl Default for TypeLayout {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) enum TypeLayoutDescriptor {
+pub enum TypeLayoutDescriptor {
     Reference {
         referee: Box<TypeLayoutDescriptor>,
         is_mutable: bool,
@@ -112,7 +112,7 @@ impl TypeLayoutDescriptor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct FieldLayout {
+pub struct FieldLayout {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub offset: usize,
@@ -137,7 +137,7 @@ impl Default for FieldLayout {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct BitFieldFragment {
+pub struct BitFieldFragment {
     /// Byte offset relative to the containing record.
     pub container_byte_offset: usize,
     pub container_width_bits: u16,
@@ -147,7 +147,7 @@ pub(crate) struct BitFieldFragment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BitFieldLayout {
+pub struct BitFieldLayout {
     pub field: SymbolHandle,
     pub fragments: Vec<BitFieldFragment>,
 }
@@ -157,7 +157,7 @@ pub(crate) struct BitFieldLayout {
 /// storage consumers must use this record for the exact load width and
 /// extension rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct StoredIntegerLayout {
+pub struct StoredIntegerLayout {
     pub field: SymbolHandle,
     pub stored_width_bits: u16,
     pub interpretation: layout_plans::IntegerInterpretation,
@@ -168,13 +168,13 @@ pub(crate) struct StoredIntegerLayout {
 /// fixed-array field. The field's ordinary layout retains the semantic array
 /// width; only indexing that outer array consumes this stride.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepeatedFieldLayout {
+pub struct RepeatedFieldLayout {
     pub field: SymbolHandle,
     pub element_stride: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct VariantLayout {
+pub struct VariantLayout {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     /// Payload field layouts for this case. Offsets are ABSOLUTE within the
@@ -194,7 +194,7 @@ impl Default for VariantLayout {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DataShape {
+pub enum DataShape {
     /// Case-bearing data: pure sums AND mixed shapes (common fields + cases).
     ///
     /// Layout (owned HERE, decided once): the i32 tag sits at offset 0 for
@@ -226,7 +226,7 @@ impl Default for DataShape {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DataLayout {
+pub struct DataLayout {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub shape: DataShape,

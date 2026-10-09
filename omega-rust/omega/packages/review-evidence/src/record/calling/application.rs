@@ -43,7 +43,7 @@ pub(crate) struct PackagePolicyCallingParameter {
 /// Position in this ordered vector is the authored native ordinal. Names are
 /// nominal parameter coordinates; physical shapes do not identify parameters.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackagePolicyNativeParameter {
+pub struct PackagePolicyNativeParameter {
     pub(crate) name: String,
     pub(crate) origin: PackagePolicyNativeParameterOrigin,
 }

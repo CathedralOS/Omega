@@ -1,7 +1,7 @@
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum IdentityDecodeError {
+pub enum IdentityDecodeError {
     WrongLength { expected: usize, actual: usize },
 }
 

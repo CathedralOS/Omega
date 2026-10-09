@@ -82,7 +82,7 @@ impl StagedOptimizedLiveness {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedLivenessCustodyReceipt {
+pub struct StagedOptimizedLivenessCustodyReceipt {
     psi: TerminalPsiIdentity,
     target: target::NativeTarget,
     entry: MachineId,
@@ -168,7 +168,7 @@ impl StagedOptimizedLivenessCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizedLivenessCustodyError {
+pub enum OptimizedLivenessCustodyError {
     Analysis(LivenessError),
 }
 

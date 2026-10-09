@@ -88,7 +88,7 @@ pub(crate) use validation::measured_steps;
 
 /// An accepted equivalent-compare removal with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedEquivalentCompare {
+pub struct ValidatedEquivalentCompare {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: EquivalentCompareReceipt,
 }
@@ -96,7 +96,7 @@ pub(crate) struct ValidatedEquivalentCompare {
 validated_transformed_receipt!(ValidatedEquivalentCompare, EquivalentCompareReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct EquivalentCompareReceipt {
+pub struct EquivalentCompareReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -147,7 +147,7 @@ pub(crate) fn equivalent_compare_identity(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum EquivalentCompareError {
+pub enum EquivalentCompareError {
     SourceMismatch,
     UnsupportedInstruction,
     UnsupportedUse,

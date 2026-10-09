@@ -68,7 +68,7 @@ pub(crate) fn assign_fixed_precolored_segment_homes(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FixedPrecoloredSegmentHomeValidationReceipt {
+pub struct FixedPrecoloredSegmentHomeValidationReceipt {
     pub(crate) identity: FixedPrecoloredSegmentHomePlanIdentity,
     pub(crate) split_requirements: FixedPrecoloredSplitRequirementPlanIdentity,
     pub(crate) fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
@@ -135,7 +135,7 @@ impl FixedPrecoloredSegmentHomeValidationReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedFixedPrecoloredSegmentHomes {
+pub struct ValidatedFixedPrecoloredSegmentHomes {
     pub(crate) plan: FixedPrecoloredSegmentHomePlan,
     pub(crate) receipt: FixedPrecoloredSegmentHomeValidationReceipt,
 }

@@ -39,19 +39,19 @@ use selected_instructions::SelectedInstructionPlanIdentity;
 use target::NativeTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FunctionRelativeOptimizationRealizationStage {
+pub enum FunctionRelativeOptimizationRealizationStage {
     ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FunctionRelativeOptimizationRealizationScope {
+pub enum FunctionRelativeOptimizationRealizationScope {
     FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FunctionRelativeOptimizationUnavailableData {
+pub enum FunctionRelativeOptimizationUnavailableData {
     Unavailable}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct FunctionRelativeOptimizationRealizationStatistics {
+pub struct FunctionRelativeOptimizationRealizationStatistics {
     pub functions: u64,
     pub blocks: u64,
     pub instructions: u64,
@@ -60,7 +60,7 @@ pub(crate) struct FunctionRelativeOptimizationRealizationStatistics {
     pub unresolved_internal_machine_fixups: u64}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FunctionRelativeFrameDisposition {
+pub enum FunctionRelativeFrameDisposition {
     Unavailable,
     CanonicalFixedFrameV1 {
         layout: TargetFrameLayoutIdentity,

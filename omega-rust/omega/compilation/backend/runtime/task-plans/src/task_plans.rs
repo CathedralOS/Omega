@@ -46,7 +46,7 @@ pub struct StackPlan {
 
 /// One moved argument's placement inside the packed marshalling image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TaskArgumentExtent {
+pub struct TaskArgumentExtent {
     /// Byte offset inside the marshalled image.
     pub offset: u64,
     /// Exact byte extent the argument occupies.

@@ -49,7 +49,6 @@ pub use optimization_core::identities::{
     TargetCostModelIdentity, TerminalRelocationFreeTextSectionIdentity,
     TransformationLedgerIdentity, ValueRangeFactIdentity,
 };
-pub(crate) use optimization_core::identities;
 pub use optimization_core::manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
     OptimizationPassManifestRecord, OptimizationWorkUsage,

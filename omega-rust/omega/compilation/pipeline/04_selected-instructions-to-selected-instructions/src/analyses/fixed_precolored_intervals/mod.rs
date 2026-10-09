@@ -28,7 +28,7 @@ pub(crate) fn analyze_fixed_precolored_intervals(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FixedPrecoloredIntervalValidationReceipt {
+pub struct FixedPrecoloredIntervalValidationReceipt {
     pub(crate) identity: FixedPrecoloredIntervalPlanIdentity,
     pub(crate) ranges: LiveRangeIdentity,
     pub(crate) legality: AllocationLegalityIdentity,
@@ -91,7 +91,7 @@ impl FixedPrecoloredIntervalValidationReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedFixedPrecoloredIntervals {
+pub struct ValidatedFixedPrecoloredIntervals {
     pub(crate) plan: FixedPrecoloredIntervalPlan,
     pub(crate) receipt: FixedPrecoloredIntervalValidationReceipt,
 }
@@ -106,7 +106,7 @@ impl ValidatedFixedPrecoloredIntervals {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum FixedPrecoloredIntervalError {
+pub enum FixedPrecoloredIntervalError {
     RootMismatch,
     FunctionMismatch {
         function: usize,

@@ -84,7 +84,7 @@ impl StagedFixedFrameFunctionRelativeRealization {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
+pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     pub(super) source: AllocationEvidence,
     pub(super) machine: physical_instructions::PostAllocationMachineIdentity,
     pub(super) requirements: AllocatedCalleeSavedRequirementIdentity,

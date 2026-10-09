@@ -3,7 +3,7 @@ use semantic_vocabulary::OperationId;
 
 /// Closed semantic role selected for one exact D29 application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BoundaryApplicationRealizationRole {
+pub enum BoundaryApplicationRealizationRole {
     NongenericCheckedBody,
     SpecializedCheckedBody,
     ExactCompilerIntrinsic,

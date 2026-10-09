@@ -172,7 +172,7 @@ impl Default for HistoricalPackagePolicyLimits {
 
 /// Fixed diagnostics never echo authored record text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HistoricalPackagePolicyError {
+pub enum HistoricalPackagePolicyError {
     ByteLimitExceeded,
     DecisionLimitExceeded,
     AllocationLimitExceeded,

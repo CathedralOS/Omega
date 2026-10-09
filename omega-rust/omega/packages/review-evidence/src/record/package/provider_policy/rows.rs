@@ -50,7 +50,7 @@ impl PackagePolicyProviderRow {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackagePolicyProviderEvaluatedSyscall {
+pub struct PackagePolicyProviderEvaluatedSyscall {
     pub(crate) target: String,
     pub(crate) producer: PackagePolicyEvaluatedBindingProducer,
 }

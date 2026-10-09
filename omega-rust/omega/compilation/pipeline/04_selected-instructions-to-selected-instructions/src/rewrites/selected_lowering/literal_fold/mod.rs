@@ -197,7 +197,7 @@ const LITERAL_FOLD_VERSION: u32 = 13;
 /// Narrow proof-preserving physical-form fold. This is not a generic constant
 /// fold, instruction scheduler, rematerializer, spill policy, or opt level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct LiteralFoldPolicy {
+pub struct LiteralFoldPolicy {
     enabled_rules: u32,
 }
 
@@ -686,7 +686,7 @@ impl LiteralFoldPolicy {
 /// Canonical recipe and output commitment. The transformed selected CFG stays
 /// private to the validated carrier and is independently reconstructed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LiteralFoldPlan {
+pub struct LiteralFoldPlan {
     pub source_selected: SelectedInstructionPlanIdentity,
     pub spill_choices: SpillChoiceIdentity,
     pub recovery_classifications: RecoveryClassificationIdentity,
@@ -806,7 +806,7 @@ impl LiteralFoldPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct FunctionLiteralFold {
+pub struct FunctionLiteralFold {
     pub machine: MachineId,
     /// Every fold the nomination scan admitted for this function, in block
     /// and instruction order. Empty when no `MaterializeI64` record met the
@@ -815,7 +815,7 @@ pub(crate) struct FunctionLiteralFold {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct LiteralFoldAction {
+pub struct LiteralFoldAction {
     pub block: SelectedBlockId,
     pub literal_instruction: SelectedInstructionId,
     pub victim: VirtualRegisterId,
@@ -838,7 +838,7 @@ pub(crate) struct LiteralFoldAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct LiteralFoldValidationReceipt {
+pub struct LiteralFoldValidationReceipt {
     pub(crate) identity: LiteralFoldIdentity,
     pub(crate) source_selected: SelectedInstructionPlanIdentity,
     pub(crate) spill_choices: SpillChoiceIdentity,
@@ -935,7 +935,7 @@ impl ValidatedLiteralFold {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum LiteralFoldError {
+pub enum LiteralFoldError {
     RootMismatch,
     WorkOverflow,
     BudgetExceeded {
@@ -970,7 +970,7 @@ impl std::fmt::Display for LiteralFoldError {
 impl std::error::Error for LiteralFoldError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LiteralFoldDecodeError {
+pub enum LiteralFoldDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

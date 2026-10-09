@@ -73,7 +73,7 @@ impl Default for RuntimeAbiPlan {
 /// borrowed) is NOT encoded here — it lives in the semantic spine and never
 /// affects layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FatDescriptorKind {
+pub enum FatDescriptorKind {
     /// `len` counts elements; pointer addresses the first element.
     Slice,
     /// `len` counts bytes; pointer addresses the first byte of the window.
@@ -103,7 +103,7 @@ pub struct FatDescriptorAbi {
 /// applying slice operations to dynamic values merely because their layouts
 /// coincide.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DynamicTraitDescriptorAbi {
+pub struct DynamicTraitDescriptorAbi {
     pointer_size: usize,
     pointer_alignment: usize,
 }
@@ -114,7 +114,7 @@ pub(crate) struct DynamicTraitDescriptorAbi {
 /// element of the subslice (`start * element_byte_size`). `len` is the new
 /// element/byte count (`end - start`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct SubsliceLayout {
+pub struct SubsliceLayout {
     pub ptr_delta: usize,
     pub len: usize,
 }

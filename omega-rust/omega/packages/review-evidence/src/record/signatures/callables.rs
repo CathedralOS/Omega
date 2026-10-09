@@ -16,7 +16,7 @@ impl PackageReviewRequirementRealization {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageReviewTraitRequirementParameter {
+pub struct PackageReviewTraitRequirementParameter {
     pub(crate) name: String,
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,

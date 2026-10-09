@@ -3,7 +3,7 @@ use super::super::signatures::PackageReviewTypeIdentity;
 
 /// Exact declarations bound to one selected provider realization row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackageReviewCompilerIntrinsicExecution {
+pub enum PackageReviewCompilerIntrinsicExecution {
     HostedExitProcessI32,
     HostedWriteByteI32,
     HostedReadByte,
@@ -79,13 +79,13 @@ pub enum PackageReviewProviderFamilyCoverage {
 /// Nonempty applications retain declaration-ordered category/ordinal bindings;
 /// the enclosing operator declaration owns the binder telescope.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewBoundaryApplication {
+pub enum PackageReviewBoundaryApplication {
     Empty,
     Exact(Vec<PackageReviewBoundaryApplicationArgument>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewBoundaryApplicationArgument {
+pub enum PackageReviewBoundaryApplicationArgument {
     Type {
         binder_ordinal: u32,
         type_identity: PackageReviewTypeIdentity,
@@ -99,7 +99,7 @@ pub(crate) enum PackageReviewBoundaryApplicationArgument {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewSymbolicBoundaryApplicationArgument {
+pub enum PackageReviewSymbolicBoundaryApplicationArgument {
     TypeBinder {
         requirement_binder_ordinal: u32,
         producer_binder_ordinal: u32,

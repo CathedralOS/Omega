@@ -96,7 +96,7 @@ impl TerminalAuthorityPolicy {
 
 /// The requested closed mechanism has no row in this exact policy version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct UnclassifiedTerminalMechanism {
+pub struct UnclassifiedTerminalMechanism {
     pub(super) mechanism: TerminalMechanismIdentity,
 }
 

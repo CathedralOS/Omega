@@ -40,7 +40,7 @@ static ALLOCATED_BYTES: AtomicU64 = AtomicU64::new(0);
 static DEALLOCATED_BYTES: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct AllocationSnapshot {
+pub struct AllocationSnapshot {
     pub allocation_calls: u64,
     pub deallocation_calls: u64,
     pub allocated_bytes: u64,

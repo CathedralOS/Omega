@@ -8,7 +8,7 @@ use std::fmt;
 /// admission. The human-readable commitment remains part of admission
 /// authority, but compact report coordinates do not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct TrustAdmissionDigest([u8; 32]);
+pub struct TrustAdmissionDigest([u8; 32]);
 
 impl TrustAdmissionDigest {
     pub fn from_digest(digest: [u8; 32]) -> Result<Self, &'static str> {

@@ -97,7 +97,7 @@ pub(crate) use validation::{measured_steps, surface_sizes};
 
 /// An accepted constant condition branch fold with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedConstantBranch {
+pub struct ValidatedConstantBranch {
     transformed: Arc<SelectedInstructionPlan>,
     receipt: ConstantBranchReceipt,
 }
@@ -105,7 +105,7 @@ pub(crate) struct ValidatedConstantBranch {
 validated_transformed_receipt!(ValidatedConstantBranch, ConstantBranchReceipt);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ConstantBranchReceipt {
+pub struct ConstantBranchReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
@@ -155,7 +155,7 @@ pub(crate) fn constant_branch_identity(receipt: &ConstantBranchReceipt) -> Const
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ConstantBranchError {
+pub enum ConstantBranchError {
     SourceMismatch,
     /// Not the emitted zero-operand conditional-branch flag reader: a
     /// non-branch terminator, a branch/kind pairing that does not match,

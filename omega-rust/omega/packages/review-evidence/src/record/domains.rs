@@ -7,7 +7,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackageReviewDomainClassification {
+pub enum PackageReviewDomainClassification {
     ProgressProfile,
 }
 
@@ -18,13 +18,13 @@ pub(crate) enum PackageReviewDomainClassification {
 /// not cross the canonical package-review boundary; the package-qualified
 /// domain identity is the persistent subject.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewDomainSemanticRole {
+pub enum PackageReviewDomainSemanticRole {
     DenotationDimension,
     ArithmeticPolicy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewDomainEstablishmentKind {
+pub enum PackageReviewDomainEstablishmentKind {
     CheckedRequirement,
     BoundaryRequirement,
     ExactMachine,
@@ -33,7 +33,7 @@ pub(crate) enum PackageReviewDomainEstablishmentKind {
 /// Inert issuer identity. A concrete machine has no invented trait or
 /// requirement; no variant grants invocation or package admission.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewDomainEstablishmentRoute {
+pub enum PackageReviewDomainEstablishmentRoute {
     CheckedRequirement {
         trait_identity: PackageReviewNominalIdentity,
         requirement_identity: PackageReviewNominalIdentity,
