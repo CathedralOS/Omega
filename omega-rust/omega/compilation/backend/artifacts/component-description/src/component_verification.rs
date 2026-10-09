@@ -315,15 +315,6 @@ impl VerifiedComponent {
         &self.description.exports
     }
 
-    /// The join contract of every export surface, in the same canonical
-    /// order as [`Self::exports`]. A requirement export's contract is the
-    /// offered requirement's `requirement_contract_identity` — the same
-    /// digest a demanded `ImportSlot::contract_identity` carries — so a
-    /// consumer joins demand to supply by equality without parsing the
-    /// surface's opaque identity string.
-    pub(crate) fn export_contracts(&self) -> &[ExportContract] {
-        &self.export_contracts
-    }
 
     /// Every possible entry into the component.
     pub fn entries(&self) -> &[ComponentEntry] {
