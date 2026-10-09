@@ -447,14 +447,11 @@ impl FactPlan {
         &self,
         symbol: SymbolHandle,
     ) -> impl Iterator<Item = BooleanFact> + '_ {
-        self.facts_for_symbol(symbol)
-            .filter_map(|fact| match fact.payload {
-                FactPayload::BooleanExpression(expression)
-                | FactPayload::ContractBooleanExpression { expression, .. } => {
-                    Some(BooleanFact { expression })
-                }
-                _ => None,
-            })
+        self.facts_for_symbol(symbol).filter_map(|fact| {
+            fact.payload
+                .boolean_expression()
+                .map(|expression| BooleanFact { expression })
+        })
     }
 
     pub fn domain_memberships_for_symbol(

@@ -8,7 +8,7 @@ use arena::HandleSpan;
 use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorOccurrence, FlowFacts, FlowSemanticContextRef,
 };
-use facts::{FactHandle, FactPayload, FactPlan, ProgramPoint};
+use facts::{FactHandle, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
@@ -72,10 +72,8 @@ pub(super) fn established_index_equality_for_argument(
         let context = semantic.contexts.get(context_ref.context);
         for fact_ref in semantic.refs.span_or_empty(context.facts) {
             let fact = semantic.facts.get(fact_ref.fact);
-            let expression = match fact.payload {
-                FactPayload::BooleanExpression(expression) => expression,
-                FactPayload::ContractBooleanExpression { expression, .. } => expression,
-                _ => continue,
+            let Some(expression) = fact.payload.boolean_expression() else {
+                continue;
             };
             let substitutions = fact_substitutions(program, flow, fact.point);
             if expression_proves_index_equality(

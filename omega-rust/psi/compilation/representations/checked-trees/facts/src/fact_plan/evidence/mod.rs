@@ -333,6 +333,16 @@ impl FactPayload {
         }
     }
 
+    /// The held expression shared by the plain and contract-wrapped boolean
+    /// payload variants.
+    pub const fn boolean_expression(self) -> Option<ExpressionHandle> {
+        match self {
+            Self::BooleanExpression(expression)
+            | Self::ContractBooleanExpression { expression, .. } => Some(expression),
+            _ => None,
+        }
+    }
+
     /// Resolve a comparison only when its arm belongs to the named dispatch.
     /// Handles from another dispatch (or arena generation) confer no evidence.
     pub fn match_pattern_comparison(
