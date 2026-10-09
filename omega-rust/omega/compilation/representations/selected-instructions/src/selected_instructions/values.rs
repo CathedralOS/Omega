@@ -65,6 +65,103 @@ pub enum VirtualRegisterOrigin {
     },
 }
 
+impl VirtualRegisterOrigin {
+    /// The canonical identity encoding shared by every identity vocabulary
+    /// that fingerprints a register origin (plan identity, wire codec,
+    /// recovery classification).
+    pub fn encode_identity(&self, bytes: &mut Vec<u8>) {
+        match self {
+            VirtualRegisterOrigin::InstructionScratch {
+                instruction,
+                operand,
+            } => {
+                bytes.push(9);
+                crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, operand.to_le_bytes());
+            }
+            VirtualRegisterOrigin::StructuralObservation {
+                instruction,
+                place,
+                byte_offset,
+            } => {
+                bytes.push(8);
+                crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
+            }
+            VirtualRegisterOrigin::ScalarAbiAddress {
+                instruction,
+                source_value,
+            } => {
+                bytes.push(7);
+                crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
+            }
+            VirtualRegisterOrigin::SpillAddress {
+                instruction,
+                register,
+            } => {
+                bytes.push(6);
+                crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, register.0.to_le_bytes());
+            }
+            VirtualRegisterOrigin::StructuralParameter {
+                place,
+                parameter_index,
+            } => {
+                bytes.push(4);
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    bytes,
+                    (*parameter_index as u64).to_le_bytes(),
+                );
+            }
+            VirtualRegisterOrigin::AbiTransport {
+                instruction,
+                place,
+                byte_offset,
+            } => {
+                bytes.push(5);
+                crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
+            }
+            VirtualRegisterOrigin::BlockParameter {
+                source_value,
+                block,
+                parameter_index,
+            } => {
+                bytes.push(3);
+                crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, block.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    bytes,
+                    (*parameter_index as u64).to_le_bytes(),
+                );
+            }
+            VirtualRegisterOrigin::EntryParameter {
+                source_value,
+                parameter_index,
+            } => {
+                bytes.push(0);
+                crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    bytes,
+                    (*parameter_index as u64).to_le_bytes(),
+                );
+            }
+            VirtualRegisterOrigin::InstructionResult {
+                instruction,
+                source_value,
+            } => {
+                bytes.push(1);
+                crate::codec_bytes::push_encoded(bytes, instruction.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedOperand {
     pub operand: u16,
