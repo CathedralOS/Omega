@@ -63,14 +63,7 @@ impl ExitScalars<'_, '_> {
         {
             return None;
         }
-        let frames = self.call_frames?;
-        let preserves = |frame: facts::NormalizedWriteFrame| {
-            frame.into_complete_paths().is_some_and(|paths| {
-                paths
-                    .iter()
-                    .all(|written| !validation::frame_paths_overlap(written, local.name.as_str()))
-            })
-        };
+        let (frames, preserves) = self.write_frame_guard(local.name.as_str())?;
         // A statement ordinal has no operand-prefix coordinate. Until such
         // evidence is available, a same-statement call that may change this
         // place prevents every read from being treated as a pre-statement read.
@@ -133,19 +126,48 @@ impl ExitScalars<'_, '_> {
                     depth,
                 );
             }
-            let preserved = match node {
-                StatementNode::Assignment(_) => {
-                    preserves(frames.assignment_write_frame(self.machine, node))
-                }
-                StatementNode::Call(call) => preserves(frames.may_write_frame(self.machine, call)),
-                StatementNode::AssemblyFact(_) => false,
-                _ => true,
-            };
+            let preserved = self.node_write_preserved(frames, &preserves, node);
             if !preserved {
                 return None;
             }
         }
         None
+    }
+
+    fn write_frame_guard<'a>(
+        &'a self,
+        local_name: &'a str,
+    ) -> Option<(
+        &'a validation::CallFrameResolver<'a>,
+        impl Fn(facts::NormalizedWriteFrame) -> bool + 'a,
+    )> {
+        let frames = self.call_frames?;
+        Some((
+            frames,
+            move |frame: facts::NormalizedWriteFrame| {
+                frame.into_complete_paths().is_some_and(|paths| {
+                    paths
+                        .iter()
+                        .all(|written| !validation::frame_paths_overlap(written, local_name))
+                })
+            },
+        ))
+    }
+
+    fn node_write_preserved(
+        &self,
+        frames: &validation::CallFrameResolver<'_>,
+        preserves: &dyn Fn(facts::NormalizedWriteFrame) -> bool,
+        node: &StatementNode,
+    ) -> bool {
+        match node {
+            StatementNode::Assignment(_) => {
+                preserves(frames.assignment_write_frame(self.machine, node))
+            }
+            StatementNode::Call(call) => preserves(frames.may_write_frame(self.machine, call)),
+            StatementNode::AssemblyFact(_) => false,
+            _ => true,
+        }
     }
 
     pub(super) fn boolean_local_preserved(
@@ -174,14 +196,7 @@ impl ExitScalars<'_, '_> {
         {
             return None;
         }
-        let frames = self.call_frames?;
-        let preserves = |frame: facts::NormalizedWriteFrame| {
-            frame.into_complete_paths().is_some_and(|paths| {
-                paths
-                    .iter()
-                    .all(|written| !validation::frame_paths_overlap(written, local.name.as_str()))
-            })
-        };
+        let (frames, preserves) = self.write_frame_guard(local.name.as_str())?;
         // `let` fixes a binding, not its bytes: a mutable loan can overwrite
         // that storage. Preserve the initializer only up to this exact capture,
         // including prior operand effects but excluding the receiving call.
@@ -190,14 +205,7 @@ impl ExitScalars<'_, '_> {
             if !preserves(frames.statement_value_write_frame(self.machine, node)) {
                 return None;
             }
-            let preserved = match node {
-                StatementNode::Assignment(_) => {
-                    preserves(frames.assignment_write_frame(self.machine, node))
-                }
-                StatementNode::Call(call) => preserves(frames.may_write_frame(self.machine, call)),
-                StatementNode::AssemblyFact(_) => false,
-                _ => true,
-            };
+            let preserved = self.node_write_preserved(frames, &preserves, node);
             if !preserved {
                 return None;
             }
