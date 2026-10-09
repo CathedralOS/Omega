@@ -14,3 +14,7 @@ The non-reference record stamp remains readable afterward. Both engines exit 0.
 The second route puts selection inside a field, forwards it through a named
 state and a helper call, and copies the returned shared descriptor. Mutation
 waits for both the original returned descriptor and its copy to finish.
+
+The final route declares distinct input lifetimes and returns only the first
+input. The unrelated second input can be mutated while that result stays live.
+Both selector values exercise this declared-source restriction.

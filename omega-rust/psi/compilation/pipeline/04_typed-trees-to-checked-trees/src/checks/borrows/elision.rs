@@ -1,5 +1,7 @@
 //! Lifetimes: declaration-level check that a view-returning machine has an
-//! unambiguous source for the returned borrow.
+//! unambiguous source for the returned borrow, and that reconstructed body
+//! origins belong to that declaration's lifetime relation. Unknown body
+//! reconstruction is not confused with a known contradictory source.
 //!
 //! Stage 1 (elision) links a `&self` method or a single-ref-input machine to its
 //! one obvious source. Stage 2 (frozen decision 15) adds EXPLICIT lifetimes: a
@@ -8,6 +10,7 @@
 //! output lifetime to an input lifetime. The decision is shared with the loan
 //! attributor (`borrow::view_link`) so the two never disagree.
 
+use crate::borrow::returned_body_source_mismatch;
 use diagnostics::Diagnostic;
 
 use crate::borrow::view_link::{
@@ -19,11 +22,22 @@ mod templates;
 
 pub(super) fn check_view_return_elision(
     program: &dyn ::validation::CheckingInput,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut deferred = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
+            if let Some(parameter_index) =
+                returned_body_source_mismatch(program, state, call_frames)
+            {
+                let parameter = &program.state_parameters(state)[parameter_index];
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` returns a view borrowing input `{}`, which is not permitted by the declared result lifetime relation",
+                    super::escape::state_subject(machine, state),
+                    parameter.name,
+                )));
+            }
             let ViewReturnSource::Ambiguous(ambiguity) = resolve_view_return_source(program, state)
             else {
                 continue;

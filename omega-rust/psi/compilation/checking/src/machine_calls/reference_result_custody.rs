@@ -530,6 +530,7 @@ fn expression_sources_with_calls(
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     if stored_loan_parts(program, reference).is_some()
         && let Some(source) = initializer_source(program, state, expression, reference)
@@ -556,9 +557,14 @@ fn expression_sources_with_calls(
             // Every alternative must supply its complete relation. Selecting
             // an arm does not prove which input loan obligations can end;
             // declaration-level lifetime candidates remain live separately.
-            for source in
-                expression_sources_with_calls(program, state, arm.value, reference, active_origins)?
-            {
+            for source in expression_sources_with_calls(
+                program,
+                state,
+                arm.value,
+                reference,
+                active_origins,
+                call_frames,
+            )? {
                 if !sources.contains(&source) {
                     sources.push(source);
                     if sources.len() > MAX_REFERENCE_ORIGIN_LEAVES {
@@ -579,6 +585,7 @@ fn expression_sources_with_calls(
             expression,
             reference,
             active_origins,
+            call_frames,
         );
     }
     if stored_loan_parts(program, reference).is_none() && !is_reference_record(program, reference) {
@@ -606,6 +613,7 @@ fn expression_sources_with_calls(
                 local.initial_value,
                 reference,
                 active_origins,
+                call_frames,
             );
             active_origins.pop();
             return sources;
@@ -652,9 +660,17 @@ fn expression_sources_with_calls(
             program.expression_table.expression_handles(call.arguments),
             reference,
             active_origins,
+            call_frames,
         )
     } else {
-        aggregate_construction_sources(program, state, expression, reference, active_origins)
+        aggregate_construction_sources(
+            program,
+            state,
+            expression,
+            reference,
+            active_origins,
+            call_frames,
+        )
     }
 }
 
@@ -790,6 +806,7 @@ fn projected_construction_sources(
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     let projection = aggregate_projection(program, state, expression)?;
     if program.normalized_type_identity(projection.selected_type)
@@ -803,6 +820,7 @@ fn projected_construction_sources(
         projection.root,
         projection.root_type,
         active_origins,
+        call_frames,
     )?;
     Some(
         sources
@@ -825,6 +843,7 @@ fn call_sources_with_calls(
     arguments: &[typed_trees::expression::ExpressionHandle],
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     let (machine, destination) =
         crate::machine_calls::calls::machine_state_by_symbol(program, target).or_else(|| {
@@ -846,7 +865,7 @@ fn call_sources_with_calls(
         return None;
     }
     active_origins.push(destination.symbol);
-    let sources = returned_sources_with_calls(program, destination, active_origins);
+    let sources = returned_sources_with_calls(program, destination, active_origins, call_frames);
     active_origins.pop();
     let mut output = Vec::new();
     for source in sources? {
@@ -870,6 +889,7 @@ fn call_sources_with_calls(
             *arguments.get(position)?,
             parameter.type_reference,
             active_origins,
+            call_frames,
         )?;
         let borrowed_formal = stored_loan_parts(program, parameter.type_reference);
         let selected_path = if let Some((referent, access)) = borrowed_formal {
@@ -951,9 +971,18 @@ fn reference_access_can_supply(
 fn whole_reference_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     let (referent, access) = stored_loan_parts(program, state.return_type)?;
-    let origins = crate::CallFrameResolver::new(program)?.reference_result_origins(state.symbol)?;
+    let prepared_frames;
+    let call_frames = match call_frames {
+        Some(call_frames) => call_frames,
+        None => {
+            prepared_frames = crate::CallFrameResolver::new(program)?;
+            &prepared_frames
+        }
+    };
+    let origins = call_frames.reference_result_origins(state.symbol)?;
     if origins.is_empty() || origins.len() > MAX_REFERENCE_ORIGIN_LEAVES {
         return None;
     }
@@ -1072,9 +1101,10 @@ fn returned_sources_with_calls(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     active_origins: &mut Vec<SymbolHandle>,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     if stored_loan_parts(program, state.return_type).is_some() {
-        return whole_reference_sources(program, state);
+        return whole_reference_sources(program, state, call_frames);
     }
     let mut sources = Vec::new();
     for statement in program.statement_table.statements(state.statement_nodes) {
@@ -1096,6 +1126,7 @@ fn returned_sources_with_calls(
                 *expression,
                 state.return_type,
                 active_origins,
+                call_frames,
             )?,
             TransitionTargetNode::Named {
                 path, arguments, ..
@@ -1106,6 +1137,7 @@ fn returned_sources_with_calls(
                 program.statement_table.expression_handles(*arguments),
                 state.return_type,
                 active_origins,
+                call_frames,
             )?,
             TransitionTargetNode::Terminal => return None,
         };
@@ -1128,6 +1160,7 @@ fn returned_sources_with_calls(
             *expression,
             state.return_type,
             active_origins,
+            call_frames,
         )? {
             if !sources.iter().any(|existing| existing == &source) {
                 sources.push(source);
@@ -1142,7 +1175,18 @@ pub fn returned_reference_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    returned_sources_with_calls(program, state, &mut vec![state.symbol])
+    returned_reference_sources_with_frames(program, state, None)
+}
+
+/// Borrow an already prepared compilation resolver through every substituted
+/// origin query. Standalone consumers prepare their own resolver; source
+/// checks must not rebuild whole-program symbol tables for each returned view.
+pub fn returned_reference_sources_with_frames(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
+    returned_sources_with_calls(program, state, &mut vec![state.symbol], call_frames)
 }
 
 /// A terminal invocation forwards its reference directly to the state's return.
@@ -1198,6 +1242,7 @@ pub fn terminal_call_reference_sources(
         program.statement_table.expression_handles(*arguments),
         state.return_type,
         &mut vec![state.symbol],
+        None,
     )
 }
 
@@ -1294,6 +1339,7 @@ fn aggregate_construction_sources(
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
+    call_frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     // Enumerate semantic children once, then compose every child's captured
     // loans through its exact stored path. A field and an array slot differ
@@ -1350,9 +1396,14 @@ fn aggregate_construction_sources(
     }
     let mut output = Vec::new();
     for (segment, expression, reference) in children {
-        for mut source in
-            expression_sources_with_calls(program, state, expression, reference, active_origins)?
-        {
+        for mut source in expression_sources_with_calls(
+            program,
+            state,
+            expression,
+            reference,
+            active_origins,
+            call_frames,
+        )? {
             source.path.insert(0, segment.clone());
             output.push(source);
         }
@@ -2258,7 +2309,7 @@ pub fn source_parameter(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Option<usize> {
-    let sources = whole_reference_sources(program, state)?;
+    let sources = whole_reference_sources(program, state, None)?;
     if sources.iter().any(|source| !source.source.path.is_empty()) {
         return None;
     }
@@ -2277,7 +2328,7 @@ pub fn source_leaf(
     state: &typed_trees::state::State,
 ) -> Option<(usize, checked_trees::CheckedUnitStructuralArgumentPlan)> {
     parts(program, state.return_type)?;
-    let sources = whole_reference_sources(program, state)?;
+    let sources = whole_reference_sources(program, state, None)?;
     let [source] = sources.as_slice() else {
         return None;
     };

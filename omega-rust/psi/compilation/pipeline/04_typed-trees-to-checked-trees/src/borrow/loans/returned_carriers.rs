@@ -13,6 +13,7 @@ use crate::borrow::loans::reference_borrow_access_kind;
 use crate::borrow::tracker::StateLoanTracker;
 use crate::borrow::view_link::ViewReturnFieldSource;
 use crate::borrow::view_link::ViewReturnSource;
+use crate::borrow::view_link::resolve_view_return_source;
 
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
@@ -50,26 +51,63 @@ pub(super) fn completed_sources(
     target: SymbolHandle,
     fields: Vec<ViewReturnFieldSource>,
 ) -> Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)> {
-    completed_field_sources(program, target, &fields).unwrap_or_else(|| {
-        fields
+    match completed_field_sources(program, target, &fields, None) {
+        Some(Ok(sources)) => sources,
+        // A contradictory body is rejected by the mandatory declaration check.
+        // It must not manufacture loans from the signature fallback meanwhile.
+        Some(Err(_)) => Vec::new(),
+        None => fields
             .into_iter()
             .map(|field| (field, Vec::new()))
-            .collect()
-    })
+            .collect(),
+    }
+}
+
+/// Judge every reconstructible checked body against the same relation used at
+/// calls. An unavailable relation is not a contradiction; an input outside the
+/// declared lifetime frontier is, even when the machine is never called.
+pub(crate) fn returned_body_source_mismatch(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<usize> {
+    // Failed pass-level preparation stays unavailable rather than rebuilding
+    // the same whole-program resolver for every state.
+    let call_frames = call_frames?;
+    let fields = match resolve_view_return_source(program, state) {
+        ViewReturnSource::Fields { fields } => fields,
+        ViewReturnSource::Parameter { parameter_index } => vec![ViewReturnFieldSource {
+            owner_path: Vec::new(),
+            source_path: Vec::new(),
+            source_type: program
+                .state_parameters(state)
+                .get(parameter_index)?
+                .type_reference,
+            parameter_index,
+            kind: reference_borrow_access_kind(program, state.return_type)?,
+        }],
+        ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => return None,
+    };
+    completed_field_sources(program, state.symbol, &fields, Some(call_frames))?.err()
 }
 
 /// Refine declaration-level lifetime candidates with the checked body's
 /// complete returned-leaf relation. Descriptor selection in an owned input
 /// stays separate from a projection beneath a borrowed input. A declaration
 /// without a reconstructible body retains its conservative lifetime footprint;
-/// executable custody still requires an exact returned-origin replay.
+/// executable custody still requires an exact returned-origin relation. `None`
+/// means unavailable reconstruction, `Err` names a contradictory formal input,
+/// and `Ok` preserves every declared lifetime obligation with body projections.
 fn completed_field_sources(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     fields: &[ViewReturnFieldSource],
-) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Result<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>, usize>> {
     use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-    use validation::reference_result_custody::{loan_place_segments, returned_reference_sources};
+    use validation::reference_result_custody::{
+        loan_place_segments, returned_reference_sources_with_frames,
+    };
 
     let (machine, state) = validation::find_state_with_machine(program, target)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -77,7 +115,7 @@ fn completed_field_sources(
     {
         return None;
     }
-    let sources = returned_reference_sources(program, state)?;
+    let sources = returned_reference_sources_with_frames(program, state, call_frames)?;
     let parameters = program.state_parameters(state);
     let mut output = Vec::with_capacity(sources.len());
     let mut covered = vec![false; fields.len()];
@@ -126,12 +164,14 @@ fn completed_field_sources(
         };
         // Body precision cannot invent a lifetime source or amplify access
         // beyond the declaration's already checked input/output relation.
-        let (index, field) = fields.iter().enumerate().find(|(_, field)| {
+        let Some((index, field)) = fields.iter().enumerate().find(|(_, field)| {
             field.owner_path == owner_path
                 && field.source_path == source_path
                 && field.parameter_index == parameter_index
                 && field.kind == kind
-        })?;
+        }) else {
+            return Some(Err(parameter_index));
+        };
         covered[index] = true;
         output.push((field.clone(), projection));
     }
@@ -144,7 +184,7 @@ fn completed_field_sources(
             output.push((field.clone(), Vec::new()));
         }
     }
-    Some(output)
+    Some(Ok(output))
 }
 
 fn owner_segments(segments: Vec<facts::PlaceSegment>) -> Option<Vec<BorrowOwnerSegment>> {

@@ -2197,19 +2197,24 @@ crash and native exit behavior.
     returned record/field selection, helper substitution, named-state forwarding
     and copied descriptors; reject a helper-local source in any result arm and
     mutation of an unselected same-lifetime input while the result remains live.
+    Every reconstructed returned source must belong to the declared result
+    lifetime relation; an unrelated-lifetime input is not a fallback candidate.
     Retirement separately retains possible transfers and
     proves which source paths transfer on every arm.
     Remaining: calls embedded in retained value graphs and stores without a
     receiving-holder association still require their checked correspondence
-    before parent retirement can be proved. Flat call retirement must keep its
-    registered result's complete leaf group, not only root-reference releases.
+    before parent retirement can be proved. The slice-return controls below
+    still reject their captured range endpoint against an unknown length on
+    untouched main `9657a66795`; **MACOS-NATIVE-LOST-SUCCESSES** owns that
+    shared hoisted-bound dependency. Their authored exits remain required.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root
     loses borrow/write-frame/release identity. A known-place loan need not
     become a fresh affine `EstablishReference` result. Descriptor cleanup stays
-    separate from backing permission; returned shared views cannot grant
-    mutation or escape activation-owned storage. Named-state forwarding and Unit
+    separate from backing permission and keeps each registered result's complete
+    leaf group; whole-owner root releases remain distinct. Returned shared views
+    cannot grant mutation or escape activation-owned storage. Named-state forwarding and Unit
     completion must not regain source-shape gates.
   - **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
 

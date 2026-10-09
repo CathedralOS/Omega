@@ -19,6 +19,13 @@ machine select_field<'storage>(first: &'storage Cell, second: &'storage Cell, se
     }
 }
 
+machine select_first<'first, 'second>(selected: bool, first: &'first Cell, second: &'second Cell) -> Held<'first> {
+    match selected {
+        true -> Held { target: first, stamp: 12 },
+        false -> Held { target: first, stamp: 13 }
+    }
+}
+
 machine forward<'storage>(first: &'storage Cell, second: &'storage Cell, selected: bool) -> Held<'storage> {
     transition { _ -> choose(first, second, selected) }
     state choose(first: &'storage Cell, second: &'storage Cell, selected: bool) -> Held<'storage> {
@@ -58,12 +65,24 @@ machine verify_forwarded(first: &mut Cell, second: &mut Cell, selected: bool) ->
         first.value == 51 && second.value == 83
 }
 
+machine verify_named_lifetime(first: &mut Cell, second: &mut Cell, selected: bool) -> bool {
+    first.value = 41;
+    second.value = 73;
+    let held: Held = select_first(selected, &first, &second);
+    second.value = 83;
+    let observed: i32 = held.target.value;
+    first.value = 51;
+    observed == 41 && first.value == 51 && second.value == 83
+}
+
 machine Main::main(main: &mut Main) reaches Console {
     let first: bool = verify(&mut main.first, &mut main.second, true);
     let second: bool = verify(&mut main.first, &mut main.second, false);
     let third: bool = verify_forwarded(&mut main.first, &mut main.second, true);
     let fourth: bool = verify_forwarded(&mut main.first, &mut main.second, false);
-    transition first && second && third && fourth {
+    let fifth: bool = verify_named_lifetime(&mut main.first, &mut main.second, true);
+    let sixth: bool = verify_named_lifetime(&mut main.first, &mut main.second, false);
+    transition first && second && third && fourth && fifth && sixth {
         true -> good(main)
         false -> bad(main)
     }
