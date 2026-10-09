@@ -17,10 +17,11 @@ mod abi_preservation;
 mod catalog;
 mod validation;
 
-pub use abi_preservation::{
-    AbiPreservationSelectionError, FrameAbiPreservationConvention, SelectedAbiPreservation,
+pub use abi_preservation::{ FrameAbiPreservationConvention,
     selected_abi_preservation, selected_preservation_storage_catalog,
 };
+pub(crate) use abi_preservation::{
+    AbiPreservationSelectionError, SelectedAbiPreservation};
 
 #[cfg(test)]
 mod tests;
@@ -168,7 +169,7 @@ impl ValidatedTargetRegisterEnvironment {
     /// Target-selected scalar-call constraint. This is validated environment
     /// data only; it does not claim that the selected CFG can lower a general
     /// scalar call yet.
-    pub fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
+    pub(crate) fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
         self.constraint(self::catalog::scalar_call_constraint_key(self.target)?)
     }
 

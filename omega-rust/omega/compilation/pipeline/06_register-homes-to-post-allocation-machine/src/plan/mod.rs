@@ -15,7 +15,7 @@ use std::sync::Arc;
 /// its independently validated physical homes. Target applicability must
 /// identify exactly one legal alternative for every instruction.
 #[allow(clippy::too_many_arguments)]
-pub fn analyze_post_allocation_machine_plan<
+pub(crate) fn analyze_post_allocation_machine_plan<
     S: selected_instructions_to_register_homes::ValidatedSelectedAnalysis,
 >(
     selected: &S,

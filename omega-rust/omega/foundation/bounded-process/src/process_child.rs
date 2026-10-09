@@ -72,14 +72,14 @@ impl BoundedProcessChild {
         self.inner().stdout.take()
     }
 
-    pub fn take_stdin(&mut self) -> Option<ChildStdin> {
+    pub(crate) fn take_stdin(&mut self) -> Option<ChildStdin> {
         #[cfg(windows)]
         return self.child.take_stdin();
         #[cfg(not(windows))]
         self.inner().stdin.take()
     }
 
-    pub fn take_stderr(&mut self) -> Option<ChildStderr> {
+    pub(crate) fn take_stderr(&mut self) -> Option<ChildStderr> {
         #[cfg(windows)]
         return self.child.take_stderr();
         #[cfg(not(windows))]
@@ -131,7 +131,7 @@ impl BoundedProcessChild {
     /// group that still exists (POSIX EPERM). On macOS this is also what an
     /// exiting-but-not-yet-reapable primary answers, so it is worth retrying
     /// within the caller's cleanup budget rather than reporting at once.
-    pub fn group_signal_refused(error: &io::Error) -> bool {
+    pub(crate) fn group_signal_refused(error: &io::Error) -> bool {
         #[cfg(unix)]
         {
             error.raw_os_error() == Some(1)

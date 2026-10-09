@@ -102,7 +102,7 @@ impl BoundedProcessPrepared {
         })
     }
 
-    pub fn env_clear(&mut self) -> &mut Self {
+    pub(crate) fn env_clear(&mut self) -> &mut Self {
         self.command.env_clear();
         self
     }

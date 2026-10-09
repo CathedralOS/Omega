@@ -56,7 +56,7 @@ impl BoundedCaptureBudget {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BoundedCaptureBudgetExceeded {
+pub(crate) struct BoundedCaptureBudgetExceeded {
     ceiling: u64,
     attempted: u64,
 }

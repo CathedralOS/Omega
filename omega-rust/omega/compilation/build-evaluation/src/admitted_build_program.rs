@@ -44,7 +44,7 @@ impl AdmittedBuildProgram {
     /// Fresh admission may identify an output-free Pure consumption candidate.
     /// This records immutable content only; it retains neither our entry token
     /// nor filesystem/evaluation grants. Restricted requests never qualify.
-    pub fn pure_consumption_inputs(
+    pub(crate) fn pure_consumption_inputs(
         &self,
         packages: Option<&package_compilation::PackageCompilationInputs>,
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
