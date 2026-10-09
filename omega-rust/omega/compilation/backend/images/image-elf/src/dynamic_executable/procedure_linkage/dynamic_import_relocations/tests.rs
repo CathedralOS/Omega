@@ -43,27 +43,10 @@ fn image(
     );
     let mut relocation_handles = Vec::with_capacity(relocation_count);
     for (index, fixture) in imports.iter().enumerate() {
-        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: format!("__omega_procedure_import_{index}"),
-            section: FinalImageSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Import,
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle,
-            import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
-                    ForeignLocatorCandidate::ElfVersioned {
-                        object: fixture.object.to_vec(),
-                        symbol: fixture.symbol.to_vec(),
-                        version: fixture.version.to_vec(),
-                    },
-                    target,
-                )
-                .expect("valid procedure-linkage locator"),
-            ),
-        });
+        let symbol_handle = crate::test_support::insert_import_fixture(
+            &mut image, "__omega_procedure_import_", index, fixture.object, fixture.symbol,
+            fixture.version, target, "valid procedure-linkage locator",
+        );
         for instruction_offset in fixture.instruction_offsets {
             let (relocation_offset, kind) = match target {
                 TargetProfile::LinuxX64 => {

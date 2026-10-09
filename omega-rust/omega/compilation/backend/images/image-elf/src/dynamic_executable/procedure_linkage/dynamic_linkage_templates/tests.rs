@@ -42,52 +42,15 @@ fn linkage(
         relocation_count,
     );
     for (index, fixture) in imports.iter().enumerate() {
-        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: format!("__omega_template_import_{index}"),
-            section: FinalImageSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Import,
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle,
-            import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
-                    ForeignLocatorCandidate::ElfVersioned {
-                        object: fixture.object.to_vec(),
-                        symbol: fixture.symbol.to_vec(),
-                        version: fixture.version.to_vec(),
-                    },
-                    target,
-                )
-                .expect("valid template locator"),
-            ),
-        });
-        for instruction_offset in fixture.instruction_offsets {
-            let (relocation_offset, kind) = match target {
-                TargetProfile::LinuxX64 => {
-                    image.memory.text[*instruction_offset] = 0xe8;
-                    (instruction_offset + 1, RelocationKind::X86_64Relative32)
-                }
-                TargetProfile::LinuxArm64 => {
-                    image.memory.text[*instruction_offset..*instruction_offset + 4]
-                        .copy_from_slice(&[0, 0, 0, 0x94]);
-                    (*instruction_offset, RelocationKind::Aarch64Branch26)
-                }
-                _ => unreachable!(),
-            };
-            image
-                .relocation_table
-                .relocations
-                .insert(FinalImageRelocation {
-                    section: FinalImageSection::Text,
-                    offset: relocation_offset,
-                    byte_width: 4,
-                    symbol_handle,
-                    addend: 0,
-                    kind,
-                });
-        }
+        let symbol_handle = crate::test_support::insert_import_fixture(
+            &mut image, "__omega_template_import_", index, fixture.object, fixture.symbol,
+            fixture.version, target, "valid template locator",
+        );
+        crate::test_support::insert_text_call_relocations(
+            &mut image,
+            target,
+            fixture.instruction_offsets.iter().map(|offset| (*offset, symbol_handle)),
+        );
     }
     let interpreter =
         normalize_elf_interpreter_plan(import_fixture_interpreter_path(target).to_vec(), target)

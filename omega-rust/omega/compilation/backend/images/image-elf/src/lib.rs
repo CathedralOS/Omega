@@ -167,14 +167,8 @@ pub(crate) mod test_support {
         plan_elf_procedure_linkage_relocations(descriptors).unwrap()
     }
     /// One dynamic-executable import entry shared by the dynamic-table
-    /// fixtures.
-    #[derive(Clone, Copy)]
-    pub(crate) struct DynamicImportFixture {
-        pub(crate) object: &'static [u8],
-        pub(crate) symbol: &'static [u8],
-        pub(crate) version: &'static [u8],
-        pub(crate) instruction_offsets: &'static [usize],
-    }
+    /// fixtures — the same shape as `ImportFixture`.
+    pub(crate) type DynamicImportFixture = ImportFixture;
 
     /// The imported-symbol image and Linux interpreter the dynamic-table
     /// fixtures stage before their own descriptor or tag assertions.
@@ -209,27 +203,16 @@ pub(crate) mod test_support {
             relocation_count,
         );
         for (index, fixture) in imports.iter().enumerate() {
-            let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-                name: format!("{symbol_prefix}{index}"),
-                section: FinalImageSection::None,
-                offset: 0,
-                size: 0,
-                kind: SymbolKind::Import,
-            });
-            image.symbol_table.imports.insert(FinalImageImport {
-                symbol_handle,
-                import: FinalImageImportPlan::Normalized(
-                    normalize_foreign_locator(
-                        ForeignLocatorCandidate::ElfVersioned {
-                            object: fixture.object.to_vec(),
-                            symbol: fixture.symbol.to_vec(),
-                            version: fixture.version.to_vec(),
-                        },
-                        target,
-                    )
-                    .expect(locator_expect),
-                ),
-            });
+            let symbol_handle = insert_import_fixture(
+                &mut image,
+                symbol_prefix,
+                index,
+                fixture.object,
+                fixture.symbol,
+                fixture.version,
+                target,
+                locator_expect,
+            );
             for instruction_offset in fixture.instruction_offsets {
                 let (relocation_offset, kind) = match target {
                     TargetProfile::LinuxX64 => {
@@ -330,27 +313,16 @@ pub(crate) mod test_support {
             imports.len(),
         );
         for (index, fixture) in imports.iter().enumerate() {
-            let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-                name: format!("{symbol_prefix}{index}"),
-                section: FinalImageSection::None,
-                offset: 0,
-                size: 0,
-                kind: SymbolKind::Import,
-            });
-            image.symbol_table.imports.insert(FinalImageImport {
-                symbol_handle,
-                import: FinalImageImportPlan::Normalized(
-                    normalize_foreign_locator(
-                        ForeignLocatorCandidate::ElfVersioned {
-                            object: fixture.object.to_vec(),
-                            symbol: fixture.symbol.to_vec(),
-                            version: fixture.version.to_vec(),
-                        },
-                        target,
-                    )
-                    .expect(locator_expect),
-                ),
-            });
+            let symbol_handle = insert_import_fixture(
+                &mut image,
+                symbol_prefix,
+                index,
+                fixture.object,
+                fixture.symbol,
+                fixture.version,
+                target,
+                locator_expect,
+            );
             image
                 .relocation_table
                 .relocations
@@ -559,6 +531,45 @@ pub(crate) mod test_support {
             instruction_offsets: &[28],
         },
     ];
+
+    /// Insert the imported symbol and its normalized ELF-versioned locator —
+    /// the shared prelude of every dynamic-link import fixture.
+    pub(crate) fn insert_import_fixture(
+        image: &mut image::FinalImage,
+        symbol_prefix: &str,
+        index: usize,
+        object: &[u8],
+        symbol: &[u8],
+        version: &[u8],
+        target: TargetProfile,
+        locator_expect: &str,
+    ) -> image::FinalImageSymbolHandle {
+        use image::{FinalImageImport, FinalImageImportPlan, FinalImageSection, FinalImageSymbol};
+        use object_file::SymbolKind;
+        use target::{ForeignLocatorCandidate, normalize_foreign_locator};
+        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: format!("{symbol_prefix}{index}"),
+            section: FinalImageSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Import,
+        });
+        image.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle,
+            import: FinalImageImportPlan::Normalized(
+                normalize_foreign_locator(
+                    ForeignLocatorCandidate::ElfVersioned {
+                        object: object.to_vec(),
+                        symbol: symbol.to_vec(),
+                        version: version.to_vec(),
+                    },
+                    target,
+                )
+                .expect(locator_expect),
+            ),
+        });
+        symbol_handle
+    }
 
     /// The unprintable-byte interpreter path the multi-import fixtures link
     /// against.
