@@ -655,7 +655,7 @@ fn encode_record(
     }
     payload.extend_from_slice(index.source_content_commitment());
     crate::codec_bytes::push_encoded(&mut payload, index.policy_version().to_le_bytes());
-    let digest: [u8; 32] = Sha256::digest(&payload).into();
+    let digest: [u8; 32] = crate::digest_encoder::content_identity(&payload).into();
     payload.extend_from_slice(&digest);
     Ok(payload)
 }
@@ -669,7 +669,7 @@ fn decode_record(
         return Err("checked-source cache record is truncated".to_owned());
     }
     let (payload, stored_digest) = bytes.split_at(bytes.len() - 32);
-    let computed: [u8; 32] = Sha256::digest(payload).into();
+    let computed: [u8; 32] = crate::digest_encoder::content_identity(&payload).into();
     if computed.as_slice() != stored_digest {
         return Err("checked-source cache record digest mismatch".to_owned());
     }

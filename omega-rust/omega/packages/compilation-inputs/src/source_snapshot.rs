@@ -784,7 +784,7 @@ fn capture_physical_metadata_row(
             kind: CanonicalFilesystemMetadataRowKind::Symlink {
                 target_spelling_logical_byte_length: target_length,
             },
-            content_digest: Some(Sha256::digest(&target).into()),
+            content_digest: Some(crate::digest_encoder::content_identity(&target).into()),
         });
     }
     Err(format!(

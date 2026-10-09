@@ -154,12 +154,12 @@ fn hash_captured_input(digest: &mut DomainDigestEncoder, input: &CapturedBuildSo
                 digest.u64(byte_length);
                 digest.byte(executable as u8);
                 if let Some(file) = input.file(entry.relative_path()) {
-                    digest.raw(&Sha256::digest(file.bytes()));
+                    digest.raw(&crate::digest_encoder::content_identity(&file.bytes()));
                 }
             }
             CapturedSourceEntryKind::Symlink { target } => {
                 digest.byte(2);
-                digest.raw(&Sha256::digest(target));
+                digest.raw(&crate::digest_encoder::content_identity(&target));
             }
         };
     }

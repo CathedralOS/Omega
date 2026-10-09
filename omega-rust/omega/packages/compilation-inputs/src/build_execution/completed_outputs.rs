@@ -54,10 +54,10 @@ impl RetainedBuildOutputs {
                 );
                 manifest.extend_from_slice(entry.relative_path());
                 crate::codec_bytes::push_encoded(&mut manifest, (bytes.len() as u64).to_le_bytes());
-                manifest.extend_from_slice(&Sha256::digest(bytes));
+                manifest.extend_from_slice(&crate::digest_encoder::content_identity(&bytes));
             }
         }
-        let identity = Sha256::digest(&manifest).into();
+        let identity = crate::digest_encoder::content_identity(&manifest).into();
         Ok(Some(Self {
             observation,
             tree,
