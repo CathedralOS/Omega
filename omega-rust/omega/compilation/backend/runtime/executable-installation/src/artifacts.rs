@@ -6,7 +6,6 @@
 //! encodes and decodes one.
 
 pub(crate) mod container;
-pub(crate) mod container_bytes;
 use crate::artifacts::container::DecodedArtifactRelocation;
 use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::NonAuthoritativeContainerFingerprint64;

@@ -20,16 +20,11 @@
 mod artifacts;
 mod authority_digests;
 mod digest_encoder;
-mod entry_references;
-mod executable_installation;
 mod fnv1a;
 mod installation;
-mod owned_image_provider;
 mod placement;
 mod post_handoff_writer;
 mod retirement;
-#[cfg(test)]
-mod test_support;
 
 pub use artifacts::Artifact;
 pub use authority_digests::{
