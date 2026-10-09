@@ -9,6 +9,7 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::call_source;
+use optimization_unit_semantics::CallRegion;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -985,14 +986,6 @@ fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bo
                 requested,
                 StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
             )
-}
-
-/// Carrier storage and its pointees are distinct aliasing regions.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum CallRegion {
-    OrdinaryStorage,
-    CarrierStorage,
-    Referent,
 }
 
 mod access_paths;
