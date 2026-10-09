@@ -2139,7 +2139,6 @@ dependencies = [
  "program-entry-plan",
  "proof-admission",
  "provider-planning",
- "selected-dispatch",
  "semantic-vocabulary",
  "sha2",
  "source",

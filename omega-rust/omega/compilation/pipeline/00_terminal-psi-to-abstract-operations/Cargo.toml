@@ -21,7 +21,6 @@ symbols = { path = "../../../../psi/foundation/symbols" }
 boundary-applications = { path = "../../backend/artifacts/boundary-applications" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 lowered-psi = { path = "../../../../psi/compilation/representations/lowered-psi" }
-selected-dispatch = { path = "../../realization/selected-dispatch" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 installation-evidence = { path = "../../backend/runtime/installation-evidence" }
