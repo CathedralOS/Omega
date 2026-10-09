@@ -87,28 +87,20 @@
 //! `image-emission`, which each take `FinalImage` plus
 //! `place_executable_regions` and add their own container.
 //!
-//! @Cleanup: FNV-1a is open-coded four times. The offset basis
+//! @Cleanup: FNV-1a is open-coded three times. The offset basis
 //! `0xcbf2_9ce4_8422_2325` appears in `output.rs`, `relocation_envelope.rs`,
-//! `model/executable_regions.rs` and `footprint_certificate.rs`, and three of
-//! those define their own private `fingerprint_bytes`. Four copies of a hash
+//! `model/executable_regions.rs`, and three of
+//! those define their own private `fingerprint_bytes`. Three copies of a hash
 //! function is four chances for one of them to drift.
 //!
-//! @Incomplete: the certificate-and-entry-binding lane has no production
-//! caller. `FinalFootprintCertificate::current`/`validate_identity` and
-//! `bind_compiler_entry_footprint` are reached only from `#[cfg(test)]`;
-//! their consumer was deleted with the legacy StateGraph route in
-//! `f6b3e65350` (2026-08-28). The inventory replay below that lane is NOT
-//! inert: `validate_placed_executable_region_inventory` runs in production
+//! @Note: the inventory replay is NOT inert:
+//! `validate_placed_executable_region_inventory` runs in production
 //! from image-emission's `validate_terminal_image_with_import_count` and the
 //! retained-image evidence consumers,
 //! and the PE and Mach-O emitters attach thunk footprints through
 //! `validate_import_thunk_footprints`, which placement then carries into
 //! `PlacedExecutableRegion.footprint`. Only the compiler-entry footprint
-//! binding still waits for a caller. Note before
-//! reaching for the delete key: `tests/architecture/native_image_identity.rs:103`
-//! reads `footprint_certificate.rs` as source TEXT and asserts literal strings
-//! are present, so removing the lane breaks a test that does not break the
-//! build.
+//! binding still waits for a caller.
 //!
 //! @Note: do not decide what is dead here by grepping for type names. The
 //! `CompilerEntryRegionBindingEvidence` and `CompilerEntryFootprintBindingEvidence`
@@ -144,7 +136,6 @@ macro_rules! image_digest {
 mod aarch64_relocations;
 mod builder;
 mod final_image;
-mod footprint_certificate;
 mod function_linkage;
 mod output;
 mod patch_bytes;
@@ -168,10 +159,6 @@ pub use final_image::{
     validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
 };
 pub use relocation_envelope::validate_final_text_relocation_envelope;
-#[cfg(test)]
-pub use footprint_certificate::{ FinalFootprintCertificateDigest, FinalFootprintCoverageDigest,
-    FinalFootprintPlacementBindingDigest,
-};
 pub use output::{
     CompilerEntryFootprintBindingDigest,
     CompilerEntryRegionBindingDigest,
