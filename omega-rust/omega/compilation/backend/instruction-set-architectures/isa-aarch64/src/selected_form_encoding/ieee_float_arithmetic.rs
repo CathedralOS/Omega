@@ -289,12 +289,6 @@ enum Word {
         right: u8,
         result: u8,
     },
-    /// `AND` (vector, 8B), preserving comparison masks.
-    BitwiseAnd {
-        left: u8,
-        right: u8,
-        result: u8,
-    },
     /// `BSL` (vector, 8B): `mask ? if_set : if_clear` per bit, into `mask`.
     BitwiseSelect {
         mask: u8,
