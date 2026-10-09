@@ -17,7 +17,10 @@ pub data TypeKind [copy] {
     case Data;
     // `&T` or `&mut T`: `access` over `inner`.
     case Reference;
-    // `[inner; length]`, with its `in` qualifier.
+    // `[inner; length]`, with its `in` qualifier; `length` is the handle of
+    // its extent's type, a static integer or a `const` generic parameter
+    // (wiki/spec/language/generics.md#value-binders-and-const-requirements),
+    // so substitution and unification treat it as one more child.
     case Array;
     // `[inner]`, with its `in` qualifier.
     case Slice;

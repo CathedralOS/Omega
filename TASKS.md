@@ -5877,8 +5877,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  459 parser cases, `tests/psi/resolver/test-resolver.sh` all 267 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 93 typing cases; run
+  459 parser cases, `tests/psi/resolver/test-resolver.sh` all 269 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 96 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -5980,7 +5980,12 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   construction infers its data's arguments from its fields; value-position
   matches, memberships, trait requirement calls, generic conformance members,
   target-scoped family calls, declared and case domain qualifiers and equality
-  needing a declared conformance reject as unsupported. A machine binder's
+  needing a declared conformance reject as unsupported (core's theorems over
+  `Nat`, `Seq` and record values wait on owner decision
+  `proof-fact-data-equality`). An inline array's
+  extent is a static integer or a `const` binder, which substitution and
+  unification carry like an element type (`take(a)` binds `N` from
+  `a: [u8; 3]`); checking proves no index below a `const` extent. A machine binder's
   call is typed through its contract, and a generic call's static machine
   arguments bind its machine binders, each argument's signature refining its
   contract under the call's bindings and binding the callee's other generic
@@ -6015,16 +6020,15 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   never terminate), and a witness on a bodyless machine rejects; every
   body's derived summary serves its callers, exported or not. Checking
   reports each rejected machine's first rejection.
-  `tests/psi/checking/test-checking.sh` passes 93 checking cases and accepts
-  the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 73
-  of the 102 `source/library/std` and `core` files; the other 29 stop first at
+  `tests/psi/checking/test-checking.sh` passes 114 checking cases and accepts
+  the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 75
+  of the 102 `source/library/std` and `core` files; the other 27 stop first at
   13 retired `boundary requirement` declarations (12 std target files and
   `core/task.omg`) and `core/float_operations.omg`'s retired `boundary
   operator` rows, which **TOP-LEVEL-BOUNDARY-REQUIREMENTS** has not migrated,
-  6 retired range suffixes awaiting
-  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** migration, 6 return types written
-  after the clauses (`terminates by fuel;` then `-> i32`, which no spec form
-  admits), and one each at an applied type-position domain (`in
+  10 retired range suffixes awaiting
+  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** migration, and one each at an
+  applied type-position domain (`in
   Quantity<Units::METER>`), an installation reach row `reaches <= Bound`, and
   requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
   in 0..=n`) and indexed membership domains (`in AtMost<8>`) do not parse

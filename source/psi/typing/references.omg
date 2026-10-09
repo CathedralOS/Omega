@@ -202,7 +202,10 @@ crashes Trap
         domain: DomainBinding
     ) {
         let length_row: TypeReference = SyntaxTrees::type_reference(syntax, reference.length);
-        transition length_row.kind == TypeReferenceKind::Literal {
+        let length: u64 in Trapping = Typing::reference_type(&typer.output, reference.length);
+        let extent: TypeRow = TypeTable::row(&typer.output.types, length);
+        let parameter: bool = Typer::const_parameter(syntax, extent);
+        transition extent.kind == TypeKind::StaticInteger || parameter {
             true -> array_length(typer, sources, syntax, resolution, index, reference, domain)
             _ -> length_rejected(typer, length_row)
         }
@@ -218,10 +221,9 @@ crashes Trap
         domain: DomainBinding
     ) {
         let length: u64 in Trapping = Typing::reference_type(&typer.output, reference.length);
-        let length_type: TypeRow = TypeTable::row(&typer.output.types, length);
         let mut row: TypeRow = TypeRow::of(TypeKind::Array);
         row.inner = Typing::reference_type(&typer.output, reference.inner);
-        row.length = length_type.length;
+        row.length = length;
         row.domain = domain;
         transition domain == DomainBinding::Unqualified || domain == DomainBinding::Trapping {
             true -> intern(typer, sources, syntax, resolution, index, reference, row)
@@ -372,5 +374,26 @@ crashes Trap
 
     state result(applied: u64 in Trapping) -> u64 in Trapping {
         applied
+    }
+}
+
+// Whether a type row is a `const` generic parameter, the only binder an
+// inline array's static extent may name
+// (wiki/spec/language/generics.md#value-binders-and-const-requirements).
+pub machine Typer::const_parameter(syntax: &SyntaxTrees, row: TypeRow) -> bool
+crashes Trap
+{
+    transition row.kind == TypeKind::GenericParameter {
+        true -> declared(syntax, row.item)
+        _ -> no()
+    }
+
+    state declared(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
+        let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
+        generic.kind == GenericParameterKind::Const
+    }
+
+    state no() -> bool {
+        false
     }
 }

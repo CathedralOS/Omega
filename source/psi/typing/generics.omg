@@ -175,7 +175,7 @@ crashes Trap
         transition row.kind {
             TypeKind::GenericParameter -> parameter(typer, root, source_span, depth, current, row)
             TypeKind::Reference -> wrapper(typer, root, source_span, depth, current, row, expanded)
-            TypeKind::Array -> wrapper(typer, root, source_span, depth, current, row, expanded)
+            TypeKind::Array -> array(typer, root, source_span, depth, current, row, expanded)
             TypeKind::Slice -> wrapper(typer, root, source_span, depth, current, row, expanded)
             TypeKind::Data -> data(typer, root, source_span, depth, current, row, expanded)
             _ -> remember(typer, root, source_span, depth, current, current)
@@ -195,7 +195,33 @@ crashes Trap
         transition { _ -> next(typer, root, source_span, depth) }
     }
 
-    // A reference, array or slice substitutes its one child first.
+    // An array substitutes its element and its extent first.
+    state array(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow, expanded: bool) -> u64 in Trapping {
+        transition expanded {
+            true -> rearray(typer, root, source_span, depth, current, row)
+            _ -> expand_array(typer, root, source_span, depth, current, row)
+        }
+    }
+
+    state expand_array(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
+        Typer::work_store(typer, depth, current * 2 + 1);
+        Typer::work_store(typer, depth + 1, row.inner * 2);
+        Typer::work_store(typer, depth + 2, row.length * 2);
+        transition { _ -> next(typer, root, source_span, depth + 3) }
+    }
+
+    state rearray(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
+        let inner: u64 in Trapping = Typer::memo_load(typer, row.inner);
+        let length: u64 in Trapping = Typer::memo_load(typer, row.length);
+        let mut wrapped: TypeRow = TypeRow::of(row.kind);
+        wrapped.domain = row.domain;
+        wrapped.length = length;
+        wrapped.inner = inner;
+        let handle: u64 in Trapping = Typer::intern(typer, wrapped, source_span);
+        transition { _ -> remember(typer, root, source_span, depth, current, handle) }
+    }
+
+    // A reference or slice substitutes its one child first.
     state wrapper(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow, expanded: bool) -> u64 in Trapping {
         transition expanded {
             true -> rewrap(typer, root, source_span, depth, current, row)
@@ -214,7 +240,6 @@ crashes Trap
         let mut wrapped: TypeRow = TypeRow::of(row.kind);
         wrapped.access = row.access;
         wrapped.domain = row.domain;
-        wrapped.length = row.length;
         wrapped.inner = inner;
         let handle: u64 in Trapping = Typer::intern(typer, wrapped, source_span);
         transition { _ -> remember(typer, root, source_span, depth, current, handle) }
@@ -321,7 +346,7 @@ crashes Trap
         transition wanted_row.kind {
             TypeKind::GenericParameter -> parameter(typer, first, count, depth, wanted_row, given)
             TypeKind::Reference -> reference(typer, first, count, depth, wanted_row, given_row, given)
-            TypeKind::Array -> collection(typer, first, count, depth, wanted_row, given_row)
+            TypeKind::Array -> array(typer, first, count, depth, wanted_row, given_row)
             TypeKind::Slice -> collection(typer, first, count, depth, wanted_row, given_row)
             TypeKind::Data -> data(typer, first, count, depth, wanted_row, given_row, 0)
             _ -> next(typer, first, count, depth)
@@ -354,6 +379,21 @@ crashes Trap
             true -> push(typer, first, count, depth, wanted_row.inner, given)
             _ -> next(typer, first, count, depth)
         }
+    }
+
+    // An array's extent unifies too, binding a `const` parameter from a
+    // given static extent.
+    state array(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping, wanted_row: TypeRow, given_row: TypeRow) {
+        transition given_row.kind == TypeKind::Array {
+            true -> extents(typer, first, count, depth, wanted_row, given_row)
+            _ -> next(typer, first, count, depth)
+        }
+    }
+
+    state extents(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping, wanted_row: TypeRow, given_row: TypeRow) {
+        Typer::work_store(typer, depth, wanted_row.length);
+        Typer::work_store(typer, depth + 1, given_row.length);
+        transition { _ -> push(typer, first, count, depth + 2, wanted_row.inner, given_row.inner) }
     }
 
     state collection(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping, wanted_row: TypeRow, given_row: TypeRow) {

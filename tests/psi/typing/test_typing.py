@@ -87,7 +87,7 @@ class Observation:
         if kind == "Reference":
             return ("&mut " if row.access == 1 else "&") + self.render(row.inner)
         if kind == "Array":
-            return f"[{self.render(row.inner)}; {row.length}]{domain}"
+            return f"[{self.render(row.inner)}; {self.render(row.length)}]{domain}"
         if kind == "Slice":
             return f"[{self.render(row.inner)}]{domain}"
         if kind == "GenericParameter":
@@ -494,6 +494,19 @@ def main() -> None:
             (b"make<zero>()", "machine", 5),
         ),
     )
+    # An inline array's extent may name a `const` binder: substitution and
+    # unification carry it like an element type.
+    accepted(
+        program,
+        "const-extents-substitute-and-unify",
+        b"data Buffer<T, const N: u64> { items: [T; N]; }\n"
+        b"machine take<const N: u64>(items: [u8; N]) -> [u8; N] { items }\n"
+        b"machine f(b: Buffer<u16, 4>, a: [u8; 3]) -> [u8; 3] {\n"
+        b"    let held: [u16; 4] = b.items;\n"
+        b"    take(a)\n"
+        b"}",
+        ((b"items!3", "[u8; G2]"), (b"b.items", "[u16; 4]"), (b"take(a)", "[u8; 3]")),
+    )
     accepted(
         program,
         "generic-data-constructions-and-patterns",
@@ -686,6 +699,13 @@ def main() -> None:
         "increasing-to-limit-is-typed",
         b"machine g(index: u64, limit: u64) terminates by index -> Nat::IncreasingTo(limit); {}",
         ((b"index!2", "u64"), (b"limit!2", "u64")),
+    )
+    rejected(
+        program,
+        "array-extents-are-static",
+        b"machine g<N: u64>(items: [u8; N]) {}",
+        "UnsupportedArrayLength",
+        b"N!2",
     )
     rejected(
         program,

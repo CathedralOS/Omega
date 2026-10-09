@@ -419,19 +419,41 @@ crashes Trap
     }
 }
 
-// A collection's length: an array's from its type, a slice's from its place.
-pub machine Checker::collection_length(checker: &mut Checker, typing: &Typing, collection: TypeRow, base: Value) -> Value
+// An array's extent: its static integer, or for a `const` generic extent
+// any `u64`, since one body serves every specialization.
+pub machine Checker::array_extent(typing: &Typing, collection: TypeRow) -> Value
 crashes Trap
 {
-    transition collection.kind == TypeKind::Array {
-        true -> fixed(collection.length)
-        _ -> sliced(checker, typing, base)
+    let extent: TypeRow = TypeTable::row(&typing.types, collection.length);
+    transition extent.kind == TypeKind::StaticInteger {
+        true -> fixed(extent.length)
+        _ -> parametric()
     }
 
     state fixed(length: u64 in Trapping) -> Value {
         let magnitude: u64 in Wrapping = length as u64 in Wrapping;
         let value: Value = Value::constant(ExactInteger { negative: false, magnitude: magnitude });
         value
+    }
+
+    state parametric() -> Value {
+        let value: Value = Value::carrier(BuiltinType::U64);
+        value
+    }
+}
+
+// A collection's length: an array's from its type, a slice's from its place.
+pub machine Checker::collection_length(checker: &mut Checker, typing: &Typing, collection: TypeRow, base: Value) -> Value
+crashes Trap
+{
+    transition collection.kind == TypeKind::Array {
+        true -> fixed(typing, collection)
+        _ -> sliced(checker, typing, base)
+    }
+
+    state fixed(typing: &Typing, collection: TypeRow) -> Value {
+        let extent: Value = Checker::array_extent(typing, collection);
+        extent
     }
 
     state sliced(checker: &mut Checker, typing: &Typing, base: Value) -> Value {

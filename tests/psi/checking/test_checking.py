@@ -1101,6 +1101,16 @@ def main() -> None:
         "UnsupportedFact",
         b"satisfies Positive::get",
     )
+    # A `const` extent serves every specialization, so its body proves no
+    # index below it.
+    rejected(
+        program,
+        "const-extent-proves-no-index",
+        b"machine at<const N: u64>(items: &[u8; N]) -> u8 { items[0] }",
+        "IndexOutOfBounds",
+        b"items[0]",
+    )
+
     # Termination: a `terminates by` witness strictly descends on every
     # cyclic transition (a state cycle or a self call), each subject read in
     # the source as its state formal of that name and after the edge as the

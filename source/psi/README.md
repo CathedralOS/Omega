@@ -266,8 +266,9 @@ value). Every written type interns first, row by row
 ([`typing/references.omg`](typing/references.omg)): a builtin with its `in`
 qualifier (an arithmetic policy on a fixed integer, `Finite` on a float), a
 data declaration applied to as many arguments as its non-lifetime generic
-parameters, a reference, an array with its literal length, a slice, or a
-generic parameter. Then each body's statements type in authored order
+parameters, a reference, an array whose extent is a static integer or a
+`const` binder (carried through substitution and unification as one more
+child), a slice, or a generic parameter. Then each body's statements type in authored order
 ([`typing/statements.omg`](typing/statements.omg)), each expression tree in
 table order, children before parents
 ([`typing/expressions.omg`](typing/expressions.omg)). A name takes its

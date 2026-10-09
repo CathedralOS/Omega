@@ -618,15 +618,14 @@ crashes Trap
     state length(checker: &mut Checker, typing: &Typing, expression: Expression, parent: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow) -> Value {
         let collection: TypeRow = Checker::collection_row(typing, expression.left);
         transition collection.kind == TypeKind::Array {
-            true -> fixed(collection.length)
+            true -> fixed(typing, collection)
             _ -> member(checker, typing, PlaceKind::Length, 0, parent, type_handle, row)
         }
     }
 
-    state fixed(length: u64 in Trapping) -> Value {
-        let magnitude: u64 in Wrapping = length as u64 in Wrapping;
-        let value: Value = Value::constant(ExactInteger { negative: false, magnitude: magnitude });
-        value
+    state fixed(typing: &Typing, collection: TypeRow) -> Value {
+        let extent: Value = Checker::array_extent(typing, collection);
+        extent
     }
 
     state member(
