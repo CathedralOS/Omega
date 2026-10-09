@@ -173,7 +173,7 @@ pub struct RelocationFreeObjectContainer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RelocationFreeObjectError {
+pub enum RelocationFreeObjectError {
     StaleObjectIdentity,
     NonCanonicalTarget,
     WrongTextSectionName,
