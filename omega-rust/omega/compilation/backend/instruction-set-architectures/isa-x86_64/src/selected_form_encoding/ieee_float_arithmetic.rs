@@ -24,13 +24,11 @@
 //!   the sign mask, `XORPD`/`XORPS`, move out. No memory constant is needed;
 //! - square root and format conversion: payload in, one
 //!   `SQRTS?`/`CVTSS2SD`/`CVTSD2SS`, move out;
-//! - NaN classification: payload in, `CMPUNORDSS`/`CMPUNORDSD` against itself,
-//!   `PSRLD #31`, `MOVD` out. The low dword of either format's unordered mask
-//!   becomes canonical zero or one, without evaluating the operand twice;
-//! - infinity classification: payload in, `PSLLD/Q #1` then `PSRLD/Q #1`
-//!   clear only its sign bit; materialize positive infinity into `xmm5`,
-//!   `CMPEQSS/SD`, `PSRLD #31`, `MOVD` out. Equality excludes NaNs and finite
-//!   values; the Boolean result remains flag-free and requires only SSE2;
+//! - classification: save the complete operand, extract exponent and mantissa
+//!   bits in the output GPR, and branch only within the selected form. Boolean
+//!   predicates and the packed FloatClass share this decision tree, independent
+//!   of MXCSR.DAZ/FTZ and signaling NaNs. Classify preserves the sign for every
+//!   non-NaN case; a NaN has no payload and all its unused bytes remain zero;
 //! - integer to float: one `CVTSI2S?` reading the general register (32-bit
 //!   for `i32`, 64-bit for `i64`), move out. A `u32` operand is first copied
 //!   with a 32-bit `MOV` into the result register, which zero-extends it, and
@@ -47,7 +45,7 @@
 //! Rounding operations round under MXCSR, which Omega's native boundaries
 //! keep at the canonical value (round to nearest, ties to even; every
 //! exception masked; no flush to zero), so each computes the exact IEEE-754
-//! operation of its format. Only conversion control forms write RFLAGS;
+//! operation of its format. Conversion control and bit classification write RFLAGS;
 //! only an explicitly Trapping conversion may execute its policy crash.
 //!
 //! `xmm4`/`xmm5` are volatile under both System V and Microsoft x64, so
@@ -1762,60 +1760,78 @@ mod tests {
     }
 
     #[test]
-    fn infinity_classification_encodings_match_the_architectural_bytes() {
-        for (format, expected) in [
+    fn raw_bit_classification_encodings_match_independently_assembled_bytes() {
+        // GNU as/ld, with explicit long immediates/branches. The oracle was
+        // also directly executed with DAZ and FTZ enabled over signed zero,
+        // subnormal limits, normal limits, infinities, quiet and signaling NaNs.
+        for (operation, format, hexadecimal) in [
             (
+                IeeeFloatArithmeticOperation::IsNan,
                 IeeeFloatFormat::Binary32,
-                vec![
-                    0x66, 0x0f, 0x6e, 0xe7, 0x66, 0x0f, 0x72, 0xf4, 0x01, 0x66, 0x0f, 0x72, 0xd4,
-                    0x01, 0x48, 0xb8, 0x00, 0x00, 0x80, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x66, 0x0f,
-                    0x6e, 0xe8, 0xf3, 0x0f, 0xc2, 0xe5, 0x00, 0x66, 0x0f, 0x72, 0xd4, 0x1f, 0x66,
-                    0x0f, 0x7e, 0xe0,
-                ],
+                "660f6ee766480f7ee048c1e02148c1e8384881f8000000000f841c0000004881f8ff0000000f843f00000048b80000000000000000e95b00000066480f7ee048c1e0214885c00f840f00000048b80000000000000000e93a00000048b80000000000000000e92b00000066480f7ee048c1e0294885c00f840f00000048b80100000000000000e90a00000048b80000000000000000",
             ),
             (
+                IeeeFloatArithmeticOperation::IsNan,
                 IeeeFloatFormat::Binary64,
-                vec![
-                    0x66, 0x48, 0x0f, 0x6e, 0xe7, 0x66, 0x0f, 0x73, 0xf4, 0x01, 0x66, 0x0f, 0x73,
-                    0xd4, 0x01, 0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x7f, 0x66,
-                    0x48, 0x0f, 0x6e, 0xe8, 0xf2, 0x0f, 0xc2, 0xe5, 0x00, 0x66, 0x0f, 0x72, 0xd4,
-                    0x1f, 0x66, 0x0f, 0x7e, 0xe0,
-                ],
+                "66480f6ee766480f7ee048c1e00148c1e8354881f8000000000f841c0000004881f8ff0700000f843f00000048b80000000000000000e95b00000066480f7ee048c1e0014885c00f840f00000048b80000000000000000e93a00000048b80000000000000000e92b00000066480f7ee048c1e00c4885c00f840f00000048b80100000000000000e90a00000048b80000000000000000",
+            ),
+            (
+                IeeeFloatArithmeticOperation::IsInfinite,
+                IeeeFloatFormat::Binary32,
+                "660f6ee766480f7ee048c1e02148c1e8384881f8000000000f841c0000004881f8ff0000000f843f00000048b80000000000000000e95b00000066480f7ee048c1e0214885c00f840f00000048b80000000000000000e93a00000048b80000000000000000e92b00000066480f7ee048c1e0294885c00f840f00000048b80000000000000000e90a00000048b80100000000000000",
+            ),
+            (
+                IeeeFloatArithmeticOperation::IsInfinite,
+                IeeeFloatFormat::Binary64,
+                "66480f6ee766480f7ee048c1e00148c1e8354881f8000000000f841c0000004881f8ff0700000f843f00000048b80000000000000000e95b00000066480f7ee048c1e0014885c00f840f00000048b80000000000000000e93a00000048b80000000000000000e92b00000066480f7ee048c1e00c4885c00f840f00000048b80000000000000000e90a00000048b80100000000000000",
+            ),
+            (
+                IeeeFloatArithmeticOperation::IsFinite,
+                IeeeFloatFormat::Binary32,
+                "660f6ee766480f7ee048c1e02148c1e8384881f8000000000f841c0000004881f8ff0000000f843f00000048b80100000000000000e95b00000066480f7ee048c1e0214885c00f840f00000048b80100000000000000e93a00000048b80100000000000000e92b00000066480f7ee048c1e0294885c00f840f00000048b80000000000000000e90a00000048b80000000000000000",
+            ),
+            (
+                IeeeFloatArithmeticOperation::IsFinite,
+                IeeeFloatFormat::Binary64,
+                "66480f6ee766480f7ee048c1e00148c1e8354881f8000000000f841c0000004881f8ff0700000f843f00000048b80100000000000000e95b00000066480f7ee048c1e0014885c00f840f00000048b80100000000000000e93a00000048b80100000000000000e92b00000066480f7ee048c1e00c4885c00f840f00000048b80000000000000000e90a00000048b80000000000000000",
+            ),
+            (
+                IeeeFloatArithmeticOperation::IsNormal,
+                IeeeFloatFormat::Binary32,
+                "660f6ee766480f7ee048c1e02148c1e8384881f8000000000f841c0000004881f8ff0000000f843f00000048b80100000000000000e95b00000066480f7ee048c1e0214885c00f840f00000048b80000000000000000e93a00000048b80000000000000000e92b00000066480f7ee048c1e0294885c00f840f00000048b80000000000000000e90a00000048b80000000000000000",
+            ),
+            (
+                IeeeFloatArithmeticOperation::IsNormal,
+                IeeeFloatFormat::Binary64,
+                "66480f6ee766480f7ee048c1e00148c1e8354881f8000000000f841c0000004881f8ff0700000f843f00000048b80100000000000000e95b00000066480f7ee048c1e0014885c00f840f00000048b80000000000000000e93a00000048b80000000000000000e92b00000066480f7ee048c1e00c4885c00f840f00000048b80000000000000000e90a00000048b80000000000000000",
+            ),
+            (
+                IeeeFloatArithmeticOperation::IsSubnormal,
+                IeeeFloatFormat::Binary32,
+                "660f6ee766480f7ee048c1e02148c1e8384881f8000000000f841c0000004881f8ff0000000f843f00000048b80000000000000000e95b00000066480f7ee048c1e0214885c00f840f00000048b80100000000000000e93a00000048b80000000000000000e92b00000066480f7ee048c1e0294885c00f840f00000048b80000000000000000e90a00000048b80000000000000000",
+            ),
+            (
+                IeeeFloatArithmeticOperation::IsSubnormal,
+                IeeeFloatFormat::Binary64,
+                "66480f6ee766480f7ee048c1e00148c1e8354881f8000000000f841c0000004881f8ff0700000f843f00000048b80000000000000000e95b00000066480f7ee048c1e0014885c00f840f00000048b80100000000000000e93a00000048b80000000000000000e92b00000066480f7ee048c1e00c4885c00f840f00000048b80000000000000000e90a00000048b80000000000000000",
+            ),
+            (
+                IeeeFloatArithmeticOperation::Classify,
+                IeeeFloatFormat::Binary32,
+                "660f6ee766480f7ee048c1e02148c1e8384881f8000000000f841c0000004881f8ff0000000f843f00000048b80200000000000000e95b00000066480f7ee048c1e0214885c00f840f00000048b80300000000000000e93a00000048b80400000000000000e92b00000066480f7ee048c1e0294885c00f840f00000048b80000000000000000e90a00000048b801000000000000004881f8000000000f841800000066480f6ee8660f72d41f660f73f420660febe566480f7ee0",
+            ),
+            (
+                IeeeFloatArithmeticOperation::Classify,
+                IeeeFloatFormat::Binary64,
+                "66480f6ee766480f7ee048c1e00148c1e8354881f8000000000f841c0000004881f8ff0700000f843f00000048b80200000000000000e95b00000066480f7ee048c1e0014885c00f840f00000048b80300000000000000e93a00000048b80400000000000000e92b00000066480f7ee048c1e00c4885c00f840f00000048b80000000000000000e90a00000048b801000000000000004881f8000000000f841800000066480f6ee8660f73d43f660f73f420660febe566480f7ee0",
             ),
         ] {
-            assert_eq!(
-                bytes_of(
-                    IeeeFloatArithmeticOperation::IsInfinite,
-                    format,
-                    &["rdi", "rax"]
-                ),
-                expected
-            );
-        }
-    }
-
-    #[test]
-    fn nan_classification_encodings_match_the_architectural_bytes() {
-        for (format, expected) in [
-            (
-                IeeeFloatFormat::Binary32,
-                vec![
-                    0x66, 0x0f, 0x6e, 0xe7, 0xf3, 0x0f, 0xc2, 0xe4, 0x03, 0x66, 0x0f, 0x72, 0xd4,
-                    0x1f, 0x66, 0x0f, 0x7e, 0xe0,
-                ],
-            ),
-            (
-                IeeeFloatFormat::Binary64,
-                vec![
-                    0x66, 0x48, 0x0f, 0x6e, 0xe7, 0xf2, 0x0f, 0xc2, 0xe4, 0x03, 0x66, 0x0f, 0x72,
-                    0xd4, 0x1f, 0x66, 0x0f, 0x7e, 0xe0,
-                ],
-            ),
-        ] {
-            assert_eq!(
-                bytes_of(IeeeFloatArithmeticOperation::IsNan, format, &["rdi", "rax"]),
-                expected
-            );
+            let expected = hexadecimal
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(bytes_of(operation, format, &["rdi", "rax"]), expected);
         }
     }
 

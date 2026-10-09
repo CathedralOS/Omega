@@ -27,14 +27,11 @@
 //!   also leaves NZCV untouched;
 //! - negate, square root, format conversion: one `FMOV` in, one scalar
 //!   `FNEG`/`FSQRT`/`FCVT`, one `FMOV` out (12 bytes);
-//! - NaN classification: payload in, `FCMEQ` comparing the operand with itself,
-//!   mask out, carrier-width `ADD #1` (16 bytes). Equality produces all ones
-//!   for non-NaNs and zero for NaNs; wrapping addition yields canonical false
-//!   or true without writing NZCV or evaluating the operand twice;
-//! - infinity classification: payload in, `FABS`, materialize positive infinity
-//!   through the result register into `v17`, `FCMEQ`, mask out, `LSR` (28 bytes).
-//!   Only either infinity equals positive infinity after sign removal; NaNs
-//!   remain unordered. The top mask bit is canonical zero/one, without NZCV;
+//! - classification: save the complete operand, extract stored exponent and
+//!   mantissa with UBFM, and branch only within this selected form using CBZ.
+//!   The Boolean predicates and packed FloatClass use the same exact bits,
+//!   independent of FPCR.FZ, rounding and signaling-NaN exception controls.
+//!   No classification instruction changes NZCV;
 //! - integer to float: one `SCVTF`/`UCVTF` reading the general register
 //!   directly (`w` for 32-bit and `x` for 64-bit sources), one `FMOV` out
 //!   (8 bytes);
@@ -513,7 +510,7 @@ fn decode_word(word: u32) -> Option<Word> {
         _ => None,
     };
     Some(match word & 0xffff_fc00 {
-        _ if word & 0xffe0_fc00 == 0xd360_7c00 => Word::ShiftLeft32 {
+        _ if word & 0xffff_fc00 == 0xd360_7c00 => Word::ShiftLeft32 {
             source: field(5),
             result: field(0),
         },
@@ -1299,39 +1296,42 @@ mod tests {
     fn encodings_match_the_architectural_words() {
         use IeeeFloatArithmeticOperation as Operation;
         use IeeeFloatFormat::{Binary32, Binary64};
-        // Independently assembled, with the input and result aliased.
+        // Raw binary64 classification, with input and result aliased. These
+        // architectural words include every internal branch destination and
+        // leave NZCV and FPCR untouched. CBZ after case publication keeps a
+        // NaN's unused payload bytes zero.
         assert_eq!(
-            words(form(Operation::IsInfinite, Binary32), &[0, 0]),
-            [
-                0x1e27_0010,
-                0x1e20_c210,
-                0xd2af_f000,
-                0x1e27_0011,
-                0x5e31_e610,
-                0x1e26_0200,
-                0x531f_7c00
-            ]
-        );
-        assert_eq!(
-            words(form(Operation::IsInfinite, Binary64), &[0, 0]),
+            words(form(Operation::Classify, Binary64), &[0, 0]),
             [
                 0x9e67_0010,
-                0x1e60_c210,
-                0xd2ef_fe00,
-                0x9e67_0011,
-                0x5e71_e610,
+                0xd374_f800,
+                0xb400_00a0,
+                0xd11f_fc00,
+                0xb400_0140,
+                0xd280_0040,
+                0x1400_000e,
                 0x9e66_0200,
-                0xd37f_fc00
+                0xd340_f800,
+                0xb400_0060,
+                0xd280_0060,
+                0x1400_0009,
+                0xd280_0080,
+                0x1400_0007,
+                0x9e66_0200,
+                0xd340_cc00,
+                0xb400_0060,
+                0xd280_0000,
+                0x1400_0002,
+                0xd280_0020,
+                0xb400_0100,
+                0x9e67_0011,
+                0x9e66_0200,
+                0xd37f_fc00,
+                0xd360_7c00,
+                0x9e67_0010,
+                0x0eb1_1e10,
+                0x9e66_0200,
             ]
-        );
-        // Independently assembled: FMOV; FCMEQ self; FMOV; ADD #1.
-        assert_eq!(
-            words(form(Operation::IsNan, Binary32), &[0, 0]),
-            [0x1e27_0010, 0x5e30_e610, 0x1e26_0200, 0x1100_0400]
-        );
-        assert_eq!(
-            words(form(Operation::IsNan, Binary64), &[0, 0]),
-            [0x9e67_0010, 0x5e70_e610, 0x9e66_0200, 0x9100_0400]
         );
         // fmov d16,x1; fmov d17,x2; fmul d16,d16,d17;
         // fmov d17,x3; fadd d16,d16,d17; fmov x0,d16.
