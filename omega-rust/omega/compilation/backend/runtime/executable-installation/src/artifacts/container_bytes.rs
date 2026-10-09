@@ -5,9 +5,6 @@
 //! `record_layouts.rs` carries the fixed record layouts and schemas and
 //! `tests.rs` the container tests.
 
-mod decoding;
-mod encoding;
-mod record_layouts;
 #[cfg(test)]
 mod tests;
 
@@ -16,7 +13,6 @@ use crate::artifacts::container::ContainerLimits;
 use crate::authority_digests::NonAuthoritativeInformationalFingerprint64;
 use crate::installation::InstallationDiagnostic;
 
-use crate::artifacts::container_bytes::encoding::encode_executable_container_version;
 
 pub(crate) const OMEGA_EXECUTABLE_CONTAINER_MAGIC: [u8; 8] = *b"OMEGAXE!";
 
@@ -75,28 +71,4 @@ struct WireSection {
     identity: u64,
     offset: u64,
     length: u64,
-}
-
-/// Emits the canonical Omega-native byte container for one compiler-produced
-/// artifact candidate.
-///
-/// The encoder publishes no optional informational sections and derives the
-/// Before returning, it routes its own output through the hostile-input decoder
-/// and semantic validator. An encoder
-/// bug therefore fails closed instead of producing a container that a later
-/// loader interprets differently.
-pub(crate) fn encode_executable_container(
-    artifact: &Artifact,
-    limits: ContainerLimits,
-) -> Result<Vec<u8>, InstallationDiagnostic> {
-    encode_executable_container_version(artifact, limits, true)
-}
-
-/// Re-encodes a decoded version-1 compatibility candidate byte-for-byte.
-/// Version 1 has no strong imported-authority section and cannot be admitted.
-pub(crate) fn encode_executable_container_v1_compatibility(
-    artifact: &Artifact,
-    limits: ContainerLimits,
-) -> Result<Vec<u8>, InstallationDiagnostic> {
-    encode_executable_container_version(artifact, limits, false)
 }
