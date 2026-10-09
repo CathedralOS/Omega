@@ -17,27 +17,10 @@ use sha2::{Digest, Sha256};
 
 use super::executable_regions::{byte_report_fingerprint, digest_bytes, fingerprint_bytes};
 
-macro_rules! data_digest {
-    ($name:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name([u8; 32]);
-
-        impl $name {
-            pub const fn from_digest(digest: [u8; 32]) -> Self {
-                Self(digest)
-            }
-
-            pub const fn as_bytes(&self) -> &[u8; 32] {
-                &self.0
-            }
-        }
-    };
-}
-
-data_digest!(FinalInitializedDataDigest);
-data_digest!(PlacedDataRegionBytesDigest);
-data_digest!(PlacedDataGapBytesDigest);
-data_digest!(PlacedDataRegionInventoryDigest);
+image_digest!(FinalInitializedDataDigest);
+image_digest!(PlacedDataRegionBytesDigest);
+image_digest!(PlacedDataGapBytesDigest);
+image_digest!(PlacedDataRegionInventoryDigest);
 
 /// Closed origin vocabulary for initialized-data bytes in the current image
 /// model. `CompilerData` covers the complete object-authored data image;

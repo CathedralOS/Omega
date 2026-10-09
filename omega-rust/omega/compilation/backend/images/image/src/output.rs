@@ -4,29 +4,9 @@
 use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
 use sha2::{Digest, Sha256};
 
-macro_rules! image_evidence_digest {
-    ($name:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name([u8; 32]);
-
-        impl $name {
-            /// Reconstruct the strong digest carried by checked custody
-            /// evidence so an independent receiver can recompute the same
-            /// commitment without the producing image.
-            pub const fn from_digest(digest: [u8; 32]) -> Self {
-                Self(digest)
-            }
-
-            pub const fn as_bytes(&self) -> &[u8; 32] {
-                &self.0
-            }
-        }
-    };
-}
-
-image_evidence_digest!(CompilerEntryRegionBindingDigest);
-image_evidence_digest!(CompilerEntryFootprintBindingDigest);
-image_evidence_digest!(CompilerFunctionValidationDigest);
+image_digest!(CompilerEntryRegionBindingDigest);
+image_digest!(CompilerEntryFootprintBindingDigest);
+image_digest!(CompilerFunctionValidationDigest);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableImageOutput {
@@ -326,27 +306,10 @@ impl CompilerFunctionValidationEvidence {
     }
 }
 
-macro_rules! compiler_text_digest {
-    ($name:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name([u8; 32]);
-
-        impl $name {
-            pub const fn from_digest(digest: [u8; 32]) -> Self {
-                Self(digest)
-            }
-
-            pub const fn as_bytes(&self) -> &[u8; 32] {
-                &self.0
-            }
-        }
-    };
-}
-
-compiler_text_digest!(EncodedCompilerTextDigest);
-compiler_text_digest!(FinalCompilerTextDigest);
-compiler_text_digest!(CompilerTextRelocationEnvelopeDigest);
-compiler_text_digest!(CompilerTextDerivationDigest);
+image_digest!(EncodedCompilerTextDigest);
+image_digest!(FinalCompilerTextDigest);
+image_digest!(CompilerTextRelocationEnvelopeDigest);
+image_digest!(CompilerTextDerivationDigest);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompilerTextValidationEvidence {

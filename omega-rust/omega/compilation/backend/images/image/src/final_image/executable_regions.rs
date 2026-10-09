@@ -6,28 +6,11 @@ use calling_conventions::StateFootprintEvidence;
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 
-macro_rules! executable_digest {
-    ($name:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name([u8; 32]);
-
-        impl $name {
-            pub const fn from_digest(digest: [u8; 32]) -> Self {
-                Self(digest)
-            }
-
-            pub const fn as_bytes(&self) -> &[u8; 32] {
-                &self.0
-            }
-        }
-    };
-}
-
-executable_digest!(FinalExecutableTextDigest);
-executable_digest!(PlacedExecutableRegionBytesDigest);
-executable_digest!(PlacedExecutableGapBytesDigest);
-executable_digest!(StateFootprintEvidenceDigest);
-executable_digest!(PlacedExecutableRegionInventoryDigest);
+image_digest!(FinalExecutableTextDigest);
+image_digest!(PlacedExecutableRegionBytesDigest);
+image_digest!(PlacedExecutableGapBytesDigest);
+image_digest!(StateFootprintEvidenceDigest);
+image_digest!(PlacedExecutableRegionInventoryDigest);
 
 /// Closed origin vocabulary for bytes in the image's read-only executable
 /// mapping. There is no admitted-leaf origin: adding one must also add

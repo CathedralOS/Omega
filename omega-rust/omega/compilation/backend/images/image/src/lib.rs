@@ -119,6 +119,28 @@
 //! ever spelling the type. Acting on a name grep there would have broken a
 //! consumer crate's build.
 
+/// The `[u8; 32]` strong-digest newtype every image evidence and region
+/// inventory declares — one wrapper shape the whole crate shares.
+macro_rules! image_digest {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            /// Reconstruct the strong digest carried by checked custody
+            /// evidence so an independent receiver can recompute the same
+            /// commitment without the producing image.
+            pub const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+    };
+}
+
 mod aarch64_relocations;
 mod builder;
 mod final_image;
