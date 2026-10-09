@@ -10,7 +10,7 @@
 mod error;
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
-pub use error::OptimizedVerifiedPhysicalPipelineError;
+pub(crate) use error::OptimizedVerifiedPhysicalPipelineError;
 use machine_emission::StagedOptimizedFunctionFragmentEmissionSource;
 use register_environment::baseline_target_register_environment;
 use selected_instructions_to_register_homes::stage_register_allocation;
@@ -18,7 +18,7 @@ use selected_instructions_to_selected_instructions::optimize_selected_instructio
 
 /// Feed the physical stages into the backend's fragment-emission input,
 /// retaining their checked program and replay evidence without a compiler wrapper.
-pub fn stage_optimized_verified_physical_pipeline(
+pub(crate) fn stage_optimized_verified_physical_pipeline(
     optimized_target: ValidatedOptimizedTargetOperations,
 ) -> Result<StagedOptimizedFunctionFragmentEmissionSource, OptimizedVerifiedPhysicalPipelineError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
