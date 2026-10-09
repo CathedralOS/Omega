@@ -24,7 +24,7 @@ pub(crate) use crate::build_session::PackageSourcePreparation as CandidateSource
 /// How this invocation obtains consumer-scoped semantic bindings.
 /// Explicit input is checked as supplied; it does not trigger discovery or admission.
 #[derive(Clone, Copy)]
-pub(crate) enum SemanticBindingReview<'a> {
+pub enum SemanticBindingReview<'a> {
     /// Discover package-owned surfaces, then recheck with the proposed bindings.
     Discover,
     /// Compile once with exactly these bindings, including an explicitly empty set.
@@ -42,15 +42,37 @@ pub(crate) enum SemanticBindingReview<'a> {
 /// A supplied snapshot selects only the root activation's inputs and required
 /// outputs in every review pass; dependencies keep their own inventories.
 #[derive(Clone, Copy)]
-pub(crate) struct CandidateCompilation<'request, 'closure> {
+pub struct CandidateCompilation<'request, 'closure> {
     pub target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
     pub root_build_snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
     pub restricted_build_checkpoint: Option<&'request RestrictedBuildCheckpoint>,
 }
 
 impl<'request, 'closure> CandidateCompilation<'request, 'closure> {
+    /// Observational compilation: no root snapshot and no granted consent.
+    pub fn new(target_closure: &'request ExactTargetPackageSourceClosure<'closure>) -> Self {
+        Self {
+            target_closure,
+            root_build_snapshot: None,
+            restricted_build_checkpoint: None,
+        }
+    }
 }
 
+/// Compile the exact dependency closure and return its compiler-issued reviews.
+/// Borrow the invoking operation's resource owner. Binding discovery is not acceptance.
+pub fn compile_resolved_package_reviews(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    session: &mut PackageBuildSession,
+    bindings: SemanticBindingReview<'_>,
+) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    compile_resolved_package_reviews_reusing(
+        CandidateCompilation::new(target_closure),
+        bindings,
+        session,
+        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
+    )
+}
 
 /// The same candidate review under an explicit [`CandidateCompilation`],
 /// retaining binding-independent source preparation in the caller's store. A
@@ -60,7 +82,7 @@ impl<'request, 'closure> CandidateCompilation<'request, 'closure> {
 /// from a broader input view than the invocation it is reviewing.
 /// The invocation's owner lends the same session to every target and round;
 /// this operation neither reserves a new sponsor nor disposes that owner.
-pub(crate) fn compile_resolved_package_reviews_reusing(
+pub fn compile_resolved_package_reviews_reusing(
     candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
     session: &mut PackageBuildSession,

@@ -20,7 +20,7 @@ use crate::resolution::graph::ResolvedPackageSourceClosure;
 /// stale slots rather than risk a misplaced checkpoint, and a slot whose
 /// recorded entry root differs from the request's is prepared fresh.
 #[derive(Default)]
-pub(crate) struct PackageSourcePreparation {
+pub struct PackageSourcePreparation {
     pub(crate) slots: Vec<Option<PreparedPackageSource>>,
     /// Only this compilation owns these values. Package/purpose/custody remain
     /// exact input keys; each consumer admits and pays its current-pass charge.
@@ -45,9 +45,13 @@ pub(crate) struct PreparedPackageSource {
 }
 
 impl PackageSourcePreparation {
+    /// An empty store; the first candidate sizes it to that closure's graph.
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Slots pre-sized for this closure's package graph.
-    pub(crate) fn for_closure(closure: &ResolvedPackageSourceClosure) -> Self {
+    pub fn for_closure(closure: &ResolvedPackageSourceClosure) -> Self {
         Self {
             slots: empty_slots(closure.graph().packages().len()),
             pure_build_compilation: Default::default(),

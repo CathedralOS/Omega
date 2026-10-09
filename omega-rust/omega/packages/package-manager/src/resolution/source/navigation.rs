@@ -7,7 +7,7 @@ use package_source::SourceRelativePath;
 /// This is replay/navigation custody. It never enters `PackageKey` or source
 /// lineage identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PackageSourceNavigation {
+pub enum PackageSourceNavigation {
     Root,
     Member(SourceRelativePath),
 }

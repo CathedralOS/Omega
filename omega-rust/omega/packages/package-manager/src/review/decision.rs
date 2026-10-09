@@ -14,7 +14,7 @@ pub(crate) use policy::{
 /// prompt, reviewer identity, audit receipt, signature, or proof that anyone
 /// inspected the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum ReviewOnlyRootPolicyDisposition {
+pub enum ReviewOnlyRootPolicyDisposition {
     AcceptCandidateChange,
     RejectCandidateChange,
 }

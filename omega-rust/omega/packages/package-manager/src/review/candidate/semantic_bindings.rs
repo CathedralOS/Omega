@@ -21,7 +21,7 @@ use terminal_psi_to_abstract_operations::provider_admission;
 /// The resulting binding still requires complete checked recompilation and
 /// the project's explicit policy decision.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct SemanticBindingReviewCandidate {
+pub struct SemanticBindingReviewCandidate {
     binding: AcceptedSemanticBinding,
     service_schema: ServiceSchema,
 }
@@ -53,7 +53,7 @@ impl SemanticBindingReviewCandidate {
 /// closure. The binding is policy authority supplied only to that compilation; this
 /// input is not proof of an audit, an audit receipt, or package admission.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ConsumerScopedSemanticBindingReviewInput {
+pub struct ConsumerScopedSemanticBindingReviewInput {
     consumer: PackageKey,
     checked_context: PackageCheckedContext,
     binding: AcceptedSemanticBinding,

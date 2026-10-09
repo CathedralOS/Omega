@@ -37,7 +37,7 @@ use target::TargetProfile;
 
 /// Source pins and independently retained consent for every checked occurrence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageLockTarget {
+pub struct PackageLockTarget {
     source: CanonicalSourceClosureSubject,
     occurrences: Vec<PackagePolicyOccurrence>,
     decisions: HistoricalPackagePolicyDecisions,
@@ -171,7 +171,7 @@ impl PackageLockTarget {
 /// immutable source graph is identical across sections; target-sensitive policy
 /// and decisions remain separate. No section authorizes another target.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageLock {
+pub struct PackageLock {
     targets: Vec<PackageLockTarget>,
 }
 

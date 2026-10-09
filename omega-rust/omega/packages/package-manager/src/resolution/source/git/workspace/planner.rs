@@ -10,11 +10,11 @@ use build_declarations::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) const MAX_BUILD_DECLARATION_BYTES: usize = 1024 * 1024;
-pub(crate) const MAX_TOTAL_BUILD_DECLARATION_BYTES: usize = 32 * 1024 * 1024;
-pub(crate) const MAX_WORKSPACE_MEMBERS: usize = 4096;
+pub const MAX_BUILD_DECLARATION_BYTES: usize = 1024 * 1024;
+pub const MAX_TOTAL_BUILD_DECLARATION_BYTES: usize = 32 * 1024 * 1024;
+pub const MAX_WORKSPACE_MEMBERS: usize = 4096;
 
-pub(crate) fn discover_git_workspace(
+pub fn discover_git_workspace(
     root_build_bytes: &[u8],
 ) -> Result<GitWorkspaceDiscovery, GitWorkspaceSelectionError> {
     check_declaration_size(root_build_bytes)?;
@@ -45,7 +45,7 @@ pub(crate) fn discover_git_workspace(
     ))
 }
 
-pub(crate) fn plan_git_workspace_selection(
+pub fn plan_git_workspace_selection(
     selected_package: &ProjectName,
     root_build_bytes: &[u8],
     member_builds: &[GitWorkspaceMemberBuild<'_>],

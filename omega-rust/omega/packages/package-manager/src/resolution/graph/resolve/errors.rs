@@ -6,16 +6,43 @@ use package_source::GitSourceRequestError;
 use package_source::WorkspaceLineageIdentity;
 use std::fmt;
 
-
 #[derive(Debug)]
-pub(crate) enum ResolveExternalLocalPackageClosureError {
+pub enum ResolveWorkspacePackageClosureError {
     Root(ResolvePackageSourceError),
     RootRequestMismatch,
     Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
 }
 
+#[derive(Debug)]
+pub enum ResolveExternalLocalPackageClosureError {
+    Root(ResolvePackageSourceError),
+    RootRequestMismatch,
+    Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
+}
 
+#[derive(Debug)]
+pub enum ResolveGitPackageClosureError {
+    Root(ResolvePackageSourceError),
+    RootRequestMismatch,
+    RootWorkspace(ResolveDependencySourceError),
+    Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
+}
 
+impl fmt::Display for ResolveGitPackageClosureError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Root(error) => write!(formatter, "cannot resolve root package: {error}"),
+            Self::RootRequestMismatch => formatter
+                .write_str("resolved root Git source does not match its exact validated request"),
+            Self::RootWorkspace(error) => {
+                write!(formatter, "cannot register root Git workspace: {error}")
+            }
+            Self::Closure(error) => write!(formatter, "cannot resolve package closure: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for ResolveGitPackageClosureError {}
 
 impl fmt::Display for ResolveExternalLocalPackageClosureError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -31,10 +58,21 @@ impl fmt::Display for ResolveExternalLocalPackageClosureError {
 
 impl std::error::Error for ResolveExternalLocalPackageClosureError {}
 
+impl fmt::Display for ResolveWorkspacePackageClosureError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Root(error) => write!(formatter, "cannot resolve root package: {error}"),
+            Self::RootRequestMismatch => formatter
+                .write_str("resolved workspace root does not match its exact member request"),
+            Self::Closure(error) => write!(formatter, "cannot resolve package closure: {error}"),
+        }
+    }
+}
 
+impl std::error::Error for ResolveWorkspacePackageClosureError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ResolveDependencySourceError {
+pub enum ResolveDependencySourceError {
     InvalidPath {
         location: String,
         reason: String,

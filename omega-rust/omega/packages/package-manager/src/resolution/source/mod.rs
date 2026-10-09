@@ -3,11 +3,11 @@
 //! The entry points are grouped by source lineage. Shared declaration
 //! projection, errors, and resolved custody live behind this narrow facade.
 
-mod materialization;
 mod custody;
 mod error;
 pub(crate) mod git;
 mod local;
+mod materialization;
 mod navigation;
 mod projection;
 mod resolved;
@@ -21,18 +21,20 @@ pub(crate) use error::ResolvePackageSourceError;
 pub(crate) use git::resolve_selected_git_package_source_from_pin_in_lanes;
 pub(crate) use git::resolve_selected_git_project_source_from_pin_in_lanes;
 pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
-pub(crate) use git::{
-    GitPackageSourceRequest,
+pub use git::{
+    GitPackageSourceRequest, resolve_git_package_source, resolve_selected_git_package_source,
+    resolve_selected_git_project_source,
 };
 pub(crate) use git::{
     resolve_selected_git_package_source_at_revision_in_lanes,
     resolve_selected_git_project_source_at_revision_in_lanes,
 };
-pub(crate) use local::{
-    bind_staged_external_local_project_source,
+pub use local::{
+    bind_staged_external_local_project_source, resolve_external_local_package_source,
     resolve_external_local_project_source,
 };
-pub(crate) use local::{ recover_cached_external_local_source,
+pub(crate) use local::{
+    capture_external_local_project_source, recover_cached_external_local_source,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
 };
 pub(crate) use materialization::PackageSourceMaterialization;
@@ -40,6 +42,10 @@ pub(crate) use navigation::PackageSourceNavigation;
 pub(crate) use resolved::ResolvedPackageSource;
 pub(crate) use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
 pub(crate) use workspace::resolve_workspace_member_package_source_in_lane;
+pub(crate) use workspace::resolve_workspace_member_project_source_in_lane;
+pub use workspace::{
+    resolve_workspace_member_package_source, resolve_workspace_member_project_source,
+};
 
 /// The accessor surface every resolved-package-source record shares:
 /// custody and resolved shapes carry identically-named projection fields and
@@ -58,7 +64,13 @@ macro_rules! package_source_surface_accessors {
             &self.resolution
         }
 
+        pub const fn materialization(&self) -> &PackageSourceMaterialization {
+            &self.materialization
+        }
 
+        pub fn snapshot_root(&self) -> &std::path::Path {
+            &self.snapshot_root
+        }
 
         pub const fn navigation(&self) -> &PackageSourceNavigation {
             &self.navigation
@@ -80,16 +92,10 @@ macro_rules! package_source_surface_accessors {
             self.dependency_projections.requests(purpose)
         }
 
+
+
         pub const fn dependency_projections(&self) -> &DependencyProjections {
             &self.dependency_projections
-        }
-
-        pub const fn materialization(&self) -> &PackageSourceMaterialization {
-            &self.materialization
-        }
-
-        pub fn snapshot_root(&self) -> &std::path::Path {
-            &self.snapshot_root
         }
     };
 }

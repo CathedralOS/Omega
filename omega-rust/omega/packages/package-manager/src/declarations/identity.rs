@@ -3,7 +3,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct PackageName(String);
+pub struct PackageName(String);
 
 impl PackageName {
     pub fn parse(value: impl Into<String>) -> Result<Self, String> {
@@ -28,7 +28,7 @@ impl From<build_declarations::ProjectName> for PackageName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct AliasName(String);
+pub struct AliasName(String);
 
 impl AliasName {
     pub(crate) fn is_valid(value: &str) -> bool {

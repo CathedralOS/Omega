@@ -13,19 +13,40 @@ pub(crate) use accepted_compilation::compiler_input_identity;
 mod check_project;
 mod compile_project;
 mod inspect_packages;
-pub(crate) mod inspect_source;
+pub mod inspect_source;
 mod package_change;
 mod prepare_project;
 mod publication;
 mod stage_build_edit;
 
-pub(crate) use inspect_source::{ PackageSourceRequest, SourceAdapter,
+pub use check_project::{
+    CheckPreparedLocalProjectError, CheckedProjectTargetOutcome, PreparedLocalProjectCheckRequest,
+    check_prepared_local_project, check_prepared_local_project_for_inspection,
+    check_prepared_local_project_for_targets,
 };
-pub(crate) use package_change::{
-    PackageChangeError, PackageChangeReview, review_package_change_reusing,
+pub use compile_project::{
+    CompilePreparedLocalProjectNativeError, CompiledProjectTargetOutcome,
+    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
+    compile_prepared_local_project_for_native_targets,
+};
+pub use inspect_packages::{
+    PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome, inspect_packages,
+};
+pub use inspect_source::{
+    PackageSourceInspection, PackageSourceInspectionError, PackageSourceRequest,
+    PackageSourceRequestParseError, SourceAdapter, inspect_package_source,
+    inspect_package_source_locator,
+};
+pub use package_change::{
+    PackageChangeError, PackageChangeReview, review_package_change, review_package_change_reusing,
 };
 pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
-pub(crate) use publication::{
-    PackageFileTransaction, PackagePublicationError, PackagePublicationLimits, publish_reviewed_package_change,
+pub use prepare_project::{
+    LocalProjectPreparationOptions, PrepareLocalProjectError, PreparedLocalProject,
+    prepare_local_project, prepare_local_project_for_targets,
 };
-pub(crate) use stage_build_edit::stage_build_dependency_edit;
+pub use publication::{
+    PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,
+    PublishReviewedPackageChangeError, publish_reviewed_package_change,
+};
+pub use stage_build_edit::stage_build_dependency_edit;

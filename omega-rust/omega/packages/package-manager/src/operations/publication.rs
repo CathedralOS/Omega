@@ -6,14 +6,14 @@ mod error;
 mod journal;
 mod transaction;
 
-pub(crate) use checked::{PublishReviewedPackageChangeError, publish_reviewed_package_change};
-pub(crate) use error::PackagePublicationError;
-pub(crate) use transaction::PackageFileTransaction;
+pub use checked::{PublishReviewedPackageChangeError, publish_reviewed_package_change};
+pub use error::PackagePublicationError;
+pub use transaction::PackageFileTransaction;
 
 /// Bounded project-file and recovery-journal I/O. These are storage limits,
 /// not compiler policy or a claim about total allocator usage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PackagePublicationLimits {
+pub struct PackagePublicationLimits {
     pub maximum_file_bytes: usize,
     pub maximum_journal_bytes: usize,
 }

@@ -13,7 +13,7 @@ use package_source::{LocalSourceLimits, SourceRelativePath, SourceResolveError, 
 /// recheck live source and project files immediately before publication. The
 /// staged closure resolver uses the original root, not the snapshot directory,
 /// as package lineage and the base for relative dependencies.
-pub(crate) fn stage_build_dependency_edit(
+pub fn stage_build_dependency_edit(
     replacement: &BuildFileReplacement,
     storage: &SourceResolver,
     limits: LocalSourceLimits,
