@@ -7,19 +7,20 @@ use super::super::{
     PsiProvenance, PsiRealizationSite, PsiTransformationLedger, PsiTransformationLedgerDecodeError,
     PsiTransformationRecord, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
 };
-use super::{LEDGER_MAGIC, LedgerCursor};
+use crate::cursor::Cursor;
+use super::LEDGER_MAGIC;
 impl PsiTransformationLedger {
     pub fn decode(encoded: &[u8]) -> Result<Self, PsiTransformationLedgerDecodeError> {
-        let mut cursor = LedgerCursor::new(encoded);
+        let mut cursor = Cursor::new(encoded);
         if cursor.take(LEDGER_MAGIC.len())? != LEDGER_MAGIC {
             return Err(PsiTransformationLedgerDecodeError::WrongMagic);
         }
-        let vocabulary = u16::from_le_bytes(cursor.array()?);
+        let vocabulary = cursor.u16()?;
         let vocabulary_marker = VocabularyMarker::new(vocabulary).ok_or(
             PsiTransformationLedgerDecodeError::UnsupportedVocabulary(vocabulary),
         )?;
         let program_fingerprint = SemanticFingerprint::from_bytes(cursor.array()?);
-        let fuel_schedule = FuelScheduleIdentity::new(u32::from_le_bytes(cursor.array()?))
+        let fuel_schedule = FuelScheduleIdentity::new(cursor.u32()?)
             .ok_or(PsiTransformationLedgerDecodeError::InvalidFuelSchedule)?;
         let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let output = OptimizationUnitIdentity::from_bytes(cursor.array()?);
@@ -35,7 +36,7 @@ impl PsiTransformationLedger {
             let mut pruned_machines = Vec::with_capacity(pruned_count.min(cursor.remaining()));
             for _ in 0..pruned_count {
                 let machine = semantic_id(u64::from_le_bytes(cursor.array()?), MachineId::new)?;
-                let source_ordinal = u32::from_le_bytes(cursor.array()?);
+                let source_ordinal = cursor.u32()?;
                 pruned_machines.push(PrunedMachineCustody {
                     machine,
                     source_ordinal,
@@ -104,7 +105,7 @@ impl PsiTransformationLedger {
 }
 
 fn decode_realization_site(
-    cursor: &mut LedgerCursor<'_>,
+    cursor: &mut Cursor<'_>,
 ) -> Result<PsiRealizationSite, PsiTransformationLedgerDecodeError> {
     let tag = cursor.byte()?;
     let machine = semantic_id(u64::from_le_bytes(cursor.array()?), MachineId::new)?;
@@ -112,7 +113,7 @@ fn decode_realization_site(
         1 => Ok(PsiRealizationSite::Node(NodeLocation {
             machine,
             block: semantic_id(u64::from_le_bytes(cursor.array()?), BlockId::new)?,
-            node: u32::from_le_bytes(cursor.array()?),
+            node: cursor.u32()?,
         })),
         2 => Ok(PsiRealizationSite::Edge {
             machine,
@@ -123,7 +124,7 @@ fn decode_realization_site(
 }
 
 fn decode_provenance(
-    cursor: &mut LedgerCursor<'_>,
+    cursor: &mut Cursor<'_>,
 ) -> Result<PsiProvenance, PsiTransformationLedgerDecodeError> {
     match cursor.byte()? {
         1 => Ok(PsiProvenance::Operation(semantic_id(
