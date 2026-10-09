@@ -64,13 +64,13 @@ pub(crate) fn bind_proof_output_call_facts(
             diagnostics.push(diagnostics::Diagnostic::error(format!("proof-output call `{}` must target a checked machine state or exact generic requirement", call.target)));
             continue;
         };
-        if let Some((owner, requirement)) = open_requirement
+        if let Some(requirement) = open_requirement
             && let Err(diagnostic) = check_open_proof_output_requirement(
                 program,
                 package.machine_symbol,
                 call,
-                owner,
-                requirement,
+                requirement.trait_definition.symbol,
+                requirement.signature,
             )
         {
             diagnostics.push(diagnostic);
@@ -109,8 +109,13 @@ pub(crate) fn bind_proof_output_call_facts(
                         && machine.supply_mode
                             == language_semantics::MachineSupplyMode::CheckedBody,
                 )
-            } else if let Some((owner, requirement)) = open_requirement {
-                (owner, requirement.symbol, requirement.return_type, true)
+            } else if let Some(requirement) = open_requirement {
+                (
+                    requirement.trait_definition.symbol,
+                    requirement.signature.symbol,
+                    requirement.signature.return_type,
+                    true,
+                )
             } else {
                 continue;
             };
@@ -138,10 +143,10 @@ pub(crate) fn bind_proof_output_call_facts(
                 state_symbol: requirement.symbol,
             })
             .or_else(|| {
-                open_requirement.map(|(owner_symbol, requirement)| {
+                open_requirement.map(|requirement| {
                     ContractProofFactOwner::StateSignature {
-                        owner_symbol,
-                        state_symbol: requirement.symbol,
+                        owner_symbol: requirement.trait_definition.symbol,
+                        state_symbol: requirement.signature.symbol,
                     }
                 })
             });
@@ -150,7 +155,7 @@ pub(crate) fn bind_proof_output_call_facts(
             .map(|(_, requirement)| program.state_signature_parameters(requirement))
             .or_else(|| {
                 open_requirement
-                    .map(|(_, requirement)| program.state_signature_parameters(requirement))
+                    .map(|requirement| program.state_signature_parameters(requirement.signature))
             })
             .or_else(|| machine_target.map(|(_, state)| program.state_parameters(state)))
             .unwrap_or_default();

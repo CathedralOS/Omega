@@ -275,15 +275,13 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
-    let ViewReturnSource::Fields { fields } =
-        call_view_return_source_at(program, state_symbol, call)
-    else {
+    let Some(contract) = call_view_return_contract(program, state_symbol, call) else {
         return Vec::new();
     };
-    let substitutions = call_view_signature(program, call.target_symbol)
-        .and_then(|(_, _, signature)| signature)
-        .and_then(|signature| call_site_substitutions(program, state_symbol, signature, call))
-        .unwrap_or_default();
+    let ViewReturnSource::Fields { fields } = contract.source(program) else {
+        return Vec::new();
+    };
+    let substitutions = contract.substitutions;
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut carried_arguments = Vec::new();
 

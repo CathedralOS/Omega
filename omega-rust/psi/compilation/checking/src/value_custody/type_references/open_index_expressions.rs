@@ -360,50 +360,42 @@ fn bound_index_operations(
     index_type: TypeReferenceHandle,
     spelling: language_core::operator_spelling::OperatorSpelling,
 ) -> Vec<typed_trees::expression::OpenIndexOperationSelection> {
-    let mut candidates = Vec::new();
-    for bound in &machine.conformance_bounds {
-        let Some(trait_definition) = program.trait_definition_by_symbol(bound.trait_symbol) else {
-            continue;
-        };
-        for requirement in program.trait_machine_signatures(trait_definition) {
-            if requirement.spelling != Some(spelling) {
-                continue;
-            }
-            // The requirement's operand is one shared trait parameter; the
-            // bound's trait argument at that parameter's position names the
-            // index type this binder licenses the spelling for.
-            let Some(parameter) =
-                binary_requirement_trait_parameter(program, trait_definition, requirement)
-            else {
-                continue;
-            };
-            let Some(argument) = bound.arguments.get(parameter) else {
-                continue;
-            };
-            if !type_references_match(program, *argument, index_type) {
-                continue;
-            }
-            let laws = crate::proof_contracts::contract_entailment::declared_index_algebra_laws(
-                program,
-                trait_definition,
-                requirement.name.as_str(),
-            );
-            candidates.push(typed_trees::expression::OpenIndexOperationSelection {
-                expression,
-                spelling,
-                operator: requirement.symbol,
-                operand_type: index_type,
-                provider: bound.binder,
-                application: None,
-                algebra_trait: trait_definition.symbol,
-                algebra_requirement: requirement.name.as_str().to_owned(),
-                algebra_alias: Some(bound.binder_name.as_str().to_owned()),
-                commutativity_licensed: !laws.commutativity.is_empty(),
-                associativity_licensed: !laws.associativity.is_empty(),
-            });
+    typed_trees::operator::bound_trait_operator_meanings(
+        program,
+        machine.symbol,
+        spelling,
+        &[Some(index_type), Some(index_type)],
+    )
+    .into_iter()
+    .filter_map(|meaning| {
+        // An index algebra is closed over its carrier. Comparisons retain
+        // their ordinary requirement meaning, not index-operation laws.
+        if meaning.result_identity(program) != program.normalized_type_identity(index_type) {
+            return None;
         }
-    }
-    candidates
+        let trait_definition = meaning.trait_definition;
+        let requirement = meaning.requirement;
+        let bound = meaning.bound;
+        let laws = crate::proof_contracts::contract_entailment::declared_index_algebra_laws(
+            program,
+            trait_definition,
+            requirement.name.as_str(),
+        );
+        Some(typed_trees::expression::OpenIndexOperationSelection {
+            expression,
+            spelling,
+            operator: requirement.symbol,
+            operand_type: index_type,
+            provider: bound.binder,
+            application: None,
+            algebra_trait: trait_definition.symbol,
+            algebra_requirement: requirement.name.as_str().to_owned(),
+            algebra_alias: Some(bound.binder_name.as_str().to_owned()),
+            commutativity_licensed: !laws.commutativity.is_empty(),
+            associativity_licensed: !laws.associativity.is_empty(),
+        })
+    })
+    .collect()
 }
 
 fn bind_machine_index_operations(
@@ -459,37 +451,6 @@ fn bind_machine_index_operations(
         }
     });
     operations
-}
-
-/// A trait requirement spelled for index normalization must be the binary
-/// operation on one shared trait parameter: two operands and the result all
-/// bind the same parameter. Returns that parameter's position in the trait's
-/// parameter list — the bound's trait argument at the position is the index
-/// type the binder licenses the spelling for. `Self`-operand requirements
-/// name no parameter position, and a bound's subject is always one of the
-/// machine's own binders, so they cannot carry an index type.
-fn binary_requirement_trait_parameter(
-    program: &dyn crate::CheckingInput,
-    trait_definition: &typed_trees::trait_definition::TraitDefinition,
-    requirement: &typed_trees::signature::StateSignature,
-) -> Option<usize> {
-    let trait_parameters = program.trait_type_parameters(trait_definition);
-    let parameter_position = |type_reference: TypeReferenceHandle| {
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(type_reference)
-        else {
-            return None;
-        };
-        typed_trees::data::type_parameter_position(trait_parameters, *symbol)
-    };
-    let parameters = program.state_signature_parameters(requirement);
-    let [left, right] = parameters else {
-        return None;
-    };
-    let operand = parameter_position(left.type_reference)?;
-    (parameter_position(right.type_reference) == Some(operand)
-        && parameter_position(requirement.return_type) == Some(operand))
-    .then_some(operand)
 }
 
 fn validate_indexed_domain_argument_pack(

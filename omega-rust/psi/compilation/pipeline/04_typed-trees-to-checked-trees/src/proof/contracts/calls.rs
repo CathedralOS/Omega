@@ -337,10 +337,13 @@ pub(crate) fn contract_target_from_state_symbol(
     }
 
     for machine in program.machines() {
-        if let Ok(Some((owner, requirement))) =
+        if let Ok(Some(requirement)) =
             validation::named_conformance_target_requirement(program, machine, target_state_symbol)
         {
-            return Some((owner, requirement.symbol));
+            return Some((
+                requirement.trait_definition.symbol,
+                requirement.signature.symbol,
+            ));
         }
     }
 

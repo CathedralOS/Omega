@@ -62,6 +62,16 @@ there is no projected data-method search, clone-time receiver rescan, or final
 whole-program receiver repair. Requirement selection preserves the exact
 lexical root and field path without inserting a data argument.
 
+Selected trait token operations use the ordinary requirement-call route too.
+Before cloning, an operation selected by a lexical evidence binder becomes
+the same exact child call as `Operations::combine(left, right)`. Closed
+applications retain their requirement dispatch and complete implementation
+arguments. The common call emitter preserves operand order and single
+evaluation; there is no separate selected-operator interpreter or builtin
+arithmetic fallback. Authored comparison meaning is retained before freeze
+so local index equalities cannot treat an arbitrary Boolean relation as
+mathematical equality.
+
 Operator-candidate elaboration prepares its immutable authored snapshot once
 per invocation, only when generic checked candidates exist. Build
 selection is not an input: all authored conformance candidates participate.

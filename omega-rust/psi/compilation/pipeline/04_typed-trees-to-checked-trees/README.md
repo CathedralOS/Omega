@@ -527,12 +527,20 @@ reject rather than selecting one by name.
 [Elision checking](src/checks/borrows/elision.rs) distinguishes incomplete
 concrete frontiers from template-dependent trait requirements.
 [Template call checks](src/checks/borrows/elision/templates.rs) permit the latter
-only after exact selected callable/argument substitution proves the complete
-result view-free; otherwise the still-uninstantiated call rejects, even when
-discarded. Concrete view-returning instances retain the full input/result
-check. General caller-side generic returned-view attribution and outlives
-constraints remain incomplete. Persistent-field correspondence and recast
-footprints follow the separate mutation/origin rules above.
+only after exact selected callable/argument substitution closes the complete
+result frontier and resolves every returned view leaf to its input source.
+A view-free result is the empty frontier, not an exemption from that check.
+An unresolved or ambiguous frontier rejects even when the result is discarded.
+
+[Call return contracts](src/borrow/loans/call_views.rs) retain the signature and
+applied telescope together. Evidence-bound requirements use their declaring
+trait's applied type arguments, including inherited forwarding. Direct,
+aggregate and nested returned-view transfers consume this same contract;
+none reconstructs a signature-only call and silently loses its substitutions.
+The declaration-only provenance query remains separate because it has no call
+arguments or evidence application. General outlives constraints remain
+incomplete. Persistent-field correspondence and recast footprints follow the
+separate mutation/origin rules above.
 
 ## Checked callable custody
 

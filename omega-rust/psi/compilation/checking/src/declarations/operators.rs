@@ -15,7 +15,7 @@ pub use requirement_uses::{collect_named_requirement_uses, token_bound_machine_c
 pub use selection::select_pending_domain_operator_meanings;
 pub use uses::{
     build_operator_uses, builtin_float_operator_selection, checked_operator_candidate,
-    indexed_operand_types,
+    collect_pre_specialization_operator_selections, indexed_operand_types,
 };
 
 pub(crate) use applications::retain_validated_boundary_operator_application;

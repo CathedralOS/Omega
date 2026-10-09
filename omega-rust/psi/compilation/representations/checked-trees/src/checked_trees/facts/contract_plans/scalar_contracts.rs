@@ -72,6 +72,11 @@ pub struct ClosedScalarValueContractPlan {
     /// Length of the authored `requires` prefix inside `requires`; the
     /// remainder is the derived parameter-range tail the plan appends.
     authored_requires_len: usize,
+    /// Optional closed scalar consequences of checked guarantees. `None`
+    /// means this scalar vocabulary cannot represent the clause (for example,
+    /// a selected operation or a membership), not that source checking failed.
+    /// Unlike a runtime requires roster, publication may omit such a consequence;
+    /// source checking still establishes the complete authored contract.
     ensures: Vec<Option<ClosedScalarContractValue>>,
     has_crash_clauses: bool,
     has_outcome_specific_clauses: bool,

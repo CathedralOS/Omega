@@ -1,0 +1,16 @@
+data Selected<'storage> { reference: &'storage i32; }
+
+trait Identity<Value> {
+    machine forward(value: Value) -> Value;
+}
+
+machine invalid<'storage, Operations satisfies Identity<Selected<'storage>>>(
+    source: &'storage mut i32
+) {
+    let original: Selected<'storage> = Selected { reference: source };
+    let forwarded: Selected<'storage> = Operations::forward(original);
+    source = 7;
+    let observed: i32 = forwarded.reference;
+}
+
+machine main() {}

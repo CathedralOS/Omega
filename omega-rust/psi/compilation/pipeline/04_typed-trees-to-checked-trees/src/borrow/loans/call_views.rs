@@ -10,6 +10,8 @@ use arena::Handle;
 use checked_trees::expression::ExpressionHandle;
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn helper_call_borrow_loan_place(
     program: &dyn ::validation::CheckingInput,
@@ -95,53 +97,132 @@ pub(super) fn call_view_return_source(
     resolve_signature_view_return_source(program, parameters, return_type)
 }
 
-/// `call_view_return_source` specialized at one call site: a generic
-/// signature's frontier only closes under the call's own exact selected
-/// callable and argument bindings, which decide which instantiated input
-/// each returned view leaf borrows. Calls without closed bindings — concrete
-/// states and still-open signatures — keep the declaration-level decision.
+/// One call's declaration and applied telescope travel together. Returned
+/// fields, direct-reference ancestry and nested transfers must consume this
+/// same relation: looking up the raw signature again loses an evidence
+/// binder's application and can silently erase its aggregate loans.
+pub(in crate::borrow) struct CallViewReturnContract<'program> {
+    parameters: &'program [StateParameter],
+    return_type: TypeReferenceHandle,
+    pub(super) substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+}
+
+impl CallViewReturnContract<'_> {
+    pub(in crate::borrow) fn source(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+    ) -> ViewReturnSource {
+        if self.substitutions.is_empty() {
+            resolve_signature_view_return_source(program, self.parameters, self.return_type)
+        } else {
+            crate::borrow::view_link::resolve_substituted_view_return_source(
+                program,
+                self.parameters,
+                self.return_type,
+                &self.substitutions,
+            )
+        }
+    }
+
+    pub(in crate::borrow) fn return_type_reference(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+    ) -> TypeReferenceHandle {
+        self.carrier_reference(program, self.return_type)
+    }
+
+    pub(in crate::borrow) fn parameter_type_reference(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        parameter_index: usize,
+    ) -> TypeReferenceHandle {
+        self.parameters
+            .get(parameter_index)
+            .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                self.carrier_reference(program, parameter.type_reference)
+            })
+    }
+
+    /// Only the borrow carrier is projected here; qualifications remain on
+    /// the original declaration. Composite types stay borrowed nodes and the
+    /// structural frontier walks them under the complete substitution roster.
+    fn carrier_reference(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        mut reference: TypeReferenceHandle,
+    ) -> TypeReferenceHandle {
+        let mut visited = Vec::new();
+        loop {
+            if visited.contains(&reference) {
+                return TypeReferenceHandle::invalid();
+            }
+            visited.push(reference);
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                TypeReferenceNode::Named { symbol, .. } => {
+                    let Some((_, argument)) = self
+                        .substitutions
+                        .iter()
+                        .rev()
+                        .find(|(parameter, _)| parameter == symbol)
+                    else {
+                        return reference;
+                    };
+                    reference = *argument;
+                }
+                _ => return reference,
+            }
+        }
+    }
+}
+
+pub(in crate::borrow) fn call_view_return_contract<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    call: &checked_trees::expression::TableCallExpression,
+) -> Option<CallViewReturnContract<'program>> {
+    let (caller, state) = validation::find_state_with_machine(program, state_symbol)?;
+    let (parameters, return_type, substitutions) = if let Ok(Some(requirement)) =
+        validation::named_conformance_target_requirement(program, caller, call.target_symbol)
+    {
+        (
+            program.state_signature_parameters(requirement.signature),
+            requirement.signature.return_type,
+            requirement.type_bindings(program)?,
+        )
+    } else {
+        let (parameters, return_type, signature) =
+            call_view_signature(program, call.target_symbol)?;
+        let substitutions = signature
+            .and_then(|signature| {
+                validation::closed_static_call_type_bindings(
+                    program,
+                    caller,
+                    state,
+                    signature,
+                    &call.machine_arguments,
+                    program.expression_table.expression_handles(call.arguments),
+                )
+            })
+            .unwrap_or_default();
+        (parameters, return_type, substitutions)
+    };
+    Some(CallViewReturnContract {
+        parameters,
+        return_type,
+        substitutions,
+    })
+}
+
 pub(in crate::borrow) fn call_view_return_source_at(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> ViewReturnSource {
-    let Some((parameters, return_type, signature)) =
-        call_view_signature(program, call.target_symbol)
-    else {
-        return ViewReturnSource::NotApplicable;
-    };
-    if let Some(signature) = signature
-        && let Some(substitutions) = call_site_substitutions(program, state_symbol, signature, call)
-        && !substitutions.is_empty()
-    {
-        return crate::borrow::view_link::resolve_substituted_view_return_source(
-            program,
-            parameters,
-            return_type,
-            &substitutions,
-        );
-    }
-    resolve_signature_view_return_source(program, parameters, return_type)
-}
-
-/// The exact type-parameter bindings one static-callable call closes the
-/// signature under — the same `closed_static_call_type_bindings` the
-/// call-admission gate proves before the call may produce a returned view.
-pub(super) fn call_site_substitutions(
-    program: &dyn ::validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    signature: &typed_trees::signature::StateSignature,
-    call: &checked_trees::expression::TableCallExpression,
-) -> Option<Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>> {
-    let (caller, state) = validation::find_state_with_machine(program, state_symbol)?;
-    validation::closed_static_call_type_bindings(
-        program,
-        caller,
-        state,
-        signature,
-        &call.machine_arguments,
-        program.expression_table.expression_handles(call.arguments),
-    )
+    call_view_return_contract(program, state_symbol, call)
+        .map_or(ViewReturnSource::NotApplicable, |contract| {
+            contract.source(program)
+        })
 }
 
 /// True when the call target's own declaration names one exact borrow source
@@ -159,7 +240,7 @@ pub(crate) fn call_declares_direct_view_source(
     )
 }
 
-pub(in crate::borrow) fn call_view_signature(
+fn call_view_signature(
     program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
 ) -> Option<(
@@ -182,8 +263,8 @@ pub(in crate::borrow) fn call_view_signature(
         ));
     }
     for trait_definition in program.traits() {
-        if let Some(signature) = program
-            .trait_machine_signature_by_symbol(trait_definition, target_symbol)
+        if let Some(signature) =
+            program.trait_machine_signature_by_symbol(trait_definition, target_symbol)
         {
             return Some((
                 program.state_signature_parameters(signature),

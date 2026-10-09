@@ -1,0 +1,32 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+trait Arithmetic<Value> {
+    operator + combine(left: Value, right: Value) -> Value blocks;
+}
+
+ConstantThree satisfies Arithmetic<i32> {
+    machine combine(left: i32, right: i32) -> i32 { 3 }
+}
+
+Selected<const Output: i32> satisfies Arithmetic<i32> {
+    machine combine(left: i32, right: i32) -> i32 { Output }
+}
+
+machine choose<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
+blocks;
+requires 0 <= left && left <= 100
+requires 0 <= right && right <= 100
+{
+    left + right
+}
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    // The selected implementation returns three, not builtin addition's eleven.
+    let selected: i32 = choose<ConstantThree>(5, 6);
+    let applied: i32 = choose<Selected<7>>(5, 6);
+    let result: i32 in Wrapping = (selected as i32 in Wrapping) + (applied as i32 in Wrapping) - 7;
+    main.console.exit_process(result as i32);
+}

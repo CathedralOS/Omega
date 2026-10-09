@@ -136,7 +136,32 @@ fn result_type(
             )
         }
         ExpressionNode::Call(call) => {
-            crate::machine_calls::calls::resolved_call_result_type(program, call)
+            // Inside an abstract trait contract, a sibling requirement's
+            // generic result already belongs to this exact telescope. Runtime
+            // callers cannot borrow that raw result: they need its applied
+            // signature. Keep this owner distinction instead of making the
+            // context-free call query guess a generic instantiation.
+            let scoped_requirement_result = match owner {
+                ExpressionOwner::Parameters { owner_symbol, .. }
+                    if call.target_symbol.is_valid() =>
+                {
+                    let parent = program.symbols.get(owner_symbol).parent;
+                    (program.symbols.get(call.target_symbol).parent == parent)
+                        .then(|| program.trait_definition_by_symbol(parent))
+                        .flatten()
+                        .and_then(|definition| {
+                            program
+                                .trait_machine_signature_by_symbol(definition, call.target_symbol)
+                        })
+                        .filter(|signature| {
+                            signature.type_parameters.is_empty() && signature.return_type.is_valid()
+                        })
+                        .map(|signature| signature.return_type)
+                }
+                _ => None,
+            };
+            scoped_requirement_result
+                .or_else(|| crate::machine_calls::calls::resolved_call_result_type(program, call))
                 .or_else(|| {
                     typed_trees::operator::resolve_named_expression_call(program, call).and_then(
                         |operator| {

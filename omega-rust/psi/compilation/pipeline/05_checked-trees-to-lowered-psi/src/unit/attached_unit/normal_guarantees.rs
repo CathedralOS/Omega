@@ -1,8 +1,9 @@
 //! Normal-return guarantees shared by ordinary and composed callable bodies.
 //! Unit has no result value, but its post-state can establish caller facts.
-//! Publication creates proof obligations; it does not assume the clauses.
-//! Exit reconstruction joins the distinct contract result to the returned
-//! value and proves guarantees from facts shared by every normal exit.
+//! Checking has established every authored guarantee. Publication carries the
+//! closed scalar consequences the checked producer could represent, not a
+//! second source-contract judgment. Selected calls, memberships and witness
+//! terms retain their own checked owners rather than becoming builtin scalars.
 //! Crashes and incomplete calls establish neither a result nor these facts.
 
 use crate::lowering_error::LoweringError;
@@ -21,7 +22,7 @@ pub(crate) fn lower(
     views: &ContractViewNamespace<'_>,
     next_obligation: &mut u64,
 ) -> Result<Vec<ContractClause>, LoweringError> {
-    let (source, source_state) = crate::declarations::state_declaration(checked, state)?;
+    let (source, _) = crate::declarations::state_declaration(checked, state)?;
     let contract = checked
         .facts
         .contract_plans
@@ -29,13 +30,12 @@ pub(crate) fn lower(
         .ok_or(LoweringError::Unsupported(
             "normal return has no checked contract",
         ))?;
-    // A scalar result publishes its whole refined contract; a Unit or
-    // structural result publishes only the rows its post-state validation
-    // accepted, leaving memberships and evidence lanes to their owners.
+    // Scalar results additionally publish their result refinement. The same
+    // checked consequence roster serves every result shape; an absent scalar
+    // reading is not an absent source proof. In particular a selected operation
+    // cannot be reinterpreted as builtin arithmetic to fill that absence.
     let refined;
-    let post_state;
     let ensures = if result.scalar().is_some() {
-        contracts::validate_guarantees(checked, source, source_state)?;
         refined = contracts::with_result_range(
             checked,
             state,
@@ -44,14 +44,17 @@ pub(crate) fn lower(
         )?;
         refined.ensures()
     } else {
-        post_state = contracts::validate_post_state_guarantees(checked, source, source_state)?;
-        &post_state[..]
+        contract.closed_scalar_values.ensures()
     };
     // Returning execution restores the declared domain of every exclusive
     // loan: the declaration predicate roster's restored rows follow the
     // authored guarantees as the same kind of obligation, rederived from the
     // entry parameters' declared storage rather than read from a package.
-    let mut guarantees = ensures.to_vec();
+    let mut guarantees = ensures
+        .iter()
+        .filter(|row| row.is_some())
+        .cloned()
+        .collect::<Vec<_>>();
     guarantees.extend(
         validation::machine_declaration_predicates(
             &checked.typed,

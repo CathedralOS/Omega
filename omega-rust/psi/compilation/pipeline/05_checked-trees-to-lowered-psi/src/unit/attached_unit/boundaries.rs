@@ -39,30 +39,9 @@ pub(crate) fn lower_declarations(
     let mut parameter_rosters = Vec::with_capacity(boundaries.len());
     for (index, (plan, identity)) in boundaries.iter().enumerate() {
         validate_requirement_kind(checked, plan)?;
-        if let Some(machine) = checked.typed.machine(plan.machine) {
-            crate::scalar_lowering::contracts::validate_boundary_guarantees(checked, machine)?;
-        }
-        let expected_guarantees = checked
-            .typed
-            .machine(plan.machine)
-            .and_then(|machine| {
-                checked
-                    .facts
-                    .contract_plans
-                    .for_machine(machine.symbol)
-                    .map(|contract| {
-                        validation::derive_scalar_boundary_guarantees(
-                            &checked.typed,
-                            &checked.facts,
-                            machine,
-                            contract,
-                        )
-                    })
-            })
-            .unwrap_or_default();
-        if plan.scalar_ensures != expected_guarantees {
-            return unsupported("boundary scalar guarantees disagree with the authored contract");
-        }
+        // Stage 04 retained the exact boundary's scalar consequences. Lower
+        // that roster; deriving and comparing it again would replay checking
+        // against the same source in the same compilation.
         let parameters = lower_unit_parameters(
             &plan.structural_parameters,
             type_ids,

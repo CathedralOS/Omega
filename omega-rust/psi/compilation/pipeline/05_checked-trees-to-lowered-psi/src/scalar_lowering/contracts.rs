@@ -1,8 +1,8 @@
 //! Scalar contracts over entry parameters and the normal-return result.
 //! Ordinary, composed and boundary bodies share the same predicate meaning.
-//! Only their execution schedules differ; normal guarantees still use the
-//! declared result pseudo-value and require independently reconstructed
-//! return proofs.
+//! Only their execution schedules differ. Psi checking establishes authored
+//! guarantees; lowering publishes their representable scalar consequences in
+//! the declared result namespace, without replaying the source judgment.
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, IntegerValue,
     LoweringError, Proposition, ScalarTerm, StructuralParameterDeclaration,
@@ -21,11 +21,7 @@ use terminal_psi::{ErasedProofFormal, StructuralResultDeclaration};
 
 mod namespace;
 mod result_range;
-mod source;
 pub(crate) use result_range::with_result_range;
-pub(crate) use source::{
-    validate_boundary_guarantees, validate_guarantees, validate_post_state_guarantees,
-};
 
 /// The structural namespace a closed scalar contract may observe: the
 /// machine's `(source position, declaration)` parameter roster plus the

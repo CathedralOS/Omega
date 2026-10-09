@@ -65,7 +65,7 @@ pub(in crate::borrow) use aggregate_loans::{
 };
 pub(crate) use call_views::argument_borrow_loan_place;
 pub(in crate::borrow) use call_views::{
-    call_view_return_source_at, call_view_signature, helper_call_borrow_loan_place,
+    call_view_return_contract, call_view_return_source_at, helper_call_borrow_loan_place,
 };
 use reference_borrows::*;
 

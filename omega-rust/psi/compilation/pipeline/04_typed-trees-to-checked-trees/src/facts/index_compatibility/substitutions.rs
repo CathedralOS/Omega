@@ -5,7 +5,9 @@
 use super::index_terms::{index_arguments_equal, index_identity_bindings};
 use super::instance_collection::StateCallIndex;
 use arena::HandleSpan;
-use checked_trees::{FlowFacts, FlowSemanticContextRef};
+use checked_trees::{
+    CheckedOperatorFacts, CheckedOperatorOccurrence, FlowFacts, FlowSemanticContextRef,
+};
 use facts::{FactHandle, FactPayload, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 use typed_trees::expression::{
@@ -16,6 +18,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn established_index_equalities(
     program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
     semantic: &FactPlan,
     flow: &FlowFacts,
     contexts: HandleSpan<FlowSemanticContextRef>,
@@ -40,6 +43,7 @@ pub(super) fn established_index_equalities(
     for (actual, expected) in differing {
         let fact = established_index_equality_for_argument(
             program,
+            operators,
             semantic,
             flow,
             contexts,
@@ -56,6 +60,7 @@ pub(super) fn established_index_equalities(
 
 pub(super) fn established_index_equality_for_argument(
     program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
     semantic: &FactPlan,
     flow: &FlowFacts,
     contexts: HandleSpan<FlowSemanticContextRef>,
@@ -75,6 +80,7 @@ pub(super) fn established_index_equality_for_argument(
             let substitutions = fact_substitutions(program, flow, fact.point);
             if expression_proves_index_equality(
                 program,
+                operators,
                 expression,
                 &substitutions,
                 actual,
@@ -90,6 +96,7 @@ pub(super) fn established_index_equality_for_argument(
 
 pub(super) fn expression_proves_index_equality(
     program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     substitutions: &BoundIndexSubstitutions,
     actual: TypeReferenceHandle,
@@ -105,6 +112,7 @@ pub(super) fn expression_proves_index_equality(
         // search for any theorem outside the active fact context.
         return expression_proves_index_equality(
             program,
+            operators,
             binary.left,
             substitutions,
             actual,
@@ -112,6 +120,7 @@ pub(super) fn expression_proves_index_equality(
             bound_substitutions,
         ) || expression_proves_index_equality(
             program,
+            operators,
             binary.right,
             substitutions,
             actual,
@@ -119,7 +128,9 @@ pub(super) fn expression_proves_index_equality(
             bound_substitutions,
         );
     }
-    if binary.operator != BinaryOperator::Equal {
+    if binary.operator != BinaryOperator::Equal
+        || !has_builtin_equality_meaning(program, operators, expression)
+    {
         return false;
     }
     let direct = substituted_expression_matches_index_argument(
@@ -149,6 +160,53 @@ pub(super) fn expression_proves_index_equality(
         bound_substitutions,
     );
     direct || symmetric
+}
+
+/// A Boolean implementation relation is not substitution equality. Consume
+/// the checked domain selection when present; otherwise preparation must have
+/// retained builtin meaning on every authored occurrence. Absence of an
+/// operator row or a still-open selection grants no mathematical interpretation.
+fn has_builtin_equality_meaning(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut checked = false;
+    let mut builtin = true;
+    operators.for_each_expression_use(expression, |_, use_fact| {
+        if use_fact.occurrence != CheckedOperatorOccurrence::Expression {
+            return;
+        }
+        checked = true;
+        builtin &=
+            use_fact.resolved_through_builtin_fallback(language_core::OperatorSpelling::Equal);
+    });
+    if checked {
+        return builtin;
+    }
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget,
+    };
+    let mut authored = false;
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        authored = true;
+        if !program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .is_some_and(|selection| {
+                selection.target()
+                    == AuthoredDeclarationSelectionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                    )
+            })
+        {
+            return false;
+        }
+    }
+    authored
 }
 
 pub(super) fn fact_substitutions<'program>(

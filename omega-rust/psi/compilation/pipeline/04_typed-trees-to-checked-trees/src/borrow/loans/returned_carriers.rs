@@ -5,8 +5,8 @@ use crate::borrow::BorrowOwnerSegment;
 use crate::borrow::loans::StatementBorrowLoan;
 use crate::borrow::loans::borrowed_initializer_loans;
 use crate::borrow::loans::borrowed_initializers;
+use crate::borrow::loans::call_view_return_contract;
 use crate::borrow::loans::call_view_return_source_at;
-use crate::borrow::loans::call_view_signature;
 use crate::borrow::loans::helper_call_aggregate_borrow_loans;
 use crate::borrow::loans::owner_path_matches;
 use crate::borrow::loans::reference_borrow_access_kind;
@@ -25,16 +25,19 @@ pub(crate) fn call_reference_sources(
     state_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
-    let fields = match call_view_return_source_at(program, state_symbol, call) {
+    let contract = call_view_return_contract(program, state_symbol, call)?;
+    let fields = match contract.source(program) {
         ViewReturnSource::Fields { fields } => fields,
         ViewReturnSource::Parameter { parameter_index } => {
-            let (parameters, return_type, _) = call_view_signature(program, call.target_symbol)?;
             vec![ViewReturnFieldSource {
                 owner_path: Vec::new(),
                 source_path: Vec::new(),
-                source_type: parameters.get(parameter_index)?.type_reference,
+                source_type: contract.parameter_type_reference(program, parameter_index),
                 parameter_index,
-                kind: reference_borrow_access_kind(program, return_type)?,
+                kind: reference_borrow_access_kind(
+                    program,
+                    contract.return_type_reference(program),
+                )?,
             }]
         }
         ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => return None,
@@ -270,8 +273,9 @@ pub(super) fn result_loans(
             }
             _ => return None,
         };
-        if let Some((_, reference, _)) = call_view_signature(program, call.target_symbol)
-            && let Some(access) = reference_borrow_access_kind(program, reference)
+        if let Some(contract) = call_view_return_contract(program, state_symbol, call)
+            && let Some(access) =
+                reference_borrow_access_kind(program, contract.return_type_reference(program))
         {
             access_limits.push(access);
         }

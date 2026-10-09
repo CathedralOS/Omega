@@ -131,6 +131,31 @@ pub(crate) fn bind_pre_specialization_authored_selections(
 ) -> Result<(), Diagnostic> {
     let contract_facts = arena::Arena::default();
     let mut resolutions = Vec::new();
+    // A generic bound's operation is known before any concrete implementation
+    // exists. Preserve that declaration selection on the authored occurrence;
+    // an unused template's contracts must not acquire primitive token meaning.
+    for (expression, target) in validation::collect_pre_specialization_operator_selections(program)?
+    {
+        for occurrence in program
+            .expression_table
+            .authored_selection_occurrences(expression)
+        {
+            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+                continue;
+            };
+            let binding = AuthoredDeclarationSelectionLateBinding::CheckedOperator;
+            if selection.target() == AuthoredDeclarationSelectionTarget::LateBound(binding) {
+                push_consistent_resolution(
+                    &mut resolutions,
+                    AuthoredSelectionResolution {
+                        occurrence,
+                        binding,
+                        target,
+                    },
+                )?;
+            }
+        }
+    }
     // One exact-owner index answers every late-bound member and call's
     // query in a single pass instead of a whole-program rescan each.
     let owner_index =

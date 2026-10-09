@@ -159,6 +159,28 @@ fn collect_state_calls(
         );
     }
 
+    // Evidence-child targets are lexical coordinates for public requirement
+    // signatures, not executable states. Borrow/flow already retain that
+    // public identity. Resolve it here while its declaring machine is known,
+    // so effect attachment joins the same call rather than losing both its
+    // acknowledgement and the requirement's suspension/blocking envelope.
+    // Invalid evidence applications remain for ordinary source diagnostics;
+    // this association grants no implementation or conformance authority.
+    if let Some(owner) = program.machine_by_symbol(machine) {
+        for call in &mut calls {
+            if let Ok(Some(requirement)) = crate::named_conformance_target_requirement(
+                program,
+                owner,
+                call.target_state_symbol,
+            ) {
+                call.target_state_symbol = requirement.signature.symbol;
+                let direct = signature_effects.for_symbol(requirement.signature.symbol);
+                call.direct_may_suspend = direct.may_suspend;
+                call.direct_may_block = direct.may_block;
+            }
+        }
+    }
+
     calls
 }
 

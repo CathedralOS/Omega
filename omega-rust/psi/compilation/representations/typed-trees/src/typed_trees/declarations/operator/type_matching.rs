@@ -341,7 +341,7 @@ fn fixed_array_lengths_match(
     )
 }
 
-fn closed_const_identity_from_type_reference(
+pub(crate) fn closed_const_identity_from_type_reference(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
     declared_carrier: TypeReferenceHandle,

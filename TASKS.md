@@ -2940,12 +2940,9 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: preserve exact erased
   applications, clone correspondence and lexical owners through folding and
-  substitution, including lifetime scopes. Local-fact discharge in
-  `facts/index_compatibility/substitutions.rs` still reads a selected `==` as
-  mathematical equality: a generic conformance may supply a Boolean relation
-  while `requires A + B == 4` incorrectly discharges `Indexed<A + B>` against
-  `Indexed<4>` (macOS arm64). Retain and consume the comparison's selected
-  meaning without reopening typed preparation in checking.
+  substitution, including lifetime scopes and inherited symbolic const
+  arguments. Complete the full frozen-boundary qualification below; the focused
+  operator, algebra-law and returned-loan cohort does not replace it.
   Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal
   template commitments use the retained authored graph, never a concrete

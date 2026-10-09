@@ -13,10 +13,49 @@ use typed_trees::signature::StateSignature;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::TypeReferenceHandle;
 
-pub(crate) struct GenericBoundRequirement<'program> {
-    pub(crate) signature: &'program StateSignature,
-    pub(crate) trait_definition: &'program TraitDefinition,
-    pub(crate) bound: &'program typed_trees::machine::GenericConformanceBound,
+#[derive(Clone, Copy)]
+pub struct GenericBoundRequirement<'program> {
+    pub signature: &'program StateSignature,
+    pub trait_definition: &'program TraitDefinition,
+    pub bound: &'program typed_trees::machine::GenericConformanceBound,
+}
+
+impl GenericBoundRequirement<'_> {
+    /// The public signature and its applied trait telescope are inseparable.
+    /// Inherited requirements use their declaring trait's arguments, not the
+    /// outer binder's parameter order. These borrowed type identities close
+    /// structural queries without manufacturing instantiated type nodes.
+    pub fn type_bindings(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Option<Vec<(symbols::SymbolHandle, TypeReferenceHandle)>> {
+        let carrier = trait_definition_by_symbol(program, self.bound.trait_symbol)?;
+        let carrier = match &carrier.refines {
+            Some(base) => trait_definition_by_symbol(program, base.symbol)?,
+            None => carrier,
+        };
+        let arguments = crate::declarations::traits::arguments_for_declaring_trait(
+            program,
+            carrier,
+            &self.bound.arguments,
+            self.trait_definition.symbol,
+            &mut Vec::new(),
+        )?;
+        let parameters = program.trait_type_parameters(self.trait_definition);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        Some(
+            parameters
+                .iter()
+                .zip(arguments)
+                .filter_map(|(parameter, argument)| {
+                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                        .then_some((parameter.symbol, argument))
+                })
+                .collect(),
+        )
+    }
 }
 
 /// Whether an actual argument type matches a requirement parameter of the

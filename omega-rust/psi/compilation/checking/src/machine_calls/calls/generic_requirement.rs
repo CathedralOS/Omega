@@ -74,13 +74,7 @@ pub fn named_conformance_target_requirement<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     target: symbols::SymbolHandle,
-) -> Result<
-    Option<(
-        symbols::SymbolHandle,
-        &'program typed_trees::signature::StateSignature,
-    )>,
-    String,
-> {
+) -> Result<Option<crate::declarations::traits::GenericBoundRequirement<'program>>, String> {
     if !target.is_valid() {
         return Ok(None);
     }
@@ -91,13 +85,7 @@ pub fn named_conformance_target_requirement<'program>(
             .child_handles(binder)
             .is_some_and(|mut children| children.any(|child| child == target))
         {
-            return named_conformance_requirement(program, machine, binder, target).map(
-                |requirement| {
-                    requirement.map(|requirement| {
-                        (requirement.trait_definition.symbol, requirement.signature)
-                    })
-                },
-            );
+            return named_conformance_requirement(program, machine, binder, target);
         }
     }
     Ok(None)

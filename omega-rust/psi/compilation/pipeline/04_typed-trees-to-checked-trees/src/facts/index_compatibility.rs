@@ -349,6 +349,7 @@ fn append_expression_compatibilities(
                 }
             } else if let Some(facts) = established_index_equalities(
                 program,
+                operators,
                 semantic,
                 flow,
                 contexts,

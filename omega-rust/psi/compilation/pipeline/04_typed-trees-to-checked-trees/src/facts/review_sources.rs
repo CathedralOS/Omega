@@ -1,3 +1,8 @@
+//! Attach authored occurrence custody to the checked call topology. Targets and
+//! operational acknowledgements come from the operational plan; generated
+//! calls acquire their acknowledgements during effect inference, so their
+//! checked rows must not be compared with pre-inference syntax here.
+
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
@@ -5,7 +10,6 @@ use language_semantics::declaration_selection::{
 };
 use source::SourceSpan;
 use validation::{CallSite, collect_call_sites_in_statement};
-use validation::{call_receiver_parts, resolve_state_call_target, statement_call_receiver_members};
 
 use crate::semantic::calls::dispatch_subjects;
 use checked_trees::{FlowCallResult, FlowCallSite};
@@ -93,7 +97,6 @@ pub(crate) fn bind_checked_body_call_source_spans(
                     checked_state.state_symbol,
                 ))]);
             };
-            validate_checked_call_join(program, machine, state, checked_call, &call_site)?;
             checked_call.authored_expression = match &call_site {
                 CallSite::Expression { expression, .. } => *expression,
                 CallSite::Statement(_) | CallSite::TransitionNamed { .. } => Default::default(),
@@ -183,97 +186,6 @@ pub(crate) fn bind_checked_body_call_source_spans(
                 }
             }
         }
-    }
-    Ok(())
-}
-
-fn validate_checked_call_join(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    checked: &checked_trees::FlowCallFact,
-    site: &CallSite<'_>,
-) -> Result<(), Vec<Diagnostic>> {
-    let (receiver_symbol, target_symbol, has_receiver, acknowledgement) = match site {
-        CallSite::Statement(call) => {
-            let resolved_target = resolve_state_call_target(
-                program,
-                machine,
-                state,
-                call.receiver_symbol,
-                call.target_symbol,
-                statement_call_receiver_members(program, call),
-                &call.target,
-            );
-            (
-                call.receiver_symbol,
-                if resolved_target.is_valid() {
-                    resolved_target
-                } else {
-                    call.target_symbol
-                },
-                !call.receiver.is_empty()
-                    && program.symbols.get(call.receiver_symbol).kind
-                        != symbols::SymbolKind::ConformanceParameter,
-                call.operational_acknowledgement,
-            )
-        }
-        CallSite::Expression { call, .. } => {
-            let (receiver_symbol, receiver_path) = call_receiver_parts(program, call.receiver);
-            let boundary_operator =
-                typed_trees::operator::resolve_named_expression_call(program, call)
-                    .filter(|operator| operator.is_boundary);
-            let resolved_target = resolve_state_call_target(
-                program,
-                machine,
-                state,
-                receiver_symbol,
-                boundary_operator.map_or(call.target_symbol, |operator| operator.symbol),
-                receiver_path.as_deref(),
-                &call.target,
-            );
-            (
-                receiver_symbol,
-                if resolved_target.is_valid() {
-                    resolved_target
-                } else {
-                    call.target_symbol
-                },
-                boundary_operator.map_or_else(
-                    || {
-                        call.receiver.is_valid()
-                            && program.symbols.get(receiver_symbol).kind
-                                != symbols::SymbolKind::ConformanceParameter
-                    },
-                    |operator| {
-                        call.receiver.is_valid()
-                            && program.operator_parameters(operator).len()
-                                == program
-                                    .expression_table
-                                    .expression_handles(call.arguments)
-                                    .len()
-                                    + 1
-                    },
-                ),
-                call.operational_acknowledgement,
-            )
-        }
-        CallSite::TransitionNamed { path, .. } => (
-            path.head_symbol,
-            path.symbol,
-            path.members.count() > 1,
-            Default::default(),
-        ),
-    };
-    if checked.receiver_symbol != receiver_symbol
-        || checked.target_symbol != target_symbol
-        || checked.has_receiver != has_receiver
-        || checked.operational_acknowledgement != acknowledgement
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "checked body-call identity does not match typed call site at statement {} ordinal {}",
-            checked.statement_index, checked.call_ordinal,
-        ))]);
     }
     Ok(())
 }

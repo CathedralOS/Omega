@@ -28,6 +28,88 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use super::receiver::expression_type_reference_for_origin;
 use typed_trees::operator::binary_operator_spelling;
 
+/// Retain meanings independent of flow-domain admission before specialization
+/// copies authored occurrences. Generic implementations select requirements,
+/// never fabricated closed maps. Root/domain candidates remain deferred: only
+/// checking can decide which domain memberships hold at their use sites.
+pub fn collect_pre_specialization_operator_selections(
+    program: &dyn crate::CheckingInput,
+) -> Result<
+    Vec<(
+        ExpressionHandle,
+        crate::selection_resolution::AuthoredSelectionResolutionTarget,
+    )>,
+    diagnostics::Diagnostic,
+> {
+    use crate::selection_resolution::AuthoredSelectionResolutionTarget;
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
+
+    let mut selections = Vec::new();
+    let mut diagnostic = None;
+    program.for_each_machine_state_contract_frame(|machine, state, contracts, _| {
+        let mut expressions = Vec::new();
+        for contract in contracts {
+            crate::expression_traversal::collect_contract_facts(program, contract.facts, &mut expressions);
+        }
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            crate::expression_traversal::collect_statement_expression_trees(program, statement, &mut expressions);
+        }
+        for expression in expressions {
+            let Some(binary) = program.expression_table.binary_node(expression) else {
+                continue;
+            };
+            let Some(spelling) = binary_operator_spelling(binary.operator) else {
+                continue;
+            };
+            let operand_types = [binary.left, binary.right].map(|operand| {
+                crate::expression_result_type_reference(program, machine, state, operand)
+            });
+            if operand_types.iter().all(Option::is_none) {
+                continue;
+            }
+            let bound_meanings = typed_trees::operator::bound_trait_operator_meanings(
+                program, machine.symbol, spelling, &operand_types,
+            );
+            let selected_meanings = selected_trait_operator_meanings(
+                program, machine.symbol, spelling, &operand_types,
+            );
+            let target = match (bound_meanings.as_slice(), selected_meanings.as_slice()) {
+                ([meaning], _) => AuthoredSelectionResolutionTarget::Declaration(meaning.requirement.symbol),
+                ([], [meaning]) => AuthoredSelectionResolutionTarget::Declaration(meaning.requirement.symbol),
+                ([], []) => {
+                    // No implementation candidate is not proof that an open
+                    // carrier has primitive meaning. Specialization settles
+                    // those uses; only known primitive carriers freeze here.
+                    if operand_types.iter().flatten().any(|reference| {
+                        program.primitive_type_reference(*reference).is_none()
+                    }) {
+                        continue;
+                    }
+                    if !resolve_spelling_for_operands(
+                        program, spelling, &operand_types,
+                        program.expression_table.source_span(expression),
+                    ).is_empty() || !typed_trees::closed_numeric::has_builtin_anonymous_operands(program, expression, spelling) {
+                        continue;
+                    }
+                    AuthoredSelectionResolutionTarget::Intrinsic(AuthoredDeclarationSelectionIntrinsic::BuiltinOperator)
+                }
+                _ => {
+                    diagnostic.get_or_insert_with(|| diagnostics::Diagnostic::error(format!(
+                        "operator `{}` on machine `{}` has multiple explicitly selected implementation meanings",
+                        spelling.symbol(), machine.name,
+                    )));
+                    continue;
+                }
+            };
+            selections.push((expression, target));
+        }
+    });
+    match diagnostic {
+        Some(diagnostic) => Err(diagnostic),
+        None => Ok(selections),
+    }
+}
+
 /// The operator and named uses with their candidates, without the requirement
 /// uses and declaration contracts `build_operator_facts` adds.
 pub fn build_operator_uses(

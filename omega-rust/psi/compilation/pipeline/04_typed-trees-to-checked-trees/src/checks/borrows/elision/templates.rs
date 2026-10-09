@@ -118,7 +118,7 @@ fn check_target(
                 && validation::named_conformance_target_requirement(program, machine, target)
                     .ok()
                     .flatten()
-                    .is_some_and(|(_, signature)| deferred.contains(&signature.symbol))
+                    .is_some_and(|requirement| deferred.contains(&requirement.signature.symbol))
         };
     if unresolved_frontier
         && !closed_return_frontier(program, machine, state, target, static_arguments, arguments)
@@ -145,6 +145,14 @@ fn closed_return_frontier(
     static_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
 ) -> bool {
+    if let Ok(Some(requirement)) =
+        validation::named_conformance_target_requirement(program, caller, target)
+    {
+        let Some(substitutions) = requirement.type_bindings(program) else {
+            return false;
+        };
+        return complete_return_frontier(program, requirement.signature, &substitutions);
+    }
     let signature = program
         .traits()
         .iter()
@@ -164,10 +172,18 @@ fn closed_return_frontier(
     ) else {
         return false;
     };
+    complete_return_frontier(program, signature, &substitutions)
+}
+
+fn complete_return_frontier(
+    program: &dyn ::validation::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+) -> bool {
     if !crate::borrow::view_link::substituted_result_frontier_is_complete(
         program,
         signature.return_type,
-        &substitutions,
+        substitutions,
     ) {
         return false;
     }
@@ -176,7 +192,7 @@ fn closed_return_frontier(
             program,
             program.state_signature_parameters(signature),
             signature.return_type,
-            &substitutions,
+            substitutions,
         ),
         crate::borrow::view_link::ViewReturnSource::Ambiguous(_)
     )

@@ -46,9 +46,10 @@ pub use spellings::{
     resolve_spelling_for_operands,
 };
 pub use trait_operators::{
-    SelectedTraitOperatorMeaning, selected_trait_operator_meaning_exists,
-    selected_trait_operator_meanings, trait_operator_matches_application,
-    trait_operator_operand_signature,
+    BoundTraitOperatorMeaning, SelectedTraitOperatorMeaning, bound_trait_operator_meanings,
+    selected_trait_operator_meaning_exists, selected_trait_operator_meanings,
+    trait_operator_matches_application, trait_operator_operand_signature,
+    trait_scope_operator_meaning_exists,
 };
 
 use arena::HandleSpan;

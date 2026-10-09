@@ -1,11 +1,17 @@
 //! Trait operator applications and selected trait operator meanings.
+//! Lexical implementation bounds and abstract trait contracts share the applied
+//! operand walk. Inherited arguments remain scoped substitutions, not new type
+//! nodes or fabricated closed implementations. Law consumers resolve comparison
+//! meaning here before treating an authored equality as mathematical identity.
 
 use crate::TypedTrees;
 use crate::type_identity::TypeIdentityRequest;
 use crate::typed_trees::declarations::operator::operand_signatures::{
     TypeParameterNormalizer, collect_type_parameter_occurrences, normalized_operand_parameters,
 };
-use crate::typed_trees::declarations::operator::type_matching::type_reference_matches;
+use crate::typed_trees::declarations::operator::type_matching::{
+    closed_const_identity_from_type_reference, type_reference_matches_with_policy,
+};
 use crate::types::TypeReferenceHandle;
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
@@ -15,9 +21,8 @@ use symbols::SymbolHandle;
 ///
 /// The application is already the proof-static binder selected by generic
 /// specialization. Matching therefore consults no visible conformance set: it
-/// binds the trait's `Self` owner and declared type parameters from the
-/// requirement telescope, then checks those bindings against the closed
-/// application's retained subject and trait arguments.
+/// binds the declared type parameters from the requirement telescope, then
+/// checks those bindings against the closed application's trait arguments.
 pub fn trait_operator_matches_application(
     program: &TypedTrees,
     trait_definition: &crate::trait_definition::TraitDefinition,
@@ -25,9 +30,46 @@ pub fn trait_operator_matches_application(
     application: &crate::typed_trees::ClosedConformanceApplication,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
+    let Some(bindings) = trait_operator_operand_bindings(
+        program,
+        trait_definition,
+        requirement,
+        operand_types,
+        None,
+    ) else {
+        return false;
+    };
+
+    let binding_identity = |symbol| {
+        bindings.types.iter().find_map(|(bound, actual)| {
+            (*bound == symbol).then(|| program.display_type_reference(*actual))
+        })
+    };
+    application.trait_definition != trait_definition.symbol
+        || program
+            .trait_type_parameters(trait_definition)
+            .iter()
+            .zip(&application.trait_arguments)
+            .all(|(parameter, expected)| {
+                binding_identity(parameter.symbol).is_none_or(|actual| actual == *expected)
+            })
+}
+
+struct TraitOperatorOperandBindings {
+    types: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    constants: Vec<super::OperatorConstBinding>,
+}
+
+fn trait_operator_operand_bindings(
+    program: &TypedTrees,
+    trait_definition: &crate::trait_definition::TraitDefinition,
+    requirement: &crate::signature::StateSignature,
+    operand_types: &[Option<TypeReferenceHandle>],
+    application: Option<&[(SymbolHandle, TypeReferenceHandle)]>,
+) -> Option<TraitOperatorOperandBindings> {
     let parameters = program.state_signature_parameters(requirement);
     if parameters.len() != operand_types.len() || operand_types.iter().all(Option::is_none) {
-        return false;
+        return None;
     }
 
     let type_parameters = program
@@ -43,34 +85,281 @@ pub fn trait_operator_matches_application(
         .zip(normalized_operand_parameters(parameters))
         .all(|(actual, expected)| {
             actual.is_none_or(|actual| {
-                type_reference_matches(
+                // An applied telescope already fixes its trait parameters.
+                // Compare those types directly before inferring any remaining
+                // requirement parameters. This also preserves symbolic const
+                // arguments through inherited applications without type nodes.
+                if let Some(substitutions) = application
+                    && program.normalized_type_identity(actual)
+                        == program.type_identity(TypeIdentityRequest {
+                            substitutions,
+                            ..TypeIdentityRequest::ordinary(expected.type_reference)
+                        })
+                {
+                    return true;
+                }
+                type_reference_matches_with_policy(
                     program,
                     actual,
                     expected.type_reference,
-                    Some(trait_definition.symbol),
+                    None,
                     &type_parameters,
                     &mut bindings,
                     &mut const_bindings,
+                    false,
                 )
             })
         })
     {
-        return false;
+        return None;
     }
+    Some(TraitOperatorOperandBindings {
+        types: bindings,
+        constants: const_bindings,
+    })
+}
 
-    let binding_identity = |symbol| {
-        bindings.iter().find_map(|(bound, actual)| {
-            (*bound == symbol).then(|| program.display_type_reference(*actual))
+/// An explicitly selected generic implementation's operation. This is a
+/// requirement, not a closed realization map. The substitution chain describes
+/// the declaring trait's application through inherited edges without creating
+/// type nodes or guessing an implementation from visible declarations.
+#[derive(Debug, Clone)]
+pub struct BoundTraitOperatorMeaning<'program> {
+    pub bound: &'program crate::machine::GenericConformanceBound,
+    pub trait_definition: &'program crate::trait_definition::TraitDefinition,
+    pub requirement: &'program crate::signature::StateSignature,
+    substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+}
+
+impl BoundTraitOperatorMeaning<'_> {
+    /// The requirement result under this exact generic trait application.
+    pub fn result_identity(
+        &self,
+        program: &TypedTrees,
+    ) -> crate::type_identity::NormalizedTypeIdentity {
+        program.type_identity(TypeIdentityRequest {
+            substitutions: &self.substitutions,
+            ..TypeIdentityRequest::ordinary(self.requirement.return_type)
         })
+    }
+}
+
+/// Selected lexical implementation parameters use the same complete operand
+/// matching as closed maps. Parent applications remain declaration-scoped
+/// substitution chains, so nested arguments compose without spelling lookup.
+/// Multiple matching bounds or distinct inherited applications stay ambiguous.
+pub fn bound_trait_operator_meanings<'program>(
+    program: &'program TypedTrees,
+    machine_symbol: SymbolHandle,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Vec<BoundTraitOperatorMeaning<'program>> {
+    let Some(machine) = program.machine_by_symbol(machine_symbol) else {
+        return Vec::new();
     };
-    application.trait_definition != trait_definition.symbol
-        || program
+    let mut meanings = Vec::new();
+    for bound in &machine.conformance_bounds {
+        let Some(trait_definition) = program.trait_definition_by_symbol(bound.trait_symbol) else {
+            continue;
+        };
+        let parameters = program.trait_type_parameters(trait_definition);
+        if parameters.len() != bound.arguments.len() {
+            continue;
+        }
+        let substitutions = parameters
+            .iter()
+            .zip(&bound.arguments)
+            .map(|(parameter, argument)| (parameter.symbol, *argument))
+            .collect::<Vec<_>>();
+        visit_trait_operator_meanings(
+            program,
+            trait_definition,
+            spelling,
+            operand_types,
+            &substitutions,
+            &mut Vec::new(),
+            &mut |trait_definition, requirement, substitutions| {
+                let meaning = BoundTraitOperatorMeaning {
+                    bound,
+                    trait_definition,
+                    requirement,
+                    substitutions,
+                };
+                let same_application = |known: &BoundTraitOperatorMeaning<'_>| {
+                    known.bound.binder == bound.binder
+                        && known.requirement.symbol == requirement.symbol
+                        && program
+                            .trait_type_parameters(trait_definition)
+                            .iter()
+                            .all(|parameter| {
+                                let identity =
+                                    |substitutions: &[(SymbolHandle, TypeReferenceHandle)]| {
+                                        substitutions
+                                            .iter()
+                                            .find(|(binder, _)| *binder == parameter.symbol)
+                                            .map(|(_, argument)| {
+                                                program.type_identity(TypeIdentityRequest {
+                                                    substitutions,
+                                                    ..TypeIdentityRequest::ordinary(*argument)
+                                                })
+                                            })
+                                    };
+                                identity(&known.substitutions) == identity(&meaning.substitutions)
+                            })
+                };
+                if !meanings.iter().any(same_application) {
+                    meanings.push(meaning);
+                }
+            },
+        );
+    }
+    meanings
+}
+
+/// Operator meaning in a trait's own abstract contract scope, including its
+/// inherited applications. The trait's parameters stay rigid lexical symbols;
+/// this query neither selects a visible implementation nor closes that scope.
+pub fn trait_scope_operator_meaning_exists(
+    program: &TypedTrees,
+    trait_definition: &crate::trait_definition::TraitDefinition,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    let mut found = false;
+    visit_trait_operator_meanings(
+        program,
+        trait_definition,
+        spelling,
+        operand_types,
+        &[],
+        &mut Vec::new(),
+        &mut |_, _, _| found = true,
+    );
+    found
+}
+
+fn visit_trait_operator_meanings<'program>(
+    program: &'program TypedTrees,
+    trait_definition: &'program crate::trait_definition::TraitDefinition,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    active_traits: &mut Vec<SymbolHandle>,
+    visit: &mut impl FnMut(
+        &'program crate::trait_definition::TraitDefinition,
+        &'program crate::signature::StateSignature,
+        Vec<(SymbolHandle, TypeReferenceHandle)>,
+    ),
+) {
+    if active_traits.contains(&trait_definition.symbol) {
+        return;
+    }
+    active_traits.push(trait_definition.symbol);
+    for requirement in program.trait_machine_signatures(trait_definition) {
+        if requirement.spelling != Some(spelling) {
+            continue;
+        }
+        let Some(bindings) = trait_operator_operand_bindings(
+            program,
+            trait_definition,
+            requirement,
+            operand_types,
+            Some(substitutions),
+        ) else {
+            continue;
+        };
+        let matches = program
             .trait_type_parameters(trait_definition)
             .iter()
-            .zip(&application.trait_arguments)
-            .all(|(parameter, expected)| {
-                binding_identity(parameter.symbol).is_none_or(|actual| actual == *expected)
-            })
+            .all(|parameter| {
+                let actual = bindings
+                    .types
+                    .iter()
+                    .find(|(binder, _)| *binder == parameter.symbol);
+                let constant = bindings
+                    .constants
+                    .iter()
+                    .find(|binding| binding.symbol == parameter.symbol);
+                if actual.is_none() && constant.is_none() {
+                    return true;
+                }
+                let Some(expected) = substitutions
+                    .iter()
+                    .find(|(binder, _)| *binder == parameter.symbol)
+                    .map(|(_, reference)| *reference)
+                    .or_else(|| {
+                        program
+                            .type_reference_table
+                            .find_named_type_reference(parameter.symbol)
+                    })
+                else {
+                    return false;
+                };
+                if let Some(binding) = constant {
+                    let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                    else {
+                        return false;
+                    };
+                    return closed_const_identity_from_type_reference(
+                        program,
+                        expected,
+                        type_reference,
+                    )
+                    .is_some_and(|expected| expected == binding.value);
+                }
+                let Some((_, actual)) = actual else {
+                    return true;
+                };
+                program.normalized_type_identity(*actual)
+                    == program.type_identity(TypeIdentityRequest {
+                        substitutions,
+                        ..TypeIdentityRequest::ordinary(expected)
+                    })
+            });
+        if !matches {
+            continue;
+        }
+        let mut applied_substitutions = substitutions.to_vec();
+        applied_substitutions.extend(bindings.types.into_iter().filter(|(binder, _)| {
+            !substitutions
+                .iter()
+                .any(|(parameter, _)| parameter == binder)
+        }));
+        visit(trait_definition, requirement, applied_substitutions);
+    }
+    let parents = program
+        .trait_requirements(trait_definition)
+        .iter()
+        .chain(trait_definition.refines.iter());
+    for parent in parents {
+        let Some(parent_trait) = program.trait_definition_by_symbol(parent.symbol) else {
+            continue;
+        };
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(parent.arguments);
+        let parameters = program.trait_type_parameters(parent_trait);
+        if parameters.len() != arguments.len() {
+            continue;
+        }
+        let mut inherited = substitutions.to_vec();
+        inherited.extend(
+            parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.symbol, *argument)),
+        );
+        visit_trait_operator_meanings(
+            program,
+            parent_trait,
+            spelling,
+            operand_types,
+            &inherited,
+            active_traits,
+            visit,
+        );
+    }
+    active_traits.pop();
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -91,9 +380,7 @@ pub fn selected_trait_operator_meanings<'program>(
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Vec<SelectedTraitOperatorMeaning<'program>> {
-    let Some(specialization) = program
-        .machine_specialization(machine_symbol)
-    else {
+    let Some(specialization) = program.machine_specialization(machine_symbol) else {
         return Vec::new();
     };
 
@@ -102,10 +389,9 @@ pub fn selected_trait_operator_meanings<'program>(
         .iter()
         .flat_map(|application| {
             application.rows.iter().filter_map(move |row| {
-                let trait_definition = program
-                    .trait_definition_by_symbol(row.declaring_trait)?;
-                let requirement = program
-                    .trait_machine_signature_by_symbol(trait_definition, row.requirement)?;
+                let trait_definition = program.trait_definition_by_symbol(row.declaring_trait)?;
+                let requirement =
+                    program.trait_machine_signature_by_symbol(trait_definition, row.requirement)?;
                 (requirement.spelling == Some(spelling)
                     && trait_operator_matches_application(
                         program,
@@ -133,9 +419,7 @@ pub fn selected_trait_operator_meaning_exists(
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
-    let Some(specialization) = program
-        .machine_specialization(machine_symbol)
-    else {
+    let Some(specialization) = program.machine_specialization(machine_symbol) else {
         return false;
     };
 
@@ -144,13 +428,13 @@ pub fn selected_trait_operator_meaning_exists(
         .iter()
         .any(|application| {
             application.rows.iter().any(|row| {
-                let Some(trait_definition) = program
-                    .trait_definition_by_symbol(row.declaring_trait)
+                let Some(trait_definition) =
+                    program.trait_definition_by_symbol(row.declaring_trait)
                 else {
                     return false;
                 };
-                let Some(requirement) = program
-                    .trait_machine_signature_by_symbol(trait_definition, row.requirement)
+                let Some(requirement) =
+                    program.trait_machine_signature_by_symbol(trait_definition, row.requirement)
                 else {
                     return false;
                 };

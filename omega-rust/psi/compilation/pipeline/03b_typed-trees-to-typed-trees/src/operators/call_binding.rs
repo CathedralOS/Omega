@@ -35,6 +35,13 @@
 //! (`authored_selections/finalization.rs`), so the checked artifact retains
 //! the authored token occurrence together with the exact declaration.
 //!
+//! A selected implementation parameter supplies the same ordinary requirement
+//! call as `Operations::combine(left, right)`. Bind its existing placeholder
+//! before body cloning so ordinary evidence dispatch carries the exact closed
+//! application and implementation arguments. A newly closed occurrence uses
+//! that same dispatch record directly. Neither route executes builtin arithmetic
+//! merely because the selected requirement has no top-level token binding.
+//!
 //! Binary and indexed spellings at expression occurrences bind here. `[]`
 //! (and `[..]` under the spec's range normalization -- an omitted start means
 //! zero, and an inclusive end `..=end` means `end + 1` -- so `a[..b]` and
@@ -62,8 +69,10 @@ use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
     TableRangeExpression,
 };
+use typed_trees::typed_trees::StaticRequirementDispatch;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
+use std::collections::HashSet;
 use validation::expression_type_reference_for_origin;
 
 /// Bind resolved token machines and float shorthand to calls, retaining
@@ -76,6 +85,12 @@ pub(crate) fn bind_selected_operator_calls(
         && program.operators().is_empty()
         && !program.machines().iter().any(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        })
+        && !program.traits().iter().any(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|requirement| requirement.spelling.is_some())
         })
     {
         return Ok(0);
@@ -93,14 +108,52 @@ pub(crate) fn bind_selected_operator_calls(
     // exactly as a domain-homed `operator` declaration did.
     validation::select_pending_domain_operator_meanings(program, &mut facts);
     let mut diagnostics = Vec::new();
-    let mut bindings: Vec<(ExpressionHandle, SymbolHandle, CheckedValueOrigin)> = Vec::new();
-    for (use_handle, operator_use) in facts.uses.iter().filter(|(_, operator_use)| {
-        operator_use.status == CheckedOperatorResolutionStatus::Resolved
-    }) {
-        let selected = operator_use.selected_operator_symbol;
-        if !program.machine_token_binding_by_symbol(selected).is_some() {
-            continue;
+    let mut bindings: Vec<(ExpressionHandle, SelectedOperatorCall, CheckedValueOrigin)> =
+        Vec::new();
+    let mut occurrences = facts
+        .uses
+        .iter()
+        .map(|(handle, usage)| (usage.expression, usage.origin, usage.spelling, Some(handle)))
+        .collect::<Vec<_>>();
+    let mut seen = HashSet::with_hasher(symbols::BuildSymbolHasher);
+    seen.extend(
+        occurrences
+            .iter()
+            .map(|(expression, origin, _, _)| (*expression, *origin)),
+    );
+    let mut expressions = Vec::new();
+    // Checked operator facts omit primitive-looking binaries without closed
+    // candidates. A lexical implementation is not closed yet: retain its
+    // source occurrence without fabricating a checked conformance row.
+    for (_, value) in values
+        .values
+        .iter()
+        .filter(|(_, value)| value.origin.machine_symbol().is_some())
+    {
+        expressions.clear();
+        validation::expression_traversal::collect_expression_tree(
+            program,
+            value.expression,
+            &mut expressions,
+        );
+        for expression in expressions.iter().copied() {
+            let Some(binary) = program.expression_table.binary_node(expression) else {
+                continue;
+            };
+            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+            else {
+                continue;
+            };
+            if seen.insert((expression, value.origin)) {
+                occurrences.push((expression, value.origin, spelling, None));
+            }
         }
+    }
+    for (expression, origin, spelling, use_handle) in occurrences {
+        let operator_use = use_handle.map(|handle| facts.uses.get(handle));
+        let selected = operator_use.map_or_else(SymbolHandle::invalid, |usage| {
+            usage.selected_operator_symbol
+        });
         // This classifier rejoins the exact selected declaration, signature,
         // operands and occurrence, not merely the operator token. Preserve its
         // computation and boundary application for independent provider replay;
@@ -108,19 +161,28 @@ pub(crate) fn bind_selected_operator_calls(
         if program.machine_by_symbol(selected).is_some_and(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
                 && !machine.body_is_present
-        }) && facts
-            .selected_float_comparison(program, use_handle)
+        }) && use_handle
+            .and_then(|handle| facts.selected_float_comparison(program, handle))
             .is_some()
         {
             continue;
         }
-        let expression = operator_use.expression;
         // One expression can surface under several value origins (a shared
         // template body, for example); its body binding happens once.
         if bindings.iter().any(|(bound, _, _)| *bound == expression) {
             continue;
         }
-        let bindable = operator_use.occurrence == CheckedOperatorOccurrence::Expression
+        let target = match selected_call_target(program, expression, origin, spelling, operator_use)
+        {
+            Ok(Some(target)) => target,
+            Ok(None) => continue,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
+        let bindable = operator_use
+            .is_none_or(|usage| usage.occurrence == CheckedOperatorOccurrence::Expression)
             && matches!(
                 program.expression_table.expression(expression),
                 ExpressionNode::Binary(_) | ExpressionNode::Indexed(_)
@@ -128,12 +190,12 @@ pub(crate) fn bind_selected_operator_calls(
         if !bindable {
             diagnostics.push(Diagnostic::error(format!(
                 "`{}` was selected for its fixed operator token `{}` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body",
-                machine_name(program, selected),
-                operator_use.spelling.symbol(),
+                target.name,
+                spelling.symbol(),
             )));
             continue;
         }
-        bindings.push((expression, selected, operator_use.origin));
+        bindings.push((expression, target, origin));
     }
 
     let mut bound_count = bindings.len() + shorthand_count;
@@ -194,7 +256,7 @@ pub(crate) fn bind_selected_operator_calls(
             bound_count += 1;
         }
     }
-    for (expression, machine_symbol, origin) in bindings {
+    for (expression, target, origin) in bindings {
         // Copy the operand source handles before any endpoint normalization
         // mutates the expression table below.
         let operand_source = match program.expression_table.expression(expression) {
@@ -205,32 +267,15 @@ pub(crate) fn bind_selected_operator_calls(
             },
             _ => unreachable!("binding candidates are binary or indexed expressions"),
         };
-        let Some(machine) = program.machine_by_symbol(machine_symbol) else {
-            diagnostics.push(Diagnostic::error(
-                "a selected token-bearing machine lost its typed declaration before body binding",
-            ));
-            continue;
-        };
-        let Some(entry) = program.machine_states(machine).first() else {
-            diagnostics.push(Diagnostic::error(format!(
-                "`{}` was selected for its fixed operator token but declares no entry state",
-                machine.name
-            )));
-            continue;
-        };
-        // The call names its selected entry, not the enclosing qualified
-        // machine. Projected receivers recheck that name against the exact
-        // receiver declaration after specialization, just like named calls.
-        let (entry_symbol, target) = (entry.symbol, entry.name.clone());
         // Copy the signature views the rewrite needs before endpoint
         // normalization mutates the expression table.
         // `[..]` telescopes are exactly (collection, start, end); the range
         // endpoints supply operands one and two after the spec's
         // normalization.
-        let start_parameter = program
-            .state_parameters(entry)
-            .get(1)
-            .map(|parameter| parameter.type_reference);
+        let start_parameter = target
+            .start_parameter
+            .is_valid()
+            .then_some(target.start_parameter);
         let operands = match operand_source {
             OperandSource::Pair(pair) => pair.to_vec(),
             OperandSource::Indexed { collection, index } => {
@@ -241,7 +286,8 @@ pub(crate) fn bind_selected_operator_calls(
                 };
                 match range {
                     Some(range) => {
-                        match range_operands(program, &target, range, start_parameter, origin) {
+                        match range_operands(program, &target.name, range, start_parameter, origin)
+                        {
                             Ok((start, end)) => {
                                 operands.push(start);
                                 operands.push(end);
@@ -260,16 +306,27 @@ pub(crate) fn bind_selected_operator_calls(
         let arguments = program
             .expression_table
             .insert_expression_handles(operands.iter().copied());
+        let receiver = if target.binder.is_valid() {
+            let binder_name =
+                typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
+            crate::monomorphization::insert_subject_name(
+                &mut program.expression_table,
+                binder_name,
+                target.binder,
+            )
+        } else {
+            ExpressionHandle::invalid()
+        };
         *program.expression_table.expression_mut(expression) =
             ExpressionNode::Call(TableCallExpression {
                 authored_machine_application: Default::default(),
                 exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
-                receiver: ExpressionHandle::invalid(),
-                target_symbol: entry_symbol,
+                receiver,
+                target_symbol: target.entry,
                 static_machine_parameter: SymbolHandle::invalid(),
-                target,
-                static_requirement_dispatch: None,
-                machine_arguments: Box::default(),
+                target: target.name,
+                static_requirement_dispatch: target.dispatch,
+                machine_arguments: target.arguments,
                 quotient_operation: None,
                 private_layout_operation: None,
                     layout_query: None,
@@ -288,11 +345,158 @@ pub(crate) fn bind_selected_operator_calls(
     }
 }
 
-fn machine_name(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> String {
-    program.machine_by_symbol(symbol).map_or_else(
-        || "<unknown machine>".to_owned(),
-        |machine| machine.name.to_string(),
-    )
+/// One ordinary call destination, whether supplied by a token machine or an
+/// explicit implementation. The binder is a namespace, never a data argument.
+struct SelectedOperatorCall {
+    entry: SymbolHandle,
+    name: typed_trees::name::Identifier,
+    binder: SymbolHandle,
+    start_parameter: TypeReferenceHandle,
+    dispatch: Option<StaticRequirementDispatch>,
+    arguments: Box<[typed_trees::expression::StaticMachineArgument]>,
+}
+
+fn selected_call_target(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    origin: CheckedValueOrigin,
+    spelling: language_core::OperatorSpelling,
+    operator_use: Option<&checked_trees::CheckedOperatorUseFact>,
+) -> Result<Option<SelectedOperatorCall>, Diagnostic> {
+    let operand_types = match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => Some(
+            [binary.left, binary.right]
+                .map(|operand| expression_type_reference_for_origin(program, operand, origin))
+                .to_vec(),
+        ),
+        ExpressionNode::Indexed(indexed) => {
+            Some(validation::indexed_operand_types(program, indexed, origin))
+        }
+        _ => None,
+    };
+    if let Some(operand_types) = operand_types
+        && let Some(machine) = origin.machine_symbol()
+    {
+        let bound = typed_trees::operator::bound_trait_operator_meanings(
+            program,
+            machine,
+            spelling,
+            &operand_types,
+        );
+        if let [meaning] = bound.as_slice() {
+            let definition = program
+                .trait_definition_by_symbol(meaning.bound.trait_symbol)
+                .ok_or_else(|| Diagnostic::error("selected implementation bound lost its trait"))?;
+            let mut requirements = Vec::new();
+            crate::monomorphization::collect_evidence_requirement_closure(
+                program,
+                definition,
+                &mut Vec::new(),
+                &mut requirements,
+            );
+            let entry = requirements
+                .iter()
+                .position(|requirement| requirement.symbol == meaning.requirement.symbol)
+                .and_then(|position| {
+                    program
+                        .symbols
+                        .child_handles(meaning.bound.binder)
+                        .into_iter()
+                        .flatten()
+                        .nth(position)
+                })
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "selected implementation lost its requirement call placeholder",
+                    )
+                })?;
+            return Ok(Some(SelectedOperatorCall {
+                entry,
+                name: meaning.requirement.name.clone(),
+                binder: meaning.bound.binder,
+                start_parameter: program
+                    .state_signature_parameters(meaning.requirement)
+                    .get(1)
+                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                        parameter.type_reference
+                    }),
+                dispatch: None,
+                arguments: Box::default(),
+            }));
+        }
+        if !bound.is_empty() {
+            return Err(Diagnostic::error(
+                "operator has multiple explicitly selected implementation meanings",
+            ));
+        }
+        let closed = typed_trees::operator::selected_trait_operator_meanings(
+            program,
+            machine,
+            spelling,
+            &operand_types,
+        );
+        if let [meaning] = closed.as_slice() {
+            let entry = program
+                .state_by_symbol(meaning.row.realization_state)
+                .ok_or_else(|| {
+                    Diagnostic::error("selected implementation lost its realization entry")
+                })?;
+            return Ok(Some(SelectedOperatorCall {
+                entry: entry.symbol,
+                name: entry.name.clone(),
+                binder: SymbolHandle::invalid(),
+                start_parameter: program
+                    .state_parameters(entry)
+                    .get(1)
+                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                        parameter.type_reference
+                    }),
+                dispatch: Some(StaticRequirementDispatch {
+                    application_report_fingerprint: meaning.application.report_fingerprint,
+                    application_commitment: meaning.application.commitment,
+                    declaring_trait: meaning.row.declaring_trait,
+                    requirement: meaning.row.requirement,
+                    realization_machine: meaning.row.realization_machine,
+                    realization_state: meaning.row.realization_state,
+                }),
+                arguments: meaning.application.arguments.clone(),
+            }));
+        }
+        if !closed.is_empty() {
+            return Err(Diagnostic::error(
+                "operator has multiple explicitly selected implementation meanings",
+            ));
+        }
+    }
+    let Some(operator_use) = operator_use else {
+        return Ok(None);
+    };
+    let selected = operator_use.selected_operator_symbol;
+    if operator_use.status != CheckedOperatorResolutionStatus::Resolved
+        || program.machine_token_binding_by_symbol(selected).is_none()
+    {
+        return Ok(None);
+    }
+    let machine = program
+        .machine_by_symbol(selected)
+        .ok_or_else(|| Diagnostic::error("selected token machine lost its declaration"))?;
+    let entry = program
+        .machine_states(machine)
+        .first()
+        .ok_or_else(|| Diagnostic::error("selected token machine declares no entry state"))?;
+    Ok(Some(SelectedOperatorCall {
+        entry: entry.symbol,
+        name: entry.name.clone(),
+        binder: SymbolHandle::invalid(),
+        start_parameter: program
+            .state_parameters(entry)
+            .get(1)
+            .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                parameter.type_reference
+            }),
+        dispatch: None,
+        arguments: Box::default(),
+    }))
 }
 
 /// Operand source positions of a token-bound expression, copied out before
