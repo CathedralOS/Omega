@@ -14,15 +14,7 @@ use image::{
 use object_file::SymbolKind;
 use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
 
-fn image_with_referenced_import() -> FinalImage {
-    let mut image = FinalImage::with_capacity(
-        NativeTarget::macos_arm64(),
-        Default::default(),
-        Handle::invalid(),
-        1,
-        1,
-        1,
-    );
+fn insert_write_import(image: &mut FinalImage) -> Handle<FinalImageSymbol> {
     let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
         name: "_write".into(),
         kind: SymbolKind::Import,
@@ -41,6 +33,19 @@ fn image_with_referenced_import() -> FinalImage {
             symbol_handle: symbol,
             ..FinalImageRelocation::default()
         });
+    symbol
+}
+
+fn image_with_referenced_import() -> FinalImage {
+    let mut image = FinalImage::with_capacity(
+        NativeTarget::macos_arm64(),
+        Default::default(),
+        Handle::invalid(),
+        1,
+        1,
+        1,
+    );
+    insert_write_import(&mut image);
     image
 }
 
@@ -146,24 +151,7 @@ fn x86_64_import_thunks_emit_and_validate_the_closed_jmp_rip_form() {
         1,
         1,
     );
-    let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-        name: "_write".into(),
-        kind: SymbolKind::Import,
-        ..FinalImageSymbol::default()
-    });
-    image.symbol_table.imports.insert(FinalImageImport {
-        symbol_handle: symbol,
-        import: FinalImageImportPlan::StringBackedBootstrap {
-            library: "/usr/lib/libSystem.B.dylib".into(),
-        },
-    });
-    image
-        .relocation_table
-        .relocations
-        .insert(FinalImageRelocation {
-            symbol_handle: symbol,
-            ..FinalImageRelocation::default()
-        });
+    insert_write_import(&mut image);
 
     let imports =
         install_import_thunks(&mut image, MachoIsa::X86_64).expect("valid x86-64 bootstrap import");
@@ -211,24 +199,7 @@ fn x86_64_mutated_import_thunk_rejects_final_validation() {
         1,
         1,
     );
-    let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-        name: "_write".into(),
-        kind: SymbolKind::Import,
-        ..FinalImageSymbol::default()
-    });
-    image.symbol_table.imports.insert(FinalImageImport {
-        symbol_handle: symbol,
-        import: FinalImageImportPlan::StringBackedBootstrap {
-            library: "/usr/lib/libSystem.B.dylib".into(),
-        },
-    });
-    image
-        .relocation_table
-        .relocations
-        .insert(FinalImageRelocation {
-            symbol_handle: symbol,
-            ..FinalImageRelocation::default()
-        });
+    insert_write_import(&mut image);
     let imports =
         install_import_thunks(&mut image, MachoIsa::X86_64).expect("valid x86-64 bootstrap import");
     patch_import_thunks(
