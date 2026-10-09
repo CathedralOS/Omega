@@ -112,11 +112,7 @@ impl LoweringError {
     }
 }
 
-impl std::fmt::Display for LoweringError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+diagnostics::debug_display!(LoweringError);
 
 impl std::error::Error for LoweringError {}
 
