@@ -207,6 +207,7 @@ pass/calls/runtime_terminal_requirement_projected_context_exit built 946ms exit:
 pass/calls/runtime_value_call_return_types_exit built 2072ms exit:70 interpreter-exit:70 interpreter:agrees @70f761d06258
 pass/calls/scalar_local_record_view_call_exit built 1263ms exit:70 interpreter-exit:70 interpreter:agrees @d16744b4f8fb
 pass/calls/serviceful_borrowed_scalar_exit built 8387ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @9be6967d04c3+wt
+pass/calls/subslice_argument_result_shapes_exit built 2911ms exit:0 interpreter-exit:0 interpreter:agrees @a9c1e4380afa+wt
 pass/calls/unread_multistate_receiver_exit built 1256ms exit:70 interpreter-exit:70 interpreter:agrees @635072c0b89e+wt
 pass/capabilities/acquires_through_helper_return built 3368ms exit:0 interpreter-exit:0 interpreter:agrees @e8239f945e82+wt
 pass/capabilities/runtime_qualified_record_return_exit built 3402ms exit:0 interpreter-exit:0 interpreter:agrees @e8239f945e82+wt

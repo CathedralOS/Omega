@@ -607,7 +607,6 @@ pub(in crate::execution::terminal_unit) fn consume_result(
         }
         return Some(());
     }
-    let (result, discard_result_on_return) = producer.discardable_structural_result_mut()?;
     if matches!(
         access,
         CheckedStructuralAccess::SharedBorrow
@@ -616,10 +615,12 @@ pub(in crate::execution::terminal_unit) fn consume_result(
     ) {
         // A borrow argument rejoins the producer's loan, not its disposal
         // debt: borrow custody rides the selected edge's claim partition, so
-        // a result whose return-discard the edge already owns (or never
-        // minted) borrows the same as one still carrying the flag.
+        // a result whose return-discard the edge already owns, or a producer
+        // that never mints one (an exclusive view subslice), borrows the same
+        // as one still carrying the flag.
         return Some(());
     }
+    let (result, discard_result_on_return) = producer.discardable_structural_result_mut()?;
     if result.multiplicity != Multiplicity::Affine {
         // Linear results never acquire automatic disposal debt. Moving a
         // whole result continues its checked call claim frontier; source flow

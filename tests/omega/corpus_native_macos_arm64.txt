@@ -455,6 +455,7 @@ pass/calls/static_context_forwarded_twice_exit built 828ms exit:70 @339c45cd5326
 pass/calls/static_state_context_field_window_exit built 6453ms exit:70 @29ae131e8c31+wt
 pass/calls/structural_mut_to_shared_argument built 300ms @48008365d839
 pass/calls/structural_self_rooted_argument built 3452ms exit:0 @693920652f41
+pass/calls/subslice_argument_result_shapes_exit built 2908ms exit:0 @a9c1e4380afa+wt
 pass/calls/transition_arg_local_from_embedded_call_exit built 924ms exit:70 @3da828ba5434+wt
 pass/calls/transition_tail_call_to_machine built 1406ms exit:70 @c9c108ecb4ac+wt
 pass/calls/unread_multistate_receiver_exit built 530ms exit:70 @5c1d6f8344c7

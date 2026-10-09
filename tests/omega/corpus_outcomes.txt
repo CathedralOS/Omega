@@ -2723,6 +2723,7 @@ pass/calls/static_context_forwarded_twice_exit checked 1319ms check-target:macos
 pass/calls/static_state_context_field_window_exit checked 3443ms check-target:macos_arm64 @b1114d1269ad
 pass/calls/structural_mut_to_shared_argument checked 378ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/structural_self_rooted_argument checked 370ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/subslice_argument_result_shapes_exit checked 2858ms check-target:macos_arm64 @a9c1e4380afa+wt
 pass/calls/transition_arg_local_from_embedded_call_exit checked 1627ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/transition_tail_call_to_machine checked 1299ms check-target:macos_arm64 @c9c108ecb4ac+wt
 pass/calls/unread_multistate_receiver_exit checked 1179ms check-target:macos_arm64 @2d8ed253669f

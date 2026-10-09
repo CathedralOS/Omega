@@ -32,13 +32,12 @@ requires exits.len >= 3, at < exits.len
 }
 
 // A subslice's element zero is element one of the viewed array.
-machine reopen(exits: &mut [Exit]) -> u64
+machine reopen(exits: &mut [Exit])
 requires exits.len >= 2
 {
     exits[1] = blank_exit(43);
     exits[0] = exits[1];
     exits[0].open = false;
-    7
 }
 
 machine rotate(tokens: &mut [Token], at: u64)
@@ -89,7 +88,7 @@ machine main() crashes Trap {
     let exit_view: &mut [Exit] = exits.as_mut_slice();
     fill_exits(exit_view, 1);
     let exit_tail: &mut [Exit] = exit_view[2..4];
-    let reopened: u64 = reopen(exit_tail);
+    reopen(exit_tail);
     let mut tokens: [Token; 3] = [Token { byte: 65 }, Token { byte: 66 }, Token { byte: 67 }];
     let view: &mut [Token] = tokens.as_mut_slice();
     rotate(view, 1);
@@ -101,8 +100,7 @@ machine main() crashes Trap {
     ];
     let room_view: &mut [Room] = rooms.as_mut_slice();
     refit(room_view, 1);
-    transition reopened == 7
-        && exits[0].code == 11 && !exits[0].open
+    transition exits[0].code == 11 && !exits[0].open
         && exits[1].code == 41 && exits[1].open
         && exits[2].code == 43 && !exits[2].open
         && exits[3].code == 43 && exits[3].open
