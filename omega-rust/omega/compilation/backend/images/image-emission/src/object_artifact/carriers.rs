@@ -80,19 +80,8 @@ impl ObjectArtifact {
         self.hosted_receiver.as_ref()
     }
     #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn semantic_code_attribution_mut_for_test(&mut self) -> &mut Vec<ObjectCodeAttribution> {
-        &mut self.semantic_code_attribution
-    }
-
     #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn functions_mut_for_test(&mut self) -> &mut Vec<ObjectFunction> {
-        &mut self.functions
-    }
-
     #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn boundary_settlements_mut_for_test(&mut self) -> &mut Vec<ObjectBoundarySettlement> {
-        &mut self.boundary_settlements
-    }
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
