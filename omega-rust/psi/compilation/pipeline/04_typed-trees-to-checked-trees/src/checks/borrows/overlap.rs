@@ -274,10 +274,9 @@ fn data_field_name<'a>(
     definition: &'a typed_trees::data::DataDefinition,
     symbol: symbols::SymbolHandle,
 ) -> Option<&'a str> {
-    program.data_members(definition).iter().find_map(|member| {
-        let field = member.as_field()?;
-        (field.symbol == symbol).then_some(field.name.as_str())
-    })
+    program
+        .data_field(definition, symbol)
+        .map(|field| field.name.as_str())
 }
 
 fn expression_mentions_field(
