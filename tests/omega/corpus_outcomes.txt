@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.39, "load1_start": 2.42, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 5.03, "load1_start": 4.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -829,6 +829,8 @@ fail/control_flow/arm_pattern_missing_field rejected 294ms expected @2d8ed253669
 	destructure arm in machine `Main::apply` state `apply` does not mention field `dy` of `Msg::Move` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`
 fail/control_flow/arm_pattern_rest_unknown_field rejected 259ms expected @2d8ed253669f
 	destructure arm in machine `Main::apply` state `apply` names `typo`, which is not a field of `Msg::Move`
+fail/control_flow/case_payload_after_effectful_constructor_guard rejected 680ms expected @194c7a0f42ea+wt
+	cannot prove selected case for payload access
 fail/control_flow/implicit_entry_parameter_capture rejected 396ms expected @2d8ed253669f
 	machine `inspect` state `finish` uses `input`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/control_flow/projected_float_payload_after_guard_mutation rejected 2058ms expected @a800cc9ab970
@@ -2820,6 +2822,7 @@ pass/control_flow/runtime_integer_literal_dispatch_exit checked 1215ms check-tar
 pass/control_flow/runtime_later_state_shared_array_loan checked 1509ms check-target:macos_arm64 @3f6c649ef545
 pass/control_flow/runtime_loop_patterns_exit checked 1480ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_namespace_local_state_loan checked 834ms check-target:macos_arm64 @2ff81f36a14
+pass/control_flow/runtime_nested_case_pattern_guard_meet_exit checked 2086ms check-target:macos_arm64 @194c7a0f42ea+wt
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit checked 1509ms check-target:macos_arm64 @3f6c649ef545
 pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit checked 910ms check-target:macos_arm64 @3f6c649ef545
 pass/control_flow/runtime_nonentry_state_local_loan_shared_relend_exit checked 1102ms check-target:macos_arm64 @225e40d30d96+wt

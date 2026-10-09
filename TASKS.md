@@ -989,11 +989,6 @@ defines the complete product bar.
     the `fail/modules/duplicate_data_keeps_guard_facts` control.
 
   Shared failures, by owner (rerun the unchanged fixture after each repair):
-  - Compile regression on main since 7b2b709c884, found while gating the
-    interpreter series: `pass/data/runtime_zeroed_first_case_enum_payload_exit`
-    rejects with "cannot prove selected case for payload access". It still
-    reproduces at 92ed6dbe796; 441e8f33f8c (scalar case payload reads) is a
-    likely source and is not yet bisected.
   - Terminal interpreter declines on programs that pass natively
     (`omega run --both` status 201):
     - `pass/ownership/linear_result_{member_projection_arguments,owners_residual_cleanup}_exit`

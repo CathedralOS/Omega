@@ -1,3 +1,10 @@
+//! Selected predicates describe live storage, including comparisons against
+//! constructed values. Construction is repeatable only when every explicit
+//! child is repeatable; a literal case is not an opaque invocation. Retaining
+//! the whole predicate lets a later short-circuit operand recover enclosing
+//! tag evidence after an inner branch meet. Effectful children remain barriers,
+//! and ordinary storage invalidation retires every retained dependency.
+
 /// Wire `context` into the retained context/constraint rosters and record
 /// the flow semantic-context reference and its constraint edge.
 fn retain_semantic_context(
@@ -924,8 +931,21 @@ fn expression_is_stable_predicate(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_)
         | ExpressionNode::Integer(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Boolean(_)
-        | ExpressionNode::String(_) => true,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => true,
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .all(|field| expression_is_stable_predicate(program, field.value)),
+        ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .all(|value| expression_is_stable_predicate(program, *value)),
         ExpressionNode::Member(member) => expression_is_stable_predicate(program, member.receiver),
         ExpressionNode::Indexed(indexed) => {
             expression_is_stable_predicate(program, indexed.collection)

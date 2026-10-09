@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.29, "load1_start": 2.29, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 3.82, "load1_start": 3.8, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -650,6 +650,7 @@ pass/control_flow/runtime_integer_literal_dispatch_exit built 591ms exit:22
 pass/control_flow/runtime_later_state_shared_array_loan built 1478ms exit:0 stdout:match @3f6c649ef545
 pass/control_flow/runtime_loop_patterns_exit built 729ms exit:70
 pass/control_flow/runtime_namespace_local_state_loan built 4614ms exit:0 stdout:match @9beb2be72f2d+wt
+pass/control_flow/runtime_nested_case_pattern_guard_meet_exit built 1545ms exit:0 @194c7a0f42ea+wt
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit built 1476ms exit:70 @3f6c649ef545
 pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit built 946ms exit:70 @3f6c649ef545
 pass/control_flow/runtime_nonentry_state_local_loan_shared_relend_exit built 1379ms exit:70 @225e40d30d96+wt
