@@ -1004,7 +1004,7 @@ pub fn aarch64_register_constraint_catalog(
             implicit_uses: sorted_units(view("fpcr").units.iter().copied()),
             implicit_defs: Vec::new(),
             clobbers: sorted_units(
-                ["q16", "q17"]
+                ["q16", "q17", "q18"]
                     .into_iter()
                     .flat_map(|name| view(name).units.iter().copied()),
             ),
