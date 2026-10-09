@@ -22,7 +22,7 @@ pub(super) fn owned_value_shape(
     structural_type: semantic_vocabulary::StructuralTypeId,
 ) -> Option<ValueShape> {
     let types = &source.structural.as_ref()?.structural_types;
-    crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+    crate::structural_inputs::structural_reference_input::owned_storage_shape(
         structural_type,
         types,
     )

@@ -359,7 +359,7 @@ pub(super) fn call_result<'a>(
         }
         terminal_psi::StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-        ) => crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+        ) => crate::structural_inputs::structural_reference_input::owned_storage_shape(
             result.structural_type,
             &source.structural.as_ref()?.structural_types,
         )?,

@@ -45,7 +45,7 @@ pub(super) fn reconstruct(
         &plan.structural_types,
     )
     .ok_or(LegalizationError::custody())?;
-    let value_shape = crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+    let value_shape = crate::structural_inputs::structural_reference_input::owned_storage_shape(
         destination.structural_type,
         &plan.structural_types,
     )
@@ -81,7 +81,7 @@ pub(super) fn reconstruct(
                 })
                 .ok_or(LegalizationError::custody())?;
             let root_shape =
-                crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+                crate::structural_inputs::structural_reference_input::owned_storage_shape(
                     parameter.structural_type,
                     &plan.structural_types,
                 )
