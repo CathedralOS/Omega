@@ -45,10 +45,6 @@ pub(crate) use analyses::{
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
     analyze_counted_loops,
 };
-pub(crate) use analyses::{
-    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant,
-    UnsignedCountdownInvariantConstantPlacements,
-};
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use analyses::{
     CountdownInvariantConstantAnalysisSnapshot,

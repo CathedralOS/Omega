@@ -20,8 +20,7 @@ pub(crate) use control_flow::{
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisSnapshot,
 };
 pub(crate) use control_flow::{
-    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant,
-    UnsignedCountdownInvariantConstantPlacements, analyze_countdown_invariant_constant_placement,
+    analyze_countdown_invariant_constant_placement,
     analyze_countdown_invariant_constants, analyze_counted_loops,
 };
 #[cfg(any(test, feature = "test-support"))]
