@@ -119,6 +119,7 @@ pub(crate) fn owned_structural_home(
 fn published_structural_type(
     parameters: &[(u32, StructuralParameterDeclaration)],
     locals: &[StructuralLocalBinding],
+    completed: &[terminal_psi::StructuralPlaceDeclaration],
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
     let mut types = parameters
@@ -130,6 +131,12 @@ fn published_structural_type(
                 .iter()
                 .filter(|local| local.argument.place == place && local.argument.path.is_empty())
                 .map(|local| local.structural_type),
+        )
+        .chain(
+            completed
+                .iter()
+                .filter(|declaration| declaration.id == place)
+                .filter_map(|declaration| declaration.kind.produced_structural_type()),
         );
     let structural_type = types.next()?;
     types
@@ -393,17 +400,12 @@ impl ScalarBindings {
 
     /// Resolve the exact published carrier at a live source place.
     pub(crate) fn structural_place_type(&self, place: PlaceId) -> Option<StructuralTypeId> {
-        let named =
-            published_structural_type(&self.structural_parameters, &self.structural_locals, place);
-        let mut emitted = self
-            .captured_place_declarations
-            .iter()
-            .filter(|declaration| declaration.id == place)
-            .filter_map(|declaration| declaration.kind.produced_structural_type());
-        let selected = named.or_else(|| emitted.next())?;
-        emitted
-            .all(|candidate| candidate == selected)
-            .then_some(selected)
+        published_structural_type(
+            &self.structural_parameters,
+            &self.structural_locals,
+            &self.captured_place_declarations,
+            place,
+        )
     }
 
     pub(crate) fn with_completed_place_declarations(
