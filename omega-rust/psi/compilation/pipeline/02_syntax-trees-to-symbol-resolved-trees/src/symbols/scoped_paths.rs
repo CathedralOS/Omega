@@ -1,4 +1,10 @@
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+
+mod base;
+
+use self::base::{resolve_base_indexed_symbol, resolve_base_symbol};
+use super::lookup::{child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds};
+
 /// The symbol kinds a scoped path may resolve through at each member:
 /// fields, states, parameters, variants and the mathematical/constant
 /// declarations — the same roster every path-walk step consults.
@@ -11,11 +17,6 @@ const SCOPED_PATH_MEMBER_KINDS: &[SymbolKind] = &[
     SymbolKind::Const,
 ];
 
-
-mod base;
-
-use self::base::{resolve_base_indexed_symbol, resolve_base_symbol};
-use super::lookup::{child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds};
 
 pub(super) fn resolve_state_scoped_table_path(
     symbols: &SymbolTable,
