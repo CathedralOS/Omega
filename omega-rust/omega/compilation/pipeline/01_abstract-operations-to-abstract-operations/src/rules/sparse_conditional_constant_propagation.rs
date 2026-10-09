@@ -42,6 +42,23 @@ macro_rules! constant_fold_rules {
     )*};
 }
 
+/// A `ProvenanceRewrite` whose candidate realizes its input node in place:
+/// both sites name the same location and the node's provenance and fuel
+/// carry over. `location` must be `Copy` — every family already names it
+/// twice.
+macro_rules! realized_node_provenance {
+    ($location:expr, $node:expr) => {
+        ProvenanceRewrite {
+            input: PsiRealizationSite::Node($location),
+            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(
+                $location,
+            )),
+            sources: $node.provenance.clone(),
+            fuel: $node.fuel.clone(),
+        }
+    };
+}
+
 pub(crate) mod boolean_constants;
 pub(crate) mod integer_binary_constants;
 pub(crate) mod integer_binary_shapes;

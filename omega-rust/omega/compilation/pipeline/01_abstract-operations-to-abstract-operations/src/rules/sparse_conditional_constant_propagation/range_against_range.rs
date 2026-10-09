@@ -137,14 +137,7 @@ fn propose_over(
                         contract,
                         vec![block.id],
                         Vec::new(),
-                        vec![ProvenanceRewrite {
-                            input: PsiRealizationSite::Node(location),
-                            disposition: ProvenanceDisposition::RealizedAt(
-                                PsiRealizationSite::Node(location),
-                            ),
-                            sources: node.provenance.clone(),
-                            fuel: node.fuel.clone(),
-                        }],
+                        vec![realized_node_provenance!(location, node)],
                         IntegerEvaluationWitness::RangeAgainstRange {
                             left_range_fact: left_range.identity,
                             right_range_fact: right_range.identity,

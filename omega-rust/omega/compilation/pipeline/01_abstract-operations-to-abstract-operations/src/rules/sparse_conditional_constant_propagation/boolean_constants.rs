@@ -81,14 +81,7 @@ fn propose(
                         contract,
                         vec![block.id],
                         Vec::new(),
-                        vec![ProvenanceRewrite {
-                            input: PsiRealizationSite::Node(location),
-                            disposition: ProvenanceDisposition::RealizedAt(
-                                PsiRealizationSite::Node(location),
-                            ),
-                            sources: node.provenance.clone(),
-                            fuel: node.fuel.clone(),
-                        }],
+                        vec![realized_node_provenance!(location, node)],
                         witness,
                         -1,
                         BooleanConstantRewrite {
