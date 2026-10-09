@@ -12,10 +12,13 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 
+use crate::analyses::{
+    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant,
+    UnsignedCountdownInvariantConstantPlacements,
+};
 use crate::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
-    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, CountedLoopAnalysisError,
-    UnsignedCountdownInvariantConstantPlacements, VerifiedPsiOptimizationSession,
+    CountedLoopAnalysisError, VerifiedPsiOptimizationSession,
 };
 
 mod apply;

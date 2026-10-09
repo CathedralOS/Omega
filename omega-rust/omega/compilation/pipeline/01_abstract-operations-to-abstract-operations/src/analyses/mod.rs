@@ -17,7 +17,9 @@ pub(crate) use control_flow::{
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use control_flow::{
     CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisSnapshot,
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
+    CountdownInvariantIntegerConstant, CountedLoopAnalysisSnapshot,
+    UnsignedCountdownInvariantConstantPlacements,
 };
 pub(crate) use control_flow::{
     analyze_countdown_invariant_constant_placement,

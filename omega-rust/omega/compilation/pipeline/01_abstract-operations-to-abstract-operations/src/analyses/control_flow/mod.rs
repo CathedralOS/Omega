@@ -24,7 +24,10 @@ pub(crate) use countdown_invariant_constant_placement::analyze_countdown_invaria
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use countdown_invariant_constant_placement::validate_countdown_invariant_constant_placement_analysis;
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_invariant_constant_placement::CountdownInvariantConstantPlacementAnalysisSnapshot;
+pub(crate) use countdown_invariant_constant_placement::{
+    CountdownInvariantConstantPlacementAnalysisSnapshot,
+    UnsignedCountdownInvariantConstantPlacements,
+};
 pub(crate) use countdown_invariant_constant_placement::{
     CountdownInvariantConstantPlacementAnalysisError,
     ValidatedCountdownInvariantConstantPlacementAnalysis,
