@@ -13,6 +13,7 @@ use crate::values::{ScalarFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType, StructuralTypeId};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
@@ -1176,15 +1177,30 @@ impl TerminalExecution<'_> {
         let (leaf, source, endpoint_field) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
                 let root = self.structural_values.get(source).ok_or_else(malformed)?;
+                // An element selected through a live element view (`entries[i]`
+                // for `entries: &[Entry]`) is copied out of the view's original
+                // collection; the descriptor never owns its elements.
+                let (root, path) = match self.element_view_values.get(source) {
+                    Some(view)
+                        if matches!(path.first(), Some(StructuralPathSegment::FixedIndex(_))) =>
+                    {
+                        if !view.matches_descriptor_home(root) {
+                            return Err(malformed());
+                        }
+                        let (collection, selected) = view.structural_projection(path, false)?;
+                        (Cow::Owned(collection), Cow::Owned(selected))
+                    }
+                    _ => (Cow::Borrowed(root), Cow::Borrowed(path.as_slice())),
+                };
                 let leaf = crate::custody::project_structural_leaf_copy(
                     &self.program.structural_types(),
-                    root,
-                    path,
+                    &root,
+                    &path,
                 )?;
                 let field = crate::custody::inline_structural_field(
                     &self.program.structural_types(),
                     root.structural_type,
-                    path,
+                    &path,
                 )
                 .map(|field| field.id);
                 (leaf, *source, field)
