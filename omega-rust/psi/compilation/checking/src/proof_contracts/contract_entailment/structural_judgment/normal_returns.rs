@@ -444,6 +444,20 @@ fn bound_term(
                 arguments,
             })
         }
+        ExpressionNode::StructLiteral(literal) => {
+            super::super::structural_terms::constructor_literal_term(program, literal, |value| {
+                bound_term(
+                    program,
+                    value,
+                    scope,
+                    parameters,
+                    callable,
+                    bindings,
+                    result,
+                    depth + 1,
+                )
+            })
+        }
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
             super::super::structural_terms::structural_term(program, expression)
         }
