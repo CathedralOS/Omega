@@ -17,7 +17,7 @@ pub(crate) enum CheckedContractOperatorResolution {
 
 /// `owner_index` is the caller's exact-owner index, when it holds one for this
 /// program and these facts; without it each operand query rescans the program.
-pub(super) fn checked_operator_resolution(
+pub(crate) fn checked_operator_resolution(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
@@ -66,7 +66,7 @@ pub(super) fn checked_operand_type(
         })
 }
 
-pub(super) fn checked_named_operator_call<'program>(
+pub(crate) fn checked_named_operator_call<'program>(
     program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,

@@ -4,7 +4,7 @@
 //! truth transports through the selected equation over exact source identities,
 //! not rendered names. Quiet float results compose their selected denotations;
 //! adapted results contribute no unconditional raw equation. Proof-position
-//! calls are resolved in the fact's own typed frame: they have no executable
+//! operations are resolved in the fact's own typed frame: they have no executable
 //! operator-use row or operand capture to fabricate.
 
 use checked_trees::{CheckFacts, CheckedArithmeticPolicyAdapter};
@@ -351,17 +351,48 @@ fn selected_expression<'program>(
         return (operands.len() == program.operator_parameters(operator).len())
             .then_some((operator, operands, adapter));
     }
-    // Proof-position source calls have typed selections but no executable use
-    // row. Resolve in the fact's actual frame and require quiet actual policy;
-    // a missing executable capture never falls back to this path.
+    // Proof-position operations have exact typed owners but no executable use
+    // row. Reuse contract selection for every authored dispatch surface, then
+    // require quiet actual policy. Missing executable custody cannot take this
+    // path because only genuine source facts carry a frame.
     let frame = frame?;
-    let call = program.expression_table.call_node(expression)?;
-    let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
-    let operands = crate::facts::operator_crashes::named_call_operands(
-        program,
-        call,
-        program.operator_parameters(operator),
-    )?;
+    let (operator, operands) = match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            let operator = typed_trees::operator::resolve_named_expression_call(program, call)
+                .or_else(|| {
+                    crate::authored_selections::checked_named_operator_call(
+                        program,
+                        facts,
+                        expression,
+                        call,
+                        program.expression_table.source_span(expression),
+                        None,
+                    )
+                })?;
+            let operands = crate::facts::operator_crashes::named_call_operands(
+                program,
+                call,
+                program.operator_parameters(operator),
+            )?;
+            (operator, operands)
+        }
+        node @ ExpressionNode::Binary(binary) => {
+            let crate::authored_selections::CheckedContractOperatorResolution::Declaration(
+                selected,
+            ) = crate::authored_selections::checked_operator_resolution(
+                program, facts, expression, node, None,
+            )?
+            else {
+                return None;
+            };
+            let operator = typed_trees::operator::declaration_by_symbol(program, selected)?;
+            (operator, vec![binary.left, binary.right])
+        }
+        // The typed unary forms are logical/bitwise negation, with no authored
+        // operator dispatch surface or float result semantic equation.
+        ExpressionNode::Unary(_) => return None,
+        _ => return None,
+    };
     let machine = program.machine_by_symbol(frame.machine)?;
     let state = program.state_in_machine(machine, frame.state)?;
     for operand in &operands {

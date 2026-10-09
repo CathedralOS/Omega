@@ -21,6 +21,9 @@ mod operator_targets;
 mod review;
 mod selection_collection;
 
+pub(crate) use contract_resolution::{
+    CheckedContractOperatorResolution, checked_named_operator_call, checked_operator_resolution,
+};
 pub(crate) use operator_targets::{
     typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
 };
