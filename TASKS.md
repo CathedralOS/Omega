@@ -1406,8 +1406,11 @@ defines the complete product bar.
   on macOS ARM64. A byte store preserves `Utf8` only with carrier/byte
   evidence: `ValidUtf8` does not imply `AsciiOnly`.
 
-  The Dungeon Crawler is migrated to explicit parameters and meets its README
-  runtime oracle natively within the sample gate's 300 s per-call timeout.
+  The Dungeon Crawler is migrated to explicit parameters and checks, but its
+  native build stops in lowering at `UnpinnedBorrowedStorageWindow { place:
+  "local[0]" }` ("index or referent routes do not resolve through the
+  declared records and fixed arrays"), with no source span; it met its README
+  runtime oracle natively before.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established

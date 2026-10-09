@@ -157,7 +157,7 @@ ensures out_line in Utf8
         out_line = "The enemy collapses. Nothing useful remains.";
     }
 
-    state exchange_blows(round: CombatRound,
+    state exchange_blows(round: &CombatRound,
         out_line: &mut [u8; 128]) {
         transition {
             round.player_damage > 10 -> heavy_exchange(out_line)
