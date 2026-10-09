@@ -47,7 +47,7 @@ impl ConsumedSourceUnit {
     /// Every row retains a nonempty relative path of nonempty components, and
     /// a toolchain namespace is never empty.
     #[cfg(any(test, feature = "test-support"))]
-    pub fn for_test(
+    pub(crate) fn for_test(
         kind: ConsumedSourceUnitKind,
         package: Option<semantic_vocabulary::PackageKeyIdentity>,
         toolchain_namespace: Option<String>,

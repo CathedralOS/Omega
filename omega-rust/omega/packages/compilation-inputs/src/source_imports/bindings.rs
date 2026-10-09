@@ -65,7 +65,7 @@ impl PendingPackageImport {
         self.request.physical_source(filesystem)
     }
 
-    pub fn resolve_for_exact_target(
+    pub(crate) fn resolve_for_exact_target(
         &self,
         packages: &PackageCompilationInputs,
     ) -> Result<ResolvedSourceImport, Vec<Diagnostic>> {

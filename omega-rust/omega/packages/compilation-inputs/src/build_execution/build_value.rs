@@ -9,10 +9,10 @@ mod vocabulary;
 
 pub use configuration::{ EvaluatedBuildSettings,
 };
-pub use configuration::{ X86DeploymentClaim};
-pub use configuration::{
+pub(crate) use configuration::{ X86DeploymentClaim};
+pub(crate) use configuration::{
     ElfInterpreterSelections};
-pub use configuration::{ PrivilegedServicesGrants};
+pub(crate) use configuration::{ PrivilegedServicesGrants};
 pub(super) use vocabulary::{build_reaches_filesystem_facet, is_build_machine};
 
 use super::BuildMachineFilesystemScope;
