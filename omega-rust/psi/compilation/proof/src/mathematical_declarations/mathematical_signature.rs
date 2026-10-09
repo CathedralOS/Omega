@@ -475,6 +475,7 @@ impl<'a> Elaborator<'a> {
                 }
             }
             ExpressionNode::Call(call) => {
+                let call = call.clone();
                 let target_symbol = call.target_symbol;
                 if target_symbol.is_valid()
                     && !self.authored_index.contains_key(&target_symbol)
@@ -519,8 +520,21 @@ impl<'a> Elaborator<'a> {
                 }
                 let target = call.target.clone();
                 let static_arguments = call.machine_arguments.clone();
-                let mut function =
+                let instantiated =
                     self.elaborate_callee(target_symbol, &target, &static_arguments)?;
+                if self.authored_index.contains_key(&target_symbol) {
+                    validation::mathematical_applications::validate_source_application(
+                        self.program,
+                        &call,
+                        &instantiated.source_bindings,
+                    )
+                    .map_err(|reason| {
+                        self.refuse(format!(
+                            "invalid mathematical application `{target}`: {reason}"
+                        ))
+                    })?;
+                }
+                let mut function = instantiated.term;
                 for argument in self
                     .program
                     .expression_table

@@ -24,7 +24,7 @@
 //! refuses loudly rather than silently dropping it: property bounds on
 //! binders, machine or proposition binder kinds (a producer defect — the
 //! mathematical grammar does not admit them), malformed `core::Type`/
-//! `core::Level` carriers, and borrow, constrained or dynamic-trait type
+//! `core::Level` carriers, and borrow, non-policy constrained or dynamic-trait type
 //! references. Kernel-term elaboration and checking a definition body
 //! against its declared result remain later legs.
 
@@ -280,8 +280,9 @@ fn mathematical_type_identity(
 }
 
 /// Render an ordinary type reference carried by the mathematical surface.
-/// Borrows, constrained references and dynamic traits are runtime-custody or
-/// property surfaces the checked declaration cannot record, so they refuse.
+/// Arithmetic-only qualifications stay in the declaration's source identity;
+/// the calculus independently projects their carrier. Borrows, other property
+/// surfaces and dynamic traits retain their existing unsupported boundary.
 fn ordinary_type_identity(
     program: &dyn ::validation::CheckingInput,
     definition: &MathematicalDefinition,
@@ -300,7 +301,8 @@ fn ordinary_type_identity(
             ),
         ));
     }
-    match program.type_reference_table.type_reference(reference) {
+    let carrier = validation::peel_arithmetic_policy(program, reference);
+    match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Constrained { .. }
         | TypeReferenceNode::DynamicTrait { .. } => Err(refuse(

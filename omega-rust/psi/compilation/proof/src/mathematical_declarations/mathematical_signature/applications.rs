@@ -10,6 +10,12 @@ use super::{
 use diagnostics::Diagnostic;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::types::TypeReferenceHandle;
+
+pub(super) struct InstantiatedCallee {
+    pub term: TermHandle,
+    pub source_bindings: Vec<(SymbolHandle, TypeReferenceHandle)>,
+}
 
 impl Elaborator<'_> {
     /// Form applications demanded outside mathematical declaration bodies.
@@ -43,13 +49,6 @@ impl Elaborator<'_> {
             .collect::<Vec<_>>();
         let mut applications = Vec::with_capacity(calls.len());
         for (expression, call) in calls {
-            validation::mathematical_applications::validate_source_application(self.program, &call)
-                .map_err(|reason| {
-                    self.refuse(format!(
-                        "invalid mathematical application `{}`: {reason}",
-                        call.target
-                    ))
-                })?;
             self.scope.clear();
             self.level_binders.clear();
             self.level_names.clear();
@@ -115,7 +114,7 @@ impl Elaborator<'_> {
         symbol: SymbolHandle,
         name: &Identifier,
         arguments: &[StaticMachineArgument],
-    ) -> Result<TermHandle, Vec<Diagnostic>> {
+    ) -> Result<InstantiatedCallee, Vec<Diagnostic>> {
         if !arguments.is_empty() {
             if let Some(&index) = self.authored_index.get(&symbol) {
                 return self.instantiate_declaration(index, arguments);
@@ -124,20 +123,24 @@ impl Elaborator<'_> {
                 "mathematical callee `{name}` has no declaration telescope for static arguments"
             )));
         }
-        if symbol.is_valid() {
-            self.named_term(symbol, name)
+        let term = if symbol.is_valid() {
+            self.named_term(symbol, name)?
         } else if let Some(term) = self.scope_term_for_name(name) {
-            Ok(term)
+            term
         } else {
-            Err(self.refuse(format!("unresolved mathematical callee `{name}`")))
-        }
+            return Err(self.refuse(format!("unresolved mathematical callee `{name}`")));
+        };
+        Ok(InstantiatedCallee {
+            term,
+            source_bindings: Vec::new(),
+        })
     }
 
     fn instantiate_declaration(
         &mut self,
         index: usize,
         arguments: &[StaticMachineArgument],
-    ) -> Result<TermHandle, Vec<Diagnostic>> {
+    ) -> Result<InstantiatedCallee, Vec<Diagnostic>> {
         let definition = &self.program.mathematical_definitions()[index];
         let Some(&position) = self.authored_positions.get(&definition.symbol) else {
             return Err(self.refuse(format!(
@@ -166,6 +169,7 @@ impl Elaborator<'_> {
         }
         let mut authored_levels = vec![None; level_binders.len()];
         let mut terms = Vec::new();
+        let mut source_bindings = Vec::new();
         let mut generalized = Vec::new();
         let mut constraints = Vec::new();
         let mut arguments = arguments.iter();
@@ -179,7 +183,25 @@ impl Elaborator<'_> {
                 level_position += 1;
                 continue;
             }
-            let term = self.static_term(arguments.next().expect("checked generic arity"))?;
+            let argument = arguments.next().expect("checked generic arity");
+            let term = self.static_term(argument)?;
+            let type_binder = matches!(binder.kind, TypeParameterKind::Type)
+                || matches!(binder.kind,
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference }
+                    if matches!(self.carrier_head(type_reference), CarrierHead::Type(_)));
+            if type_binder {
+                let reference = if argument.type_reference.is_valid() {
+                    Some(argument.type_reference)
+                } else {
+                    self.program
+                        .type_reference_table
+                        .find_named_type_reference(argument.symbol)
+                };
+                if let Some(reference) = reference {
+                    source_bindings.push((binder.symbol, reference));
+                }
+            }
             if self.binder_claims_generalized_level(binder) {
                 generalized.push((term, binder.name.clone()));
             } else if omit_levels
@@ -238,7 +260,10 @@ impl Elaborator<'_> {
         for argument in terms {
             function = self.arena.insert(Term::Apply { function, argument });
         }
-        Ok(function)
+        Ok(InstantiatedCallee {
+            term: function,
+            source_bindings,
+        })
     }
 
     fn binder_is_level(&self, binder: &TypeParameter) -> bool {

@@ -71,14 +71,9 @@ pub(crate) fn validate_specification_calls(
         if crate::mathematical_applications::selected_definition(program, call).is_some() {
             // Checked mathematical signature formation owns the dependent
             // application. It has no operational closure to classify.
-            if let Err(reason) =
-                crate::mathematical_applications::validate_source_application(program, call)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "invalid mathematical application `{}`: {reason}",
-                    call.target
-                )));
-            }
+            // The producer has already checked this source application at
+            // its instantiated generic telescope. Repeating an uninstantiated
+            // carrier check here would lose that exact declaration custody.
             continue;
         }
         let (machine, state) = match selected_call_contract(program, call) {

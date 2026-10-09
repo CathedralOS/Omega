@@ -145,6 +145,11 @@ impl<'a> Elaborator<'a> {
                 self.refuse("a mathematical type references a type that does not exist".to_owned())
             );
         }
+        // Arithmetic policy changes the selected source value operation, not
+        // the calculus domain. Source application admission and captured type
+        // references retain the complete shell; only this carrier projection
+        // peels policy-only layers. Other predicates remain unsupported here.
+        let reference = validation::peel_arithmetic_policy(self.program, reference);
         match self.program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, name } => self.named_type(*symbol, name),
             TypeReferenceNode::Generic {

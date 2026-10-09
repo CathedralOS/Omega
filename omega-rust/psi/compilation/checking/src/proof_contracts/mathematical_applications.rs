@@ -103,6 +103,7 @@ pub fn result_type_reference(
 pub fn validate_source_application(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
+    source_bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Result<(), &'static str> {
     let definition =
         selected_definition(program, call).ok_or("missing mathematical declaration")?;
@@ -142,21 +143,53 @@ pub fn validate_source_application(
         let MathematicalType::Ordinary(reference) = program.mathematical_type(*domain) else {
             continue;
         };
-        let Some(required) = program.primitive_type_reference(*reference) else {
-            continue;
-        };
-        let corresponds = if let Some(actual) = operand_type_reference(program, *argument) {
-            program.primitive_type_reference(actual) == Some(required)
-                && program.type_reference_table.arithmetic_domain(actual)
-                    == program.type_reference_table.arithmetic_domain(*reference)
+        // Kernel conversion erases fixed widths into Int. Resolve the source
+        // telescope simultaneously at this exact generic instantiation first;
+        // its bounded carrier and policy cannot be recovered from kernel Int.
+        let required_identity = program.type_identity_with_simultaneous_substitutions(
+            typed_trees::type_identity::TypeIdentityRequest {
+                substitutions: source_bindings,
+                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(*reference)
+            },
+        );
+        let required_reference = if source_bindings.is_empty() {
+            *reference
         } else {
-            // Unlanded literals form against the demanded carrier. A missing
-            // typed value is not an anonymous literal or a width/policy guess.
-            crate::value_custody::literals::has_anonymous_numeric_results(program, *argument)
-                && crate::value_custody::expression_types::argument_matches_type_reference_handle(
-                    program, *argument, *reference,
-                )
+            program
+                .type_reference_table
+                .type_reference_rows()
+                .find_map(|(candidate, _)| {
+                    (program.type_identity(
+                        typed_trees::type_identity::TypeIdentityRequest::ordinary(candidate),
+                    ) == required_identity)
+                        .then_some(candidate)
+                })
+                .ok_or("instantiated mathematical argument has no retained source type")?
         };
+        let corresponds =
+            if let Some(actual) = operand_type_reference(program, *argument) {
+                match program.primitive_type_reference(required_reference) {
+                    Some(required) => {
+                        program.primitive_type_reference(actual) == Some(required)
+                            && program.type_reference_table.arithmetic_domain(actual)
+                                == program
+                                    .type_reference_table
+                                    .arithmetic_domain(required_reference)
+                    }
+                    None => {
+                        program.type_identity(
+                            typed_trees::type_identity::TypeIdentityRequest::ordinary(actual),
+                        ) == required_identity
+                    }
+                }
+            } else {
+                // Unlanded literals form against the demanded carrier. A missing
+                // typed value is not an anonymous literal or a width/policy guess.
+                crate::value_custody::literals::has_anonymous_numeric_results(program, *argument)
+                && crate::value_custody::expression_types::argument_matches_type_reference_handle(
+                    program, *argument, required_reference,
+                )
+            };
         if !corresponds {
             return Err("mathematical argument does not preserve its declared carrier and policy");
         }
