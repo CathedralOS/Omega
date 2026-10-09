@@ -305,9 +305,7 @@ fn operation_effect(
         // consumers but never erasable, duplicable, or reorderable.
         | O::StructuralLeafCopy { .. }
         | O::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
-        | O::EstablishByteSequenceLiteral { .. }
-        | O::EstablishByteSequenceConcatenation { .. }
-        | O::EstablishTrivialAffineLocal { .. }
+        | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::EstablishRecord { .. }

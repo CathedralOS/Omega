@@ -34,9 +34,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::AtomicEvent { psi_operation, .. }
         | O::EstablishScalarArray { psi_operation, .. }
         | abstract_operations::structural_array_or_case_pattern!(psi_operation, ..)
-        | O::EstablishByteSequenceConcatenation { psi_operation, .. }
-        | O::EstablishByteSequenceLiteral { psi_operation, .. }
-        | O::EstablishTrivialAffineLocal { psi_operation, .. }
+        | abstract_operations::establish_byte_literal_triple_pattern!(psi_operation, ..)
         | O::EstablishZeroedStructural { psi_operation, .. }
         | O::EstablishStructuralLocal { psi_operation, .. }
         | O::EstablishReference { psi_operation, .. }

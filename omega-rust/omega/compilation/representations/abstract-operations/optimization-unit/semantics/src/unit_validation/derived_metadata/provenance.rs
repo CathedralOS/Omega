@@ -37,9 +37,7 @@ pub(crate) fn expected_provenance(
         | O::AtomicEvent { psi_operation, .. }
         | O::EstablishScalarArray { psi_operation, .. }
         | abstract_operations::structural_array_or_case_pattern!(psi_operation, ..)
-        | O::EstablishByteSequenceConcatenation { psi_operation, .. }
-        | O::EstablishByteSequenceLiteral { psi_operation, .. }
-        | O::EstablishTrivialAffineLocal { psi_operation, .. }
+        | abstract_operations::establish_byte_literal_triple_pattern!(psi_operation, ..)
         | O::EstablishZeroedStructural { psi_operation, .. }
         | O::EstablishStructuralLocal { psi_operation, .. }
         | O::EstablishReference { psi_operation, .. }

@@ -26,9 +26,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishScalarArray { .. }
         | abstract_operations::structural_array_or_case_pattern!(..)
-        | O::EstablishByteSequenceConcatenation { .. }
-        | O::EstablishByteSequenceLiteral { .. }
-        | O::EstablishTrivialAffineLocal { .. }
+        | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::EstablishReference { .. }

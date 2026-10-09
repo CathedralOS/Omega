@@ -1314,3 +1314,12 @@ macro_rules! byte_read_predicate_equal_pattern {
             | $crate::AbstractOperation::ByteSequenceEqual { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! establish_byte_literal_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::EstablishByteSequenceConcatenation { $($fields)* }
+            | $crate::AbstractOperation::EstablishByteSequenceLiteral { $($fields)* }
+            | $crate::AbstractOperation::EstablishTrivialAffineLocal { $($fields)* }
+    };
+}

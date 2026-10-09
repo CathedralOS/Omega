@@ -165,9 +165,7 @@ pub(super) fn structural_metadata_may_change(
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceLength { .. }
         | O::ByteSequenceSubslice { .. }
-        | O::EstablishByteSequenceConcatenation { .. }
-        | O::EstablishByteSequenceLiteral { .. }
-        | O::EstablishTrivialAffineLocal { .. }
+        | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }

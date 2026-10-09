@@ -38,9 +38,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | abstract_operations::scalar_read_or_membership_pattern!(..)
         | AbstractOperation::StructuralScalarFieldStore { .. }
         | AbstractOperation::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
-        | AbstractOperation::EstablishByteSequenceLiteral { .. }
-        | AbstractOperation::EstablishByteSequenceConcatenation { .. }
-        | AbstractOperation::EstablishTrivialAffineLocal { .. }
+        | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | AbstractOperation::EstablishZeroedStructural { .. }
         | AbstractOperation::EstablishStructuralLocal { .. }
         | AbstractOperation::EstablishRecord { .. }

@@ -223,9 +223,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
             // results are definitions the event produces, not uses.
             event.for_each_input_mut(&mut replace);
         }
-        O::EstablishByteSequenceConcatenation { .. }
-        | O::EstablishByteSequenceLiteral { .. }
-        | O::EstablishTrivialAffineLocal { .. }
+        abstract_operations::establish_byte_literal_triple_pattern!(..)
         | O::PortWrite { .. }
         | O::SelectImplementation { .. }
         | O::IntegerConstant { .. }

@@ -110,9 +110,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
             // results are definitions the event produces, not uses.
             event.for_each_input_mut(&mut replace);
         }
-        O::EstablishByteSequenceConcatenation { .. }
-        | O::EstablishByteSequenceLiteral { .. }
-        | O::EstablishTrivialAffineLocal { .. }
+        abstract_operations::establish_byte_literal_triple_pattern!(..)
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::PortWrite { .. }
