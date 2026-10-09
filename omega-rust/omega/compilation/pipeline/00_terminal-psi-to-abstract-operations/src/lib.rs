@@ -33,6 +33,7 @@
 //! reconstructing them.
 
 mod artifact_admission;
+mod digest_encoder;
 mod boundary_application_settlement;
 mod callback_settlement;
 mod comparison_settlement;

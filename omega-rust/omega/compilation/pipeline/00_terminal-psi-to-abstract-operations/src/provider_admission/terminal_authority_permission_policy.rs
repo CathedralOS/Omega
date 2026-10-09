@@ -103,21 +103,20 @@ pub fn terminal_authority_permission_policy_with_rows(
 fn permission_policy_identity(
     rows: &[TerminalAuthorityPermissionPolicyRow],
 ) -> TerminalAuthorityPermissionPolicyIdentity {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.terminal-authority.permission-policy.v1\0");
-    digest.update(TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION.to_be_bytes());
-    digest.update((rows.len() as u64).to_be_bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.terminal-authority.permission-policy.v1\0");
+    digest.raw(&TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION.to_be_bytes());
+    digest.raw(&(rows.len() as u64).to_be_bytes());
     for row in rows {
-        digest.update(row.service_schema().as_bytes());
-        digest.update((row.requirement_identity().len() as u64).to_be_bytes());
-        digest.update(row.requirement_identity().as_bytes());
-        digest.update((row.permitted().classes().len() as u64).to_be_bytes());
+        digest.raw(row.service_schema().as_bytes());
+        digest.raw(&(row.requirement_identity().len() as u64).to_be_bytes());
+        digest.raw(row.requirement_identity().as_bytes());
+        digest.raw(&(row.permitted().classes().len() as u64).to_be_bytes());
         for class in row.permitted().classes() {
-            digest.update([class.canonical_tag()]);
+            digest.byte(class.canonical_tag());
         }
     }
     TerminalAuthorityPermissionPolicyIdentity::from_parts(
         TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
-        digest.finalize().into(),
+        digest.finish(),
     )
 }

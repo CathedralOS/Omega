@@ -93,17 +93,16 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
         );
     }
 
-    let mut digest = Sha256::new();
-    digest.update(CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN);
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN);
     if !declaration.has_valid_parameter_order() {
         return Err("direct syscall parameter order does not cover its checked lanes".to_owned());
     }
     push_count(&mut digest, declaration.parameter_order.len())?;
     for kind in &declaration.parameter_order {
-        digest.update([match kind {
+        digest.byte(match kind {
             terminal_psi::BoundaryParameterKind::Scalar => 0,
             terminal_psi::BoundaryParameterKind::Structural => 1,
-        }]);
+        });
     }
     push_count(&mut digest, declaration.scalar_parameters.len())?;
     for scalar in &declaration.scalar_parameters {
@@ -143,52 +142,48 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
         if carrier.identity.is_empty() {
             return Err("direct syscall structural carrier has an empty identity".to_owned());
         }
-        digest.update(parameter.position.to_be_bytes());
-        digest.update([multiplicity_tag(parameter.multiplicity)]);
-        digest.update([access_tag(parameter.access)]);
+        digest.raw(&parameter.position.to_be_bytes());
+        digest.byte(multiplicity_tag(parameter.multiplicity));
+        digest.byte(access_tag(parameter.access));
         push_bytes(&mut digest, carrier.identity.as_bytes())?;
     }
     let checked_argument_contract =
-        CheckedSyscallArgumentContractIdentity::from_digest(digest.finalize().into());
+        CheckedSyscallArgumentContractIdentity::from_digest(digest.finish());
     Ok(SyscallTerminalMechanismIdentity::new(target, number, checked_argument_contract).into())
 }
 
-fn push_count(digest: &mut Sha256, count: usize) -> Result<(), String> {
-    digest.update(
-        u32::try_from(count)
-            .map_err(|_| "checked syscall argument-contract count exceeds u32".to_owned())?
-            .to_be_bytes(),
-    );
+fn push_count(digest: &mut crate::digest_encoder::DomainDigestEncoder, count: usize) -> Result<(), String> {
+    digest.raw(&u32::try_from(count) .map_err(|_| "checked syscall argument-contract count exceeds u32".to_owned())? .to_be_bytes(),);
     Ok(())
 }
 
-fn push_bytes(digest: &mut Sha256, bytes: &[u8]) -> Result<(), String> {
+fn push_bytes(digest: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) -> Result<(), String> {
     push_count(digest, bytes.len())?;
-    digest.update(bytes);
+    digest.raw(&bytes);
     Ok(())
 }
 
-fn encode_scalar(digest: &mut Sha256, scalar: ScalarType) {
+fn encode_scalar(digest: &mut crate::digest_encoder::DomainDigestEncoder, scalar: ScalarType) {
     match scalar {
-        ScalarType::Boolean => digest.update([0]),
+        ScalarType::Boolean => digest.byte(0),
         ScalarType::Integer(integer) => {
-            digest.update([1]);
-            digest.update([match integer.carrier() {
+            digest.byte(1);
+            digest.byte(match integer.carrier() {
                 IntegerCarrier::Fixed => 0,
                 IntegerCarrier::Address => 1,
-            }]);
-            digest.update([match integer.sign() {
+            });
+            digest.byte(match integer.sign() {
                 IntegerSign::Signed => 0,
                 IntegerSign::Unsigned => 1,
-            }]);
-            digest.update(integer.bits().to_be_bytes());
+            });
+            digest.raw(&integer.bits().to_be_bytes());
         }
         ScalarType::IeeeFloat(format) => {
-            digest.update([2]);
-            digest.update([match format {
+            digest.byte(2);
+            digest.byte(match format {
                 IeeeFloatFormat::Binary32 => 0,
                 IeeeFloatFormat::Binary64 => 1,
-            }]);
+            });
         }
     }
 }
