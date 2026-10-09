@@ -55,9 +55,6 @@ impl LegalizationValidationReceipt {
     }
 
 
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
