@@ -11,7 +11,6 @@ build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
 calling-conventions = { path = "../backend/calling-conventions" }
 runtime-abi = { path = "../backend/runtime/runtime-abi" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
-lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
 effects = { path = "../backend/plans/provider-evidence" }
 provider-planning = { path = "../realization/provider-planning" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
