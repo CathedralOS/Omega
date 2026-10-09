@@ -618,8 +618,6 @@ fn application_identity(
     trait_arguments: &[String],
     rows: &[typed_trees::trait_definition::ConformanceRow],
 ) -> ApplicationIdentity {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
     let mut bytes = Vec::new();
     let singleton_lanes = [declaration, trait_name];
     for lane in singleton_lanes {
@@ -732,16 +730,13 @@ fn application_identity(
         }
         bytes.push(0xfe);
     }
-    let mut hash = OFFSET;
+    let mut hash = semantic_vocabulary::Fnv1a::new();
     let mut strong = Sha256::new();
     strong.update(b"omega.psi.closed-conformance-application.v3\0");
     strong.update(&bytes);
-    for byte in bytes {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(PRIME);
-    }
+    hash.bytes(&bytes);
     ApplicationIdentity {
-        report_fingerprint: hash,
+        report_fingerprint: hash.finish(),
         commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
             strong.finalize().into(),
         ),

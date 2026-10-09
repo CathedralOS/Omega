@@ -215,11 +215,9 @@ pub fn canonical_template_contract_bytes(
 }
 
 fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-    bytes.iter().fold(OFFSET, |hash, byte| {
-        (hash ^ u64::from(*byte)).wrapping_mul(PRIME)
-    })
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(bytes);
+    hash.finish()
 }
 
 /// Hash canonical template bytes under the published template domain separator.
@@ -671,21 +669,16 @@ pub fn specialization_selection_report_fingerprint(
     machine_arguments: &[String],
     evidence_arguments: &[String],
 ) -> u64 {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
-    let mut hash = OFFSET;
+    let mut hash = semantic_vocabulary::Fnv1a::new();
     for part in std::iter::once(template)
         .chain(type_arguments.iter().map(String::as_str))
         .chain(const_arguments.iter().map(String::as_str))
         .chain(machine_arguments.iter().map(String::as_str))
         .chain(evidence_arguments.iter().map(String::as_str))
     {
-        for byte in part.as_bytes().iter().copied().chain(std::iter::once(0xff)) {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(PRIME);
-        }
+        hash.bytes_terminated(part.as_bytes(), 0xff);
     }
-    hash
+    hash.finish()
 }
 
 fn conformance_symbol_identity(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> String {

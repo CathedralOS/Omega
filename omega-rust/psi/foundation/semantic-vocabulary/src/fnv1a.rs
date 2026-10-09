@@ -46,6 +46,12 @@ impl Fnv1a {
         self.bytes(&value.to_le_bytes());
     }
 
+    /// Byte feed closed by an explicit terminator byte (e.g. 0xff lane marks).
+    pub fn bytes_terminated(&mut self, bytes: &[u8], terminator: u8) {
+        self.bytes(bytes);
+        self.byte(terminator);
+    }
+
     /// Length-framed byte feed: a u64 word prefix then the raw bytes.
     pub fn bytes_framed(&mut self, bytes: &[u8]) {
         self.u64(bytes.len() as u64);
