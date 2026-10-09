@@ -211,7 +211,23 @@ pub(super) fn independent_callee(
     caller: SymbolHandle,
     callee: SymbolHandle,
 ) -> bool {
+    independent_application(program, caller, callee, &[])
+}
+
+/// Independence belongs to the selected application, including the exact
+/// callback machines supplied to its generic telescope. A helper's authored
+/// requirement alone does not identify the selected callback's proof sources.
+pub(super) fn independent_application(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    callee: SymbolHandle,
+    selections: &[typed_trees::expression::StaticMachineArgument],
+) -> bool {
     let mut pending = vec![callee];
+    pending.extend(
+        crate::machine_calls::machine_parameters::machine_selection_arguments(program, selections)
+            .map(|selection| selection.symbol),
+    );
     let mut visited = Vec::new();
     while let Some(declaration) = pending.pop() {
         let Some((owner, dependencies)) =

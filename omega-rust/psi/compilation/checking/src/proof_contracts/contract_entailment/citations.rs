@@ -582,7 +582,7 @@ pub(crate) fn intake_citation_for_edge(
     ) else {
         return;
     };
-    if !judge.callee_is_independent(callee.symbol) {
+    if !judge.application_is_independent(callee.symbol, &call.machine_arguments) {
         return;
     }
 
@@ -659,7 +659,7 @@ pub(crate) fn intake_statement_citation_for_edge(
     ) else {
         return;
     };
-    if !judge.callee_is_independent(callee.symbol) {
+    if !judge.application_is_independent(callee.symbol, &call.machine_arguments) {
         return;
     }
     let Some(entry) = program.machine_states(callee).first() else {

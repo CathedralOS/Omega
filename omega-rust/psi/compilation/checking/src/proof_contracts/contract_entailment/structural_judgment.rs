@@ -341,8 +341,17 @@ impl<'program> StructuralJudge<'program> {
         )
     }
 
-    pub(super) fn callee_is_independent(&self, callee: SymbolHandle) -> bool {
-        selected_contracts::independent_callee(self.program, self.machine_symbol, callee)
+    pub(super) fn application_is_independent(
+        &self,
+        callee: SymbolHandle,
+        selections: &[typed_trees::expression::StaticMachineArgument],
+    ) -> bool {
+        selected_contracts::independent_application(
+            self.program,
+            self.machine_symbol,
+            callee,
+            selections,
+        )
     }
 
     pub(super) fn declaration_expression_type(
