@@ -40,10 +40,6 @@ pub enum ArtifactLoweringError {
     Lowering(LoweringError),
 }
 
-impl std::fmt::Display for ArtifactLoweringError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+diagnostics::debug_display!(ArtifactLoweringError);
 
 impl std::error::Error for ArtifactLoweringError {}

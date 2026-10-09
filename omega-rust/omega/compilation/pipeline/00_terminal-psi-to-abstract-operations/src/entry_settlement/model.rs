@@ -296,10 +296,6 @@ pub enum NativeProgramEntrySettlementError {
     FusedServiceEstablishmentDrift,
 }
 
-impl std::fmt::Display for NativeProgramEntrySettlementError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+diagnostics::debug_display!(NativeProgramEntrySettlementError);
 
 impl std::error::Error for NativeProgramEntrySettlementError {}
