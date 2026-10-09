@@ -4,6 +4,7 @@
 data Token { value: u64; }
 data Wrapped { token: Token; }
 data Holder<Value> { value: Value; }
+data Pair { left: Token; right: Token; }
 
 machine consume(value: Wrapped) -> u64 { value.token.value }
 
@@ -40,13 +41,25 @@ machine generic_transfer(enabled: bool) -> bool {
     observed == enabled
 }
 
+machine consume_pair(value: Pair) -> u64 { value.left.value + value.right.value }
+machine replace_then_select(enabled: bool) -> bool {
+    let mut pair: Pair = Pair {
+        left: Token { value: 7 },
+        right: Token { value: 9 }
+    };
+    pair.left = Token { value: 11 };
+    let observed: bool = enabled && consume_pair(pair) == 20;
+    observed == enabled
+}
+
 machine main() crashes Trap {
     let accepted: bool = and_transfer(false) && and_transfer(true)
         && or_transfer(true) && or_transfer(false)
         && nested_transfer(false, false) && nested_transfer(false, true)
         && nested_transfer(true, true) && nested_transfer(true, false)
         && branch_birth(false) && branch_birth(true)
-        && generic_transfer(false) && generic_transfer(true);
+        && generic_transfer(false) && generic_transfer(true)
+        && replace_then_select(false) && replace_then_select(true);
     transition accepted { true -> done() false -> bad() }
     state done() {}
     state bad() { crash Trap; }
