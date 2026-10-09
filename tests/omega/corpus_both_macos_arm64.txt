@@ -397,6 +397,7 @@ pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit built 1683ms exit:42
 pass/ownership/runtime_borrowed_carried_loan_transform_exit built 1774ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit built 1772ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
 pass/ownership/runtime_borrowed_projected_claim_transform_exit built 1632ms exit:42 interpreter-exit:42 interpreter:agrees @461e97c328e8
+pass/ownership/runtime_borrowed_projected_linear_return_exit built 1641ms exit:0 interpreter-exit:0 interpreter:agrees @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit built 1632ms exit:42 interpreter-exit:42 interpreter:agrees @461e97c328e8
 pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit built 1647ms exit:42 interpreter-exit:42 interpreter:agrees @32d2d2bb3d26
 pass/ownership/runtime_borrowed_window_crash_exit built 1874ms exit:signal signal:5 interpreter:trapped @7d761e0fef5f
@@ -404,6 +405,7 @@ pass/ownership/runtime_captured_construction_selector_exit built 1791ms exit:0 i
 pass/ownership/runtime_captured_replacement_selector_exit built 1791ms exit:0 interpreter-exit:0 interpreter:agrees @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit built 1791ms exit:0 interpreter-exit:0 interpreter:agrees @441e8f33f8c7+wt
 pass/ownership/runtime_carried_loan_field_replacement_exit built 1718ms exit:42 interpreter-exit:42 interpreter:agrees @037ba5906d07
+pass/ownership/runtime_nested_projected_claim_return_exit built 1641ms exit:0 interpreter-exit:0 interpreter:agrees @cd27c16e2c35
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit built 1361ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
 pass/ownership/runtime_retained_alias_referent_transform_exit built 1856ms exit:42 interpreter-exit:42 interpreter:agrees @76bbeef8b4d2
 pass/ownership/runtime_whole_borrowed_transform_exit built 1665ms exit:42 interpreter-exit:42 interpreter:agrees @50701b2d3809+wt

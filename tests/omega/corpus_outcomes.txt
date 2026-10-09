@@ -3428,6 +3428,7 @@ pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 1671ms check
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 1749ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 1749ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 1691ms check-target:macos_arm64 @461e97c328e8
+pass/ownership/runtime_borrowed_projected_linear_return_exit checked 1603ms check-target:macos_arm64 @cd27c16e2c35
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms check-target:macos_arm64 @2d8ed253669f
 pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit checked 1614ms check-target:macos_arm64 @32d2d2bb3d26
 pass/ownership/runtime_borrowed_window_crash_exit checked 1781ms check-target:macos_arm64 @7d761e0fef5f
@@ -3435,6 +3436,7 @@ pass/ownership/runtime_captured_construction_selector_exit checked 1771ms check-
 pass/ownership/runtime_captured_replacement_selector_exit checked 1771ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit checked 1775ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 1674ms check-target:macos_arm64 @ecd601af92fb
+pass/ownership/runtime_nested_projected_claim_return_exit checked 1603ms check-target:macos_arm64 @cd27c16e2c35
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 1325ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_retained_alias_referent_transform_exit checked 1771ms check-target:macos_arm64 @76bbeef8b4d2
 pass/ownership/runtime_whole_borrowed_transform_exit checked 1786ms check-target:macos_arm64 @50701b2d3809+wt
