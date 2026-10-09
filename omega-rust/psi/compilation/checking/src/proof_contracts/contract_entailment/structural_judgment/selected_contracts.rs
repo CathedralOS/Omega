@@ -225,8 +225,9 @@ pub(super) fn independent_application(
 ) -> bool {
     let mut pending = vec![callee];
     pending.extend(
-        crate::machine_calls::machine_parameters::machine_selection_arguments(program, selections)
-            .map(|selection| selection.symbol),
+        crate::machine_calls::machine_parameters::machine_selection_dependency_symbols(
+            program, selections,
+        ),
     );
     let mut visited = Vec::new();
     while let Some(declaration) = pending.pop() {

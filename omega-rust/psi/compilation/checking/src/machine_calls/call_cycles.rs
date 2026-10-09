@@ -290,12 +290,12 @@ fn collect_statement_dependency_symbols(
         }
         StatementNode::Call(call) => {
             push_dependency_symbol(symbols, call.target_symbol);
-            for selection in super::machine_parameters::machine_selection_arguments(
-                program,
-                &call.machine_arguments,
-            ) {
-                push_dependency_symbol(symbols, selection.symbol);
-            }
+            symbols.extend(
+                super::machine_parameters::machine_selection_dependency_symbols(
+                    program,
+                    &call.machine_arguments,
+                ),
+            );
             for argument in program.statement_table.expression_handles(call.arguments) {
                 collect_expression_dependency_symbols(program, *argument, symbols);
             }
@@ -356,12 +356,12 @@ fn collect_expression_dependency_symbols(
         }
         ExpressionNode::Call(call) => {
             push_dependency_symbol(symbols, call.target_symbol);
-            for selection in super::machine_parameters::machine_selection_arguments(
-                program,
-                &call.machine_arguments,
-            ) {
-                push_dependency_symbol(symbols, selection.symbol);
-            }
+            symbols.extend(
+                super::machine_parameters::machine_selection_dependency_symbols(
+                    program,
+                    &call.machine_arguments,
+                ),
+            );
             collect_expression_dependency_symbols(program, call.receiver, symbols);
             for argument in program.expression_table.expression_handles(call.arguments) {
                 collect_expression_dependency_symbols(program, *argument, symbols);

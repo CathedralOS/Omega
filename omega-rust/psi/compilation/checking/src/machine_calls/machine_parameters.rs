@@ -7,6 +7,8 @@
 //! contract.
 
 mod callable_shape;
+mod selected_dependencies;
+pub(crate) use selected_dependencies::machine_selection_dependency_symbols;
 mod closed_types;
 pub use closed_types::closed_static_call_type_bindings;
 pub(crate) mod contract_facts;
@@ -330,12 +332,17 @@ pub(crate) fn machine_selection_arguments<'call>(
     program: &dyn crate::CheckingInput,
     arguments: &'call [StaticMachineArgument],
 ) -> impl Iterator<Item = &'call StaticMachineArgument> {
-    arguments.iter().filter(|argument| {
-        matches!(
-            program.symbols.get(argument.symbol).kind,
+    arguments
+        .iter()
+        .filter(|argument| is_machine_selection_symbol(program, argument.symbol))
+}
+
+fn is_machine_selection_symbol(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
+    symbol.is_valid()
+        && matches!(
+            program.symbols.get(symbol).kind,
             SymbolKind::State | SymbolKind::MachineParameter
         )
-    })
 }
 
 fn validate_call_selection(
