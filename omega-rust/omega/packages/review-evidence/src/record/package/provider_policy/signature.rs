@@ -17,21 +17,6 @@ pub struct PackagePolicyServiceSignature {
 }
 
 impl PackagePolicyServiceSignature {
-    pub(crate) fn schema_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.schema_arguments
-    }
-    pub(crate) fn schema_lifetime_parameter_count(&self) -> u32 {
-        self.schema_lifetime_parameter_count
-    }
-    pub(crate) fn requirement_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.requirement_arguments
-    }
-    pub(crate) fn requirement_lifetime_arguments(&self) -> &[u32] {
-        &self.requirement_lifetime_arguments
-    }
-    pub(crate) fn requirement_lifetime_parameter_count(&self) -> u32 {
-        self.requirement_lifetime_parameter_count
-    }
     pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {
         &self.static_parameters
     }

@@ -12,13 +12,7 @@ pub(crate) struct PackageReviewRequirementRealization {
 }
 
 impl PackageReviewRequirementRealization {
-    pub const fn requirement_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement_identity
-    }
 
-    pub fn alias(&self) -> Option<&str> {
-        self.alias.as_deref()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

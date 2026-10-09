@@ -235,9 +235,6 @@ impl PackageReviewOperatorCoordinate {
         &self.identity
     }
 
-    pub(crate) fn parameter_dispatch(&self) -> &str {
-        &self.parameter_dispatch
-    }
 
     pub fn result_dispatch(&self) -> &str {
         &self.result_dispatch
@@ -272,45 +269,9 @@ pub(crate) enum PackageReviewContractOperatorMeaning {
 }
 
 impl PackageReviewContractCallTarget {
-    pub const fn nominal(&self) -> Option<&PackageReviewNominalIdentity> {
-        match self {
-            Self::Nominal(identity) => Some(identity),
-            Self::BuiltinFunction(_)
-            | Self::ByteSequencePredicate(_)
-            | Self::CollectionView(_)
-            | Self::ProofView { .. } => None,
-        }
-    }
 
-    pub const fn builtin_function(&self) -> Option<BuiltinFunction> {
-        match self {
-            Self::BuiltinFunction(function) => Some(*function),
-            Self::Nominal(_)
-            | Self::ByteSequencePredicate(_)
-            | Self::CollectionView(_)
-            | Self::ProofView { .. } => None,
-        }
-    }
 
-    pub const fn byte_sequence_predicate(&self) -> Option<PackageReviewByteSequencePredicate> {
-        match self {
-            Self::Nominal(_)
-            | Self::BuiltinFunction(_)
-            | Self::CollectionView(_)
-            | Self::ProofView { .. } => None,
-            Self::ByteSequencePredicate(predicate) => Some(*predicate),
-        }
-    }
 
-    pub const fn collection_view(&self) -> Option<PackageReviewCollectionViewOperation> {
-        match self {
-            Self::CollectionView(operation) => Some(*operation),
-            Self::Nominal(_)
-            | Self::BuiltinFunction(_)
-            | Self::ByteSequencePredicate(_)
-            | Self::ProofView { .. } => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -433,11 +394,5 @@ pub(crate) struct PackageReviewConstructorField {
 }
 
 impl PackageReviewConstructorField {
-    pub const fn field(&self) -> &PackageReviewNominalIdentity {
-        &self.field
-    }
 
-    pub const fn value(&self) -> &PackageReviewContractExpression {
-        &self.value
-    }
 }

@@ -1,14 +1,13 @@
 use crate::record::{
-    PackagePolicyConformanceShape, PackagePolicyCrashRoute, PackagePolicyDataShape,
+    PackagePolicyConformanceShape, PackagePolicyDataShape,
     PackagePolicyDomainShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
     PackagePolicyTraitShape, PackagePolicyTypeParameter, PackageReviewCallableContract,
     PackageReviewCallableParameter, PackageReviewConformanceBound, PackageReviewContractFact,
     PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataProperties,
-    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
+    PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
     PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
-    PackageReviewTraitParent, PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
-};
+    PackageReviewTraitParent, PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity};
 
 impl PackagePolicyTraitShape {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {
@@ -84,12 +83,6 @@ impl PackagePolicyDomainShape {
     pub const fn predicate_body(&self) -> language_semantics::DomainPredicateBody {
         self.predicate_body
     }
-    pub(crate) fn predicate_facts(&self) -> &[PackageReviewContractFact] {
-        &self.predicate_facts
-    }
-    pub(crate) fn alias_expansion(&self) -> Option<&[PackageReviewDomainAliasAtom]> {
-        self.alias_expansion.as_deref()
-    }
     pub const fn classification(&self) -> Option<PackageReviewDomainClassification> {
         self.classification
     }
@@ -124,9 +117,6 @@ impl PackagePolicyOperatorShape {
     }
     pub fn contracts(&self) -> &[PackageReviewCallableContract] {
         &self.contracts
-    }
-    pub(crate) fn published_crash(&self) -> &[PackagePolicyCrashRoute] {
-        &self.published_crash
     }
 }
 impl PackagePolicyDataShape {

@@ -15,21 +15,9 @@ pub(crate) struct PackageReviewDataField {
 }
 
 impl PackageReviewDataField {
-    pub const fn identity(&self) -> Option<u64> {
-        self.identity
-    }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
 
-    pub const fn relevance(&self) -> language_core::BindingRelevance {
-        self.relevance
-    }
 
-    pub const fn type_identity(&self) -> &PackageReviewTypeIdentity {
-        &self.type_identity
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,13 +53,7 @@ pub(crate) struct PackageReviewDataProperties {
 }
 
 impl PackageReviewDataProperties {
-    pub const fn multiplicity(&self) -> language_semantics::Multiplicity {
-        self.multiplicity
-    }
 
-    pub const fn carry(&self) -> Option<language_semantics::CarryPolicy> {
-        self.carry
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

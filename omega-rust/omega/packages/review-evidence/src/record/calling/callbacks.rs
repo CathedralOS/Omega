@@ -81,106 +81,14 @@ pub(crate) struct PackagePolicyCallbackInlineField {
 }
 
 impl PackagePolicyCallbacks {
-    pub fn binders(&self) -> &[PackagePolicyCallbackBinder] {
-        &self.binders
-    }
-    pub fn demands(&self) -> &[PackagePolicyCallbackDemand] {
-        &self.demands
-    }
-    pub fn materializations(&self) -> &[PackagePolicyCallbackMaterialization] {
-        &self.materializations
-    }
-    pub fn layouts(&self) -> &[PackagePolicyCallbackLayout] {
-        &self.layouts
-    }
 }
 impl PackagePolicyCallbackBinder {
-    pub const fn parameter(&self) -> &PackageReviewNominalIdentity {
-        &self.parameter
-    }
-    pub const fn static_parameter_ordinal(&self) -> u32 {
-        self.static_parameter_ordinal
-    }
-    pub const fn static_machine_ordinal(&self) -> u32 {
-        self.static_machine_ordinal
-    }
-    pub const fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
-    }
 }
 impl PackagePolicyCallbackDemand {
-    pub const fn destination(&self) -> &PackagePolicyCallbackDestination {
-        &self.destination
-    }
-    pub const fn requirement(&self) -> &PackageReviewNominalIdentity {
-        &self.requirement
-    }
 }
 impl PackagePolicyCallbackMaterialization {
-    pub const fn binder_index(&self) -> u32 {
-        self.binder_index
-    }
-    pub const fn destination(&self) -> &PackagePolicyCallbackDestination {
-        &self.destination
-    }
-}
-impl PackagePolicyCallbackLayout {
-    pub const fn formal_ordinal(&self) -> u32 {
-        self.formal_ordinal
-    }
-    pub const fn native_ordinal(&self) -> u32 {
-        self.native_ordinal
-    }
-    pub const fn root_layout(&self) -> &PackagePolicyCallbackLayoutApplication {
-        &self.root_layout
-    }
-    pub const fn inline_field(&self) -> Option<&PackagePolicyCallbackInlineField> {
-        self.inline_field.as_ref()
-    }
-    pub const fn terminal_slot(&self) -> &PackagePolicyClosedConformanceApplication {
-        &self.terminal_slot
-    }
-    pub const fn terminal_offset(&self) -> u64 {
-        self.terminal_offset
-    }
-    pub const fn terminal_byte_size(&self) -> u64 {
-        self.terminal_byte_size
-    }
-    pub const fn terminal_alignment(&self) -> u64 {
-        self.terminal_alignment
-    }
-    pub const fn composed_offset(&self) -> u64 {
-        self.composed_offset
-    }
 }
 impl PackagePolicyCallbackLayoutApplication {
-    pub const fn policy(&self) -> &PackageReviewNominalIdentity {
-        &self.policy
-    }
-    pub const fn schema(&self) -> &PackageReviewTypeIdentity {
-        &self.schema
-    }
-    pub const fn byte_size(&self) -> u64 {
-        self.byte_size
-    }
-    pub const fn alignment(&self) -> u64 {
-        self.alignment
-    }
 }
 impl PackagePolicyCallbackInlineField {
-    pub const fn field(&self) -> &PackageReviewNominalIdentity {
-        &self.field
-    }
-    pub const fn offset(&self) -> u64 {
-        self.offset
-    }
-    pub const fn extent(&self) -> u64 {
-        self.extent
-    }
-    pub const fn alignment(&self) -> u64 {
-        self.alignment
-    }
-    pub const fn child_layout(&self) -> &PackagePolicyCallbackLayoutApplication {
-        &self.child_layout
-    }
 }

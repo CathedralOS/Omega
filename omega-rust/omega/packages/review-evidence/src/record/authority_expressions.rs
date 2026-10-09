@@ -47,13 +47,7 @@ pub(crate) struct PackageReviewStructuralParameterField {
 }
 
 impl PackageReviewStructuralParameterField {
-    pub const fn parameter_position(&self) -> u32 {
-        self.parameter_position
-    }
 
-    pub fn path(&self) -> &[PackageReviewStructuralPredicatePathSegment] {
-        &self.path
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,13 +109,7 @@ pub(crate) struct PackageReviewIntegerLiteralLanding {
 }
 
 impl PackageReviewIntegerLiteralLanding {
-    pub const fn landed_type(&self) -> PackageReviewPrimitiveType {
-        self.landed_type
-    }
 
-    pub const fn arithmetic_domain(&self) -> PackageReviewArithmeticDomain {
-        self.arithmetic_domain
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,13 +119,7 @@ pub(crate) struct PackageReviewIntegerLiteral {
 }
 
 impl PackageReviewIntegerLiteral {
-    pub fn canonical_text(&self) -> &str {
-        &self.canonical_text
-    }
 
-    pub const fn landing(&self) -> Option<&PackageReviewIntegerLiteralLanding> {
-        self.landing.as_ref()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,13 +129,7 @@ pub(crate) struct PackageReviewIntegerRange {
 }
 
 impl PackageReviewIntegerRange {
-    pub fn minimum(&self) -> &str {
-        &self.minimum
-    }
 
-    pub fn maximum(&self) -> &str {
-        &self.maximum
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -109,63 +109,6 @@ pub(crate) struct PackageReviewEvaluatedImport {
     pub(crate) receipt_identity_digest: [u8; 32],
 }
 
-impl PackageReviewEvaluatedImport {
-    pub fn target(&self) -> &str {
-        &self.target
-    }
-
-    pub const fn locator(&self) -> &PackageReviewForeignLocator {
-        &self.locator
-    }
-
-    pub const fn locator_identity_digest(&self) -> [u8; 32] {
-        self.locator_identity_digest
-    }
-
-    pub const fn producer(&self) -> &PackageReviewNominalIdentity {
-        &self.producer
-    }
-
-    pub const fn producer_package(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-        self.producer_package
-    }
-
-    pub fn producer_callable_identity(&self) -> &str {
-        &self.producer_callable_identity
-    }
-
-    pub const fn producer_closure_digest(&self) -> [u8; 32] {
-        self.producer_closure_digest
-    }
-
-    pub const fn evaluator_semantics_marker(&self) -> u32 {
-        self.evaluator_semantics_marker
-    }
-
-    pub const fn evaluation_usage(&self) -> PackageReviewEvaluatedBindingUsage {
-        self.evaluation_usage
-    }
-
-    pub const fn evaluation_digest(&self) -> [u8; 32] {
-        self.evaluation_digest
-    }
-
-    pub const fn materializer_schema_version(&self) -> u32 {
-        self.materializer_schema_version
-    }
-
-    pub const fn materialization_digest(&self) -> [u8; 32] {
-        self.materialization_digest
-    }
-
-    pub const fn receipt_locator_identity_digest(&self) -> [u8; 32] {
-        self.receipt_locator_identity_digest
-    }
-
-    pub const fn receipt_identity_digest(&self) -> [u8; 32] {
-        self.receipt_identity_digest
-    }
-}
 
 /// Stable, source-handle-free review identity for one evaluated syscall.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -186,63 +129,6 @@ pub(crate) struct PackageReviewEvaluatedSyscall {
     pub(crate) receipt_identity_digest: [u8; 32],
 }
 
-impl PackageReviewEvaluatedSyscall {
-    pub fn target(&self) -> &str {
-        &self.target
-    }
-
-    pub const fn number(&self) -> i64 {
-        self.number
-    }
-
-    pub const fn binding_identity_digest(&self) -> [u8; 32] {
-        self.binding_identity_digest
-    }
-
-    pub const fn producer(&self) -> &PackageReviewNominalIdentity {
-        &self.producer
-    }
-
-    pub const fn producer_package(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-        self.producer_package
-    }
-
-    pub fn producer_callable_identity(&self) -> &str {
-        &self.producer_callable_identity
-    }
-
-    pub const fn producer_closure_digest(&self) -> [u8; 32] {
-        self.producer_closure_digest
-    }
-
-    pub const fn evaluator_semantics_marker(&self) -> u32 {
-        self.evaluator_semantics_marker
-    }
-
-    pub const fn evaluation_usage(&self) -> PackageReviewEvaluatedBindingUsage {
-        self.evaluation_usage
-    }
-
-    pub const fn evaluation_digest(&self) -> [u8; 32] {
-        self.evaluation_digest
-    }
-
-    pub const fn materializer_schema_version(&self) -> u32 {
-        self.materializer_schema_version
-    }
-
-    pub const fn materialization_digest(&self) -> [u8; 32] {
-        self.materialization_digest
-    }
-
-    pub const fn receipt_binding_identity_digest(&self) -> [u8; 32] {
-        self.receipt_binding_identity_digest
-    }
-
-    pub const fn receipt_identity_digest(&self) -> [u8; 32] {
-        self.receipt_identity_digest
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PackageReviewExternalCallableParameter {

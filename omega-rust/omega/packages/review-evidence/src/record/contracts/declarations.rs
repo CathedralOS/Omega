@@ -35,7 +35,4 @@ impl PackageReviewConstShape {
         &self.declared_type
     }
 
-    pub(crate) fn canonical_value_encoding(&self) -> &str {
-        &self.canonical_value_encoding
-    }
 }

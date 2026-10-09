@@ -60,27 +60,6 @@ impl PackagePolicyTypeParameter {
     }
 }
 impl PackagePolicyMachineParameterContract {
-    pub const fn structural(&self) -> Option<&PackagePolicyMachineParameterSignature> {
-        if let Self::Structural(value) = self {
-            Some(value)
-        } else {
-            None
-        }
-    }
-    pub const fn nominal(
-        &self,
-    ) -> Option<(&PackageReviewNominalIdentity, &PackageReviewNominalIdentity)> {
-        if let Self::Nominal {
-            trait_identity,
-            requirement_identity,
-            ..
-        } = self
-        {
-            Some((trait_identity, requirement_identity))
-        } else {
-            None
-        }
-    }
 }
 impl PackagePolicyMachineParameterSignature {
     pub const fn lifetime_parameter_count(&self) -> usize {

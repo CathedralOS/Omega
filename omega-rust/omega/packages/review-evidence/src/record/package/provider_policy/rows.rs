@@ -56,13 +56,7 @@ pub(crate) struct PackagePolicyProviderEvaluatedSyscall {
 }
 
 impl PackagePolicyProviderEvaluatedSyscall {
-    pub fn target(&self) -> &str {
-        &self.target
-    }
 
-    pub fn producer(&self) -> &PackagePolicyEvaluatedBindingProducer {
-        &self.producer
-    }
 }
 
 /// Leaf mechanisms preserve evaluated producers but never evaluator receipts.
