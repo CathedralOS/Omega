@@ -3,6 +3,10 @@
 //! These checks are separate from target resolution and argument validation:
 //! they reject call shapes that otherwise silently bind zero or read an
 //! unmaterialized nested result at runtime.
+//! Assignments are not fenced here: their common operand planner evaluates
+//! nested calls in order, and a missing plan fails product construction. A
+//! second destination/signature whitelist would reject supported compositions
+//! without proving any additional semantic obligation.
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionViewOperation;
@@ -11,7 +15,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpress
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableAssignment, TransitionTargetNode};
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 mod boundary_return;
 
@@ -319,226 +323,6 @@ fn unit_type(
             _ => return false,
         }
     }
-}
-
-/// Only an exact mutable scalar local is an assignment computation destination
-/// in the scalar graph. The unit statement sequence owns the same write when
-/// the destination is a mutable primitive local, a whole borrowed primitive
-/// parameter, or a scalar member destination: its `AssignmentValue` computation
-/// root evaluates the outer call and every nested operand before the store.
-/// Member stores defer storage/ABI eligibility to that checked producer instead
-/// of predicting it from the source signature here. Other destinations retain
-/// their existing fence until they use the same computation path.
-pub(crate) fn report_nested_call_in_local_assignment(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    state_name: &str,
-    assignment: &TableAssignment,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if let Some(state) = state {
-        if let Some(path) = program.expression_table.name_path_node(assignment.target)
-            && path.symbol.is_valid()
-            && program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                == 1
-        {
-            if program
-                .state_local_declaration(state, path.symbol)
-                .is_some_and(|(_, local)| {
-                    local.is_mutable
-                        && program
-                            .primitive_type_reference(local.type_reference)
-                            .is_some()
-                        && program.primitive_type_reference(local.type_reference)
-                            == ordinary_scalar_call_result_primitive(program, assignment.value)
-                })
-                && program
-                    .primitive_type_reference(state.return_type)
-                    .is_some()
-            {
-                return;
-            }
-            if unit_scalar_store_assignment_is_supported(
-                program,
-                machine,
-                state,
-                assignment,
-                path.symbol,
-            ) {
-                return;
-            }
-        }
-        if unit_member_scalar_store_assignment_is_supported(program, machine, state, assignment) {
-            return;
-        }
-    }
-    // A field store whose value is a tree of scalar boundary applications
-    // (`self.f = a * b + c`) keeps its outer application as the statement's
-    // result operation; every nested application is an ordered computation
-    // operand of it. Other nested calls, and local-name destinations, keep
-    // the fence until their destinations plan the same composition.
-    if matches!(
-        program.expression_table.expression(assignment.target),
-        ExpressionNode::Member(_)
-    ) && nested_boundary_applications_compose(program, assignment.value)
-    {
-        return;
-    }
-    report_nested_call_in_bound_value_call(
-        program,
-        machine,
-        state_name,
-        assignment.value,
-        diagnostics,
-    );
-}
-
-/// The call-shape gate every unit store assignment shares: the outer call is a
-/// direct, ordinary checked-body call with a primitive result. The evaluator
-/// recurses into each argument itself, so this admission intentionally covers
-/// only the root call shape — argument custody, structural operands, and flow
-/// call ordinals still resolve in the checked builder, which rejects anything
-/// it cannot sequence. Returns the callee's declared result primitive, which
-/// each destination family then matches against its own stored type.
-fn unit_store_call_result_primitive(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    assignment: &TableAssignment,
-) -> Option<typed_trees::types::PrimitiveType> {
-    // Generic, owned-data, and bound callers do not have a proven unit store
-    // plan for this destination family.
-    if !machine.type_parameters.is_empty()
-        || !machine.lifetime_parameters.is_empty()
-        || !machine.conformance_bounds.is_empty()
-        || !machine.owned_data.is_empty()
-        || !assignment.value.is_valid()
-    {
-        return None;
-    }
-    ordinary_scalar_call_result_primitive(program, assignment.value)
-}
-
-/// Mirrors the checked `AssignmentValue` computation admission for a call
-/// stored through the unit statement sequence: the outer call is a direct,
-/// ordinary checked-body call whose declared result
-/// primitive is exactly the destination's stored primitive.
-fn unit_scalar_store_assignment_is_supported(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    assignment: &TableAssignment,
-    target_symbol: symbols::SymbolHandle,
-) -> bool {
-    let Some(result_primitive) = unit_store_call_result_primitive(program, machine, assignment)
-    else {
-        return false;
-    };
-    if let Some(parameter) = program.state_parameter_by_symbol(state, target_symbol) {
-        // A bare `target = call(..)` writes through the whole borrowed place.
-        // Only `&mut`/`&writeonly` primitives are whole-value store
-        // destinations; shared borrows, plain scalars, and structural
-        // referees keep the fence.
-        return parameter.is_mutable
-            && !parameter.is_const
-            && matches!(
-                program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                typed_trees::types::TypeReferenceNode::Reference {
-                    access: language_semantics::ReferenceAccess::Mutable
-                        | language_semantics::ReferenceAccess::WriteOnly,
-                    referee,
-                    ..
-                } if matches!(
-                    program.type_reference_table.type_reference(*referee),
-                    typed_trees::types::TypeReferenceNode::Named { .. }
-                ) && program.primitive_type_reference(*referee) == Some(result_primitive)
-            );
-    }
-    program
-        .state_local_declaration(state, target_symbol)
-        .is_some_and(|(_, local)| {
-            local.is_mutable
-                && program
-                    .expression_table
-                    .expression_is_valid(local.initial_value)
-                && matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(local.type_reference),
-                    typed_trees::types::TypeReferenceNode::Named { .. }
-                )
-                && program.primitive_type_reference(local.type_reference) == Some(result_primitive)
-        })
-}
-
-/// A scalar member assignment and its call tree meet at the declared leaf
-/// primitive, not at an enumerated destination/signature family. The checked
-/// builder owns storage selection and the ordered `AssignmentValue` computation;
-/// source replay independently binds that computation to this assignment and
-/// its live destination. Duplicating those planners here excluded owned locals
-/// even after both stages supported them.
-///
-/// This is not write authority or a claim that an executable plan exists.
-/// Ordinary assignment/call checks still enforce access, types, and effects;
-/// unavailable computations or storage must reject during product construction.
-fn unit_member_scalar_store_assignment_is_supported(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    assignment: &TableAssignment,
-) -> bool {
-    if !matches!(
-        program.expression_table.expression(assignment.target),
-        ExpressionNode::Member(_)
-    ) {
-        return false;
-    }
-    let Some(result_primitive) = ordinary_scalar_call_result_primitive(program, assignment.value)
-    else {
-        return false;
-    };
-    crate::value_custody::places::declared_place_type_raw(
-        program,
-        machine,
-        Some(state),
-        assignment.target,
-    )
-    .and_then(|reference| program.primitive_type_reference(reference))
-        == Some(result_primitive)
-}
-
-/// The computation evaluator owns every ordinary scalar call, including calls
-/// through borrowed receivers. This queries the exact declared result, not the
-/// callee's incidental parameter mix or the receiver's access spelling. Operand
-/// support and authority are independently established by computation planning
-/// and source replay; a missing computation cannot supply a result.
-///
-/// Bodyless boundary/external calls remain result operations, so broadening this
-/// query must not change `result_initializer_call_is_supported`'s ownership test.
-fn ordinary_scalar_call_result_primitive(
-    program: &dyn crate::CheckingInput,
-    value: ExpressionHandle,
-) -> Option<typed_trees::types::PrimitiveType> {
-    if !program.expression_table.expression_is_valid(value) {
-        return None;
-    }
-    let call = program.expression_table.call_node(value)?;
-    if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
-        return None;
-    }
-    let owner = program.machine_holding_state(call.target_symbol)?;
-    if owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-        return None;
-    }
-    let entry = program.machine_states(owner).first()?;
-    (entry.symbol == call.target_symbol)
-        .then(|| program.primitive_type_reference(entry.return_type))
-        .flatten()
 }
 
 /// Every resolved local call evaluates operands before binding its result.

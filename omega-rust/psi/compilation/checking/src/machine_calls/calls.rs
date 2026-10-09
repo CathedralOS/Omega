@@ -49,8 +49,8 @@ pub use unit_returns::{unit_return_call_is_supported, unit_statement_call_is_sup
 use argument_bounds::report_argument_bounds;
 use expression_scanning::receiver_member_chain;
 pub(crate) use expression_scanning::{
-    declared_receiver_type_reference, report_nested_call_in_local_assignment,
-    report_nested_call_in_local_initializer, validate_value_position_calls,
+    declared_receiver_type_reference, report_nested_call_in_local_initializer,
+    validate_value_position_calls,
 };
 pub use expression_scanning::{
     nested_boundary_applications_compose, result_initializer_call_is_supported,

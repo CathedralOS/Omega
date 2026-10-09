@@ -697,12 +697,10 @@ defines the complete product bar.
     `runtime_borrowed_operand_order_exit` (0) for scalar evaluation before
     extraction and `fail/ownership/borrowed_operand_later_read` for reversed
     order rejection; qualify remaining hosts.
-    Complete nested consuming-call replacement: changing the retag helper to
-    `choice = transform(identity(choice), increment)`, with an owned identity
-    helper, is still rejected as a bound value-call argument in
-    `checking/src/machine_calls/calls/expression_scanning/result_realization.rs`.
-    The shared operand sequence, rather than a bind-to-local workaround, must
-    govern that composition's source admission and custody.
+    Keep `runtime_nested_borrowed_consumption_exit` (0) for nested consuming
+    calls restoring both normal branches and
+    `fail/ownership/nested_borrowed_operand_later_read` for an observation
+    after the inner call vacates borrowed storage; qualify remaining hosts.
     Keep `runtime_borrowed_sum_empty_restore_exit` as the direct empty/full
     assignment control; do not explicitly detach and drop its old value.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.

@@ -176,14 +176,10 @@ pub(super) fn validate<'a, 'p>(
             diagnostics,
         );
     }
-    calls::report_nested_call_in_local_assignment(
-        program,
-        machine,
-        current_state,
-        state_name,
-        assignment,
-        diagnostics,
-    );
+    // Assignment operands share the executable producer's ordered evaluation.
+    // Source validation owns types, access, effects and restoration debt, not
+    // a second signature/shape whitelist predicting which calls can lower.
+    // Missing operand plans still fail product construction before execution.
     // A target's index operands are evaluated like any read: `items[top] = v`
     // bounds `top` in the environment the store runs in, exactly as the read
     // `items[top]` does. The value walk below sees only the right-hand side,

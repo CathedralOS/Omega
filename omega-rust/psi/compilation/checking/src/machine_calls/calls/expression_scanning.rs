@@ -25,13 +25,11 @@ mod result_realization;
 mod target_resolution;
 mod traversal;
 
+pub(crate) use result_realization::report_nested_call_in_local_initializer;
 use result_realization::report_void_value_callee;
 pub use result_realization::{
     nested_boundary_applications_compose, result_initializer_call_is_supported,
     unit_result_initializer_call_is_supported,
-};
-pub(crate) use result_realization::{
-    report_nested_call_in_local_assignment, report_nested_call_in_local_initializer,
 };
 pub(crate) use target_resolution::declared_receiver_type_reference;
 use target_resolution::{named_type_reference_name, report_unresolved_value_call};
