@@ -115,24 +115,9 @@ pub struct InstalledCode {
     pub(crate) identity: InstalledCodeId,
     pub(crate) validated: ValidatedPlacement,
     pub(crate) wx: WxEnforcement,
-    pub(crate) installation_registry_claimed: bool,
-}
-
-/// One-shot authority to create the canonical installation-wide registry for
-/// one exact installed-code occurrence.
-///
-/// This value is deliberately opaque and non-clonable. Compact installation
-/// and artifact IDs are report keys only; equality retains the complete
-/// installed-code evidence, including the exact placement scope and bytes.
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct InstallationRegistryAuthority {
-    installed: InstalledCodeEvidence,
 }
 
 impl InstalledCode {
-    pub const fn identity(&self) -> InstalledCodeId {
-        self.identity
-    }
 
     pub fn artifact(&self) -> ArtifactId {
         self.validated.frozen.artifact.artifact.0.identity
@@ -143,23 +128,6 @@ impl InstalledCode {
         self.validated.frozen.placement.scope
     }
 
-    /// Issue the sole registry authority for this installed-code occurrence.
-    /// Dropping the authority does not reopen issuance: the burned claim is
-    /// retained by `InstalledCode` until that occurrence is retired.
-    pub(crate) fn claim_installation_registry(
-        &mut self,
-    ) -> Result<InstallationRegistryAuthority, InstallationDiagnostic> {
-        if self.installation_registry_claimed {
-            return Err(InstallationDiagnostic(
-                "installation registry authority was already issued for this installed-code occurrence"
-                    .into(),
-            ));
-        }
-        self.installation_registry_claimed = true;
-        Ok(InstallationRegistryAuthority {
-            installed: InstalledCodeEvidence::from_installed(self),
-        })
-    }
     /// Test both sides of a relocatable installation: the exact frozen
     /// compiler-authored bytes before relocation and the exact materialized
     /// bytes after the admitted relocation set was applied. No bytes or
@@ -254,18 +222,6 @@ impl InstalledCode {
     }
 }
 
-impl InstallationRegistryAuthority {
-    pub const fn installation_scope(&self) -> InstallationScopeId {
-        self.installed.validated.scope
-    }
-
-    /// Replay the opaque authority against one exact installed realization.
-    /// This compares full evidence rather than normalized report identities.
-    pub fn matches(&self, installed: &InstalledCode) -> bool {
-        self.installed == InstalledCodeEvidence::from_installed(installed)
-    }
-}
-
 /// One-shot authority to retire one exact installed realization. Required
 /// completion facts are open provider vocabulary; quiescence and permission
 /// transition remain mandatory lifecycle gates.
@@ -297,10 +253,6 @@ impl InstalledCodeEvidence {
         }
     }
 
-    /// The audience the validated placement was installed under.
-    pub(crate) const fn audience(&self) -> InstallationAudience {
-        self.validated.audience
-    }
 }
 
 fn installed_artifact_occurrence_digest(
@@ -405,4 +357,3 @@ impl std::fmt::Display for InstallationDiagnostic {
     }
 }
 
-impl std::error::Error for InstallationDiagnostic {}

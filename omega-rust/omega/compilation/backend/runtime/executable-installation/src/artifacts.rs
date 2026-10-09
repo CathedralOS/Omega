@@ -8,8 +8,6 @@
 pub(crate) mod container;
 pub(crate) mod container_bytes;
 use crate::artifacts::container::DecodedArtifactRelocation;
-use crate::artifacts::container::derive_artifact_content_commitments;
-use crate::artifacts::container::validate_decoded_relocations;
 use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::NonAuthoritativeContainerFingerprint64;
 use crate::authority_digests::{
@@ -72,163 +70,6 @@ impl ArtifactEntry {
 pub struct Artifact(pub(crate) Arc<ArtifactRecord>);
 
 impl Artifact {
-    pub(crate) fn from_canonical_decode(
-        identity: ArtifactId,
-        architecture: Architecture,
-        code: Vec<u8>,
-        contracts: MachineContractSetId,
-        declared_footprint: MachineFootprintId,
-        placement_plan: PlacementPlanId,
-        placement_constraints: PlacementConstraints,
-        entry_set: EntrySetId,
-        entries: Vec<ArtifactEntry>,
-        relocation_set: RelocationSetId,
-        relocations: Vec<DecodedArtifactRelocation>,
-        authority_commitments: ArtifactAuthorityCommitments,
-    ) -> Result<Self, InstallationDiagnostic> {
-        Self::from_decoded_parts(
-            identity,
-            architecture,
-            code,
-            contracts,
-            declared_footprint,
-            placement_plan,
-            placement_constraints,
-            entry_set,
-            entries,
-            relocation_set,
-            relocations,
-            Some(authority_commitments),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn from_legacy_v1_decode(
-        identity: ArtifactId,
-        architecture: Architecture,
-        code: Vec<u8>,
-        contracts: MachineContractSetId,
-        declared_footprint: MachineFootprintId,
-        placement_plan: PlacementPlanId,
-        placement_constraints: PlacementConstraints,
-        entry_set: EntrySetId,
-        entries: Vec<ArtifactEntry>,
-        relocation_set: RelocationSetId,
-        relocations: Vec<DecodedArtifactRelocation>,
-    ) -> Result<Self, InstallationDiagnostic> {
-        Self::from_decoded_parts(
-            identity,
-            architecture,
-            code,
-            contracts,
-            declared_footprint,
-            placement_plan,
-            placement_constraints,
-            entry_set,
-            entries,
-            relocation_set,
-            relocations,
-            None,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn from_decoded_parts(
-        identity: ArtifactId,
-        architecture: Architecture,
-        code: Vec<u8>,
-        contracts: MachineContractSetId,
-        declared_footprint: MachineFootprintId,
-        placement_plan: PlacementPlanId,
-        placement_constraints: PlacementConstraints,
-        entry_set: EntrySetId,
-        mut entries: Vec<ArtifactEntry>,
-        relocation_set: RelocationSetId,
-        relocations: Vec<DecodedArtifactRelocation>,
-        authority_commitments: Option<ArtifactAuthorityCommitments>,
-    ) -> Result<Self, InstallationDiagnostic> {
-        if authority_commitments.as_ref().is_some_and(|commitments| {
-            !commitments.matches_report_coordinates(
-                contracts,
-                declared_footprint,
-                placement_constraints,
-            )
-        }) {
-            return Err(InstallationDiagnostic(
-                "strong authority commitments do not match their compact report coordinates".into(),
-            ));
-        }
-        if code.is_empty() {
-            return Err(InstallationDiagnostic(
-                "executable artifact cannot have empty content".into(),
-            ));
-        }
-        let byte_length = u64::try_from(code.len()).map_err(|_| {
-            InstallationDiagnostic(
-                "executable artifact byte length cannot be represented by the container".into(),
-            )
-        })?;
-        if entries.is_empty() {
-            return Err(InstallationDiagnostic(
-                "executable artifact must publish at least one selected entry".into(),
-            ));
-        }
-        entries.sort_unstable_by_key(|entry| entry.identity);
-        for entry in &entries {
-            if entry.code_offset >= byte_length {
-                return Err(InstallationDiagnostic(format!(
-                    "artifact entry {:?} offset {} lies outside {} code bytes",
-                    entry.identity, entry.code_offset, byte_length
-                )));
-            }
-            if matches!(architecture, Architecture::Aarch64) && entry.code_offset % 4 != 0 {
-                return Err(InstallationDiagnostic(format!(
-                    "AArch64 artifact entry {:?} offset {} is not instruction-aligned",
-                    entry.identity, entry.code_offset
-                )));
-            }
-        }
-        if entries
-            .windows(2)
-            .any(|pair| pair[0].identity == pair[1].identity)
-        {
-            return Err(InstallationDiagnostic(
-                "artifact entry identities must be unique".into(),
-            ));
-        }
-        let relocations =
-            validate_decoded_relocations(relocations, architecture, byte_length, usize::MAX)?;
-        let (content, container_fingerprint) = derive_artifact_content_commitments(
-            architecture,
-            &code,
-            contracts,
-            declared_footprint,
-            placement_plan,
-            placement_constraints,
-            entry_set,
-            &entries,
-            relocation_set,
-            &relocations,
-            authority_commitments.as_ref(),
-        )?;
-        Ok(Self(Arc::new(ArtifactRecord {
-            identity,
-            content,
-            container_fingerprint,
-            architecture,
-            byte_length,
-            code,
-            contracts,
-            declared_footprint,
-            placement_plan,
-            placement_constraints,
-            entry_set,
-            entries,
-            relocation_set,
-            relocations,
-            authority_commitments,
-        })))
-    }
 
     pub fn identity(&self) -> ArtifactId {
         self.0.identity
@@ -253,11 +94,6 @@ impl Artifact {
         &self.0.code
     }
 
-    pub(crate) fn placement_constraints(&self) -> PlacementConstraints {
-        self.0.placement_constraints
-    }
-
-
     pub fn entries(&self) -> &[ArtifactEntry] {
         &self.0.entries
     }
@@ -273,40 +109,12 @@ impl Artifact {
         &self.0.relocations
     }
 
-    pub(crate) fn authority_commitments(&self) -> Option<&ArtifactAuthorityCommitments> {
-        self.0.authority_commitments.as_ref()
-    }
-
     pub(crate) fn entry(&self, identity: EntryStubId) -> Option<ArtifactEntry> {
         self.0
             .entries
             .binary_search_by_key(&identity, |entry| entry.identity)
             .ok()
             .map(|index| self.0.entries[index])
-    }
-}
-
-/// Validator-authored evidence for the reusable executable qualification.
-/// This is the normalized receipt carried by provider admission, not something
-/// an Omega package can construct.
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct ArtifactAdmissionEvidence {
-    pub(crate) receipt: AdmissionReceiptId,
-    pub(crate) artifact: Artifact,
-    pub(crate) accepted: bool,
-}
-
-impl ArtifactAdmissionEvidence {
-    pub fn from_validator(
-        receipt: AdmissionReceiptId,
-        artifact: &Artifact,
-        accepted: bool,
-    ) -> Self {
-        Self {
-            receipt,
-            artifact: artifact.clone(),
-            accepted,
-        }
     }
 }
 
@@ -318,13 +126,6 @@ pub(crate) struct AdmittedArtifact {
 }
 
 impl AdmittedArtifact {
-    pub const fn artifact(&self) -> &Artifact {
-        &self.artifact
-    }
-
-    pub const fn admission(&self) -> AdmissionReceiptId {
-        self.admission
-    }
 
     /// Selects a sealed materialization target only when the requested entry
     /// belongs to this admitted artifact's canonical, admission-bound entry

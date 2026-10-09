@@ -11,25 +11,6 @@ impl Fnv1a {
         Self(OFFSET_BASIS)
     }
 
-    pub(crate) fn byte(&mut self, byte: u8) {
-        self.0 ^= u64::from(byte);
-        self.0 = self.0.wrapping_mul(PRIME);
-    }
-
-    pub(crate) fn bytes(&mut self, bytes: &[u8]) {
-        for &byte in bytes {
-            self.byte(byte);
-        }
-    }
-
-    pub(crate) fn u16(&mut self, value: u16) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    pub(crate) fn u64(&mut self, value: u64) {
-        self.bytes(&value.to_le_bytes());
-    }
-
     /// Whole-word XOR-mix feed for slot fingerprints.
     pub(crate) fn u64_mix(&mut self, value: u64) {
         self.0 ^= value;

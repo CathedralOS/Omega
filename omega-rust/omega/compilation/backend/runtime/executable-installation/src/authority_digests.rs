@@ -1,7 +1,6 @@
 //! Domain-separated authority digests and report-only fingerprints.
 
 use crate::installation::InstallationDiagnostic;
-use layout_plans::PlacementConstraints;
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -49,9 +48,6 @@ macro_rules! normalized_digest {
         pub struct $name([u8; 32]);
 
         impl $name {
-            pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
-                Self(digest)
-            }
 
             pub const fn digest(self) -> [u8; 32] {
                 self.0
@@ -74,20 +70,6 @@ macro_rules! canonical_authority_digest {
         pub struct $name([u8; 32]);
 
         impl $name {
-            fn from_report_identity_and_canonical_bytes(
-                report_identity: u64,
-                canonical: &[u8],
-            ) -> Self {
-                let mut digest = crate::digest_encoder::DomainDigestEncoder::new($domain);
-                digest.raw(&report_identity.to_le_bytes());
-                digest.u64(canonical.len() as u64);
-                digest.raw(&canonical);
-                Self(digest.finish())
-            }
-
-            pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
-                Self(digest)
-            }
 
             pub const fn as_bytes(&self) -> &[u8; 32] {
                 &self.0
@@ -126,185 +108,19 @@ pub(crate) struct ArtifactAuthorityCommitments {
     installation_scope: InstallationScopeDigest,
 }
 
-impl ArtifactAuthorityCommitments {
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn from_canonical_evidence(
-        contracts: MachineContractSetId,
-        contract_bytes: &[u8],
-        footprint: MachineFootprintId,
-        footprint_bytes: &[u8],
-        regime: Option<(layout_plans::MachineRegimeId, &[u8])>,
-        scope: Option<(layout_plans::ArtifactInstallationScopeId, &[u8])>,
-    ) -> Self {
-        let (regime_identity, regime_bytes) = regime
-            .map(|(identity, bytes)| (identity.normalized_identity(), bytes))
-            .unwrap_or((0, &[]));
-        let (scope_identity, scope_bytes) = scope
-            .map(|(identity, bytes)| (identity.normalized_identity(), bytes))
-            .unwrap_or((0, &[]));
-        Self {
-            imported_contract_report_identity: contracts.normalized_identity(),
-            imported_contracts: ImportedContractSetDigest::from_report_identity_and_canonical_bytes(
-                contracts.normalized_identity(),
-                contract_bytes,
-            ),
-            declared_footprint_report_identity: footprint.normalized_identity(),
-            declared_footprint: DeclaredFootprintDigest::from_report_identity_and_canonical_bytes(
-                footprint.normalized_identity(),
-                footprint_bytes,
-            ),
-            machine_regime_report_identity: regime_identity,
-            machine_regime: MachineRegimeDigest::from_report_identity_and_canonical_bytes(
-                regime_identity,
-                regime_bytes,
-            ),
-            installation_scope_report_identity: scope_identity,
-            installation_scope: InstallationScopeDigest::from_report_identity_and_canonical_bytes(
-                scope_identity,
-                scope_bytes,
-            ),
-        }
-    }
-
-    pub const fn imported_contracts(&self) -> ImportedContractSetDigest {
-        self.imported_contracts
-    }
-
-    pub const fn declared_footprint(&self) -> DeclaredFootprintDigest {
-        self.declared_footprint
-    }
-
-    pub const fn machine_regime(&self) -> MachineRegimeDigest {
-        self.machine_regime
-    }
-
-    pub const fn installation_scope(&self) -> InstallationScopeDigest {
-        self.installation_scope
-    }
-
-    pub(crate) fn matches_report_coordinates(
-        &self,
-        contracts: MachineContractSetId,
-        footprint: MachineFootprintId,
-        placement: PlacementConstraints,
-    ) -> bool {
-        self.imported_contract_report_identity == contracts.normalized_identity()
-            && self.declared_footprint_report_identity == footprint.normalized_identity()
-            && self.machine_regime_report_identity
-                == placement
-                    .machine_regime()
-                    .map_or(0, |identity| identity.normalized_identity())
-            && self.installation_scope_report_identity
-                == placement
-                    .installation_scope()
-                    .map_or(0, |identity| identity.normalized_identity())
-    }
-}
-
 impl InstallationFactDigest {
-    /// Derive one provider-defined installation fact from its canonical bytes.
-    ///
-    /// Install gates compare this complete domain-separated digest rather
-    /// than a compact provider-selected integer. The canonical bytes remain
-    /// provider vocabulary — a receiver can demand, for example, the
-    /// provider's exact cache-order or instruction-fetch completion fact —
-    /// and this layer assigns them no ambient meaning.
-    pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.installation-fact.sha256.v1\0");
-        digest.raw(
-            &u64::try_from(canonical.len())
-                .expect("installation-fact canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.raw(&canonical);
-        Self::from_digest(digest.finish())
-    }
 }
 
 impl ReplacementFactDigest {
-    /// Derive one provider-defined completion fact from its canonical bytes.
-    ///
-    /// Replacement gates compare this complete domain-separated digest rather
-    /// than a compact provider-selected integer. The canonical bytes remain
-    /// provider vocabulary — a receiver can demand, for example, the
-    /// provider's exact patched-site cache-order or instruction-fetch
-    /// completion fact — and this layer assigns them no ambient meaning.
-    pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.replacement-fact.sha256.v1\0");
-        digest.raw(
-            &u64::try_from(canonical.len())
-                .expect("replacement-fact canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.raw(&canonical);
-        Self::from_digest(digest.finish())
-    }
 }
 
 impl EntryContractDigest {
-    /// Derive the contract identity a sealed entry reference must satisfy
-    /// from its canonical descriptor bytes.
-    ///
-    /// Entry-sealing gates compare this complete domain-separated digest
-    /// rather than a compact caller-selected integer. The canonical bytes
-    /// remain provider vocabulary — a receiver can demand, for example, the
-    /// provider's exact calling-boundary contract descriptor — and this
-    /// layer assigns them no ambient meaning.
-    pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.entry-contract.sha256.v1\0");
-        digest.raw(
-            &u64::try_from(canonical.len())
-                .expect("entry-contract canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.raw(&canonical);
-        Self::from_digest(digest.finish())
-    }
 }
 
 impl EntryReferenceFactDigest {
-    /// Derive one provider-defined entry-sealing fact from its canonical
-    /// bytes.
-    ///
-    /// Entry-sealing gates compare this complete domain-separated digest
-    /// rather than a compact provider-selected integer. The canonical bytes
-    /// remain provider vocabulary — a receiver can demand, for example, the
-    /// provider's exact fetch-domain or cache-order completion fact — and
-    /// this layer assigns them no ambient meaning.
-    pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.entry-reference-fact.sha256.v1\0",
-        );
-        digest.raw(
-            &u64::try_from(canonical.len())
-                .expect("entry-reference-fact canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.raw(&canonical);
-        Self::from_digest(digest.finish())
-    }
 }
 
 impl RetirementFactDigest {
-    /// Derive one provider-defined completion fact from its canonical bytes.
-    ///
-    /// Retirement gates compare this complete domain-separated digest rather
-    /// than a compact provider-selected integer. The canonical bytes remain
-    /// provider vocabulary; this layer assigns them no ambient meaning.
-    pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
-        let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.retirement-fact.sha256.v1\0");
-        digest.raw(
-            &u64::try_from(canonical.len())
-                .expect("retirement-fact canonical byte length fits u64")
-                .to_le_bytes(),
-        );
-        digest.raw(&canonical);
-        Self::from_digest(digest.finish())
-    }
 }
 
 macro_rules! non_authoritative_fingerprint64 {
@@ -313,12 +129,10 @@ macro_rules! non_authoritative_fingerprint64 {
         pub struct $name(u64);
 
         impl $name {
-            pub(crate) fn from_compatibility_value(
-                value: u64,
-            ) -> Result<Self, InstallationDiagnostic> {
+            pub fn from_compatibility_value(value: u64) -> Result<Self, InstallationDiagnostic> {
                 if value == 0 {
                     return Err(InstallationDiagnostic(format!(
-                        "non-authoritative {} fingerprint cannot be zero",
+                        "{} compatibility value cannot be zero",
                         $label
                     )));
                 }
