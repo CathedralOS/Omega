@@ -525,7 +525,7 @@ pub(crate) fn x86_64_stack_adjustment(byte_size: u32, add: bool) -> Vec<u8> {
         vec![0x48, 0x83, if add { 0xc4 } else { 0xec }, byte_size as u8]
     } else {
         let mut bytes = vec![0x48, 0x81, if add { 0xc4 } else { 0xec }];
-        bytes.extend_from_slice(&byte_size.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, byte_size.to_le_bytes());
         bytes
     }
 }
@@ -535,7 +535,7 @@ pub(crate) fn x86_64_stack_release_preserving_flags(byte_size: u32) -> Vec<u8> {
         vec![0x48, 0x8d, 0x64, 0x24, byte_size as u8]
     } else {
         let mut bytes = vec![0x48, 0x8d, 0xa4, 0x24];
-        bytes.extend_from_slice(&byte_size.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, byte_size.to_le_bytes());
         bytes
     }
 }

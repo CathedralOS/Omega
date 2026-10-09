@@ -30,6 +30,7 @@
 //!   and retirement ladder. [`installed_artifact`] joins that record to an
 //!   installed code occurrence when the `installed-artifact` feature is on.
 
+mod codec_bytes;
 mod dynamic_elf;
 mod final_image_validation;
 mod function_fragments;

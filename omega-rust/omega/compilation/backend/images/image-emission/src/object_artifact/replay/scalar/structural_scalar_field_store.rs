@@ -222,7 +222,7 @@ fn expected_x86(
         return None;
     };
     let mut bytes = vec![0x49, 0xb8 | (VALUE_REGISTER & 7)];
-    bytes.extend_from_slice(&bits.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, bits.to_le_bytes());
     let store_base = match *pointer {
         IndirectPointerLocation::Register(register) => x86_terminal_register(register)?,
         IndirectPointerLocation::Stack {
@@ -275,7 +275,7 @@ fn x86_stack_load(bytes: &mut Vec<u8>, register: u8, offset: u32) {
         bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, offset as u8]);
     } else {
         bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
-        bytes.extend_from_slice(&offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
     }
 }
 
@@ -341,7 +341,7 @@ fn x86_modrm(bytes: &mut Vec<u8>, register: u8, base: u8, offset: u32) {
         bytes.extend_from_slice(&[0x40 | ((register & 7) << 3) | (base & 7), offset as u8]);
     } else {
         bytes.push(0x80 | ((register & 7) << 3) | (base & 7));
-        bytes.extend_from_slice(&offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
     }
 }
 

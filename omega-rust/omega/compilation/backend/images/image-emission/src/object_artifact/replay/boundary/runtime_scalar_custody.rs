@@ -367,7 +367,7 @@ fn structural_payload_source_is_exact(
                 return false;
             }
             expected.push(0x3d);
-            expected.extend_from_slice(&1_i32.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, 1_i32.to_le_bytes());
             let branch_offset = start + expected.len();
             let Ok(target) = i64::try_from(target_offset) else {
                 return false;
@@ -379,7 +379,7 @@ fn structural_payload_source_is_exact(
                 return false;
             };
             expected.extend_from_slice(&[0x0f, 0x85]);
-            expected.extend_from_slice(&displacement.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, displacement.to_le_bytes());
         }
         Architecture::Aarch64 => {
             let Some(load) =
@@ -389,8 +389,8 @@ fn structural_payload_source_is_exact(
             else {
                 return false;
             };
-            expected.extend_from_slice(&load.to_le_bytes());
-            expected.extend_from_slice(&(0x7100_001f_u32 | (1 << 10) | (9 << 5)).to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, load.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, (0x7100_001f_u32 | (1 << 10) | (9 << 5)).to_le_bytes());
             let branch_offset = start + expected.len();
             let Some(distance) = target_offset
                 .checked_sub(branch_offset)
@@ -402,7 +402,7 @@ fn structural_payload_source_is_exact(
             if words > 0x3ffff {
                 return false;
             }
-            expected.extend_from_slice(&(0x5400_0001_u32 | ((words as u32) << 5)).to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, (0x5400_0001_u32 | ((words as u32) << 5)).to_le_bytes());
         }
     }
     write.code_offset == start + expected.len()

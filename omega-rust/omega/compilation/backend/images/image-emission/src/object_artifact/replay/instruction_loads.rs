@@ -61,7 +61,7 @@ pub(crate) fn expected_x86_memory_load(
         bytes.push(offset as u8);
     } else {
         bytes.push(0x80 | ((destination & 7) << 3) | (base & 7));
-        bytes.extend_from_slice(&offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
     }
     Some(())
 }
@@ -112,7 +112,7 @@ pub(crate) fn x86_replay_rsp_load(
         bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, byte_offset as u8]);
     } else {
         bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
-        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
     }
     Some(())
 }
@@ -134,7 +134,7 @@ pub(crate) fn x86_replay_memory_load(
         ]);
     } else {
         bytes.push(0x80 | ((destination & 7) << 3) | (base & 7));
-        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
     }
 }
 

@@ -419,7 +419,7 @@ pub(crate) fn validate_callback_address_bytes(
             }
             expected.extend_from_slice(&[0; 4]);
             expected.extend_from_slice(&[0x4c | u8::from(root >= 8), 0x89, 0x98 | (root & 7)]);
-            expected.extend_from_slice(&byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, byte_offset.to_le_bytes());
         }
         (
             Architecture::Aarch64,
@@ -440,7 +440,7 @@ pub(crate) fn validate_callback_address_bytes(
             {
                 return Err(invalid());
             }
-            expected.extend_from_slice(&(0x9000_0000 | u32::from(register)).to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, (0x9000_0000 | u32::from(register)).to_le_bytes());
             expected.extend_from_slice(
                 &(0x9100_0000 | (u32::from(register) << 5) | u32::from(register)).to_le_bytes(),
             );
@@ -459,8 +459,8 @@ pub(crate) fn validate_callback_address_bytes(
             {
                 return Err(invalid());
             }
-            expected.extend_from_slice(&0x9000_0009u32.to_le_bytes());
-            expected.extend_from_slice(&0x9100_0129u32.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, 0x9000_0009u32.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, 0x9100_0129u32.to_le_bytes());
             expected.extend_from_slice(
                 &crate::object_artifact::replay::unit::scalar_call_custody::expected_aarch64_stack_store(9, byte_offset)
                     .ok_or_else(invalid)?
@@ -491,8 +491,8 @@ pub(crate) fn validate_callback_address_bytes(
             {
                 return Err(invalid());
             }
-            expected.extend_from_slice(&0x9000_0010u32.to_le_bytes());
-            expected.extend_from_slice(&0x9100_0210u32.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, 0x9000_0010u32.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut expected, 0x9100_0210u32.to_le_bytes());
             expected.extend_from_slice(
                 &(0xF900_0000_u32 | ((byte_offset / 8) << 10) | (u32::from(root) << 5) | 16)
                     .to_le_bytes(),
@@ -1004,11 +1004,11 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
                         bytes.push(0x41);
                     }
                     bytes.push(0xb8 | (register & 7));
-                    bytes.extend_from_slice(&(value_bits as u32).to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, (value_bits as u32).to_le_bytes());
                 }
                 Architecture::X86_64 => {
                     bytes.extend_from_slice(&[0x48 | ((register >> 3) & 1), 0xb8 | (register & 7)]);
-                    bytes.extend_from_slice(&value_bits.to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, value_bits.to_le_bytes());
                 }
                 Architecture::Aarch64 => {
                     for chunk in 0..4 {
@@ -1019,7 +1019,7 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
                                 | ((chunk as u32) << 21)
                                 | (immediate << 5)
                                 | u32::from(register);
-                            bytes.extend_from_slice(&instruction.to_le_bytes());
+                            crate::codec_bytes::push_encoded(&mut bytes, instruction.to_le_bytes());
                         }
                     }
                 }
@@ -1044,7 +1044,7 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
                         outbound_bytes.checked_add(home.byte_offset)?,
                         home.shape.byte_size,
                     )?;
-                    bytes.extend_from_slice(&instruction.to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, instruction.to_le_bytes());
                 }
             }
         }
@@ -1059,7 +1059,7 @@ pub(crate) fn expected_foreign_scalar_argument_bytes(
             Architecture::Aarch64 => {
                 let instruction =
                     crate::object_artifact::replay::unit::scalar_call_custody::expected_aarch64_stack_store(register, offset)?;
-                bytes.extend_from_slice(&instruction.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, instruction.to_le_bytes());
             }
         }
     }

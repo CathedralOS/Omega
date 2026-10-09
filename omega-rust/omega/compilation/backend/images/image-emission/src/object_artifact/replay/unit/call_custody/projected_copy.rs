@@ -40,7 +40,7 @@ pub(super) fn expected_owned_projected_copy_bytes(
         match target.architecture {
             Architecture::X86_64 => expected_x86_stack_load(&mut bytes, 11, home, 8)?,
             Architecture::Aarch64 => {
-                bytes.extend_from_slice(&expected_aarch64_stack_load(9, home, 8)?.to_le_bytes())
+                crate::codec_bytes::push_encoded(&mut bytes, expected_aarch64_stack_load(9, home, 8)?.to_le_bytes())
             }
         }
     }
@@ -105,7 +105,7 @@ pub(super) fn expected_owned_projected_copy_bytes(
                     0x84 | ((register & 7) << 3),
                     0x24,
                 ]);
-                bytes.extend_from_slice(&temporary.to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, temporary.to_le_bytes());
                 if let Some(offset) = pointer_stack {
                     x86_stack_store(&mut bytes, register, offset, 8)?;
                 }
@@ -235,7 +235,7 @@ fn append_fragment(
                 if indirect {
                     load = (load & !(31 << 5)) | (9 << 5);
                 }
-                bytes.extend_from_slice(&load.to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, load.to_le_bytes());
             }
             if let Some(offset) = stack {
                 if super::packed_fragment::is_packed(width) {
@@ -272,7 +272,7 @@ pub(super) fn x86_pointer_load(
         bytes.extend_from_slice(&[0x43 | register_bits, offset as u8]);
     } else {
         bytes.push(0x83 | register_bits);
-        bytes.extend_from_slice(&offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
     }
     Some(())
 }
@@ -295,7 +295,7 @@ pub(super) fn x86_stack_store(
         bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, offset as u8]);
     } else {
         bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
-        bytes.extend_from_slice(&offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
     }
     Some(())
 }

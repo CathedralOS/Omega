@@ -947,7 +947,7 @@ fn canonical_bits(integer: IntegerType, value: IntegerValue) -> Option<u64> {
 fn expected_x86_immediate(bytes: &mut Vec<u8>, register: u8, bits: u64) {
     bytes.push(0x48 | ((register >> 3) & 1));
     bytes.push(0xb8 | (register & 7));
-    bytes.extend_from_slice(&bits.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, bits.to_le_bytes());
 }
 
 pub(crate) fn expected_x86_stack_store(bytes: &mut Vec<u8>, register: u8, offset: u32) {
@@ -957,7 +957,7 @@ pub(crate) fn expected_x86_stack_store(bytes: &mut Vec<u8>, register: u8, offset
         bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, offset as u8]);
     } else {
         bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
-        bytes.extend_from_slice(&offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
     }
 }
 

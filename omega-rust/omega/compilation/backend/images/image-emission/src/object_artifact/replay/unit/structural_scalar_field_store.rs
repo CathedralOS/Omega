@@ -434,7 +434,7 @@ fn expected_x86_store(
     const ADDRESS_REGISTER: u8 = 10;
     const VALUE_REGISTER: u8 = 11;
     let mut bytes = vec![0x49, 0xb8 | (VALUE_REGISTER & 7)];
-    bytes.extend_from_slice(&bits.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, bits.to_le_bytes());
     if home.indirect {
         emit_x86_stack_load(
             &mut bytes,
@@ -504,7 +504,7 @@ fn emit_x86_memory_store(
         bytes.push(byte_offset as u8);
     } else {
         bytes.push(0x80 | ((source & 7) << 3) | (base & 7));
-        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
     }
     Some(())
 }
@@ -533,7 +533,7 @@ fn emit_x86_rsp_modrm(bytes: &mut Vec<u8>, register: u8, byte_offset: u32) {
         bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, byte_offset as u8]);
     } else {
         bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
-        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
     }
 }
 

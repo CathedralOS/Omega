@@ -72,14 +72,14 @@ pub(super) fn aarch64_load(
         if indirect {
             load = (load & !(31 << 5)) | (9 << 5);
         }
-        bytes.extend_from_slice(&load.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, load.to_le_bytes());
         if index != 0 {
             let combine = 0xaa00_0000
                 | (16 << 16)
                 | ((index * 8) << 10)
                 | (u32::from(destination) << 5)
                 | u32::from(destination);
-            bytes.extend_from_slice(&combine.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, combine.to_le_bytes());
         }
     }
     Some(())
@@ -95,14 +95,14 @@ pub(super) fn aarch64_store(
         return None;
     }
     let copy = 0xaa00_03e0 | (u32::from(source) << 16) | 16;
-    bytes.extend_from_slice(&copy.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, copy.to_le_bytes());
     for index in 0..width {
         bytes.extend_from_slice(
             &super::projected_copy::aarch64_stack_store(16, offset.checked_add(index)?, 1)?
                 .to_le_bytes(),
         );
         if index + 1 != width {
-            bytes.extend_from_slice(&(0xd340_fc00_u32 | (8 << 16) | (16 << 5) | 16).to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, (0xd340_fc00_u32 | (8 << 16) | (16 << 5) | 16).to_le_bytes());
         }
     }
     Some(())

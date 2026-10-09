@@ -560,7 +560,7 @@ fn expected_affine_scalar_record_argument_bytes(
         Architecture::X86_64 => {
             let register = x86_terminal_register(*register)?;
             let mut bytes = vec![0x48 | ((register >> 3) & 1), 0xb8 | (register & 7)];
-            bytes.extend_from_slice(&bits.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, bits.to_le_bytes());
             Some(bytes)
         }
         Architecture::Aarch64 => {
@@ -675,7 +675,7 @@ pub(crate) fn expected_projected_copy_bytes(
                         0x81,
                         0xc0 | (destination & 7),
                     ]);
-                    bytes.extend_from_slice(&argument.source_byte_offset.to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, argument.source_byte_offset.to_le_bytes());
                 }
                 if let calling_conventions::IndirectPointerLocation::Stack {
                     stack_byte_offset,
