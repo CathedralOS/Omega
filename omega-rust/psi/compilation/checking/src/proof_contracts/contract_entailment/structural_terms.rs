@@ -264,6 +264,60 @@ pub(super) fn structural_term_for_parameters(
     structural_term_with_frame(program, None, Some((owner, parameters)), expression)
 }
 
+/// Compare selected scalar value operations in one exact declaration scope.
+/// Symbol leaves stay exact even though the specification equation vocabulary
+/// also supports named binders. Unsupported/opaque observations grant no
+/// congruence; this query applies no arithmetic or float equality law.
+pub(crate) fn source_operations_have_same_meaning(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    let bindings = |expression| {
+        let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+            return None;
+        };
+        if path.symbol.is_valid()
+            && ((program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                == 1
+                && parameters
+                    .iter()
+                    .any(|parameter| parameter.symbol == path.symbol))
+                || program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const)
+        {
+            Some(StructuralTerm::BoundValue(path.symbol))
+        } else {
+            None
+        }
+    };
+    fn complete(term: &StructuralTerm) -> bool {
+        match term {
+            StructuralTerm::BoundValue(symbol) => symbol.is_valid(),
+            StructuralTerm::Integer(_) | StructuralTerm::Float(_) => true,
+            StructuralTerm::ScalarBinary { left, right, .. } => complete(left) && complete(right),
+            _ => false,
+        }
+    }
+    let form = |expression| {
+        structural_term_with_bindings(
+            program,
+            None,
+            Some((owner, parameters)),
+            expression,
+            Some(&bindings),
+        )
+    };
+    match (form(left), form(right)) {
+        (Some(left), Some(right)) => complete(&left) && complete(&right) && left == right,
+        _ => false,
+    }
+}
+
 fn structural_term_with_frame(
     program: &dyn crate::CheckingInput,
     scope: Option<(
@@ -277,6 +331,26 @@ fn structural_term_with_frame(
     )>,
     expression: ExpressionHandle,
 ) -> Option<StructuralTerm> {
+    structural_term_with_bindings(program, scope, frame, expression, None)
+}
+
+fn structural_term_with_bindings(
+    program: &dyn crate::CheckingInput,
+    scope: Option<(
+        &typed_trees::machine::Machine,
+        &typed_trees::state::State,
+        typed_trees::types::TypeReferenceHandle,
+    )>,
+    frame: Option<(
+        symbols::SymbolHandle,
+        &[typed_trees::signature::StateParameter],
+    )>,
+    expression: ExpressionHandle,
+    bindings: Option<&dyn Fn(ExpressionHandle) -> Option<StructuralTerm>>,
+) -> Option<StructuralTerm> {
+    if let Some(term) = bindings.and_then(|bindings| bindings(expression)) {
+        return Some(term);
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
@@ -303,7 +377,7 @@ fn structural_term_with_frame(
         }
         ExpressionNode::StructLiteral(literal) => {
             constructor_literal_term(program, literal, |field| {
-                structural_term_with_frame(program, scope, frame, field.value)
+                structural_term_with_bindings(program, scope, frame, field.value, bindings)
             })
         }
         ExpressionNode::Binary(binary) => binary_term_in_scope(
@@ -311,8 +385,8 @@ fn structural_term_with_frame(
             scope,
             frame,
             expression,
-            structural_term_with_frame(program, scope, frame, binary.left)?,
-            structural_term_with_frame(program, scope, frame, binary.right)?,
+            structural_term_with_bindings(program, scope, frame, binary.left, bindings)?,
+            structural_term_with_bindings(program, scope, frame, binary.right, bindings)?,
         ),
         ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
         // A determinate float literal carries its exact decimal spelling; the
@@ -329,7 +403,7 @@ fn structural_term_with_frame(
                 let arguments: Vec<StructuralTerm> = handles
                     .iter()
                     .filter_map(|argument| {
-                        structural_term_with_frame(program, scope, frame, *argument)
+                        structural_term_with_bindings(program, scope, frame, *argument, bindings)
                     })
                     .collect();
                 if arguments.len() == handles.len() {
@@ -384,7 +458,7 @@ fn structural_term_with_frame(
                 let arguments = handles
                     .iter()
                     .filter_map(|argument| {
-                        structural_term_with_frame(program, scope, frame, *argument)
+                        structural_term_with_bindings(program, scope, frame, *argument, bindings)
                     })
                     .collect::<Vec<_>>();
                 if arguments.len() == handles.len() {
@@ -445,7 +519,7 @@ fn structural_term_with_frame(
             // a substitutable projection so call instantiation can recover
             // the actual extent. Ordinary symbolic fields retain the same
             // vocabulary as callee_term_with_machines and citation intake.
-            match structural_term_with_frame(program, scope, frame, member.receiver) {
+            match structural_term_with_bindings(program, scope, frame, member.receiver, bindings) {
                 Some(StructuralTerm::Constructor { fields, .. }) => fields
                     .into_iter()
                     .find(|(name, _)| name == member.member.as_str())
@@ -475,7 +549,7 @@ fn structural_term_with_frame(
         // referent's storage and a `.len` over it folds to the declared
         // extent.
         ExpressionNode::Borrow(borrow) => {
-            structural_term_with_frame(program, scope, frame, borrow.target)
+            structural_term_with_bindings(program, scope, frame, borrow.target, bindings)
         }
         _ => None,
     }

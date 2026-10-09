@@ -405,9 +405,15 @@ impl<'a> Elaborator<'a> {
         dependencies.sort_unstable();
         let source_type = source_type.unwrap_or_default();
         let position = match self.source_operations.iter().find(|operation| {
-            operation.expression == handle
-                && operation.owner == self.source_owner
+            operation.owner == self.source_owner
                 && operation.source_type == source_type
+                && (operation.expression == handle
+                    || validation::mathematical_applications::source_operations_have_same_meaning(
+                        self.program,
+                        self.source_owner,
+                        operation.expression,
+                        handle,
+                    ))
         }) {
             Some(operation) => operation.declaration,
             None => {

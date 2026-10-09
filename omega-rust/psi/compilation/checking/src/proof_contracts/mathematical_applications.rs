@@ -120,3 +120,35 @@ pub fn ordinary_parameters(
         })
         .collect()
 }
+
+/// Selected primitive value congruence for opaque mathematical source terms.
+/// The ordinary structural owner retains carrier/policy and exact bound values;
+/// unsupported terms remain distinct rather than borrowing source shape keys.
+pub fn source_operations_have_same_meaning(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    let parameters = if let Some(definition) = program
+        .mathematical_definitions()
+        .iter()
+        .find(|definition| definition.symbol == owner)
+    {
+        ordinary_parameters(program, definition)
+    } else if let Some(machine) = program.machine_by_symbol(owner) {
+        let Some(entry) = program.machine_states(machine).first() else {
+            return false;
+        };
+        program.state_parameters(entry).to_vec()
+    } else {
+        return false;
+    };
+    crate::proof_contracts::contract_entailment::source_operations_have_same_meaning(
+        program,
+        owner,
+        &parameters,
+        left,
+        right,
+    )
+}
