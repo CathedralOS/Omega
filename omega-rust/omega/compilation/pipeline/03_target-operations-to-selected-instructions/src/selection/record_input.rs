@@ -196,7 +196,7 @@ pub(super) fn structural_operand_shape(
             crate::structural_inputs::structural_reference_input::shape(child_type, declarations)?
         }
         field_type if descriptor_shape(field_type, declarations).is_some() => {
-            // A shared view member stores its two-word descriptor: the
+            // A view member stores its two-word descriptor: the
             // initializer moves the descriptor value with owned access, the
             // backing's custody stays with the source's loan. `Structural`
             // members name their descriptor type; direct `&[u8]` members
@@ -214,8 +214,17 @@ pub(super) fn structural_operand_shape(
                 .or_else(|| {
                     super::established_view_input::element_view_type(source, argument.place)
                 })?;
-            let readable = super::established_view_input::view_access(source, argument.place)
-                == Some(terminal_psi::StructuralAccess::SharedBorrow);
+            let readable = match super::established_view_input::view_access(source, argument.place)
+            {
+                Some(terminal_psi::StructuralAccess::SharedBorrow) => true,
+                // The record owns the completed exclusive descriptor once.
+                // Transporting its words does not copy or own its referent;
+                // unrestricted parent custody cannot retain that resource.
+                Some(terminal_psi::StructuralAccess::MutableBorrow) => {
+                    parent.multiplicity == StructuralMultiplicity::Affine
+                }
+                _ => false,
+            };
             if (find_structural_type(declarations, child_type)
                 .map(|declaration| &declaration.shape)
                 != Some(&expected)
@@ -295,7 +304,7 @@ pub(super) fn structural_operand_shape(
     Some(shape)
 }
 
-/// The descriptor shape a shared-view member stores: an `ElementView` or
+/// The descriptor shape a view member stores: an `ElementView` or
 /// borrowed byte view through its `Structural` child type, or the canonical
 /// `&[u8]` spelling directly on the field.
 fn descriptor_shape(
