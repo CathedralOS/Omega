@@ -3,3 +3,5 @@ Selective constructed-owner custody must preserve the disjoint sibling on every 
 Run `omega run --both tests/omega/pass/ownership/runtime_selective_constructed_owner_custody_exit/main.omg`; both engines must exit 0.
 
 Field replacement preserves its regional cleanup and the other field before a later selected whole-owner transfer. Both executing and skipping that transfer must settle the containing owner's lifetime.
+
+Indexed replacement captures its destination before the right-hand call changes the selector. The replacement updates the captured element, preserves its sibling, then uses the same selected whole-owner custody operation.

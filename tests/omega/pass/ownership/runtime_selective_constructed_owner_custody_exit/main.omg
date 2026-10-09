@@ -54,6 +54,21 @@ machine replace_then_select(enabled: bool) -> bool {
     observed == enabled
 }
 
+machine indexed_replacement(index: &mut u64) -> Token {
+    index = 1;
+    Token { value: 19 }
+}
+machine consume_tokens(tokens: [Token; 2]) -> bool {
+    tokens[0].value == 19 && tokens[1].value == 7
+}
+machine replace_index_then_select(enabled: bool) -> bool {
+    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];
+    let mut index: u64 = 0;
+    tokens[index] = indexed_replacement(&mut index);
+    let observed: bool = enabled && consume_tokens(tokens);
+    (observed == enabled) && index == 1
+}
+
 machine main() crashes Trap {
     let accepted: bool = and_transfer(false) && and_transfer(true)
         && or_transfer(true) && or_transfer(false)
@@ -61,7 +76,8 @@ machine main() crashes Trap {
         && nested_transfer(true, true) && nested_transfer(true, false)
         && branch_birth(false) && branch_birth(true)
         && generic_transfer(false) && generic_transfer(true)
-        && replace_then_select(false) && replace_then_select(true);
+        && replace_then_select(false) && replace_then_select(true)
+        && replace_index_then_select(false) && replace_index_then_select(true);
     transition accepted { true -> done() false -> bad() }
     state done() {}
     state bad() { crash Trap; }
