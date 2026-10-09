@@ -1827,47 +1827,6 @@ pub fn owned_record_argument(
         .is_some_and(|loans| !loans.is_empty())
 }
 
-/// Resolve an authored member projection against a record type, yielding the
-/// field-identity path and the projected type. The spelling matches the leaf
-/// paths `record_carrier_sources` and `local_record_loans` reconstruct, so one
-/// resolver keeps those joins from drifting.
-pub(crate) fn declared_field_path<'a>(
-    program: &dyn crate::CheckingInput,
-    mut selected: TypeReferenceHandle,
-    members: impl Iterator<Item = &'a typed_trees::expression::TableMemberExpression>,
-) -> Option<(
-    Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    TypeReferenceHandle,
-)> {
-    let mut path = Vec::new();
-    for member in members {
-        let symbol = match program.type_reference_table.type_reference(selected) {
-            TypeReferenceNode::Named { symbol, .. } => symbol,
-            // Lifetimes do not substitute stored field types. Real type
-            // arguments still require an instantiated field declaration.
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } if arguments.count() == 0 => base_symbol,
-            _ => return None,
-        };
-        let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
-        let field = crate::value_custody::places::exact_data_member_field(
-            program,
-            data,
-            member.member_symbol,
-            member.member.as_str(),
-            member.case_variant.as_ref().map(|case| case.as_str()),
-        )?;
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            field.path_identity(),
-        ));
-        selected = field.type_reference;
-    }
-    Some((path, selected))
-}
-
 /// A projected owned-record argument moves the projected subtree's captured
 /// leaves with the call. Every leaf under the projected edge must stay live
 /// until this consuming statement, and the edge must carry the record's whole
