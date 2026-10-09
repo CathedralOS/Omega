@@ -123,7 +123,6 @@ mod tests {
         symbol_section_name,
     };
     use crate::{NormalizedImportPlan, ObjectPlan, SectionKind, SymbolSection};
-    use function_identity::MachineFunctionIdentity;
     use target::{
         Architecture, ForeignLocatorCandidate, NativeTarget, ObjectFormat, TargetProfile,
         normalize_foreign_locator,
