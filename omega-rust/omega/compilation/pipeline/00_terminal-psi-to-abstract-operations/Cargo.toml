@@ -33,5 +33,4 @@ calling-conventions = { path = "../../backend/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 effects = { path = "../../backend/plans/provider-evidence" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
-provider-planning = { path = "../../realization/provider-planning" }
 target = { path = "../../backend/target" }

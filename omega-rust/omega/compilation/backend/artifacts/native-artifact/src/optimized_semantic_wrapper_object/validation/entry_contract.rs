@@ -38,7 +38,7 @@ pub fn bind_semantic_contract(
             .physical_calling_plan()
             .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::MissingPairedCallingPlans)?,
         semantic.report_fingerprint,
-        semantic.commitment,
+        effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(semantic.commitment),
     );
     bind_optimized_program_storage_semantic_entry_contract(
         settlement.target(),

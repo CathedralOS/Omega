@@ -2068,8 +2068,10 @@ crash and native exit behavior.
     identity lives in Terminal machines and demands; native callback identities
     use the caller's Terminal identity and placement ordinal, not source handles.
     Native re-entry retains produced callback bodies and ABI/argument rows,
-    not checked-source placement records. Initial callback ABI/resource
-    planning still needs a source-free production input.
+    not checked-source placement records. Stage 00 consumes completed calling
+    applications rather than provider-planning's evaluator records; its direct
+    dependency on that source-aware planner is gone. Initial callback
+    ABI/resource planning and entry signatures still need source-free inputs.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming
     stage's declared inputs. Add one workspace architecture gate derived from

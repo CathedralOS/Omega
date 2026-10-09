@@ -3,9 +3,9 @@
 mod operations;
 
 use backend_plan::BoundNominalCallbackPlacement;
+use calling_conventions::BoundaryCallingApplication;
 use calling_conventions::ExternalBindingRow;
 use operations::CallbackTerminalOperations;
-use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use semantic_vocabulary::OperationId;
 use terminal_psi::TerminalModule;
 
@@ -20,7 +20,7 @@ pub struct CallbackRegistrarOccurrence {
 }
 
 /// Rejoin target-closed callback registrar plans to their selected import
-/// rows while the checked calling-policy realization and canonical Terminal
+/// rows using the produced calling application and canonical Terminal
 /// operation still coexist. The locator remains the target package's only
 /// contribution; the registrar requirement owns its complete physical plan.
 ///
@@ -32,7 +32,7 @@ pub fn settle_callback_registrar_imports(
     terminal_module: &TerminalModule,
     callback_placements: &[BoundNominalCallbackPlacement],
     callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,
-    calling_plan_realizations: &[BoundaryCallingPlanRealization],
+    calling_applications: &[BoundaryCallingApplication],
     external_binding_rows: &[ExternalBindingRow],
 ) -> Result<Vec<ExternalBindingRow>, String> {
     let mut rows = external_binding_rows.to_vec();
@@ -76,33 +76,20 @@ pub fn settle_callback_registrar_imports(
             "callback registrar import closure names an absent Terminal boundary".to_owned()
         })?;
 
-        let matching_realizations = calling_plan_realizations
+        let matching_realizations = calling_applications
             .iter()
             .filter(|realization| {
-                realization
-                    .materialized_signature()
-                    .owner_requirement_identity()
-                    == requirement
+                realization.requirement_identity == requirement
                     && realization.callback_context_closed
-                    && realization.exact_boundary_entry_plan()
-                        == &materialization.registrar_boundary_entry_plan
+                    && realization.plan.plan() == &materialization.registrar_boundary_entry_plan
             })
             .collect::<Vec<_>>();
-        let [realization] = matching_realizations.as_slice() else {
+        let [_] = matching_realizations.as_slice() else {
             return Err(format!(
                 "callback registrar `{requirement}` rejoins {} exact target-closed calling-plan realizations",
                 matching_realizations.len(),
             ));
         };
-        let validated = realization.replayed_validated_plan().map_err(|error| {
-            format!("callback registrar `{requirement}` target-closed plan failed replay: {error}")
-        })?;
-        if validated.plan() != &materialization.registrar_boundary_entry_plan {
-            return Err(format!(
-                "callback registrar `{requirement}` target-closed plan changed during replay",
-            ));
-        }
-
         let mut matching_rows = rows
             .iter_mut()
             .filter(|row| {

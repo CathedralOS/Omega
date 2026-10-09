@@ -490,8 +490,8 @@ pub fn validate_selected_program_entry_shape(
 /// distinct from the validated ABI plans' own structural commitments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCallingPlans {
-    pub semantic_calling_application: crate::calling_policy_plans::BoundaryCallingPlanRealization,
-    pub physical_calling_application: crate::calling_policy_plans::BoundaryCallingPlanRealization,
+    pub semantic_calling_application: calling_conventions::BoundaryCallingApplication,
+    pub physical_calling_application: calling_conventions::BoundaryCallingApplication,
     pub storage_entry: program_entry_plan::SelectedProgramStorageEntryPlan,
 }
 
@@ -803,8 +803,8 @@ pub fn validate_selected_program_entry_calling_plan(
         .with_physical_contract(physical_contract.clone())
         .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
     Ok(Some(SelectedProgramEntryCallingPlans {
-        semantic_calling_application: (*semantic_realization).clone(),
-        physical_calling_application: (*physical_realization).clone(),
+        semantic_calling_application: semantic_realization.native_application(),
+        physical_calling_application: physical_realization.native_application(),
         storage_entry,
     }))
 }

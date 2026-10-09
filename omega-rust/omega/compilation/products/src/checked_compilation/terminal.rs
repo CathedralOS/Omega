@@ -56,10 +56,21 @@ impl CheckedCompilation {
                         plan: &retained.plan, row_executions: &retained.row_compiler_intrinsic_executions,
                     }
                 }).collect(),
-                calling_plan_realizations: &providers.boundary_calling_plan_realizations,
+                calling_applications: providers.boundary_calling_plan_realizations.iter()
+                    .map(|realization| realization.native_application()).collect(),
             },
             native_target: execution.selected_native_target(),
-            program_entry: execution.selected_program_entry.as_ref(),
+            program_entry: execution.selected_program_entry.as_ref().map(|entry| {
+                terminal_psi_to_abstract_operations::NativeProgramEntrySettlement::new(
+                    entry.source_signature(),
+                    entry.calling_plans().map(|plans| (
+                        &plans.semantic_calling_application,
+                        &plans.physical_calling_application,
+                        &plans.storage_entry,
+                    )),
+                    entry.fused_service_establishments(),
+                )
+            }),
             application: self.build_admission().native_application_metadata(
                 &self.build().config.settings,
                 execution.selected_target_profile,

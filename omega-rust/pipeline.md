@@ -222,6 +222,12 @@ handoff. Callback proposal production now closes source placements into body,
 ABI and argument records once; retained native re-entry borrows those records
 without retaining or rejoining checked-source callback placements.
 
+Calling-policy evaluation retains its validated ABI application as backend-owned
+output. Native entry and registrar settlement consume that application, not the
+evaluator's typed handles, source spans or policy execution state. Their contract
+joins do not rerun calling-plan validation. The initial source-aware planning
+and source-entry signature remain migration work, not part of Terminal Psi.
+
 [`omega/compilation/realization/trust-model/`](omega/compilation/realization/trust-model/README.md)
 owns trust obligation reconstruction and admission, consuming source
 judgments and selected-provider evidence. The CLI supplies policy admissions;

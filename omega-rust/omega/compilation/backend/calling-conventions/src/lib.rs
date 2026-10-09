@@ -15,6 +15,7 @@
 //! libraries.
 
 mod aggregate_layout;
+mod boundary_application;
 mod boundary_values;
 mod callback_materializations;
 mod host_operations;
@@ -25,6 +26,9 @@ mod stack_realizations;
 pub use aggregate_layout::{
     AggregateLayoutError, ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,
     evaluate_conventional_sum_layout,
+};
+pub use boundary_application::{
+    BoundaryCallingApplication, BoundaryOpaqueApplication, BoundarySignatureGeometry,
 };
 pub use boundary_values::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,

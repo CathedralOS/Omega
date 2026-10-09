@@ -320,7 +320,7 @@ pub fn compute_boundary_calling_plans(
                 application_commitment,
             ),
             boundary_entry_plan: validated.plan().clone(),
-            exact_boundary_entry_plan: validated.plan().clone(),
+            validated_boundary_entry_plan: validated,
             callback_binders: signature.callback_binders.clone(),
             callback_demands: signature.callback_demands.clone(),
             callback_context_closed: false,

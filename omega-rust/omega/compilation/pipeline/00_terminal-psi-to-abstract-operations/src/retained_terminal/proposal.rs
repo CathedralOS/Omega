@@ -19,8 +19,7 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub target_profile: Option<target::TargetProfile>,
     pub boundaries: crate::BoundaryApplicationSettlement<'input>,
     pub native_target: Option<target::NativeTarget>,
-    pub program_entry:
-        Option<&'input provider_planning::program_entry::SelectedCompilerProgramEntry>,
+    pub program_entry: Option<crate::NativeProgramEntrySettlement<'input>>,
     pub application: target::NativeApplicationMetadata,
     pub optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
     pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
@@ -53,7 +52,7 @@ pub fn project_terminal_native_realization_proposal(
             "Terminal native proposal requires one exact selected ProgramEntry",
         )]
     })?;
-    if program_entry.source_signature().target_slot().owner != target_profile {
+    if program_entry.source().target_slot().owner != target_profile {
         return Err(vec![Diagnostic::error(
             "Terminal native proposal target, profile, and ProgramEntry disagree",
         )]);
@@ -61,22 +60,10 @@ pub fn project_terminal_native_realization_proposal(
     // Close the build-owned entry selection into the existing independently
     // replayed native settlement. Retention carries this pipeline product,
     // never the Build evaluator's selection object or a second entry receipt.
-    let calling_plans = program_entry.calling_plans().map(|plans| {
-        (
-            &plans.semantic_calling_application,
-            &plans.physical_calling_application,
-            &plans.storage_entry,
-        )
-    });
     let program_entry = crate::validate_native_program_entry_settlement(
         artifact,
         &checked_program_entry,
-        crate::NativeProgramEntrySettlement::new(
-            program_entry.source_signature(),
-            calling_plans,
-            program_entry.fused_service_establishments(),
-        )
-        .with_checked_entry(&checked_program_entry),
+        program_entry.with_checked_entry(&checked_program_entry),
         native_target,
     )
     .map_err(|error| {
@@ -131,7 +118,7 @@ pub fn project_terminal_native_realization_proposal(
                 placement_index: occurrence.placement_index(),
                 terminal_operation: occurrence.terminal_operation(),
             }),
-        request.boundaries.calling_plan_realizations,
+        &request.boundaries.calling_applications,
         request.external_bindings,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;

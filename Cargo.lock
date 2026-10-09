@@ -2133,7 +2133,6 @@ dependencies = [
  "optimization-unit",
  "program-entry-plan",
  "proof-admission",
- "provider-planning",
  "semantic-vocabulary",
  "sha2",
  "source",

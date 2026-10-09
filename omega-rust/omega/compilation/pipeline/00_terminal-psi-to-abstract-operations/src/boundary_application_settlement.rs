@@ -10,8 +10,7 @@ pub struct BoundaryApplicationSettlement<'input> {
     pub selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
     pub selected_provider_provenance:
         Vec<crate::provider_admission::CompilerIntrinsicPlanProvenance<'input>>,
-    pub calling_plan_realizations:
-        &'input [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
 }
 
 impl BoundaryApplicationSettlement<'_> {
@@ -34,7 +33,7 @@ impl BoundaryApplicationSettlement<'_> {
             artifact.semantic_module(),
             &demands,
         )?;
-        let opaque_applications = project_opaque_applications(self.calling_plan_realizations)
+        let opaque_applications = project_opaque_applications(&self.calling_applications)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
             .map_err(|message| vec![Diagnostic::error(message)])
@@ -155,18 +154,17 @@ fn project_terminal_boundary_application_realizations(
 /// coordinate. Producer and consumer artifacts compare this source-free set;
 /// arena identities are deliberately absent.
 fn project_opaque_applications(
-    calling_plan_realizations: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    calling_applications: &[calling_conventions::BoundaryCallingApplication],
 ) -> Result<boundary_applications::BoundaryOpaqueRepresentationApplications, &'static str> {
-    let rows = calling_plan_realizations
+    let rows = calling_applications
         .iter()
-        .flat_map(|realization| {
-            let signature = realization.materialized_signature();
-            signature.opaque_representation_uses().iter().map(|use_| {
+        .flat_map(|application| {
+            application.opaque_applications.iter().map(|use_| {
                 boundary_applications::BoundaryOpaqueRepresentationApplication {
-                    requirement_identity: signature.owner_requirement_identity().to_owned(),
-                    shape_root: use_.shape_root(),
-                    application_report_fingerprint: use_.application_report_fingerprint(),
-                    selected_application_commitment: use_.selected_application_commitment(),
+                    requirement_identity: application.requirement_identity.clone(),
+                    shape_root: use_.shape_root,
+                    application_report_fingerprint: use_.application_report_fingerprint,
+                    selected_application_commitment: use_.selected_application_commitment,
                 }
             })
         })

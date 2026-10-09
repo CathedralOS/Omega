@@ -43,7 +43,7 @@ pub struct BoundaryCallingPlanRealization {
     /// Crate-sealed exact evidence minted with the validated realization.
     /// The public fingerprint remains a compact compatibility/report
     /// coordinate and cannot authorize replacement of this plan.
-    pub(crate) exact_boundary_entry_plan: BoundaryEntryPlan,
+    pub(crate) validated_boundary_entry_plan: ValidatedBoundaryEntryPlan,
     pub callback_binders: Vec<BoundaryCallbackBinder>,
     pub callback_demands: Vec<NativeCallbackDemand>,
     pub callback_context_closed: bool,
@@ -61,7 +61,37 @@ impl BoundaryCallingPlanRealization {
     }
 
     pub const fn exact_boundary_entry_plan(&self) -> &BoundaryEntryPlan {
-        &self.exact_boundary_entry_plan
+        self.validated_boundary_entry_plan.plan()
+    }
+
+    /// Publish the completed ABI application without retaining evaluator state.
+    /// The validated plan is retained at production and callback closure, not
+    /// reconstructed by a downstream native stage.
+    pub fn native_application(&self) -> calling_conventions::BoundaryCallingApplication {
+        let signature = &self.materialized_signature;
+        calling_conventions::BoundaryCallingApplication {
+            requirement_identity: signature.owner_requirement_identity().to_owned(),
+            target: signature.native_target(),
+            report_fingerprint: self.report_fingerprint,
+            commitment: self.commitment.as_bytes(),
+            plan: self.validated_boundary_entry_plan.clone(),
+            signature: calling_conventions::BoundarySignatureGeometry {
+                shapes: signature.shapes().to_vec(),
+                fields: signature.fields().to_vec(),
+                parameters: signature.parameters().to_vec(),
+                result: signature.result(),
+            },
+            opaque_applications: signature
+                .opaque_representation_uses()
+                .iter()
+                .map(|use_| calling_conventions::BoundaryOpaqueApplication {
+                    shape_root: use_.shape_root(),
+                    application_report_fingerprint: use_.application_report_fingerprint(),
+                    selected_application_commitment: use_.selected_application_commitment(),
+                })
+                .collect(),
+            callback_context_closed: self.callback_context_closed,
+        }
     }
 
     pub fn replayed_validated_plan(
@@ -830,7 +860,7 @@ pub fn close_outbound_callback_materializations(
         realization.commitment =
             typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(new_commitment);
         realization.boundary_entry_plan = validated.plan().clone();
-        realization.exact_boundary_entry_plan = validated.plan().clone();
+        realization.validated_boundary_entry_plan = validated;
         realization.callback_demands = demands;
         realization.native_parameters = signature.native_parameters.clone();
         realization.callback_context_closed = true;

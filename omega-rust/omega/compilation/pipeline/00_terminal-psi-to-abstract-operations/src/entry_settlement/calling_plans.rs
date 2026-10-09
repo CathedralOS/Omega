@@ -1,24 +1,26 @@
-//! Replay source applications before consuming their ABI plans.
+//! Join completed calling applications to the selected entry contract.
 //!
 //! A schema commits to a calling application (requirement, target, source
-//! shape graph, and ABI plan), not merely to the ABI plan. Keep both selected
+//! shape graph, and ABI plan), not merely to the ABI plan. Keep both produced
 //! applications through this boundary; reconstructing their identity from
-//! placements loses the very source custody that native settlement must check.
+//! placements loses the contract identity that native settlement must join.
+//! Calling-policy evaluation validates the plan once. This consumer checks
+//! its relationship to the selected entry, not the producer's work again.
 //! Slot spellings locate schema requirements; normalized overload identities
 //! join the retained applications. Those identity domains are not interchangeable.
 
 use super::model::ValidatedNativeProgramEntryCallingPlans;
 use calling_conventions::ValidatedBoundaryEntryPlan;
+use calling_conventions::{
+    BoundaryCallingApplication, BoundarySignatureGeometry, BoundaryValueClass,
+};
 use effects::provider_plan::ServiceMethod;
 use program_entry_plan::{SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan};
-use provider_planning::calling_policy_plans::{
-    BoundaryCallingPlanRealization, BoundaryValueClass, MaterializedBoundarySignature,
-};
 
 pub fn validate_paired_calling_plans(
     source: &SelectedProgramEntrySourceSignature,
-    semantic: &BoundaryCallingPlanRealization,
-    physical: &BoundaryCallingPlanRealization,
+    semantic: &BoundaryCallingApplication,
+    physical: &BoundaryCallingApplication,
     storage: &SelectedProgramStorageEntryPlan,
 ) -> Result<ValidatedNativeProgramEntryCallingPlans, String> {
     let slot = source.target_slot();
@@ -41,8 +43,8 @@ pub fn validate_paired_calling_plans(
     {
         return Err("selected ProgramEntry lost its distinct exact arrival requirements".into());
     }
-    let semantic_plan = replay_application(semantic, semantic_method, slot.owner.native_target())?;
-    let physical_plan = replay_application(physical, physical_method, slot.owner.native_target())?;
+    let semantic_plan = join_application(semantic, semantic_method, slot.owner.native_target())?;
+    let physical_plan = join_application(physical, physical_method, slot.owner.native_target())?;
     if semantic_plan.plan().call.policy
         != calling_conventions::CallingPolicy::for_program_entry_convention(expected_semantic)
         || physical_plan.plan().call.policy
@@ -87,7 +89,7 @@ pub fn validate_paired_calling_plans(
                     .iter()
                     .all(|identity| identity == &semantic_method.parameter_type_identities[0])
                 && semantic_shapes == [calling_conventions::ValueShape::integer(16, 8); 2]
-                && has_internal_storage_signature(semantic.materialized_signature())
+                && has_internal_storage_signature(&semantic.signature)
         }
     };
     if !semantic_source_pairing
@@ -113,19 +115,19 @@ pub fn validate_paired_calling_plans(
         return Err("selected ProgramEntry physical plan drifted from its target contract".into());
     }
     Ok(ValidatedNativeProgramEntryCallingPlans {
-        semantic: semantic_plan,
-        physical: physical_plan,
+        semantic: semantic_plan.clone(),
+        physical: physical_plan.clone(),
     })
 }
 
 // ABI-sized scalars cannot substitute for the adapter's internal Extent records.
 // Exact accepted schema/application custody above supplies semantic identity;
 // this independent graph check establishes geometry, not storage authority.
-fn has_internal_storage_signature(signature: &MaterializedBoundarySignature) -> bool {
-    signature.parameters().len() == 2
-        && signature.result().is_none()
-        && signature.parameters().iter().all(|root| {
-            let Some(shape) = signature.shapes().get(usize::from(*root)) else {
+fn has_internal_storage_signature(signature: &BoundarySignatureGeometry) -> bool {
+    signature.parameters.len() == 2
+        && signature.result.is_none()
+        && signature.parameters.iter().all(|root| {
+            let Some(shape) = signature.shapes.get(usize::from(*root)) else {
                 return false;
             };
             let BoundaryValueClass::Record {
@@ -139,7 +141,7 @@ fn has_internal_storage_signature(signature: &MaterializedBoundarySignature) -> 
                 return false;
             }
             let Some(fields) = signature
-                .fields()
+                .fields
                 .get(usize::from(first_field)..)
                 .and_then(|fields| fields.get(..2))
             else {
@@ -148,7 +150,7 @@ fn has_internal_storage_signature(signature: &MaterializedBoundarySignature) -> 
             fields.iter().zip([0, 8]).all(|(field, offset)| {
                 field.byte_offset() == offset
                     && signature
-                        .shapes()
+                        .shapes
                         .get(usize::from(field.shape()))
                         .is_some_and(|word| {
                             word.class() == BoundaryValueClass::Integer
@@ -182,31 +184,22 @@ fn selected_method<'schema>(
     Ok(method)
 }
 
-fn replay_application(
-    application: &BoundaryCallingPlanRealization,
+fn join_application<'application>(
+    application: &'application BoundaryCallingApplication,
     method: &ServiceMethod,
     target: target::NativeTarget,
-) -> Result<ValidatedBoundaryEntryPlan, String> {
-    let (validated, report, commitment) =
-        application
-            .replayed_validated_application()
-            .map_err(|error| {
-                format!("selected ProgramEntry calling application is invalid: {error}")
-            })?;
-    if application.materialized_signature().native_target() != target
-        || application
-            .materialized_signature()
-            .owner_requirement_identity()
-            != method.requirement_identity
-        || application.exact_boundary_entry_plan() != validated.plan()
-        || application.report_fingerprint != report
-        || application.commitment != commitment
-        || method.calling_plan_report_fingerprint != Some(report)
-        || method.calling_plan_commitment != Some(commitment)
+) -> Result<&'application ValidatedBoundaryEntryPlan, String> {
+    if application.target != target
+        || application.requirement_identity != method.requirement_identity
+        || method.calling_plan_report_fingerprint != Some(application.report_fingerprint)
+        || method
+            .calling_plan_commitment
+            .map(|commitment| commitment.as_bytes())
+            != Some(application.commitment)
     {
         return Err(
             "selected ProgramEntry lost exact calling-application identity and custody".into(),
         );
     }
-    Ok(validated)
+    Ok(&application.plan)
 }
