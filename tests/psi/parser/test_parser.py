@@ -994,6 +994,21 @@ def root_declaration_cases(program: str) -> None:
                   *whole(source)),),
         clauses=((6, 0, 0, 1, 2, *span(source, b"requires no_nul(path)")),),
     )
+    # A bodyless domain's `;` ends it when the next declaration's carrier is
+    # bracketed: `domain [u8]::Text` opens a declaration, not a fact.
+    source = b"domain u64::Small(value) requires value < 8;\ndomain [u8]::Text(bytes) requires valid_utf8(bytes);"
+    first = b"domain u64::Small(value) requires value < 8;"
+    second = b"domain [u8]::Text(bytes) requires valid_utf8(bytes);"
+    declaration_accepted(
+        program, "bodyless-domains-in-sequence", source,
+        roots=((DOMAIN, 0, *span(source, first)), (DOMAIN, 1, *span(source, second))),
+        domains=(
+            (0, *span(source, b"Small"), 0, 0, 0, 0, 1, *span(source, b"value"), 0, 1, 0, 0, 0, 0, 0, 0,
+             *span(source, first)),
+            (2, *span(source, b"Text"), 0, 0, 0, 0, 1, *span(source, b"bytes"), 1, 1, 0, 0, 0, 0, 0, 0,
+             *span(source, second)),
+        ),
+    )
     source = b"pub domain Reservation::Issued established by Issues::issue, mint;"
     declaration_accepted(
         program, "routed-domain", source,

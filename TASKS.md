@@ -5877,7 +5877,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  459 parser cases, `tests/psi/resolver/test-resolver.sh` all 269 resolver
+  460 parser cases, `tests/psi/resolver/test-resolver.sh` all 269 resolver
   cases, and `tests/psi/typing/test-typing.sh` all 96 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes

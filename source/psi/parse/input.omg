@@ -330,9 +330,10 @@ crashes Trap
 // Whether the current token begins a declaration rather than an expression:
 // a declaration keyword (`use`, `data`, `machine`, `pub`), two adjacent
 // names (`boundary trait`, `linux_arm64 machine`, `const N`), a domain
-// family's `domain<`, or a generic conformance `Name<...> satisfies`. No
-// expression begins with two names except a cast `x as T`, a membership
-// `x in D` and an acknowledged call `suspend f()`, `block f()`.
+// family's `domain<` or a bracketed carrier's `domain [u8]::Path`, or a
+// generic conformance `Name<...> satisfies`. No expression begins with two
+// names except a cast `x as T`, a membership `x in D` and an acknowledged
+// call `suspend f()`, `block f()`.
 machine Parser::at_declaration_head(parser: &mut Parser, input: &TokenStream) -> bool
 crashes Trap
 {
@@ -363,10 +364,11 @@ crashes Trap
         let cast: bool = Parser::at_keyword(parser, input, KeywordKind::As);
         let membership: bool = Parser::at_word(parser, input, "in");
         let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
+        let bracketed: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBracket);
         parser.cursor = cursor;
         Parser::load_current(parser, input);
         let conformance: bool = Parser::generic_conformance_ahead(parser, input);
-        named && !cast && !membership || family && generic || conformance
+        named && !cast && !membership || family && (generic || bracketed) || conformance
     }
 
     state head() {
