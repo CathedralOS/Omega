@@ -13,6 +13,9 @@
 //! roots describe possible storage, never a runtime address to choose here.
 //! Shared descriptor copies retain that roster without consuming the source:
 //! each new carrier has its own release identity but the same immediate parents.
+//! Owned edges select an actual receiving parameter occurrence. Its admitted
+//! formations, roots and parents converge before entries are returned; ordinary
+//! surviving leaves still agree exactly on every arrival, including backedges.
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
 };
@@ -27,25 +30,26 @@ use terminal_psi::{
     StructuralTypeShape, find_structural_type,
 };
 
-/// One outstanding loan: the referent roots and immediate parent leaves it
-/// suspends, the producing operation, and the result row that formed the
-/// carrier identity. `root` is compile-time custody — it never names a
-/// pointer or descriptor.
+mod occurrences;
+use occurrences::{CarrierContract, Formation, merge_arrivals, re_home_bound_leaves};
+
+/// One outstanding permission occurrence: its referent roots, immediate
+/// parents, actual receiving contract and every transported formation.
+/// `root` is compile-time custody — it never names a pointer or descriptor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::legalization) struct Leaf {
-    /// Stable identity: the place and path where the carrier leaf was formed.
-    /// Owned moves relocate the carrier, never this identity.
+    /// Current permission occurrence. Owned edge selection rebinds it to the
+    /// receiving parameter; formations retain every admitted source identity.
     pub(in crate::legalization) identity: (PlaceId, Vec<StructuralPathSegment>),
     /// Referent root resolved through custody: a primitive place directly, or
     /// an owned ingress parameter's leaf path when custody entered owned.
     pub(in crate::legalization) root: Root,
     /// All possible immediate parent identities; selection suspends each parent.
     pub(in crate::legalization) parents: Vec<(PlaceId, Vec<StructuralPathSegment>)>,
-    /// The operation that formed this leaf's carrier identity, when the leaf
-    /// descends from a body operation rather than an ingress parameter.
-    pub(in crate::legalization) operation: Option<OperationId>,
-    /// The structural result row that published this leaf's carrier identity.
-    pub(in crate::legalization) result: StructuralOperationResult,
+    /// The actual operation or parameter declaration of the current occurrence.
+    contract: CarrierContract,
+    /// All admitted formations transported to this occurrence.
+    formations: Vec<Formation>,
     /// This leaf's primitive referent type.
     pub(in crate::legalization) referent: StructuralTypeId,
 }
@@ -581,7 +585,7 @@ fn source_contract(
     }
     custody
         .leaf(place, &[])
-        .map(|leaf| leaf.result.structural_type)
+        .map(|leaf| leaf.contract.structural_type())
 }
 
 /// Resolve direct storage from its declared contract, rather than requiring
@@ -1197,14 +1201,14 @@ fn call_results(
                     .ok_or_else(|| invalid())?
             } else {
                 let (root, parents) = normalized_source(function, custody, types, &source)?;
-                Leaf {
-                    identity: (result.place, mapping.path.clone()),
+                Leaf::formed(
+                    (result.place, mapping.path.clone()),
                     root,
                     parents,
-                    operation: Some(psi_operation),
-                    result: result.clone(),
-                    referent: expected,
-                }
+                    psi_operation,
+                    result,
+                    expected,
+                )
             };
             candidates.push(leaf);
         }
@@ -1214,8 +1218,7 @@ fn call_results(
             // The selected descriptor is one result resource, conservatively
             // pinning the complete union of the consumed input permissions.
             leaf.identity = (result.place, mapping.path.clone());
-            leaf.result = result.clone();
-            leaf.operation = Some(psi_operation);
+            leaf.reform(psi_operation, result);
         }
         if !identities.insert(leaf.identity.clone())
             || roots.iter().any(|(root, prior_access)| {
@@ -1275,7 +1278,9 @@ fn combine_alternatives(candidates: Vec<Leaf>) -> Result<Leaf, LegalizationError
             return Err(invalid());
         }
         origins.push((candidate.root, candidate.parents));
+        leaf.formations.extend(candidate.formations);
     }
+    occurrences::normalize_formations(&mut leaf.formations)?;
     (leaf.root, leaf.parents) = combine_candidate_origins(origins)?;
     Ok(leaf)
 }
@@ -1552,8 +1557,7 @@ pub(in crate::legalization) fn apply(
                 }
                 let mut leaf = source_leaf.clone();
                 leaf.identity = (result.place, relative.clone());
-                leaf.operation = Some(*psi_operation);
-                leaf.result = result.clone();
+                leaf.reform(*psi_operation, result);
                 copied.push(((result.place, relative.clone()), leaf));
             }
             if custody.leaves.keys().any(|(carrier, selected)| {
@@ -1607,14 +1611,14 @@ pub(in crate::legalization) fn apply(
                 custody.leaves.remove(&key).ok_or_else(|| invalid())?
             } else {
                 let (root, parents) = normalized_source(function, custody, types, source)?;
-                Leaf {
-                    identity: (result.place, Vec::new()),
+                Leaf::formed(
+                    (result.place, Vec::new()),
                     root,
                     parents,
-                    operation: Some(*psi_operation),
-                    result: result.clone(),
+                    *psi_operation,
+                    result,
                     referent,
-                }
+                )
             };
             custody.leaves.insert((result.place, Vec::new()), leaf);
         }
@@ -1873,15 +1877,14 @@ pub(in crate::legalization) fn return_custody(
         {
             return Err(invalid());
         }
-        // A body-formed leaf's declared place names its forming operation.
-        if let Some(producer) = leaf.operation
-            && !function.structural_places.iter().any(|declaration| {
-                declaration.id == leaf.result.place
-                    && declaration.kind
-                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                            producer,
-                            structural_type: leaf.result.structural_type,
-                        }
+        // Receiving parameters are actual declarations, not synthetic result
+        // rows. Every possible transported formation retains its real owner.
+        if !leaf.contract.matches_declaration(function, leaf.identity.0)
+            || leaf.formations.is_empty()
+            || leaf.formations.iter().any(|formation| {
+                !formation
+                    .contract
+                    .matches_declaration(function, formation.identity.0)
             })
         {
             return Err(invalid());
@@ -1924,7 +1927,12 @@ pub(in crate::legalization) fn apply_terminator(
                         )?;
                     }
                 }
-                re_home_bound_leaves(&mut exit, bindings, &destination.structural_parameters);
+                re_home_bound_leaves(
+                    &mut exit,
+                    bindings,
+                    &destination.structural_parameters,
+                    types,
+                )?;
             }
             apply_cleanup_actions(&mut exit, actions.iter().cloned(), function, types)?;
             exits.push((edge, target, exit.leaves));
@@ -1988,43 +1996,6 @@ fn apply_cleanup_actions(
         discard_owned(function, custody, types, place)?;
     }
     Ok(())
-}
-
-/// An owned edge move re-homes the moved subtree's loan leaves onto the
-/// bound name: the custody key is the current carrier location and follows
-/// the value across the edge. Formation identity, result row, root, parent
-/// and referent are provenance and stay put.
-fn re_home_bound_leaves(
-    custody: &mut Custody,
-    bindings: &[abstract_operations::AbstractStructuralBinding],
-    parameters: &[terminal_psi::StructuralParameterDeclaration],
-) {
-    let mut moved = Vec::new();
-    for (binding, parameter) in bindings.iter().zip(parameters) {
-        if parameter.access != StructuralAccess::Owned
-            || binding.argument.access != StructuralAccess::Owned
-        {
-            continue;
-        }
-        for ((carrier, path), leaf) in &custody.leaves {
-            if *carrier == binding.argument.place
-                && let Some(relative) = path.strip_prefix(binding.argument.path.as_slice())
-            {
-                moved.push((
-                    (*carrier, path.clone()),
-                    (parameter.place, relative.to_vec()),
-                    leaf.clone(),
-                ));
-            }
-        }
-    }
-    // Edge bindings are simultaneous, including swaps of existing carriers.
-    for (source, _, _) in &moved {
-        custody.leaves.remove(source);
-    }
-    for (_, destination, leaf) in moved {
-        custody.leaves.insert(destination, leaf);
-    }
 }
 
 /// Reconstruct borrowed state addresses from exact incoming edge bindings.
@@ -2094,10 +2065,9 @@ fn borrowed_sources(
 }
 
 /// Compute entries from actual incoming edges, never dominator storage alone.
-/// The first arrival seeds one block replay; every later arrival, including a
-/// backedge, must reproduce its exact leaf identities, origins and parents.
-/// This is the checked current-ownership join contract, not an origin union.
-/// Results remain provisional until every reachable edge has been compared.
+/// Each changed selected arrival replays its dependent block. Only owned
+/// parameter occurrences may accumulate formations; all other leaves agree
+/// exactly. Final entries equal the complete merge of every incoming edge.
 pub(in crate::legalization) fn block_entry_states(
     function: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
@@ -2119,7 +2089,12 @@ pub(in crate::legalization) fn block_entry_states(
     initial.borrowed_sources = borrowed_sources;
     let mut entries = BTreeMap::from([(function.entry, initial)]);
     let mut pending = VecDeque::from([entry_position]);
+    let mut queued = vec![false; blocks.len()];
+    queued[entry_position] = true;
+    let mut final_arrivals = vec![Vec::new(); blocks.len()];
+    let mut deferred = BTreeSet::new();
     while let Some(position) = pending.pop_front() {
+        queued[position] = false;
         let block = &blocks[position];
         let mut custody = entries.get(&block.id).cloned().ok_or_else(invalid)?;
         for node in &blocks[position].nodes {
@@ -2139,6 +2114,7 @@ pub(in crate::legalization) fn block_entry_states(
             }
         }
         let terminator = block.nodes.last().ok_or_else(invalid)?;
+        let mut arrivals = Vec::with_capacity(terminator.successors.len());
         for edge in &terminator.successors {
             let target_position = *positions.get(&edge.target).ok_or_else(invalid)?;
             if target_position == entry_position {
@@ -2155,20 +2131,78 @@ pub(in crate::legalization) fn block_entry_states(
                     &mut arrival,
                     &edge.structural_bindings,
                     &blocks[target_position].structural_parameters,
-                );
+                    types,
+                )?;
             }
-            if let Some(existing) = entries.get(&edge.target) {
-                if existing.leaves != arrival.leaves {
-                    return Err(invalid());
+            arrivals.push((edge.psi_edge, edge.target, arrival));
+        }
+        final_arrivals[position] = arrivals;
+        let targets: BTreeSet<_> = final_arrivals[position]
+            .iter()
+            .map(|(_, target, _)| *target)
+            .collect();
+        for target in targets {
+            // Compare current predecessor outputs with one another, not with
+            // an older provisional entry. Upstream selection may enlarge the
+            // roster even when this block has just one predecessor.
+            let mut incoming = final_arrivals
+                .iter()
+                .flatten()
+                .filter(|(_, candidate, _)| *candidate == target);
+            let (_, _, first) = incoming.next().ok_or_else(invalid)?;
+            let mut complete = first.clone();
+            let mut consistent = true;
+            for (_, _, arrival) in incoming {
+                if merge_arrivals(function, target, &mut complete.leaves, &arrival.leaves)?
+                    .is_none()
+                {
+                    consistent = false;
+                    break;
                 }
-            } else {
-                entries.insert(edge.target, arrival);
+            }
+            let target_position = *positions.get(&target).ok_or_else(invalid)?;
+            if !consistent {
+                // Keep the previous state provisional while other predecessors
+                // propagate. Never replay a queued stale, nonselected roster.
+                deferred.insert(target);
+                pending.retain(|position| *position != target_position);
+                queued[target_position] = false;
+                continue;
+            }
+            let was_deferred = deferred.remove(&target);
+            let changed = entries
+                .get(&target)
+                .is_none_or(|entry| entry.leaves != complete.leaves);
+            if changed {
+                entries.insert(target, complete);
+            }
+            if (changed || was_deferred) && !queued[target_position] {
                 pending.push_back(target_position);
+                queued[target_position] = true;
             }
         }
     }
-    if entries.len() != blocks.len() {
+    if entries.len() != blocks.len() || !deferred.is_empty() {
         return Err(invalid());
+    }
+    for block in blocks.iter().filter(|block| block.id != function.entry) {
+        let mut arrivals = final_arrivals
+            .iter()
+            .flatten()
+            .filter(|(_, target, _)| *target == block.id);
+        let (_, _, first) = arrivals.next().ok_or_else(invalid)?;
+        let mut complete = first.leaves.clone();
+        for (_, _, arrival) in arrivals {
+            if merge_arrivals(function, block.id, &mut complete, &arrival.leaves)?.is_none() {
+                return Err(invalid());
+            }
+        }
+        if entries
+            .get(&block.id)
+            .is_none_or(|entry| entry.leaves != complete)
+        {
+            return Err(invalid());
+        }
     }
     Ok(entries)
 }
@@ -2212,19 +2246,14 @@ fn entry(
             custody.leaves.insert(
                 identity.clone(),
                 Leaf {
-                    identity,
+                    identity: identity.clone(),
                     root: Root::Ingress(parameter.place, path.clone()),
                     parents: Vec::new(),
-                    operation: None,
-                    result: StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
-                        place: parameter.place,
-                        structural_type: parameter.structural_type,
-                        multiplicity: parameter.multiplicity,
-                        qualifications: parameter.qualifications.clone(),
-                        projected_qualifications: parameter.projected_qualifications.clone(),
-                        claims: Vec::new(),
-                    },
+                    contract: CarrierContract::Parameter(parameter.clone()),
+                    formations: vec![Formation {
+                        identity,
+                        contract: CarrierContract::Parameter(parameter.clone()),
+                    }],
                     referent: leaf_referent(types, parameter.structural_type, &path)
                         .ok_or_else(|| invalid())?,
                 },
