@@ -2,60 +2,18 @@
 //! whether an argument meets it, and the validation of every bound a
 //! conformance declares.
 
-use crate::declarations::traits::conformance::signature_matching::{
-    trait_type_bindings, type_references_match_with_trait_bindings,
-};
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
 use crate::declarations::traits::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateSignature;
-use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::trait_definition::{AppliedTraitScope, TraitDefinition};
 use typed_trees::types::TypeReferenceHandle;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct GenericBoundRequirement<'program> {
     pub signature: &'program StateSignature,
-    pub trait_definition: &'program TraitDefinition,
-    pub bound: &'program typed_trees::machine::GenericConformanceBound,
-}
-
-impl GenericBoundRequirement<'_> {
-    /// The public signature and its applied trait telescope are inseparable.
-    /// Inherited requirements use their declaring trait's arguments, not the
-    /// outer binder's parameter order. These borrowed type identities close
-    /// structural queries without manufacturing instantiated type nodes.
-    pub fn type_bindings(
-        &self,
-        program: &dyn crate::CheckingInput,
-    ) -> Option<Vec<(symbols::SymbolHandle, TypeReferenceHandle)>> {
-        let carrier = trait_definition_by_symbol(program, self.bound.trait_symbol)?;
-        let carrier = match &carrier.refines {
-            Some(base) => trait_definition_by_symbol(program, base.symbol)?,
-            None => carrier,
-        };
-        let arguments = crate::declarations::traits::arguments_for_declaring_trait(
-            program,
-            carrier,
-            &self.bound.arguments,
-            self.trait_definition.symbol,
-            &mut Vec::new(),
-        )?;
-        let parameters = program.trait_type_parameters(self.trait_definition);
-        if parameters.len() != arguments.len() {
-            return None;
-        }
-        Some(
-            parameters
-                .iter()
-                .zip(arguments)
-                .filter_map(|(parameter, argument)| {
-                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                        .then_some((parameter.symbol, argument))
-                })
-                .collect(),
-        )
-    }
+    pub application: AppliedTraitScope<'program>,
 }
 
 /// Whether an actual argument type matches a requirement parameter of the
@@ -67,19 +25,8 @@ pub(crate) fn named_conformance_argument_matches(
     required: TypeReferenceHandle,
     requirement: &GenericBoundRequirement<'_>,
 ) -> bool {
-    let mut bindings = trait_type_bindings(
-        program
-            .trait_type_parameters(requirement.trait_definition)
-            .iter(),
-        requirement.bound.arguments.iter(),
-    );
-    type_references_match_with_trait_bindings(
-        program,
-        actual,
-        required,
-        program.trait_type_parameters(requirement.trait_definition),
-        &mut bindings,
-    )
+    program.normalized_type_identity(actual)
+        == requirement.application.type_identity(program, required)
 }
 
 pub(crate) fn validate_generic_conformance_bounds(

@@ -253,7 +253,7 @@ fn validate_expression_call_bounds(
                         TypeReferenceNode::Unit
                     ))
             {
-                diagnostics.push(Diagnostic::error(format!("trait requirement `{}::{}` does not return a value but is used in a VALUE position", requirement.trait_definition.name, requirement.signature.name)));
+                diagnostics.push(Diagnostic::error(format!("trait requirement `{}::{}` does not return a value but is used in a VALUE position", requirement.application.declaration.name, requirement.signature.name)));
             }
             super::generic_requirement::validate_named_conformance_arguments(
                 program,
@@ -292,7 +292,7 @@ fn validate_expression_call_bounds(
                         TypeReferenceNode::Unit
                     ))
             {
-                diagnostics.push(Diagnostic::error(format!("trait requirement `{}::{}` does not return a value but is used in a VALUE position", dynamic.trait_definition.name, dynamic.signature.name)));
+                diagnostics.push(Diagnostic::error(format!("trait requirement `{}::{}` does not return a value but is used in a VALUE position", dynamic.application.declaration.name, dynamic.signature.name)));
             }
             super::dynamic_requirement::validate_dynamic_selector_arguments(
                 program,

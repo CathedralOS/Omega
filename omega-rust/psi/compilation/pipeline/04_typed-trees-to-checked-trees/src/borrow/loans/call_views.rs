@@ -188,7 +188,7 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
         (
             program.state_signature_parameters(requirement.signature),
             requirement.signature.return_type,
-            requirement.type_bindings(program)?,
+            requirement.application.substitutions,
         )
     } else {
         let (parameters, return_type, signature) =

@@ -148,10 +148,11 @@ fn closed_return_frontier(
     if let Ok(Some(requirement)) =
         validation::named_conformance_target_requirement(program, caller, target)
     {
-        let Some(substitutions) = requirement.type_bindings(program) else {
-            return false;
-        };
-        return complete_return_frontier(program, requirement.signature, &substitutions);
+        return complete_return_frontier(
+            program,
+            requirement.signature,
+            &requirement.application.substitutions,
+        );
     }
     let signature = program
         .traits()

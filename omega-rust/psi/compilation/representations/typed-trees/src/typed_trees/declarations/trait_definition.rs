@@ -1,3 +1,11 @@
+//! Trait declarations and their applied requirement scopes. Inherited edges
+//! retain substitutions over existing type nodes: projecting only a parent's
+//! immediate arguments loses outer binders inside composite applications.
+
+mod applications;
+
+pub use applications::AppliedTraitScope;
+
 use crate::name::Identifier;
 use crate::signature::StateSignature;
 use arena::HandleSpan;

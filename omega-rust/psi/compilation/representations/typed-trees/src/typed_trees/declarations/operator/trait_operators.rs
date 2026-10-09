@@ -177,7 +177,6 @@ pub fn bound_trait_operator_meanings<'program>(
             spelling,
             operand_types,
             &substitutions,
-            &mut Vec::new(),
             &mut |trait_definition, requirement, substitutions| {
                 let meaning = BoundTraitOperatorMeaning {
                     bound,
@@ -232,7 +231,6 @@ pub fn trait_scope_operator_meaning_exists(
         spelling,
         operand_types,
         &[],
-        &mut Vec::new(),
         &mut |_, _, _| found = true,
     );
     found
@@ -244,122 +242,94 @@ fn visit_trait_operator_meanings<'program>(
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    active_traits: &mut Vec<SymbolHandle>,
     visit: &mut impl FnMut(
         &'program crate::trait_definition::TraitDefinition,
         &'program crate::signature::StateSignature,
         Vec<(SymbolHandle, TypeReferenceHandle)>,
     ),
 ) {
-    if active_traits.contains(&trait_definition.symbol) {
-        return;
-    }
-    active_traits.push(trait_definition.symbol);
-    for requirement in program.trait_machine_signatures(trait_definition) {
-        if requirement.spelling != Some(spelling) {
-            continue;
-        }
-        let Some(bindings) = trait_operator_operand_bindings(
-            program,
-            trait_definition,
-            requirement,
-            operand_types,
-            Some(substitutions),
-        ) else {
-            continue;
-        };
-        let matches = program
-            .trait_type_parameters(trait_definition)
-            .iter()
-            .all(|parameter| {
-                let actual = bindings
-                    .types
-                    .iter()
-                    .find(|(binder, _)| *binder == parameter.symbol);
-                let constant = bindings
-                    .constants
-                    .iter()
-                    .find(|binding| binding.symbol == parameter.symbol);
-                if actual.is_none() && constant.is_none() {
-                    return true;
-                }
-                let Some(expected) = substitutions
-                    .iter()
-                    .find(|(binder, _)| *binder == parameter.symbol)
-                    .map(|(_, reference)| *reference)
-                    .or_else(|| {
-                        program
-                            .type_reference_table
-                            .find_named_type_reference(parameter.symbol)
-                    })
-                else {
-                    return false;
-                };
-                if let Some(binding) = constant {
-                    let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind
+    let scope = crate::trait_definition::AppliedTraitScope {
+        declaration: trait_definition,
+        substitutions: substitutions.to_vec(),
+        substitution_scope_starts: vec![0],
+    };
+    scope.visit(program, &mut |scope| {
+        let trait_definition = scope.declaration;
+        let substitutions = scope.substitutions.as_slice();
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            if requirement.spelling != Some(spelling) {
+                continue;
+            }
+            let Some(bindings) = trait_operator_operand_bindings(
+                program,
+                trait_definition,
+                requirement,
+                operand_types,
+                Some(substitutions),
+            ) else {
+                continue;
+            };
+            let matches = program
+                .trait_type_parameters(trait_definition)
+                .iter()
+                .all(|parameter| {
+                    let actual = bindings
+                        .types
+                        .iter()
+                        .find(|(binder, _)| *binder == parameter.symbol);
+                    let constant = bindings
+                        .constants
+                        .iter()
+                        .find(|binding| binding.symbol == parameter.symbol);
+                    if actual.is_none() && constant.is_none() {
+                        return true;
+                    }
+                    let Some(expected) = substitutions
+                        .iter()
+                        .find(|(binder, _)| *binder == parameter.symbol)
+                        .map(|(_, reference)| *reference)
+                        .or_else(|| {
+                            program
+                                .type_reference_table
+                                .find_named_type_reference(parameter.symbol)
+                        })
                     else {
                         return false;
                     };
-                    return closed_const_identity_from_type_reference(
-                        program,
-                        expected,
-                        type_reference,
-                    )
-                    .is_some_and(|expected| expected == binding.value);
-                }
-                let Some((_, actual)) = actual else {
-                    return true;
-                };
-                program.normalized_type_identity(*actual)
-                    == program.type_identity(TypeIdentityRequest {
-                        substitutions,
-                        ..TypeIdentityRequest::ordinary(expected)
-                    })
-            });
-        if !matches {
-            continue;
+                    if let Some(binding) = constant {
+                        let crate::data::TypeParameterKind::Const { type_reference } =
+                            parameter.kind
+                        else {
+                            return false;
+                        };
+                        return closed_const_identity_from_type_reference(
+                            program,
+                            expected,
+                            type_reference,
+                        )
+                        .is_some_and(|expected| expected == binding.value);
+                    }
+                    let Some((_, actual)) = actual else {
+                        return true;
+                    };
+                    program.normalized_type_identity(*actual)
+                        == program.type_identity(TypeIdentityRequest {
+                            substitutions,
+                            ..TypeIdentityRequest::ordinary(expected)
+                        })
+                });
+            if !matches {
+                continue;
+            }
+            let mut applied_substitutions = substitutions.to_vec();
+            applied_substitutions.extend(bindings.types.into_iter().filter(|(binder, _)| {
+                !substitutions
+                    .iter()
+                    .any(|(parameter, _)| parameter == binder)
+            }));
+            visit(trait_definition, requirement, applied_substitutions);
         }
-        let mut applied_substitutions = substitutions.to_vec();
-        applied_substitutions.extend(bindings.types.into_iter().filter(|(binder, _)| {
-            !substitutions
-                .iter()
-                .any(|(parameter, _)| parameter == binder)
-        }));
-        visit(trait_definition, requirement, applied_substitutions);
-    }
-    let parents = program
-        .trait_requirements(trait_definition)
-        .iter()
-        .chain(trait_definition.refines.iter());
-    for parent in parents {
-        let Some(parent_trait) = program.trait_definition_by_symbol(parent.symbol) else {
-            continue;
-        };
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(parent.arguments);
-        let parameters = program.trait_type_parameters(parent_trait);
-        if parameters.len() != arguments.len() {
-            continue;
-        }
-        let mut inherited = substitutions.to_vec();
-        inherited.extend(
-            parameters
-                .iter()
-                .zip(arguments)
-                .map(|(parameter, argument)| (parameter.symbol, *argument)),
-        );
-        visit_trait_operator_meanings(
-            program,
-            parent_trait,
-            spelling,
-            operand_types,
-            &inherited,
-            active_traits,
-            visit,
-        );
-    }
-    active_traits.pop();
+    });
 }
 
 #[derive(Debug, Clone, Copy)]

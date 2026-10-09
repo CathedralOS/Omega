@@ -65,9 +65,13 @@ pub(super) fn borrowed_initializers(
             borrowed_initializers(program, *base_type, expression, substitutions, owner_path)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            if let Some(initializer) =
-                aggregate_value_initializer(program, type_reference, expression, owner_path)
-            {
+            if let Some(initializer) = aggregate_value_initializer(
+                program,
+                type_reference,
+                expression,
+                substitutions,
+                owner_path,
+            ) {
                 return vec![initializer];
             }
             let Some(values) = program.expression_table.array_literal_node(expression) else {
@@ -96,9 +100,13 @@ pub(super) fn borrowed_initializers(
             arguments,
             ..
         } => {
-            if let Some(initializer) =
-                aggregate_value_initializer(program, type_reference, expression, owner_path)
-            {
+            if let Some(initializer) = aggregate_value_initializer(
+                program,
+                type_reference,
+                expression,
+                substitutions,
+                owner_path,
+            ) {
                 return vec![initializer];
             }
             let Some(definition) = program.data_definition_by_symbol(*base_symbol) else {
@@ -137,9 +145,13 @@ pub(super) fn borrowed_initializers(
                     owner_path,
                 );
             }
-            if let Some(initializer) =
-                aggregate_value_initializer(program, type_reference, expression, owner_path)
-            {
+            if let Some(initializer) = aggregate_value_initializer(
+                program,
+                type_reference,
+                expression,
+                substitutions,
+                owner_path,
+            ) {
                 return vec![initializer];
             }
             let Some(definition) = program.data_definition_by_symbol(*symbol) else {
@@ -164,6 +176,7 @@ fn aggregate_value_initializer(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     owner_path: &[BorrowOwnerSegment],
 ) -> Option<BorrowedInitializer> {
     let is_direct_aggregate_value = match program.expression_table.expression(expression) {
@@ -174,7 +187,7 @@ fn aggregate_value_initializer(
         ExpressionNode::Cast(cast) => !cast.form.is_recast(),
         _ => false,
     };
-    if !crate::borrow::view_link::returns_borrow(program, type_reference)
+    if !crate::borrow::view_link::substituted_returns_borrow(program, type_reference, substitutions)
         || !is_direct_aggregate_value
     {
         return None;

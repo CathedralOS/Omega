@@ -341,7 +341,7 @@ pub(crate) fn contract_target_from_state_symbol(
             validation::named_conformance_target_requirement(program, machine, target_state_symbol)
         {
             return Some((
-                requirement.trait_definition.symbol,
+                requirement.application.declaration.symbol,
                 requirement.signature.symbol,
             ));
         }

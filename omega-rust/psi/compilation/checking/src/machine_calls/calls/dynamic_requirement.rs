@@ -16,9 +16,8 @@ use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle,
     ValueEnvironment, WritableRoots,
 };
-use typed_trees::machine::GenericConformanceBound;
 use typed_trees::signature::StateSignature;
-use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::trait_definition::AppliedTraitScope;
 
 /// One requirement selected through a `dyn Trait<Args>` selector, with the
 /// requirement's declaring-trait arguments the selector's application implies.
@@ -26,8 +25,7 @@ pub(crate) struct DynamicSelectorCall<'program> {
     /// The selector operand's `dyn Trait<Args>` type.
     pub(crate) selector_type: TypeReferenceHandle,
     pub(crate) signature: &'program StateSignature,
-    pub(crate) trait_definition: &'program TraitDefinition,
-    pub(crate) bound: GenericConformanceBound,
+    pub(crate) application: AppliedTraitScope<'program>,
 }
 
 /// Recognize `Trait::member(selector, ...)`: `receiver` names a trait and the
@@ -66,22 +64,16 @@ pub(crate) fn dynamic_selector_call<'program>(
     else {
         return Err("dynamic call names an unresolved trait".to_owned());
     };
-    let Some(signature) = program
-        .trait_machine_signature_by_symbol(declaring, target)
-    else {
+    let Some(signature) = program.trait_machine_signature_by_symbol(declaring, target) else {
         return Err(format!(
             "`{}` declares no requirement named `{}`",
             declaring.name,
             program.symbols.name(target)
         ));
     };
-    let Some(arguments) = crate::declarations::traits::arguments_for_declaring_trait(
-        program,
-        selector_definition,
-        selector_arguments,
-        declaring.symbol,
-        &mut Vec::new(),
-    ) else {
+    let application = AppliedTraitScope::new(program, selector_definition, selector_arguments)
+        .and_then(|scope| scope.declaring_scope(program, declaring.symbol));
+    let Some(application) = application else {
         return Err(format!(
             "a `dyn {}` selector cannot call `{}::{}`: `{}` does not inherit `{}`",
             selector_definition.name,
@@ -102,14 +94,7 @@ pub(crate) fn dynamic_selector_call<'program>(
     Ok(Some(DynamicSelectorCall {
         selector_type,
         signature,
-        trait_definition: declaring,
-        bound: GenericConformanceBound {
-            binder: symbols::SymbolHandle::invalid(),
-            binder_name: typed_trees::name::Identifier::generated_static("dyn"),
-            trait_symbol: declaring.symbol,
-            trait_name: declaring.name.clone(),
-            arguments,
-        },
+        application,
     }))
 }
 
@@ -131,8 +116,7 @@ pub(super) fn validate_dynamic_selector_arguments(
     validate_family_tuple(program, call, machine_arguments, diagnostics);
     let requirement = crate::declarations::traits::GenericBoundRequirement {
         signature: call.signature,
-        trait_definition: call.trait_definition,
-        bound: &call.bound,
+        application: call.application.clone(),
     };
     super::generic_requirement::validate_named_conformance_arguments(
         program,
@@ -156,7 +140,7 @@ fn validate_family_tuple(
     machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let declaring = &call.trait_definition.name;
+    let declaring = &call.application.declaration.name;
     let requirement = &call.signature.name;
     match program.finite_signature_family(call.signature) {
         typed_trees::finite_family::FamilyProbe::Finite { arity, tuples } => {

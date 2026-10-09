@@ -1,0 +1,35 @@
+data Selected<'storage> { reference: &'storage i32; }
+data Envelope<Value> { value: Value; }
+
+trait Identity<Value> { machine forward(value: Value) -> Value; }
+trait Wrapped<Value>: Identity<Envelope<Value>> {}
+
+ForwardEnvelope<Value> satisfies Wrapped<Value> {
+    machine forward(value: Envelope<Value>) -> Envelope<Value> { value }
+}
+
+machine observe<'storage, Operations satisfies Wrapped<Selected<'storage>>>(
+    source: &'storage mut i32
+) -> i32 {
+    let original: Selected<'storage> = Selected { reference: source };
+    let envelope: Envelope<Selected<'storage>> = Envelope { value: original };
+    let forwarded: Envelope<Selected<'storage>> = Operations::forward(envelope);
+    let observed: i32 = forwarded.value.reference;
+    source = 7;
+    observed
+}
+
+machine run<'storage>(source: &'storage mut i32) -> i32 {
+    observe<ForwardEnvelope<Selected<'storage>>>(source)
+}
+
+machine main() crashes Trap {
+    let mut source: i32 = 17;
+    let observed: i32 = run(&mut source);
+    transition observed == 17 && source == 7 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

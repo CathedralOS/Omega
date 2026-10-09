@@ -64,12 +64,12 @@ pub(crate) fn bind_proof_output_call_facts(
             diagnostics.push(diagnostics::Diagnostic::error(format!("proof-output call `{}` must target a checked machine state or exact generic requirement", call.target)));
             continue;
         };
-        if let Some(requirement) = open_requirement
+        if let Some(requirement) = open_requirement.as_ref()
             && let Err(diagnostic) = check_open_proof_output_requirement(
                 program,
                 package.machine_symbol,
                 call,
-                requirement.trait_definition.symbol,
+                requirement.application.declaration.symbol,
                 requirement.signature,
             )
         {
@@ -109,9 +109,9 @@ pub(crate) fn bind_proof_output_call_facts(
                         && machine.supply_mode
                             == language_semantics::MachineSupplyMode::CheckedBody,
                 )
-            } else if let Some(requirement) = open_requirement {
+            } else if let Some(requirement) = open_requirement.as_ref() {
                 (
-                    requirement.trait_definition.symbol,
+                    requirement.application.declaration.symbol,
                     requirement.signature.symbol,
                     requirement.signature.return_type,
                     true,
@@ -143,9 +143,9 @@ pub(crate) fn bind_proof_output_call_facts(
                 state_symbol: requirement.symbol,
             })
             .or_else(|| {
-                open_requirement.map(|requirement| {
+                open_requirement.as_ref().map(|requirement| {
                     ContractProofFactOwner::StateSignature {
-                        owner_symbol: requirement.trait_definition.symbol,
+                        owner_symbol: requirement.application.declaration.symbol,
                         state_symbol: requirement.signature.symbol,
                     }
                 })
@@ -155,6 +155,7 @@ pub(crate) fn bind_proof_output_call_facts(
             .map(|(_, requirement)| program.state_signature_parameters(requirement))
             .or_else(|| {
                 open_requirement
+                    .as_ref()
                     .map(|requirement| program.state_signature_parameters(requirement.signature))
             })
             .or_else(|| machine_target.map(|(_, state)| program.state_parameters(state)))

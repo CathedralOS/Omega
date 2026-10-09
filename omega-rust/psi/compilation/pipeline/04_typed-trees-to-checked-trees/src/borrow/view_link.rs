@@ -242,7 +242,7 @@ fn substituted_is_reference_type(
     }
 }
 
-fn substituted_returns_borrow(
+pub(in crate::borrow) fn substituted_returns_borrow(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],

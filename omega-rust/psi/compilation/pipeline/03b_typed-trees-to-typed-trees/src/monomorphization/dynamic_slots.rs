@@ -83,28 +83,19 @@ fn instantiate_slot(
         .iter()
         .map(|parameter| parameter.symbol)
         .collect::<Vec<_>>();
-    if binders.len() != demand.trait_arguments.len() {
+    let declaring_arguments = demand
+        .substitution_scope_starts
+        .last()
+        .map_or(&[][..], |start| &demand.type_substitutions[*start..]);
+    if binders.len() != declaring_arguments.len() {
         return Err(vec![Diagnostic::error(format!(
             "`dyn {}` supplies {} trait argument(s) for {} parameter(s)",
             definition.name,
-            demand.trait_arguments.len(),
+            declaring_arguments.len(),
             binders.len()
         ))]);
     }
-    let substitutions = binders
-        .into_iter()
-        .zip(demand.trait_arguments.iter().copied())
-        .collect::<Vec<_>>();
-    let selector_display = format!(
-        "dyn {}<{}>",
-        definition.name,
-        demand
-            .trait_arguments
-            .iter()
-            .map(|argument| program.type_reference_table.display_name(*argument))
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
+    let selector_display = program.display_type_reference(demand.selector_type);
     let instantiation_error = |reason: &'static str| {
         vec![Diagnostic::error(format!(
             "requirement `{}` cannot be instantiated for `{selector_display}`: {reason}",
@@ -120,15 +111,12 @@ fn instantiate_slot(
     });
     for formal in &formals {
         let mut parameter = formal.clone();
-        parameter.type_reference = program
-            .type_reference_table
-            .instantiate(formal.type_reference, &substitutions)
-            .map_err(instantiation_error)?;
+        parameter.type_reference =
+            instantiate_requirement_type(program, formal.type_reference, demand)
+                .map_err(instantiation_error)?;
         parameters.push(parameter);
     }
-    let return_type = program
-        .type_reference_table
-        .instantiate(signature.return_type, &substitutions)
+    let return_type = instantiate_requirement_type(program, signature.return_type, demand)
         .map_err(instantiation_error)?;
 
     // The slot and its formals are fresh symbols derived from the
@@ -169,6 +157,24 @@ fn instantiate_slot(
 /// Point every selector call at its slot. A call carrying static machine
 /// arguments selects a finite-family row, which has no slot yet; it keeps
 /// its requirement target and lowering refuses it.
+/// Instantiate the inner requirement before substituting its outer scopes.
+/// Each telescope is simultaneous: following one replacement through another
+/// binder of that same telescope would capture caller-side parameters.
+fn instantiate_requirement_type(
+    program: &mut TypedTrees,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+    demand: &validation::DynamicSlotDemand,
+) -> Result<typed_trees::types::TypeReferenceHandle, &'static str> {
+    let mut end = demand.type_substitutions.len();
+    for start in demand.substitution_scope_starts.iter().rev() {
+        reference = program
+            .type_reference_table
+            .instantiate(reference, &demand.type_substitutions[*start..end])?;
+        end = *start;
+    }
+    Ok(reference)
+}
+
 fn retarget_selector_calls(program: &mut TypedTrees) {
     let mut statement_targets = Vec::new();
     let mut expression_targets = Vec::new();

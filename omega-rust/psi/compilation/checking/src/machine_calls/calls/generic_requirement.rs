@@ -3,9 +3,8 @@
 //! namespace; the call's arguments are ordinary explicit values.
 
 use super::{
-    Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, StateParameter,
-    TypeReferenceNode, ValueEnvironment, WritableRoots, argument_matches_carrier,
-    declared_place_type, declared_reference_access,
+    Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, StateParameter, ValueEnvironment,
+    WritableRoots, argument_matches_carrier, declared_place_type, declared_reference_access,
     validate_call_arguments_with_type_correspondence,
 };
 /// The requirement already selected its trait telescope. Raw signature handles
@@ -119,23 +118,6 @@ pub(super) fn expression_conformance_receiver(
     }
 }
 
-/// A conformance bound may name a transparent refinement. "A refinement names
-/// a structural bound on an existing base conformance, not a new nominal
-/// satisfaction target" (spec, `language/conformances.md`), so the requirement
-/// namespace an evidence call selects is the resolved BASE trait's, never the
-/// refinement's own (empty) machine list. Refining a refinement is rejected at
-/// symbol resolution, so exactly one hop reaches the nominal base.
-fn bound_carrier_definition(
-    program: &dyn crate::CheckingInput,
-    carrier: symbols::SymbolHandle,
-) -> Option<&typed_trees::trait_definition::TraitDefinition> {
-    let definition = program.trait_definition_by_symbol(carrier)?;
-    match &definition.refines {
-        Some(base) => program.trait_definition_by_symbol(base.symbol),
-        None => Some(definition),
-    }
-}
-
 /// Evidence selects a requirement namespace, not an implicit runtime receiver.
 /// Rejoin its exact child to the bound's reachable, unambiguous requirement.
 pub(super) fn named_conformance_requirement<'program>(
@@ -168,33 +150,32 @@ pub(super) fn named_conformance_requirement<'program>(
     {
         return Err(failure());
     }
-    let carrier = bound_carrier_definition(program, bound.trait_symbol).ok_or_else(failure)?;
-    let mut selected = None;
-    for trait_definition in program.traits() {
-        if crate::declarations::traits::arguments_for_declaring_trait(
-            program,
-            carrier,
-            &bound.arguments,
-            trait_definition.symbol,
-            &mut Vec::new(),
-        )
-        .is_none()
-        {
-            continue;
-        }
-        for signature in program.trait_machine_signatures(trait_definition) {
+    let carrier = program
+        .trait_definition_by_symbol(bound.trait_symbol)
+        .ok_or_else(failure)?;
+    let root =
+        typed_trees::trait_definition::AppliedTraitScope::new(program, carrier, &bound.arguments)
+            .ok_or_else(failure)?;
+    let mut selected: Option<crate::declarations::traits::GenericBoundRequirement<'program>> = None;
+    let mut ambiguous = false;
+    root.visit(program, &mut |application| {
+        for signature in program.trait_machine_signatures(application.declaration) {
             if signature.name.as_str() != program.symbols.name(target) {
                 continue;
             }
-            if selected.is_some() {
-                return Err(failure());
+            if let Some(known) = &selected {
+                ambiguous |= known.signature.symbol != signature.symbol
+                    || !known.application.same_application(program, application);
+                continue;
             }
             selected = Some(crate::declarations::traits::GenericBoundRequirement {
                 signature,
-                trait_definition,
-                bound,
+                application: application.clone(),
             });
         }
+    });
+    if ambiguous {
+        return Err(failure());
     }
     selected.map(Some).ok_or_else(failure)
 }
@@ -213,43 +194,13 @@ pub(super) fn validate_named_conformance_arguments(
     let mut parameters = program
         .state_signature_parameters(requirement.signature)
         .to_vec();
-    let Some(carrier) = bound_carrier_definition(program, requirement.bound.trait_symbol) else {
-        return;
-    };
-    let Some(inherited_arguments) = crate::declarations::traits::arguments_for_declaring_trait(
-        program,
-        carrier,
-        &requirement.bound.arguments,
-        requirement.trait_definition.symbol,
-        &mut Vec::new(),
-    ) else {
-        return;
-    };
-    let mut bound = requirement.bound.clone();
-    bound.arguments = inherited_arguments;
-    let requirement = crate::declarations::traits::GenericBoundRequirement {
-        signature: requirement.signature,
-        trait_definition: requirement.trait_definition,
-        bound: &bound,
-    };
     // The declared trait argument is the expected destination even when an
     // actual is a literal or computation rather than a typed storage place.
     // Reuse ordinary literal landing and narrowing against that exact handle.
-    let trait_parameters = program.trait_type_parameters(requirement.trait_definition);
     for parameter in &mut parameters {
-        let TypeReferenceNode::Named { symbol, .. } = program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        else {
-            continue;
-        };
-        if let Some(argument) = trait_parameters
-            .iter()
-            .position(|candidate| candidate.symbol == *symbol)
-            .and_then(|ordinal| requirement.bound.arguments.get(ordinal))
-        {
-            parameter.type_reference = *argument;
-        }
+        parameter.type_reference = requirement
+            .application
+            .argument_reference(program, parameter.type_reference);
     }
     validate_requirement_call_arguments(
         program,
@@ -258,7 +209,7 @@ pub(super) fn validate_named_conformance_arguments(
         value_environment,
         arguments,
         &parameters,
-        &requirement,
+        requirement,
         writable_roots,
         diagnostics,
     );
@@ -277,9 +228,9 @@ pub(super) fn validate_named_conformance_arguments(
             program,
             actual,
             required,
-            &requirement,
+            requirement,
         ) {
-            diagnostics.push(Diagnostic::error(format!("argument `{}` for conformance requirement `{}::{}` does not match the binder's trait arguments", parameter.name, requirement.trait_definition.name, requirement.signature.name)));
+            diagnostics.push(Diagnostic::error(format!("argument `{}` for conformance requirement `{}::{}` does not match the binder's trait arguments", parameter.name, requirement.application.declaration.name, requirement.signature.name)));
         }
     }
 }

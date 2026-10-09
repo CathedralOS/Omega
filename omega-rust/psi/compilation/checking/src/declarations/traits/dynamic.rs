@@ -200,10 +200,10 @@ pub struct DynamicSlotDemand {
     pub selector_type: TypeReferenceHandle,
     pub declaring_trait: symbols::SymbolHandle,
     pub requirement: symbols::SymbolHandle,
-    /// The declaring trait's arguments under the selector's application; an
-    /// inherited requirement's declaring trait receives the arguments its
-    /// inheritance edge composes.
-    pub trait_arguments: Vec<TypeReferenceHandle>,
+    /// Complete outer-to-inner applied telescopes. A declaring trait's
+    /// composite argument can still name an outer trait's parameter.
+    pub type_substitutions: Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
+    pub substitution_scope_starts: Vec<usize>,
 }
 
 /// Every requirement the program's selections and selector calls reach.
@@ -241,20 +241,20 @@ pub fn collect_dynamic_slot_demands(
             continue;
         };
         for row in &implementation.rows {
-            let Some(trait_arguments) = super::arguments_for_declaring_trait(
+            let Some(application) = typed_trees::trait_definition::AppliedTraitScope::new(
                 program,
                 selector_definition,
                 selector_arguments,
-                row.declaring_trait,
-                &mut Vec::new(),
-            ) else {
+            )
+            .and_then(|scope| scope.declaring_scope(program, row.declaring_trait)) else {
                 continue;
             };
             push(DynamicSlotDemand {
                 selector_type: selection.selector_type,
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
-                trait_arguments,
+                type_substitutions: application.substitutions,
+                substitution_scope_starts: application.substitution_scope_starts,
             });
         }
     }
@@ -349,9 +349,10 @@ pub fn dynamic_call_demand(
     .ok()??;
     Some(DynamicSlotDemand {
         selector_type: call.selector_type,
-        declaring_trait: call.trait_definition.symbol,
+        declaring_trait: call.application.declaration.symbol,
         requirement: call.signature.symbol,
-        trait_arguments: call.bound.arguments,
+        type_substitutions: call.application.substitutions,
+        substitution_scope_starts: call.application.substitution_scope_starts,
     })
 }
 
