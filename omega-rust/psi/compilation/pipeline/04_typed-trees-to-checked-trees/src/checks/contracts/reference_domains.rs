@@ -1,7 +1,7 @@
 //! Exact live aliases and owned captures transport established qualifications.
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use facts::{Fact, FactContextHandle, FactPayload};
+use facts::{Fact, FactContextHandle};
 
 pub(super) fn proves(
     program: &dyn ::validation::CheckingInput,
@@ -145,8 +145,7 @@ fn contexts_prove_domain(
             .facts()
             .any(|candidate| {
                 let candidate_domain = match candidate.payload {
-                    FactPayload::DomainMembership { domain_symbol, .. }
-                    | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
+                    facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
                     _ => return false,
                 };
                 let Some(candidate) = candidate.place.as_place() else {

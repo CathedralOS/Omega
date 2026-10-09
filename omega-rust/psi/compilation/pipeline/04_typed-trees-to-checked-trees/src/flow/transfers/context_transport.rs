@@ -46,18 +46,7 @@ pub(super) fn transport(
                             })
                             .map(|_| (fact.payload, fact.evidence, None))
                     }
-                    FactPayload::DomainMembership {
-                        domain,
-                        domain_symbol,
-                        semantic_domain,
-                        ..
-                    }
-                    | FactPayload::ContractDomainMembership {
-                        domain,
-                        domain_symbol,
-                        semantic_domain,
-                        ..
-                    } => {
+                    facts::domain_membership_fields_pattern!(domain, domain_symbol, semantic_domain) => {
                         let fact_place = fact.place.as_place()?;
                         let fact_label = semantic.place_label(program, fact_place);
                         (source_place.is_some_and(|source_place| {

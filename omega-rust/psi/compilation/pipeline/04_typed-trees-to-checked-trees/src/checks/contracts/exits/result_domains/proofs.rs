@@ -521,8 +521,7 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
     requirement: &facts::Fact,
 ) -> bool {
     let domain_symbol = match requirement.payload {
-        FactPayload::DomainMembership { domain_symbol, .. }
-        | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
+        facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
         _ => return false,
     };
     let Some(place) = requirement.place.as_place() else {

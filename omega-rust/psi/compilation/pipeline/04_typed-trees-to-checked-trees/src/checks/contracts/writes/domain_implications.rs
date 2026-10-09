@@ -331,8 +331,7 @@ pub(super) fn value_proves_domain_in_contexts(
         let context = facts.semantic.contexts.get(*context_handle);
         facts.semantic.context_view(context).facts().any(|fact| {
             let fact_domain = match fact.payload {
-                FactPayload::DomainMembership { domain_symbol, .. }
-                | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
+                facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
                 _ => return false,
             };
             if !typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {

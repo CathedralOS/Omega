@@ -197,8 +197,7 @@ fn carried_domain_membership_at_place(
             .facts()
             .any(|fact| {
                 let candidate_domain = match fact.payload {
-                    FactPayload::DomainMembership { domain_symbol, .. }
-                    | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
+                    facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
                     _ => return false,
                 };
                 let Some(place) = fact.place.as_place() else {

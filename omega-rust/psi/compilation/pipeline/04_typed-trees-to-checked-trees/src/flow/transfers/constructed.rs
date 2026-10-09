@@ -142,18 +142,7 @@ pub(super) fn append_constructed_field_values(
                 FactPayload::AssignedValue { .. } | FactPayload::AssignedScalarValue { .. } => {
                     fact.payload
                 }
-                FactPayload::DomainMembership {
-                    domain,
-                    domain_symbol,
-                    semantic_domain,
-                    ..
-                }
-                | FactPayload::ContractDomainMembership {
-                    domain,
-                    domain_symbol,
-                    semantic_domain,
-                    ..
-                } if program.domain_definitions().iter().any(|definition| {
+                facts::domain_membership_fields_pattern!(domain, domain_symbol, semantic_domain) if program.domain_definitions().iter().any(|definition| {
                     definition.symbol == domain_symbol
                         && definition.establishment_routes.is_empty()
                         && definition.alias.is_none()

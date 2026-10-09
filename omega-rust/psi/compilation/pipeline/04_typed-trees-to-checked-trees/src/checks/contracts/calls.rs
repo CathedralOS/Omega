@@ -291,8 +291,7 @@ fn subslice_grants_domain(
         let context = facts.semantic.contexts.get(context_handle);
         facts.semantic.context_view(context).facts().any(|fact| {
             let fact_domain = match fact.payload {
-                FactPayload::DomainMembership { domain_symbol, .. }
-                | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
+                facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
                 _ => return false,
             };
             if !facts.semantic.domain_implies(fact_domain, domain_symbol)
@@ -778,8 +777,7 @@ fn explain_domain_requirement_failure(
     {
         let fact = facts.semantic.facts.get(invalidation.fact);
         let (fact_domain, fact_place) = match fact.payload {
-            FactPayload::DomainMembership { domain_symbol, .. }
-            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+            facts::domain_membership_symbol_pattern!(domain_symbol) => {
                 let Some(place) = fact.place.as_place() else {
                     continue;
                 };

@@ -4,7 +4,7 @@ use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::canonical_place_joined_segments_may_overlap;
 use crate::flow::canonical_place_segments_may_overlap;
 use checked_trees::{DomainDependencyFact, DomainFacts};
-use facts::{Fact, FactPayload, FactPlan};
+use facts::{Fact, FactPlan};
 
 pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
     program: &dyn ::validation::CheckingInput,
@@ -18,8 +18,7 @@ pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
     let fact_canonical_place = canonical_place_from_semantic_place(program, semantic, place)?;
     let fact_root = fact_canonical_place.root;
     let dependency = match fact.payload {
-        FactPayload::DomainMembership { domain_symbol, .. }
-        | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+        facts::domain_membership_symbol_pattern!(domain_symbol) => {
             domain_dependencies.dependency_fact(domain_symbol)
         }
         _ => None,

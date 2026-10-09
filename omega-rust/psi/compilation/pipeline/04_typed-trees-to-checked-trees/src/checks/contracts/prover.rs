@@ -186,16 +186,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         return false;
     }
     match fact.payload {
-        FactPayload::DomainMembership {
-            domain_symbol,
-            semantic_domain,
-            ..
-        }
-        | FactPayload::ContractDomainMembership {
-            domain_symbol,
-            semantic_domain,
-            ..
-        } => {
+        facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) => {
             let Some(place) = fact.place.as_place() else {
                 return false;
             };
@@ -222,8 +213,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                     .proves_place_domain_membership_in_program(program, place, domain_symbol)
                     || semantic.context_view(context).facts().any(|candidate| {
                         let candidate_domain = match candidate.payload {
-                            FactPayload::DomainMembership { domain_symbol, .. }
-                            | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
+                            facts::domain_membership_symbol_pattern!(domain_symbol) => {
                                 domain_symbol
                             }
                             _ => return false,
@@ -385,8 +375,7 @@ pub(super) fn indexed_membership(
     program: &dyn ::validation::CheckingInput,
     payload: FactPayload,
 ) -> bool {
-    let (FactPayload::DomainMembership { domain_symbol, .. }
-    | FactPayload::ContractDomainMembership { domain_symbol, .. }) = payload
+    let (facts::domain_membership_symbol_pattern!(domain_symbol)) = payload
     else {
         return false;
     };

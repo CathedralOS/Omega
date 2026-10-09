@@ -725,8 +725,7 @@ fn consumes_qualified_input(
             .facts()
         {
             if !matches!(fact.payload,
-                FactPayload::DomainMembership { domain_symbol, semantic_domain, .. }
-                | FactPayload::ContractDomainMembership { domain_symbol, semantic_domain, .. }
+                facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain)
                 if domain_symbol == projection.domain
                     && semantic_domain == projection.semantic_domain)
             {
@@ -830,8 +829,7 @@ fn input_claim(
     let qualified = facts.flow.contexts.semantic_context_refs.span_or_empty(call_flow.entry_semantic_contexts).iter().any(|reference| {
         facts.semantic.context_view(facts.semantic.contexts.get(reference.context)).facts().any(|fact| {
             matches!(fact.payload,
-                FactPayload::DomainMembership { domain_symbol, semantic_domain, .. }
-                | FactPayload::ContractDomainMembership { domain_symbol, semantic_domain, .. }
+                facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain)
                 if domain_symbol == projection.domain && semantic_domain == projection.semantic_domain)
                 && matches!(fact.place, FactPlace::Place(place)
                     if facts.semantic.places.get(place).root == actual.root

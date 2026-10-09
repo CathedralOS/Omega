@@ -98,18 +98,7 @@ pub(super) fn append_copied_field_predicates(
         .collect();
     for fact in facts {
         let payload = match fact.payload {
-            FactPayload::DomainMembership {
-                domain,
-                domain_symbol,
-                semantic_domain,
-                ..
-            }
-            | FactPayload::ContractDomainMembership {
-                domain,
-                domain_symbol,
-                semantic_domain,
-                ..
-            } => {
+            facts::domain_membership_fields_pattern!(domain, domain_symbol, semantic_domain) => {
                 // A field predicate follows the copied value. Routed
                 // qualifications require their own custody correspondence,
                 // not this predicate rule.

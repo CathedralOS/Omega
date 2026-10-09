@@ -513,3 +513,48 @@ pub struct Fact {
     pub evidence: QualificationEvidence,
     pub payload: FactPayload,
 }
+
+/// The domain-membership pair binding only the domain symbol: most fact
+/// consumers discriminate the plain and contract spellings only by which
+/// declaration's contract the membership came through.
+#[macro_export]
+macro_rules! domain_membership_symbol_pattern {
+    ($domain_symbol:ident) => {
+        $crate::FactPayload::DomainMembership { $domain_symbol, .. }
+            | $crate::FactPayload::ContractDomainMembership { $domain_symbol, .. }
+    };
+}
+
+/// The domain-membership pair binding the symbol and the semantic domain.
+#[macro_export]
+macro_rules! domain_membership_symbol_and_instance_pattern {
+    ($domain_symbol:ident, $semantic_domain:ident) => {
+        $crate::FactPayload::DomainMembership {
+            $domain_symbol,
+            $semantic_domain,
+            ..
+        } | $crate::FactPayload::ContractDomainMembership {
+            $domain_symbol,
+            $semantic_domain,
+            ..
+        }
+    };
+}
+
+/// The domain-membership pair binding the full membership triple.
+#[macro_export]
+macro_rules! domain_membership_fields_pattern {
+    ($domain:ident, $domain_symbol:ident, $semantic_domain:ident) => {
+        $crate::FactPayload::DomainMembership {
+            $domain,
+            $domain_symbol,
+            $semantic_domain,
+            ..
+        } | $crate::FactPayload::ContractDomainMembership {
+            $domain,
+            $domain_symbol,
+            $semantic_domain,
+            ..
+        }
+    };
+}
