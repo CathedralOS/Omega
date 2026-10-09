@@ -5299,18 +5299,22 @@ wait for Cathedral's instruction coverage. The interpreter is
 - **FLOAT-PROVIDERS.** Complete the `FloatSemantics` obligations of the actual
   `Float`, `F32`/`F64` and conversion slots under
   [FloatMeaning](wiki/spec/terminal-psi/mathematical_values.md#floatmeaning).
-  Extend the existing canonical Meaning proof route.
-  - Remaining: durable semantic applications in
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/float_meaning.rs`
-    retain only Meaning results with Format/Meaning operands. Add integer
-    operands and Boolean, classification and integer results through their own
-    proof carriers, so slot contracts and imported call/operator guarantees
-    survive the Terminal boundary. Non-Meaning results must not use the
-    FloatMeaning carrier. The bounded closed source evaluator in
-    `omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/semantic_values.rs`
-    supplies no portable proof evidence; reuse its sealed catalog selection
-    and exact carrier rules. Preserve closed integer-source regression behavior
-    with `python3 tools/corpus_gate.py --both --filter
+  Extend checked source contract reasoning and its scalar consequences.
+  - Ordinary wrappers cannot import symbolic slot guarantees. For example,
+    `finite(value: f32) -> bool` returning `F32::is_finite(value)` cannot prove
+    `result == FloatSemantics::is_finite(Float::meaning32(value))`;
+    classification and float-to-integer result guarantees stop at the same
+    proof-only entailment fence. Generalize selected normal-return imports in
+    `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/`,
+    proving requires before substituting captured actuals and each result
+    occurrence. Preserve public contract selection, result policy and path scope.
+  - An open integer input to `F32::from_i32` cannot establish a finite-result
+    precondition, although closed inputs work. Extend the shared selected
+    semantic kernel reasoning with exact integer carrier bounds and caller
+    snapshots; Boolean, classification and integer results retain their own
+    typed source carriers. Proof transport follows [PCC removal](#pcc-removal).
+  - Preserve closed integer-source behavior with
+    `python3 tools/corpus_gate.py --both --filter
     closed_integer_conversion_predicate_proof_exit,qualified_integer_source_exact_float_coercion_exit`.
   Acceptance: corpus fixtures where slot contracts and imported
   call/operator results discharge those obligations; false claims, lookalike
