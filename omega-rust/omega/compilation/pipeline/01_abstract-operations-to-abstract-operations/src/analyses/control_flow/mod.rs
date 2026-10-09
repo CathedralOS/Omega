@@ -17,8 +17,6 @@ pub(crate) use countdown_induction::{
 };
 
 pub(crate) use countdown_invariant_constant_placement::analyze_countdown_invariant_constant_placement;
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) use countdown_invariant_constant_placement::UnsignedCountdownInvariantConstantPlacements;
 pub(crate) use countdown_invariant_constant_placement::{
     CountdownInvariantConstantPlacementAnalysisError,
     ValidatedCountdownInvariantConstantPlacementAnalysis,

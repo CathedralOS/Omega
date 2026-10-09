@@ -7,7 +7,6 @@ use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId};
 
 use crate::machine_code::layout::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
-    ResolvedJumpEvidence,
 };
 
 /// The fragment retains the resolved branch evidence verbatim.

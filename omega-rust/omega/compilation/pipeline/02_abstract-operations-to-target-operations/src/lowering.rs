@@ -3,7 +3,6 @@
 mod borrowed_storage;
 mod boundary_settlements;
 mod control_flow;
-pub(crate) use control_flow::dominator_schedule;
 mod coordination;
 mod function;
 mod function_signature;

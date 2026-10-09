@@ -7,8 +7,6 @@
 
 use crate::{EntryStack, PlanDiagnostic, Preemption};
 
-pub(crate) use entry_exit_stub::{
-    X86_64ErrorCodeDisposition, derive_x86_64_entry_exit_stub};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct ArrivalContextId(u64);
 
