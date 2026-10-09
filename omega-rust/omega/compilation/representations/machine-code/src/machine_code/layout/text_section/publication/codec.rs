@@ -33,13 +33,12 @@ impl FunctionFragmentTextSectionManifest {
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        let content = encode_manifest_content(self);
-        let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(MANIFEST_MAGIC);
-        crate::codec_bytes::push_encoded(&mut encoded, MANIFEST_VERSION.to_le_bytes());
-        encoded.extend_from_slice(&self.identity.bytes());
-        encoded.extend_from_slice(&content);
-        encoded
+        crate::codec_bytes::encode_manifest_envelope(
+            MANIFEST_MAGIC,
+            MANIFEST_VERSION,
+            &self.identity.bytes(),
+            &encode_manifest_content(self),
+        )
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, FunctionFragmentTextSectionManifestDecodeError> {
@@ -206,11 +205,20 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     });
     crate::codec_bytes::push_encoded(&mut bytes, record.statistics.functions.to_le_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.statistics.blocks.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.instruction_spans.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.zero_byte_instruction_spans.to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        record.statistics.instruction_spans.to_le_bytes(),
+    );
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        record.statistics.zero_byte_instruction_spans.to_le_bytes(),
+    );
     crate::codec_bytes::push_encoded(&mut bytes, record.statistics.bytes.to_le_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.statistics.padding_bytes.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.relocation_requirements.to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        record.statistics.relocation_requirements.to_le_bytes(),
+    );
     bytes.extend_from_slice(
         &record
             .statistics
