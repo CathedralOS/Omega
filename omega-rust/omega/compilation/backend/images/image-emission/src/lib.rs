@@ -76,6 +76,4 @@ pub use installation_record::{ InstallationError,
 };
 pub(crate) use installation_record::{ InstallationRecord,
     InstalledCompilerPrivateFunction, validate_installation_record};
-#[cfg(feature = "installed-artifact")]
-
 pub use machine_code::BoundaryExecutionRecord;
