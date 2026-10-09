@@ -21,7 +21,8 @@ pub(crate) use scalar_terms::{
     lowered_direct_scalar_term,
 };
 pub(crate) use structural_members::{
-    lower_structural_case_membership, lower_structural_member_path, lower_structural_member_term,
+    lower_sequence_extent_term, lower_structural_case_membership, lower_structural_member_path,
+    lower_structural_member_term,
 };
 pub(crate) use structural_route_buckets::{
     lower_structural_crash_route_buckets, substitute_structural_crash_route_roots,

@@ -9,12 +9,12 @@
 use super::{
     BTreeMap, CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
     Proposition, ScalarTerm, ScalarType, StructuralParameterDeclaration, StructuralTypeDeclaration,
-    StructuralTypeId, ValueDeclaration, ValueId, integer_landing_scalar_type, integer_scalar_type,
-    integer_value, terminal_scalar_type, unsupported,
+    ValueDeclaration, ValueId, integer_landing_scalar_type, integer_scalar_type, integer_value,
+    terminal_scalar_type, unsupported,
 };
 use crate::proofs::contract_predicates::PredicateTerms;
 use crate::proofs::crash_routes::{
-    checked_boolean_scalar_term, checked_scalar_term, checked_scalar_term_with_views,
+    checked_boolean_scalar_term, checked_scalar_term, lower_sequence_extent_term,
     lower_structural_member_term,
 };
 
@@ -37,17 +37,6 @@ pub(crate) fn lower_structural_runtime_requirement(
             erased,
             parameters,
             structural_types,
-            view_roster: parameters
-                .iter()
-                .map(|parameter| (parameter.position, parameter.clone()))
-                .collect(),
-            element_views: crate::expression_preparation::bindings::element_views(
-                &parameters
-                    .iter()
-                    .map(|parameter| (parameter.position, parameter.clone()))
-                    .collect::<Vec<_>>(),
-                structural_types,
-            ),
         },
     )
 }
@@ -160,12 +149,14 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
             validate_integer_namespace(operand)
         }
         CheckedScalarExpression::Boolean(expression) => validate_namespace(expression),
-        // Whole-view extents carry the caller-proven bound the boundary
-        // argument's domain needs; nested member extents keep the historical
-        // fail-closed lane.
-        CheckedScalarExpression::StructuralParameterByteLength { path, .. } if path.is_empty() => {
-            Ok(())
-        }
+        // The shared descriptor term owner checks the complete path against
+        // the invocation signature, including readable access and carrier.
+        CheckedScalarExpression::StructuralParameterByteLength { root, .. } => root
+            .parameter()
+            .map(|_| ())
+            .ok_or(LoweringError::Unsupported(
+                "runtime sequence extent requires a structural formal",
+            )),
         _ => unsupported(
             "runtime requirements admit only fixed integer parameters, members, and literals",
         ),
@@ -177,8 +168,6 @@ struct RuntimeRequirementTerms<'parameters> {
     erased: &'parameters [ValueDeclaration],
     parameters: &'parameters [StructuralParameterDeclaration],
     structural_types: &'parameters [StructuralTypeDeclaration],
-    view_roster: Vec<(u32, StructuralParameterDeclaration)>,
-    element_views: BTreeMap<StructuralTypeId, Option<ScalarType>>,
 }
 
 impl RuntimeRequirementTerms<'_> {
@@ -211,14 +200,11 @@ impl RuntimeRequirementTerms<'_> {
                 self.parameters,
                 self.structural_types,
             ),
-            CheckedScalarExpression::StructuralParameterByteLength { .. } => {
-                checked_scalar_term_with_views(
-                    expression,
-                    self.scalar_parameters,
-                    self.erased,
-                    &self.view_roster,
-                    &self.element_views,
-                )
+            CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
+                let position = root.parameter().ok_or(LoweringError::Unsupported(
+                    "runtime sequence extent requires a structural formal",
+                ))?;
+                lower_sequence_extent_term(position, path, self.parameters, self.structural_types)
             }
             CheckedScalarExpression::IntegerLiteral { literal } => {
                 let scalar_type = integer_landing_scalar_type(literal)?;

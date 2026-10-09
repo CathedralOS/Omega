@@ -320,19 +320,14 @@ impl ContractPredicates<'_, '_> {
                     self.parameters,
                     expression,
                 ) {
-                    // Only a whole-parameter extent is admissible in the closed
-                    // contract namespace: a nested path needs canonical field ids
-                    // the namespace does not mint, and a view-local root resolves
-                    // no retained place here. Both stay erased as before.
-                    if let CheckedScalarExpression::StructuralParameterByteLength { root, path } =
+                    // Only parameter-rooted descriptors belong to the closed
+                    // contract namespace. Their checked field path is retained
+                    // for the shared structural signature term owner.
+                    if let CheckedScalarExpression::StructuralParameterByteLength { root, .. } =
                         &term
+                        && !matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. })
                     {
-                        let admissible =
-                            matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. })
-                                && path.is_empty();
-                        if !admissible {
-                            return None;
-                        }
+                        return None;
                     }
                     let reference = program.type_reference_table.named_references().find_map(
                         |(reference, symbol, _)| {
