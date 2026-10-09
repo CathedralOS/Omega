@@ -14,7 +14,7 @@ use semantic_vocabulary::{MachineId, ObligationId, OperationId};
 use crate::{AnalysisProduct, EffectSummaryAnalysis, UseDefinitionAnalysis};
 
 #[derive(Debug, Clone, Copy)]
-pub struct RuleAnalysisView<'a> {
+pub(crate) struct RuleAnalysisView<'a> {
     products: RuleAnalysisProducts<'a>,
 }
 
@@ -88,7 +88,7 @@ impl<'a> RuleAnalysisView<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RuleProposalError {
+pub(crate) enum RuleProposalError {
     MissingAnalysis(AnalysisKind),
     InvalidCandidate(PsiRewriteCandidateError),
     MissingAcceptedObligation {
@@ -135,7 +135,7 @@ impl RuleScheduleKey {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RuleRegistryError {
+pub(crate) enum RuleRegistryError {
     UnsupportedOptimization(PsiOptimization),
     UnsupportedOptimizationCombination,
     DuplicateRule(OptimizationRuleIdentity),

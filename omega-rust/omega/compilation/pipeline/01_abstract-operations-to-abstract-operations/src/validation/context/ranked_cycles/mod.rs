@@ -38,7 +38,7 @@ pub(super) fn validate_exact_ranked_cycles(
 /// This grants no Terminal execution, rewrite, interpretation, fixed-fuel,
 /// native-lowering, or publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedOptimizerCycleComponents {
+pub(crate) struct ValidatedOptimizerCycleComponents {
     snapshot: OptimizerCycleComponentSnapshot,
     rankings: ValidatedOptimizerRankingCertificates,
 }
@@ -72,7 +72,7 @@ impl ValidatedOptimizerCycleComponents {
 /// Opaque optimizer-analysis custody for independently reconstructed ranking
 /// evidence. This does not authorize execution or cyclic rewriting.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedOptimizerRankingCertificates {
+pub(crate) struct ValidatedOptimizerRankingCertificates {
     snapshot: OptimizerRankingCertificateSnapshot,
 }
 

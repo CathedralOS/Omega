@@ -19,7 +19,7 @@ impl<'a> AnalysisRevision<'a> {
 
     /// Resolve declared products without revalidating immutable content or
     /// copying payloads. Dependency-only products remain hidden from the rule.
-    pub fn require_all(
+    pub(crate) fn require_all(
         &mut self,
         requested: AnalysisSet,
     ) -> Result<RuleAnalysisView<'_>, AnalysisManagerError> {

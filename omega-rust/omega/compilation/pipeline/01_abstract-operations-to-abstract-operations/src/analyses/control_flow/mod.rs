@@ -48,13 +48,13 @@ pub(super) use dominance::dominators;
 pub(super) use graph::control_flow;
 pub(super) use loops::loops;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ExitKind {
+pub(crate) enum ExitKind {
     Normal,
     Crash,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockControlFlow {
+pub(crate) struct BlockControlFlow {
     pub block: BlockId,
     pub predecessors: Vec<BlockId>,
     pub successors: Vec<BlockId>,
@@ -70,7 +70,7 @@ pub struct FunctionControlFlow {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ControlFlowAnalysis {
+pub(crate) struct ControlFlowAnalysis {
     pub functions: Vec<FunctionControlFlow>,
 }
 
@@ -78,7 +78,7 @@ pub(crate) type BlockDominators = (BlockId, Vec<BlockId>);
 pub(crate) type FunctionDominators = (MachineId, Vec<BlockDominators>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DominatorAnalysis {
+pub(crate) struct DominatorAnalysis {
     pub functions: Vec<FunctionDominators>,
 }
 
@@ -91,7 +91,7 @@ impl DominatorAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StronglyConnectedComponentAnalysis {
+pub(crate) struct StronglyConnectedComponentAnalysis {
     pub functions: Vec<(MachineId, Vec<Vec<BlockId>>)>,
 }
 
@@ -104,7 +104,7 @@ impl StronglyConnectedComponentAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoopRegion {
+pub(crate) struct LoopRegion {
     /// Natural-loop header when one node dominates every entry. `None` marks
     /// an irreducible region with multiple entries.
     pub header: Option<BlockId>,
@@ -113,12 +113,12 @@ pub struct LoopRegion {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoopAnalysis {
+pub(crate) struct LoopAnalysis {
     pub functions: Vec<(MachineId, Vec<LoopRegion>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallGraphAnalysis {
+pub(crate) struct CallGraphAnalysis {
     /// Static calls and semantic machine transitions that must keep a target
     /// reachable, including nominal cleanup invoked on return.
     pub callees: Vec<(MachineId, Vec<MachineId>)>,

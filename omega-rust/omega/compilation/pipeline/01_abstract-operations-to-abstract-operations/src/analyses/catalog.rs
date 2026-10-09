@@ -19,7 +19,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AnalysisProduct {
+pub(crate) enum AnalysisProduct {
     ControlFlowGraph(ControlFlowAnalysis),
     Dominators(DominatorAnalysis),
     PostDominators(DominatorAnalysis),

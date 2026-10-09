@@ -13,14 +13,14 @@ use semantic_vocabulary::{BlockId, EdgeId, IntegerValue, MachineId, OperationId,
 use super::{scalar_operation_successors, scalar_value_definition};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ValueFactRegion {
+pub(crate) struct ValueFactRegion {
     pub revision: OptimizationUnitIdentity,
     pub machine: MachineId,
     pub value: ValueId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ScalarConstantFact {
+pub(crate) struct ScalarConstantFact {
     pub value: ValueId,
     pub constant: ScalarConstantValue,
     /// Present only when this fact has a canonical derivation that the
@@ -32,7 +32,7 @@ pub struct ScalarConstantFact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ScalarConstantSupport {
+pub(crate) struct ScalarConstantSupport {
     pub operations: Vec<OperationId>,
     pub edges: Vec<EdgeId>,
 }
@@ -70,7 +70,7 @@ impl ScalarConstantSupport {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScalarConstantAnalysis {
+pub(crate) struct ScalarConstantAnalysis {
     pub facts: Vec<ScalarConstantFact>,
 }
 
@@ -113,14 +113,14 @@ impl ScalarConstantAnalysis {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ExecutableEdgeKnowledge {
+pub(crate) enum ExecutableEdgeKnowledge {
     KnownExecutable,
     KnownInexecutable,
     Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutableEdgeFact {
+pub(crate) struct ExecutableEdgeFact {
     pub machine: MachineId,
     pub source: BlockId,
     pub edge: EdgeId,
@@ -131,7 +131,7 @@ pub struct ExecutableEdgeFact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutableEdgeAnalysis {
+pub(crate) struct ExecutableEdgeAnalysis {
     pub edges: Vec<ExecutableEdgeFact>,
 }
 

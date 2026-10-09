@@ -11,7 +11,7 @@ use super::semantically_reachable_blocks;
 pub(crate) type EffectKnowledge = optimization_unit::ObservationKnowledge;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum EffectClass {
+pub(crate) enum EffectClass {
     PureScalar,
     StructuralState,
     InternalCall,
@@ -21,7 +21,7 @@ pub enum EffectClass {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeEffectSummary {
+pub(crate) struct NodeEffectSummary {
     pub machine: MachineId,
     pub block: BlockId,
     pub node: u32,
@@ -48,7 +48,7 @@ impl NodeEffectSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EffectSummaryAnalysis {
+pub(crate) struct EffectSummaryAnalysis {
     pub nodes: Vec<NodeEffectSummary>,
     pub functions: Vec<FunctionEffectSummary>,
 }
@@ -68,7 +68,7 @@ impl EffectSummaryAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionEffectSummary {
+pub(crate) struct FunctionEffectSummary {
     pub machine: MachineId,
     pub observable: EffectKnowledge,
     pub structural_state: EffectKnowledge,

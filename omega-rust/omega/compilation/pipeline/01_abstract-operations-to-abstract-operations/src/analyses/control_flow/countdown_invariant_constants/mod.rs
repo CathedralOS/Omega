@@ -100,7 +100,7 @@ impl ValidatedCountdownInvariantConstantAnalysis {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CountdownInvariantConstantAnalysisError {
+pub(crate) enum CountdownInvariantConstantAnalysisError {
     CountedLoop(CountedLoopAnalysisError),
     StaleUnitIdentity {
         stored: OptimizationUnitIdentity,

@@ -45,7 +45,7 @@ use super::semantically_reachable_blocks;
 /// `CanonicalStructuralPathSegment` so structural-field identity survives
 /// without being flattened into a display string.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum PlaceAccessStep {
+pub(crate) enum PlaceAccessStep {
     Runtime(StructuralPathSegment),
     Canonical(CanonicalStructuralPathSegment),
 }
@@ -59,7 +59,7 @@ impl PlaceAccessStep {
 /// One may-access view: storage at `root`, a place declared by `owner`,
 /// beneath `path`. An empty path is the whole root.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PlaceAccessView {
+pub(crate) struct PlaceAccessView {
     pub owner: MachineId,
     pub root: PlaceId,
     pub path: Vec<PlaceAccessStep>,
@@ -71,7 +71,7 @@ pub struct PlaceAccessView {
 /// provably never reaches the parameter's storage, a fact the declared
 /// signature alone cannot state.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParameterAccessSurface {
+pub(crate) struct ParameterAccessSurface {
     pub position: u32,
     pub place: PlaceId,
     pub declared: StructuralAccess,
@@ -86,14 +86,14 @@ pub struct ParameterAccessSurface {
 /// resolution is what a caller cannot read off the signature — whether the
 /// source is a formal parameter lane it lent, or storage outside the call.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedResultSource {
+pub(crate) struct ResolvedResultSource {
     pub result_path: Vec<StructuralPathSegment>,
     pub origins: Vec<ResultSourceResolution>,
 }
 
 /// Where one resolved result-source view lives, in the callee's namespace.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResultSourceResolution {
+pub(crate) enum ResultSourceResolution {
     /// Beneath formal parameter `position`, along `path` under its root.
     Parameter {
         position: u32,
@@ -118,7 +118,7 @@ pub enum ResultSourceResolution {
 /// resolves, undeclared roots, and rows propagated from callees (which keep
 /// their declaring `owner`).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionPlaceAccessSummary {
+pub(crate) struct FunctionPlaceAccessSummary {
     pub machine: MachineId,
     /// One row per declared structural parameter, in signature order.
     pub parameters: Vec<ParameterAccessSurface>,
@@ -140,7 +140,7 @@ pub struct FunctionPlaceAccessSummary {
 
 /// The place-access fact product for one unit revision.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlaceAccessSummaryAnalysis {
+pub(crate) struct PlaceAccessSummaryAnalysis {
     pub functions: Vec<FunctionPlaceAccessSummary>,
 }
 

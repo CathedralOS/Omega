@@ -318,13 +318,13 @@ impl AppliedLoopInvariantScalarMotion {
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn into_session(self) -> VerifiedPsiOptimizationSession {
+    pub(crate) fn into_session(self) -> VerifiedPsiOptimizationSession {
         self.session
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LoopInvariantScalarMotionError {
+pub(crate) enum LoopInvariantScalarMotionError {
     CandidateBudgetExhausted {
         required: u64,
         limit: u64,
