@@ -29,7 +29,9 @@ impl Engine<'_> {
             eprintln!(
                 "STRUCT mathematical term={:?} captures={:?}",
                 view.arena.get(application.term),
-                view.applications.captures.span_or_empty(application.captures)
+                view.applications
+                    .captures
+                    .span_or_empty(application.captures)
             );
         }
         let captures = view
@@ -144,6 +146,12 @@ impl Engine<'_> {
     ) -> Judgment {
         if depth >= 128 {
             return unknown();
+        }
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT mathematical judgment depth={depth} term={term:?} node={:?}",
+                view.arena.get(term),
+            );
         }
         match view.arena.get(term) {
             Term::Squash { ty } => self.judge_mathematical_term(view, ty, captures, depth + 1),
