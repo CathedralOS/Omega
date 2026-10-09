@@ -296,7 +296,12 @@ value of type `Never`, a shared-reference parameter implicitly lending its
 referent or accepting an exclusive loan, or a payload-free case of generic data
 meeting any application. A construction names each of its record's or case's
 fields once; a case pattern names a case of its subject's data and types its
-binders by the payload; a transition target supplies its state's parameters,
+binders by the payload; a transition's or match's arms cover its subject
+([`typing/coverage.omg`](typing/coverage.omg)): one is `_` or the guard
+`true`, they name both Booleans of a Boolean subject or every case of its
+data, or two guards compare one expression with `true` and with `false`, or
+one pair of structurally equal sides with `==` and with `!=`; any other
+ladder closes with `_`. A transition target supplies its state's parameters,
 and a terminal call or value meets the body's result (a state without its own
 `-> T` takes its machine's). An unsuffixed decimal literal is an anonymous
 float: anonymous arithmetic involving one stays anonymous, and the tree lands
@@ -313,8 +318,8 @@ of generic data infers its arguments from its fields' values. A
 value-position match ([`typing/matches.omg`](typing/matches.omg)) admits its
 patterns at its subject as a transition arm's head, gives its arms' values
 one type (the first arm value of a fixed type; the others are of that type,
-anonymous numbers landing there, or `Never`) and must cover its subject
-with a wildcard, both Booleans or every case of its data; a match whose
+anonymous numbers landing there, or `Never`) and must cover its subject; a
+match whose
 arms are anonymous numbers is an anonymous choice, which lands arm by arm
 at its destination and is no subject or operand. Memberships and equality
 needing a declared conformance reject as unsupported rather than typing

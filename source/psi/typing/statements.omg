@@ -4,6 +4,7 @@ use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::admission;
 use psi::typing::calls;
+use psi::typing::coverage;
 use psi::typing::expressions;
 use psi::typing::typer;
 
@@ -15,7 +16,8 @@ use psi::typing::typer;
 // (wiki/spec/language/effects.md). A transition's case arm binds its payload
 // binders before its target types; a target state's arguments meet its
 // parameters, a terminal machine call's result the body's result, and `-> {}`
-// completes a unit body (wiki/spec/language/state_contracts.md).
+// completes a unit body (wiki/spec/language/state_contracts.md). Its arms
+// cover its subject (coverage.omg).
 pub machine Typer::type_body(
     typer: &mut Typer,
     sources: &SourceSet,
@@ -153,6 +155,23 @@ crashes Trap
 
     state arms(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, result: u64 in Trapping, subject_type: u64 in Trapping) {
         Typer::type_arms(typer, sources, syntax, resolution, statement, result, subject_type, 0);
+        transition typer.output.accepted {
+            true -> coverage(typer, sources, syntax, resolution, statement, subject_type)
+            _ -> done()
+        }
+    }
+
+    state coverage(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, subject_type: u64 in Trapping) {
+        let range: ArmRange = ArmRange { matched: false, first: statement.first_arm, count: statement.arm_count };
+        let covered: bool = Typer::covers(typer, sources, syntax, resolution, range, subject_type);
+        transition covered {
+            true -> done()
+            _ -> uncovered(typer, statement)
+        }
+    }
+
+    state uncovered(typer: &mut Typer, statement: Statement) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UncoveredDispatch, statement.source_span);
     }
 
     state admit(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, value: u64 in Trapping) {

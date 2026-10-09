@@ -1000,6 +1000,8 @@ crashes Trap
         transition { _ -> arm(checker, syntax, resolution, typing, statement, offset + 1, checking) }
     }
 
+    // Typing proved the arms cover the subject (typing/coverage.omg): no
+    // path passes over every arm.
     state finished(checker: &mut Checker) {
         Checker::drop_saved(checker);
         checker.zone.infeasible = true;

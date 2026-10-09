@@ -6,6 +6,7 @@ use psi::types::types;
 use psi::typing::admission;
 use psi::typing::binders;
 use psi::typing::clauses;
+use psi::typing::coverage;
 use psi::typing::expressions;
 use psi::typing::facts;
 use psi::typing::generics;

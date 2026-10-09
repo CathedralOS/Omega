@@ -6083,8 +6083,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   anonymous numbers land arm by arm at its destination) and its arms cover
   the subject (a wildcard, both Booleans or every case); checking runs each
   arm on its own pattern's facts, joins the arms after it and widens its
-  value to their hull. Constant paths as match patterns and transition
-  coverage are not judged yet. A machine binder's
+  value to their hull. Every transition and match covers its subject: a
+  wildcard or the guard `true`, both Booleans, every case, or complementary
+  `==`/`!=` or `== true`/`== false` guards. A machine binder's
   call is typed through its contract, and a generic call's static machine
   arguments bind its machine binders, each argument's signature refining its
   contract under the call's bindings and binding the callee's other generic
@@ -6174,14 +6175,16 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   parameters and statements, 8,192 states and transition arms and 131,072
   expressions, over a 65,536-token unit; edges one unit cannot reach run in
   the resolver gate's source sets.
-  Next: `where machine` contracts and the proof-only `embed`
-  ([contracts](wiki/spec/proofs/contracts.md)), which the library's remaining
-  files stop at; `clamp` waits on
+  Next: the proof-only `embed`
+  ([contracts](wiki/spec/proofs/contracts.md)), which the library's device
+  files stop at; memberships (`x in D`), whose checking needs fact
+  decisions over a worklist, since deciding a domain's predicates from a
+  fact would close a call cycle; `clamp` waits on
   **Q4: executable-numeric-builtins** in `OWNER_QUESTIONS.md`; typing's declared
   equality, which needs
   `Equatable` named conformances
   ([core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition));
-  and in checking contract refinement and termination ranking. Publish the parser's capacity refusals as the
+  and in checking contract refinement. Publish the parser's capacity refusals as the
   request contract's scalar-resource provisions, whose rows (roots and states
   4,096; path members, data members, type nodes, statements and expressions
   16,384) the psi package's own 60,213 expressions exceed, so they must count

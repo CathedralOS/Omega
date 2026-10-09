@@ -139,8 +139,8 @@ pub data TypeDiagnosticCode [copy] {
     case DiscardsNoCall;
     // A proposition applied to more or fewer arguments than its parameters.
     case PropositionArgumentCount;
-    // A match whose arms leave a value of its subject unmatched.
-    case UncoveredMatch;
+    // A transition or match whose arms leave a value unmatched.
+    case UncoveredDispatch;
 }
 
 pub data TypeDiagnostic [copy] {

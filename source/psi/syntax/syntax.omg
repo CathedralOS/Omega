@@ -1357,6 +1357,34 @@ crashes Trap
     }
 }
 
+// A dispatch's arms: a transition's in `arms`, or, `matched`, a
+// value-position match's in `match_arms`.
+pub data ArmRange [copy] {
+    matched: bool;
+    first: u64 in Trapping;
+    count: u64 in Trapping;
+}
+
+// The arm `offset` of a dispatch's range.
+pub machine SyntaxTrees::range_arm(syntax_trees: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> TransitionArm
+crashes Trap
+{
+    transition range.matched {
+        true -> matched(syntax_trees, range.first + offset)
+        _ -> transitioned(syntax_trees, range.first + offset)
+    }
+
+    state matched(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax_trees, handle);
+        arm
+    }
+
+    state transitioned(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
+        let arm: TransitionArm = SyntaxTrees::arm(syntax_trees, handle);
+        arm
+    }
+}
+
 // One arm of a value-position match: a `Wildcard`, `Literal` or `Case`
 // value pattern whose `Value` target is the arm's value. Match arms keep
 // their own table, so a match nested in a transition arm never splits that

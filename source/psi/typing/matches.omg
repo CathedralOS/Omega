@@ -3,6 +3,7 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::admission;
+use psi::typing::coverage;
 use psi::typing::statements;
 use psi::typing::typer;
 
@@ -16,8 +17,7 @@ use psi::typing::typer;
 // value has that type, lands there as an anonymous number, or is `Never`.
 // A match whose arms fix no type is an anonymous choice: it has no value of
 // its own and lands arm by arm where its destination is known
-// (`Typer::land_choice`). The arms cover the subject: a wildcard, both
-// Booleans of a Boolean subject, or every case of the subject's data.
+// (`Typer::land_choice`). The arms cover the subject (coverage.omg).
 pub machine Typer::type_match(
     typer: &mut Typer,
     sources: &SourceSet,
@@ -52,7 +52,7 @@ crashes Trap
     ) {
         transition offset < expression.count && typer.output.accepted {
             true -> arm_pattern(typer, sources, syntax, resolution, index, expression, subject_type, offset)
-            _ -> patterns_typed(typer, syntax, resolution, index, expression, subject_type)
+            _ -> patterns_typed(typer, sources, syntax, resolution, index, expression, subject_type)
         }
     }
 
@@ -73,13 +73,15 @@ crashes Trap
 
     state patterns_typed(
         typer: &mut Typer,
+        sources: &SourceSet,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         index: u64 in Trapping,
         expression: Expression,
         subject_type: u64 in Trapping
     ) {
-        let covered: bool = Typer::match_covered(typer, syntax, resolution, expression, subject_type);
+        let range: ArmRange = ArmRange { matched: true, first: expression.first, count: expression.count };
+        let covered: bool = Typer::covers(typer, sources, syntax, resolution, range, subject_type);
         transition !typer.output.accepted {
             true -> done()
             _ -> coverage(typer, syntax, index, expression, covered)
@@ -94,7 +96,7 @@ crashes Trap
     }
 
     state uncovered(typer: &mut Typer, expression: Expression) {
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::UncoveredMatch, expression.source_span);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UncoveredDispatch, expression.source_span);
     }
 
     state values(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
@@ -252,177 +254,6 @@ crashes Trap
     }
 
     state done() {}
-}
-
-// Whether the arms cover every value of the subject: a wildcard arm, both
-// Boolean literals of a Boolean subject, or a case arm for each case of the
-// subject's data. Other literal ladders need a wildcard.
-machine Typer::match_covered(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, subject_type: u64 in Trapping) -> bool
-crashes Trap
-{
-    let wildcard: bool = Typer::arm_present(syntax, resolution, expression, ArmPatternKind::Wildcard, false, 0);
-    let base: u64 in Trapping = Typer::referent(typer, subject_type);
-    let row: TypeRow = TypeTable::row(&typer.output.types, base);
-    transition wildcard {
-        true -> answer(true)
-        _ -> shaped(typer, syntax, resolution, expression, base, row)
-    }
-
-    state shaped(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, base: u64 in Trapping, row: TypeRow) -> bool {
-        transition row.kind == TypeKind::Data {
-            true -> data(syntax, resolution, expression, row.item)
-            _ -> boolean(typer, syntax, resolution, expression, base)
-        }
-    }
-
-    state boolean(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, base: u64 in Trapping) -> bool {
-        let holds: bool = Typer::arm_present(syntax, resolution, expression, ArmPatternKind::Literal, true, 0);
-        let fails: bool = Typer::arm_present(syntax, resolution, expression, ArmPatternKind::Literal, false, 0);
-        let covered: bool = base == typer.output.boolean && holds && fails;
-        transition { _ -> answer(covered) }
-    }
-
-    // A record has no cases for its arms to name.
-    state data(syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, item: u64 in Trapping) -> bool {
-        let declared: DataItem = SyntaxTrees::data_item(syntax, item);
-        transition declared.case_count > 0 {
-            true -> case(syntax, resolution, expression, declared, 0)
-            _ -> answer(false)
-        }
-    }
-
-    state case(syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, declared: DataItem, offset: u64 in Trapping) -> bool {
-        transition offset < declared.case_count {
-            true -> case_named(syntax, resolution, expression, declared, offset)
-            _ -> answer(true)
-        }
-    }
-
-    state case_named(syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, declared: DataItem, offset: u64 in Trapping) -> bool {
-        let named: bool = Typer::arm_present(syntax, resolution, expression, ArmPatternKind::Case, false, declared.first_case + offset);
-        transition named {
-            true -> case(syntax, resolution, expression, declared, offset + 1)
-            _ -> answer(false)
-        }
-    }
-
-    state answer(covered: bool) -> bool {
-        covered
-    }
-}
-
-// Whether the match has an arm of pattern `kind`: for a literal, the Boolean
-// `flag`; for a case, the data case `data_case`.
-machine Typer::arm_present(
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    expression: Expression,
-    kind: ArmPatternKind,
-    flag: bool,
-    data_case: u64 in Trapping
-) -> bool
-crashes Trap
-{
-    transition { _ -> arm(syntax, resolution, expression, kind, flag, data_case, 0) }
-
-    state arm(
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        expression: Expression,
-        kind: ArmPatternKind,
-        flag: bool,
-        data_case: u64 in Trapping,
-        offset: u64 in Trapping
-    ) -> bool {
-        transition offset < expression.count {
-            true -> candidate(syntax, resolution, expression, kind, flag, data_case, offset)
-            _ -> answer(false)
-        }
-    }
-
-    state candidate(
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        expression: Expression,
-        kind: ArmPatternKind,
-        flag: bool,
-        data_case: u64 in Trapping,
-        offset: u64 in Trapping
-    ) -> bool {
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-        transition arm.kind == kind {
-            true -> same_kind(syntax, resolution, expression, kind, flag, data_case, offset, arm)
-            _ -> arm(syntax, resolution, expression, kind, flag, data_case, offset + 1)
-        }
-    }
-
-    state same_kind(
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        expression: Expression,
-        kind: ArmPatternKind,
-        flag: bool,
-        data_case: u64 in Trapping,
-        offset: u64 in Trapping,
-        arm: TransitionArm
-    ) -> bool {
-        transition kind {
-            ArmPatternKind::Literal -> literal(syntax, resolution, expression, kind, flag, data_case, offset, arm)
-            ArmPatternKind::Case -> case_pattern(syntax, resolution, expression, kind, flag, data_case, offset, arm)
-            _ -> answer(true)
-        }
-    }
-
-    state literal(
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        expression: Expression,
-        kind: ArmPatternKind,
-        flag: bool,
-        data_case: u64 in Trapping,
-        offset: u64 in Trapping,
-        arm: TransitionArm
-    ) -> bool {
-        let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
-        transition pattern.kind == ExpressionKind::Boolean && pattern.flag == flag {
-            true -> answer(true)
-            _ -> arm(syntax, resolution, expression, kind, flag, data_case, offset + 1)
-        }
-    }
-
-    state case_pattern(
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        expression: Expression,
-        kind: ArmPatternKind,
-        flag: bool,
-        data_case: u64 in Trapping,
-        offset: u64 in Trapping,
-        arm: TransitionArm
-    ) -> bool {
-        let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
-        let named: u64 in Trapping = Typer::named_case(binding);
-        transition named == data_case + 1 {
-            true -> answer(true)
-            _ -> arm(syntax, resolution, expression, kind, flag, data_case, offset + 1)
-        }
-    }
-
-    state answer(present: bool) -> bool {
-        present
-    }
-}
-
-// The data case a binding names, plus one; zero for any other binding.
-machine Typer::named_case(binding: ValueBinding) -> u64 in Trapping {
-    transition binding {
-        ValueBinding::DataCase { item, data_case } -> found(data_case + 1)
-        _ -> found(0)
-    }
-
-    state found(handle: u64 in Trapping) -> u64 in Trapping {
-        handle
-    }
 }
 
 // How an anonymous choice lands: `Landed`, or the first arm value that does

@@ -32,7 +32,7 @@ DIAGNOSTICS = (
     "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
     "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
     "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
-    "UncoveredMatch",
+    "UncoveredDispatch",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
 ADAPTATIONS = ("", "landed", "lent", "qualified")
@@ -864,21 +864,21 @@ def main() -> None:
         program,
         "match-literal-ladder-needs-a-wildcard",
         b"machine f(c: u8) -> u8 { match c { 1 -> 2, 3 -> 4 } }",
-        "UncoveredMatch",
+        "UncoveredDispatch",
         b"match c { 1 -> 2, 3 -> 4 }",
     )
     rejected(
         program,
         "match-misses-a-case",
         b"data K { case A; case B; }\nmachine f(k: K) -> u8 { match k { K::A -> 1 } }",
-        "UncoveredMatch",
+        "UncoveredDispatch",
         b"match k { K::A -> 1 }",
     )
     rejected(
         program,
         "match-misses-a-boolean",
         b"machine f(b: bool) -> u8 { match b { true -> 1 } }",
-        "UncoveredMatch",
+        "UncoveredDispatch",
         b"match b { true -> 1 }",
     )
     rejected(
@@ -923,6 +923,69 @@ def main() -> None:
         b"machine f(c: u8) -> u8 { match match c { _ -> 1 } { _ -> 2 } }",
         "NotAValue",
         b"match c { _ -> 1 }",
+    )
+
+    # A transition's arms cover its subject, as a match's do; without one,
+    # complementary guards (`x == true` and `x == false`, `l == r` and
+    # `l != r`) or a `true` guard close the dispatch.
+    accepted(
+        program,
+        "transition-cases-cover",
+        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() K::B -> g() } state g() {} }",
+        (),
+    )
+    accepted(
+        program,
+        "transition-booleans-cover",
+        b"machine f(b: bool) { transition b { true -> g() false -> g() } state g() {} }",
+        (),
+    )
+    accepted(
+        program,
+        "transition-complementary-equalities-cover",
+        b"machine f(x: u8, y: u8) { transition { x == y -> g() x != y -> g() } state g() {} }",
+        (),
+    )
+    accepted(
+        program,
+        "transition-opposed-boolean-comparisons-cover",
+        b"machine f(a: u8) { transition { (a < 3) == true -> g() false == (a < 3) -> g() } state g() {} }",
+        (),
+    )
+    accepted(
+        program,
+        "transition-true-guard-closes",
+        b"machine f(x: u8) { transition { x < 3 -> g() true -> g() } state g() {} }",
+        (),
+    )
+    rejected(
+        program,
+        "transition-literal-ladder-needs-a-wildcard",
+        b"machine f(c: u8) { transition c { 1 -> g() 2 -> g() } state g() {} }",
+        "UncoveredDispatch",
+        b"transition c { 1 -> g() 2 -> g() }",
+    )
+    rejected(
+        program,
+        "transition-misses-a-case",
+        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() } state g() {} }",
+        "UncoveredDispatch",
+        b"transition k { K::A -> g() }",
+    )
+    rejected(
+        program,
+        "transition-order-ladder-needs-a-wildcard",
+        b"machine f(x: u8) { transition { x < 3 -> g() x >= 3 -> g() } state g() {} }",
+        "UncoveredDispatch",
+        b"transition { x < 3 -> g() x >= 3 -> g() }",
+    )
+    # The rejection spells `!=`, which `rejected` reads as an occurrence.
+    source = b"machine f(x: u8, y: u8) { transition { x == y -> g() x != 1 -> g() } state g() {} }"
+    status, payload = run(program, source)
+    observation = decode(payload)
+    expected = ("UncoveredDispatch", span_of(source, b"transition { x == y -> g() x != 1 -> g() }"))
+    assert status == 249 and (observation.diagnostic, observation.diagnostic_span) == expected, (
+        f"transition-equalities-of-other-sides-do-not-cover: {status} {observation.diagnostic} at {observation.diagnostic_span}"
     )
 
     # Expression forms typing does not judge yet reject at the expression
