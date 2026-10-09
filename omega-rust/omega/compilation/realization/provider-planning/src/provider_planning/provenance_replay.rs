@@ -24,7 +24,6 @@ pub(crate) use requirement_identities::{
     exact_satisfied_requirement_identity, satisfied_row_requirement,
 };
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
-pub(crate) use selection_replay::replay_selected_provider_provenance;
 pub(crate) use specialization_rows::derive_selected_requirement_specializations;
 
 use super::ProviderPlan;

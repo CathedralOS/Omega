@@ -1,7 +1,6 @@
 //! Runtime invocation receipts: binding one activation to the provider
 //! operation and plan that started it.
 
-use crate::task_plans::report_fingerprints::runtime_invocation_report_fingerprint;
 use crate::{
     ActivationPlanId, ExecutorPreservationAxis, ExecutorPreservationEvidence,
     ExecutorSelectionCandidate, SelectedTaskRuntimeProviderFact, TaskActivationPlanFact,

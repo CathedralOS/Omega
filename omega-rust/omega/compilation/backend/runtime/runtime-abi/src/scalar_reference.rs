@@ -1,7 +1,6 @@
 //! Internal scalar loans retain backing geometry independently of semantic type.
 //! The second descriptor word is a codec, not a length or a grant of access.
 
-use crate::RuntimeAbiPlan;
 use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
 
 /// Closed native interpretation of one contiguous scalar storage region.

@@ -27,7 +27,7 @@ pub use internal::{
     InternalUnitScalarCallRecord, StructuralCallScalarReturnEvidence, unit_call_arguments,
 };
 pub(crate) use internal::{
-    InternalStructuralResultHomeRecord};
+    };
 pub use results::{
     ForeignCallScalarResultRecord, InternalUnitScalarCallResultRecord, StructuralReturnRecord,
 };
