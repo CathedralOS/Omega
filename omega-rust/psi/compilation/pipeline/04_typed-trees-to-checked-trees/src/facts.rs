@@ -278,6 +278,7 @@ pub(crate) fn build_check_facts(
     };
     let completed = validation::CheckingContext::new(program.typed_program())
         .with_authored_declaration_selections(program.authored_declaration_selections())
+        .with_prepared_mathematics(program.prepared_mathematics())
         .with_prepared_effect_plans(&prepared_effects);
     let program: &dyn validation::CheckingInput = &completed;
     let call_frames = validation::CallFrameResolver::new(program);

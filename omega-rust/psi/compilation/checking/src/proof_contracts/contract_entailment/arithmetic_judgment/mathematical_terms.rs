@@ -13,12 +13,25 @@ impl Engine<'_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Judgment {
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT mathematical expression={expression:?} prepared={}",
+                self.program.prepared_mathematics().is_some()
+            );
+        }
         let Some(view) = self.program.prepared_mathematics() else {
             return unknown();
         };
         let Some(application) = view.application(expression) else {
             return unknown();
         };
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT mathematical term={:?} captures={:?}",
+                view.arena.get(application.term),
+                view.applications.captures.span_or_empty(application.captures)
+            );
+        }
         let captures = view
             .applications
             .captures
