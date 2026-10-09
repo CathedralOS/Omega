@@ -468,6 +468,8 @@ pub(crate) fn declared_indexed_projection_type(
 /// or projected field's declared type with its constraint shells intact, so a
 /// range-refined leaf (`[i32 [0..=7]; N]` or `rows[i].count: i32 [0..=7]`)
 /// keeps its range for operand analysis and arithmetic-domain resolution.
+/// Every index hop uses the shared effective element projection, retaining a
+/// numeric element's inherited policy before the next hop or field access.
 pub(crate) fn declared_indexed_projection_type_raw(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -494,17 +496,13 @@ pub(crate) fn declared_indexed_projection_type_raw(
                 ) {
                     return None;
                 }
-                let collection_type = declared_place_type(
+                let collection_type = declared_place_type_raw(
                     program,
                     current_machine,
                     current_state,
                     indexed.collection,
                 )?;
-                let mut leaf = match program.type_reference_table.type_reference(collection_type) {
-                    TypeReferenceNode::FixedArray { element_type, .. }
-                    | TypeReferenceNode::Slice { element_type } => *element_type,
-                    _ => return None,
-                };
+                let mut leaf = collection_element_type_reference(program, collection_type)?;
                 for field_name in projected_fields.iter().rev() {
                     let data = data_definition_for_type(program, leaf)?;
                     leaf = data_field_or_payload_type(program, data, field_name)?;

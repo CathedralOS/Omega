@@ -26,25 +26,10 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     let element_fact = element_path
         .as_deref()
         .and_then(|path| walk.environment.get(path));
+    // The declared-place owner handles every index hop and preserves its
+    // effective element type. A second indexed-only lookup would ask the same
+    // projection again with different admission conditions.
     let Some(handle) = declared_place_type_raw(program, walk.machine, walk.state, expression)
-        .or_else(|| {
-            // Only a RANGE-refined element, or one with a flow fact, feeds the
-            // analysis. An unranged element stays NEUTRAL (unchecked) as
-            // before -- resolving it would stamp `primitive + Exact` onto reads
-            // whose enclosing arithmetic was historically domain-neutral
-            // (`[i32; 3] in Wrapping` carries the domain on the ARRAY, so its
-            // bare-`i32` element read as Exact broke Wrapping-array canaries
-            // with spurious overflow + domain-mixing rejects).
-            places::declared_indexed_projection_type_raw(
-                program,
-                walk.machine,
-                walk.state,
-                expression,
-            )
-            .filter(|handle| {
-                range_constraint_interval(program, *handle).is_some() || element_fact.is_some()
-            })
-        })
     else {
         return NEUTRAL;
     };
@@ -116,26 +101,9 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     } else {
         program.arithmetic_domain_for_type_reference(handle)
     };
-    // A domain constraint on a COLLECTION declaration (`[i32; 5] in Wrapping`)
-    // is the element's arithmetic policy: the element type itself is bare
-    // `i32`, so the resolved handle reads Exact while the array declares how
-    // element arithmetic behaves. An element read whose own type carries no
-    // domain inherits the collection's, keeping its carrier across stores
-    // (`let h: i32 in Wrapping = self.coeffs[i]` is a same-carrier move, and
-    // `h as i32` spells the erasure the strict store rule requires). A member
-    // projection (`cells[k].v`) resolves the field's own declared type, so the
-    // collection domain applies only to a direct `Indexed` leaf.
-    let domain = match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::Indexed(indexed)
-            if domain == ArithmeticDomain::Exact =>
-        {
-            declared_place_type_raw(program, walk.machine, walk.state, indexed.collection)
-                .map(|collection| program.arithmetic_domain_for_type_reference(collection))
-                .filter(|collection_domain| *collection_domain != ArithmeticDomain::Exact)
-                .unwrap_or(domain)
-        }
-        _ => domain,
-    };
+    // The shared place projection already retains inherited numeric element
+    // policy at every collection hop. Field projections keep their own type;
+    // arithmetic does not reconstruct a policy from the source arrangement.
     Analysis {
         domain: Some(domain),
         interval,
