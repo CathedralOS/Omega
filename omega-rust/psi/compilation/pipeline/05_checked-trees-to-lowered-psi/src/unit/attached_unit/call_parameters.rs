@@ -15,7 +15,22 @@ pub(crate) fn structural_parameters<'checked>(
     call: &CheckedUnitCallPlan,
 ) -> Result<&'checked [CheckedUnitStructuralParameterPlan], LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
-    let (state, parameters) = if call.is_boundary() {
+    let (state, parameters) = if call.dynamic_selector().is_some() {
+        // A dispatch slot owns the shared formal roster; no single selectable
+        // implementation is the call's target body. Its authored selector is
+        // retained ahead of the data formals in this same position namespace.
+        let target = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_slots
+            .iter()
+            .find(|target| target.slot == call.target.machine)
+            .ok_or(LoweringError::Unsupported(
+                "call parameter roster names no checked dynamic slot",
+            ))?;
+        (target.slot, target.structural_parameters.as_slice())
+    } else if call.is_boundary() {
         let target = unique_unit_boundary(plans, call.target.machine)?;
         (target.state, target.structural_parameters.as_slice())
     } else if matches!(call.result(), CheckedUnitCallResult::Scalar(_)) {

@@ -307,6 +307,9 @@ pass/collections/runtime_declared_range_index_write_exit built 921ms exit:30 @2d
 pass/collections/runtime_double_indexed_rmw_exit rejected 2139ms regressed-from:built+exit:1 @faca6c5c7f5
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(10) }))
 pass/collections/runtime_dutch_flag_partition_exit built 2751ms exit:70 @2d8ed253669f+wt
+pass/collections/runtime_dynamic_borrow_selector_join_exit built 3591ms exit:0 @b1483d0a8790+wt
+pass/collections/runtime_dynamic_borrow_selector_order_exit built 3635ms exit:0 @b1483d0a8790+wt
+pass/collections/runtime_dynamic_indexed_borrow_call_exit built 3774ms exit:0 @b1483d0a8790+wt
 pass/collections/runtime_field_borrow_selector_order_exit built 3736ms exit:0 @a4b3d5fb0060+wt
 pass/collections/runtime_fixed_array_captured_selector_store_exit built 5332ms exit:70 @527bb17dc5
 pass/collections/runtime_fixed_array_projected_write_exit built 43683ms exit:45 @74a22511782
@@ -1098,10 +1101,10 @@ pass/traits/nominal_machine_binder_static_dispatch checked 1768ms @c00769b616a+w
 pass/traits/ring_requirement_satisfies_exit built 2576ms exit:70 @2d8ed253669f+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1574ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
+pass/traits/runtime_exact_requirement_edge_exit checked 1588ms @655eb1d82b+wt
 pass/traits/runtime_inherited_trait_default_exit rejected 818ms @655eb1d82b+wt
 	authored Call declaration selection occurrence remained unresolved after successful checking (CheckedCall): sibling requirement call `set(&mut subject, ...)` inside a trait default body
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 1604ms @655eb1d82b+wt
-pass/traits/runtime_exact_requirement_edge_exit checked 1588ms @655eb1d82b+wt
 pass/traits/trait_generic_bound_static_dispatch checked 1595ms @655eb1d82b+wt
 pass/traits/transparent_refinement_declaration built 895ms @2d8ed253669f+wt
 pass/types/runtime_addr_algebra_exit built 1056ms exit:70 @9baafc0ace88

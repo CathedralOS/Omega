@@ -19,6 +19,9 @@ pass/collections/runtime_computed_borrow_selector_once_exit built 4264ms exit:0 
 pass/collections/runtime_computed_borrow_selector_order_exit built 4337ms exit:0 interpreter-exit:0 interpreter:agrees @a4b3d5fb0060+wt
 pass/collections/runtime_computed_nested_borrow_call_exit built 4152ms exit:0 interpreter-exit:0 interpreter:agrees @a4b3d5fb0060+wt
 pass/collections/runtime_computed_signed_shared_borrow_exit built 3795ms exit:0 interpreter-exit:0 interpreter:agrees @a4b3d5fb0060+wt
+pass/collections/runtime_dynamic_borrow_selector_join_exit built 3768ms exit:0 interpreter-exit:0 interpreter:agrees @b1483d0a8790+wt
+pass/collections/runtime_dynamic_borrow_selector_order_exit built 3834ms exit:0 interpreter-exit:0 interpreter:agrees @b1483d0a8790+wt
+pass/collections/runtime_dynamic_indexed_borrow_call_exit built 3620ms exit:0 interpreter-exit:0 interpreter:agrees @b1483d0a8790+wt
 pass/collections/runtime_field_borrow_selector_order_exit built 3727ms exit:0 interpreter-exit:0 interpreter:agrees @a4b3d5fb0060+wt
 pass/contracts/ensures_saturating_field_arithmetic_exit built 1802ms exit:70 interpreter-exit:70 interpreter:agrees @c13c39a874dc+wt
 pass/control_flow/runtime_later_state_shared_array_loan built 1003ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt

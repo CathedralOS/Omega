@@ -3096,6 +3096,9 @@ pass/collections/runtime_constant_expression_index_stores_exit checked 830ms che
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_double_indexed_rmw_exit checked 1513ms check-target:macos_arm64 @3f6c649ef545
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_dynamic_borrow_selector_join_exit checked 3673ms check-target:macos_arm64 @b1483d0a8790+wt
+pass/collections/runtime_dynamic_borrow_selector_order_exit checked 3671ms check-target:macos_arm64 @b1483d0a8790+wt
+pass/collections/runtime_dynamic_indexed_borrow_call_exit checked 3590ms check-target:macos_arm64 @b1483d0a8790+wt
 pass/collections/runtime_element_view_selector_snapshot_exit checked 1698ms check-target:macos_arm64 @86ae3811c141+wt
 pass/collections/runtime_field_borrow_selector_order_exit checked 3735ms check-target:macos_arm64 @a4b3d5fb0060+wt
 pass/collections/runtime_finite_element_view_call_write_exit checked 6032ms check-target:macos_arm64 @222cdf8fe2a0+wt

@@ -240,7 +240,7 @@ fn append(
     };
     let (coordinate, scalar_arguments, structural_arguments) = (
         call.coordinate,
-        call.scalar_arguments.as_slice(),
+        call.scalar_operands(),
         call.structural_arguments.as_slice(),
     );
     let authored = crate::call_sites::locate(checked, state, coordinate)?;
