@@ -2219,8 +2219,8 @@ fail/targets/single_target_internal_statement_caller_rejected rejected 17027ms u
 	unimplemented: portable target-family contract for `Helper::record_paradigm_event` referenced by `Main::main`; source checking cannot use a selected target body's guarantees
 	unimplemented: portable target-family contract for `ConsoleNativeProvider::read_byte` referenced by `ConsoleNativeProvider::read_line`; source checking cannot use a selected target body's guarantees
 	unimplemented: portable target-family contract for `ConsoleNativeProvider::write_byte` referenced by `console_write_bytes`; source checking cannot use a selected target body's guarantees
-fail/targets/target_local_precondition_rejected rejected 9428ms expected @d54a6f89c75b+wt
-	machine `read` state `entry` value call to `private_value` violates required fact `input == 2`: the instantiated fact is structurally false
+fail/targets/target_local_precondition_rejected rejected 1433ms expected @1df1ecfe4883
+	cannot prove requires contract for call private_value from read: 1 == 2 (needs fact `input == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/targets/target_machine_duplicate_rejected rejected 55ms expected @d54a6f89c75b+wt
 	machine `Helper::pick` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/targets/unrealized_conformance_rejected rejected 11790ms expected @d54a6f89c75b+wt
