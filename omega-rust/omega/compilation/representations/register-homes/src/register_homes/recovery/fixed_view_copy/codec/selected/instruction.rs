@@ -245,26 +245,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Immediate { immediate } => {
             encode_integer(bytes, immediate)
         }
-        SelectedInstructionKind::WrappingRemainderI64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactRemainderU64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::WrappingDivideI64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactDivideI64 {
-            obligation,
-            accepted_fact,
-        }
-        | SelectedInstructionKind::ExactRemainderI64 {
-            obligation,
-            accepted_fact,
-        }
+        selected_instructions::exact_wrapping_divrem_set_pattern!(obligation,accepted_fact, ..)
         | SelectedInstructionKind::SaturatingDivide {
             obligation,
             accepted_fact,

@@ -1065,11 +1065,7 @@ pub(crate) fn footprint(
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![0], vec![], true),
         SelectedInstructionKind::ExactDivideU64 { .. }
-        | SelectedInstructionKind::ExactRemainderU64 { .. }
-        | SelectedInstructionKind::WrappingRemainderI64 { .. }
-        | SelectedInstructionKind::WrappingDivideI64 { .. }
-        | SelectedInstructionKind::ExactDivideI64 { .. }
-        | SelectedInstructionKind::ExactRemainderI64 { .. } => (vec![0, 1], vec![2], false),
+        | selected_instructions::exact_wrapping_divrem_set_pattern!(..) => (vec![0, 1], vec![2], false),
         SelectedInstructionKind::CompareI64 => (vec![0, 1], vec![], true),
         selected_instructions::saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingDivide { .. }

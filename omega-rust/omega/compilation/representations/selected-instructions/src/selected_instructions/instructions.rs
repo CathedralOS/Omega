@@ -633,3 +633,14 @@ macro_rules! exact_add_or_sub_pair_pattern {
             | $crate::SelectedInstructionKind::ExactSubtractI64Immediate { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! exact_wrapping_divrem_set_pattern {
+    ($($fields:tt)*) => {
+        $crate::SelectedInstructionKind::ExactDivideI64 { $($fields)* }
+            | $crate::SelectedInstructionKind::ExactRemainderI64 { $($fields)* }
+            | $crate::SelectedInstructionKind::ExactRemainderU64 { $($fields)* }
+            | $crate::SelectedInstructionKind::WrappingDivideI64 { $($fields)* }
+            | $crate::SelectedInstructionKind::WrappingRemainderI64 { $($fields)* }
+    };
+}
