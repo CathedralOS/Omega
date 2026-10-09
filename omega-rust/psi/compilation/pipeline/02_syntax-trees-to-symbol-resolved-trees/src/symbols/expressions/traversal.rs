@@ -7,24 +7,36 @@ use super::references::{
 };
 use crate::symbols::scope::MachineScope;
 
-pub(in crate::symbols) fn assign_static_argument_type_symbols(
-    symbols: &SymbolTable,
-    machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
-    state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    argument: &symbol_resolved_trees::expression::StaticMachineArgument,
-) {
-    ExpressionSymbolContext {
-        symbols,
-        machine,
-        parameters,
-        state_symbol,
-        expression_table,
-        child_type_references,
-    }
-    .assign_static_argument_type_symbols(argument);
+/// Public entry into a walk: reborrow the shared tables and scope into the
+/// visit context, then run the named method on the carried value.
+macro_rules! context_wrapped {
+    ($name:ident ($parameter:ident : $ty:ty) => $method:ident) => {
+        pub(in crate::symbols) fn $name(
+            symbols: &SymbolTable,
+            machine: &MachineScope<'_>,
+            parameters: &[symbol_resolved_trees::signature::StateParameter],
+            state_symbol: SymbolHandle,
+            expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+            child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+            $parameter: $ty,
+        ) {
+            ExpressionSymbolContext {
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+            }
+            .$method($parameter);
+        }
+    };
+}
+
+context_wrapped! {
+    assign_static_argument_type_symbols(
+        argument: &symbol_resolved_trees::expression::StaticMachineArgument
+    ) => assign_static_argument_type_symbols
 }
 
 /// Assign static-argument type symbols for every machine argument the call
@@ -76,44 +88,16 @@ pub(in crate::symbols) fn assign_statement_expression_symbols(
     );
 }
 
-pub(in crate::symbols) fn assign_expression_span_symbols(
-    symbols: &SymbolTable,
-    machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
-    state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    expressions: HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>,
-) {
-    ExpressionSymbolContext {
-        symbols,
-        machine,
-        parameters,
-        state_symbol,
-        expression_table,
-        child_type_references,
-    }
-    .assign_expression_span_symbols(expressions);
+context_wrapped! {
+    assign_expression_span_symbols(
+        expressions: HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>
+    ) => assign_expression_span_symbols
 }
 
-pub(in crate::symbols) fn assign_expression_table_symbols(
-    symbols: &SymbolTable,
-    machine: &MachineScope<'_>,
-    parameters: &[symbol_resolved_trees::signature::StateParameter],
-    state_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
-) {
-    ExpressionSymbolContext {
-        symbols,
-        machine,
-        parameters,
-        state_symbol,
-        expression_table,
-        child_type_references,
-    }
-    .assign_expression_table_symbols(expression);
+context_wrapped! {
+    assign_expression_table_symbols(
+        expression: symbol_resolved_trees::expression::ExpressionHandle
+    ) => assign_expression_table_symbols
 }
 
 // Each recursive visit reborrows the same tables and lexical scope. Keep the
