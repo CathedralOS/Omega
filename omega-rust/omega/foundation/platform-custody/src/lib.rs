@@ -56,7 +56,7 @@ pub fn open_file_extended_acl_has_allow_entry(file: &File) -> io::Result<bool> {
 /// reads it from the opened object, which the standard library exposes only
 /// behind an unstable interface. Symbolic links are the caller's separate
 /// question: this reports on the object the path names.
-pub fn has_single_hard_link(path: &Path) -> io::Result<bool> {
+pub(crate) fn has_single_hard_link(path: &Path) -> io::Result<bool> {
     link_custody::has_single_hard_link(path)
 }
 
