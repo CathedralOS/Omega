@@ -80,8 +80,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
                 | AbstractOperation::StructuralCaseMembership { .. }
                 | AbstractOperation::StructuralLeafCopy { .. }
-                | AbstractOperation::MoveStructuralField { .. }
-                | AbstractOperation::StoreStructuralField { .. }
+                | abstract_operations::move_or_store_structural_field_pattern!()
         )
     })
 }
@@ -313,8 +312,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::EstablishCase { .. }
                 | AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::StructuralLeafCopy { .. }
-                | AbstractOperation::MoveStructuralField { .. }
-                | AbstractOperation::StoreStructuralField { .. }
+                | abstract_operations::move_or_store_structural_field_pattern!()
                 | AbstractOperation::EstablishTrivialAffineLocal { .. }
                 | AbstractOperation::EstablishReference { .. }
                 | AbstractOperation::ReleaseReference { .. }

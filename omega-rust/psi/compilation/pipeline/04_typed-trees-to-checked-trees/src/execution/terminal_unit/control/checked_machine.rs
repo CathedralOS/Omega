@@ -280,14 +280,12 @@ pub(crate) fn build_checked_machine_residual_parts(
                 .collect(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-            | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+            | checked_trees::reference_hold_pattern!()
             | checked_trees::byte_sequence_establishment_pattern!()
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::Store(_)
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-            | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-            | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
+            | checked_trees::structural_field_write_pattern!()
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }

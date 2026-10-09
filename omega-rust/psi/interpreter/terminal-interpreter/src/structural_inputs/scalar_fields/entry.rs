@@ -101,8 +101,7 @@ fn validate_type(
             }
         }
         // The host field carrier supplies no selected case discriminator.
-        StructuralTypeShape::Sum { .. }
-        | StructuralTypeShape::Mixed { .. }
+        terminal_psi::sum_or_mixed_shape_pattern!()
         | StructuralTypeShape::Reference { .. } => {
             return Err(malformed());
         }

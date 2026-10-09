@@ -234,8 +234,7 @@ pub(super) fn establish(
                     types.get(&nested).map(|declaration| &declaration.shape),
                     Some(
                         StructuralTypeShape::Record { .. }
-                            | StructuralTypeShape::Sum { .. }
-                            | StructuralTypeShape::Mixed { .. }
+                            | terminal_psi::sum_or_mixed_shape_pattern!()
                             | StructuralTypeShape::FixedArray { .. }
                     )
                 ) && byte_carrier.is_none()

@@ -14,7 +14,7 @@ fn sum_layout(
     let declaration = types.get(&structural_type).ok_or_else(invalid)?;
     if !matches!(
         declaration.shape,
-        StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. }
+        terminal_psi::sum_or_mixed_shape_pattern!()
     ) {
         return Err(invalid());
     }

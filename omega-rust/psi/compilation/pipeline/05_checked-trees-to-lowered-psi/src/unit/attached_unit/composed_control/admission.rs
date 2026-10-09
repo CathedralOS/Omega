@@ -48,8 +48,7 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 // A displaced field's move-out carries no callee; the
                 // replacing call carries its own dependency.
-                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
+                | checked_trees::structural_field_write_pattern!()
                 // A view-subslice local narrows a view the state holds.
                 | checked_trees::byte_sequence_establishment_pattern!()
                 // Frame-local storage minted at an authored statement names no
@@ -60,8 +59,7 @@ pub(super) fn admit_calls<'a>(
                 // A declared structural local's establishment mints
                 // frame-local storage at its statement the same way.
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
+                | checked_trees::reference_hold_pattern!() => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),
             }
         }

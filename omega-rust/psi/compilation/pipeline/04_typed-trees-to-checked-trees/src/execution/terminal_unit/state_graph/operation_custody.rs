@@ -66,8 +66,7 @@ pub(super) fn admit(
             // the authored production and the release the authored weakening
             // boundary. Selected edges carry the loan itself; neither op
             // claims a new root.
-            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-            | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
+            | checked_trees::reference_hold_pattern!() => {}
             // The ordinary sequencer has already rejoined every store's
             // destination, value and complete write frame; crossing a state
             // edge does not turn that write into a new family. A store
@@ -150,8 +149,7 @@ pub(super) fn admit(
                     CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {
                         "state graph: operation custody: continuation cleanup owner"
                     }
-                    CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                    | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
+                    checked_trees::reference_hold_pattern!() => {
                         "state graph: operation custody: reference custody"
                     }
                     CheckedUnitEffectOperationPlan::PortWrite { .. } => {

@@ -69,8 +69,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
                         declaration.shape,
                         StructuralTypeShape::Reference { .. }
                             | StructuralTypeShape::Record { .. }
-                            | StructuralTypeShape::Sum { .. }
-                            | StructuralTypeShape::Mixed { .. }
+                            | terminal_psi::sum_or_mixed_shape_pattern!()
                             | StructuralTypeShape::FixedArray { .. }
                             | StructuralTypeShape::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }

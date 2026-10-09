@@ -135,8 +135,7 @@ impl StructuralTypeShape {
         matches!(
             self,
             crate::record_or_fixed_array_shape_pattern!()
-                | StructuralTypeShape::Sum { .. }
-                | StructuralTypeShape::Mixed { .. }
+                | crate::sum_or_mixed_shape_pattern!()
         )
     }
 
@@ -701,5 +700,13 @@ macro_rules! byte_sequence_view_carrier_pattern {
     () => {
         $crate::ByteSequenceCarrier::BorrowedView { .. }
             | $crate::ByteSequenceCarrier::BoundedView { .. }
+    };
+}
+
+/// The sum-or-mixed shape roster consumers match with no bindings.
+#[macro_export]
+macro_rules! sum_or_mixed_shape_pattern {
+    () => {
+        $crate::StructuralTypeShape::Sum { .. } | $crate::StructuralTypeShape::Mixed { .. }
     };
 }

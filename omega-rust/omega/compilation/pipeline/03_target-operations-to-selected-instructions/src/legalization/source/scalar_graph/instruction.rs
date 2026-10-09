@@ -225,8 +225,7 @@ pub(super) fn project(
         AbstractOperation::StructuralLeafCopy { .. } => {
             storage_instructions::project_structural_leaf_copy(node, optimized, plan, unit)?
         }
-        AbstractOperation::MoveStructuralField { .. }
-        | AbstractOperation::StoreStructuralField { .. } => {
+        abstract_operations::move_or_store_structural_field_pattern!() => {
             storage_instructions::project_borrowed_window(node, optimized, plan, unit, custody)?
         }
         AbstractOperation::EstablishTrivialAffineLocal {

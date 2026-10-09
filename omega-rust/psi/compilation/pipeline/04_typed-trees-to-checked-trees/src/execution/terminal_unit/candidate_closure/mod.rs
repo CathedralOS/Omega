@@ -270,14 +270,12 @@ pub(super) fn retain_available(
                 // Selected execution already joined exact realization custody.
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-                | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                | checked_trees::reference_hold_pattern!()
                 | checked_trees::byte_sequence_establishment_pattern!()
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::Store(_)
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
+                | checked_trees::structural_field_write_pattern!()
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
@@ -389,8 +387,7 @@ pub(super) fn retain_available(
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     // A borrowed reference binds storage already owned by the
                     // frame; establish/release carry no callee dependency.
-                    | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                    | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                    | checked_trees::reference_hold_pattern!()
                     // A view-subslice local narrows a view the frame already
                     // holds; it names no callee.
                     | checked_trees::byte_sequence_establishment_pattern!()
@@ -408,8 +405,7 @@ pub(super) fn retain_available(
                     // A borrowed-window move carries no callee: its result
                     // binding, like a repair store's installed value, is
                     // already a custody row inside this same state.
-                    | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                    | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
+                    | checked_trees::structural_field_write_pattern!()
                     => {}
                     CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary, cleanup_actions } => {
                         for cleanup in cleanup_actions.iter().filter_map(checked_trees::CheckedNormalCleanupAction::nominal) {

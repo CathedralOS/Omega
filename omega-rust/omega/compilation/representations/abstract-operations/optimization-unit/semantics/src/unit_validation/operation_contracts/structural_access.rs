@@ -740,8 +740,7 @@ fn is_material_write_only_type(
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. }
-            | StructuralTypeShape::Sum { .. }
-            | StructuralTypeShape::Mixed { .. } => return false,
+            | terminal_psi::sum_or_mixed_shape_pattern!() => return false,
         }
     }
     true

@@ -701,8 +701,7 @@ pub(super) fn validate(
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishCase { .. }
                 | AbstractOperation::StructuralLeafCopy { .. }
-                | AbstractOperation::MoveStructuralField { .. }
-                | AbstractOperation::StoreStructuralField { .. }
+                | abstract_operations::move_or_store_structural_field_pattern!()
                 | AbstractOperation::EstablishTrivialAffineLocal { .. }
                 | AbstractOperation::EstablishZeroedStructural { .. }
                 | AbstractOperation::EstablishStructuralLocal { .. }

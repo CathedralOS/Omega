@@ -886,3 +886,21 @@ macro_rules! byte_sequence_establishment_pattern {
             | $crate::CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
     };
 }
+
+/// Reference establishment/release and the two structural-field write plans
+/// consumers step over together.
+#[macro_export]
+macro_rules! reference_hold_pattern {
+    () => {
+        $crate::CheckedUnitEffectOperationPlan::EstablishReference { .. }
+            | $crate::CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+    };
+}
+
+#[macro_export]
+macro_rules! structural_field_write_pattern {
+    () => {
+        $crate::CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+            | $crate::CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
+    };
+}

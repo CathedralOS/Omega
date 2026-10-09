@@ -55,8 +55,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         // Restoration-window extraction and repair are structural custody
         // events on the borrowed root; they carry no call, boundary, or
         // physical edge either.
-        | AbstractOperation::MoveStructuralField { .. }
-        | AbstractOperation::StoreStructuralField { .. }
+        | abstract_operations::move_or_store_structural_field_pattern!()
         // A leaf copy is a read-only structural observation on a readable
         // root; it carries no call, boundary, or physical edge either.
         | AbstractOperation::StructuralLeafCopy { .. }

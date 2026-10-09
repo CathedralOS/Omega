@@ -405,8 +405,7 @@ pub fn aggregate_descriptor_slots(
     if matches!(
         declaration.shape,
         StructuralTypeShape::Record { .. }
-            | StructuralTypeShape::Sum { .. }
-            | StructuralTypeShape::Mixed { .. }
+            | terminal_psi::sum_or_mixed_shape_pattern!()
             | StructuralTypeShape::FixedArray { .. }
     ) {
         descriptor_slots(types, root, structural_type)

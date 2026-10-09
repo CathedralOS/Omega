@@ -38,8 +38,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
                         | AbstractOperation::ReleaseReference { .. }
                         | AbstractOperation::EstablishCase { .. }
                         | AbstractOperation::StructuralLeafCopy { .. }
-                        | AbstractOperation::MoveStructuralField { .. }
-                        | AbstractOperation::StoreStructuralField { .. }
+                        | abstract_operations::move_or_store_structural_field_pattern!()
                         | AbstractOperation::EstablishTrivialAffineLocal { .. }
                         | AbstractOperation::EstablishZeroedStructural { .. }
                         | AbstractOperation::EstablishStructuralLocal { .. }
@@ -505,8 +504,7 @@ pub(in crate::legalization) fn call_argument(
             && matches!(
                 declaration.shape,
                 StructuralTypeShape::Record { .. }
-                    | StructuralTypeShape::Sum { .. }
-                    | StructuralTypeShape::Mixed { .. }
+                    | terminal_psi::sum_or_mixed_shape_pattern!()
                     | StructuralTypeShape::FixedArray { .. }
             )
     }) && argument.access != terminal_psi::StructuralAccess::Owned

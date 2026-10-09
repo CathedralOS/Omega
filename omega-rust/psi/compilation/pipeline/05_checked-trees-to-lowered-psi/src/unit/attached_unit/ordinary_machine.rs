@@ -1460,13 +1460,11 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::Store(_)
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-            | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-            | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
+            | checked_trees::structural_field_write_pattern!()
             | checked_trees::byte_sequence_establishment_pattern!()
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-            | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
+            | checked_trees::reference_hold_pattern!() => {
                 return self.emit_through_frame(operation, step.source_value_count);
             }
             CheckedUnitEffectOperationPlan::Call(_) => {

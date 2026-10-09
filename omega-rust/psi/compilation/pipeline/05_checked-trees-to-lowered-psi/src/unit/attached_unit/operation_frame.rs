@@ -208,12 +208,10 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::Store(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
+                | checked_trees::structural_field_write_pattern!()
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | checked_trees::byte_sequence_establishment_pattern!()
-                | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                | checked_trees::reference_hold_pattern!()
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
         )
     }

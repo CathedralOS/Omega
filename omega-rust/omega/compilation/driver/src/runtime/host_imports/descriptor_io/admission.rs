@@ -123,8 +123,7 @@ pub(super) fn admit(
         }
         Some(
             terminal_psi::record_or_fixed_array_shape_pattern!()
-            | StructuralTypeShape::Sum { .. }
-            | StructuralTypeShape::Mixed { .. },
+            | terminal_psi::sum_or_mixed_shape_pattern!(),
         ) => {
             let layout = storage_layouts
                 .iter()

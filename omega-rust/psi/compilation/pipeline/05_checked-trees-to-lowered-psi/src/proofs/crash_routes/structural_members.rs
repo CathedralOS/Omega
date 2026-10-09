@@ -294,7 +294,7 @@ fn lower_sum_path(
     if !matches!(
         terminal_psi::find_structural_type(structural_types, structural_type)
             .map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. })
+        Some(terminal_psi::sum_or_mixed_shape_pattern!())
     ) {
         return unsupported("structural sum predicate subject is not a sum");
     }

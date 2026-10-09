@@ -341,8 +341,7 @@ pub(super) fn validate_operation(
             && super::super::aggregate_results::home_layout(result, plan).is_ok() => {}
         (
             _,
-            AbstractOperation::MoveStructuralField { .. }
-            | AbstractOperation::StoreStructuralField { .. },
+            abstract_operations::move_or_store_structural_field_pattern!(),
         ) => {
             borrowed_windows::validate(target, abstracted, optimized, sources, plan, custody)?;
         }
