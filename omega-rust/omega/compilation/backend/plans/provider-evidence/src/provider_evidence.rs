@@ -219,7 +219,7 @@ impl SelectedProviderPlanFacts {
     /// Compatibility/report lookup for existing compact-ID consumers. Code
     /// making an admission or execution decision must use
     /// [`Self::plan_by_exact_evidence`] instead.
-    pub fn plan_by_report_fingerprint(&self, report_fingerprint: u64) -> Option<&ProviderPlan> {
+    pub(crate) fn plan_by_report_fingerprint(&self, report_fingerprint: u64) -> Option<&ProviderPlan> {
         self.plans
             .iter()
             .find(|plan| plan.report_fingerprint() == report_fingerprint)
@@ -297,7 +297,7 @@ impl SelectedProviderPlanFacts {
     }
 
 
-    pub fn opaque_executable_admissions(&self) -> &[crate::ValidatedOpaqueExecutableAdmission] {
+    pub(crate) fn opaque_executable_admissions(&self) -> &[crate::ValidatedOpaqueExecutableAdmission] {
         &self.opaque_executable_admissions
     }
 
@@ -539,7 +539,7 @@ impl SelectedProviderPlanFacts {
     /// the same requirement, so several plans can each carry its row — is
     /// ambiguous here and yields `None`; scoped callers use
     /// [`Self::installation_reach_resolution_for_plan`].
-    pub fn installation_reach_resolution(
+    pub(crate) fn installation_reach_resolution(
         &self,
         requirement_identity: &str,
     ) -> Option<&InstallationReachResolution> {
@@ -560,7 +560,7 @@ impl SelectedProviderPlanFacts {
     /// each retain a row under their own selected plan, so the pair
     /// (requirement identity, provider plan report identity) is the exact
     /// resolution address.
-    pub fn installation_reach_resolution_for_plan(
+    pub(crate) fn installation_reach_resolution_for_plan(
         &self,
         provider_plan_report_identity: u64,
         requirement_identity: &str,
@@ -620,7 +620,7 @@ impl SelectedProviderPlanFacts {
 
     /// Derive caller-address-space TCB facts from the selected closure, never
     /// from source service reach or the unselected candidate set.
-    pub fn executable_tcb_manifest(&self) -> crate::ExecutableTcbManifest {
+    pub(crate) fn executable_tcb_manifest(&self) -> crate::ExecutableTcbManifest {
         crate::provider_evidence::executable_scopes::executable_tcb_manifest::derive_static_manifest(
             &self.plans,
             self.report_fingerprint,

@@ -12,7 +12,7 @@ use crate::{
 /// scope. Process-static executables remain a baseline instead of becoming
 /// private to every replaceable era that uses them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutableManifestSource {
+pub(crate) enum ExecutableManifestSource {
     ProcessStaticBaseline,
     ComponentEra(u64),
 }
@@ -20,7 +20,7 @@ pub enum ExecutableManifestSource {
 /// One profile-accepted component-era manifest retained under its exact live
 /// era identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedExecutableEra {
+pub(crate) struct AdmittedExecutableEra {
     identity: u64,
     acceptance: ExecutableTcbProfileAcceptance,
 }
@@ -49,7 +49,7 @@ struct ExecutableEntryContribution {
 /// code. Containment is deliberately not folded into the subject: the live
 /// guarantee is the intersection of independently retained contributions.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CoexistingExecutableTcbEntry {
+pub(crate) struct CoexistingExecutableTcbEntry {
     pub provider_identity: ProviderIdentity,
     pub provider_plan_report_identity: u64,
     pub provider_plan_digest: ProviderPlanDigest,
@@ -75,7 +75,7 @@ impl CoexistingExecutableTcbEntry {
     /// A containment axis applies to the live union only when every manifest
     /// row contributing this executable subject carries independent evidence
     /// for that axis.
-    pub fn has_universal_containment(&self, guarantee: ContainmentGuarantee) -> bool {
+    pub(crate) fn has_universal_containment(&self, guarantee: ContainmentGuarantee) -> bool {
         !self.contributions.is_empty()
             && self.contributions.iter().all(|contribution| {
                 contribution
@@ -89,7 +89,7 @@ impl CoexistingExecutableTcbEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AttributedContainmentEvidence {
+pub(crate) struct AttributedContainmentEvidence {
     pub source: ExecutableManifestSource,
     pub evidence: ContainmentEvidence,
 }
@@ -98,14 +98,14 @@ pub struct AttributedContainmentEvidence {
 /// avoids inventing a synthetic selected-provider closure identity for several
 /// independently selected eras.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AttributedManifestCompleteness {
+pub(crate) struct AttributedManifestCompleteness {
     pub source: ExecutableManifestSource,
     pub profile: String,
     pub completeness: ScopeCompleteness,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CoexistingScopeCompleteness {
+pub(crate) enum CoexistingScopeCompleteness {
     Complete {
         scope: ExecutionScope,
         sources: Vec<AttributedManifestCompleteness>,
@@ -137,7 +137,7 @@ impl CoexistingScopeCompleteness {
 /// Scope-relative live report for one process-static baseline and every
 /// coexisting component era admitted so far.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CoexistingExecutableTcbReport {
+pub(crate) struct CoexistingExecutableTcbReport {
     scope: ExecutionScope,
     known_entries: Vec<CoexistingExecutableTcbEntry>,
     completeness: CoexistingScopeCompleteness,
@@ -148,7 +148,7 @@ impl CoexistingExecutableTcbReport {
         self.scope
     }
 
-    pub fn known_entries(&self) -> &[CoexistingExecutableTcbEntry] {
+    pub(crate) fn known_entries(&self) -> &[CoexistingExecutableTcbEntry] {
         &self.known_entries
     }
 
@@ -161,7 +161,7 @@ impl CoexistingExecutableTcbReport {
 /// live component eras. Removal is intentionally absent until an era ledger
 /// supplies exact closing and quiescence evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CoexistingExecutableTcbSet {
+pub(crate) struct CoexistingExecutableTcbSet {
     scope: ExecutionScope,
     process_static_baseline: ExecutableTcbProfileAcceptance,
     eras: Vec<AdmittedExecutableEra>,
@@ -190,7 +190,7 @@ impl CoexistingExecutableTcbSet {
         &self.eras
     }
 
-    pub fn admit_era(
+    pub(crate) fn admit_era(
         &mut self,
         identity: u64,
         acceptance: ExecutableTcbProfileAcceptance,
@@ -224,7 +224,7 @@ impl CoexistingExecutableTcbSet {
         Ok(self.eras.remove(index))
     }
 
-    pub fn live_report(&self) -> CoexistingExecutableTcbReport {
+    pub(crate) fn live_report(&self) -> CoexistingExecutableTcbReport {
         let mut entries = Vec::new();
         let mut completeness = Vec::new();
         accumulate_manifest(
