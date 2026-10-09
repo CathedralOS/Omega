@@ -1,20 +1,13 @@
 //! Optimizer module role: stage group. Canonical, domain-separated optimization identities.
 //! Shared digest framing routes into rule/fact, stage, artifact, decision, and bundle ownership.
 
-use sha2::{Digest, Sha256};
 
 const IDENTITY_WIDTH: usize = 32;
 
 fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
-    let mut digest = Sha256::new();
-    digest.update(domain);
-    digest.update(
-        u64::try_from(canonical.len())
-            .expect("canonical optimization identity input length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(canonical);
-    digest.finalize().into()
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
+    digest.bytes(canonical);
+    digest.finish().into()
 }
 
 /// Incremental [`domain_digest`] input. The domain and total canonical length
@@ -22,22 +15,21 @@ fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
 /// through `update`; `finish` yields the same digest without materializing
 /// the whole encoding. The digest frame requires the length before content,
 /// so callers derive it from a prior count over the same deterministic walk.
-pub struct CanonicalIdentityEncoder(Sha256);
+pub struct CanonicalIdentityEncoder(crate::digest_encoder::DomainDigestEncoder);
 
 impl CanonicalIdentityEncoder {
     fn new(domain: &[u8], canonical_len: u64) -> Self {
-        let mut digest = Sha256::new();
-        digest.update(domain);
-        digest.update(canonical_len.to_le_bytes());
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
+        digest.u64(canonical_len);
         Self(digest)
     }
 
     pub fn update(&mut self, bytes: &[u8]) {
-        self.0.update(bytes);
+        self.0.raw(bytes);
     }
 
     fn finish(self) -> [u8; IDENTITY_WIDTH] {
-        self.0.finalize().into()
+        self.0.finish().into()
     }
 }
 

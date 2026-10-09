@@ -71,7 +71,6 @@ use std::sync::Arc;
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
-use sha2::{Digest, Sha256};
 use symbols::SymbolHandle;
 use typed_trees::{AuthoredDeclarationSelectionOccurrenceId, TypedTrees};
 
@@ -435,17 +434,18 @@ fn selection_identity(
     retained: &[SymbolHandle],
     pruned: &[SymbolHandle],
 ) -> CheckedTreeProductSelectionIdentity {
-    let mut hasher = Sha256::new();
-    hasher.update(PRODUCT_SELECTION_IDENTITY_DOMAIN);
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(
+        PRODUCT_SELECTION_IDENTITY_DOMAIN,
+    );
     let mut encode = |symbols: &[SymbolHandle]| {
-        hasher.update((symbols.len() as u64).to_le_bytes());
+        hasher.u64(symbols.len() as u64);
         for symbol in symbols {
-            hasher.update(symbol.arena_index().to_le_bytes());
-            hasher.update(symbol.generation().to_le_bytes());
+            hasher.raw(&symbol.arena_index().to_le_bytes());
+            hasher.raw(&symbol.generation().to_le_bytes());
         }
     };
     encode(roots);
     encode(retained);
     encode(pruned);
-    CheckedTreeProductSelectionIdentity(hasher.finalize().into())
+    CheckedTreeProductSelectionIdentity(hasher.finish().into())
 }

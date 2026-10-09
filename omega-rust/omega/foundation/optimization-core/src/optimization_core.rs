@@ -22,7 +22,6 @@ pub(crate) mod refusal_site;
 pub(crate) mod report_request;
 pub(crate) mod rollback;
 
-use sha2::{Digest, Sha256};
 use std::fmt;
 
 /// The five-u64 work-counter row budget and usage encodings share:
@@ -758,15 +757,9 @@ impl OptimizationSelections {
     /// Domain-separated digest of the exact canonical selected set.
     pub fn identity(&self) -> OptimizationSelectionIdentity {
         let encoded = self.encode();
-        let mut digest = Sha256::new();
-        digest.update(SELECTION_IDENTITY_DOMAIN);
-        digest.update(
-            u64::try_from(encoded.len())
-                .expect("selection encoding length fits u64")
-                .to_le_bytes(),
-        );
-        digest.update(encoded);
-        OptimizationSelectionIdentity(digest.finalize().into())
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SELECTION_IDENTITY_DOMAIN);
+        digest.bytes(&encoded);
+        OptimizationSelectionIdentity(digest.finish().into())
     }
 }
 
