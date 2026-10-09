@@ -516,7 +516,7 @@ impl TerminalExecution<'_> {
             let start = count(&start, &self.values)?;
             let end = count(&end, &self.values)?;
             let mut descriptor_value = TerminalStructuralValue {
-                opaque_identity: result.place.get(),
+                opaque_identity: self.local_structural_identities.allocate()?,
                 structural_type: result.structural_type,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
@@ -618,7 +618,7 @@ impl TerminalExecution<'_> {
             self.structural_values.insert(
                 result.place,
                 TerminalStructuralValue {
-                    opaque_identity: result.place.get(),
+                    opaque_identity: self.local_structural_identities.allocate()?,
                     structural_type: result.structural_type,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
@@ -674,7 +674,10 @@ impl TerminalExecution<'_> {
             }
         }
         let mut descriptor_value = TerminalStructuralValue {
-            opaque_identity: result.place.get(),
+            // Static result places recur across ordinary-call activations.
+            // The descriptor, unlike its declaration, owns a fresh runtime
+            // home through the execution-wide storage identity allocator.
+            opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
@@ -1152,20 +1155,34 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let destination =
-            TerminalStructuralValue::minted(result.place.get(), result.structural_type, Vec::new());
         match (
             self.structural_values.get(&result.place),
             self.element_view_values.get(&result.place),
         ) {
             (None, None) => {}
-            (Some(previous), Some(_)) if *previous == destination => {}
+            (Some(previous), Some(previous_view))
+                if *previous
+                    == TerminalStructuralValue::minted(
+                        previous.opaque_identity,
+                        result.structural_type,
+                        Vec::new(),
+                    )
+                    && previous_view.matches_bound_descriptor_home(previous, previous) => {}
             _ => return Err(malformed()),
         }
+        let mut identity_cursor = self.local_structural_identities.cursor();
+        let destination = TerminalStructuralValue::minted(
+            self.local_structural_identities
+                .allocate_staged(&mut identity_cursor)?,
+            result.structural_type,
+            Vec::new(),
+        );
         let window = view
             .subslice(start, end, access)
             .ok_or_else(malformed)?
             .with_descriptor_home(destination.clone());
+        self.local_structural_identities
+            .commit_cursor(identity_cursor);
         self.element_view_values.insert(result.place, window);
         self.structural_values.insert(result.place, destination);
         if result.multiplicity == StructuralMultiplicity::Affine {
