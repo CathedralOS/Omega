@@ -148,16 +148,21 @@ pub(crate) fn emit(
     if !sources.is_empty() && multiplicity != StructuralMultiplicity::Affine {
         return unsupported("owned selection requires uniform affine root cleanup");
     }
-    // A `&T` result rejoins borrowed custody at the selection's block
-    // parameter instead of transferring a referent owner. The authored local's
-    // binding custody pins this: `&T` over a plain-owned record produces a
-    // shared-borrow join parameter; every other result stays owned.
-    let result_access =
-        if result.local.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
-            StructuralAccess::SharedBorrow
-        } else {
-            StructuralAccess::Owned
-        };
+    // A referent alias observes storage through the selection's address join.
+    // A materialized descriptor instead transfers its own affine lifetime
+    // resource, even when the source binding has shared referent access.
+    // Statement construction records that carrier multiplicity before
+    // lowering; local access alone would lend the descriptor itself while
+    // every incoming arm transfers it owned. Keep those two custody domains
+    // distinct without choosing a route from the initializer's source shape.
+    let result_access = if result.local.access
+        == checked_trees::CheckedStructuralAccess::SharedBorrow
+        && result.multiplicity == Multiplicity::Unrestricted
+    {
+        StructuralAccess::SharedBorrow
+    } else {
+        StructuralAccess::Owned
+    };
     if result_access == StructuralAccess::SharedBorrow && !sources.is_empty() {
         return unsupported("borrowed selection cannot carry owned residual custody");
     }

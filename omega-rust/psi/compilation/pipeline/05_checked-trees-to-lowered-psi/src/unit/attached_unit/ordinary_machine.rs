@@ -16,6 +16,9 @@
 //! storage, including nominal hooks and linear claims. They use the same action
 //! lowering as state graphs; anonymous results and trivial homes keep their
 //! independently recorded production/disposal contracts.
+//! A named binding alone does not replace production cleanup: only recorded
+//! contextual actions at its current home do. A borrowed referent can leave an
+//! affine descriptor to retire without any owned-storage StateExit action.
 //! The emitted ownership frontier chooses actual edges after scalar control exists.
 //! A selected operand may transfer a parameter on only one branch, so a static
 //! final-return discard cannot also own that parameter's cleanup.
@@ -607,21 +610,66 @@ pub(super) fn emit(
         // of a result carrier, in which case the frontier retires the place at
         // the consuming call and the return roster must not discard its root.
         let moved_subtrees = projected_moves::moved_subtrees(&operations.operations);
-        let named_bindings = plan
-            .operations
-            .iter()
-            .filter_map(CheckedUnitEffectOperationPlan::statement_structural_result_binding)
-            .filter(|result| result.local.is_named())
-            .map(|result| result.binding_ordinal)
-            .collect::<Vec<_>>();
+        // Resolve contextual disposal against the current storage before
+        // constructing the production roster. A name is not disposal
+        // authority: reference descriptors can owe affine retirement without
+        // an owned-storage StateExit row. Only an actual contextual action
+        // replaces their independently recorded production cleanup.
+        let results = StructuralResults::Dense(&mut structural_result_places);
+        let normal_regions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+            crate::unit::unit_cleanup::outstanding_actions(
+                normal_cleanup_actions,
+                &plan.operations,
+                &plan.structural_parameters,
+            ),
+            &checked.facts.flow.terminal_unit_effects.cleanup_control,
+            structural_types,
+            type_ids,
+            |source, path| {
+                let (place, root_type) =
+                    evaluation.cleanup_storage(source, parameters, |binding| {
+                        let value = results.repair_value(binding, &operations)?;
+                        Ok((value.place, value.structural_type))
+                    })?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                    path, root_type, structural_types, None, &mut std::iter::empty(), None,
+                )?;
+                Ok((place, path))
+            },
+            |cleanup, place, structural_type, path| {
+                // A parent hook does not consume its children's obligations.
+                // Bind only this occurrence's entry claims; subsequent actions
+                // own the separately selected descendants.
+                let mut consumed_claims = entry_claims
+                    .iter()
+                    .filter(|claim| {
+                        evaluation.current_structural_place(claim.input) == place
+                            && claim.path == path
+                    })
+                    .map(|claim| claim.claim)
+                    .collect::<Vec<_>>();
+                consumed_claims.sort_unstable();
+                let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
+                    cleanup,
+                    place,
+                    structural_type,
+                    path,
+                    scalar_calls.machine_ids,
+                    scalar_calls.cleanup_receivers,
+                    scalar_calls.requirement_counts,
+                    &mut scalar_calls.next_obligation_identity,
+                )?;
+                action.consumed_claims = consumed_claims;
+                Ok(action)
+            },
+        )?;
         // A projected owned alias row owns no place: its storage is the root's,
         // which keeps its own row and its own residual schedule.
         let mut selection_roster = structural_result_places
             .iter()
-            .enumerate()
             .rev()
-            .filter_map(|(ordinal, (place, discard))| Some((ordinal, place.as_ref()?, discard)))
-            .map(|(ordinal, place, discard)| {
+            .filter_map(|(place, discard)| Some((place.as_ref()?, discard)))
+            .map(|(place, discard)| {
                 let retired = moved_subtrees
                     .get(&evaluation.current_structural_place(place.id))
                     .is_some_and(|moved| {
@@ -632,13 +680,13 @@ pub(super) fn emit(
                             moved,
                         )
                     });
-                // Named storage dies through contextual StateExit actions.
-                // Keep selection source rows, but give its birth no second
-                // automatic death after replacement changes the current home.
-                (
-                    place.id,
-                    *discard && !retired && !named_bindings.contains(&(ordinal as u32)),
-                )
+                // Contextual actions own the current home's exact partition.
+                // Keep selection source rows, but do not give that storage a
+                // second automatic death from its original production row.
+                let contextual_disposal = normal_regions.iter().any(|region| {
+                    region.action.place() == evaluation.current_structural_place(place.id)
+                });
+                (place.id, *discard && !retired && !contextual_disposal)
             })
             .collect::<Vec<_>>();
         let mut parameter_sources = Vec::new();
@@ -773,54 +821,6 @@ pub(super) fn emit(
             })
             .transpose()?;
         let edge = edge_id(allocate_dense(&mut next_edge)?);
-        let results = StructuralResults::Dense(&mut structural_result_places);
-        let normal_regions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
-            crate::unit::unit_cleanup::outstanding_actions(
-                normal_cleanup_actions,
-                &plan.operations,
-                &plan.structural_parameters,
-            ),
-            &checked.facts.flow.terminal_unit_effects.cleanup_control,
-            structural_types,
-            type_ids,
-            |source, path| {
-                let (place, root_type) =
-                    evaluation.cleanup_storage(source, parameters, |binding| {
-                        let value = results.repair_value(binding, &operations)?;
-                        Ok((value.place, value.structural_type))
-                    })?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    path, root_type, structural_types, None, &mut std::iter::empty(), None,
-                )?;
-                Ok((place, path))
-            },
-            |cleanup, place, structural_type, path| {
-                // A parent hook does not consume its children's obligations.
-                // Bind only this occurrence's entry claims; subsequent actions
-                // own the separately selected descendants.
-                let mut consumed_claims = entry_claims
-                    .iter()
-                    .filter(|claim| {
-                        evaluation.current_structural_place(claim.input) == place
-                            && claim.path == path
-                    })
-                    .map(|claim| claim.claim)
-                    .collect::<Vec<_>>();
-                consumed_claims.sort_unstable();
-                let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
-                    cleanup,
-                    place,
-                    structural_type,
-                    path,
-                    scalar_calls.machine_ids,
-                    scalar_calls.cleanup_receivers,
-                    scalar_calls.requirement_counts,
-                    &mut scalar_calls.next_obligation_identity,
-                )?;
-                action.consumed_claims = consumed_claims;
-                Ok(action)
-            },
-        )?;
         let mut cleanup_regions = Vec::new();
         for place in trivial_affine_discards {
             cleanup_regions.extend(evaluation.normal_discard_regions(place, structural_types)?);

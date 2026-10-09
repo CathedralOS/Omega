@@ -23,6 +23,10 @@ pub(super) fn account(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    structural_results: &[(
+        checked_trees::CheckedUnitStructuralResultBindingPlan,
+        facts::PlaceRoot,
+    )],
     operations: &mut [CheckedUnitEffectOperationPlan],
     terminator: &CheckedComposedUnitControlTerminatorPlan,
     disposable_locals: &[symbols::SymbolHandle],
@@ -474,25 +478,34 @@ pub(super) fn account(
         } else {
             construction_count
         };
-        // A reference-loaned result's custody is the loan itself: its owner
-        // is the release at the authored weakening boundary, not a
-        // structural disposal.
-        let reference_releases = match operation
-            .call()
-            .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
-        {
-            Some(custody) if !custody.reference_loans.is_empty() => operations
-                [producer_index + 1..]
-                .iter()
-                .filter(|operation| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::ReleaseReference { loans, .. }
-                            if *loans == custody.reference_loans
-                    )
-                })
-                .count(),
-            _ => 0,
+        // Scheduling and accounting must join the same captured holder.
+        // A constructor, selected value and call can all materialize a
+        // descriptor; producer family does not choose its lifetime owner.
+        // Referent aliases remain unrestricted observations and use their
+        // dominance disposition, not a second owner for lexical weakening.
+        let reference_releases = if result.multiplicity != Multiplicity::Unrestricted {
+            control::statement_sequence::captured_reference_result(
+                program,
+                facts,
+                machine.symbol,
+                state.symbol,
+                structural_results,
+                operation,
+            )
+            .map_or(0, |(_, loans)| {
+                operations[producer_index + 1..]
+                    .iter()
+                    .filter(|operation| {
+                        matches!(
+                            operation,
+                            CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. }
+                                if *released == loans
+                        )
+                    })
+                    .count()
+            })
+        } else {
+            0
         };
         // A view result's custody is also its loan's release: the loan
         // minted at the establishment ends in exactly one Consume row —

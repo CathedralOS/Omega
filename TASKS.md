@@ -2275,7 +2275,11 @@ crash and native exit behavior.
 
   Acceptance: every producer form, reads through scalar/record loan names,
   borrowed calls and state forwarding execute natively and agree with the
-  interpreter. Keep these controls at their oracles:
+  interpreter. Keep `pass/ownership/runtime_selected_reference_local_exit` (0)
+  for distinct incoming and activation-owned backings, descriptor retirement
+  and restored mutation, with
+  `fail/borrows/selected_primitive_reference_live_backing_write` rejected.
+  Keep these controls at their oracles:
   `pass/borrows/runtime_record_byte_region_loan_exit` (50),
   `run/borrows/{reference_local_binding_routes,reference_result_call_binding,shared_record_loan_member_read}` (0),
   `pass/borrows/shared_recast_loan_member_read` (0),

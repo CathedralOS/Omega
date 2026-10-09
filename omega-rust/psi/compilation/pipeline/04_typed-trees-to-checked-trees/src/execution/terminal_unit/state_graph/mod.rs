@@ -577,6 +577,7 @@ pub(super) fn build_traced(
             owner,
             state,
             structural,
+            &sequence.structural_results,
             &mut operations,
             &terminator,
             &disposable_locals,

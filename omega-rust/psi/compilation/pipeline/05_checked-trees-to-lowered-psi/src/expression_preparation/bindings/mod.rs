@@ -1023,11 +1023,25 @@ impl ScalarBindings {
                         "computed primitive storage argument is not a whole referent",
                     );
                 }
-                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument {
-                    place: primitive_storage_place(&self.primitive_storage, symbol, scalar_type)?,
-                    path: Vec::new(),
-                    access,
-                });
+                // Declaration-time scalar storage is an ordinary owned home.
+                // Its scalar observation index cannot be a second identity
+                // source for constructor or call loans.
+                let (place, path) = primitive_reads::primitive_storage_read(
+                    &self.primitive_storage,
+                    &self.structural_locals,
+                    structural_types,
+                    symbol,
+                    scalar_type,
+                )?;
+                if !path.is_empty()
+                    || self.structural_locals.iter().any(|local| {
+                        local.root == facts::PlaceRoot::Symbol(symbol)
+                            && local.argument.access != StructuralAccess::Owned
+                    })
+                {
+                    return unsupported("computed primitive local changes original ownership");
+                }
+                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument { place, path, access });
             }
             _ if argument.structural_storage_root().is_some() => {
                 let root = argument

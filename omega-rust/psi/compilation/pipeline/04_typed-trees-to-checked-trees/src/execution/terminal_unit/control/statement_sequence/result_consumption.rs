@@ -10,9 +10,6 @@ use super::super::{
 };
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
-/// A materialized carrier owns the same captured loan group whether formed
-/// locally or returned by a call. Statement and exit scheduling must retire
-/// that exact holder, not restrict retirement to one producer family.
 /// The latest release boundary any loan in the group reaches: a descriptor
 /// retires after every alternative source and every descendant can end.
 fn latest_loan_release_boundary(
@@ -50,7 +47,10 @@ fn custody_transferred(
     )
 }
 
-fn captured_reference_result<'operation>(
+/// A materialized carrier owns the same captured loan group whether formed
+/// locally or returned by a call. Scheduling and custody accounting must join
+/// that exact holder rather than select retirement by producer family.
+pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,

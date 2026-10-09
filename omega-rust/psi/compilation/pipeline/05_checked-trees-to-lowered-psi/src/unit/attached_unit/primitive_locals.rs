@@ -6,7 +6,7 @@
 //! selection. `OperationFrame::establish_primitive_local` is the one emitter the
 //! ordinary machine and a composed state both use. It replays the initializer's
 //! exact source custody, evaluates it on the ordinary operand schedule, and
-//! publishes the new place in the evaluation's primitive storage, so later
+//! publishes the new place in the evaluation's shared structural storage, so later
 //! reads, stores and borrows name the place rather than the initializer value.
 //! Each route keeps the returned referent in its own roster and declares its
 //! place with the rest of the body's places. A `mut` scalar formal of an
@@ -20,6 +20,10 @@
 //! replay the initializer, and owe the same access and lifetime checks as
 //! every other owned place. `let mut` only selects declaration-time storage
 //! and replacement permission; it does not confer borrow authority.
+//! Before lending a local, publish its exact home in the shared structural
+//! binding roster. Mutable locals reuse declaration-time storage; immutable
+//! values acquire storage once. Constructor and call consumers must not need
+//! separate source-shape routes to find those same homes.
 use super::operation_frame::{OperationFrame, StructuralTypeRoster};
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
@@ -171,7 +175,7 @@ pub(super) fn find(
 
 impl OperationFrame<'_, '_> {
     /// Establish one mutable primitive local at its authored declaration and
-    /// publish its place in the evaluation's primitive storage. The route
+    /// publish its place in the evaluation's shared structural storage. The route
     /// keeps the returned referent in its own roster and declares its place.
     pub(super) fn establish_primitive_local(
         self,
@@ -191,6 +195,11 @@ impl OperationFrame<'_, '_> {
             .primitive_locals
             .iter()
             .any(|local| local.symbol == *symbol)
+            || self
+                .evaluation
+                .structural_locals
+                .iter()
+                .any(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
             || self
                 .evaluation
                 .primitive_storage
@@ -246,9 +255,20 @@ impl OperationFrame<'_, '_> {
                 value: initializer.id,
             },
         });
-        self.evaluation
-            .primitive_storage
-            .push((*symbol, place, initializer.scalar_type));
+        // Publish the original home once, rather than copying its initializer
+        // or leaving constructor consumers with a private primitive index.
+        self.evaluation.structural_locals.push(
+            crate::expression_preparation::bindings::StructuralLocalBinding {
+                result_binding_ordinal: None,
+                root: facts::PlaceRoot::Symbol(*symbol),
+                structural_type,
+                argument: terminal_psi::StructuralArgument {
+                    place,
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::Owned,
+                },
+            },
+        );
         Ok(PrimitiveLocal {
             symbol: *symbol,
             declaration: StructuralPlaceDeclaration {
