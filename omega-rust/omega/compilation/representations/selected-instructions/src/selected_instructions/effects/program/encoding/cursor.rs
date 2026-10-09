@@ -49,6 +49,14 @@ impl<'a> Cursor<'a> {
         Ok(u64::from_le_bytes(self.array()?))
     }
 
+    pub fn u128(&mut self) -> Result<u128, PreAllocationMachineEffectDecodeError> {
+        Ok(u128::from_le_bytes(self.array()?))
+    }
+
+    pub fn i128(&mut self) -> Result<i128, PreAllocationMachineEffectDecodeError> {
+        Ok(i128::from_le_bytes(self.array()?))
+    }
+
     pub fn length(&mut self) -> Result<usize, PreAllocationMachineEffectDecodeError> {
         usize::try_from(self.u64()?)
             .map_err(|_| PreAllocationMachineEffectDecodeError::InvalidField)

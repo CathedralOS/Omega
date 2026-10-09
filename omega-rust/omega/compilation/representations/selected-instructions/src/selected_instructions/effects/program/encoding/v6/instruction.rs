@@ -391,8 +391,8 @@ fn decode_integer(
     cursor: &mut Cursor<'_>,
 ) -> Result<IntegerValue, PreAllocationMachineEffectDecodeError> {
     match cursor.byte()? {
-        0 => Ok(IntegerValue::Signed(i128::from_le_bytes(cursor.array()?))),
-        1 => Ok(IntegerValue::Unsigned(u128::from_le_bytes(cursor.array()?))),
+        0 => Ok(IntegerValue::Signed(cursor.i128()?)),
+        1 => Ok(IntegerValue::Unsigned(cursor.u128()?)),
         _ => Err(PreAllocationMachineEffectDecodeError::InvalidField),
     }
 }
