@@ -76,8 +76,7 @@ pub(crate) fn partial_affine_root_type(
     let semantic_vocabulary::StructuralPlaceKind::OperationResult {
         producer,
         structural_type,
-    } = function.structural_place(place)?
-        .kind
+    } = function.structural_place(place)?.kind
     else {
         return None;
     };
@@ -177,8 +176,7 @@ pub(crate) fn projected_paths_are_fully_consumed(
     if partial_affine_root_type(function, place).is_some() {
         return partial_affine_root_is_drained(function, structural_types, place, moved);
     }
-    let Some(parameter) = function.structural_parameter(place)
-    else {
+    let Some(parameter) = function.structural_parameter(place) else {
         return false;
     };
     if parameter.multiplicity != StructuralMultiplicity::Linear {

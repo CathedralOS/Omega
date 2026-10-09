@@ -7,7 +7,7 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
 
-pub fn validate_shared_jump_fusion_candidate(
+pub(crate) fn validate_shared_jump_fusion_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

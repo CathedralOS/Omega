@@ -11,7 +11,7 @@ mod replay;
 /// validator treats source-roster order as serialization only: it reconstructs
 /// execution dominance, every global parameter substitution, all moved value
 /// definitions, and every dense-effect relocation before total validation.
-pub fn validate_non_adjacent_block_merge_candidate(
+pub(crate) fn validate_non_adjacent_block_merge_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

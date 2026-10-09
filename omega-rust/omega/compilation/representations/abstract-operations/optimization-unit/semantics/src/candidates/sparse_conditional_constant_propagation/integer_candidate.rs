@@ -21,7 +21,7 @@ use semantic_vocabulary::ScalarType;
 use super::integer_evaluation::evaluate_integer_operation;
 use crate::candidates::{candidate_block, candidate_function};
 
-pub fn validate_integer_evaluation_candidate(
+pub(crate) fn validate_integer_evaluation_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

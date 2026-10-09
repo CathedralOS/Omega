@@ -19,7 +19,7 @@ mod phi_translated;
 mod rule_catalog;
 mod total_scalar_identity;
 
-pub use total_scalar_identity::validate_total_scalar_identity_candidate;
+pub(crate) use total_scalar_identity::validate_total_scalar_identity_candidate;
 
 use rule_catalog::{
     ScalarCseProofClass, ScalarCseScope, phi_translated_proof_class, scoped_proof_class,
@@ -31,7 +31,7 @@ pub(crate) use dominance_reconstruction::{
 };
 
 /// Independently validate and apply one same-block common-subexpression elimination.
-pub fn validate_local_scalar_common_subexpression_candidate(
+pub(crate) fn validate_local_scalar_common_subexpression_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
@@ -48,7 +48,7 @@ pub fn validate_local_scalar_common_subexpression_candidate(
 
 /// Independently validate and apply one cross-block dominating
 /// common-subexpression elimination.
-pub fn validate_dominating_scalar_common_subexpression_candidate(
+pub(crate) fn validate_dominating_scalar_common_subexpression_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
@@ -65,7 +65,7 @@ pub fn validate_dominating_scalar_common_subexpression_candidate(
 
 /// Independently validate an expression translated through every incoming
 /// binding of an acyclic join and synthesize its result as a join parameter.
-pub fn validate_phi_translated_scalar_common_subexpression_candidate(
+pub(crate) fn validate_phi_translated_scalar_common_subexpression_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

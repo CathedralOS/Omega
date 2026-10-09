@@ -76,10 +76,12 @@ pub(crate) fn reconstruct_linear_thread_accounting(
     predecessor: NodeLocation,
     empty: NodeLocation,
 ) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
-    let predecessor_node = function.block(predecessor.block)?
+    let predecessor_node = function
+        .block(predecessor.block)?
         .nodes
         .get(usize::try_from(predecessor.node).ok()?)?;
-    let empty_node = function.block(empty.block)?
+    let empty_node = function
+        .block(empty.block)?
         .nodes
         .get(usize::try_from(empty.node).ok()?)?;
     let predecessor_edge = predecessor_node.successors.first()?;
@@ -123,7 +125,8 @@ pub(crate) fn reconstruct_path_thread_accounting(
     empty: NodeLocation,
     incoming_edges: &[EdgeId],
 ) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
-    let empty_node = function.block(empty.block)?
+    let empty_node = function
+        .block(empty.block)?
         .nodes
         .get(usize::try_from(empty.node).ok()?)?;
     let outgoing = empty_node.successors.first()?;

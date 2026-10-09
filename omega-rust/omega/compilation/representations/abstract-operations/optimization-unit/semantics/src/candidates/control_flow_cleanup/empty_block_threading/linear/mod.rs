@@ -7,7 +7,7 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
 
-pub fn validate_linear_empty_block_candidate(
+pub(crate) fn validate_linear_empty_block_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

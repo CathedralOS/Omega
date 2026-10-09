@@ -7,7 +7,7 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
 
-pub fn validate_constant_conditional_candidate(
+pub(crate) fn validate_constant_conditional_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

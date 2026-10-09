@@ -86,7 +86,7 @@ pub(crate) fn independent_same_operand_integer_constant(
 }
 
 /// Independently validate and materialize the exact symbolic law `x - x = 0`.
-pub fn validate_proof_certified_exact_integer_self_subtract_candidate(
+pub(crate) fn validate_proof_certified_exact_integer_self_subtract_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
@@ -103,7 +103,7 @@ pub fn validate_proof_certified_exact_integer_self_subtract_candidate(
 /// wrapping, and saturating fixed-width integers. The accepted obligation is
 /// required because it is the capability proving the authored divisor is
 /// legal; no operand constant or range fact is inferred.
-pub fn validate_proof_certified_integer_self_remainder_candidate(
+pub(crate) fn validate_proof_certified_integer_self_remainder_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
@@ -121,7 +121,7 @@ pub fn validate_proof_certified_integer_self_remainder_candidate(
 /// the capability proving that the authored divisor is nonzero (and that the
 /// signed overflow case is absent). Signed one-bit integers are excluded
 /// because typed positive one is not representable.
-pub fn validate_proof_certified_integer_self_divide_candidate(
+pub(crate) fn validate_proof_certified_integer_self_divide_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

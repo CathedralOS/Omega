@@ -138,7 +138,8 @@ fn reconstruct_entry_ownership(
 ) -> Result<CurrentOwnership, OptimizationUnitValidationError> {
     let mut claims = BTreeMap::<ClaimId, LiveClaim>::new();
     for claim in &function.entry_claim_declarations {
-        let parameter = function.structural_parameter(claim.input)
+        let parameter = function
+            .structural_parameter(claim.input)
             .expect("structural signature validation precedes current ownership replay");
         claims.insert(
             claim.claim,

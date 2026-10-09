@@ -44,7 +44,7 @@ pub(crate) mod references;
 pub(crate) mod services;
 pub(crate) mod structural_catalog;
 
-pub fn validate_psi_optimization_unit(
+pub(crate) fn validate_psi_optimization_unit(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), OptimizationUnitValidationError> {
     validate_psi_optimization_unit_with_control_cycles(

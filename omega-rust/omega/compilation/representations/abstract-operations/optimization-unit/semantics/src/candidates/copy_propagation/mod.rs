@@ -17,7 +17,7 @@ mod validation;
 pub(crate) use operation_rewrite::rewrite_block_parameter_operation;
 
 /// Independently validate and apply one redundant block-parameter rewrite.
-pub fn validate_redundant_block_parameter_candidate(
+pub(crate) fn validate_redundant_block_parameter_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

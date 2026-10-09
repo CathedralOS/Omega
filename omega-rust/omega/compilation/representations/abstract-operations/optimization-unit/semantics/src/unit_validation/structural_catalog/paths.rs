@@ -104,7 +104,7 @@ pub(crate) fn resolve_leaf_copy_path(
 ///
 /// Borrowed names rebind onto this geometry, so a field ends at the storage a
 /// loan of it addresses (`owner_loans::loaned_field_shape`).
-pub fn structural_projection_type<'types>(
+pub(crate) fn structural_projection_type<'types>(
     declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     structural_type: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],

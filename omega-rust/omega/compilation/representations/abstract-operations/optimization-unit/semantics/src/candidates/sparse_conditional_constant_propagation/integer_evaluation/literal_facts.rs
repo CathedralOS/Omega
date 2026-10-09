@@ -74,7 +74,8 @@ pub(crate) fn direct_literal_integer_fact(
     let ValueDefinitionSite::Node { block, node } = definition.site else {
         return None;
     };
-    let operation = &function.block(block)?
+    let operation = &function
+        .block(block)?
         .nodes
         .get(usize::try_from(node).ok()?)?
         .operation;

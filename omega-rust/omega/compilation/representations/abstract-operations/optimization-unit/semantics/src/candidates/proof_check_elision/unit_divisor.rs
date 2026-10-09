@@ -77,7 +77,7 @@ pub(crate) fn independent_remainder_unit_constant(
 /// direct typed literal, and the authored operation must retain its exact
 /// verifier-accepted obligation even though the literal also establishes that
 /// the divisor is nonzero.
-pub fn validate_proof_certified_integer_remainder_by_one_candidate(
+pub(crate) fn validate_proof_certified_integer_remainder_by_one_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
@@ -95,7 +95,7 @@ pub fn validate_proof_certified_integer_remainder_by_one_candidate(
 /// be a direct typed literal, and the authored operation must retain its exact
 /// verifier-accepted obligation. For exact arithmetic that accepted obligation
 /// proves the otherwise exceptional signed-minimum input is unreachable.
-pub fn validate_proof_certified_signed_integer_remainder_by_negative_one_candidate(
+pub(crate) fn validate_proof_certified_signed_integer_remainder_by_negative_one_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

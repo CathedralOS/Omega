@@ -25,9 +25,7 @@ pub(crate) fn preserve_edge_custody(
     expected
         .into_iter()
         .map(|mut edge| {
-            if let Some(existing) = node
-                .edge(edge.psi_edge)
-            {
+            if let Some(existing) = node.edge(edge.psi_edge) {
                 edge.provenance = existing.provenance.clone();
                 edge.fuel = existing.fuel.clone();
             }

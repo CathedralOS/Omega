@@ -12,8 +12,7 @@ pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
     let predecessor_node = predecessor
         .nodes
         .get(usize::try_from(patch.predecessor.node).ok()?)?;
-    let incoming = predecessor_node
-        .edge(patch.incoming_edge)?;
+    let incoming = predecessor_node.edge(patch.incoming_edge)?;
     let target = function.block(patch.target)?;
     let [terminal] = target.nodes.as_slice() else {
         return None;

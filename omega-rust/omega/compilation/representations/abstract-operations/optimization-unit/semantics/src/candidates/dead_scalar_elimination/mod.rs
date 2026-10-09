@@ -12,7 +12,7 @@ mod rule_catalog;
 mod validation;
 
 /// Independently validate and apply one dead scalar-node elimination.
-pub fn validate_dead_scalar_node_candidate(
+pub(crate) fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

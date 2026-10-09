@@ -24,7 +24,7 @@ use crate::candidates::{
 /// Independently remove one live proof-certified integer identity.
 /// Accepted proof and literal evidence are reconstructed from immutable input
 /// custody; the declared operation is deleted rather than reclassified.
-pub fn validate_proof_certified_scalar_identity_candidate(
+pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

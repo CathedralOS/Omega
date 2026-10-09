@@ -293,9 +293,7 @@ pub(crate) fn unchanged_outside_redundant_parameter_region(
     affected_blocks: &[BlockId],
 ) -> bool {
     let mut expected = input.clone();
-    let Some(expected_function) = expected
-        .function_mut(machine)
-    else {
+    let Some(expected_function) = expected.function_mut(machine) else {
         return false;
     };
     let Some(output_function) = output.function(machine) else {

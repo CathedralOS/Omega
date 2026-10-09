@@ -31,8 +31,8 @@ pub use error::OptimizationUnitValidationError;
 // Declaration custody shared by validation and target realization. This query
 // grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::{byte_field_root, declared_descriptor_home};
+
 pub use unit_validation::references::unqualified_owned_reference_carrier;
-pub use unit_validation::structural_catalog::structural_projection_type;
 pub use unit_validation::structural_catalog::{
     StructuralStorageProjection, structural_borrowed_storage_projection,
     structural_storage_projection,
@@ -50,9 +50,10 @@ pub fn structural_place_access(
 }
 
 // Whole-unit acceptance.
+pub(crate) use unit_validation::validate_psi_optimization_unit;
 pub use unit_validation::{
     reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
-    validate_psi_optimization_unit, validate_psi_optimization_unit_with_admitted_cycle_machines,
+    validate_psi_optimization_unit_with_admitted_cycle_machines,
 };
 
 // Rewrite-candidate acceptance: the typed dispatch and the result it returns.
@@ -60,40 +61,12 @@ pub use candidates::{ValidatedPsiRewrite, validate_psi_rewrite_candidate};
 
 // The exact validators the dispatch routes to, by producing pass family.
 pub use candidates::case_membership_specialization::validate_case_membership_specialization_candidate;
-pub use candidates::control_flow_cleanup::{
-    validate_adjacent_block_merge_candidate, validate_constant_conditional_candidate,
-    validate_linear_empty_block_candidate, validate_non_adjacent_block_merge_candidate,
-    validate_path_qualified_empty_block_candidate, validate_shared_jump_fusion_candidate,
-    validate_unreachable_private_machines_candidate,
-};
-pub use candidates::copy_propagation::validate_redundant_block_parameter_candidate;
-pub use candidates::dead_scalar_elimination::validate_dead_scalar_node_candidate;
+pub(crate) use candidates::dead_scalar_elimination::validate_dead_scalar_node_candidate;
 pub use candidates::field_value_specialization::validate_field_value_specialization_candidate;
-pub use candidates::global_value_numbering::{
-    validate_dominating_scalar_common_subexpression_candidate,
-    validate_local_scalar_common_subexpression_candidate,
-    validate_phi_translated_scalar_common_subexpression_candidate,
-    validate_total_scalar_identity_candidate,
-};
-pub use candidates::proof_check_elision::{
-    validate_proof_certified_exact_integer_self_subtract_candidate,
-    validate_proof_certified_integer_remainder_by_one_candidate,
-    validate_proof_certified_integer_self_divide_candidate,
-    validate_proof_certified_integer_self_remainder_candidate,
-    validate_proof_certified_scalar_identity_candidate,
-    validate_proof_certified_signed_integer_remainder_by_negative_one_candidate,
-};
-pub use candidates::sparse_conditional_constant_propagation::{
-    validate_boolean_evaluation_candidate, validate_integer_evaluation_candidate,
-};
 pub use candidates::state_specialization::validate_state_argument_specialization_candidate;
 
 // The closed scalar observation boundary scalar rewrites are checked against.
-pub use candidates::observation::{
-    ClosedScalarObservationBoundary, reconstruct_closed_scalar_node_boundary,
-};
+pub(crate) use candidates::observation::reconstruct_closed_scalar_node_boundary;
 
 // Current-revision value-range facts.
-pub use current_value_ranges::{
-    validate_current_value_range_fact, validate_current_value_range_fact_at,
-};
+pub use current_value_ranges::validate_current_value_range_fact_at;

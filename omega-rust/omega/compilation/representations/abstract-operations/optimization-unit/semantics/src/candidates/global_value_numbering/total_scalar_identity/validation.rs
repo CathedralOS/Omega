@@ -32,7 +32,7 @@ const BITWISE_NEUTRAL_LITERAL_RULE_DOMAIN: &[u8] =
 const BITWISE_ABSORBING_LITERAL_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-integer-bitwise-absorbing-literal-elimination.v1";
 
-pub fn validate_total_scalar_identity_candidate(
+pub(crate) fn validate_total_scalar_identity_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

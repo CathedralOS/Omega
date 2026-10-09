@@ -10,4 +10,4 @@ mod classification;
 mod evidence;
 mod validation;
 
-pub use validation::validate_total_scalar_identity_candidate;
+pub(crate) use validation::validate_total_scalar_identity_candidate;

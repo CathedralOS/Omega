@@ -7,7 +7,7 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
 
-pub fn validate_adjacent_block_merge_candidate(
+pub(crate) fn validate_adjacent_block_merge_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

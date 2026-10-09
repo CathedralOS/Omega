@@ -19,7 +19,7 @@ mod storage_projection;
 mod type_declarations;
 mod witnesses;
 
-pub use paths::structural_projection_type;
+pub(crate) use paths::structural_projection_type;
 pub use storage_projection::{
     StructuralStorageProjection, structural_borrowed_storage_projection,
     structural_storage_projection,

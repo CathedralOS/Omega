@@ -10,7 +10,7 @@ mod replay;
 /// Independently replay an all-predecessor empty-block bypass. Every incoming
 /// edge remains its own output occurrence; the removed outgoing occurrence is
 /// copied only onto that mutually exclusive edge antichain.
-pub fn validate_path_qualified_empty_block_candidate(
+pub(crate) fn validate_path_qualified_empty_block_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

@@ -18,7 +18,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::ScalarType;
 
-pub fn validate_boolean_evaluation_candidate(
+pub(crate) fn validate_boolean_evaluation_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

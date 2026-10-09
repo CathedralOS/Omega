@@ -15,22 +15,20 @@ pub(super) fn validate_current_value_range_fact_at(
     block: BlockId,
     node: u32,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let function = unit.function(machine)
-        .ok_or(
-            OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable {
-                machine,
-                block,
-                node,
-            },
-        )?;
-    let query_block = function.block(block)
-        .ok_or(
-            OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable {
-                machine,
-                block,
-                node,
-            },
-        )?;
+    let function = unit.function(machine).ok_or(
+        OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable {
+            machine,
+            block,
+            node,
+        },
+    )?;
+    let query_block = function.block(block).ok_or(
+        OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable {
+            machine,
+            block,
+            node,
+        },
+    )?;
     if usize::try_from(node)
         .ok()
         .is_none_or(|node| node >= query_block.nodes.len())

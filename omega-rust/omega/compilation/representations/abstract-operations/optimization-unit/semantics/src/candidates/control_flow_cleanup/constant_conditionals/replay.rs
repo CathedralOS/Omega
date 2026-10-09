@@ -210,10 +210,8 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
         .block(decision.block)?
         .nodes
         .get(usize::try_from(decision.node).ok()?)?;
-    let selected = decision_node
-        .edge(selected_edge)?;
-    let rejected = decision_node
-        .edge(rejected_edge)?;
+    let selected = decision_node.edge(selected_edge)?;
+    let rejected = decision_node.edge(rejected_edge)?;
     let selected_site = PsiRealizationSite::Edge {
         machine: function.machine,
         edge: selected_edge,

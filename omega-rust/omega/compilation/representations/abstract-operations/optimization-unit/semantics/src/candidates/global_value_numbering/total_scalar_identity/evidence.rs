@@ -24,7 +24,8 @@ pub(super) fn independently_validate_law_literal(
     let ValueDefinitionSite::Node { block, node } = definition.site else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
-    let literal = function.block(block)
+    let literal = function
+        .block(block)
         .and_then(|block| {
             usize::try_from(node)
                 .ok()

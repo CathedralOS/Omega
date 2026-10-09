@@ -13,8 +13,8 @@ mod integer_evaluation;
 mod observation;
 mod snapshot_reconstruction;
 
-pub use boolean_candidate::validate_boolean_evaluation_candidate;
-pub use integer_candidate::validate_integer_evaluation_candidate;
+pub(crate) use boolean_candidate::validate_boolean_evaluation_candidate;
+pub(crate) use integer_candidate::validate_integer_evaluation_candidate;
 
 pub(crate) use integer_evaluation::literal_boolean_fact;
 pub(crate) use observation::{observation_at, same_closed_scalar_observation};

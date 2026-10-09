@@ -14,13 +14,13 @@ mod rule_catalog;
 mod same_operand;
 mod unit_divisor;
 
-pub use candidate_validation::validate_proof_certified_scalar_identity_candidate;
-pub use same_operand::{
+pub(crate) use candidate_validation::validate_proof_certified_scalar_identity_candidate;
+pub(crate) use same_operand::{
     validate_proof_certified_exact_integer_self_subtract_candidate,
     validate_proof_certified_integer_self_divide_candidate,
     validate_proof_certified_integer_self_remainder_candidate,
 };
-pub use unit_divisor::{
+pub(crate) use unit_divisor::{
     validate_proof_certified_integer_remainder_by_one_candidate,
     validate_proof_certified_signed_integer_remainder_by_negative_one_candidate,
 };

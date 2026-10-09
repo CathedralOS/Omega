@@ -19,7 +19,7 @@ pub(super) use reconstruction::independently_reconstruct_value_range_fact_at;
 /// This path does not call the optimizer analysis. It re-derives scalar facts,
 /// verifier proposition custody, interval bounds, current CFG dominance, and
 /// the final fact identity from the optimization unit.
-pub fn validate_current_value_range_fact(
+pub(crate) fn validate_current_value_range_fact(
     unit: &PsiOptimizationUnit,
     fact: &ValueRangeFact,
 ) -> Result<(), OptimizationUnitValidationError> {

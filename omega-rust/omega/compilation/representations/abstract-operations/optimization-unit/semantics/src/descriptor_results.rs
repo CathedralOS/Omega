@@ -33,7 +33,7 @@ pub fn abstract_catalog_graph<'function, 'boundary>(
     optimized_catalog_graph(functions.iter(), boundaries, types)
 }
 
-pub fn optimized_graph(unit: &PsiOptimizationUnit) -> Option<Vec<DescriptorMachine>> {
+pub(crate) fn optimized_graph(unit: &PsiOptimizationUnit) -> Option<Vec<DescriptorMachine>> {
     optimized_catalog_graph(
         unit.functions.iter(),
         &unit.boundary_machines,

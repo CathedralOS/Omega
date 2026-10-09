@@ -4,13 +4,13 @@ use semantic_vocabulary::ValueId;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClosedScalarObservationBoundary {
+pub(crate) struct ClosedScalarObservationBoundary {
     pub location: NodeLocation,
     pub live_in: Vec<ValueId>,
     pub live_out: Vec<ValueId>,
 }
 
-pub fn reconstruct_closed_scalar_node_boundary(
+pub(crate) fn reconstruct_closed_scalar_node_boundary(
     unit: &PsiOptimizationUnit,
     location: NodeLocation,
 ) -> Option<ClosedScalarObservationBoundary> {

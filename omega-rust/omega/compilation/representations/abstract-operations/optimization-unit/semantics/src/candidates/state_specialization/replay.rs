@@ -133,9 +133,7 @@ fn plan_dispatch(
     if constants.contains_key(&parameter) {
         return None;
     }
-    let arm_edge = |edge: EdgeId| {
-        node.edge(edge)
-    };
+    let arm_edge = |edge: EdgeId| node.edge(edge);
     let when_true_edge = arm_edge(when_true.psi_edge)?;
     let when_false_edge = arm_edge(when_false.psi_edge)?;
 
@@ -204,9 +202,7 @@ fn plan_dispatch(
         if !edge.structural_bindings.is_empty() || !edge.cleanup_actions.is_empty() {
             continue;
         }
-        let Some(binding) = edge
-            .binding(parameter)
-        else {
+        let Some(binding) = edge.binding(parameter) else {
             continue;
         };
         // The replayed lattice proves the argument's own value, or the
@@ -293,9 +289,7 @@ fn delivered_argument(
         else {
             break;
         };
-        let Some(binding) = predecessor_edge
-            .binding(argument)
-        else {
+        let Some(binding) = predecessor_edge.binding(argument) else {
             break;
         };
         argument = binding.argument;
