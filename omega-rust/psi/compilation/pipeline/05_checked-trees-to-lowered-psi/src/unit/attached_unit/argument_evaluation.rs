@@ -523,16 +523,13 @@ impl Evaluation {
         mut roots: Vec<(PlaceId, bool)>,
     ) -> Result<Vec<PlaceId>, LoweringError> {
         for cleanup in &self.selection_cleanups {
-            let selected = roots
-                .iter()
-                .position(|(place, _)| *place == cleanup.selected)
-                .ok_or(LoweringError::Unsupported(
-                    "selected cleanup result is absent from its operation roster",
-                ))?;
             if cleanup.sources.is_empty() {
                 if !cleanup.remaining.is_empty() {
                     return unsupported("owned move cannot fabricate residual cleanup roots");
                 }
+                // An ordinary move only transports surviving owners. Its
+                // result can leave directly from a return expression, without
+                // an operation-roster slot; no candidate row is substituted.
                 for (place, _) in &mut roots {
                     if let Some((_, target)) = cleanup
                         .pass_through
@@ -544,6 +541,12 @@ impl Evaluation {
                 }
                 continue;
             }
+            let selected = roots
+                .iter()
+                .position(|(place, _)| *place == cleanup.selected)
+                .ok_or(LoweringError::Unsupported(
+                    "selected cleanup result is absent from its operation roster",
+                ))?;
             let start = roots
                 .iter()
                 .position(|(place, _)| cleanup.sources.contains(place))
