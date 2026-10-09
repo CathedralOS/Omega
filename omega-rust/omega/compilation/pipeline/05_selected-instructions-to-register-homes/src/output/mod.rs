@@ -134,7 +134,7 @@ pub enum AllocationEvidence {
 
 /// Why a staged allocation result could not become the retained allocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AllocationAdmissionError {
+pub(crate) enum AllocationAdmissionError {
     /// The exercised recovery does not match the declared allocation-recovery
     /// selection: a declared rule did not run, or an undeclared one did.
     SelectionMismatch,

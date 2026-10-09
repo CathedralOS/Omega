@@ -64,7 +64,7 @@ pub(crate) fn stage_register_homes_after_fixed_view_copies_with_assignment(
 /// fixed-view transition or spill requirement. It grants no machine-emission
 /// or publication authority.
 #[derive(Debug)]
-pub struct StagedOptimizedRegisterHomes {
+pub(crate) struct StagedOptimizedRegisterHomes {
     legality: StagedOptimizedAllocationLegality,
     homes: ValidatedRegisterHomes,
     manifest: ValidatedPostAllocationOptimizationManifest,
@@ -129,7 +129,7 @@ impl StagedOptimizedRegisterHomes {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedRegisterHomeCustodyReceipt {
+pub(crate) struct StagedOptimizedRegisterHomeCustodyReceipt {
     psi: TerminalPsiIdentity,
     target: target::NativeTarget,
     entry: MachineId,
@@ -208,7 +208,7 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedRegisterHomeCustodyError {
+pub(crate) enum OptimizedRegisterHomeCustodyError {
     Assignment(RegisterHomeError),
     Revalidation(RegisterHomeError),
     Manifest(PostAllocationOptimizationManifestError),
@@ -229,7 +229,7 @@ impl std::error::Error for OptimizedRegisterHomeCustodyError {}
 /// Physical homes after one exact fixed-view copy transformation and complete
 /// reanalysis. This remains custody-only and cannot enter machine emission.
 #[derive(Debug)]
-pub struct StagedOptimizedRegisterHomesAfterFixedViewCopies {
+pub(crate) struct StagedOptimizedRegisterHomesAfterFixedViewCopies {
     reanalysis: StagedOptimizedSelectedReanalysis,
     homes: ValidatedRegisterHomes,
     manifest: ValidatedPostAllocationOptimizationManifest,
@@ -295,7 +295,7 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
+pub(crate) struct StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
     source: StagedOptimizedSelectedReanalysisCustodyReceipt,
     homes: RegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
@@ -322,7 +322,7 @@ impl StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedPostCopyRegisterHomeCustodyError {
+pub(crate) enum OptimizedPostCopyRegisterHomeCustodyError {
     UpstreamReanalysis(OptimizedSelectedReanalysisError),
     Assignment(RegisterHomeError),
     Revalidation(RegisterHomeError),

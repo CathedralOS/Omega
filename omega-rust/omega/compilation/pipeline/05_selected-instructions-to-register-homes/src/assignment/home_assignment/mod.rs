@@ -21,7 +21,7 @@ use selected_instructions::LiveRangeIdentity;
 
 /// Assign deterministic physical views for the bounded transition-free,
 /// spill-free lane. The result grants no emission or publication authority.
-pub fn assign_register_homes(
+pub(crate) fn assign_register_homes(
     legality: &ValidatedAllocationLegality,
     ranges: &ValidatedLiveRanges,
     register_environment: TargetRegisterEnvironmentIdentity,
@@ -71,7 +71,7 @@ pub(crate) fn assign_register_homes_reusing(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegisterHomeValidationReceipt {
+pub(crate) struct RegisterHomeValidationReceipt {
     pub(crate) identity: RegisterHomeIdentity,
     pub(crate) legality: AllocationLegalityIdentity,
     pub(crate) ranges: LiveRangeIdentity,
@@ -138,7 +138,7 @@ impl ValidatedRegisterHomes {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RegisterHomeError {
+pub(crate) enum RegisterHomeError {
     RootMismatch,
     FunctionMismatch {
         function: usize,
