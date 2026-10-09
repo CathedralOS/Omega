@@ -6,12 +6,5 @@
 pub(crate) mod graph_structural;
 mod installation_errors;
 pub(crate) mod record_shape;
-mod record_types;
 
 pub use installation_errors::InstallationError;
-
-pub(crate) use record_types::{
-    ImageFingerprint, InitializedDataFingerprint, InstallationFingerprint, InstallationRecord,
-    InstalledCompilerPrivateFunction, InstalledComponentProgress, InstalledForeignCallStack,
-    InstalledFunction, InstalledImageSections, InstalledInternalUnitCall,
-    InstalledInternalUnitScalarCall, InstalledStructuralReturn, SelectedProviderPlanReportIdentity};

@@ -37,8 +37,6 @@ mod hosted_receiver;
 mod hosted_unit_entry;
 mod image_output;
 mod installation_record;
-#[cfg(feature = "installed-artifact")]
-mod installed_artifact;
 mod object_artifact;
 
 pub use object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
@@ -69,6 +67,4 @@ pub use image_output::{
     can_emit_executable_image, emit_executable_image, validate_direct_executable_image};
 
 pub use installation_record::{ InstallationError};
-pub(crate) use installation_record::{ InstallationRecord,
-    InstalledCompilerPrivateFunction};
 pub use machine_code::BoundaryExecutionRecord;
