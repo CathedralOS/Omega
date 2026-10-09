@@ -260,15 +260,11 @@ pub struct FloatMeaningEqualityProposition {
 /// module equality roster: clause carriers and the verifier's exit-axiom
 /// reconstruction derive the same identity without reading operand payload.
 pub fn float_meaning_equality_proposition_id(index: u32) -> semantic_vocabulary::PropositionId {
-    use sha2::{Digest, Sha256};
-
-    let digest = Sha256::digest(
-        [
-            b"omega.terminal_psi.float_meaning_equality_proposition.v1".as_slice(),
-            index.to_le_bytes().as_slice(),
-        ]
-        .concat(),
+    let mut encoder = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.terminal_psi.float_meaning_equality_proposition.v1",
     );
+    encoder.raw(&index.to_le_bytes());
+    let digest = encoder.finish();
     let raw = u64::from_le_bytes(
         digest[..8]
             .try_into()
