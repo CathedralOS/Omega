@@ -197,6 +197,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
 
 pub(crate) fn resolve_selected_adapter_row(
     typed: &TypedTrees,
+    declarations: &typed_trees::references::DeclarationSelection,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
@@ -217,6 +218,7 @@ pub(crate) fn resolve_selected_adapter_row(
             }) => {
                 return resolve_top_level_requirement_adapter_row(
                     typed,
+                    declarations,
                     plan,
                     row,
                     method,
@@ -333,6 +335,7 @@ fn require_parameter_count(
 
 fn resolve_top_level_requirement_adapter_row(
     typed: &TypedTrees,
+    declarations: &typed_trees::references::DeclarationSelection,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     method: &effects::provider_plan::ServiceMethod,
@@ -360,6 +363,7 @@ fn resolve_top_level_requirement_adapter_row(
     if !typed.machine_type_parameters(requirement).is_empty() {
         return resolve_specialized_top_level_requirement_adapter_rows(
             typed,
+            declarations,
             plan,
             row,
             method,
@@ -413,6 +417,7 @@ fn resolve_top_level_requirement_adapter_row(
 #[allow(clippy::too_many_arguments)]
 fn resolve_specialized_top_level_requirement_adapter_rows(
     typed: &TypedTrees,
+    declarations: &typed_trees::references::DeclarationSelection,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     method: &effects::provider_plan::ServiceMethod,
@@ -441,6 +446,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
     }) {
         let Some(closed) = typed.machine_by_callable_identity(
             typed.callable_identity_by_text(&specialization.requirement_identity),
+            declarations,
         ) else {
             return Err(Diagnostic::error(format!(
                 "selected provider plan `{}` specialization roster names closed requirement `{}` with no exact typed machine",
@@ -478,6 +484,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
         }
         let Some(instance) = typed.machine_by_callable_identity(
             typed.callable_identity_by_text(&specialization.machine_identity),
+            declarations,
         ) else {
             return Err(Diagnostic::error(format!(
                 "selected provider plan `{}` specialization roster names provider instance `{}` with no exact typed machine",

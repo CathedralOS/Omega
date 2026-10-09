@@ -97,11 +97,14 @@ pub(crate) fn check_selected_execution(
         opaque_representation_selections,
     )?;
     if !pending_pre_checks.is_empty() {
+        let operator_selections =
+            typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
         SelectedConstantEvaluation::prepare(
             provider_planning::ProviderPlanningContext::new(
                 &typed,
                 source::DependencyScope::Product,
             ),
+            &operator_selections,
             &selected_provider_plan_facts,
         )?
         .evaluate_pending(&mut typed, pending_pre_checks)?;
@@ -110,7 +113,6 @@ pub(crate) fn check_selected_execution(
     let provider_request = ProviderCheckingRequest {
         native_target: selected_native_target,
         package_inputs,
-        build_settings: &build_config.settings,
         selected_build_machine: selected_build_machine_symbol,
         boundary_calling_plan_realizations: &mut providers.boundary_calling_plan_realizations,
         opaque_representation_selections,
@@ -120,9 +122,23 @@ pub(crate) fn check_selected_execution(
         authored_root_grants: &build_config.grants,
     };
     let prepared = ProviderCheckingInputs::prepare(&typed, &provider_request)?;
-    let (preparation_request, checking) = prepared.admission_requests(&provider_request);
-    let preparation_request = preparation_request
+    // Source preparation/checking requests belong to the source coordinator,
+    // not to provider settlement. Realization contributes admitted facts only.
+    let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled()
+        .with_opaque_property_receipts(prepared.opaque_property_receipts())
+        .with_asm_authority(
+            validation::AsmAuthorityAdmission::from_freestanding(
+                build_config.settings.freestanding,
+            )
+            .with_grants(
+                build_config.settings.privileged_services.port_io,
+                build_config.settings.privileged_services.interrupt_table,
+            ),
+        )
         .with_wire_compatibility_demands(&build_config.wire_compatibility_demands);
+    let checking = typed_trees_to_checked_trees::CheckingRequest::new().with_declaration_authority(
+        package_inputs.map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+    );
     // Package review's bound pass hands back the discovery pass's judgment of
     // this occurrence. Bindings choose providers after the language judgment,
     // so settlement usually arrives at the same typed program; Psi takes the

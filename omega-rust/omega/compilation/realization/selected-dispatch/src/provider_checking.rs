@@ -25,8 +25,6 @@ pub struct CheckedProviderProgram {
 pub struct ProviderCheckingRequest<'a> {
     pub native_target: Option<target::NativeTarget>,
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
-    pub build_settings:
-        &'a package_compilation::build_execution::build_value::EvaluatedBuildSettings,
     pub selected_build_machine: Option<symbols::SymbolHandle>,
     pub boundary_calling_plan_realizations:
         &'a mut [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
@@ -81,32 +79,10 @@ impl ProviderCheckingInputs {
         })
     }
 
-    /// Derive the distinct source-elaboration and declaration-admission inputs
-    /// from this invocation's Build and independently rederived receipts.
-    pub fn admission_requests<'request>(
-        &'request self,
-        settlement: &'request ProviderCheckingRequest<'_>,
-    ) -> (
-        typed_trees_to_typed_trees::PreparationRequest<'request>,
-        typed_trees_to_checked_trees::CheckingRequest<'request>,
-    ) {
-        let settings = settlement.build_settings;
-        let preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
-            .with_opaque_property_receipts(&self.opaque_property_receipts)
-            .with_asm_authority(
-                validation::AsmAuthorityAdmission::from_freestanding(settings.freestanding)
-                    .with_grants(
-                        settings.privileged_services.port_io,
-                        settings.privileged_services.interrupt_table,
-                    ),
-            );
-        let checking = typed_trees_to_checked_trees::CheckingRequest::new()
-            .with_declaration_authority(
-                settlement
-                    .package_inputs
-                    .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-            );
-        (preparation, checking)
+    /// Realization evidence admitted for source preparation. The source
+    /// coordinator owns its stage requests; this crate does not select them.
+    pub fn opaque_property_receipts(&self) -> &[validation::OpaqueDataPropertyReceipt] {
+        &self.opaque_property_receipts
     }
 
     /// Bind callback placements and provider grants after Psi has checked the

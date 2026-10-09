@@ -9,7 +9,6 @@ name = "selected_dispatch"
 path = "src/lib.rs"
 
 [dependencies]
-typed-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
 representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }
@@ -30,5 +29,4 @@ numerics = { path = "../../../../psi/foundation/numerics" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
-typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 validation = { path = "../../../../psi/compilation/checking" }

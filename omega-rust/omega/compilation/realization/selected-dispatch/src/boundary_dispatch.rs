@@ -86,14 +86,17 @@ fn plan_selected_boundary_adapter_dispatch(
         source::DependencyScope::Product,
     );
     let product_roots = typed_trees::references::DeclarationSelection::from_symbols(
-        typed_trees::references::collect_program_references(&checked.typed)
-            .declarations
+        typed_trees::references::collect_program_declarations(&checked.typed)
             .into_iter()
             .filter(|symbol| context.contains(*symbol)),
     );
-    let product =
-        typed_trees_to_checked_trees::project_selected_program(&checked.typed, &product_roots);
-    let typed = &product;
+    // Keep canonical backing storage. Only Product declarations own dispatch
+    // work; excluded Build declarations remain available for exact lookup but
+    // cannot supply a Product row. Source-free generated roots are included by
+    // the context above, just as in the former declaration projection.
+    let typed = &checked.typed;
+    let product_references =
+        typed_trees::references::collect_selected_program_references(typed, &product_roots);
     let mut adapters = Vec::new();
     let mut generic_requirements: Vec<GenericBoundaryRequirement> = Vec::new();
     let mut diagnostics = Vec::new();
@@ -101,6 +104,7 @@ fn plan_selected_boundary_adapter_dispatch(
         for row in &plan.rows {
             match resolve_selected_adapter_row(
                 typed,
+                &product_roots,
                 plan,
                 row,
                 selected_plans.specialized_requirement_rows(),
@@ -153,7 +157,11 @@ fn plan_selected_boundary_adapter_dispatch(
     // Exact typed field symbol -> exact boundary-trait symbol. Field spellings
     // may repeat across data owners and never participate in dispatch.
     let mut boundary_fields = Vec::new();
-    for data in typed.data_definitions() {
+    for data in typed
+        .data_definitions()
+        .iter()
+        .filter(|data| product_roots.contains(data.symbol))
+    {
         for member in typed.data_members(data) {
             let Some(field) = member.as_field() else {
                 continue;
@@ -242,7 +250,11 @@ fn plan_selected_boundary_adapter_dispatch(
     // the repeated parameter spelling, identifies the receiver. This is not
     // routed Service erasure: generic and qualified carriers still require
     // the checked receipt below and must not enter through this narrow shape.
-    for machine in typed.machines() {
+    for machine in typed
+        .machines()
+        .iter()
+        .filter(|machine| product_roots.contains(machine.symbol))
+    {
         for state in typed.machine_states(machine) {
             for parameter in typed.state_parameters(state) {
                 let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed
@@ -367,7 +379,11 @@ fn plan_selected_boundary_adapter_dispatch(
     // Check every source occurrence against the exact selected requirement.
     // Source names remain diagnostics, never dispatch identity. Ambiguous
     // selected adapters must reject even when the result is not retained.
-    for machine in typed.machines() {
+    for machine in typed
+        .machines()
+        .iter()
+        .filter(|machine| product_roots.contains(machine.symbol))
+    {
         for state in typed.machine_states(machine) {
             for statement in typed.statement_table.statements(state.statement_nodes) {
                 if let Some(call) = statement.as_call() {
@@ -386,7 +402,10 @@ fn plan_selected_boundary_adapter_dispatch(
             }
         }
     }
-    for (_, expression) in typed.expression_table.expression_entries() {
+    for (handle, expression) in typed.expression_table.expression_entries() {
+        if !product_references.expressions.contains(&handle) {
+            continue;
+        }
         let typed_trees::expression::ExpressionNode::Call(call) = expression else {
             continue;
         };

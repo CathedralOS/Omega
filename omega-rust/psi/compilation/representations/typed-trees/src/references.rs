@@ -199,6 +199,24 @@ pub fn collect_program_references(program: &TypedTrees) -> ProgramReferences {
     collect_selected_program_references(program, &DeclarationSelection::default())
 }
 
+/// Enumerate declaration roots without traversing their expressions, types or
+/// proofs. Choosing a work frontier does not require analyzing excluded bodies.
+pub fn collect_program_declarations(program: &TypedTrees) -> Vec<SymbolHandle> {
+    struct Declarations(Vec<SymbolHandle>);
+    impl Extend<SymbolHandle> for Declarations {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+    }
+    impl TypedReferences for Declarations {
+        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+            self.0.push(symbol);
+            false
+        }
+    }
+    let mut declarations = Declarations(Vec::new());
+    visit_program(program, &mut declarations);
+    declarations.0
+}
+
 /// Exact declaration roots of an operation on shared canonical arenas. Excluded
 /// roots remain available for semantic lookup but do not independently own work.
 #[derive(Clone)]
@@ -235,7 +253,7 @@ impl DeclarationSelection {
     }
 
     pub fn from_program(program: &TypedTrees) -> Self {
-        Self::from_symbols(collect_program_references(program).declarations)
+        Self::from_symbols(collect_program_declarations(program))
     }
 
     /// Select already-owned roots; this set grants no semantic authority.

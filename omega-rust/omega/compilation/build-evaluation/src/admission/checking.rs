@@ -95,8 +95,11 @@ pub(crate) fn prepare_checked_build(
             provider_planning::selected_provider_plan_facts(context, selected)?
         };
     if !pending.is_empty() {
+        let operator_selections =
+            typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
         selected_dispatch::SelectedConstantEvaluation::prepare(
             context,
+            &operator_selections,
             &selected_provider_plan_facts,
         )?
         .evaluate_pending(typed, pending)?;

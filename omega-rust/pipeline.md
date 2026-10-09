@@ -217,6 +217,10 @@ separate admissions file.
 owns provider choices and calling, component and task planning.
 [`selected-dispatch/`](omega/compilation/realization/selected-dispatch/README.md) owns selected
 execution preparation and settlement.
+It imports no Psi transform: the source coordinator owns stage requests and
+supplies operator selections. Adapter dispatch reads the canonical backing
+through a Product declaration/occurrence selection instead of cloning and
+pruning a separate program. Build copies remain outside that selected frontier.
 Provider grants resolve through backend provider evidence.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only

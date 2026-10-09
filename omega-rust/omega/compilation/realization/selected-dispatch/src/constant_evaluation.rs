@@ -46,13 +46,14 @@ impl SelectedConstantEvaluation {
 
     /// Join provider authority once for every retained source use. Psi prepares
     /// semantic operands and independently admits both intrinsic and checked-body
-    /// execution; the coordinator supplies only the selected realization.
+    /// execution. Its coordinator supplies the operator selections; realization
+    /// does not enter a source stage to reconstruct them.
     pub fn prepare(
         context: provider_planning::ProviderPlanningContext<'_>,
+        facts: &checked_trees::CheckedOperatorFacts,
         plans: &SelectedProviderPlanFacts,
     ) -> Result<Self, Vec<Diagnostic>> {
         let typed = context.typed;
-        let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
         let uses = facts.resolved_expression_selections();
         let mut selected = Self::default();
         for (expression, origin, requirement, policy) in uses {

@@ -467,22 +467,27 @@ impl TypedTrees {
         self.read_callable_identities(|table| table.by_text.get(text).copied().unwrap_or_default())
     }
 
-    /// Resolve one identity to its uniquely declaring machine. A missing or
-    /// duplicated identity resolves to nothing; callers must not fall back to
-    /// a short machine spelling.
-    pub fn machine_by_callable_identity(&self, identity: CallableIdentityId) -> Option<&Machine> {
+    /// Resolve one identity within an explicit declaration frontier. Build and
+    /// Product copies can share an identity without being interchangeable.
+    /// Missing or repeated matches inside this frontier resolve to nothing.
+    pub fn machine_by_callable_identity(
+        &self,
+        identity: CallableIdentityId,
+        declarations: &crate::references::DeclarationSelection,
+    ) -> Option<&Machine> {
         if !identity.is_valid() {
             return None;
         }
         self.sweep_callable_identities();
         let position = self.read_callable_identities(|table| {
-            match table
-                .record(identity)
-                .map(|record| record.machines.as_slice())
-            {
-                Some([position]) => Some(*position),
-                _ => None,
-            }
+            let record = table.record(identity)?;
+            let mut positions = record.machines.iter().copied().filter(|position| {
+                self.machines()
+                    .get(*position as usize)
+                    .is_some_and(|machine| declarations.contains(machine.symbol))
+            });
+            let position = positions.next()?;
+            positions.next().is_none().then_some(position)
         })?;
         self.machines().get(position as usize)
     }
