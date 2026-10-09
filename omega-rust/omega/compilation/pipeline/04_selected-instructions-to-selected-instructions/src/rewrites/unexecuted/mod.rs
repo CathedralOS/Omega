@@ -95,6 +95,5 @@ pub(super) use super::place_storage;
 mod relocation;
 mod scheduled_relocation;
 mod store_motion;
-pub(crate) use interchange::ValidatedInterchange;
 pub(crate) use relocation::ValidatedMemberRunRelocation;
 pub(crate) use scheduled_relocation::ValidatedScheduledRelocation;
