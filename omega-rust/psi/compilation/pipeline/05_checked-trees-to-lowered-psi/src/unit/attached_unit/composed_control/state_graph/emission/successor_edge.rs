@@ -842,15 +842,14 @@ impl StateGraphEmission<'_, '_> {
             if emitted.next().is_some() || arguments.len() != target_state.scalar_parameters.len() {
                 return unsupported("Unit graph observation has excess completed actuals");
             }
-            let backing = edge_evaluation
-                .contextual_bindings()
-                .with_completed_place_declarations(
-                    self.catalogs
-                        .temporary_places
-                        .iter()
-                        .chain(&self.structural_places)
-                        .cloned(),
-                );
+            let backing = edge_evaluation.completed_bindings(
+                operations,
+                self.catalogs
+                    .temporary_places
+                    .iter()
+                    .chain(&self.structural_places)
+                    .cloned(),
+            );
             let bindings = ranking::formal_bindings(
                 checked,
                 target_state,

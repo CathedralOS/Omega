@@ -150,6 +150,28 @@ impl Evaluation {
             .with_place_observations(&self.place_observations)
     }
 
+    /// Observe completed producer homes before final machine assembly publishes
+    /// their declarations. The operation result is the exact type/producer
+    /// owner; this inventory supplies geometry, never storage liveness or
+    /// permission to consume a value. A producer may have completed in one of
+    /// this evaluation's private blocks rather than the current buffer.
+    pub(crate) fn completed_bindings(
+        &self,
+        operations: &OperationBuffer,
+        declarations: impl IntoIterator<Item = terminal_psi::StructuralPlaceDeclaration>,
+    ) -> crate::expression_preparation::bindings::ScalarBindings {
+        self.contextual_bindings()
+            .with_completed_place_declarations(
+                declarations.into_iter().chain(
+                    crate::emission::operation_emission::place_declarations::operation_results(
+                        operations
+                            .iter()
+                            .chain(self.blocks.iter().flat_map(|block| block.operations.iter())),
+                    ),
+                ),
+            )
+    }
+
     /// `contextual_bindings` plus deferred case payloads: a case arm or
     /// short-circuit guard may read a payload its own membership test
     /// selects; the dispatch binds or refuses each read.
