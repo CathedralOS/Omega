@@ -1,13 +1,9 @@
 use crate::OptimizedProgramStorageSemanticWrapperObjectRecordError;
 use isa_x86_64::X86_64SemanticUnitWrapperResolutionError;
-use object_file::OptimizedObjectArtifactError;
 use program_entry_plan::OptimizedProgramStorageSemanticWrapperEncodingError;
-use terminal_psi_to_abstract_operations::NativeProgramEntrySettlementError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectError {
-    Settlement(NativeProgramEntrySettlementError),
-    Source(OptimizedObjectArtifactError),
     Encoding(OptimizedProgramStorageSemanticWrapperEncodingError),
     InstalledProviderContinuation(InstalledProgramStorageContinuationEvidenceError),
     MissingPairedCallingPlans,
@@ -58,8 +54,6 @@ impl From<OptimizedProgramStorageSemanticWrapperObjectRecordError>
 /// its retained opaque installation and selected-plan custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InstalledProgramStorageContinuationEvidenceError {
-    RootMismatch,
-    FunctionRosterMismatch,
     EntryCallMissing,
     SourceKindMismatch,
     InstallationRosterMismatch,
