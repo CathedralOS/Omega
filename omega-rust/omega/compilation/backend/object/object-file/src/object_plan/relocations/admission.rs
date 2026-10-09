@@ -313,9 +313,10 @@ pub(crate) fn admit_relocation_plan(
 #[cfg(test)]
 mod tests {
     use super::{RelocationAdmissionError, SectionKindOrdinal, admit_relocation_plan};
+    use crate::object_plan::ObjectFileLayout;
     use crate::{
-        ObjectFileLayout, ObjectPlan, RelocationKind, RelocationOrigin, RelocationPlan,
-        RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
+        ObjectPlan, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
+        SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
     };
     use arena::{Arena, Handle};
     use target::NativeTarget;

@@ -1,5 +1,6 @@
 //! Stack realization tests: arrival contexts, entry stack epochs and closures.
 
+use super::entry_exit_stub::{X86_64ErrorCodeDisposition, derive_x86_64_entry_exit_stub};
 use super::{
     ArrivalContextId, EntryStack,
     InstalledEntryFactIdentity,
@@ -282,7 +283,7 @@ fn fatal_exception_stub_derives_hardware_error_word_and_saved_state() {
         )],
     );
 
-    let stub = super::derive_x86_64_entry_exit_stub(&installed, &boundary)
+    let stub = derive_x86_64_entry_exit_stub(&installed, &boundary)
         .expect("the fatal-exception stub derives");
 
     assert_eq!(stub.stub().identity, installed.facts().identity);
@@ -324,7 +325,7 @@ fn fatal_exception_stub_derives_hardware_error_word_and_saved_state() {
     };
     assert_eq!(
         context.error_code,
-        super::X86_64ErrorCodeDisposition::HardwarePushed
+        X86_64ErrorCodeDisposition::HardwarePushed
     );
     assert_eq!(context.normalizing_bytes, 0);
     assert_eq!(context.hardware_frame_bytes, 48);
@@ -352,14 +353,14 @@ fn external_interrupt_stub_synthesizes_the_error_word() {
         )],
     );
 
-    let stub = super::derive_x86_64_entry_exit_stub(&installed, &boundary)
+    let stub = derive_x86_64_entry_exit_stub(&installed, &boundary)
         .expect("the timer stub derives");
     let [context] = stub.stub().contexts.as_slice() else {
         panic!("one derived stub context")
     };
     assert_eq!(
         context.error_code,
-        super::X86_64ErrorCodeDisposition::StubSynthesized
+        X86_64ErrorCodeDisposition::StubSynthesized
     );
     assert_eq!(context.normalizing_bytes, 8);
     assert_eq!(context.hardware_frame_bytes, 40);
@@ -385,7 +386,7 @@ fn deriver_stub_member_call_frame_reserves_indirect_copies_and_pointer_slots() {
             X86_64ArrivalMechanism::Exception,
         )],
     );
-    let stub = super::derive_x86_64_entry_exit_stub(&installed, &boundary).expect("stub derives");
+    let stub = derive_x86_64_entry_exit_stub(&installed, &boundary).expect("stub derives");
     assert_eq!(stub.stub().member_call_frame.outgoing_stack_bytes, 48);
     assert_eq!(stub.stub().member_call_frame.reserved_bytes, 64);
 
@@ -407,7 +408,7 @@ fn deriver_stub_member_call_frame_reserves_indirect_copies_and_pointer_slots() {
             X86_64ArrivalMechanism::Exception,
         )],
     );
-    let stub = super::derive_x86_64_entry_exit_stub(&installed, &boundary).expect("stub derives");
+    let stub = derive_x86_64_entry_exit_stub(&installed, &boundary).expect("stub derives");
     assert_eq!(stub.stub().member_call_frame.outgoing_stack_bytes, 128);
     assert_eq!(stub.stub().member_call_frame.reserved_bytes, 144);
 }
@@ -433,7 +434,7 @@ fn deriver_stub_fails_closed_on_unadmitted_boundary_or_drifted_facts() {
 
     // A boundary the installation did not admit: different commitment.
     let foreign = interrupt_boundary(12);
-    let error = super::derive_x86_64_entry_exit_stub(&installed, &foreign)
+    let error = derive_x86_64_entry_exit_stub(&installed, &foreign)
         .expect_err("a lookalike policy must not attach");
     assert!(
         error.0.contains("exact admitted boundary plan"),
@@ -494,7 +495,7 @@ fn deriver_stub_fails_closed_on_unadmitted_boundary_or_drifted_facts() {
             contexts: installed.facts().contexts.clone(),
         })
         .expect("validated installed facts");
-    let error = super::derive_x86_64_entry_exit_stub(&mismatched_control, &ordinary)
+    let error = derive_x86_64_entry_exit_stub(&mismatched_control, &ordinary)
         .expect_err("CallReturn cannot service an installed gate");
     assert!(error.0.contains("InterruptReturn"), "{}", error.0);
 
@@ -504,7 +505,7 @@ fn deriver_stub_fails_closed_on_unadmitted_boundary_or_drifted_facts() {
     drifted.contexts[0].nesting = Preemption::Nestable { maximum_depth: 1 };
     let drifted = validate_x86_64_installed_hardware_entry_facts(drifted)
         .expect("drifted nesting still validates structurally");
-    let error = super::derive_x86_64_entry_exit_stub(&drifted, &boundary)
+    let error = derive_x86_64_entry_exit_stub(&drifted, &boundary)
         .expect_err("context preemption outside the plan must reject");
     assert!(error.0.contains("preemption"), "{}", error.0);
 }

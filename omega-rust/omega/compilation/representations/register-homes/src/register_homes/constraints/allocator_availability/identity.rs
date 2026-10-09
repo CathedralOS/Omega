@@ -110,31 +110,31 @@ mod tests {
         wrong_magic[0] ^= 1;
         assert_eq!(
             AllocatorAvailabilityPlan::decode(&wrong_magic),
-            Err(crate::AllocatorAvailabilityDecodeError::WrongMagic)
+            Err(super::super::AllocatorAvailabilityDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
         wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
         assert_eq!(
             AllocatorAvailabilityPlan::decode(&wrong_version),
-            Err(crate::AllocatorAvailabilityDecodeError::UnsupportedVersion(
+            Err(super::super::AllocatorAvailabilityDecodeError::UnsupportedVersion(
                 2
             ))
         );
         assert_eq!(
             AllocatorAvailabilityPlan::decode(&encoded[..encoded.len() - 1]),
-            Err(crate::AllocatorAvailabilityDecodeError::Truncated)
+            Err(super::super::AllocatorAvailabilityDecodeError::Truncated)
         );
         let mut trailing = encoded.clone();
         trailing.push(0);
         assert_eq!(
             AllocatorAvailabilityPlan::decode(&trailing),
-            Err(crate::AllocatorAvailabilityDecodeError::TrailingBytes)
+            Err(super::super::AllocatorAvailabilityDecodeError::TrailingBytes)
         );
         let mut tampered = encoded;
         *tampered.last_mut().unwrap() ^= 1;
         assert_eq!(
             AllocatorAvailabilityPlan::decode(&tampered),
-            Err(crate::AllocatorAvailabilityDecodeError::IdentityMismatch)
+            Err(super::super::AllocatorAvailabilityDecodeError::IdentityMismatch)
         );
     }
 }

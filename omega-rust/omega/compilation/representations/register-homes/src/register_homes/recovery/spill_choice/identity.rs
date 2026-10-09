@@ -111,9 +111,9 @@ mod tests {
         use selected_instructions::{SelectedBlockId, VirtualRegisterId};
         use semantic_vocabulary::MachineId;
 
+        use super::super::SpillChoiceDecodeError;
         use crate::{
             FunctionSpillChoices, PressureContender, PressureResident, SpillChoice,
-            SpillChoiceDecodeError,
         };
 
         let plan = SpillChoicePlan {

@@ -3,7 +3,7 @@ use super::{
     ByteOrder, DataMember, DataShape, NativeTarget, TypeLayoutDescriptor, TypeReferenceNode,
     typed_fixture, unique_data_layout,
 };
-use crate::project_conventional_record_with_recursive_nested_sums_materialization_layout;
+use super::super::project_conventional_record_with_recursive_nested_sums_materialization_layout;
 use layout_plans::{
     ConsumptionInstant, ConventionalRecordSumChildHop, DataSymbolId, MaterializationContext,
     PlacementConstraints, PlacementPhase, RelocationTarget, SymbolicFieldPathSegment,

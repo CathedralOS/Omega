@@ -27,7 +27,7 @@ pub use executable_regions::{
 pub(crate) use executable_regions::digest_bytes;
 #[cfg(test)]
 pub(crate) use executable_regions::{
-    executable_inventory_digest, executable_inventory_report_fingerprint,
+    PlacedExecutableGap, executable_inventory_digest, executable_inventory_report_fingerprint,
 };
 pub use layout::FinalImageLayout;
 pub use memory::FinalImageMemory;
