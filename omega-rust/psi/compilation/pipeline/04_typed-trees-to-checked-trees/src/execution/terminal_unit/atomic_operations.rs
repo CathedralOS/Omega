@@ -23,9 +23,9 @@
 //! against the decoder's operand expressions.
 
 use super::{
-    CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, Multiplicity, PrimitiveType, StatementNode,
+    CheckFacts, CheckedScalarExpressionRole, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, Multiplicity,
+    PrimitiveType, StatementNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use checked_trees::{

@@ -5,10 +5,7 @@
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
-use crate::{
-    CheckFacts, CheckedValueOrigin, FlowConstraintKind, FlowConstraintRef, FlowFacts,
-    FlowSemanticContextRef,
-};
+use crate::{CheckFacts, CheckedValueOrigin, FlowConstraintRef, FlowFacts, FlowSemanticContextRef};
 
 pub(super) fn semantic_contexts(
     flow: &FlowFacts,
@@ -30,12 +27,7 @@ pub(super) fn borrow_constraint_count(
 ) -> usize {
     self::constraints(flow, constraints)
         .iter()
-        .filter(|constraint| {
-            matches!(
-                constraint.kind,
-                crate::borrow_set_quint_pattern!(..)
-            )
-        })
+        .filter(|constraint| matches!(constraint.kind, crate::borrow_set_quint_pattern!(..)))
         .count()
 }
 

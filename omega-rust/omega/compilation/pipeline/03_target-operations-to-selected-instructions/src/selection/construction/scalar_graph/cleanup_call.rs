@@ -8,7 +8,6 @@ use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
 use optimization_unit::EffectLink;
 use selected_instructions::SelectedCallContract;
 use target_operations::{CallSiteOwner, NativeCallOrigin};
-use terminal_psi::StructuralAccess;
 
 pub(super) fn emit(
     owner: CallSiteOwner,

@@ -6,5 +6,6 @@ mod patch;
 mod snapshot;
 
 pub(crate) use patch::{
-    PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide,
-    render_package_source_patch};
+    PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide,
+    render_package_source_patch,
+};

@@ -4,7 +4,6 @@ use checked_trees::CheckedOperatorResolutionStatus;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::PrimitiveType;
 
 use super::RangeFacts;
 

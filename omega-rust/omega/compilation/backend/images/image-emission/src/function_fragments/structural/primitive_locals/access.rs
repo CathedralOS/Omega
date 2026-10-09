@@ -6,7 +6,7 @@ use selected_instructions::{
     SelectedMemoryAccessRole, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{PlaceId, ScalarType};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 pub(in crate::function_fragments) fn operation_retained(
     function: &AbstractFunction,

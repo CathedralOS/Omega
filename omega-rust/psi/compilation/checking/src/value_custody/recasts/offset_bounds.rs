@@ -84,7 +84,6 @@ fn unsigned_place_floor(
     source: &typed_trees::state::State,
     name: ExpressionHandle,
 ) -> Option<i64> {
-    use typed_trees::types::PrimitiveType;
     let raw = crate::value_custody::places::declared_place_type_raw(
         program,
         machine,

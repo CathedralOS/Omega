@@ -60,7 +60,6 @@ impl std::ops::Deref for PreparedFilesystemPath {
 
 /// Every canonical authored operand is represented, including ABI-shape
 /// operands a modeled provider does not otherwise need.
-#[allow(dead_code)]
 pub(crate) enum PreparedFilesystemCall {
     Create {
         path: PreparedFilesystemPath,

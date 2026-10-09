@@ -8,7 +8,6 @@ use machine_code::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use target::{Architecture, NativeTarget};
-use terminal_psi::StructuralAccess;
 
 use super::super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_stack_load, expected_x86_stack_load,

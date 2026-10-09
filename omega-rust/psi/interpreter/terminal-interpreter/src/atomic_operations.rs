@@ -13,7 +13,7 @@
 use semantic_vocabulary::{IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationResult, StructuralAccess,
-    StructuralMultiplicity, StructuralPathSegment,
+    StructuralPathSegment,
 };
 
 use crate::errors::{TerminalInterpretError, malformed};

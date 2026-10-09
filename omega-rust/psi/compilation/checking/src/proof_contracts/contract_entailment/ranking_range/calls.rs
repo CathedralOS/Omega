@@ -6,8 +6,8 @@ use super::super::{
 };
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
-    MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, State, collect_guard,
-    entry_comparisons, exact_integer_parameter, field_coordinates, fields, find_declared_measure,
+    MeasureBodyShape, Polynomial, RankingRangeMeasure, State, collect_guard, entry_comparisons,
+    exact_integer_parameter, field_coordinates, fields, find_declared_measure,
     hypothesis_landed_endpoints, integer_bindings, lengths, meanings, measure_body_shape,
     parameter_comparisons, projections, saved_arguments, validate_mapping,
 };

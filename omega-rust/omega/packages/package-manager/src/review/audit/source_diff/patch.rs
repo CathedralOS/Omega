@@ -203,7 +203,6 @@ pub(crate) struct PackageSourcePatch {
 }
 
 impl PackageSourcePatch {
-
     pub const fn candidate_key(&self) -> &PackageKey {
         &self.candidate_key
     }
