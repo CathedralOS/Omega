@@ -140,30 +140,57 @@ pub(super) fn reference_projection_regions<'path>(
     let mut pointer_slots = Vec::new();
     let mut segment_start = 0;
     for (position, segment) in path.iter().enumerate() {
-        if *segment != StructuralPathSegment::Referent {
+        if !matches!(
+            segment,
+            StructuralPathSegment::Referent
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::RuntimeIndex { .. }
+        ) {
             continue;
         }
-        let (reference, shape, byte_offset, indices) = runtime_projection(
+        let selected = runtime_projection(
             root,
             &path[segment_start..position],
             declarations,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
         )
-        .ok()?;
-        let StructuralTypeShape::Reference { referent, .. } = declarations.get(&reference)?.shape
-        else {
-            return None;
+        .ok();
+        let Some((carrier, shape, byte_offset, indices)) = selected else {
+            // Byte primitive endpoint geometry owns its noncanonical field
+            // leaves. A reference crossing always requires a declared carrier.
+            if *segment == StructuralPathSegment::Referent {
+                return None;
+            }
+            continue;
         };
-        if !matches!(shape.byte_size, 8 | 16) || shape.alignment != 8 {
-            return None;
-        }
+        let (next_root, next_start) = match (segment, &declarations.get(&carrier)?.shape) {
+            (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
+                if !matches!(shape.byte_size, 8 | 16) || shape.alignment != 8 {
+                    return None;
+                }
+                (*referent, position + 1)
+            }
+            (
+                StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::ElementView { .. },
+            ) => {
+                // The selector belongs to the backing region reached by this
+                // load; it does not index the descriptor carrier itself.
+                if shape.byte_size != 16 || shape.alignment != 8 {
+                    return None;
+                }
+                (carrier, position)
+            }
+            (StructuralPathSegment::Referent, _) => return None,
+            _ => continue,
+        };
         pointer_slots.push(StorageProjection {
             byte_offset,
             indices,
         });
-        root = referent;
-        segment_start = position + 1;
+        root = next_root;
+        segment_start = next_start;
     }
     Some(ReferenceProjectionRegions {
         root,

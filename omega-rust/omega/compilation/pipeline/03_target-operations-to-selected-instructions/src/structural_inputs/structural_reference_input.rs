@@ -197,38 +197,99 @@ pub(crate) fn reference_source_geometry(
 }
 
 fn reference_source_geometry_with_leaf_shape(
-    mut root: StructuralTypeId,
+    root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Option<ReferenceSourceGeometry> {
+    let regions = storage_projection_regions(root, path, declarations, leaf_shape)?;
+    let (selected, byte_offset, leaf_elements) = runtime_projection_with_leaf_shape(
+        regions.root,
+        &path[regions.segment_start..],
+        declarations,
+        leaf_shape,
+    )?;
+    let mut elements = regions.elements;
+    elements.extend(leaf_elements);
+    Some(ReferenceSourceGeometry {
+        region_root: regions.root,
+        readable: regions.readable,
+        selected,
+        byte_offset,
+        pointer_slots: regions.pointer_slots,
+        elements,
+    })
+}
+
+struct StorageProjectionRegions {
+    root: StructuralTypeId,
+    segment_start: usize,
+    elements: Vec<RuntimeElement>,
+    pointer_slots: Vec<PointerSlot>,
+    readable: bool,
+}
+
+/// A stored reference and an indexed view both cross a pointer word. Keep
+/// each selector on the side of the load where it addresses real storage.
+fn storage_projection_regions(
+    mut root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+) -> Option<StorageProjectionRegions> {
     let mut segment_start = 0;
     let mut elements = Vec::new();
     let mut pointer_slots = Vec::new();
     let mut readable = true;
     for (position, segment) in path.iter().enumerate() {
-        if *segment != StructuralPathSegment::Referent {
+        if !matches!(
+            segment,
+            StructuralPathSegment::Referent
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::RuntimeIndex { .. }
+        ) {
             continue;
         }
-        let (reference, byte_offset, region_elements) =
-            runtime_projection(root, &path[segment_start..position], declarations)?;
-        let referent = declared_referent(declarations, reference)?;
-        let StructuralTypeShape::Reference { access, .. } =
-            find_structural_type(declarations, reference)?.shape
-        else {
-            return None;
-        };
-        readable &= matches!(
-            access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
+        let selected = runtime_projection_with_leaf_shape(
+            root,
+            &path[segment_start..position],
+            declarations,
+            leaf_shape,
         );
-        let scalar_descriptor = scalar_storage_type(referent, declarations).is_some();
-        let descriptor_size = if scalar_descriptor { 16 } else { 8 };
-        // Projection traversal checks inline coordinates; view selectors keep
-        // their operation-owned bounds. A view's descriptor extent is never
-        // the bound of the backing region its projection addresses.
-        if shape(reference, declarations)? != ValueShape::integer(descriptor_size, 8) {
+        let Some((carrier, byte_offset, region_elements)) = selected else {
+            if *segment == StructuralPathSegment::Referent {
+                return None;
+            }
+            continue;
+        };
+        let (next_root, next_start, scalar_descriptor, descriptor_size) =
+            match (segment, &find_structural_type(declarations, carrier)?.shape) {
+                (
+                    StructuralPathSegment::Referent,
+                    StructuralTypeShape::Reference { referent, access },
+                ) => {
+                    readable &= matches!(
+                        access,
+                        terminal_psi::StructuralAccess::SharedBorrow
+                            | terminal_psi::StructuralAccess::MutableBorrow
+                    );
+                    let scalar_descriptor = scalar_storage_type(*referent, declarations).is_some();
+                    (
+                        *referent,
+                        position + 1,
+                        scalar_descriptor,
+                        if scalar_descriptor { 16 } else { 8 },
+                    )
+                }
+                (
+                    StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. },
+                    StructuralTypeShape::ElementView { .. },
+                ) => (carrier, position, false, 16),
+                (StructuralPathSegment::Referent, _) => return None,
+                _ => continue,
+            };
+        if shape(carrier, declarations)? != ValueShape::integer(descriptor_size, 8) {
             return None;
         }
         let first_index = elements.len();
@@ -238,19 +299,15 @@ fn reference_source_geometry_with_leaf_shape(
             indices: first_index..elements.len(),
             scalar_descriptor,
         });
-        root = referent;
-        segment_start = position + 1;
+        root = next_root;
+        segment_start = next_start;
     }
-    let (selected, byte_offset, leaf_elements) =
-        runtime_projection_with_leaf_shape(root, &path[segment_start..], declarations, leaf_shape)?;
-    elements.extend(leaf_elements);
-    Some(ReferenceSourceGeometry {
-        region_root: root,
-        readable,
-        selected,
-        byte_offset,
-        pointer_slots,
+    Some(StorageProjectionRegions {
+        root,
+        segment_start,
         elements,
+        pointer_slots,
+        readable,
     })
 }
 
@@ -317,7 +374,7 @@ pub(crate) fn primitive_store(
 /// Pointer crossings delimit storage regions for both reads and writes. The
 /// endpoint resolver keeps each operation's field contract separate.
 fn primitive_access_geometry(
-    mut root: StructuralTypeId,
+    root: StructuralTypeId,
     path: &[StructuralPathSegment],
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
@@ -328,46 +385,25 @@ fn primitive_access_geometry(
         &[StructuralTypeDeclaration],
     ) -> Option<(u32, u32, Vec<RuntimeElement>)>,
 ) -> Option<PrimitiveAccessGeometry> {
-    let mut segment_start = 0;
-    let mut elements = Vec::new();
-    let mut pointer_slots = Vec::new();
-    for (position, segment) in path.iter().enumerate() {
-        if *segment != StructuralPathSegment::Referent {
-            continue;
-        }
-        let (reference, byte_offset, region_elements) =
-            runtime_projection(root, &path[segment_start..position], declarations)?;
-        let referent = declared_referent(declarations, reference)?;
-        // Bound the pointer word in its carrier region, not in its referent.
-        // After the load, all following offsets and bounds start afresh.
-        let scalar_descriptor = scalar_storage_type(referent, declarations).is_some();
-        if shape(reference, declarations)?
-            != ValueShape::integer(if scalar_descriptor { 16 } else { 8 }, 8)
-            || u64::from(byte_offset)
-                .checked_add(runtime_reach(&region_elements)?)?
-                .checked_add(if scalar_descriptor { 16 } else { 8 })?
-                > u64::from(shape(root, declarations)?.byte_size)
-        {
-            return None;
-        }
-        let first_index = elements.len();
-        elements.extend(region_elements);
-        pointer_slots.push(PointerSlot {
-            byte_offset,
-            indices: first_index..elements.len(),
-            scalar_descriptor,
-        });
-        root = referent;
-        segment_start = position + 1;
-    }
-    let (byte_offset, byte_size, leaf_elements) =
-        endpoint(root, &path[segment_start..], scalar, declarations)?;
+    let regions = storage_projection_regions(
+        root,
+        path,
+        declarations,
+        StructuralFieldType::canonical_leaf_shape,
+    )?;
+    let (byte_offset, byte_size, leaf_elements) = endpoint(
+        regions.root,
+        &path[regions.segment_start..],
+        scalar,
+        declarations,
+    )?;
+    let mut elements = regions.elements;
     elements.extend(leaf_elements);
     Some(PrimitiveAccessGeometry {
         byte_offset,
         byte_size,
         elements,
-        pointer_slots,
+        pointer_slots: regions.pointer_slots,
     })
 }
 

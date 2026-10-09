@@ -30,8 +30,13 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
                 LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
                 | LegalizedScalarInstructionKind::ElementViewLength { source, .. }
                 | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
-                | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. } =>
+                | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. }
+                | LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
+                | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. }
+                | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead { source, .. } =>
                     source.place == place && !source.path.is_empty(),
+                LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path, .. } =>
+                    *source == place && !path.is_empty(),
                 // Scalar observations can use the retained view coordinates.
                 // Capturing or copying its value needs the address/length
                 // descriptor itself, independent of how the view was formed.
