@@ -44,6 +44,25 @@ mod structural;
 mod structural_case;
 mod unit_call;
 
+/// The block whose instruction rows name `operation` — each argument
+/// consumer used to re-walk `source.blocks` for the same find.
+pub(super) fn block_containing_operation(
+    source: &LegalizedScalarFunction,
+    operation: semantic_vocabulary::OperationId,
+) -> Result<semantic_vocabulary::BlockId, SelectedInstructionError> {
+    source
+        .blocks
+        .iter()
+        .find(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|row| row.operation == operation)
+        })
+        .map(|block| block.id)
+        .ok_or_else(SelectedInstructionError::custody)
+}
+
 /// Select one legalized function. A shape refusal raised anywhere beneath is
 /// attributed here to the function's machine and to the instruction being
 /// selected at the time, so a diagnostic names the operation without a

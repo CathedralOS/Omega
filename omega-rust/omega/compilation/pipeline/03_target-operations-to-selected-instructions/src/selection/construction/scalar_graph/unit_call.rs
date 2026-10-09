@@ -166,17 +166,8 @@ pub(super) fn retain_result(
                 byte_size: placement.shape.byte_size,
                 alignment: placement.shape.alignment,
             });
-        let block = source
-            .blocks
-            .iter()
-            .find(|block| {
-                block
-                    .instructions
-                    .iter()
-                    .any(|row| row.operation == operation.operation)
-            })
-            .ok_or_else(|| SelectedInstructionError::custody())?
-            .id;
+        let block =
+        super::block_containing_operation(source, operation.operation)?;
         let pointer = super::structural_case::register(builder, result.place, 0, 64, false)?;
         super::structural_case::memory(
             builder,

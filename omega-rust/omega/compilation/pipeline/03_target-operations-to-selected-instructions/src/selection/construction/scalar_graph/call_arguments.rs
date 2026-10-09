@@ -169,17 +169,8 @@ pub(super) fn structural_argument(
             target,
             indices,
         )?;
-        let block = source
-            .blocks
-            .iter()
-            .find(|block| {
-                block
-                    .instructions
-                    .iter()
-                    .any(|row| row.operation == operation.operation)
-            })
-            .ok_or_else(|| SelectedInstructionError::custody())?
-            .id;
+        let block =
+        super::block_containing_operation(source, operation.operation)?;
         return super::aggregate_argument::transport(
             operation,
             argument_index,
