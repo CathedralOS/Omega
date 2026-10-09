@@ -392,6 +392,15 @@ pub(crate) fn build_check_facts(
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
+    validation::admit_specification_calls(
+        program,
+        &validation_facts.specification_calls,
+        &|machine| {
+            termination
+                .for_machine(machine)
+                .map(|plan| plan.checked_summary.clone())
+        },
+    )?;
     let mut fact_call_projections = Vec::new();
     for call in &validation_facts.integer_embedding_calls {
         let exact_source = matches!(program.expression_table.expression(call.call_expression),

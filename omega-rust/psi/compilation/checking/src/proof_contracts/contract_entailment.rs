@@ -147,7 +147,9 @@ pub use scoped_arithmetic::{
     scoped_arithmetic_comparisons_unsatisfiable, scoped_arithmetic_implication,
     scoped_arithmetic_values_relation,
 };
-pub(crate) use specification_calls::validate_specification_call_requirements;
+pub(crate) use specification_calls::{
+    SelectedCallContract, selected_call_contract, validate_specification_call_requirements,
+};
 pub use strict_arithmetic::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,

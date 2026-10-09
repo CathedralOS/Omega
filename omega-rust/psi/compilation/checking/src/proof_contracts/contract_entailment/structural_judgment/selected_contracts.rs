@@ -78,21 +78,12 @@ impl StructuralJudge<'_> {
         }
         let declared_result = match owner {
             SelectedCallContract::Concrete(machine, state) => {
-                if !independent_callee(program, self.machine_symbol, machine.symbol)
-                    || !crate::machine_calls::denotational_calls::unconditionally_terminates(
-                        program,
-                        machine.symbol,
-                    )
-                {
+                if !independent_callee(program, self.machine_symbol, machine.symbol) {
                     return None;
                 }
                 let plans = crate::operand_call_plans(program, None);
-                if !crate::machine_calls::denotational_calls::has_pure_effect_closure(
-                    program, machine.symbol, state.symbol, false, &plans.0, &plans.1,
-                ) || !crate::machine_calls::denotational_calls::has_observation_free_checked_closure(
-                    program, machine.symbol, &plans.0,
-                ) || !crate::machine_calls::denotational_calls::has_no_crash_routes(
-                    program, machine.symbol, &plans.0,
+                if !crate::machine_calls::denotational_calls::has_checked_value_call_candidate(
+                    program, machine, state, &plans.0, &plans.1,
                 ) {
                     return None;
                 }

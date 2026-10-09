@@ -96,6 +96,8 @@ pub struct ProgramValidationFacts {
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
     pub fact_call_projections: Vec<fact_call_projections::ValidatedFactCallProjection>,
+    pub specification_calls:
+        Vec<crate::machine_calls::denotational_calls::SpecificationCallRequest>,
     pub integer_embedding_calls: Vec<ValidatedIntegerEmbeddingCall>,
     /// Canonical proof-only call SCCs accepted by the structural-subterm
     /// validator. Every exact internal call site retains its own witness.
@@ -237,6 +239,16 @@ fn validate(
     );
     let fact_call_projections = if effect_admission == EffectAdmission::Complete {
         fact_call_projections::validate_fact_call_projections(program, &mut diagnostics)
+    } else {
+        Vec::new()
+    };
+    let specification_calls = if effect_admission == EffectAdmission::Complete {
+        crate::machine_calls::denotational_calls::validate_specification_calls(
+            program,
+            &conformance_operational,
+            &conformance_service_reaches,
+            &mut diagnostics,
+        )
     } else {
         Vec::new()
     };
@@ -735,6 +747,7 @@ fn validate(
             float_meaning_projection_invocations,
             float_meaning_equality_propositions,
             fact_call_projections,
+            specification_calls,
             integer_embedding_calls,
             proof_recursive_components,
             proven_machine_contracts,
@@ -793,6 +806,13 @@ pub fn admit_prepared_program_effects(
         proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics);
     facts.fact_call_projections =
         fact_call_projections::validate_fact_call_projections(program, &mut diagnostics);
+    facts.specification_calls =
+        crate::machine_calls::denotational_calls::validate_specification_calls(
+            program,
+            operational,
+            &service_reaches,
+            &mut diagnostics,
+        );
     if let Err(mut errors) = crate::validate_behavior_plan(program, operational) {
         diagnostics.append(&mut errors);
     }

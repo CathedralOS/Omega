@@ -161,7 +161,7 @@ pub use crate::machine_calls::calls::{
     state_reference_parameter_binding_is_stable,
 };
 pub use crate::machine_calls::denotational_calls::{
-    expression_values_have_call_identity, normal_return_call_candidate,
+    admit_specification_calls, expression_values_have_call_identity, normal_return_call_candidate,
 };
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases_with_bound_lookup;

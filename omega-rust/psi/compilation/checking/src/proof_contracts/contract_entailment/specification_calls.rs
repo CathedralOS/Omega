@@ -223,13 +223,13 @@ fn validate_expression(
 /// the private rewrite, not the contract owner) or by direct signature-symbol
 /// citation in a proof term.
 #[derive(Clone, Copy)]
-pub(super) enum SelectedCallContract<'program> {
+pub(crate) enum SelectedCallContract<'program> {
     Concrete(&'program Machine, &'program State),
     Signature(&'program StateSignature),
     Operator(&'program typed_trees::operator::OperatorDefinition),
 }
 
-pub(super) fn selected_call_contract<'program>(
+pub(crate) fn selected_call_contract<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<SelectedCallContract<'program>> {

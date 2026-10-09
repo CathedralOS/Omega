@@ -11,8 +11,36 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod normal_return;
+mod specification;
 pub use normal_return::normal_return_call_candidate;
 pub(crate) use normal_return::plain_value_call_target;
+pub(crate) use specification::validate_specification_calls;
+pub use specification::{SpecificationCallRequest, admit_specification_calls};
+
+/// A concrete value application's operational eligibility, before its checked
+/// termination summary exists. Specification formation retains the exact call
+/// request and completes that obligation with the same checking invocation's
+/// termination facts; conditional runtime result capture has a different owner.
+pub(crate) fn has_checked_value_call_candidate(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    operational: &flow_effects::OperationalPlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+) -> bool {
+    has_pure_effect_closure(
+        program,
+        machine.symbol,
+        state.symbol,
+        program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_mutable),
+        operational,
+        service_reaches,
+    ) && has_observation_free_checked_closure(program, machine.symbol, operational)
+        && has_no_crash_routes(program, machine.symbol, operational)
+}
 
 /// Whether every call inside this expression denotes one value per spelling,
 /// so two equal terms name one observation. A call that is neither a
