@@ -608,8 +608,7 @@ pub(super) fn callee_plan(
                 .is_some_and(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned
                     && crate::structural_inputs::structural_reference_input::parameter_shape(parameter, &plan.structural_types) == Some(placement.shape)
                     && (placement.locations.iter().all(|location| matches!(location,
-                        ValueLocation::Register { byte_size: 1..=8, .. }
-                        | ValueLocation::Stack { byte_size: 1..=8, .. }))
+                        calling_conventions::register_or_stack_pair_pattern!(byte_size:1..=8, ..)))
                         || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(parameter, placement).is_some()))
             || scalar_stack(placement)
             || crate::structural_inputs::structural_reference_input::stack_pointer_offset(placement).is_some()

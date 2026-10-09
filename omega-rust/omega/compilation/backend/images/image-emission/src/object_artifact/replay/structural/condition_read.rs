@@ -67,16 +67,7 @@ pub(crate) fn replay_x86_boolean_structural_read(
         x86_replay_memory_load(&mut bytes, 0, base, field_byte_offset);
     } else {
         let location = placement.locations.iter().find(|location| match location {
-            ValueLocation::Register {
-                value_byte_offset,
-                byte_size,
-                ..
-            }
-            | ValueLocation::Stack {
-                value_byte_offset,
-                byte_size,
-                ..
-            } => {
+            calling_conventions::register_or_stack_pair_pattern!(value_byte_offset,byte_size, ..) => {
                 let start = *value_byte_offset;
                 field_byte_offset >= start && field_byte_offset < start + (*byte_size)
             }
@@ -146,16 +137,7 @@ pub(crate) fn replay_aarch64_boolean_structural_read(
         instructions.push(aarch64_replay_memory_load(0, base, field_byte_offset)?);
     } else {
         let location = placement.locations.iter().find(|location| match location {
-            ValueLocation::Register {
-                value_byte_offset,
-                byte_size,
-                ..
-            }
-            | ValueLocation::Stack {
-                value_byte_offset,
-                byte_size,
-                ..
-            } => {
+            calling_conventions::register_or_stack_pair_pattern!(value_byte_offset,byte_size, ..) => {
                 let start = *value_byte_offset;
                 field_byte_offset >= start && field_byte_offset < start + (*byte_size)
             }

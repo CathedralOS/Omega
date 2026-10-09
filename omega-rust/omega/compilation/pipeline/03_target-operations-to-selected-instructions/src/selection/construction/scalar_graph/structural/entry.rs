@@ -293,16 +293,7 @@ fn retain_owned_home(
     )?;
     for location in &parameter.target.placement.locations {
         let (offset, width) = match location {
-            ValueLocation::Register {
-                value_byte_offset,
-                byte_size,
-                ..
-            }
-            | ValueLocation::Stack {
-                value_byte_offset,
-                byte_size,
-                ..
-            } => ((*value_byte_offset), *byte_size),
+            calling_conventions::register_or_stack_pair_pattern!(value_byte_offset,byte_size, ..) => ((*value_byte_offset), *byte_size),
             _ => return Err(invalid()),
         };
         let value = builder

@@ -182,7 +182,7 @@ pub(super) fn inline_owned_placement(
             .locations
             .iter()
             .all(|location| matches!(location,
-                ValueLocation::Register { .. } | ValueLocation::Stack { .. })))
+                calling_conventions::register_or_stack_pair_pattern!(..))))
 }
 fn source_location(
     function: &SelectedFunction,

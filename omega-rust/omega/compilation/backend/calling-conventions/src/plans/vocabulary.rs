@@ -669,3 +669,11 @@ pub fn gpr_code(register: MachineRegister) -> Option<u8> {
         _ => None,
     }
 }
+
+#[macro_export]
+macro_rules! register_or_stack_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::ValueLocation::Register { $($fields)* }
+            | $crate::ValueLocation::Stack { $($fields)* }
+    };
+}

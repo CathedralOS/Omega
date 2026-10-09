@@ -134,16 +134,7 @@ pub(super) fn expected_owned_projected_copy_bytes(
         let mut copied = 0_u32;
         for destination in &argument.destination.locations {
             let (offset, width) = match destination {
-                ValueLocation::Register {
-                    value_byte_offset,
-                    byte_size,
-                    ..
-                }
-                | ValueLocation::Stack {
-                    value_byte_offset,
-                    byte_size,
-                    ..
-                } => (*value_byte_offset, *byte_size),
+                calling_conventions::register_or_stack_pair_pattern!(value_byte_offset,byte_size, ..) => (*value_byte_offset, *byte_size),
                 ValueLocation::Indirect { .. } => return None,
             };
             if offset != copied || !(1..=8).contains(&width) {

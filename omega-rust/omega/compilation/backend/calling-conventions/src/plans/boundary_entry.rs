@@ -226,12 +226,7 @@ fn canonicalize_boundary_entry_plan(plan: &mut BoundaryEntryPlan) {
 
 fn value_location_byte_offset(location: &ValueLocation) -> u32 {
     match location {
-        ValueLocation::Register {
-            value_byte_offset, ..
-        }
-        | ValueLocation::Stack {
-            value_byte_offset, ..
-        } => *value_byte_offset,
+        crate::register_or_stack_pair_pattern!(value_byte_offset, ..) => *value_byte_offset,
         ValueLocation::Indirect { .. } => 0,
     }
 }
