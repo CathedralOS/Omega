@@ -9,7 +9,7 @@ use crate::proof_contracts::arithmetic_domains::range_constraints::range_constra
 use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
