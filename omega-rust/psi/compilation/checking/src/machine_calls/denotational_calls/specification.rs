@@ -189,10 +189,22 @@ pub fn admit_specification_calls(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     for request in requests {
-        if !termination.unconditionally_terminates(request.target_machine) {
+        let summary = termination.checked_termination(request.target_machine);
+        if !matches!(
+            &summary,
+            Some(language_semantics::TerminationGuarantee::Terminates { premises })
+                if premises.is_empty()
+        ) {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "DENOTATION termination request={request:?} machine={} summary={summary:?} expression={:?}",
+                    program.symbols.name(request.target_machine),
+                    program.expression_table.expression(request.call_expression),
+                );
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "specification call `{}` is not denotational: the selected machine is not unconditionally terminating",
-                program.symbols.name(request.target_state),
+                program.symbols.name(request.target_machine),
             )));
         }
     }
