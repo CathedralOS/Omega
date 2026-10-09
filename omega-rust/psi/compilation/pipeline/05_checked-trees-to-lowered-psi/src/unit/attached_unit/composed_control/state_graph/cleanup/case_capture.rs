@@ -128,12 +128,7 @@ fn remove_discard(terminator: &mut Terminator, source: PlaceId) {
         Terminator::Jump {
             cleanup_actions, ..
         }
-        | Terminator::Return {
-            cleanup_actions, ..
-        }
-        | Terminator::ReturnStructural {
-            cleanup_actions, ..
-        }
+        | terminal_psi::return_or_return_structural_pattern!(cleanup_actions, ..)
         | Terminator::ReturnUnit {
             cleanup_actions, ..
         } => retain(cleanup_actions),

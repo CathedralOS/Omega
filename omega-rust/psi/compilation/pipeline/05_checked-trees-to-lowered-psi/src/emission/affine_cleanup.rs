@@ -279,12 +279,7 @@ fn complete_carriers(
                 }
                 cases.iter().map(|edge| edge.target).collect()
             }
-            Terminator::Return {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnStructural {
-                cleanup_actions, ..
-            }
+            terminal_psi::return_or_return_structural_pattern!(cleanup_actions, ..)
             | Terminator::ReturnUnit {
                 cleanup_actions, ..
             } if cleanup_actions
@@ -443,12 +438,7 @@ fn complete_carriers(
                     );
                 }
             }
-            Terminator::Return {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnStructural {
-                cleanup_actions, ..
-            }
+            terminal_psi::return_or_return_structural_pattern!(cleanup_actions, ..)
             | Terminator::ReturnUnit {
                 cleanup_actions, ..
             } => {
@@ -623,12 +613,7 @@ fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::Place
                 _ => None,
             })
             .collect(),
-        Terminator::Return {
-            cleanup_actions, ..
-        }
-        | Terminator::ReturnStructural {
-            cleanup_actions, ..
-        }
+        terminal_psi::return_or_return_structural_pattern!(cleanup_actions, ..)
         | Terminator::ReturnUnit {
             cleanup_actions, ..
         } => cleanup_actions

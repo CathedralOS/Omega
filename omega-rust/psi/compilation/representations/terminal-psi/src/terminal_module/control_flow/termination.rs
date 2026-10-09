@@ -388,3 +388,11 @@ macro_rules! terminator_return_pair_pattern {
             | $crate::Terminator::ReturnUnit { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! return_or_return_structural_pattern {
+    ($($fields:tt)*) => {
+        $crate::Terminator::Return { $($fields)* }
+            | $crate::Terminator::ReturnStructural { $($fields)* }
+    };
+}
