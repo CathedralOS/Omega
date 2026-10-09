@@ -58,9 +58,10 @@ pub use selected_form_encoding::system_call::{
 mod semantic_unit_wrapper_encoding;
 
 pub use fma::{
-    DecodedScalarFmaFormat, decode_vfmadd132_scalar, encode_vfmadd132sd,
+    DecodedScalarFmaFormat, decode_vfmadd132_scalar};
+pub(crate) use fma::{ encode_vfmadd132sd,
     encode_vfmadd132ss};
-pub use fma::{ DecodedVfmadd132Scalar};
+pub(crate) use fma::{ DecodedVfmadd132Scalar};
 pub use frame_protocol::{ X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
     encode_system_v_amd64_frame_protocol};
 pub use ieee_float::{
@@ -77,7 +78,7 @@ pub use post_handoff_writer::{
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width};
 pub use preservation_storage::{ x86_64_preservation_storage_catalog};
-pub use preservation_storage::{
+pub(crate) use preservation_storage::{
     X86_64PreservationStorageCatalogError};
 pub use register_model::X86_64_HOSTED_WRITE_BYTE_I32;
 pub use register_model::x86_64_microsoft_normalized_foreign_call_keys;
@@ -132,7 +133,7 @@ pub use selected_form_encoding::{
     validate_x86_64_selected_scalar_call_template,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form};
-pub use selected_form_encoding::{ ValidatedX86_64SelectedNormalizedForeignCallTemplate,
+pub(crate) use selected_form_encoding::{ ValidatedX86_64SelectedNormalizedForeignCallTemplate,
     ValidatedX86_64SelectedScalarCallTemplate, X86_64SelectedFormFootprint};
 pub use selected_form_encoding::{
     encode_x86_64_selected_hosted_write_byte_form, validate_x86_64_selected_hosted_write_byte_form};
@@ -146,7 +147,7 @@ pub use semantic_unit_wrapper_encoding::{ ValidatedX86_64SemanticUnitWrapperTemp
     canonical_x86_64_semantic_unit_wrapper_encoding_request_for_receiver,
     encode_x86_64_semantic_unit_wrapper_template,
     resolve_x86_64_semantic_unit_wrapper_private_continuation, validate_x86_64_semantic_unit_wrapper_template};
-pub use semantic_unit_wrapper_encoding::{
+pub(crate) use semantic_unit_wrapper_encoding::{
     ValidatedX86_64ResolvedSemanticUnitWrapper, X86_64SemanticUnitWrapperRelocation, X86_64SemanticUnitWrapperResolution};
 
 pub use hosted_kernel::{

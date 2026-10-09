@@ -25,7 +25,7 @@ pub struct DecodedVfmadd132Scalar {
 /// The architectural result is the one-rounding binary32 operation
 /// `destination * multiplicand + addend`. All three operands must be legacy
 /// VEX-addressable XMM0..XMM15 registers.
-pub fn encode_vfmadd132ss(
+pub(crate) fn encode_vfmadd132ss(
     destination: MachineRegister,
     addend: MachineRegister,
     multiplicand: MachineRegister,
@@ -38,7 +38,7 @@ pub fn encode_vfmadd132ss(
 /// The architectural result is the one-rounding binary64 operation
 /// `destination * multiplicand + addend`. All three operands must be legacy
 /// VEX-addressable XMM0..XMM15 registers.
-pub fn encode_vfmadd132sd(
+pub(crate) fn encode_vfmadd132sd(
     destination: MachineRegister,
     addend: MachineRegister,
     multiplicand: MachineRegister,
