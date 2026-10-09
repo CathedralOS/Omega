@@ -15,9 +15,6 @@ pub(crate) const FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG: [FunctionRelativeLayoutR
         Architecture::X86_64,
     )];
 
-pub(crate) const ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES: [Optimization; 1] =
-    [FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG[0].optimization()];
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeLayoutCatalogError {
     WrongPhase(OptimizationPhaseMismatch),
@@ -62,8 +59,7 @@ pub(crate) fn x86_rel8_selected(
 mod tests {
     use super::{
         Architecture, FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
-        ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES, Optimization, OptimizationExecutionPhase,
-        x86_rel8_selected,
+        Optimization, OptimizationExecutionPhase, x86_rel8_selected,
     };
     use optimization_core::OptimizationSelections;
 
@@ -75,14 +71,12 @@ mod tests {
                 optimization.execution_phase() == OptimizationExecutionPhase::FunctionRelativeLayout
             })
             .collect::<Vec<_>>();
-        assert_eq!(declared, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES);
-        let selections =
-            OptimizationSelections::new(ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES).unwrap();
-        let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-        assert_eq!(
+        assert_eq!(declared, FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG.map(|entry| entry.optimization()));
+        let selections = OptimizationSelections::new(
             FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG.map(|entry| entry.optimization()),
-            ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES,
-        );
+        )
+        .unwrap();
+        let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
         assert_eq!(x86_rel8_selected(&phase, Architecture::X86_64), Ok(true));
         assert_eq!(
             x86_rel8_selected(&phase, Architecture::Aarch64),

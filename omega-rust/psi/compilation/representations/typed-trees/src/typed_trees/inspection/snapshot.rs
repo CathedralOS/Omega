@@ -248,10 +248,6 @@ pub(crate) fn source_span_snapshot(span: &source::SourceSpan) -> SourceSpanSnaps
     }
 }
 
-fn hex_digest(digest: &[u8; 32]) -> String {
-    digest.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
 /// One interned boundary-service identity with its normalized parent closure.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ServiceReachDefinitionSnapshot {

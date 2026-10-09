@@ -4,18 +4,6 @@ use target::{Architecture, ObjectFormat};
 
 use crate::{FunctionLiveness, LivenessIdentity, LivenessPlan};
 
-/// The identity of a complete liveness plan: its roots and the ordered digests
-/// of its functions (`liveness_function_digest`). Hashing per function lets a
-/// producer that carries a function over unchanged carry its digest too, which
-/// runtime-spill recovery does after every rewrite.
-pub(crate) fn liveness_identity(plan: &LivenessPlan) -> LivenessIdentity {
-    let digests = plan
-        .functions
-        .iter()
-        .map(|function| liveness_function_digest(function))
-        .collect::<Vec<_>>();
-    liveness_identity_from_digests(plan, &digests)
-}
 
 /// `liveness_identity` from the digests of `plan.functions`, in order.
 pub fn liveness_identity_from_digests(
@@ -150,85 +138,4 @@ fn encode_len(bytes: &mut Vec<u8>, length: usize) {
             .expect("canonical liveness collection length fits u64")
             .to_le_bytes(),
     );
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::{LivenessPlan, liveness_identity};
-    use crate::{BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessPosition};
-    use crate::{SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity};
-    use optimization_core::OptimizationUnitIdentity;
-    use register_model::RegisterUnitId;
-    use semantic_vocabulary::{BlockId, FuelScheduleIdentity, MachineId};
-
-    fn function(machine: u64, unit: u16) -> FunctionLiveness {
-        FunctionLiveness {
-            machine: MachineId::new(machine).unwrap(),
-            entry_definitions: Vec::new(),
-            operand_positions: Vec::new(),
-            blocks: vec![BlockLiveness {
-                block: SelectedBlockId(0),
-                source_block: BlockId::new(machine).unwrap(),
-                virtual_live_in: Vec::new(),
-                virtual_live_out: Vec::new(),
-                unit_live_in: vec![RegisterUnitId(unit)],
-                unit_live_out: Vec::new(),
-                instructions: vec![InstructionLiveness {
-                    position: LivenessPosition(0),
-                    instruction: SelectedInstructionId(0),
-                    virtual_uses: Vec::new(),
-                    virtual_defs: Vec::new(),
-                    virtual_live_in: Vec::new(),
-                    virtual_live_out: Vec::new(),
-                    unit_uses: vec![RegisterUnitId(unit)],
-                    unit_defs: Vec::new(),
-                    unit_clobbers: Vec::new(),
-                    unit_live_in: vec![RegisterUnitId(unit)],
-                    unit_live_out: Vec::new(),
-                }],
-                successors: Vec::new(),
-            }],
-        }
-    }
-
-    fn plan() -> LivenessPlan {
-        LivenessPlan {
-            selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
-            optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
-            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
-            target: target::NativeTarget::linux_x64(),
-            functions: vec![function(1, 1).into(), function(2, 2).into()],
-        }
-    }
-
-    #[test]
-    fn v9_identity_binds_function_roster_order_machine_instruction_and_units() {
-        let plan = plan();
-        let identity = liveness_identity(&plan);
-        assert_eq!(identity, liveness_identity(&plan));
-
-        let mut corrupted = plan.clone();
-        corrupted.functions.pop();
-        assert_ne!(identity, liveness_identity(&corrupted));
-
-        let mut corrupted = plan.clone();
-        corrupted.functions.swap(0, 1);
-        assert_ne!(identity, liveness_identity(&corrupted));
-
-        let mut corrupted = plan.clone();
-        Arc::make_mut(&mut corrupted.functions[0]).machine = MachineId::new(3).unwrap();
-        assert_ne!(identity, liveness_identity(&corrupted));
-
-        let mut corrupted = plan.clone();
-        Arc::make_mut(&mut corrupted.functions[0]).blocks[0].instructions[0].instruction =
-            SelectedInstructionId(1);
-        assert_ne!(identity, liveness_identity(&corrupted));
-
-        let mut corrupted = plan.clone();
-        Arc::make_mut(&mut corrupted.functions[0]).blocks[0].instructions[0].unit_uses[0] =
-            RegisterUnitId(3);
-        assert_ne!(identity, liveness_identity(&corrupted));
-    }
 }
