@@ -13,14 +13,20 @@ use omega_language_std::process_exit;
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::windows_filesystem_host;
 use wav_output::wav_output;
+use audio_playback::audio_playback;
 use omega_language_std::console;
+use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
     out: Binding<WavOutput>;
+    play: Binding<AudioPlayback>;
     exit: Binding<ProcessExit>;
     n: i64;
+    rc: i32;
+    magnitude: i64;
+    digit: i32;
     buffer: [u8; 16044];
     i: i32 in Wrapping;      // sample index 0..16000
     note: i32 in Wrapping;   // note index 0..7
@@ -30,7 +36,7 @@ data Main {
     byte: u8;
 }
 
-machine Main::main(main: &mut Main) reaches Console + WavOutput + PosixFilesystemHost + WindowsFilesystemHost + ProcessExit {
+machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback + PosixFilesystemHost + WindowsFilesystemHost + ProcessExit {
     main.console.write_line("scale_melody: C-major scale, square wave, 8-bit unsigned mono PCM at 8000 Hz, 2 s");
 
     // Canonical 44-byte WAV header, little-endian fields.
@@ -124,14 +130,49 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + PosixFilesyste
 
     state write_file(main: &mut Main) {
         main.n = main.out.write_wav("scale_melody.wav", &main.buffer);
-        transition main.n == 16044 { true -> good(main) _ -> bad(main) }
+        transition main.n == 16044 { true -> play_it(main) _ -> bad(main) }
+    }
+    state play_it(main: &mut Main) {
+        main.rc = block main.play.play(&main.buffer[0], 16044, &main.buffer[44], 16000);
+        transition main.rc == 0 { true -> good(main) _ -> play_failed(main) }
     }
     state good(main: &mut Main) {
         main.console.write_line("scale_melody: wrote scale_melody.wav (16000 frames)");
+        main.console.write_line("scale_melody: played scale_melody.wav");
         main.exit.exit_process(0);
     }
     state bad(main: &mut Main) {
         main.console.write_line("scale_melody: write failed");
         main.exit.exit_process(1);
+    }
+    state play_failed(main: &mut Main) {
+        main.console.write("scale_melody: playback failed (-");
+        main.magnitude = 0 - widen_i32_to_i64(main.rc);
+        transition main.magnitude >= 100 { true -> hundreds(main) _ -> tens(main) }
+    }
+    state hundreds(main: &mut Main) {
+        main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 100);
+        main.console.write_byte(main.digit);
+        main.magnitude = main.magnitude % 100;
+        transition { _ -> tens_after_hundreds(main) }
+    }
+    state tens_after_hundreds(main: &mut Main) {
+        main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
+        main.console.write_byte(main.digit);
+        transition { _ -> ones(main) }
+    }
+    state tens(main: &mut Main) {
+        transition main.magnitude >= 10 { true -> tens_print(main) _ -> ones(main) }
+    }
+    state tens_print(main: &mut Main) {
+        main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
+        main.console.write_byte(main.digit);
+        transition { _ -> ones(main) }
+    }
+    state ones(main: &mut Main) {
+        main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude % 10);
+        main.console.write_byte(main.digit);
+        main.console.write_line(")");
+        main.exit.exit_process(2);
     }
 }

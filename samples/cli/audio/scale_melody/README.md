@@ -9,6 +9,13 @@ the current directory. `WavOutput` is satisfied per target over the raw
 filesystem family: `PosixFilesystemHost` on linux/macOS,
 `WindowsFilesystemHost` (CreateFileW) on windows_x86_64.
 
+After the WAV is written the program plays it on the host speaker through
+the portable `AudioPlayback` binding in `../audio_playback`, which blocks
+until playback finishes: winmm `PlaySoundW` (`SND_MEMORY|SND_NODEFAULT`) on
+windows_x86_64, ALSA (`snd_pcm_*` via `libasound.so.2`) on linux_x86_64 and
+linux_arm64. macOS has no CoreAudio provider yet — the WAV is still written
+and playback reports a failure there.
+
 Run from this directory on Windows, Linux, or macOS:
 
 ```sh
@@ -20,8 +27,8 @@ omega run main.omg
 kept `build dir`/`omega-program` binary from this directory on that platform
 (e.g. `omega run --target linux_x86_64 --keep main.omg` on Windows, then run
 the ELF under WSL).
-Expected exit: `0` after printing `wrote scale_melody.wav`; `1` on a write
-error. Verify with `python ../verify_wav.py scale_melody.wav --blocks=2000`
+Expected exit: `0` after printing `played scale_melody.wav`; `1` on a write
+error, `2` on a playback failure (the WAV is still written). Verify with `python ../verify_wav.py scale_melody.wav --blocks=2000`
 — expect `channels=1 sampwidth=1 rate=8000 frames=16000` and eight
 estimates near 8000/31, 8000/27, 8000/24, 8000/23, 8000/20, 8000/18,
 8000/16, 8000/15 Hz. Any media player opens the WAV directly.

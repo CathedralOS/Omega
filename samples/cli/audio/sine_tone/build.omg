@@ -8,6 +8,9 @@ machine build(builder: &mut Build) {
     Build::depend(builder, Source::Path {
         location: "../wav_output"
     });
+    Build::depend(builder, Source::Path {
+        location: "../audio_playback"
+    });
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
