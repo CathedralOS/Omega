@@ -138,31 +138,34 @@ pub use final_image::{
     FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
     FinalExecutableTextDigest, FinalImage, FinalImageImport, FinalImageImportPlan,
     FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
-    FinalImageSection, FinalImageSymbol, FinalImageSymbolDigest, FinalImageSymbolHandle,
-    FinalImageSymbolTable, FinalInitializedDataDigest, PlacedDataGap, PlacedDataGapBytesDigest,
-    PlacedDataRegion, PlacedDataRegionBytesDigest, PlacedDataRegionInventory,
-    PlacedDataRegionInventoryDigest, PlacedExecutableGap, PlacedExecutableGapBytesDigest,
+    FinalImageSection, FinalImageSymbol, FinalImageSymbolDigest, FinalImageSymbolHandle, FinalInitializedDataDigest, PlacedDataGapBytesDigest, PlacedDataRegionBytesDigest, PlacedDataRegionInventory,
+    PlacedDataRegionInventoryDigest, PlacedExecutableGapBytesDigest,
     PlacedExecutableRegion, PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
-    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest,
-    bind_compiler_entry_footprint, final_image_symbol_digest, place_data_extent,
+    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, final_image_symbol_digest, place_data_extent,
     place_data_regions, place_executable_regions, validate_placed_data_region_inventory,
     validate_placed_executable_region_inventory,
 };
-pub use footprint_certificate::{
-    FINAL_FOOTPRINT_CERTIFICATE_MARKER, FinalFootprintCertificate, FinalFootprintCertificateDigest,
-    FinalFootprintClass, FinalFootprintCoverage, FinalFootprintCoverageDigest,
+pub(crate) use final_image::{
+    FinalImageSymbolTable, PlacedDataGap,
+    PlacedDataRegion, PlacedExecutableGap,
+    bind_compiler_entry_footprint};
+pub use footprint_certificate::{ FinalFootprintCertificateDigest, FinalFootprintCoverageDigest,
     FinalFootprintPlacementBindingDigest,
 };
-pub use function_linkage::validate_final_image_function_linkage;
+pub(crate) use footprint_certificate::{
+    FINAL_FOOTPRINT_CERTIFICATE_MARKER, FinalFootprintCertificate,
+    FinalFootprintClass, FinalFootprintCoverage};
+pub(crate) use function_linkage::validate_final_image_function_linkage;
 pub use output::{
-    CompilerEntryFootprintBindingDigest, CompilerEntryFootprintBindingEvidence,
-    CompilerEntryRegionBindingDigest, CompilerEntryRegionBindingEvidence,
+    CompilerEntryFootprintBindingDigest,
+    CompilerEntryRegionBindingDigest,
     CompilerFunctionValidationDigest, CompilerFunctionValidationEvidence,
     CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
     CompilerTextValidationEvidence, EmittedImageOutput, EncodedCompilerTextDigest,
     ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
     emitted_direct_executable_output,
 };
+pub(crate) use output::{ CompilerEntryFootprintBindingEvidence, CompilerEntryRegionBindingEvidence};
 pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use symbols::{
     final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address, final_image_symbol_name,

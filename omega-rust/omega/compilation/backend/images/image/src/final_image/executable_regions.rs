@@ -365,7 +365,7 @@ pub(crate) fn validate_placed_executable_region_inventory_digest(
 /// The association is part of the typed inventory and its strong digest,
 /// rather than a presentation-only annotation added while serializing an
 /// artifact. Compact coordinates remain report compatibility only.
-pub fn bind_compiler_entry_footprint(
+pub(crate) fn bind_compiler_entry_footprint(
     inventory: &mut PlacedExecutableRegionInventory,
     binding: &crate::CompilerEntryRegionBindingEvidence,
     final_region_binding_report_fingerprint: u64,
@@ -577,7 +577,7 @@ pub(crate) fn state_footprint_evidence_digest(
     StateFootprintEvidenceDigest::from_digest(digest.finalize().into())
 }
 
-pub fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
+pub(crate) fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(domain);
     digest.update((bytes.len() as u64).to_le_bytes());

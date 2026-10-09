@@ -32,7 +32,7 @@ use symbols::SymbolHandle;
 /// Activation-creation evidence: which checked start operation and exact
 /// specialization produced one activation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompositionActivationCreation {
+pub(crate) struct CompositionActivationCreation {
     /// The ordinary `TaskRuntime` operation that requested the activation.
     pub operation: TaskStartOperation,
     /// The checked start requirement the operation satisfied.
@@ -50,7 +50,7 @@ pub struct CompositionActivationCreation {
 /// Every normalized resource identity one activation binds: its contract,
 /// entry, argument and outcome layouts, calling plan and stack evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompositionResourceIdentities {
+pub(crate) struct CompositionResourceIdentities {
     pub machine_contract: MachineContractId,
     pub entry: MachineEntryId,
     pub argument_layout: ValueLayoutId,
@@ -69,7 +69,7 @@ pub struct CompositionResourceIdentities {
 /// activation resuming on a different CPU or thread is a different event
 /// than the parked continuation bargained for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CompositionWaitWakeEdge {
+pub(crate) struct CompositionWaitWakeEdge {
     pub crossing: SuspensionCrossingId,
     pub preserve_cpu: bool,
     pub preserve_host_thread: bool,
@@ -77,7 +77,7 @@ pub struct CompositionWaitWakeEdge {
 
 /// One activation's row in the composition model.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompositionActivation {
+pub(crate) struct CompositionActivation {
     /// Stable identity of the whole validated activation plan.
     pub plan: ActivationPlanId,
     pub creation: CompositionActivationCreation,
@@ -103,7 +103,7 @@ pub struct CompositionActivation {
 /// explicitly instead of publishing an empty set that a proof machine could
 /// mistake for "all activations unprioritized".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompositionPriorities {
+pub(crate) enum CompositionPriorities {
     /// The composition carries no retained priority evidence.
     NotRetained,
 }
@@ -115,7 +115,7 @@ pub enum CompositionPriorities {
 /// crossings; no inter-activation waits-for relation is extractable yet,
 /// so the model records the absence explicitly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompositionCrossActivationEdges {
+pub(crate) enum CompositionCrossActivationEdges {
     /// No inter-activation wait/wake evidence is retained.
     NotRetained,
 }
@@ -125,7 +125,7 @@ pub enum CompositionCrossActivationEdges {
 /// `identity` commits to every retained row and to the explicit absence
 /// markers, so a fabricated or drifted model cannot share it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SealedCompositionModel {
+pub(crate) struct SealedCompositionModel {
     identity: CompositionModelId,
     /// One row per settled activation, in canonical [`ActivationPlanId`]
     /// order.
@@ -166,7 +166,7 @@ impl SealedCompositionModel {
 /// Two activations settling to the same plan identity would answer one
 /// coordinate with two rows, so the composition rejects rather than merge
 /// them.
-pub fn compose_composition_model(
+pub(crate) fn compose_composition_model(
     plan_set: &TaskActivationPlanSet,
 ) -> Result<SealedCompositionModel, TaskPlanDiagnostic> {
     let mut activations: Vec<CompositionActivation> = plan_set
@@ -230,7 +230,7 @@ pub fn compose_composition_model(
 /// Independently re-derive the composition model of `plan_set` and compare
 /// it against `presented` in full. A forged, stale or truncated model —
 /// including one whose identity matches but whose rows do not — rejects.
-pub fn replay_composition_model(
+pub(crate) fn replay_composition_model(
     plan_set: &TaskActivationPlanSet,
     presented: &SealedCompositionModel,
 ) -> Result<(), TaskPlanDiagnostic> {

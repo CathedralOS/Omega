@@ -20,7 +20,7 @@ impl Default for FinalImageMemory {
 }
 
 impl FinalImageMemory {
-    pub fn initialized_section_mut(&mut self, section: FinalImageSection) -> Option<&mut Vec<u8>> {
+    pub(crate) fn initialized_section_mut(&mut self, section: FinalImageSection) -> Option<&mut Vec<u8>> {
         match section {
             FinalImageSection::Text => Some(&mut self.text),
             FinalImageSection::Data => Some(&mut self.data),

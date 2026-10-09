@@ -19,7 +19,7 @@ use object_file::{ObjectPlan, SectionKind, SymbolKind, SymbolSection};
 
 use crate::symbols::final_image_symbol_handle;
 
-pub fn validate_final_image_function_linkage(
+pub(crate) fn validate_final_image_function_linkage(
     image: &FinalImage,
     object: &ObjectPlan,
 ) -> Result<(), Diagnostic> {

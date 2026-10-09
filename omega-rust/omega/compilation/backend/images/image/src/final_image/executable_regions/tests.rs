@@ -425,7 +425,7 @@ optimization_core::custody_field_inventory! {
     /// record against the committed final text bytes. The two retained seal
     /// fields are absent: a stale seal is itself the substitution and stays
     /// authored explicitly in the test.
-    pub enum PlacedExecutableInventoryFieldForTest {
+    pub(crate) enum PlacedExecutableInventoryFieldForTest {
         SubstitutedTextBaseAddress,
         OverflowingTextBaseAddress,
         ExtendedTextByteCount,
@@ -627,7 +627,7 @@ optimization_core::custody_field_inventory! {
     /// cannot re-derive: the honestly resealed record stays canonical at the
     /// byte join, and the substitution is exposed only by the diverging
     /// published inventory identity.
-    pub enum PlacedExecutableIdentityBoundFieldForTest {
+    pub(crate) enum PlacedExecutableIdentityBoundFieldForTest {
         CompilerFunctionRowRemarkedAsThunk,
         ImportThunkRowRemarkedAsCompilerFunction,
         SubstitutedRegionSymbol,

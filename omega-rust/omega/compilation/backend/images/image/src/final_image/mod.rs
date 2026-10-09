@@ -12,20 +12,22 @@ mod root;
 mod symbols;
 
 pub use data_regions::{
-    FinalDataRegion, FinalDataRegionOrigin, FinalInitializedDataDigest, PlacedDataGap,
-    PlacedDataGapBytesDigest, PlacedDataRegion, PlacedDataRegionBytesDigest,
+    FinalDataRegion, FinalDataRegionOrigin, FinalInitializedDataDigest,
+    PlacedDataGapBytesDigest, PlacedDataRegionBytesDigest,
     PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, place_data_extent,
     place_data_regions, validate_placed_data_region_inventory,
 };
+pub(crate) use data_regions::{ PlacedDataGap, PlacedDataRegion};
 pub(crate) use executable_regions::validate_placed_executable_region_inventory_digest;
 pub use executable_regions::{
-    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest,
-    PlacedExecutableGap, PlacedExecutableGapBytesDigest, PlacedExecutableRegion,
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest, PlacedExecutableGapBytesDigest, PlacedExecutableRegion,
     PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
-    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest,
-    bind_compiler_entry_footprint, digest_bytes, place_executable_regions,
+    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, place_executable_regions,
     validate_placed_executable_region_inventory,
 };
+pub(crate) use executable_regions::{
+    PlacedExecutableGap,
+    bind_compiler_entry_footprint, digest_bytes};
 #[cfg(test)]
 pub(crate) use executable_regions::{
     executable_inventory_digest, executable_inventory_report_fingerprint,
@@ -36,6 +38,7 @@ pub use relocations::{FinalImageRelocation, FinalImageRelocationTable};
 pub use root::FinalImage;
 pub use symbols::{
     FinalImageImport, FinalImageImportPlan, FinalImageSection, FinalImageSymbol,
-    FinalImageSymbolDigest, FinalImageSymbolHandle, FinalImageSymbolTable,
+    FinalImageSymbolDigest, FinalImageSymbolHandle,
     final_image_symbol_digest,
 };
+pub(crate) use symbols::{ FinalImageSymbolTable};
