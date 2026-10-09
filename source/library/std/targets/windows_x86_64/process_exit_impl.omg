@@ -2,6 +2,8 @@
 // syscall ABI, so the exact canonical requirement realizes through kernel32's
 // `ExitProcess` by DLL linkage, like every other Windows boundary leaf.
 use omega::language::core::external_binding;
+use omega::language::core::process_exit;
+use process_exit;
 windows_x86_64 machine process_exit_binding() -> ForeignBinding<12, 11, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {
