@@ -383,12 +383,6 @@ fn stored_integer_write_is_total(
                 (0, (1i128 << width) - 1)
             }
         };
-    let (stored_minimum, stored_maximum) = match interpretation {
-        layout_plans::IntegerInterpretation::Signed => (
-            -(1i128 << (stored_width - 1)),
-            (1i128 << (stored_width - 1)) - 1,
-        ),
-        layout_plans::IntegerInterpretation::Unsigned => (0, (1i128 << stored_width) - 1),
-    };
+    let (stored_minimum, stored_maximum) = interpretation.stored_bounds(stored_width);
     admitted_minimum >= stored_minimum && admitted_maximum <= stored_maximum
 }

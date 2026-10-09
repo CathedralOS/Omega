@@ -232,13 +232,7 @@ fn stored_integer_bounds(
     if !(1..=64).contains(&stored_width) {
         return None;
     }
-    Some(match interpretation {
-        layout_plans::IntegerInterpretation::Signed => (
-            -(1i128 << (stored_width - 1)),
-            (1i128 << (stored_width - 1)) - 1,
-        ),
-        layout_plans::IntegerInterpretation::Unsigned => (0, (1i128 << stored_width) - 1),
-    })
+    Some(interpretation.stored_bounds(stored_width))
 }
 
 fn geometry_matches(

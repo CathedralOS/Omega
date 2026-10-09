@@ -12,6 +12,21 @@ pub enum IntegerInterpretation {
     Unsigned,
 }
 
+impl IntegerInterpretation {
+    /// The `(minimum, maximum)` a `stored_width`-bit container holds under
+    /// this interpretation: two's complement when signed, `0..2^width` when
+    /// unsigned.
+    pub fn stored_bounds(self, stored_width: u64) -> (i128, i128) {
+        match self {
+            Self::Signed => (
+                -(1i128 << (stored_width - 1)),
+                (1i128 << (stored_width - 1)) - 1,
+            ),
+            Self::Unsigned => (0, (1i128 << stored_width) - 1),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayoutPlacementReport {
     At {
