@@ -4947,11 +4947,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     preparation still requires closed explicit calls; keep unsolved-equation
     rejection until each route discharges them. Scalar return-domain inference
     from a typed parameter is separate.
-  - Domain matching by exact package/declaration and generic-carrier identity:
-    `DomainHead` joins `u64::AtMost<256>` with `u64 in AtMost<256>`, but its
-    local head lookup declines generic carriers. Add named-lifetime identity
-    and remaining const-index kinds; **WRITE-ONLY-BORROW** owns write-only
-    admission.
+  - Add named-lifetime identity and remaining const-index kinds;
+    **WRITE-ONLY-BORROW** owns write-only admission.
   - Check unspecialized machine/requirement bodies under every admitted
     type-equality alternative, including finite disjunctions and branch-local
     equalities that cannot escape joins.
@@ -4969,6 +4966,15 @@ wait for Cathedral's instruction coverage. The interpreter is
   equation solving or predicate maximum search); distinct indices keep identity
   without implicit variance; flow bounds never choose capacity, specialization
   or layout.
+
+  The Std-backed `tests/omega/pass/generics/runtime_generic_carrier_equation_exit`
+  remains open: its unchanged native/interpreted exit 7 needs an accepted
+  `linux_x86_64::ProgramEntry` binding. Normal
+  `omega update --project tests/omega/pass/generics/runtime_generic_carrier_equation_exit --target linux_x86_64`
+  exceeded the measured 600-second bound before emitting a review document.
+  Preserve entry-review authority; portable console-family contract refusals
+  depend on **PIPELINE-ARCHITECTURE-ENFORCEMENT**. The bounded package-free
+  carrier repair does not satisfy this original Std-backed acceptance.
 
 - **FINITE-GENERIC-DISPATCH.** Select a finite generic instance at runtime under
   the [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)

@@ -641,9 +641,14 @@ pub(crate) fn selected_domain_family(
             &fallback
         }
     };
+    // Structural decomposition also reaches fixed, zero-index domains inside
+    // arrays and other applications. Both authority readers reject contested
+    // ownership; the non-generic reader must not be replaced by a leaf scan or
+    // omitted merely because this caller also handles indexed families.
     let definition = selection
-        .domain_family(syntax, name.as_str(), name.source_span(), carrier)?
-        .1;
+        .domain_family(syntax, name.as_str(), name.source_span(), carrier)
+        .map(|(_, definition)| definition)
+        .or_else(|| selection.domain(syntax, name.as_str(), name.source_span(), carrier))?;
     syntax.root_item_handles().iter().copied().find(|handle| {
         syntax
             .root_item(*handle)
