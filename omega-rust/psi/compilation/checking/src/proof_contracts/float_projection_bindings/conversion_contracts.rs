@@ -55,7 +55,7 @@ pub fn numeric_float_conversion_contract(
             conversion,
             &[FloatSemanticValueKind::Format, source_kind],
         )
-        .map(|semantic| (None, semantic))
+        .map(|(_, semantic, _)| (None, semantic))
     };
     scan_conversion_equalities(program, operator, resolve, |candidate| {
         let (result, result_primitive, meaning_type) = projection(program, candidate.result)?;

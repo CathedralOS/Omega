@@ -6,6 +6,11 @@
 //! adapted results contribute no unconditional raw equation. Proof-position
 //! operations are resolved in the fact's own typed frame: they have no executable
 //! operator-use row or operand capture to fabricate.
+//! Integer catalog inputs have their own carrier and closed numeric authority;
+//! they never occupy a FloatMeaning projection. The selected equation retains
+//! its formal telescope while captured actuals retain their independent caller
+//! owner, so composing a conversion cannot reinterpret a source operation in
+//! the callee's scope or replace its arithmetic policy.
 
 use checked_trees::{CheckFacts, CheckedArithmeticPolicyAdapter};
 use facts::{FactContextHandle, FactPayload, ProgramPoint};
@@ -13,7 +18,7 @@ use numerics::float_projection::FloatProjectionContractIdentity;
 use numerics::float_semantics::{FloatFormat, FloatMeaning};
 use numerics::float_semantics_catalog::{
     FloatSemanticContractIdentity, FloatSemanticOperand, FloatSemanticOperation,
-    FloatSemanticResult,
+    FloatSemanticResult, FloatSemanticValueKind, IntegerCarrier,
 };
 use semantic_vocabulary::IeeeFloatFormat;
 use symbols::SymbolHandle;
@@ -35,6 +40,10 @@ pub(crate) enum FloatSemanticTerm {
         source: FloatSourceValue,
     },
     Format(IeeeFloatFormat),
+    Integer {
+        carrier: IntegerCarrier,
+        value: numerics::bignum::BigInt,
+    },
     Literal {
         format: IeeeFloatFormat,
         meaning: FloatMeaning,
@@ -117,7 +126,16 @@ fn positive_expression_proves(
         return positive_expression_proves(program, facts, binary.left, frame, required)
             || positive_expression_proves(program, facts, binary.right, frame, required);
     }
-    boolean_semantic_term(program, facts, expression, frame, &[]).as_ref() == Some(required)
+    boolean_semantic_term(
+        program,
+        facts,
+        expression,
+        frame,
+        None,
+        frame.map_or(SymbolHandle::invalid(), |frame| frame.machine),
+    )
+    .as_ref()
+        == Some(required)
 }
 
 fn boolean_semantic_term(
@@ -125,14 +143,19 @@ fn boolean_semantic_term(
     facts: &CheckFacts,
     expression: ExpressionHandle,
     frame: Option<Frame>,
-    actuals: &[(SymbolHandle, ExpressionHandle)],
+    actuals: Option<&SemanticBindings<'_>>,
+    source_owner: SymbolHandle,
 ) -> Option<FloatSemanticTerm> {
     let (operator, operands, adapter) = selected_expression(program, facts, expression, frame)?;
     if adapter != CheckedArithmeticPolicyAdapter::None {
         return None;
     }
     let predicate = validation::float_boolean_semantic_contract(program, operator)?;
-    let inputs = inputs(program.operator_parameters(operator), &operands);
+    let inputs = SemanticBindings {
+        owner: operator.symbol,
+        parameters: program.operator_parameters(operator),
+        operands: &operands,
+    };
     let mut remaining_work = 1024;
     semantic_term(
         program,
@@ -141,6 +164,7 @@ fn boolean_semantic_term(
         &inputs,
         actuals,
         frame,
+        source_owner,
         &mut remaining_work,
     )
 }
@@ -157,6 +181,7 @@ pub(crate) fn closed_float_boolean_requirement(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
+    source_owner: SymbolHandle,
 ) -> Option<bool> {
     if parameters.len() != operands.len() {
         return None;
@@ -166,7 +191,12 @@ pub(crate) fn closed_float_boolean_requirement(
         facts,
         expression,
         Some(Frame { machine, state }),
-        &inputs(parameters, operands),
+        Some(&SemanticBindings {
+            owner: machine,
+            parameters,
+            operands,
+        }),
+        source_owner,
     )?;
     closed_float_boolean_term(&term)
 }
@@ -191,6 +221,9 @@ fn closed_semantic_result(
     match term {
         FloatSemanticTerm::Literal { meaning, .. } => {
             Some(FloatSemanticResult::Meaning(meaning.clone()))
+        }
+        FloatSemanticTerm::Integer { value, .. } => {
+            Some(FloatSemanticResult::Integer(value.clone()))
         }
         FloatSemanticTerm::Application {
             operation,
@@ -229,8 +262,10 @@ pub(crate) fn instantiated_float_semantic_term(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: ExpressionHandle,
+    selected: SymbolHandle,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
+    source_owner: SymbolHandle,
 ) -> Option<FloatSemanticTerm> {
     if parameters.len() != operands.len() {
         return None;
@@ -240,9 +275,14 @@ pub(crate) fn instantiated_float_semantic_term(
         program,
         facts,
         expression,
-        &inputs(parameters, operands),
-        &[],
+        &SemanticBindings {
+            owner: selected,
+            parameters,
+            operands,
+        },
         None,
+        None,
+        source_owner,
         &mut remaining_work,
     )
 }
@@ -268,24 +308,32 @@ pub(crate) fn finite_float_semantic_term(
     })
 }
 
-fn inputs(
-    parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
-) -> Vec<(SymbolHandle, ExpressionHandle)> {
-    parameters
-        .iter()
-        .zip(operands)
-        .map(|(parameter, operand)| (parameter.symbol, *operand))
-        .collect()
+/// The selected equation owns its formal types as well as their substitutions.
+/// The outer call telescope is independent: replacing this scope during raw
+/// result composition must not erase bindings of captured caller arguments.
+struct SemanticBindings<'scope> {
+    owner: SymbolHandle,
+    parameters: &'scope [StateParameter],
+    operands: &'scope [ExpressionHandle],
+}
+
+impl SemanticBindings<'_> {
+    fn operand(&self, symbol: SymbolHandle) -> Option<ExpressionHandle> {
+        self.parameters
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)
+            .and_then(|position| self.operands.get(position).copied())
+    }
 }
 
 fn semantic_term(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: ExpressionHandle,
-    inputs: &[(SymbolHandle, ExpressionHandle)],
-    actuals: &[(SymbolHandle, ExpressionHandle)],
+    inputs: &SemanticBindings<'_>,
+    actuals: Option<&SemanticBindings<'_>>,
     frame: Option<Frame>,
+    source_owner: SymbolHandle,
     remaining_work: &mut usize,
 ) -> Option<FloatSemanticTerm> {
     *remaining_work = remaining_work.checked_sub(1)?;
@@ -309,9 +357,14 @@ fn semantic_term(
                 program,
                 facts,
                 raw,
-                &self::inputs(program.operator_parameters(selected), &operands),
+                &SemanticBindings {
+                    owner: selected.symbol,
+                    parameters: program.operator_parameters(selected),
+                    operands: &operands,
+                },
                 actuals,
                 frame,
+                source_owner,
                 remaining_work,
             );
         }
@@ -342,27 +395,46 @@ fn semantic_term(
             source: source_value(program, source)?,
         });
     }
-    let selected = typed_trees::operator::resolve_named_expression_call(program, call)?;
-    let (row, contract) = validation::exact_toolchain_float_semantic_contract(program, selected)?;
+    let (selected, row, contract) = validation::float_semantic_application_for_parameters(
+        program,
+        call,
+        inputs.owner,
+        inputs.parameters,
+    )?;
     if arguments.len() != row.parameters.len() {
         return None;
     }
     let operands = arguments
         .iter()
-        .map(|argument| {
-            semantic_term(
+        .zip(row.parameters)
+        .map(|(argument, kind)| match kind {
+            FloatSemanticValueKind::Integer(carrier) => {
+                let source = substituted_operand(program, *argument, inputs, actuals)?;
+                let value = validation::closed_float_semantic_integer_operand(
+                    program,
+                    source_owner,
+                    source,
+                    *carrier,
+                )?;
+                Some(FloatSemanticTerm::Integer {
+                    carrier: *carrier,
+                    value,
+                })
+            }
+            _ => semantic_term(
                 program,
                 facts,
                 *argument,
                 inputs,
                 actuals,
                 frame,
+                source_owner,
                 remaining_work,
-            )
+            ),
         })
         .collect::<Option<Vec<_>>>()?;
     Some(FloatSemanticTerm::Application {
-        selected: selected.symbol,
+        selected,
         contract,
         operation: row,
         operands,
@@ -372,32 +444,27 @@ fn semantic_term(
 fn substituted_source(
     program: &dyn ::validation::CheckingInput,
     mut expression: ExpressionHandle,
-    inputs: &[(SymbolHandle, ExpressionHandle)],
-    actuals: &[(SymbolHandle, ExpressionHandle)],
+    inputs: &SemanticBindings<'_>,
+    actuals: Option<&SemanticBindings<'_>>,
     remaining_work: &mut usize,
 ) -> Option<ExpressionHandle> {
     // A selected equation substitutes its formal once. Its actual belongs to
     // source scope, so only the independent outer call bindings apply there.
     if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
-        && let Some((_, operand)) = inputs
-            .iter()
-            .find(|(parameter, _)| *parameter == path.symbol)
+        && let Some(operand) = inputs.operand(path.symbol)
     {
-        expression = *operand;
+        expression = operand;
     }
     loop {
         *remaining_work = remaining_work.checked_sub(1)?;
         match program.expression_table.expression(expression) {
             ExpressionNode::Cast(cast) if !cast.form.is_recast() => expression = cast.value,
             ExpressionNode::Name(path) => {
-                let Some((_, operand)) = actuals
-                    .iter()
-                    .find(|(parameter, _)| *parameter == path.symbol)
-                else {
+                let Some(operand) = actuals.and_then(|actuals| actuals.operand(path.symbol)) else {
                     return Some(expression);
                 };
                 // An actual is in caller scope, never another callee formal.
-                expression = *operand;
+                expression = operand;
                 while let ExpressionNode::Cast(cast) =
                     program.expression_table.expression(expression)
                 {
@@ -412,6 +479,28 @@ fn substituted_source(
             _ => return Some(expression),
         }
     }
+}
+
+/// Integer carrier qualification participates in its closed operations. Unlike
+/// float projection erasure, substitute the exact source without stripping its
+/// casts; the shared numeric evaluator owns their denotation and result carrier.
+fn substituted_operand(
+    program: &dyn ::validation::CheckingInput,
+    mut expression: ExpressionHandle,
+    inputs: &SemanticBindings<'_>,
+    actuals: Option<&SemanticBindings<'_>>,
+) -> Option<ExpressionHandle> {
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+        && let Some(operand) = inputs.operand(path.symbol)
+    {
+        expression = operand;
+    }
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+        && let Some(operand) = actuals.and_then(|actuals| actuals.operand(path.symbol))
+    {
+        expression = operand;
+    }
+    Some(expression)
 }
 
 fn source_value(

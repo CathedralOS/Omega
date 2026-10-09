@@ -93,7 +93,15 @@ pub(super) fn raw_result_is_finite(
         &operands,
     );
     let Some(raw_term) = super::super::operators::instantiated_float_semantic_term(
-        program, facts, raw_result, parameters, &operands,
+        program,
+        facts,
+        raw_result,
+        operation.selected,
+        parameters,
+        &operands,
+        program
+            .machine_holding_state(operation.location.state())
+            .map_or(symbols::SymbolHandle::invalid(), |machine| machine.symbol),
     ) else {
         return false;
     };

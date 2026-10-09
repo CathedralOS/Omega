@@ -227,7 +227,10 @@ pub use proof_contracts::default_domains::{
     OpenInvariantCrashSite, data_float_predicate, data_predicates_admit_zero,
     standing_facts_prove_requirement,
 };
-pub use proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract;
+pub use proof_contracts::float_projection_bindings::semantic_operations::{
+    exact_toolchain_float_semantic_contract, float_semantic_application_for_parameters,
+};
+pub use proof_contracts::float_projection_bindings::semantic_values::closed_float_semantic_integer_operand;
 pub use proof_contracts::float_projection_bindings::semantic_values::exact_toolchain_float_format_const;
 pub use proof_contracts::float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,

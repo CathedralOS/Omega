@@ -5,6 +5,8 @@
 //! Completed endpoint literals retain their landing policy. Reading their bits
 //! does not erase it: surrounding closed operations use the same carrier/policy
 //! rules as evaluation, and mixed policies never acquire a common implicit type.
+//! Exact integer casts retain the completed result carrier and policy after
+//! checking the unchanged closed value fits; they do not round or clamp it.
 //! Record projections are not numeric syntax: selecting their literal leaf
 //! would erase the field's declared carrier and the receiver's other evaluated
 //! fields. Custody-aware projection queries own that separate operation.
@@ -141,6 +143,7 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
         Enter(ExpressionHandle),
         Leave(ExpressionHandle),
         Binary(ExpressionHandle, BinaryOperator),
+        Cast(TypeReferenceHandle),
     }
     let mut pending = vec![Step::Enter(expression)];
     let mut active = Vec::new();
@@ -209,6 +212,27 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                             fractional_origin: ExpressionHandle::invalid(),
                         });
                     }
+                    ExpressionNode::Cast(cast)
+                        if typed_owner.is_some() && !cast.form.is_recast() =>
+                    {
+                        // Formation proves unchanged denotation independently.
+                        // The closed query still checks carrier fit and retains
+                        // the completed cast's policy for surrounding operations.
+                        if !program
+                            .type_reference_table
+                            .contains_type_reference(cast.result_type)
+                            || !program
+                                .type_reference_table
+                                .primitive_type(cast.result_type)
+                                .is_some_and(PrimitiveType::is_fixed_integer)
+                        {
+                            return None;
+                        }
+                        active.push(expression);
+                        pending.push(Step::Leave(expression));
+                        pending.push(Step::Cast(cast.result_type));
+                        pending.push(Step::Enter(cast.value));
+                    }
                     ExpressionNode::Binary(binary)
                         if typed_owner.is_some() || builtin(expression) =>
                     {
@@ -225,6 +249,18 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                 if active.pop() != Some(expression) {
                     return None;
                 }
+            }
+            Step::Cast(reference) => {
+                let source = values.pop()?;
+                let value = source.value.to_integer_exact()?;
+                let primitive = program.type_reference_table.primitive_type(reference)?;
+                land_integer(&value, primitive)?;
+                values.push(NumericValue {
+                    value: BigRational::from_integer(value),
+                    primitive: Some(primitive),
+                    type_reference: Some(reference),
+                    fractional_origin: source.fractional_origin,
+                });
             }
             Step::Binary(expression, operator) => {
                 let right = values.pop()?;

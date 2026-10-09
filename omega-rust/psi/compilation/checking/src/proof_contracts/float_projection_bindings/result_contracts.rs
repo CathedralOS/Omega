@@ -71,12 +71,13 @@ pub fn float_result_semantic_contract(
                 continue;
             };
             let Some(semantic) =
-                resolve_named_expression_call(program, call).and_then(|selected| {
-                    super::semantic_operations::exact_toolchain_float_semantic_contract(
-                        program, selected,
-                    )
-                    .map(|(row, _)| row)
-                })
+                super::semantic_operations::float_semantic_application_for_parameters(
+                    program,
+                    call,
+                    operator.symbol,
+                    program.operator_parameters(operator),
+                )
+                .map(|(_, row, _)| row)
             else {
                 continue;
             };
@@ -185,12 +186,13 @@ fn semantic_term_uses_only_inputs(
                     program, call,
                 )
                 .is_some()
-                    || resolve_named_expression_call(program, call).is_some_and(|selected| {
-                        super::semantic_operations::exact_toolchain_float_semantic_contract(
-                            program, selected,
-                        )
-                        .is_some()
-                    });
+                    || super::semantic_operations::float_semantic_application_for_parameters(
+                        program,
+                        call,
+                        operator.symbol,
+                        program.operator_parameters(operator),
+                    )
+                    .is_some();
             admitted
                 && program
                     .expression_table

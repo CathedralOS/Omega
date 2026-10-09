@@ -27,7 +27,11 @@ pub(crate) fn exact_toolchain_float_semantic_application(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     operand_kinds: &[FloatSemanticValueKind],
-) -> Option<&'static FloatSemanticOperation> {
+) -> Option<(
+    symbols::SymbolHandle,
+    &'static FloatSemanticOperation,
+    FloatSemanticContractIdentity,
+)> {
     let candidates = typed_trees::operator::named_expression_call_candidates(program, call);
     let mut selected = candidates.iter().filter(|operator| {
         let parameters = program.operator_parameters(operator);
@@ -43,7 +47,33 @@ pub(crate) fn exact_toolchain_float_semantic_application(
     if selected.next().is_some() {
         return None;
     }
-    exact_toolchain_float_semantic_contract(program, operator).map(|(semantic, _)| semantic)
+    exact_toolchain_float_semantic_contract(program, operator)
+        .map(|(semantic, contract)| (operator.symbol, semantic, contract))
+}
+
+/// Select the catalog application from its declaration's typed operand scope.
+/// Shared result typing owns every expression form; this owner only maps its
+/// retained types to catalog kinds before exact sealed overload selection.
+pub fn float_semantic_application_for_parameters(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+) -> Option<(
+    symbols::SymbolHandle,
+    &'static FloatSemanticOperation,
+    FloatSemanticContractIdentity,
+)> {
+    let kinds = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .iter()
+        .map(|argument| {
+            crate::parameter_expression_result_type_reference(program, owner, parameters, *argument)
+                .and_then(|reference| typed_value_kind(program, reference))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    exact_toolchain_float_semantic_application(program, call, &kinds)
 }
 
 pub(crate) fn symbol_is_declared_in_sealed_source(

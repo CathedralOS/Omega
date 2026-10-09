@@ -6,9 +6,7 @@
 //! recognition here so source checking and emitted rows cannot select
 //! different canonical constants.
 
-use super::semantic_operations::{
-    exact_toolchain_float_semantic_contract, symbol_is_declared_in_sealed_source,
-};
+use super::semantic_operations::symbol_is_declared_in_sealed_source;
 use numerics::float_projection::FloatProjectionOperation;
 use numerics::float_semantics::{FloatFormat, FloatMeaning};
 use numerics::float_semantics_catalog::{
@@ -16,7 +14,6 @@ use numerics::float_semantics_catalog::{
 };
 use semantic_vocabulary::IeeeFloatFormat;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use typed_trees::operator::resolve_named_expression_call;
 
 struct ClosedFloatMeaning {
     format: IeeeFloatFormat,
@@ -42,8 +39,8 @@ pub(crate) fn closed_float_meaning_equality(
     // This is a service-work bound, not a limit on the language's values.
     // Exhaustion retains the existing unsupported-proof diagnostic.
     let mut remaining_work = 1024;
-    let left = closed_meaning(program, binary.left, &mut remaining_work)?;
-    let right = closed_meaning(program, binary.right, &mut remaining_work)?;
+    let left = closed_meaning(program, machine_symbol, binary.left, &mut remaining_work)?;
+    let right = closed_meaning(program, machine_symbol, binary.right, &mut remaining_work)?;
     // A proof-only call has no runtime place type. Use the exact selected
     // declarations' result types, not wildcard operands that could select an
     // unrelated overloaded equality. Authored equality still blocks this rule.
@@ -67,6 +64,7 @@ pub(crate) fn closed_float_meaning_equality(
 
 fn closed_meaning(
     program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
     remaining_work: &mut usize,
 ) -> Option<ClosedFloatMeaning> {
@@ -88,8 +86,14 @@ fn closed_meaning(
             type_reference: operator.return_type,
         });
     }
-    let operator = resolve_named_expression_call(program, call)?;
-    let (row, contract) = exact_toolchain_float_semantic_contract(program, operator)?;
+    let (selected, row, contract) =
+        super::semantic_operations::float_semantic_application_for_parameters(
+            program,
+            call,
+            owner,
+            &[],
+        )?;
+    let operator = program.operator_definition_by_symbol(selected)?;
     if row.result != FloatSemanticValueKind::Meaning || arguments.len() != row.parameters.len() {
         return None;
     }
@@ -107,12 +111,17 @@ fn closed_meaning(
                 }));
             }
             FloatSemanticValueKind::Meaning => {
-                let value = closed_meaning(program, *argument, remaining_work)?;
+                let value = closed_meaning(program, owner, *argument, remaining_work)?;
                 if operand_format.is_some_and(|previous| previous != value.format) {
                     return None;
                 }
                 operand_format = Some(value.format);
                 operands.push(FloatSemanticOperand::Meaning(value.meaning));
+            }
+            FloatSemanticValueKind::Integer(carrier) => {
+                operands.push(FloatSemanticOperand::Integer(
+                    closed_float_semantic_integer_operand(program, owner, *argument, *carrier)?,
+                ));
             }
             _ => return None,
         }
@@ -130,6 +139,24 @@ fn closed_meaning(
         meaning,
         type_reference: operator.return_type,
     })
+}
+
+/// A catalog integer position keeps its selected carrier. Reuse the shared
+/// closed numeric authority, including per-operation policy and exact casts;
+/// neither an open storage read nor an integer with another carrier supplies
+/// this operand merely because its current payload would fit.
+pub fn closed_float_semantic_integer_operand(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    carrier: numerics::float_semantics_catalog::IntegerCarrier,
+) -> Option<numerics::bignum::BigInt> {
+    let value = program.closed_integer_value_in(expression, owner)?;
+    (value.primitive.and_then(|primitive| {
+        numerics::float_semantics_catalog::IntegerCarrier::from_spelling(primitive.name())
+    }) == Some(carrier)
+        && carrier.format().contains(&value.value))
+    .then_some(value.value)
 }
 
 /// A closed projection cannot read a normal-return result fact or unknown
