@@ -28,6 +28,18 @@ pub struct CrashCallSiteLocation {
     pub(crate) call_ordinal: u32,
 }
 
+/// Sorted-unique `Vec<CrashPredicateIdentity>` roster setter, the shape both
+/// crash-plan guards share.
+macro_rules! sorted_roster_setter {
+    ($name:ident, $field:ident) => {
+        pub fn $name(mut self, mut $field: Vec<CrashPredicateIdentity>) -> Self {
+            $field = sorted_dedup($field);
+            self.$field = $field;
+            self
+        }
+    };
+}
+
 impl CrashCallSiteLocation {
     pub const fn new(state: SymbolHandle, statement_ordinal: u32, call_ordinal: u32) -> Self {
         Self {
@@ -132,23 +144,9 @@ impl CheckedCrashSite {
         self
     }
 
-    pub fn with_path_guard_conjuncts(
-        mut self,
-        mut path_guard_conjuncts: Vec<CrashPredicateIdentity>,
-    ) -> Self {
-        path_guard_conjuncts = sorted_dedup(path_guard_conjuncts);
-        self.path_guard_conjuncts = path_guard_conjuncts;
-        self
-    }
+    sorted_roster_setter!(with_path_guard_conjuncts, path_guard_conjuncts);
 
-    pub fn with_path_guard_consequences(
-        mut self,
-        mut path_guard_consequences: Vec<CrashPredicateIdentity>,
-    ) -> Self {
-        path_guard_consequences = sorted_dedup(path_guard_consequences);
-        self.path_guard_consequences = path_guard_consequences;
-        self
-    }
+    sorted_roster_setter!(with_path_guard_consequences, path_guard_consequences);
 
     pub fn with_frontier_lower_bound(
         mut self,
@@ -389,23 +387,9 @@ impl CheckedCrashCallSite {
         &self.surviving_buckets
     }
 
-    pub fn with_path_guard_conjuncts(
-        mut self,
-        mut path_guard_conjuncts: Vec<CrashPredicateIdentity>,
-    ) -> Self {
-        path_guard_conjuncts = sorted_dedup(path_guard_conjuncts);
-        self.path_guard_conjuncts = path_guard_conjuncts;
-        self
-    }
+    sorted_roster_setter!(with_path_guard_conjuncts, path_guard_conjuncts);
 
-    pub fn with_path_guard_consequences(
-        mut self,
-        mut path_guard_consequences: Vec<CrashPredicateIdentity>,
-    ) -> Self {
-        path_guard_consequences = sorted_dedup(path_guard_consequences);
-        self.path_guard_consequences = path_guard_consequences;
-        self
-    }
+    sorted_roster_setter!(with_path_guard_consequences, path_guard_consequences);
 }
 
 /// Sorted unique rows, the shape every roster field on the crash plans
