@@ -2203,10 +2203,7 @@ crash and native exit behavior.
     proves which source paths transfer on every arm.
     Remaining: owned-carrier calls need receiver-to-supplier correspondence;
     stores without a receiving-holder association need their checked
-    correspondence before parent retirement can be proved. Nested lifetime
-    instantiation still couples distinct returned leaves: in the selected helper
-    fixture, moving the second backing write before the kept left target's read
-    rejects that write even though `Pair<'first, 'second>` separates the inputs.
+    correspondence before parent retirement can be proved.
     Borrowed call results nested in constructors and projections retain their
     receiving leaf groups; do not restore the whole-initializer call recognizer.
     The slice-return controls below

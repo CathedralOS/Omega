@@ -107,10 +107,22 @@ machine verify_projected(first: &mut Cell, second: &mut Cell) -> bool {
     let first_parent: &mut Cell = &mut first;
     let second_parent: &mut Cell = &mut second;
     let held: Held = pair(&first_parent, &second_parent).left;
+    second.value = 83;
     let observed: i32 = held.target.value;
     first.value = 51;
-    second.value = 83;
     observed == 41 && held.stamp == 12 && first.value == 51 && second.value == 83
+}
+
+machine verify_projected_right(first: &mut Cell, second: &mut Cell) -> bool {
+    first.value = 41;
+    second.value = 73;
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let held: Held = pair(&first_parent, &second_parent).right;
+    first.value = 51;
+    let observed: i32 = held.target.value;
+    second.value = 83;
+    observed == 73 && held.stamp == 13 && first.value == 51 && second.value == 83
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -123,7 +135,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let seventh: bool = verify_nested(&mut main.first, &mut main.second, true);
     let eighth: bool = verify_nested(&mut main.first, &mut main.second, false);
     let ninth: bool = verify_projected(&mut main.first, &mut main.second);
-    transition first && second && third && fourth && fifth && sixth && seventh && eighth && ninth {
+    let tenth: bool = verify_projected_right(&mut main.first, &mut main.second);
+    transition first && second && third && fourth && fifth && sixth && seventh && eighth && ninth && tenth {
         true -> good(main)
         false -> bad(main)
     }

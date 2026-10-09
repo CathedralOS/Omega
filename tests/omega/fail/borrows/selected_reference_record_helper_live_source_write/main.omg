@@ -1,6 +1,7 @@
 data Cell { value: i32; }
 data Held<'storage> { target: &'storage Cell; stamp: i32; }
 data Envelope<'storage> { held: Held<'storage>; seal: i32; }
+data Pair<'first, 'second> { left: Held<'first>; right: Held<'second>; }
 
 machine select<'storage>(first: &'storage Cell, second: &'storage Cell, selected: bool) -> Held<'storage> {
     match selected {
@@ -28,4 +29,19 @@ machine invalid_nested(first: &mut Cell, second: &mut Cell) -> i32 {
     };
     second.value = 83;
     envelope.held.target.value
+}
+
+machine pair<'first, 'second>(first: &'first Cell, second: &'second Cell) -> Pair<'first, 'second> {
+    Pair {
+        left: Held { target: first, stamp: 12 },
+        right: Held { target: second, stamp: 13 }
+    }
+}
+
+machine invalid_projected(first: &mut Cell, second: &mut Cell) -> i32 {
+    let first_parent: &mut Cell = &mut first;
+    let second_parent: &mut Cell = &mut second;
+    let held: Held = pair(&first_parent, &second_parent).left;
+    first.value = 51;
+    held.target.value
 }

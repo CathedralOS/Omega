@@ -264,7 +264,12 @@ pub(super) fn result_loans(
                     &[],
                     loan_trackers,
                 )?;
-                let field = facts::effective_member_symbol(program, member.receiver, member);
+                // The loan follows the selected value, not a syntactic place
+                // root. Reuse checking's exact receiver position: its call,
+                // constructor and generic-member joins preserve this field's
+                // identity where the place-only fact query cannot. An opaque
+                // identity still retains the conservative frontier below.
+                let field = validation::effective_member_symbol(program, member.receiver, member);
                 let loans = loans
                     .into_iter()
                     .filter_map(|mut loan| {

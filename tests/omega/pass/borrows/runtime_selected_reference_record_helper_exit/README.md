@@ -23,6 +23,7 @@ The enclosing-record route calls the helper inside a field initializer. Its
 returned descriptor pins the exact input parents until the nested target's final
 read; scalar siblings remain readable after both original backings are writable.
 
-The projected-call route keeps one subtree of a returned pair. Its unused
-sibling retires with the temporary result; both original backings become
-writable after the kept target's final read, while its scalar stamp stays live.
+The projected-call routes keep either subtree of a returned pair with distinct
+input lifetimes. Its unused sibling retires with the temporary result: that
+sibling's backing is writable before the kept target's read. The kept backing
+becomes writable after its target's final read, while its scalar stamp stays live.
