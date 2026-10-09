@@ -13,7 +13,7 @@ use crate::{
 };
 use machine_code::TextSectionRelocationRequirements;
 use optimization_core::{OptimizationSelectionIdentity, RelocationFreeObjectPlanIdentity};
-pub fn construct_relocation_free_object_from_text(
+pub(crate) fn construct_relocation_free_object_from_text(
     text: &machine_code::RelocationFreeTextSectionPlacement,
     selections: OptimizationSelectionIdentity,
 ) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectFromTextError> {

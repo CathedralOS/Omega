@@ -17,7 +17,7 @@ mod symbols;
 
 const OBJECT_CONTAINER_VERSION: u32 = 6;
 
-pub struct ObjectContainerInput<'a> {
+pub(crate) struct ObjectContainerInput<'a> {
     pub target: NativeTarget,
     pub object: &'a ObjectPlan,
     pub relocations: &'a RelocationPlan,
@@ -37,7 +37,7 @@ pub struct ObjectContainerOutput {
     pub relocations: usize,
 }
 
-pub fn emit_omega_object_container(input: ObjectContainerInput<'_>) -> ObjectContainerOutput {
+pub(crate) fn emit_omega_object_container(input: ObjectContainerInput<'_>) -> ObjectContainerOutput {
     let bss_bytes = bss_size(input.object);
 
     let mut bytes = Vec::new();

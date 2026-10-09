@@ -18,7 +18,7 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 /// `validate_relocation_free_object` requires of the pair's text section,
 /// not a suggestion the writer may relax.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ObjectTargetPolicy {
+pub(crate) struct ObjectTargetPolicy {
     pub entry_symbol_name: &'static str,
     pub text_section_name: &'static str,
     pub data_section_name: &'static str,
@@ -33,7 +33,7 @@ pub struct ObjectTargetPolicy {
 /// Mach-O — the same five pairs the relocation-free validator admits.
 /// (Aarch64, COFF) is undeclared and returns `None`; adding a supported pair
 /// extends this matrix deliberately rather than widening a wildcard.
-pub fn object_target_policy(target: NativeTarget) -> Option<ObjectTargetPolicy> {
+pub(crate) fn object_target_policy(target: NativeTarget) -> Option<ObjectTargetPolicy> {
     match (target.architecture, target.object_format) {
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(ObjectTargetPolicy {
             entry_symbol_name: "main",

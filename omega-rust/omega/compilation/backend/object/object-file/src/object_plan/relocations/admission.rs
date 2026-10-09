@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 /// back through [`Self::plan`] or take the plan back with [`Self::into_plan`].
 #[derive(Debug, Clone)]
 #[must_use = "an admitted relocation plan retains the rows it proved"]
-pub struct ValidatedRelocationPlan {
+pub(crate) struct ValidatedRelocationPlan {
     plan: RelocationPlan,
     section_record_counts: BTreeMap<SectionKindOrdinal, usize>,
 }
@@ -52,13 +52,13 @@ impl ValidatedRelocationPlan {
     }
 
     /// Records patching each section kind, in the stable ordinal order.
-    pub fn section_record_counts(&self) -> impl Iterator<Item = (SectionKind, usize)> + '_ {
+    pub(crate) fn section_record_counts(&self) -> impl Iterator<Item = (SectionKind, usize)> + '_ {
         self.section_record_counts
             .iter()
             .map(|(ordinal, count)| (ordinal.section_kind(), *count))
     }
 
-    pub fn records_in_section(&self, section: SectionKind) -> usize {
+    pub(crate) fn records_in_section(&self, section: SectionKind) -> usize {
         self.section_record_counts
             .get(&section_ordinal(section))
             .copied()
@@ -85,7 +85,7 @@ impl SectionKindOrdinal {
 /// custody failures (unknown symbols/origins) from shape failures
 /// (vocabulary, width, bounds, overlap).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RelocationAdmissionError {
+pub(crate) enum RelocationAdmissionError {
     /// The plan's target is not the object plan's exact target.
     TargetMismatch,
     /// The record's kind is outside the architecture's closed vocabulary.
@@ -123,7 +123,7 @@ pub enum RelocationAdmissionError {
 /// inspect or discard the exact rows admission refused.
 #[derive(Debug)]
 #[must_use = "a refused relocation plan retains the rows that failed"]
-pub struct RelocationAdmissionFailure {
+pub(crate) struct RelocationAdmissionFailure {
     plan: RelocationPlan,
     error: RelocationAdmissionError,
 }
@@ -182,7 +182,7 @@ impl RelocationKind {
 }
 
 /// Admit a general relocation plan against the object it patches.
-pub fn admit_relocation_plan(
+pub(crate) fn admit_relocation_plan(
     plan: RelocationPlan,
     object: &ObjectPlan,
 ) -> Result<ValidatedRelocationPlan, RelocationAdmissionFailure> {

@@ -173,7 +173,7 @@ pub struct RelocationFreeObjectContainer {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RelocationFreeObjectError {
+pub(crate) enum RelocationFreeObjectError {
     StaleObjectIdentity,
     NonCanonicalTarget,
     WrongTextSectionName,
@@ -210,7 +210,7 @@ pub enum RelocationFreeObjectError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RelocationFreeObjectDecodeError {
+pub(crate) enum RelocationFreeObjectDecodeError {
     WrongMagic,
     UnsupportedVersion(u32),
     Truncated,
@@ -270,7 +270,7 @@ fn foreign_field_byte_width(kind: NormalizedForeignCallResolutionKind) -> u8 {
     }
 }
 
-pub fn validate_relocation_free_object(
+pub(crate) fn validate_relocation_free_object(
     object: &RelocationFreeObjectPlan,
 ) -> Result<(), RelocationFreeObjectError> {
     if object.recomputed_identity()? != object.identity {
@@ -502,7 +502,7 @@ pub fn validate_relocation_free_object(
     Ok(())
 }
 
-pub fn encode_relocation_free_object(
+pub(crate) fn encode_relocation_free_object(
     object: &RelocationFreeObjectPlan,
 ) -> Result<RelocationFreeObjectContainer, RelocationFreeObjectError> {
     validate_relocation_free_object(object)?;
@@ -519,7 +519,7 @@ pub fn encode_relocation_free_object(
     })
 }
 
-pub fn decode_relocation_free_object(
+pub(crate) fn decode_relocation_free_object(
     encoded: &[u8],
 ) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectDecodeError> {
     let mut cursor = Cursor::new(encoded);

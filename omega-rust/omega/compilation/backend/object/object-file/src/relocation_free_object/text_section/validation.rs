@@ -6,7 +6,7 @@ use crate::{
     TextSectionRelocationRequirements, validate_relocation_free_object,
 };
 use optimization_core::OptimizationSelectionIdentity;
-pub fn validate_relocation_free_object_from_text(
+pub(crate) fn validate_relocation_free_object_from_text(
     text: &RelocationFreeTextSectionPlacement,
     selections: OptimizationSelectionIdentity,
     object: &RelocationFreeObjectPlan,

@@ -3,10 +3,10 @@
 use super::RelocationFreeObjectError;
 mod production;
 mod validation;
-pub use production::construct_relocation_free_object_from_text;
-pub use validation::validate_relocation_free_object_from_text;
+pub(crate) use production::construct_relocation_free_object_from_text;
+pub(crate) use validation::validate_relocation_free_object_from_text;
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RelocationFreeObjectFromTextError {
+pub(crate) enum RelocationFreeObjectFromTextError {
     InvalidObject(RelocationFreeObjectError),
     LengthOverflow,
     MissingSemanticEntry,

@@ -14,22 +14,22 @@ use optimization_core::{
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-pub use statistics::relocation_free_object_statistics;
+pub(crate) use statistics::relocation_free_object_statistics;
 use target::{Architecture, NativeTarget, ObjectFormat};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentObjectContainerStage {
+pub(crate) enum FunctionFragmentObjectContainerStage {
     ValidatedRelocationFreeObjectContainerV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentObjectContainerUnavailableData {
+pub(crate) enum FunctionFragmentObjectContainerUnavailableData {
     Unavailable,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FunctionFragmentObjectContainerStatistics {
+pub(crate) struct FunctionFragmentObjectContainerStatistics {
     pub sections: u64,
     pub function_symbols: u64,
     pub object_local_symbols: u64,
@@ -64,7 +64,7 @@ pub struct FunctionFragmentObjectContainerManifest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentObjectContainerManifestDecodeError {
+pub(crate) enum FunctionFragmentObjectContainerManifestDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

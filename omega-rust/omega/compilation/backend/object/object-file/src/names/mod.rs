@@ -14,7 +14,7 @@ use crate::{
 use function_identity::MachineFunctionIdentity;
 use target::{NativeTarget, NormalizedForeignLocator};
 
-pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> ObjectSymbolHandle {
+pub(crate) fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> ObjectSymbolHandle {
     object
         .layout
         .symbols
@@ -99,7 +99,7 @@ pub fn object_function_symbol(
         .then_some((binding.symbol, symbol))
 }
 
-pub fn object_entry_symbol_name(object: &ObjectPlan) -> &str {
+pub(crate) fn object_entry_symbol_name(object: &ObjectPlan) -> &str {
     object_symbol_name(object, object.layout.entry_symbol)
 }
 
@@ -107,7 +107,7 @@ pub fn object_entry_symbol_name(object: &ObjectPlan) -> &str {
 ///
 /// Source spelling is deliberately absent: independently selected source and
 /// import names may coincide, while compiler-private identity cannot.
-pub fn private_function_symbol_name(identity: MachineFunctionIdentity) -> Option<String> {
+pub(crate) fn private_function_symbol_name(identity: MachineFunctionIdentity) -> Option<String> {
     identity.private_symbol()
 }
 
@@ -129,7 +129,7 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
     .to_owned()
 }
 
-pub fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
+pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
     match section {
         SymbolSection::None => String::new(),
         SymbolSection::Section(kind) => section_name(target, kind),
