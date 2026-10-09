@@ -8,7 +8,7 @@
 
 use super::{readable_fixed_array_elements, readable_nominal_definition, readable_type_reference};
 use facts::PlaceSegment;
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::types::TypeReferenceHandle;
 
 /// All declared field rows beneath an established readable data value. Exact
@@ -172,6 +172,23 @@ pub const WHOLE_ELEMENT_EXTENT: PlaceSegment = PlaceSegment::FixedRange {
     start: 0,
     end: usize::MAX,
 };
+
+/// The declared field carrying `symbol`, or `None` when `symbol` does not
+/// name a field. A projection symbol produced by exact member resolution is
+/// itself the provenance this lookup reads.
+pub fn exact_declared_field<'program>(
+    program: &'program dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<&'program typed_trees::data::DataField> {
+    if !symbol.is_valid() || program.symbols.get(symbol).kind != SymbolKind::Field {
+        return None;
+    }
+    program
+        .data_definitions()
+        .iter()
+        .flat_map(|data| program.data_member_fields(program.data_members(data)))
+        .find(|field| field.symbol == symbol)
+}
 
 /// The element type of a slice (`[T]`, `&[T]`, `&mut [T]`), looking through a
 /// leading reference exactly as `readable_fixed_array_elements` does for fixed

@@ -295,7 +295,7 @@ fn resolve_subject_member_symbol(
             }
             None => {
                 substitution = Vec::new();
-                exact_declared_field(program, *projection)?
+                validation::field_domains::exact_declared_field(program, *projection)?
             }
         };
         position = field.type_reference;
@@ -394,20 +394,3 @@ fn declared_field_with_symbol<'program>(
         })
 }
 
-/// The declaration a field symbol already identifies. A projection is
-/// produced by exact member resolution or not at all; when the demanded path
-/// stands on an opaque leaf the symbol is the only provenance available, and
-/// its own declared field type resumes the bounded replay.
-fn exact_declared_field(
-    program: &typed::TypedTrees,
-    symbol: symbols::SymbolHandle,
-) -> Option<&typed::data::DataField> {
-    if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Field {
-        return None;
-    }
-    program
-        .data_definitions()
-        .iter()
-        .flat_map(|data| program.data_member_fields(program.data_members(data)))
-        .find(|field| field.symbol == symbol)
-}

@@ -21,7 +21,8 @@ use typed_trees::types::{
 
 mod declared_fields;
 pub use declared_fields::{
-    FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_data_field_domain_rows, readable_slice_element,
+    FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_data_field_domain_rows, exact_declared_field,
+    readable_slice_element,
 };
 
 /// The declared type of an assignment destination, preserving domain and

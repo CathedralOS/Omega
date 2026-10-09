@@ -1,8 +1,8 @@
 //! Finite storage partitions for parameter values, not recursive referent snapshots.
 
 use super::super::ProgressSubject;
-use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
+use validation::field_domains::exact_declared_field;
 
 /// Select a finite owned prefix along this demand alone. Unused sibling fields
 /// are never enumerated, even when their type graph shares large subtrees.
@@ -92,20 +92,3 @@ fn replay_partition_data(
     }
 }
 
-/// The declaration a field symbol already identifies. A subject projection is
-/// produced by exact member resolution or not at all; when the enclosing type
-/// is an opaque leaf the symbol is the only provenance available, and its own
-/// declared field type resumes the bounded replay.
-fn exact_declared_field(
-    program: &dyn ::validation::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataField> {
-    if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Field {
-        return None;
-    }
-    program
-        .data_definitions()
-        .iter()
-        .flat_map(|data| program.data_member_fields(program.data_members(data)))
-        .find(|field| field.symbol == symbol)
-}
