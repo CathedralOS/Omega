@@ -27,7 +27,6 @@ use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction, find_structural_case, find_structural_type,
-    structural_children,
 };
 
 /// Which retained row family a source `BoundaryCall` lowered into. Only the
@@ -225,40 +224,7 @@ fn aggregate_member_storage(
 
 /// Owned containment only: a reference's referent is not its payload.
 fn contains_reference(declarations: &[StructuralTypeDeclaration], root: StructuralTypeId) -> bool {
-    let mut pending = vec![root];
-    let mut visited = BTreeSet::new();
-    while let Some(current) = pending.pop() {
-        if !visited.insert(current) {
-            continue;
-        }
-        let Some(declaration) = lookup(declarations, current) else {
-            continue;
-        };
-        let mut push_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-            pending.extend(structural_children(fields));
-        };
-        match &declaration.shape {
-            StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::Record { fields, .. } => push_fields(fields),
-            StructuralTypeShape::Sum { cases } => {
-                for case in cases {
-                    push_fields(&case.fields);
-                }
-            }
-            StructuralTypeShape::Mixed { fields, cases } => {
-                push_fields(fields);
-                for case in cases {
-                    push_fields(&case.fields);
-                }
-            }
-            StructuralTypeShape::FixedArray { element, .. }
-            | StructuralTypeShape::ElementView { element } => pending.push(*element),
-            StructuralTypeShape::FusedServiceBinding
-            | StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::ByteSequence(_) => {}
-        }
-    }
-    false
+    terminal_psi::structural_type_contains_reference(declarations, root)
 }
 
 /// Exact declaration-order reference leaves of the supported owned shape,

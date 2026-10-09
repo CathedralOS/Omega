@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, find_structural_type, structural_children,
+    StructuralTypeShape, find_structural_type,
 };
 
 /// One outstanding loan: the referent roots and immediate parent leaves it
@@ -229,40 +229,7 @@ pub(in crate::legalization) fn contains_reference(
     types: &[StructuralTypeDeclaration],
     root: StructuralTypeId,
 ) -> bool {
-    let mut pending = vec![root];
-    let mut visited = BTreeSet::new();
-    while let Some(current) = pending.pop() {
-        if !visited.insert(current) {
-            continue;
-        }
-        let Some(declaration) = find_structural_type(types, current) else {
-            continue;
-        };
-        let mut push_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-            pending.extend(structural_children(fields));
-        };
-        match &declaration.shape {
-            StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::Record { fields, .. } => push_fields(fields),
-            StructuralTypeShape::Sum { cases } => {
-                for case in cases {
-                    push_fields(&case.fields);
-                }
-            }
-            StructuralTypeShape::Mixed { fields, cases } => {
-                push_fields(fields);
-                for case in cases {
-                    push_fields(&case.fields);
-                }
-            }
-            StructuralTypeShape::FixedArray { element, .. }
-            | StructuralTypeShape::ElementView { element } => pending.push(*element),
-            StructuralTypeShape::FusedServiceBinding
-            | StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::ByteSequence(_) => {}
-        }
-    }
-    false
+    terminal_psi::structural_type_contains_reference(types, root)
 }
 
 /// Push one field's reference-bearing child as a leaf-path continuation:

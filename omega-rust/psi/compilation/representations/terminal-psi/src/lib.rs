@@ -111,6 +111,6 @@ pub use terminal_module::{
     live_field_entry, observation, ownership,
     program_local_root_introduction_compatibility_report_identity, proof,
     structural_case_by_identity, structural_case_position, structural_children,
-    structural_parameter_position, structural_type_by_identity, suspension_frontier_commitment,
-    types, unique_structural_declaration, values,
+    structural_parameter_position, structural_type_by_identity, structural_type_contains_reference,
+    suspension_frontier_commitment, types, unique_structural_declaration, values,
 };

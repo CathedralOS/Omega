@@ -7,14 +7,12 @@
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractFunction};
+use abstract_operations::{AbstractAtomicEvent, AbstractFunction};
 use semantic_vocabulary::{OperationId, ScalarType};
 use target_operations::{
     TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
-use terminal_psi::{
-    AtomicAccessEvent, AtomicReadModifyWrite, StructuralAccess, StructuralFieldType,
-};
+use terminal_psi::{AtomicAccessEvent, StructuralAccess, StructuralFieldType};
 
 pub(super) fn lower(
     operation: OperationId,
@@ -55,13 +53,7 @@ pub(super) fn lower(
         } => (
             AtomicAccessEvent::ReadModifyWrite {
                 ordering: *ordering,
-                operation: match operation {
-                    AbstractAtomicReadModifyWrite::FetchAdd => AtomicReadModifyWrite::FetchAdd,
-                    AbstractAtomicReadModifyWrite::FetchSub => AtomicReadModifyWrite::FetchSub,
-                    AbstractAtomicReadModifyWrite::FetchAnd => AtomicReadModifyWrite::FetchAnd,
-                    AbstractAtomicReadModifyWrite::FetchOr => AtomicReadModifyWrite::FetchOr,
-                    AbstractAtomicReadModifyWrite::FetchXor => AtomicReadModifyWrite::FetchXor,
-                },
+                operation: (*operation).into(),
                 operand: *operand,
             },
             Some(*prior),

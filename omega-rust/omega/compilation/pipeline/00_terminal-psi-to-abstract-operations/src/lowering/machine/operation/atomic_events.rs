@@ -30,13 +30,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{
-    AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractOperation, AtomicModificationAfter,
-    AtomicReadsFrom,
+    AbstractAtomicEvent, AbstractOperation, AtomicModificationAfter, AtomicReadsFrom,
 };
 use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 use terminal_psi::{
-    AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationKind, StructuralTypeDeclaration,
-    TerminalMachine,
+    AtomicAccessEvent, Operation, OperationKind, StructuralTypeDeclaration, TerminalMachine,
 };
 
 use crate::lowering::LoweringError;
@@ -95,13 +93,7 @@ pub(super) fn lower(
             ordering,
         } => AbstractAtomicEvent::ReadModifyWrite {
             location,
-            operation: match arithmetic {
-                AtomicReadModifyWrite::FetchAdd => AbstractAtomicReadModifyWrite::FetchAdd,
-                AtomicReadModifyWrite::FetchSub => AbstractAtomicReadModifyWrite::FetchSub,
-                AtomicReadModifyWrite::FetchAnd => AbstractAtomicReadModifyWrite::FetchAnd,
-                AtomicReadModifyWrite::FetchOr => AbstractAtomicReadModifyWrite::FetchOr,
-                AtomicReadModifyWrite::FetchXor => AbstractAtomicReadModifyWrite::FetchXor,
-            },
+            operation: arithmetic.into(),
             ordering,
             operand,
             prior: prior()?,

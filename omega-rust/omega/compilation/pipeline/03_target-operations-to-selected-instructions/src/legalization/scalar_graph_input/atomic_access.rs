@@ -3,11 +3,11 @@
 //! authority, exact scalar type and ordering remain atomic-event obligations.
 //! An observed prior is the result of this event, never an added scalar load.
 
-use abstract_operations::{AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractResult};
+use abstract_operations::{AbstractAtomicEvent, AbstractResult};
 use semantic_vocabulary::{IntegerType, ScalarType, StructuralFieldId};
 use terminal_psi::{
-    AtomicAccessEvent, AtomicReadModifyWrite, StructuralAccess, StructuralArgument,
-    StructuralFieldType, StructuralTypeDeclaration,
+    AtomicAccessEvent, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralTypeDeclaration,
 };
 
 pub(in crate::legalization) struct Access {
@@ -52,13 +52,7 @@ pub(super) fn event(
         } => (
             AtomicAccessEvent::ReadModifyWrite {
                 ordering: *ordering,
-                operation: match operation {
-                    AbstractAtomicReadModifyWrite::FetchAdd => AtomicReadModifyWrite::FetchAdd,
-                    AbstractAtomicReadModifyWrite::FetchSub => AtomicReadModifyWrite::FetchSub,
-                    AbstractAtomicReadModifyWrite::FetchAnd => AtomicReadModifyWrite::FetchAnd,
-                    AbstractAtomicReadModifyWrite::FetchOr => AtomicReadModifyWrite::FetchOr,
-                    AbstractAtomicReadModifyWrite::FetchXor => AtomicReadModifyWrite::FetchXor,
-                },
+                operation: (*operation).into(),
                 operand: *operand,
             },
             Some(*prior),

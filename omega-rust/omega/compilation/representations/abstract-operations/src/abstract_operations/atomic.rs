@@ -62,6 +62,30 @@ pub enum AbstractAtomicReadModifyWrite {
     FetchAnd,
 }
 
+impl From<terminal_psi::AtomicReadModifyWrite> for AbstractAtomicReadModifyWrite {
+    fn from(operation: terminal_psi::AtomicReadModifyWrite) -> Self {
+        match operation {
+            terminal_psi::AtomicReadModifyWrite::FetchAdd => Self::FetchAdd,
+            terminal_psi::AtomicReadModifyWrite::FetchSub => Self::FetchSub,
+            terminal_psi::AtomicReadModifyWrite::FetchAnd => Self::FetchAnd,
+            terminal_psi::AtomicReadModifyWrite::FetchOr => Self::FetchOr,
+            terminal_psi::AtomicReadModifyWrite::FetchXor => Self::FetchXor,
+        }
+    }
+}
+
+impl From<AbstractAtomicReadModifyWrite> for terminal_psi::AtomicReadModifyWrite {
+    fn from(operation: AbstractAtomicReadModifyWrite) -> Self {
+        match operation {
+            AbstractAtomicReadModifyWrite::FetchAdd => Self::FetchAdd,
+            AbstractAtomicReadModifyWrite::FetchSub => Self::FetchSub,
+            AbstractAtomicReadModifyWrite::FetchAnd => Self::FetchAnd,
+            AbstractAtomicReadModifyWrite::FetchOr => Self::FetchOr,
+            AbstractAtomicReadModifyWrite::FetchXor => Self::FetchXor,
+        }
+    }
+}
+
 /// The dedicated `Atomic::fence` ordering: exactly
 /// `Receive | Publish | ReceivePublish`. The dedicated type keeps
 /// `NoOrdering` and `GlobalOrder` fences unrepresentable rather than

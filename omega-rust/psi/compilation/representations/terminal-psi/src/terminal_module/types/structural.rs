@@ -507,6 +507,51 @@ pub fn find_structural_type<'types>(
     types.iter().find(|declaration| declaration.id == id)
 }
 
+/// Whether the type graph under `root` reaches a reference leaf. Owned
+/// containment only: a reference's referent is not its payload. The walk
+/// follows declaration-order children through record, sum and mixed fields
+/// and through fixed-array and element-view elements; `visited` bounds it
+/// against shape cycles.
+pub fn structural_type_contains_reference(
+    types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(current) = pending.pop() {
+        if !visited.insert(current) {
+            continue;
+        }
+        let Some(declaration) = find_structural_type(types, current) else {
+            continue;
+        };
+        let mut push_fields = |fields: &[StructuralFieldDeclaration]| {
+            pending.extend(structural_children(fields));
+        };
+        match &declaration.shape {
+            StructuralTypeShape::Reference { .. } => return true,
+            StructuralTypeShape::Record { fields, .. } => push_fields(fields),
+            StructuralTypeShape::Sum { cases } => {
+                for case in cases {
+                    push_fields(&case.fields);
+                }
+            }
+            StructuralTypeShape::Mixed { fields, cases } => {
+                push_fields(fields);
+                for case in cases {
+                    push_fields(&case.fields);
+                }
+            }
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => pending.push(*element),
+            StructuralTypeShape::FusedServiceBinding
+            | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_) => {}
+        }
+    }
+    false
+}
+
 /// The case declaration carrying `identity` on a declaration roster.
 pub fn structural_case_by_identity<'cases>(
     cases: &'cases [StructuralCaseDeclaration],
