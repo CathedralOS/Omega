@@ -11,7 +11,8 @@ use crate::checker::float_ranges::{
     float_range_from_constraints,
 };
 use crate::checker::integer_ranges::{
-    guarded_integer_range_for_assignment, guarded_integer_range_for_transition_argument,
+    IntegerRange, guarded_integer_range_for_assignment,
+    guarded_integer_range_for_transition_argument,
     integer_range_for_transition_argument, integer_range_from_constraints, type_constraints,
 };
 use crate::obligations::{
@@ -148,6 +149,15 @@ fn argument_handle_satisfies_named_constraint(
         }
 }
 
+/// Whether `range` satisfies the positivity constraint name.
+fn positive_range(constraint: &str, range: &IntegerRange) -> bool {
+    match constraint {
+        "positive" => !range.minimum.is_negative() && !range.minimum.is_zero(),
+        "non_negative" => !range.minimum.is_negative(),
+        _ => false,
+    }
+}
+
 fn transition_argument_satisfies_named_constraint(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
@@ -168,11 +178,7 @@ fn transition_argument_satisfies_named_constraint(
 
     if matches!(constraint, "positive" | "non_negative") {
         let range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
-        return match constraint {
-            "positive" => !range.minimum.is_negative() && !range.minimum.is_zero(),
-            "non_negative" => !range.minimum.is_negative(),
-            _ => false,
-        };
+        return positive_range(constraint, &range);
     }
 
     if matches!(constraint, "exact")
@@ -211,11 +217,7 @@ fn assignment_satisfies_named_constraint(
     if matches!(constraint, "positive" | "non_negative")
         && let Some(range) = guarded_integer_range_for_assignment(proof_plan, obligation)
     {
-        return match constraint {
-            "positive" => !range.minimum.is_negative() && !range.minimum.is_zero(),
-            "non_negative" => !range.minimum.is_negative(),
-            _ => false,
-        };
+        return positive_range(constraint, &range);
     }
 
     if matches!(constraint, "exact")
