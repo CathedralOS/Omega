@@ -26,8 +26,6 @@ mod composition_modes;
 mod independent_components;
 mod semantic_roles;
 
-pub(crate) use canonical_filesystem_host::{
-    MintedFilesystemHostPlan, mint_canonical_filesystem_host_plan};
 pub use composition_modes::verify_selected_compositions_are_realized;
 
 use crate::ProviderSelection;

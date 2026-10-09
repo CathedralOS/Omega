@@ -24,11 +24,4 @@
 //! unresolved, so the covered plan keeps publishing partial and refusing a
 //! lease.
 
-use crate::task_plans::carry_crossings::canonical_suspension_crossing;
-use checked_trees::CheckedTrees;
-use diagnostics::Diagnostic;
-use language_semantics::MachineSupplyMode;
-use std::collections::BTreeMap;
-use symbols::SymbolHandle;
-use target::NativeTarget;
 
