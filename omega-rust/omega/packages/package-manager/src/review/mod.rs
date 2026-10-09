@@ -10,9 +10,8 @@ mod timings;
 pub(crate) use candidate::verify_transitive_source_custody;
 
 pub(crate) use audit::{
-    CompilerReviewTriage, PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits,
-    PackageTriageDecision, PackageTriageDisposition, PackageTriageReason, TriageRenderError, render_package_source_patch,
-    triage_initial_install};
+    PackageSourcePatchError, PackageSourcePatchLimits,
+    render_package_source_patch};
 pub use candidate::{ CompileResolvedPackageReviewsError,
 };
 pub(crate) use candidate::{

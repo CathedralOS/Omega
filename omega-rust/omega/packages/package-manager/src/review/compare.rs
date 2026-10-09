@@ -5,14 +5,12 @@
 
 mod locked_policy;
 mod policy;
-mod risk;
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 pub(crate) use policy::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
     PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath, PackagePolicyReplacementSite, compare_package_policy_changes};
-pub(crate) use risk::{ChangedRowRisk, changed_review_risk};
 
 /// Exact compatibility contract broken by changing the selected project root's
 /// authored role without changing its package identity.
