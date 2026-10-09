@@ -81,7 +81,7 @@ pub(super) fn decode_hex(value: &str) -> Option<Vec<u8>> {
     Some(decoded)
 }
 
-fn hex_value(byte: u8) -> Option<u8> {
+pub(crate) fn hex_value(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),
         b'a'..=b'f' => Some(byte - b'a' + 10),

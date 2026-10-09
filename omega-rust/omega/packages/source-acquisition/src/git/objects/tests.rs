@@ -578,7 +578,10 @@ fn checked_sha1_rejects_a_known_collision_attack() {
         .as_chunks::<2>()
         .0
         .iter()
-        .map(|pair| (hex_digit(pair[0]).unwrap() << 4) | hex_digit(pair[1]).unwrap())
+        .map(|pair| {
+            (crate::identity::hex_value(pair[0]).unwrap() << 4)
+                | crate::identity::hex_value(pair[1]).unwrap()
+        })
         .collect::<Vec<_>>();
     let mut hasher = CheckedSha1::new();
     hasher.update(&collision);

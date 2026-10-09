@@ -89,22 +89,13 @@ pub(super) fn decode_git_object_id(
     }
     let mut bytes = Vec::with_capacity(oid.len() / 2);
     for pair in oid.as_bytes().as_chunks::<2>().0 {
-        let high = hex_digit(pair[0])
+        let high = crate::identity::hex_value(pair[0])
             .ok_or_else(|| git_object_invalid(oid, "object ID contains a non-hexadecimal digit"))?;
-        let low = hex_digit(pair[1])
+        let low = crate::identity::hex_value(pair[1])
             .ok_or_else(|| git_object_invalid(oid, "object ID contains a non-hexadecimal digit"))?;
         bytes.push((high << 4) | low);
     }
     Ok(bytes)
-}
-
-pub(crate) fn hex_digit(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
 }
 
 pub(crate) fn is_object_id(value: &str) -> bool {
