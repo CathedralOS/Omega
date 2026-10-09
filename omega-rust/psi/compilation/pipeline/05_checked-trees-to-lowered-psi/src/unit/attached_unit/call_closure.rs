@@ -35,20 +35,8 @@ pub(crate) fn checked_unit_call_closure_including(
                 closure.push(target);
             }
         }
-        for cleanup in machine
-            .operations()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                    cleanup_actions, ..
-                } => Some(cleanup_actions),
-                CheckedUnitEffectOperationPlan::Complete {
-                    normal_cleanup_actions,
-                    ..
-                } => Some(normal_cleanup_actions),
-                _ => None,
-            })
-            .flatten()
-            .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
+        for cleanup in
+            crate::unit::unit_cleanup::continuation_cleanups(machine.operations())
         {
             if !closure.contains(&cleanup.cleanup_machine) {
                 closure.push(cleanup.cleanup_machine);

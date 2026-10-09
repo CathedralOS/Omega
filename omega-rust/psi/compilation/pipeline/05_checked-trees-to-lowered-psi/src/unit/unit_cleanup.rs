@@ -118,11 +118,11 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
 }
 
 /// Selected cleanup operations have the same hook contract for Unit and scalar exits.
-pub(crate) fn continuation_cleanups(
-    operations: &[CheckedUnitEffectOperationPlan],
-) -> impl Iterator<Item = &CheckedUnitNominalAffineCleanupPlan> {
+pub(crate) fn continuation_cleanups<'a>(
+    operations: impl IntoIterator<Item = &'a CheckedUnitEffectOperationPlan>,
+) -> impl Iterator<Item = &'a CheckedUnitNominalAffineCleanupPlan> {
     operations
-        .iter()
+        .into_iter()
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 cleanup_actions, ..
