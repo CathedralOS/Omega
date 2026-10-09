@@ -35,7 +35,7 @@ impl LiveValues<'_, '_> {
     }
 }
 
-pub(super) trait CapturedValue: Sized {
+pub(super) trait CapturedValue: Sized + Clone {
     const REQUIRES_SELECTED_ARGUMENTS: bool;
     fn literal(expression: &ExpressionNode) -> Option<Self>;
     fn at_place(place: &CanonicalPlace, live: &LiveValues<'_, '_>) -> Option<Self>;
@@ -48,6 +48,9 @@ pub(super) trait CapturedValue: Sized {
         expression: &CheckedScalarExpression,
         values: &mut CallValues<Self>,
     ) -> Option<Self>;
+    fn boolean(expression: &CheckedScalarExpression, values: &mut CallValues<Self>)
+    -> Option<bool>;
+    fn join(self, other: Self) -> Option<Self>;
     /// Fallback for an argument with no live snapshot: its runtime value must
     /// still satisfy the formal's declared scalar type, so that declaration —
     /// at worst the raw carrier — bounds the incoming value.
@@ -131,6 +134,20 @@ impl CapturedValue for ScalarValue {
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
         crate::values::evaluate_checked_scalar(expression, values)
+    }
+
+    fn boolean(
+        expression: &CheckedScalarExpression,
+        values: &mut CallValues<Self>,
+    ) -> Option<bool> {
+        match Self::evaluate_local(expression, values)? {
+            Self::Boolean(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn join(self, other: Self) -> Option<Self> {
+        (self == other).then_some(self)
     }
 
     fn operand(
@@ -222,6 +239,23 @@ impl CapturedValue for IntegerRange {
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
         crate::values::bounds::evaluate(expression, values)
+    }
+
+    fn boolean(
+        expression: &CheckedScalarExpression,
+        values: &mut CallValues<Self>,
+    ) -> Option<bool> {
+        let CheckedScalarExpression::Boolean(expression) = expression else {
+            return None;
+        };
+        crate::values::bounds::boolean(expression, values)
+    }
+
+    fn join(self, other: Self) -> Option<Self> {
+        Some(Self {
+            minimum: self.minimum.min(other.minimum),
+            maximum: self.maximum.max(other.maximum),
+        })
     }
 
     fn formal_fallback(

@@ -48,6 +48,57 @@ pub(crate) fn evaluate(
     integer(expression, source).map(|(_, bounds)| bounds)
 }
 
+/// Decide only conditions that hold for every value in the captured ranges.
+/// An overlapping comparison remains unknown, so callers retain both paths.
+pub(crate) fn boolean(
+    expression: &checked_trees::CheckedBooleanExpression,
+    source: &mut impl IntegerBoundsSource,
+) -> Option<bool> {
+    use checked_trees::{
+        CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
+    };
+    match expression {
+        Boolean::Constant(value) => Some(*value),
+        Boolean::Not(operand) => boolean(operand, source).map(|value| !value),
+        Boolean::Equal { left, right } => Some(boolean(left, source)? == boolean(right, source)?),
+        Boolean::And { left, right } => match (boolean(left, source), boolean(right, source)) {
+            (Some(false), _) | (_, Some(false)) => Some(false),
+            (Some(true), Some(true)) => Some(true),
+            _ => None,
+        },
+        Boolean::Or { left, right } => match (boolean(left, source), boolean(right, source)) {
+            (Some(true), _) | (_, Some(true)) => Some(true),
+            (Some(false), Some(false)) => Some(false),
+            _ => None,
+        },
+        Boolean::IntegerComparison { kind, left, right } => {
+            let (left_type, left) = integer(left, source)?;
+            let (right_type, right) = integer(right, source)?;
+            if left_type != right_type {
+                return None;
+            }
+            match kind {
+                Comparison::Equal
+                    if left.maximum < right.minimum || right.maximum < left.minimum =>
+                {
+                    Some(false)
+                }
+                Comparison::Equal
+                    if left.minimum == left.maximum && right.minimum == right.maximum =>
+                {
+                    Some(left.minimum == right.minimum)
+                }
+                Comparison::LessThan if left.maximum < right.minimum => Some(true),
+                Comparison::LessThan if left.minimum >= right.maximum => Some(false),
+                Comparison::LessOrEqual if left.maximum <= right.minimum => Some(true),
+                Comparison::LessOrEqual if left.minimum > right.maximum => Some(false),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 fn integer(
     expression: &CheckedScalarExpression,
     source: &mut impl IntegerBoundsSource,

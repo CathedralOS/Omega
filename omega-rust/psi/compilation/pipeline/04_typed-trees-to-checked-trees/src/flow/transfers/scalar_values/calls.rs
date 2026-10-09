@@ -13,7 +13,9 @@ use checked_trees::{BorrowFacts, FlowSemanticContextRef};
 use facts::FactPlan;
 use symbols::SymbolHandle;
 
-// Evaluate selected scalar locals and local stores followed by one return.
+mod normal_returns;
+
+// Capture the selected scalar state graph under copied caller actuals.
 // Intervening Unit calls preserve these normal-return facts only when their
 // complete storage footprint is empty. This never proves that a call returns.
 pub(super) fn capture_call<Value: CapturedValue>(
@@ -79,9 +81,6 @@ pub(super) fn capture_call<Value: CapturedValue>(
         }),
     )?;
     let (machine_index, entry_state_index) = context.state_location(program, call.target_symbol)?;
-    if entry_state_index != 0 {
-        return None;
-    }
     let machine = &program.machines()[machine_index];
     if !machine.body_is_present
         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -89,10 +88,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
     {
         return None;
     }
-    let [state] = program.machine_states(machine) else {
-        return None;
-    };
-    let statements = program.statement_table.statements(state.statement_nodes);
+    let state = program.machine_states(machine).get(entry_state_index)?;
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
     if receiver_place.is_some() {
@@ -219,8 +215,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
             Value::formal_fallback(program, parameter)
         })
         .collect::<Option<Vec<_>>>()?;
-    let plans = context.scalar_expressions;
-    let mut symbols: Vec<_> = scalar_parameters
+    let symbols: Vec<_> = scalar_parameters
         .iter()
         .map(|parameter| parameter.symbol)
         .collect();
@@ -248,125 +243,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
             values.bindings.push(Some(value));
         }
     }
-    let mut immutable_local_count = 0_u32;
-    for (statement_index, statement) in statements.iter().enumerate() {
-        if let Some(call) = statement.as_call() {
-            retains_values_across_unit_call(
-                program,
-                borrow,
-                context,
-                machine,
-                state,
-                statement_index,
-                call,
-                &symbols,
-                &values,
-            )?;
-            continue;
-        }
-        let statement_ordinal = u32::try_from(statement_index).ok()?;
-        let (source, destination, role) = match statement {
-            StatementNode::LocalData(local) => {
-                if !local.symbol.is_valid()
-                    || symbols.contains(&local.symbol)
-                    || values
-                        .storage
-                        .iter()
-                        .any(|(symbol, _)| *symbol == local.symbol)
-                    || program
-                        .primitive_type_reference(local.type_reference)
-                        .is_none()
-                {
-                    return None;
-                }
-                (
-                    local.initial_value,
-                    local.symbol,
-                    if local.is_mutable {
-                        CheckedScalarExpressionRole::StorageInitializer
-                    } else {
-                        CheckedScalarExpressionRole::LocalInitializer {
-                            binding_ordinal: immutable_local_count,
-                        }
-                    },
-                )
-            }
-            StatementNode::Assignment(assignment) => {
-                let path = program.expression_table.name_path_node(assignment.target)?;
-                if !values
-                    .storage
-                    .iter()
-                    .any(|(symbol, _)| *symbol == path.symbol)
-                {
-                    return None;
-                }
-                (
-                    assignment.value,
-                    path.symbol,
-                    CheckedScalarExpressionRole::AssignmentValue,
-                )
-            }
-            StatementNode::Expression(result) if statement_index + 1 == statements.len() => (
-                *result,
-                SymbolHandle::invalid(),
-                CheckedScalarExpressionRole::Return,
-            ),
-            _ => return None,
-        };
-        let mut bindings = context
-            .scalar_binding_handles_at(state.symbol, statement_ordinal)
-            .iter()
-            .map(|handle| plans.source_bindings.get(*handle))
-            .filter(|binding| {
-                binding.role == role
-                    && binding.expression == source
-                    && binding.destination == destination
-            });
-        let binding = bindings.next()?;
-        if bindings.next().is_some()
-            || plans.binding_symbols.span_or_empty(binding.symbols) != symbols
-        {
-            return None;
-        }
-        let mut expressions = context
-            .scalar_expression_rows_at(state.symbol, statement_ordinal)
-            .iter()
-            .map(|row| &plans.expressions[*row])
-            .filter(|expression| expression.role == role);
-        let expression = expressions.next()?;
-        let expression = &expression.expression;
-        if expressions.next().is_some() {
-            return None;
-        }
-        // Read the complete RHS against the old storage, then commit the
-        // write. Immutable locals retain their captured values across later
-        // assignments. An immutable local whose selected form produces no
-        // captured value -- a boolean guard row, a shape this value model does
-        // not carry -- still owns its binding position: keeping the slot empty
-        // preserves every later local's ordinal while reads of it simply find
-        // no value, which is conservative.
-        let value = Value::evaluate_local(expression, &mut values);
-        match role {
-            CheckedScalarExpressionRole::Return => return value,
-            CheckedScalarExpressionRole::LocalInitializer { .. } => {
-                symbols.push(destination);
-                values.bindings.push(value);
-                immutable_local_count = immutable_local_count.checked_add(1)?;
-            }
-            CheckedScalarExpressionRole::StorageInitializer => {
-                values.storage.push((destination, value?));
-            }
-            CheckedScalarExpressionRole::AssignmentValue => {
-                let (_, current) = values
-                    .storage
-                    .iter_mut()
-                    .find(|(symbol, _)| *symbol == destination)?;
-                *current = value?;
-            }
-            _ => return None,
-        }
-    }
-    None
+    normal_returns::capture(program, borrow, context, machine, state, symbols, values)
 }
 
 /// The borrow row for this exact call occurrence. A statement can carry
