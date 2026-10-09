@@ -1,6 +1,7 @@
 //! Start here. The mutable arena-backed object plan the image builders
 //! consume: `ObjectPlan` over its arena layout, with `symbols`, `sections`
 
+pub(crate) mod container;
 pub(crate) mod relocations;
 pub(crate) mod sections;
 pub(crate) mod symbols;

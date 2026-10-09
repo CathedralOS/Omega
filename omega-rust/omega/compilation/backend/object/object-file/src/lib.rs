@@ -138,6 +138,9 @@ pub use names::{
     object_function_symbol, object_symbol_handle_by_foreign_locator,
     object_symbol_name, section_name,
 };
+pub(crate) use names::symbol_section_name;
+pub use object_plan::container::{ ObjectContainerOutput,
+};
 pub use object_plan::relocations::{
     RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
     boundary_relocation_origin, relocation_kind_tag,
