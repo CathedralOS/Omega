@@ -1,4 +1,4 @@
-//! Project every function through the common graph validator.
+//! Project every target function through common instruction construction.
 use super::{AbstractOperationPlan, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError as Error;
 use crate::LegalizationError;

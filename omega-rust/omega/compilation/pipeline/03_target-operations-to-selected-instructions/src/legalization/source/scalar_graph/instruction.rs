@@ -4,7 +4,7 @@
 //! `scalar_instructions`.
 
 use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
-use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
+use abstract_operations::AbstractOperation;
 use legalized_operations::{
     LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
 };
@@ -21,24 +21,20 @@ pub(super) fn project(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-    custody: &scalar_graph_input::reference_custody::Custody,
+    targeted: &target_operations::TargetUnitOperation,
 ) -> Result<LegalizedScalarInstruction, LegalizationError> {
-    if let Some((operation, origin)) =
-        scalar_graph_input::call_origin::installed_operation(node, optimized, native, plan)?
-    {
-        let mut call_node = node.clone();
-        call_node.operation = operation;
-        let mut instruction = project(&call_node, optimized, native, plan, unit, custody)?;
-        let LegalizedScalarInstructionKind::Call(call) = &mut instruction.kind else {
-            return Err(Error::custody());
-        };
-        call.source = origin;
-        call.validate_source(&node.ownership)
-            .map_err(|_| Error::custody())?;
-        return Ok(instruction);
-    }
     let (operation, result) = scalar_graph_input::instruction(node).ok_or(Error::custody())?;
-    let kind = match &node.operation {
+    // Installed and ordinary calls already share the target producer's call
+    // row. Preserve that origin directly instead of manufacturing a replacement
+    // source node and recursively projecting it as an ordinary call.
+    let kind =
+        if matches!(
+            targeted,
+            target_operations::TargetUnitOperation::Call { .. }
+        ) {
+            call_instructions::project_call(optimized, unit, targeted)?
+        } else {
+            match &node.operation {
         AbstractOperation::SelectImplementation { table, .. } => {
             LegalizedScalarInstructionKind::SelectImplementation { table: *table }
         }
@@ -55,33 +51,36 @@ pub(super) fn project(
             }
         }
         AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
-            let (_, _, source, _, field) = scalar_graph_input::structural_fields::read(
-                optimized,
-                &node.operation,
-                &plan.structural_types,
-                custody,
-            )
-            .ok_or(Error::custody())?;
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
-                indices: scalar_graph_input::structural_fields::byte_index_operands(
-                    optimized, unit, operation, &source, field,
-                )?,
+            let target_operations::TargetUnitOperation::StructuralByteSequenceFieldLength {
                 source,
                 field,
+                ..
+            } = targeted
+            else {
+                return Err(Error::custody());
+            };
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                indices: scalar_graph_input::structural_fields::byte_index_operands(
+                    optimized, unit, operation, source, *field,
+                )?,
+                source: source.clone(),
+                field: *field,
             }
         }
         AbstractOperation::StructuralScalarFieldRead { .. } => {
-            let (_, _, source, case, field) = scalar_graph_input::structural_fields::read(
-                optimized,
-                &node.operation,
-                &plan.structural_types,
-                custody,
-            )
-            .ok_or(Error::custody())?;
-            LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+            let target_operations::TargetUnitOperation::StructuralScalarFieldRead {
                 source,
                 case,
                 field,
+                ..
+            } = targeted
+            else {
+                return Err(Error::custody());
+            };
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                source: source.clone(),
+                case: *case,
+                field: *field,
             }
         }
         AbstractOperation::IntegerBitwiseAnd { left, right, .. } => {
@@ -131,12 +130,6 @@ pub(super) fn project(
             left: *left,
             right: *right,
         },
-        AbstractOperation::CallStructural {
-            result: AbstractStructuralCallResult::Structural { .. },
-            ..
-        } => call_instructions::project_call_structural(
-            node, optimized, native, plan, unit, operation, custody,
-        )?,
         AbstractOperation::EstablishReference {
             psi_operation,
             result,
@@ -226,7 +219,7 @@ pub(super) fn project(
             storage_instructions::project_structural_leaf_copy(node, optimized, plan, unit)?
         }
         abstract_operations::move_or_store_structural_field_pattern!() => {
-            storage_instructions::project_borrowed_window(node, optimized, plan, unit, custody)?
+            storage_instructions::project_borrowed_window(node, optimized, plan, unit, targeted)?
         }
         AbstractOperation::EstablishTrivialAffineLocal {
             place,
@@ -340,7 +333,7 @@ pub(super) fn project(
         }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
             storage_instructions::project_structural_scalar_field_store(
-                node, optimized, unit, custody,
+                node, optimized, unit, targeted,
             )?
         }
         AbstractOperation::EstablishByteSequenceLiteral {
@@ -356,15 +349,9 @@ pub(super) fn project(
         AbstractOperation::ByteSequenceSubslice { .. } => {
             storage_instructions::project_byte_sequence_subslice(node, optimized, unit)?
         }
-        AbstractOperation::CallStructural {
-            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
-            ..
-        } => call_instructions::project_call_unit(
-            node, optimized, native, plan, unit, operation, custody,
-        )?,
         AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_byte_store(
-                node, optimized, unit, custody,
+                node, optimized, unit, targeted,
             )?
         }
         AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
@@ -376,30 +363,30 @@ pub(super) fn project(
             storage_instructions::project_byte_sequence_concatenation(node, optimized, unit)?
         }
         AbstractOperation::ByteSequenceStore { .. } => {
-            storage_instructions::project_byte_sequence_store(node, optimized, unit, custody)?
+            storage_instructions::project_byte_sequence_store(node, optimized, unit, targeted)?
         }
         AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_store(
-                node, optimized, unit, custody,
+                node, optimized, unit, targeted,
             )?
         }
         AbstractOperation::StructuralByteViewFieldStore { field, source, .. } => {
-            let destination = scalar_graph_input::structural_fields::view_replacement(
-                optimized,
-                &node.operation,
-                &unit.structural_types,
-                custody,
-            )
-            .ok_or(LegalizationError::custody())?;
+            let target_operations::TargetUnitOperation::StructuralByteViewFieldStore {
+                destination,
+                ..
+            } = targeted
+            else {
+                return Err(Error::custody());
+            };
             LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
                 indices: scalar_graph_input::structural_fields::view_slot_index_operands(
                     optimized,
                     unit,
                     operation,
-                    &destination,
+                    destination,
                     *field,
                 )?,
-                destination,
+                destination: destination.clone(),
                 field: *field,
                 source: *source,
             }
@@ -516,9 +503,6 @@ pub(super) fn project(
         AbstractOperation::BooleanConstant { value, .. } => {
             LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(u128::from(*value)))
         }
-        AbstractOperation::Call { .. } => {
-            call_instructions::project_call(node, native, plan, unit)?
-        }
         AbstractOperation::TrappingInteger { .. } => {
             scalar_instructions::project_trapping_integer(node, optimized)?
         }
@@ -549,7 +533,8 @@ pub(super) fn project(
             scalar_instructions::project_boolean_equal(node, optimized)?
         }
         _ => return Err(Error::custody()),
-    };
+        }
+        };
     Ok(LegalizedScalarInstruction {
         operation,
         result: result.map(|value| LegalizedValueDefinition {

@@ -4,80 +4,84 @@
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
+use abstract_operations::AbstractOperation;
 use legalized_operations::{
-    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstructionKind, NativeCallOrigin,
+    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstructionKind,
 };
 use semantic_vocabulary::OperationId;
 
-pub(super) fn project_call_structural(
-    node: &optimization_unit::OptimizationNode,
+/// Preserve the producer's placement and reference projection for every call
+/// result shape. Source semantics supply instruction custody, not another ABI
+/// planner or loan checker.
+pub(super) fn project_call(
     optimized: &optimization_unit::PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-    operation: OperationId,
-    custody: &scalar_graph_input::reference_custody::Custody,
+    targeted: &target_operations::TargetUnitOperation,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::CallStructural {
-        result: AbstractStructuralCallResult::Structural { result, .. },
-        callee,
+    let target_operations::TargetUnitOperation::Call {
+        psi_operation,
+        origin,
+        target,
+        call_plan,
+        result,
+        scalar_arguments,
         arguments,
-        structural_arguments,
         claim_transfers,
         requirement_obligations,
         crash_continuations,
-        ..
-    } = &node.operation
+    } = targeted
     else {
-        unreachable!("dispatched project_call_structural")
+        return Err(Error::custody());
     };
-    let kind = {
-        let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-        let called = scalar_graph_input::call_signature::signature(*callee, plan)?;
-        let mut lowered = arguments
-            .iter()
-            .zip(&call_plan.parameters)
-            .map(|(source, placement)| LegalizedScalarArgument::Scalar {
-                source: *source,
-                placement: placement.clone(),
-            })
-            .collect::<Vec<_>>();
-        for (position, semantic) in structural_arguments.iter().enumerate() {
-            let target = scalar_graph_input::aggregate_results::call_argument(
-                semantic, position, operation, optimized, called, &call_plan, native, plan, custody,
-            )?;
-            lowered.push(LegalizedScalarArgument::Structural {
-                indices: crate::legalization::runtime_indices::structural_argument(
-                    optimized,
-                    unit,
-                    operation,
-                    target.root_structural_type,
-                    &semantic.path,
-                    &plan.structural_types,
-                )?,
-                semantic: semantic.clone(),
-                target,
-            });
-        }
-        LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
-            descriptor_origins: scalar_graph_input::byte_views::call_descriptor_origins(
-                unit,
-                optimized.machine,
-                result,
-            )?,
-            target: scalar_graph_input::call_signature::native_target(*callee),
-            arguments: lowered,
-            structural_result: Some(result.clone()),
-            result_placement: call_plan.result.clone(),
-            call_plan,
-            source: NativeCallOrigin::Authored,
-            claim_transfers: claim_transfers.clone(),
-            requirement_obligations: requirement_obligations.clone(),
-            crash_continuations: crash_continuations.clone(),
+    let mut lowered = scalar_arguments
+        .iter()
+        .map(|argument| LegalizedScalarArgument::Scalar {
+            source: argument.source.source_value(),
+            placement: argument.placement.clone(),
         })
+        .collect::<Vec<_>>();
+    for argument in arguments {
+        lowered.push(LegalizedScalarArgument::Structural {
+            indices: crate::legalization::runtime_indices::structural_argument(
+                optimized,
+                unit,
+                *psi_operation,
+                argument.root_structural_type,
+                &argument.path,
+                &unit.structural_types,
+            )?,
+            semantic: terminal_psi::StructuralArgument {
+                place: argument.place,
+                path: argument.path.clone(),
+                access: argument.access,
+            },
+            target: argument.clone(),
+        });
+    }
+    let structural_result = match result {
+        target_operations::TargetCallResult::Structural { result, .. } => Some(result.clone()),
+        _ => None,
     };
-    Ok(kind)
+    let descriptor_origins = match &structural_result {
+        Some(result) => scalar_graph_input::byte_views::call_descriptor_origins(
+            unit,
+            optimized.machine,
+            result,
+        )?,
+        None => Vec::new(),
+    };
+    Ok(LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+        descriptor_origins,
+        target: *target,
+        arguments: lowered,
+        structural_result,
+        result_placement: call_plan.result.clone(),
+        call_plan: call_plan.clone(),
+        source: origin.clone(),
+        claim_transfers: claim_transfers.clone(),
+        requirement_obligations: requirement_obligations.clone(),
+        crash_continuations: crash_continuations.clone(),
+    }))
 }
 
 pub(super) fn project_boundary_call(
@@ -176,117 +180,4 @@ pub(super) fn project_normalized_foreign_call(
             callbacks,
         },
     ))
-}
-
-pub(super) fn project_call_unit(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
-    operation: OperationId,
-    custody: &scalar_graph_input::reference_custody::Custody,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::CallStructural {
-        callee,
-        arguments: scalar_arguments,
-        structural_arguments,
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-        result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
-        ..
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_call_unit")
-    };
-    let kind = {
-        let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-        let called = scalar_graph_input::call_signature::signature(*callee, plan)?;
-        if called.scalar_parameter_count() != scalar_arguments.len()
-            || called.structural_parameter_count() != structural_arguments.len()
-            || call_plan.parameters.len() != scalar_arguments.len() + structural_arguments.len()
-        {
-            return Err(Error::custody());
-        }
-        let mut arguments = scalar_arguments
-            .iter()
-            .zip(&call_plan.parameters)
-            .map(|(source, placement)| LegalizedScalarArgument::Scalar {
-                source: *source,
-                placement: placement.clone(),
-            })
-            .collect::<Vec<_>>();
-        for (position, semantic) in structural_arguments.iter().enumerate() {
-            let target = scalar_graph_input::structural_call::argument_at(
-                semantic, position, operation, optimized, called, &call_plan, native, plan, custody,
-            )?;
-            arguments.push(LegalizedScalarArgument::Structural {
-                indices: crate::legalization::runtime_indices::structural_argument(
-                    optimized,
-                    unit,
-                    operation,
-                    target.root_structural_type,
-                    &semantic.path,
-                    &plan.structural_types,
-                )?,
-                semantic: semantic.clone(),
-                target,
-            });
-        }
-        LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
-            descriptor_origins: Vec::new(),
-            structural_result: None,
-            target: scalar_graph_input::call_signature::native_target(*callee),
-            arguments,
-            result_placement: call_plan.result.clone(),
-            source: NativeCallOrigin::Authored,
-            claim_transfers: claim_transfers.clone(),
-            call_plan,
-            requirement_obligations: requirement_obligations.clone(),
-            crash_continuations: crash_continuations.clone(),
-        })
-    };
-    Ok(kind)
-}
-
-pub(super) fn project_call(
-    node: &optimization_unit::OptimizationNode,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::Call {
-        callee,
-        arguments,
-        requirement_obligations,
-        crash_continuations,
-        ..
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_call")
-    };
-    let kind = {
-        let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-        LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
-            descriptor_origins: Vec::new(),
-            structural_result: None,
-            target: scalar_graph_input::call_signature::native_target(*callee),
-            arguments: arguments
-                .iter()
-                .zip(&call_plan.parameters)
-                .map(|(source, placement)| LegalizedScalarArgument::Scalar {
-                    source: *source,
-                    placement: placement.clone(),
-                })
-                .collect(),
-            result_placement: call_plan.result.clone(),
-            source: NativeCallOrigin::Authored,
-            claim_transfers: Vec::new(),
-            call_plan,
-            requirement_obligations: requirement_obligations.clone(),
-            crash_continuations: crash_continuations.clone(),
-        })
-    };
-    Ok(kind)
 }

@@ -31,4 +31,4 @@ pub(crate) fn derive_source_function_rosters(
 
     Ok(rosters)
 }
-use custody::validate_source_custody;
+pub(super) use custody::validate_source_custody;

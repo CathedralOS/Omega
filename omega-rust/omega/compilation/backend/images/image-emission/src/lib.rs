@@ -40,6 +40,8 @@ mod image_output;
 mod installation_record;
 mod object_artifact;
 
+pub use function_fragments::replay::verify_retained_target_operations;
+
 pub use object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
 pub use object_artifact::replay::boundary::completion_receipts::completion_receipts_have_exact_custody;
 pub use object_artifact::stack_demand::{ derive_stack_demand};

@@ -33,6 +33,7 @@ function-identity = { path = "../../../../foundation/function-identity" }
 installation-evidence = { path = "../../runtime/installation-evidence" }
 boundary-applications = { path = "../../artifacts/boundary-applications" }
 target-operations = { path = "../../../representations/target-operations" }
+target-operations-to-selected-instructions = { path = "../../../pipeline/03_target-operations-to-selected-instructions" }
 task-plans = { path = "../../runtime/task-plans" }
 isa-aarch64 = { path = "../../instruction-set-architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../instruction-set-architectures/isa-x86_64" }

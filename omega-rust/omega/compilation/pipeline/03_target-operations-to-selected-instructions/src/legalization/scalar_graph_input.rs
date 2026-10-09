@@ -1,9 +1,8 @@
 //! Input-only custody for ordinary ordered scalar graphs. No legalized output is built here.
 //!
-//! Matching retains the source-derived block custody it already reconstructed.
-//! Construction and replay consume that invocation's snapshots instead of
-//! repeating dominance and loan reconstruction over unchanged inputs. Replay
-//! still matches the source independently; no producer snapshot crosses into it.
+//! Independent matching reconstructs source custody for the explicit retained
+//! audit. Instruction construction consumes target rows directly and never
+//! invokes this matcher or borrows its reconstructed loan state.
 use super::LegalizationError;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
@@ -209,14 +208,6 @@ pub(super) fn u64_type() -> IntegerType {
 pub(super) type BlockEntryCustody =
     std::collections::BTreeMap<semantic_vocabulary::BlockId, reference_custody::Custody>;
 
-/// Input facts retained only for the immediately following construction or
-/// replay. These snapshots describe the source, not a proposed legalized plan.
-#[derive(Debug)]
-pub(super) struct MatchedScalarGraph {
-    pub(super) call_plan: CallPlan,
-    pub(super) custody_entries: BlockEntryCustody,
-}
-
 pub(super) fn match_input(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
@@ -224,7 +215,7 @@ pub(super) fn match_input(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-) -> Result<MatchedScalarGraph, LegalizationError> {
+) -> Result<(), LegalizationError> {
     primitive_locals::validate(optimized, &unit.structural_types)?;
     let call_plan = if aggregate_results::uses(optimized) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
@@ -299,7 +290,8 @@ pub(super) fn match_input(
     // Ordered source calls execute even when their result is not returned.
     // Target expression trees witness referenced values, not execution order.
     for node in optimized.block_nodes() {
-        if let abstract_operations::byte_literal_establish_pair_pattern!(structural_type, ..) = &node.operation
+        if let abstract_operations::byte_literal_establish_pair_pattern!(structural_type, ..) =
+            &node.operation
             && (!plan.structural_types.contains(structural_type)
                 || !unit.structural_types.contains(structural_type))
         {
@@ -399,8 +391,7 @@ pub(super) fn match_input(
         {
             return Err(LegalizationError::custody());
         }
-        if let abstract_operations::byte_sequence_write_pair_pattern!(psi_operation,
-            obligation, ..)
+        if let abstract_operations::byte_sequence_write_pair_pattern!(psi_operation, obligation, ..)
         | AbstractOperation::StructuralByteSequenceFieldRead {
             psi_operation,
             obligation,
@@ -411,11 +402,7 @@ pub(super) fn match_input(
             capacity_obligation: obligation,
             ..
         }
-        | abstract_operations::byte_sequence_store_pair_pattern!(
-            psi_operation,
-            obligation,
-            ..
-        )
+        | abstract_operations::byte_sequence_store_pair_pattern!(psi_operation, obligation, ..)
         | AbstractOperation::ByteSequenceRead {
             psi_operation,
             obligation,
@@ -426,8 +413,11 @@ pub(super) fn match_input(
             obligation,
             ..
         }
-        | abstract_operations::element_view_read_write_pair_pattern!(psi_operation,
-            obligation, ..)
+        | abstract_operations::element_view_read_write_pair_pattern!(
+            psi_operation,
+            obligation,
+            ..
+        )
         | AbstractOperation::ElementViewSubslice {
             psi_operation,
             obligation,
@@ -512,11 +502,7 @@ pub(super) fn match_input(
     }
     // Complete-unit custody admits cycles only after independent source proof
     // replay. Per-function matching below retains every executable edge.
-    let custody_entries = validate_target(target, abstracted, optimized, native, plan, unit)?;
-    Ok(MatchedScalarGraph {
-        call_plan,
-        custody_entries,
-    })
+    validate_target(target, abstracted, optimized, native, plan, unit).map(|_| ())
 }
 pub(super) fn callee_plan(
     callee: impl Into<abstract_operations::AbstractCallTarget>,

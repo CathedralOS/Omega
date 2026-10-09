@@ -743,6 +743,7 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
+ "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
  "terminal-fuel",

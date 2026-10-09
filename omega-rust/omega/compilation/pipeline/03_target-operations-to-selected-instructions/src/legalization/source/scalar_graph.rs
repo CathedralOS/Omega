@@ -22,10 +22,11 @@ pub(super) fn derive(
     unit: &PsiOptimizationUnit,
     current_operation: &mut Option<semantic_vocabulary::OperationId>,
 ) -> Result<LegalizedScalarFunction, LegalizationError> {
-    let scalar_graph_input::MatchedScalarGraph {
-        call_plan,
-        custody_entries,
-    } = scalar_graph_input::match_input(target, abstracted, optimized, native, plan, unit)?;
+    // Target lowering already chose addresses, homes and call placements.
+    // Selection consumes those rows; reconstructing loan legality here both
+    // duplicates Psi and loses relationships the target producer retained.
+    // The independent source/target matcher is an explicit retained audit.
+    let call_plan = target.graph.call_plan.clone();
     let parameters = optimized
         .parameters
         .iter()
@@ -39,34 +40,41 @@ pub(super) fn derive(
             })
         })
         .collect::<Result<Vec<_>, LegalizationError>>()?;
-    // Reference custody is replayed block by block so `.., Referent` call
-    // arguments rejoin through the exact state their position suspends. The
-    // input match above supplies the argument-resolution snapshots from its
-    // own reconstruction; none of these immutable source inputs changed.
+    if optimized.blocks.len() != target.graph.blocks.len() {
+        return Err(Error::custody());
+    }
     let blocks = optimized
         .blocks
         .iter()
-        .map(|block| {
+        .zip(&target.graph.blocks)
+        .map(|(block, targeted)| {
             *current_operation = None;
             let (last, body) = block.nodes.split_last().ok_or(Error::custody())?;
-            let mut custody = custody_entries
-                .get(&block.id)
-                .cloned()
-                .ok_or(Error::custody())?;
+            let rows = targeted
+                .operations
+                .split_at(
+                    targeted
+                        .operations
+                        .iter()
+                        .position(|row| {
+                            matches!(
+                                row,
+                                target_operations::TargetUnitOperation::CleanupCall { .. }
+                            )
+                        })
+                        .unwrap_or(targeted.operations.len()),
+                )
+                .0;
+            if block.id != targeted.block || body.len() != rows.len() {
+                return Err(Error::custody());
+            }
             let mut instructions = Vec::with_capacity(body.len());
-            for node in body {
+            for (node, row) in body.iter().zip(rows) {
                 *current_operation =
                     scalar_graph_input::instruction(node).map(|(operation, _)| operation);
                 instructions.push(instruction::project(
-                    node, optimized, native, plan, unit, &custody,
+                    node, optimized, native, plan, unit, row,
                 )?);
-                scalar_graph_input::reference_custody::apply(
-                    &mut custody,
-                    &node.operation,
-                    optimized,
-                    plan,
-                    unit,
-                )?;
             }
             *current_operation = None;
             Ok(LegalizedScalarBlock {

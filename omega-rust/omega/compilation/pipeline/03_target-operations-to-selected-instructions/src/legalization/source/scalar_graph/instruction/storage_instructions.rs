@@ -89,75 +89,87 @@ pub(super) fn project_structural_leaf_copy(
     Ok(kind)
 }
 
-/// A borrowed window's move is the leaf-copy byte copy over the spelled path
-/// extended by the vacated field; its store is the inverse copy. Both
-/// resolve one field extent independently of the target rows they rejoin.
+/// Window byte movement consumes the target producer's selected storage.
+/// Result/value declarations supply only the copy width; no restoration or
+/// loan permission is replayed during instruction construction.
 pub(super) fn project_borrowed_window(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-    custody: &scalar_graph_input::reference_custody::Custody,
+    targeted: &target_operations::TargetUnitOperation,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    match &node.operation {
-        AbstractOperation::MoveStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => {
-            let extent = scalar_graph_input::borrowed_windows::moved(
-                optimized, source, path, *field, result, plan, custody,
-            )?;
+    match (&node.operation, targeted) {
+        (
+            AbstractOperation::MoveStructuralField {
+                psi_operation,
+                result,
+                source,
+                ..
+            },
+            target_operations::TargetUnitOperation::StructuralLeafCopy {
+                path,
+                byte_offset,
+                result_home,
+                ..
+            },
+        ) => {
+            let abstract_operations::StructuralCopyPath::Ordinary(selected) = path else {
+                return Err(Error::custody());
+            };
             Ok(LegalizedScalarInstructionKind::StructuralLeafCopy {
                 result: result.clone(),
                 source: source.place(),
-                path: extent.path.into(),
-                byte_offset: extent.byte_offset,
-                shape: extent.shape,
-                indices: crate::legalization::runtime_indices::operands(
+                path: path.clone(),
+                byte_offset: *byte_offset,
+                shape: result_home.layout.shape(),
+                indices: crate::legalization::runtime_indices::structural_argument(
                     optimized,
                     unit,
                     *psi_operation,
-                    &extent.elements,
+                    source.structural_type(),
+                    selected,
+                    &plan.structural_types,
                 )?,
             })
         }
-        AbstractOperation::StoreStructuralField {
-            psi_operation,
-            destination,
-            path,
-            field,
-            value,
-        } => {
-            let extent = scalar_graph_input::borrowed_windows::extent(
-                optimized,
+        (
+            AbstractOperation::StoreStructuralField { psi_operation, .. },
+            target_operations::TargetUnitOperation::StoreStructuralField {
                 destination,
                 path,
-                *field,
-                plan,
-                custody,
-            )?;
-            if value.access != terminal_psi::StructuralAccess::Owned || !value.path.is_empty() {
-                return Err(Error::custody());
-            }
+                field,
+                value,
+                byte_offset,
+                ..
+            },
+        ) => {
+            let value_type =
+                scalar_graph_input::primitive_locals::read_root_type(optimized, *value)
+                    .ok_or(Error::custody())?;
+            let shape = crate::structural_inputs::structural_reference_input::shape(
+                value_type,
+                &plan.structural_types,
+            )
+            .ok_or(Error::custody())?;
             Ok(LegalizedScalarInstructionKind::StoreStructuralField {
                 destination: destination.clone(),
                 path: path.clone(),
                 field: *field,
-                value: value.place,
-                byte_offset: extent.byte_offset,
-                shape: extent.shape,
-                indices: crate::legalization::runtime_indices::operands(
+                value: *value,
+                byte_offset: *byte_offset,
+                shape,
+                indices: crate::legalization::runtime_indices::structural_argument(
                     optimized,
                     unit,
                     *psi_operation,
-                    &extent.elements,
+                    destination.structural_type(),
+                    path,
+                    &plan.structural_types,
                 )?,
             })
         }
-        _ => unreachable!("dispatched project_borrowed_window"),
+        _ => Err(Error::custody()),
     }
 }
 
@@ -248,12 +260,10 @@ pub(super) fn project_structural_scalar_field_store(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
-    custody: &scalar_graph_input::reference_custody::Custody,
+    targeted: &target_operations::TargetUnitOperation,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralScalarFieldStore {
         psi_operation,
-        destination,
-        path,
         field,
         value,
         ..
@@ -262,29 +272,29 @@ pub(super) fn project_structural_scalar_field_store(
         unreachable!("dispatched project_structural_scalar_field_store")
     };
     let kind = {
-        let (destination, path) = scalar_graph_input::structural_fields::scalar_store_destination(
-            optimized,
+        let target_operations::TargetUnitOperation::StructuralScalarFieldStore {
             destination,
             path,
+            field_byte_offset,
+            ..
+        } = targeted
+        else {
+            return Err(Error::custody());
+        };
+        let (_, byte_size, elements) = crate::structural_inputs::structural_reference_input::store(
+            destination.structural_type(),
+            path,
+            *field,
+            value.scalar_type,
             &unit.structural_types,
-            custody,
         )
         .ok_or(Error::custody())?;
-        let (byte_offset, byte_size, elements) =
-            crate::structural_inputs::structural_reference_input::store(
-                destination.structural_type(),
-                &path,
-                *field,
-                value.scalar_type,
-                &unit.structural_types,
-            )
-            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-            destination,
-            path,
+            destination: destination.clone(),
+            path: path.clone(),
             field: *field,
             value: *value,
-            byte_offset,
+            byte_offset: *field_byte_offset,
             byte_size,
             indices: crate::legalization::runtime_indices::operands(
                 optimized,
@@ -337,7 +347,7 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
-    custody: &scalar_graph_input::reference_custody::Custody,
+    targeted: &target_operations::TargetUnitOperation,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralByteSequenceFieldByteStore {
         psi_operation,
@@ -352,15 +362,15 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
         unreachable!("dispatched project_structural_byte_sequence_field_byte_store")
     };
     let kind = {
-        let destination = crate::legalization::scalar_graph_input::structural_fields::replacement(
-            optimized,
-            &node.operation,
-            &unit.structural_types,
-            custody,
-        )
-        .ok_or(Error::custody())?;
-        LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
+        let target_operations::TargetUnitOperation::StructuralByteSequenceFieldByteStore {
             destination,
+            ..
+        } = targeted
+        else {
+            return Err(Error::custody());
+        };
+        LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
+            destination: destination.clone(),
             field: *field,
             index: *index,
             value: *value,
@@ -427,7 +437,7 @@ pub(super) fn project_structural_byte_sequence_field_store(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
-    custody: &scalar_graph_input::reference_custody::Custody,
+    targeted: &target_operations::TargetUnitOperation,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralByteSequenceFieldStore {
         psi_operation,
@@ -441,15 +451,15 @@ pub(super) fn project_structural_byte_sequence_field_store(
         unreachable!("dispatched project_structural_byte_sequence_field_store")
     };
     let kind = {
-        let destination = crate::legalization::scalar_graph_input::structural_fields::replacement(
-            optimized,
-            &node.operation,
-            &unit.structural_types,
-            custody,
-        )
-        .ok_or(Error::custody())?;
-        LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
+        let target_operations::TargetUnitOperation::StructuralByteSequenceFieldStore {
             destination,
+            ..
+        } = targeted
+        else {
+            return Err(Error::custody());
+        };
+        LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
+            destination: destination.clone(),
             field: *field,
             source: *source,
             length: *length,
@@ -699,7 +709,7 @@ pub(super) fn project_byte_sequence_store(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
-    custody: &scalar_graph_input::reference_custody::Custody,
+    targeted: &target_operations::TargetUnitOperation,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::ByteSequenceStore {
         psi_operation,
@@ -711,13 +721,9 @@ pub(super) fn project_byte_sequence_store(
     else {
         return Err(Error::custody());
     };
-    scalar_graph_input::structural_fields::replacement(
-        optimized,
-        &node.operation,
-        &unit.structural_types,
-        custody,
-    )
-    .ok_or(Error::custody())?;
+    let target_operations::TargetUnitOperation::ByteSequenceStore { .. } = targeted else {
+        return Err(Error::custody());
+    };
     Ok(LegalizedScalarInstructionKind::ByteSequenceStore {
         destination: *destination,
         source: *source,

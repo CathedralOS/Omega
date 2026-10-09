@@ -7,6 +7,30 @@ use object_file::StagedOptimizedRelocationFreeObjectContainer;
 #[derive(Debug, Clone)]
 pub(crate) struct FragmentReplay(pub(super) Arc<StagedOptimizedRelocationFreeObjectContainer>);
 
+/// Audit the retained target producer independently of instruction selection.
+/// Corpus or retained-artifact inspection can call this explicitly; object
+/// construction does not re-run the producing compile's source custody analysis.
+pub fn verify_retained_target_operations(
+    artifact: &crate::ObjectArtifact,
+) -> Result<(), diagnostics::Diagnostic> {
+    let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
+        diagnostics::Diagnostic::error("target-operation audit requires retained pipeline input")
+    })?;
+    let current = replay
+        .0
+        .source()
+        .source()
+        .source()
+        .source()
+        .optimized_target();
+    target_operations_to_selected_instructions::verify_target_operation_plan(
+        current.target_operations(),
+        current.optimized().plan(),
+        current.optimized().unit(),
+    )
+    .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
+}
+
 impl FragmentReplay {
     pub(crate) fn terminal_module(&self) -> &terminal_psi::TerminalModule {
         self.0.verified_input().context().module()
@@ -84,10 +108,9 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
             "structural parameters without homes require common-pipeline replay evidence",
         ));
     }
-    let missing_borrowed_replay =
-        artifact.fragment_replay.is_none()
-            && artifact.functions().iter().any(|function| {
-                function
+    let missing_borrowed_replay = artifact.fragment_replay.is_none()
+        && artifact.functions().iter().any(|function| {
+            function
                     .unit_parameters
                     .iter()
                     .chain(&function.scalar_structural_parameters)
@@ -126,7 +149,7 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
                             machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
                         )
                 })
-            });
+        });
     if missing_borrowed_replay {
         return Err(diagnostics::Diagnostic::error(
             "borrowed structural pointers require common-pipeline replay evidence",

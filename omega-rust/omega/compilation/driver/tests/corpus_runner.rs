@@ -919,6 +919,10 @@ fn build_native_fixture(
     }
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
+    if let Some(artifact) = report.retained_native_artifact() {
+        image_emission::verify_retained_target_operations(artifact.object())
+            .map_err(|diagnostic| vec![diagnostic])?;
+    }
     if let Some((fixture_dir, observation)) = interpretation {
         *observation = Some(interpret_native_report(&report, fixture_dir));
     }

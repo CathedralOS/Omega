@@ -3,7 +3,7 @@ use abstract_operations::AbstractOperationPlan;
 use optimization_unit::PsiOptimizationUnit;
 use target_operations::TargetOperationPlan;
 
-pub(super) fn validate_source_custody(
+pub(in crate::legalization) fn validate_source_custody(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,

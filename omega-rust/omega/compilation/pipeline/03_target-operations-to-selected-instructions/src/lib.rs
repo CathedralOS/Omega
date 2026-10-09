@@ -16,8 +16,10 @@
 //! A scalar observation is not a shared-loan formation. Its native consumers
 //! reconstruct declared access, backing storage, codecs and ordered crossings;
 //! they do not replace Psi's admitted compatibility with another loan rule.
-//! Reference formation and transport retain their separate custody contracts,
-//! consistent with pipeline.md's verification-placement boundary.
+//! Calls and storage projection consume target rows with their retained homes
+//! and placements; construction never replays reference custody. The explicit
+//! [`verify_target_operation_plan`] audit retains the independent source/target
+//! checks for corpus and receiving review, off the default compile path.
 
 /// `Display` for the crate's `<context> failed: {self:?}` error convention.
 macro_rules! failed_display {
@@ -46,6 +48,10 @@ pub(crate) use legalization::{
 };
 pub(crate) use selection::{SelectedInstructionError, select_instructions};
 pub use selection::{ValidatedSelectedInstructions, selected_instruction_plan_identity};
+
+pub use legalization::{
+    LegalizationError as TargetOperationAuditError, verify_target_operation_plan,
+};
 
 // The unit tests allocate heavily across nextest's parallel processes;
 // mimalloc avoids the system allocator's zone locks and free lists.

@@ -10,8 +10,9 @@ mod source;
 mod source_input;
 pub(crate) use source_input::LegalizationSource;
 
+pub use model::LegalizationError;
 pub(crate) use model::legalization_validator_identity;
-pub(crate) use model::{LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations};
+pub(crate) use model::{LegalizationValidationReceipt, ValidatedLegalizedOperations};
 
 use abstract_operations::AbstractOperationPlan;
 use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
@@ -54,3 +55,43 @@ fn seal(
     ValidatedLegalizedOperations { plan, receipt }
 }
 pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;
+
+/// Independently check retained target rows against their source products.
+/// This is an audit entrypoint for corpus and foreign-artifact review, not
+/// another phase of instruction construction in the producing compile.
+pub fn verify_target_operation_plan(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+) -> Result<(), LegalizationError> {
+    source::validate_source_custody(target, abstract_plan, unit)?;
+    scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
+    for function in &target.functions {
+        let mut abstracted = abstract_plan
+            .functions
+            .iter()
+            .filter(|row| row.machine == function.machine);
+        let mut optimized = unit
+            .functions
+            .iter()
+            .filter(|row| row.machine == function.machine);
+        let (Some(abstracted_function), Some(optimized_function), None, None) = (
+            abstracted.next(),
+            optimized.next(),
+            abstracted.next(),
+            optimized.next(),
+        ) else {
+            return Err(LegalizationError::custody());
+        };
+        scalar_graph_input::match_input(
+            function,
+            abstracted_function,
+            optimized_function,
+            target,
+            abstract_plan,
+            unit,
+        )
+        .map_err(|error| error.attributed(function.machine, None))?;
+    }
+    Ok(())
+}

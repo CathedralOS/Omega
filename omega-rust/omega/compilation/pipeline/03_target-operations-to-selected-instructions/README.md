@@ -28,8 +28,12 @@ rejoin each runtime place to its exact parameter, result or local producer.
 Primitive locals, byte literals and aggregate results compose without a
 whole-function storage-family classifier. Declaration ordinals count declarations,
 not instruction positions. Whole-unit custody retains dominance and ownership;
-selection entry captures the incoming ABI, and each instruction constructs or
-independently replays its own storage.
+selection entry captures the incoming ABI, and call and storage instructions
+consume the target producer's retained addresses, homes and placements.
+Instruction construction does not reconstruct reference custody. The explicit
+`verify_target_operation_plan` entrypoint retains the independent source/target
+audit; the native corpus runner exercises it through the object's retained
+pipeline input, off the default compile path.
 
 Every target function contains its `TargetControlGraph` directly. This stage
 does not convert flat bodies or whole-function expression trees. Unit, scalar,
