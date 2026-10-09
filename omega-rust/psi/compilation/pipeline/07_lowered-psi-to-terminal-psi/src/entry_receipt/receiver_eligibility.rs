@@ -407,8 +407,7 @@ fn collect_fused_service_fields(
                     return None;
                 }
                 let nested_fields = match &nested_declaration.shape {
-                    StructuralTypeShape::Record { fields, .. }
-                    | StructuralTypeShape::Mixed { fields, .. } => fields,
+                    terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                     _ => continue,
                 };
                 field_path.push(field_identity);

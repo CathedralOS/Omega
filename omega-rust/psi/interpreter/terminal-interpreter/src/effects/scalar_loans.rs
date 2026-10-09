@@ -384,8 +384,7 @@ impl TerminalExecution<'_> {
                 .fields
         } else {
             match &declaration.shape {
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                 _ => return Err(malformed()),
             }
         };

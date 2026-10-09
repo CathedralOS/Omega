@@ -1042,8 +1042,7 @@ impl TerminalExecution<'_> {
             .get(&parent)
             .ok_or_else(malformed)?;
         let fields = match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Record { fields, .. }
-            | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
+            terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
             _ => return Err(malformed()),
         };
         let field = terminal_psi::live_field_by_identity(fields, identity).ok_or_else(malformed)?;

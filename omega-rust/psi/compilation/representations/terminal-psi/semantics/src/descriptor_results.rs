@@ -335,8 +335,7 @@ fn external_backing(
         let Some(StructuralPathSegment::Field(identity)) = path.get(length) else {
             return false;
         };
-        let (StructuralTypeShape::Record { fields, .. }
-        | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
+        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
         else {
             return false;
         };

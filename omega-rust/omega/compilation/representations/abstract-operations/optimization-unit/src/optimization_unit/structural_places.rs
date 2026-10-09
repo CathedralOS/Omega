@@ -238,7 +238,7 @@ pub(crate) fn descended_field_matching(
     matching: impl Fn(&StructuralFieldDeclaration) -> bool,
 ) -> Option<(StructuralFieldId, StructuralTypeId)> {
     let fields = match shape(unit, current)? {
-        StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
+        terminal_psi::record_or_mixed_shape_pattern!(fields) => {
             fields
         }
         _ => return None,
@@ -268,8 +268,7 @@ pub(crate) fn canonicalize_ordinary_path(
         match segment {
             StructuralPathSegment::Field(identity) => {
                 let fields = match shape(unit, current)? {
-                    StructuralTypeShape::Record { fields, .. }
-                    | StructuralTypeShape::Mixed { fields, .. } => fields,
+                    terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                     _ => return None,
                 };
                 let field = terminal_psi::live_field_by_identity(fields, identity)?;
@@ -372,8 +371,7 @@ impl<'a> Position<'a> {
         match (self, segment) {
             (Self::Type(current), CanonicalStructuralPathSegment::Field(identity)) => {
                 let fields = match shape(unit, current)? {
-                    StructuralTypeShape::Record { fields, .. }
-                    | StructuralTypeShape::Mixed { fields, .. } => fields,
+                    terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                     _ => return None,
                 };
                 match fields
@@ -426,8 +424,7 @@ impl<'a> Position<'a> {
     ) -> Option<&'a StructuralFieldDeclaration> {
         let fields = match self {
             Self::Type(current) => match shape(unit, current)? {
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                 _ => return None,
             },
             Self::CasePayload(case) => &case.fields,
@@ -708,8 +705,7 @@ pub(crate) fn descended_type(
         StructuralPathSegment::Case(_) | StructuralPathSegment::FixedByteRange { .. } => None,
         StructuralPathSegment::Field(identity) => {
             let fields = match shape {
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                 _ => return None,
             };
             match terminal_psi::field_by_identity(fields, identity)?.field_type {

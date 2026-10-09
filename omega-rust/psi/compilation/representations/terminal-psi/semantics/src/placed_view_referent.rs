@@ -86,8 +86,7 @@ fn resolve_referent_place(
         structural_type = match (segment, &declaration.shape) {
             (
                 StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. },
+                terminal_psi::record_or_mixed_shape_pattern!(fields),
             ) => {
                 let mut matching = fields
                     .iter()

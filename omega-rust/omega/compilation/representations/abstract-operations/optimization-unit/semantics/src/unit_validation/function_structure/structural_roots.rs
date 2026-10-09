@@ -977,8 +977,7 @@ fn direct_relevant_scalar_field(
     allow_refined_scalar: bool,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let (terminal_psi::StructuralTypeShape::Record { fields, .. }
-    | terminal_psi::StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
+    let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
     else {
         return None;
     };

@@ -310,8 +310,7 @@ fn byte_leaf_predicates(
     let Some(field) =
         terminal_semantics::runtime_structural_path_tip(types.values().copied(), root_type, prefix)
             .and_then(|parent| match &parent.shape {
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. } => {
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => {
                     terminal_psi::live_field_by_identity(fields, identity)
                 }
                 _ => None,

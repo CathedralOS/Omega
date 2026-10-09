@@ -585,8 +585,7 @@ fn operation_observations(
             )
         })
         .and_then(|declaration| match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Record { fields, .. }
-            | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => {
+            terminal_psi::record_or_mixed_shape_pattern!(fields) => {
                 live_field_by_id(fields, field)
             }
             _ => None,

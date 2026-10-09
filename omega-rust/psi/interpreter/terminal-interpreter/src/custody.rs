@@ -1016,7 +1016,7 @@ pub(crate) fn inline_structural_field<'a>(
         terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, carrier)?;
     let fields = match (&declaration.shape, case) {
         (
-            StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. },
+            terminal_psi::record_or_mixed_shape_pattern!(fields),
             None,
         ) => fields,
         (

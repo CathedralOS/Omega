@@ -332,8 +332,7 @@ pub(crate) fn validate_structural_path(
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
                     None => match shape {
-                        StructuralTypeShape::Record { fields, .. }
-                        | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields.as_slice(),
                         _ => {
                             return malformed(
                                 "structural field path requires a record or case payload",

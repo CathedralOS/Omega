@@ -675,3 +675,14 @@ mod tests {
         assert!(!structural_type_contains_reference(&types, array));
     }
 }
+
+/// The record-or-mixed field roster: record and mixed shapes carry the same
+/// `fields` table, so consumers that only need the field set match the pair
+/// with one spelling instead of duplicating both alternatives.
+#[macro_export]
+macro_rules! record_or_mixed_shape_pattern {
+    ($fields:ident) => {
+        $crate::StructuralTypeShape::Record { $fields, .. }
+            | $crate::StructuralTypeShape::Mixed { $fields, .. }
+    };
+}

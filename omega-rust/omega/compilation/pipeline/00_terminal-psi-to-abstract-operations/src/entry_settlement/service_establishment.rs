@@ -124,8 +124,7 @@ pub(super) fn validate_terminal_rows(
                 return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
             };
             current_fields = match &nested_declaration.shape {
-                terminal_psi::StructuralTypeShape::Record { fields, .. }
-                | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                 _ => {
                     return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
                 }

@@ -645,8 +645,7 @@ fn validate_structural_field_range_authority(
                 // record fields.
                 let Some(terminal_psi::StructuralTypeDeclaration {
                     shape:
-                        StructuralTypeShape::Record { fields, .. }
-                        | StructuralTypeShape::Mixed { fields, .. },
+                        terminal_psi::record_or_mixed_shape_pattern!(fields),
                     ..
                 }) = types.get(&parent).copied()
                 else {

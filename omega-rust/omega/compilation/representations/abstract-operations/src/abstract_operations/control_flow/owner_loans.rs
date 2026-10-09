@@ -213,7 +213,7 @@ fn view_carrier_shape(
         }
     }
     match &declaration.shape {
-        StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
+        terminal_psi::record_or_mixed_shape_pattern!(fields) => {
             fields.iter().all(|field| {
                 field.relevance.is_erased()
                     && matches!(

@@ -552,8 +552,7 @@ pub(super) fn lower(
             // carrier beside the tag whatever case is active.
             let fields = match (&declaration.shape, case) {
                 (
-                    StructuralTypeShape::Record { fields, .. }
-                    | StructuralTypeShape::Mixed { fields, .. },
+                    terminal_psi::record_or_mixed_shape_pattern!(fields),
                     None,
                 ) => fields,
                 (

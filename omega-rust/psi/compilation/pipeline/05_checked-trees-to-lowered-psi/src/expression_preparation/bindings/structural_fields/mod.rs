@@ -977,8 +977,7 @@ fn resolve_case_primitive(
                 let fields = match case_fields.take() {
                     Some(fields) => fields,
                     None => match &declaration.shape {
-                        StructuralTypeShape::Record { fields, .. }
-                        | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields.as_slice(),
                         _ => {
                             return unsupported(
                                 "primitive observation field has no declared carrier",

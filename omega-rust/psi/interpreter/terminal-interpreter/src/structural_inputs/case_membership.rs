@@ -141,8 +141,7 @@ impl TerminalExecution<'_> {
             match segment {
                 StructuralPathSegment::Field(identity) => {
                     let common = match &declaration.shape {
-                        StructuralTypeShape::Record { fields, .. }
-                        | StructuralTypeShape::Mixed { fields, .. } => {
+                        terminal_psi::record_or_mixed_shape_pattern!(fields) => {
                             terminal_psi::field_by_identity(fields, identity)
                         }
                         _ => None,
@@ -256,8 +255,7 @@ impl TerminalExecution<'_> {
                     let fields = match case_fields.take() {
                         Some(fields) => fields,
                         None => match &declaration.shape {
-                            StructuralTypeShape::Record { fields, .. }
-                            | StructuralTypeShape::Mixed { fields, .. } => fields,
+                            terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                             _ => return Err(malformed()),
                         },
                     };

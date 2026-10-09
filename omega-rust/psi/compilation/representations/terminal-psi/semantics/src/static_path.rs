@@ -267,8 +267,7 @@ fn canonical_projection_type<'a>(
                 let fields = match case_fields.take() {
                     Some(fields) => fields,
                     None => match shape {
-                        StructuralTypeShape::Record { fields, .. }
-                        | StructuralTypeShape::Mixed { fields, .. } => fields,
+                        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                         _ => return None,
                     },
                 };

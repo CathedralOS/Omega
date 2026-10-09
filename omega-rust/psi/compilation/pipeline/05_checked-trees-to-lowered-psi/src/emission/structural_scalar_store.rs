@@ -466,8 +466,7 @@ pub(crate) fn lower_window_path<'a>(
         cursor = rest;
         match segment {
             CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {
-                let (StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. }) = &field_owner.shape
+                let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &field_owner.shape
                 else {
                     return unsupported("structural window carrier is not a record");
                 };

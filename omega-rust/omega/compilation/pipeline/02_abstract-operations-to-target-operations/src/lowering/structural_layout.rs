@@ -935,8 +935,7 @@ pub(super) fn case_projection(
                 )
             }
             Segment::Field(identity) => {
-                let (StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. }) = shape
+                let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = shape
                 else {
                     return Err(invalid());
                 };

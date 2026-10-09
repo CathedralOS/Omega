@@ -186,8 +186,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             .and_then(|declaration| match &declaration.shape {
                 // A mixed shape's common fields are direct fields at one offset
                 // in every case; payload fields stay out of reach of this store.
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. } => {
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => {
                     fields.iter().find_map(|candidate| {
                         (candidate.id == *field && !candidate.relevance.is_erased())
                             .then_some(&candidate.field_type)

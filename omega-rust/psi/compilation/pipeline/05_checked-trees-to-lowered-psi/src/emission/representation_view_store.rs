@@ -106,8 +106,7 @@ pub(crate) fn emit(
                 "representation view store carrier type is absent",
                 "representation view store carrier type is ambiguous",
             )?;
-            let (StructuralTypeShape::Record { fields, .. }
-            | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
+            let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
             else {
                 return unsupported("representation view store leaf owner is not a record");
             };
@@ -579,8 +578,7 @@ fn walk_carrier_prefix<'a>(
         )?;
         match segment {
             CheckedUnitStructuralPathSegment::Field(identity) => {
-                let (StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
+                let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
                 else {
                     return unsupported("representation view store carrier is not a record");
                 };

@@ -241,8 +241,7 @@ pub(crate) fn prepare_argument_path(
                     Some(case) => &case.fields,
                     None => match shape {
                         Some(
-                            StructuralTypeShape::Record { fields, .. }
-                            | StructuralTypeShape::Mixed { fields, .. },
+                            terminal_psi::record_or_mixed_shape_pattern!(fields),
                         ) => fields,
                         _ => {
                             return Err(LoweringError::Unsupported(

@@ -93,8 +93,7 @@ pub fn structural_window_projection<'types>(
             }
             (
                 StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. },
+                terminal_psi::record_or_mixed_shape_pattern!(fields),
             ) => {
                 let mut matches = fields.iter().filter(|field| field.identity == *identity);
                 let field = matches.next()?;
@@ -124,8 +123,7 @@ pub fn structural_window_projection<'types>(
     }
     let mut complete = path.to_vec();
     if let Some(identity) = field {
-        let (StructuralTypeShape::Record { fields, .. }
-        | StructuralTypeShape::Mixed { fields, .. }) = &selected.shape
+        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &selected.shape
         else {
             return None;
         };

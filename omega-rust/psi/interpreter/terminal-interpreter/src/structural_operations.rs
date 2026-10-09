@@ -732,8 +732,7 @@ impl TerminalExecution<'_> {
         };
         let types = self.program.structural_types();
         let declaration = types.get(&declared_parent).ok_or_else(malformed)?;
-        let (StructuralTypeShape::Record { fields, .. }
-        | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
+        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
         else {
             return Err(malformed());
         };

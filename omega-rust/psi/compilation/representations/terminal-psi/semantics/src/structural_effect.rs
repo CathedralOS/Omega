@@ -46,8 +46,7 @@ pub(crate) fn byte_sequence_field_path(
     let (mut path, parent) =
         crate::canonical_static_projection(structural_types.iter(), root_type, &source.path)?;
     let fields = match &parent.shape {
-        terminal_psi::StructuralTypeShape::Record { fields, .. }
-        | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
+        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
         _ => return None,
     };
     let selected = live_field_by_id(fields, *field)?;

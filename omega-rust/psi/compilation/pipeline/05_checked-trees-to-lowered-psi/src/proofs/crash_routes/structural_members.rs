@@ -113,8 +113,7 @@ pub(crate) fn lower_structural_member_path(
             fields
         } else {
             match &declaration.shape {
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                 _ => {
                     return unsupported(
                         "structural scalar contract field receiver is not a record",
@@ -272,8 +271,7 @@ fn lower_sum_path(
             fields
         } else {
             match &declaration.shape {
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                 _ => {
                     return unsupported("structural sum predicate path receiver is not a record");
                 }

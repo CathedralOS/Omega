@@ -1455,7 +1455,7 @@ fn scalar_field_declaration<'declarations>(
     let (root, path) = referent_projection(root, path, declarations)?;
     let (record, _, _) = runtime_projection(root, path, declarations)?;
     let fields = match &find_structural_type(declarations, record)?.shape {
-        StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. } => {
+        terminal_psi::record_or_mixed_shape_pattern!(fields) => {
             fields
         }
         _ => return None,
@@ -1539,8 +1539,7 @@ pub(crate) fn case_projection(
                 )
             }
             Segment::Field(identity) => {
-                let (StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
+                let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
                 else {
                     return None;
                 };

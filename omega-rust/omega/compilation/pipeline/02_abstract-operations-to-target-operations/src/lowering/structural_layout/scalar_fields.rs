@@ -76,8 +76,7 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
         .get(&structural_type)
         .is_some_and(|declaration| {
             let fields = match &declaration.shape {
-                StructuralTypeShape::Record { fields, .. }
-                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                 _ => return false,
             };
             fields.iter().any(|candidate| {
