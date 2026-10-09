@@ -9,7 +9,7 @@ use super::{classification::classify_from_inventory, inventory::committed_policy
 
 /// One explicit receiving-policy row outside the compiler-owned intrinsic inventory.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TerminalAuthorityPolicyRow {
+pub struct TerminalAuthorityPolicyRow {
     pub(super) mechanism: TerminalMechanismIdentity,
     pub(super) disposition: TerminalAuthorityDisposition,
 }
@@ -107,7 +107,7 @@ impl UnclassifiedTerminalMechanism {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TerminalAuthorityPolicyBuildError {
+pub enum TerminalAuthorityPolicyBuildError {
     CompilerIntrinsicRowIsReserved(CompilerIntrinsicExecutionIdentity),
     EmptyImplementationContract(TerminalMechanismIdentity),
     UnsupportedSyscallTarget(TerminalMechanismIdentity),
