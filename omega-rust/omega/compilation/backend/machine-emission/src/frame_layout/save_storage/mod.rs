@@ -12,9 +12,9 @@ mod identity;
 mod replay;
 mod validation;
 
-pub use error::NonAuthoritativeCalleeSaveStorageError;
-pub use identity::non_authoritative_callee_save_storage_identity;
-pub use validation::validate_non_authoritative_callee_save_storage;
+pub(crate) use error::NonAuthoritativeCalleeSaveStorageError;
+pub(crate) use identity::non_authoritative_callee_save_storage_identity;
+pub(crate) use validation::validate_non_authoritative_callee_save_storage;
 
 use optimization_core::OptimizationWorkBudget;
 
@@ -36,7 +36,7 @@ use selected_instructions_to_register_homes::{
 };
 use target::NativeTarget;
 
-pub fn stage_non_authoritative_callee_save_storage(
+pub(crate) fn stage_non_authoritative_callee_save_storage(
     source: &ValidatedAllocatedCalleeSavedRequirements,
     environment: &ValidatedTargetRegisterEnvironment,
     policy: NonAuthoritativeCalleeSaveStoragePolicy,
@@ -47,7 +47,7 @@ pub fn stage_non_authoritative_callee_save_storage(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NonAuthoritativeCalleeSaveStorageReceipt {
+pub(crate) struct NonAuthoritativeCalleeSaveStorageReceipt {
     pub(in crate::frame_layout::save_storage) identity: NonAuthoritativeCalleeSaveStorageIdentity,
     pub(in crate::frame_layout::save_storage) callee_saved_requirements:
         AllocatedCalleeSavedRequirementIdentity,
@@ -122,7 +122,7 @@ impl NonAuthoritativeCalleeSaveStorageReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedNonAuthoritativeCalleeSaveStorage {
+pub(crate) struct ValidatedNonAuthoritativeCalleeSaveStorage {
     pub(in crate::frame_layout::save_storage) plan: NonAuthoritativeCalleeSaveStoragePlan,
     pub(in crate::frame_layout::save_storage) receipt: NonAuthoritativeCalleeSaveStorageReceipt,
 }

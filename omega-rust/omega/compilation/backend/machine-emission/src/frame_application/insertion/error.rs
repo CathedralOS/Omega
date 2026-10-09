@@ -2,7 +2,7 @@ use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FrameApplicationError {
+pub(crate) enum FrameApplicationError {
     RootMismatch,
     FunctionRosterMismatch,
     MissingFunction(MachineId),

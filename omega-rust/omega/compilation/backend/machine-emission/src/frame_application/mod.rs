@@ -46,7 +46,7 @@ pub fn stage_function_fragment_frame_application(
     })
 }
 
-pub fn validate_function_fragment_frame_application(
+pub(crate) fn validate_function_fragment_frame_application(
     staged: &StagedFunctionFragmentFrameApplication,
 ) -> Result<FunctionFragmentFrameApplicationReceipt, FunctionFragmentFrameApplicationError> {
     validation::validate(staged)
@@ -78,7 +78,7 @@ impl StagedFunctionFragmentFrameApplication {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FunctionFragmentFrameApplicationReceipt {
+pub(crate) struct FunctionFragmentFrameApplicationReceipt {
     identity: FunctionFragmentFrameApplicationIdentity,
     source_fragment_manifest: FunctionFragmentEmissionManifestIdentity,
     source_fragments: FunctionFragmentEmissionIdentity,

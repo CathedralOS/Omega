@@ -12,9 +12,9 @@ mod error;
 mod replay;
 mod validation;
 
-pub use error::TargetFrameProtocolEncodingError;
+pub(crate) use error::TargetFrameProtocolEncodingError;
 pub use machine_code::target_frame_protocol_encoding_identity;
-pub use validation::validate_target_frame_protocol_encoding;
+pub(crate) use validation::validate_target_frame_protocol_encoding;
 
 use crate::frame_layout::{TargetFrameLayoutIdentity, ValidatedTargetFrameLayout};
 pub use machine_code::{
@@ -25,7 +25,7 @@ pub use machine_code::{
 use register_environment::ValidatedTargetRegisterEnvironment;
 use target::NativeTarget;
 
-pub fn stage_target_frame_protocol_encoding(
+pub(crate) fn stage_target_frame_protocol_encoding(
     frame: &ValidatedTargetFrameLayout,
     environment: &ValidatedTargetRegisterEnvironment,
     policy: TargetFrameProtocolEncodingPolicy,
@@ -35,7 +35,7 @@ pub fn stage_target_frame_protocol_encoding(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TargetFrameProtocolEncodingReceipt {
+pub(crate) struct TargetFrameProtocolEncodingReceipt {
     identity: TargetFrameProtocolEncodingIdentity,
     frame_layout: TargetFrameLayoutIdentity,
     target: NativeTarget,
@@ -74,7 +74,7 @@ impl TargetFrameProtocolEncodingReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedTargetFrameProtocolEncoding {
+pub(crate) struct ValidatedTargetFrameProtocolEncoding {
     pub(in crate::frame_protocol) plan: std::sync::Arc<TargetFrameProtocolEncodingPlan>,
     pub(in crate::frame_protocol) receipt: TargetFrameProtocolEncodingReceipt,
 }

@@ -19,10 +19,11 @@ mod error;
 pub(crate) mod placement;
 mod validation;
 
-pub use carriers::{
-    StagedFixedFrameTextSectionCustodyReceipt, StagedOptimizedFixedFrameTextSection,
-    ValidatedFunctionFragmentTextSectionManifest,
+pub use carriers::{ StagedOptimizedFixedFrameTextSection,
 };
+pub use carriers::{
+    StagedFixedFrameTextSectionCustodyReceipt,
+    ValidatedFunctionFragmentTextSectionManifest};
 pub use error::{
     FunctionFragmentTextSectionManifestDecodeError, RelocationFreeTextSectionPlacementError,
 };

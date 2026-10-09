@@ -11,12 +11,12 @@ use machine_code::{X86ScalarFmaFormat, X86ScalarFmaFragment};
 use target::{NativeTarget, X86FeatureRequirement};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EmittedX86ScalarFmaFragment {
+pub(crate) struct EmittedX86ScalarFmaFragment {
     pub bytes: [u8; 5],
     pub custody: X86ScalarFmaFragment,
 }
 
-pub fn emit_feature_required_x86_scalar_fma(
+pub(crate) fn emit_feature_required_x86_scalar_fma(
     requirement: X86FeatureRequirement,
     target: NativeTarget,
     format: X86ScalarFmaFormat,

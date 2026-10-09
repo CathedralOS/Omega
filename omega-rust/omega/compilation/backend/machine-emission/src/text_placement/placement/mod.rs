@@ -13,12 +13,12 @@ mod source;
 mod statistics;
 mod validation;
 
-pub use error::TextPlacementError;
+pub(crate) use error::TextPlacementError;
 use machine_code::{FunctionFragmentEmissionPlan, RelocationFreeTextSectionPlacement};
-pub use statistics::text_section_statistics;
+pub(crate) use statistics::text_section_statistics;
 
 #[derive(Clone, Copy)]
-pub enum TextPlacementInput<'a> {
+pub(crate) enum TextPlacementInput<'a> {
     RelocationFree(&'a FunctionFragmentEmissionPlan),
     InternalCalls(&'a FunctionFragmentEmissionPlan),
 }
@@ -29,7 +29,7 @@ impl<'a> TextPlacementInput<'a> {
         }
     }
 }
-pub fn place_fragment_text_section(
+pub(crate) fn place_fragment_text_section(
     input: TextPlacementInput<'_>,
 ) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
     source::validate(input)?;
@@ -38,7 +38,7 @@ pub fn place_fragment_text_section(
         TextPlacementInput::InternalCalls(fragments) => production::fixed_frame(fragments),
     }
 }
-pub fn validate_fragment_text_section(
+pub(crate) fn validate_fragment_text_section(
     input: TextPlacementInput<'_>,
     candidate: &RelocationFreeTextSectionPlacement,
 ) -> Result<(), TextPlacementError> {

@@ -37,7 +37,7 @@ use semantic_vocabulary::MachineId;
 /// pending relocation structural prevents a consumer from treating an
 /// offset as an already-bound address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CodeLayoutAddress {
+pub(crate) enum CodeLayoutAddress {
     /// Offset into the placed text section; binds to `section_base +
     /// offset` once the section's load address resolves.
     TextSectionOffset(u64),
@@ -56,7 +56,7 @@ impl CodeLayoutAddress {
 /// One emitted code region attributed to a selected application: a maximal
 /// contiguous run of placed instruction spans.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PlacedCodeRegion {
+pub(crate) struct PlacedCodeRegion {
     /// Where the run's first instruction byte sits.
     pub base: CodeLayoutAddress,
     /// Exact instruction byte coverage — the query's `u64` `length`.
@@ -74,7 +74,7 @@ pub struct PlacedCodeRegion {
 /// callee's regions are not pulled into the caller's description merely
 /// because its entry lies nearby or is required for execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedApplicationCodeLayout {
+pub(crate) struct SelectedApplicationCodeLayout {
     /// The selected application this description covers.
     pub machine: MachineId,
     /// The placed text section this description derives from; binds the
@@ -97,7 +97,7 @@ pub struct SelectedApplicationCodeLayout {
 
 /// Why a code-layout description cannot be published for a section.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CodeLayoutError {
+pub(crate) enum CodeLayoutError {
     /// The queried application has no placed realization in the section:
     /// the query rejects rather than inventing a region or fabricating a
     /// code size for an interpreted entry.
@@ -131,7 +131,7 @@ impl std::error::Error for CodeLayoutError {}
 
 /// Join one selected application's placed instruction spans and call
 /// relocations into its `code_layout` description.
-pub fn describe_selected_application_code_layout(
+pub(crate) fn describe_selected_application_code_layout(
     section: &RelocationFreeTextSectionPlacement,
     machine: MachineId,
 ) -> Result<SelectedApplicationCodeLayout, CodeLayoutError> {
@@ -175,7 +175,7 @@ pub fn describe_selected_application_code_layout(
 }
 
 /// One description per placed application, in the section's function order.
-pub fn describe_code_layouts(
+pub(crate) fn describe_code_layouts(
     section: &RelocationFreeTextSectionPlacement,
 ) -> Result<Vec<SelectedApplicationCodeLayout>, CodeLayoutError> {
     section
@@ -187,7 +187,7 @@ pub fn describe_code_layouts(
 
 /// Independent replay: recompute one application's description from the
 /// section and require exact equality with the candidate.
-pub fn validate_selected_application_code_layout(
+pub(crate) fn validate_selected_application_code_layout(
     section: &RelocationFreeTextSectionPlacement,
     machine: MachineId,
     candidate: &SelectedApplicationCodeLayout,

@@ -5,7 +5,7 @@ use machine_code::{FunctionFragmentControlProvenance, FunctionFragmentEmissionPl
 use machine_code::FunctionFragmentEmissionStatistics;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FunctionFragmentStatisticsOverflow;
+pub(crate) struct FunctionFragmentStatisticsOverflow;
 
 impl std::fmt::Display for FunctionFragmentStatisticsOverflow {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -15,7 +15,7 @@ impl std::fmt::Display for FunctionFragmentStatisticsOverflow {
 
 impl std::error::Error for FunctionFragmentStatisticsOverflow {}
 
-pub fn function_fragment_emission_statistics(
+pub(crate) fn function_fragment_emission_statistics(
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<FunctionFragmentEmissionStatistics, FunctionFragmentStatisticsOverflow> {
     let mut result = FunctionFragmentEmissionStatistics {

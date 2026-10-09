@@ -12,7 +12,7 @@ use super::FunctionRelativeOptimizationRealizationManifest;
 use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
 
 use cursor::Cursor;
-pub use error::FunctionRelativeOptimizationRealizationManifestDecodeError;
+pub(crate) use error::FunctionRelativeOptimizationRealizationManifestDecodeError;
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
 const MANIFEST_VERSION: u32 = 12;

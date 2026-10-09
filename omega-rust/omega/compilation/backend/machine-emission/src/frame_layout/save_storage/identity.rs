@@ -7,7 +7,7 @@ use super::{
     NonAuthoritativeCalleeSaveStoragePolicy,
 };
 
-pub fn non_authoritative_callee_save_storage_identity(
+pub(crate) fn non_authoritative_callee_save_storage_identity(
     plan: &NonAuthoritativeCalleeSaveStoragePlan,
 ) -> NonAuthoritativeCalleeSaveStorageIdentity {
     let mut hasher = Sha256::new();

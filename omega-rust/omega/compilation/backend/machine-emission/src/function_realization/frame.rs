@@ -20,7 +20,7 @@ use selected_instructions_to_register_homes::{
 };
 
 #[derive(Debug, Clone)]
-pub struct FunctionRelativeFrame {
+pub(crate) struct FunctionRelativeFrame {
     pub(in crate::function_realization) requirements: ValidatedAllocatedCalleeSavedRequirements,
     pub(in crate::function_realization) storage: ValidatedNonAuthoritativeCalleeSaveStorage,
     pub(in crate::function_realization) layout: ValidatedTargetFrameLayout,

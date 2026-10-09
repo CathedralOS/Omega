@@ -13,12 +13,12 @@ mod production;
 mod statistics;
 mod validation;
 
-pub use statistics::{FunctionFragmentStatisticsOverflow, function_fragment_emission_statistics};
+pub(crate) use statistics::{FunctionFragmentStatisticsOverflow, function_fragment_emission_statistics};
 
 use machine_code::{FunctionFragmentEmissionPlan, ResolvedMachineProgram};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResolvedFragmentEmissionError {
+pub(crate) enum ResolvedFragmentEmissionError {
     MissingFunction(semantic_vocabulary::MachineId),
     MissingBlock(selected_instructions::SelectedBlockId),
     MissingInstruction(selected_instructions::SelectedInstructionId),
@@ -35,7 +35,7 @@ impl std::fmt::Display for ResolvedFragmentEmissionError {
 
 impl std::error::Error for ResolvedFragmentEmissionError {}
 
-pub fn emit_resolved_function_fragments(
+pub(crate) fn emit_resolved_function_fragments(
     program: &ResolvedMachineProgram,
 ) -> Result<FunctionFragmentEmissionPlan, ResolvedFragmentEmissionError> {
     production::emit(program)
@@ -43,7 +43,7 @@ pub fn emit_resolved_function_fragments(
 
 /// Check claimed bytes, spans, provenance, and unresolved fixups without emitting
 /// a second fragment program or consulting optimization history.
-pub fn validate_resolved_function_fragments(
+pub(crate) fn validate_resolved_function_fragments(
     program: &ResolvedMachineProgram,
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<(), ResolvedFragmentEmissionError> {

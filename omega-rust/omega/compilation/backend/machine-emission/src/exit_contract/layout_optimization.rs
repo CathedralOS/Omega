@@ -19,7 +19,7 @@ use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 /// Validate the layout phase, then construct and independently check the exit
 /// contract against its one current layout. Frames remain orthogonal evidence.
 #[allow(clippy::too_many_arguments)]
-pub fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysis>(
+pub(crate) fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,

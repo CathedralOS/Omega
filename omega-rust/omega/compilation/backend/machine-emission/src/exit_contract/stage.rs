@@ -22,7 +22,7 @@ use super::{
 /// preservation, and link-register effects are discharged by one exact
 /// validated target frame and its canonical byte protocol.
 #[allow(clippy::too_many_arguments)]
-pub fn stage_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnalysis>(
+pub(crate) fn stage_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
@@ -51,7 +51,7 @@ pub fn stage_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnalysi
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn validate_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnalysis>(
+pub(crate) fn validate_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
@@ -78,7 +78,7 @@ pub fn validate_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnal
 /// Stage an exit contract over an independently validated x86 branch-relaxed
 /// layout. This path retains the relaxation receipt in the contract rather
 /// than treating the transformed layout as baseline layout authority.
-pub fn stage_whole_function_exit_contract_after_x86_branch_relaxation<
+pub(crate) fn stage_whole_function_exit_contract_after_x86_branch_relaxation<
     S: ValidatedSelectedAnalysis,
 >(
     selected: &S,
@@ -116,7 +116,7 @@ pub fn stage_whole_function_exit_contract_after_x86_branch_relaxation<
 
 /// Independently validate the source near layout and replay the x86 branch
 /// relaxation before admitting its transformed layout to exit validation.
-pub fn validate_whole_function_exit_contract_after_x86_branch_relaxation<
+pub(crate) fn validate_whole_function_exit_contract_after_x86_branch_relaxation<
     S: ValidatedSelectedAnalysis,
 >(
     selected: &S,
