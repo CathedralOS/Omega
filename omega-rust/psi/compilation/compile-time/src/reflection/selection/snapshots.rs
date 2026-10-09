@@ -167,7 +167,7 @@ pub fn replay_selection_snapshot(
 /// and diagnostic coordinate, never identity (the repository's
 /// report-only-fingerprint rule, matching `schema_graph`).
 pub(crate) fn snapshot_revision(snapshot: &SelectionSnapshot) -> u64 {
-    use crate::reflection::fnv::{byte, bytes, optional_text, query_authority, text, uint};
+    use crate::fnv::{byte, bytes, optional_text, query_authority, text, uint};
 
     let mut hash = crate::fnv::OFFSET_BASIS;
     bytes(&mut hash, b"omega.reflect.selection.v1");

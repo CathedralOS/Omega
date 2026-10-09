@@ -11,7 +11,6 @@ use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, IeeeFloatFormat, IntegerCarrier, IntegerSign, MachineId,
     OperationId, ScalarType, StructuralTypeId, SuspensionCrossingId, ValueId,
 };
-use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalSuspensionCallSite {
@@ -90,21 +89,10 @@ pub enum TerminalSuspensionStorage {
 }
 
 pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8; 32] {
-<<<<<<< HEAD
-    let mut hash = Sha256::new();
-    hash.update(b"terminal-suspension-frontier-v3\0");
-    hash.update(plan.operation.get().to_le_bytes());
-    hash.update(plan.crossing.get().to_le_bytes());
-||||||| parent of 5e85929453d (psi: fold checking+register-model+numerics+terminal-psi domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
-    let mut hash = Sha256::new();
-    hash.update(b"terminal-suspension-frontier-v2\0");
-    hash.update(plan.operation.get().to_le_bytes());
-    hash.update(plan.crossing.get().to_le_bytes());
-=======
-    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v2\0");
+    let mut hash =
+        crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v3\0");
     hash.raw(&plan.operation.get().to_le_bytes());
     hash.raw(&plan.crossing.get().to_le_bytes());
->>>>>>> 5e85929453d (psi: fold checking+register-model+numerics+terminal-psi domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
     match plan.target {
         TerminalSuspensionCallTarget::Machine(machine) => {
             hash.byte(1);
@@ -124,31 +112,17 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
                 hash.byte(1);
                 hash.raw(&value.get().to_le_bytes());
             }
-<<<<<<< HEAD
             TerminalSuspensionPlace::Structural(argument) => {
-                hash.update([2]);
-                hash.update(argument.place.get().to_le_bytes());
-                hash.update([match argument.access {
+                hash.byte(2);
+                hash.raw(&argument.place.get().to_le_bytes());
+                hash.byte(match argument.access {
                     StructuralAccess::Owned => 1,
                     StructuralAccess::SharedBorrow => 2,
                     StructuralAccess::MutableBorrow => 3,
                     StructuralAccess::WriteOnlyBorrow => 4,
-                }]);
-                hash.update((argument.path.len() as u64).to_le_bytes());
+                });
+                hash.u64(argument.path.len() as u64);
                 for segment in &argument.path {
-||||||| parent of 5e85929453d (psi: fold checking+register-model+numerics+terminal-psi domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
-            TerminalSuspensionPlace::Structural { place, path } => {
-                hash.update([2]);
-                hash.update(place.get().to_le_bytes());
-                hash.update((path.len() as u64).to_le_bytes());
-                for segment in path {
-=======
-            TerminalSuspensionPlace::Structural { place, path } => {
-                hash.byte(2);
-                hash.raw(&place.get().to_le_bytes());
-                hash.u64(path.len() as u64);
-                for segment in path {
->>>>>>> 5e85929453d (psi: fold checking+register-model+numerics+terminal-psi domain-tag Sha256 constructors onto crate-local DomainDigestEncoder)
                     match segment {
                         StructuralPathSegment::Case(case) => {
                             hash.byte(7);
@@ -229,8 +203,14 @@ fn hash_scalar_type(hash: &mut crate::digest_encoder::DomainDigestEncoder, scala
 }
 
 fn hash_carry_policy(hash: &mut crate::digest_encoder::DomainDigestEncoder, policy: CarryPolicy) {
-    hash.byte(u8::from(policy.suspension == language_semantics::CarrySuspension::Allowed));
+    hash.byte(u8::from(
+        policy.suspension == language_semantics::CarrySuspension::Allowed,
+    ));
     hash.byte(u8::from(policy.cpu == language_semantics::CarryCpu::Any));
-    hash.byte(u8::from(policy.host_thread == language_semantics::CarryHostThread::Any));
-    hash.byte(u8::from(policy.address == language_semantics::CarryAddress::Movable));
+    hash.byte(u8::from(
+        policy.host_thread == language_semantics::CarryHostThread::Any,
+    ));
+    hash.byte(u8::from(
+        policy.address == language_semantics::CarryAddress::Movable,
+    ));
 }

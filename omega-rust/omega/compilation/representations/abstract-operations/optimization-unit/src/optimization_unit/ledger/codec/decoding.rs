@@ -7,10 +7,11 @@ use super::super::{
     PsiProvenance, PsiRealizationSite, PsiTransformationLedger, PsiTransformationLedgerDecodeError,
     PsiTransformationRecord, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
 };
-use super::{LEDGER_MAGIC, LedgerCursor};
+use super::LEDGER_MAGIC;
+use crate::cursor::Cursor;
 impl PsiTransformationLedger {
     pub fn decode(encoded: &[u8]) -> Result<Self, PsiTransformationLedgerDecodeError> {
-        let mut cursor = LedgerCursor::new(encoded);
+        let mut cursor = Cursor::new(encoded);
         if cursor.take(LEDGER_MAGIC.len())? != LEDGER_MAGIC {
             return Err(PsiTransformationLedgerDecodeError::WrongMagic);
         }
@@ -104,7 +105,7 @@ impl PsiTransformationLedger {
 }
 
 fn decode_realization_site(
-    cursor: &mut LedgerCursor<'_>,
+    cursor: &mut Cursor<'_>,
 ) -> Result<PsiRealizationSite, PsiTransformationLedgerDecodeError> {
     let tag = cursor.byte()?;
     let machine = semantic_id(cursor.u64()?, MachineId::new)?;
@@ -123,7 +124,7 @@ fn decode_realization_site(
 }
 
 fn decode_provenance(
-    cursor: &mut LedgerCursor<'_>,
+    cursor: &mut Cursor<'_>,
 ) -> Result<PsiProvenance, PsiTransformationLedgerDecodeError> {
     match cursor.byte()? {
         1 => Ok(PsiProvenance::Operation(semantic_id(

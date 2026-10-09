@@ -88,47 +88,47 @@ pub(super) fn compiler_identity_evidence(
 pub(super) fn derive_native_artifact_identity(
     fields: NativeArtifactIdentityFields<'_>,
 ) -> NativeArtifactIdentity {
-    let mut digest = Sha256::new();
-    digest.update(NATIVE_ARTIFACT_IDENTITY_DOMAIN);
-    digest.update(fields.terminal_artifact_identity);
-    digest.update([match fields.target.architecture {
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(NATIVE_ARTIFACT_IDENTITY_DOMAIN);
+    digest.raw(&fields.terminal_artifact_identity);
+    digest.raw(&[match fields.target.architecture {
         target::Architecture::Aarch64 => 1,
         target::Architecture::X86_64 => 2,
     }]);
-    digest.update([match fields.target.object_format {
+    digest.raw(&[match fields.target.object_format {
         target::ObjectFormat::Elf => 1,
         target::ObjectFormat::MachO => 2,
         target::ObjectFormat::Coff => 3,
     }]);
-    digest.update(canonical_usize(fields.target.pointer_size));
-    digest.update(canonical_usize(fields.target.pointer_alignment));
+    digest.raw(&canonical_usize(fields.target.pointer_size));
+    digest.raw(&canonical_usize(fields.target.pointer_alignment));
     hash_bytes(&mut digest, fields.object_text_bytes);
     hash_bytes(&mut digest, fields.image_bytes);
     hash_bytes(&mut digest, fields.final_text_bytes);
     match fields.image_subsystem {
-        None => digest.update([0]),
+        None => digest.raw(&[0]),
         Some(subsystem) => {
-            digest.update([1]);
-            digest.update(subsystem.to_le_bytes());
+            digest.raw(&[1]);
+            digest.raw(&subsystem.to_le_bytes());
         }
     }
     hash_bytes(&mut digest, fields.output_file_name.as_bytes());
     hash_bytes(&mut digest, fields.output_format.as_bytes());
     // `EmittedImageOutput` currently has one closed output kind. Retaining a
     // tag here makes extending that vocabulary an explicit identity change.
-    digest.update([1]);
+    digest.raw(&[1]);
     for count in fields.output_counts {
-        digest.update(canonical_usize(count));
+        digest.raw(&canonical_usize(count));
     }
-    digest.update(
-        fields
+    digest.raw(
+        &fields
             .callback_placement_identity_report_fingerprint
             .to_le_bytes(),
     );
-    digest.update(fields.final_image_symbol_digest);
-    digest.update(fields.executable_region_inventory_digest);
-    digest.update(
-        fields
+    digest.raw(&fields.final_image_symbol_digest);
+    digest.raw(&fields.executable_region_inventory_digest);
+    digest.raw(
+        &fields
             .executable_region_inventory_report_fingerprint
             .to_le_bytes(),
     );
@@ -136,18 +136,18 @@ pub(super) fn derive_native_artifact_identity(
     hash_optional_digest_and_report(&mut digest, fields.compiler_function_validation);
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_region_binding);
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_footprint_binding);
-    digest.update(fields.selected_provider_closure_digest);
-    digest.update(fields.foreign_call_custody_digest);
-    digest.update(canonical_usize(fields.selected_provider_plans.len()));
+    digest.raw(&fields.selected_provider_closure_digest);
+    digest.raw(&fields.foreign_call_custody_digest);
+    digest.raw(&canonical_usize(fields.selected_provider_plans.len()));
     for plan in fields.selected_provider_plans {
-        digest.update(plan.report_identity.to_le_bytes());
-        digest.update(plan.plan_digest.as_bytes());
-        digest.update(canonical_usize(plan.requirement_identities.len()));
+        digest.raw(&plan.report_identity.to_le_bytes());
+        digest.raw(plan.plan_digest.as_bytes());
+        digest.raw(&canonical_usize(plan.requirement_identities.len()));
         for requirement in &plan.requirement_identities {
             hash_bytes(&mut digest, requirement.as_bytes());
         }
     }
-    digest.update(canonical_usize(fields.provider_executions.len()));
+    digest.raw(&canonical_usize(fields.provider_executions.len()));
     for execution in fields.provider_executions {
         hash_bytes(&mut digest, execution.requirement_identity.as_bytes());
         for report_coordinate in [
@@ -157,169 +157,176 @@ pub(super) fn derive_native_artifact_identity(
             execution.normalized_root_report_identity,
             execution.boundary_contract_report_fingerprint,
         ] {
-            digest.update(report_coordinate.to_le_bytes());
+            digest.raw(&report_coordinate.to_le_bytes());
         }
     }
-    digest.update(
-        fields
+    digest.raw(
+        &fields
             .terminal_authority_policy_identity
             .version()
             .to_le_bytes(),
     );
-    digest.update(fields.terminal_authority_policy_identity.commitment());
+    digest.raw(&fields.terminal_authority_policy_identity.commitment());
     // A missing receiver-admission axis is a distinct identity input, never an
     // alias for an empty or populated permission policy.
     match fields.terminal_authority_permission_policy_identity {
-        None => digest.update([0]),
+        None => digest.raw(&[0]),
         Some(permission_policy_identity) => {
-            digest.update([1]);
-            digest.update(permission_policy_identity.version().to_le_bytes());
-            digest.update(permission_policy_identity.commitment());
+            digest.raw(&[1]);
+            digest.raw(&permission_policy_identity.version().to_le_bytes());
+            digest.raw(&permission_policy_identity.commitment());
         }
     }
-    digest.update(fields.terminal_authority_closure_review_identity);
+    digest.raw(&fields.terminal_authority_closure_review_identity);
     hash_optional_digest(&mut digest, fields.boundary_application_coverage_identity);
     match fields.physical_evidence_scope {
-        NativePhysicalEvidenceScope::Unavailable => digest.update([0]),
-        NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence => digest.update([1]),
+        NativePhysicalEvidenceScope::Unavailable => digest.raw(&[0]),
+        NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence => digest.raw(&[1]),
         NativePhysicalEvidenceScope::ValidatedOptimizedProjection(scope) => {
-            digest.update([2]);
-            digest.update(scope.identity());
+            digest.raw(&[2]);
+            digest.raw(scope.identity());
         }
     }
     hash_optional_digest(&mut digest, fields.physical_evidence_identity);
     hash_optional_digest(&mut digest, fields.physical_evidence_gap_identity);
-    NativeArtifactIdentity(digest.finalize().into())
+    NativeArtifactIdentity(digest.finish())
 }
 
 pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeignCall]) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-artifact.foreign-call-custody.v4\0");
-    digest.update(canonical_usize(calls.len()));
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.native-artifact.foreign-call-custody.v4\0",
+    );
+    digest.raw(&canonical_usize(calls.len()));
     for call in calls {
-        digest.update(call.machine.get().to_le_bytes());
+        digest.raw(&call.machine.get().to_le_bytes());
         match call.owner {
             target_operations::CallSiteOwner::Operation(operation) => {
-                digest.update([1]);
-                digest.update(operation.get().to_le_bytes());
-                digest.update(0_u32.to_le_bytes());
+                digest.raw(&[1]);
+                digest.raw(&operation.get().to_le_bytes());
+                digest.raw(&0_u32.to_le_bytes());
             }
             target_operations::CallSiteOwner::ExternalCompletion(edge) => {
-                digest.update([3]);
-                digest.update(edge.get().to_le_bytes());
-                digest.update(0_u32.to_le_bytes());
+                digest.raw(&[3]);
+                digest.raw(&edge.get().to_le_bytes());
+                digest.raw(&0_u32.to_le_bytes());
             }
             target_operations::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,
             } => {
-                digest.update([2]);
-                digest.update(edge.get().to_le_bytes());
-                digest.update(action_ordinal.to_le_bytes());
+                digest.raw(&[2]);
+                digest.raw(&edge.get().to_le_bytes());
+                digest.raw(&action_ordinal.to_le_bytes());
             }
         }
-        digest.update(canonical_usize(call.text_offset));
-        digest.update(call.caller_live_bytes.to_le_bytes());
+        digest.raw(&canonical_usize(call.text_offset));
+        digest.raw(&call.caller_live_bytes.to_le_bytes());
         match call.x86_floating_control {
-            None => digest.update([0]),
+            None => digest.raw(&[0]),
             Some(control) => {
-                digest.update([1]);
-                digest.update([match control.target.architecture {
+                digest.raw(&[1]);
+                digest.raw(&[match control.target.architecture {
                     target::Architecture::Aarch64 => 1,
                     target::Architecture::X86_64 => 2,
                 }]);
-                digest.update([match control.target.object_format {
+                digest.raw(&[match control.target.object_format {
                     target::ObjectFormat::Elf => 1,
                     target::ObjectFormat::MachO => 2,
                     target::ObjectFormat::Coff => 3,
                 }]);
-                digest.update(canonical_usize(control.target.pointer_size));
-                digest.update(canonical_usize(control.target.pointer_alignment));
-                digest.update(control.saved_slot_byte_offset.to_le_bytes());
+                digest.raw(&canonical_usize(control.target.pointer_size));
+                digest.raw(&canonical_usize(control.target.pointer_alignment));
+                digest.raw(&control.saved_slot_byte_offset.to_le_bytes());
                 for value in [
                     control.save_offset,
                     control.save_byte_count,
                     control.restore_offset,
                     control.restore_byte_count,
                 ] {
-                    digest.update(canonical_usize(value));
+                    digest.raw(&canonical_usize(value));
                 }
             }
         }
         match call.aarch64_floating_control {
-            None => digest.update([0]),
+            None => digest.raw(&[0]),
             Some(control) => {
-                digest.update([1]);
-                digest.update([match control.target.architecture {
+                digest.raw(&[1]);
+                digest.raw(&[match control.target.architecture {
                     target::Architecture::Aarch64 => 1,
                     target::Architecture::X86_64 => 2,
                 }]);
-                digest.update([match control.target.object_format {
+                digest.raw(&[match control.target.object_format {
                     target::ObjectFormat::Elf => 1,
                     target::ObjectFormat::MachO => 2,
                     target::ObjectFormat::Coff => 3,
                 }]);
-                digest.update(canonical_usize(control.target.pointer_size));
-                digest.update(canonical_usize(control.target.pointer_alignment));
-                digest.update(control.saved_slot_byte_offset.to_le_bytes());
+                digest.raw(&canonical_usize(control.target.pointer_size));
+                digest.raw(&canonical_usize(control.target.pointer_alignment));
+                digest.raw(&control.saved_slot_byte_offset.to_le_bytes());
                 for value in [
                     control.save_offset,
                     control.save_byte_count,
                     control.restore_offset,
                     control.restore_byte_count,
                 ] {
-                    digest.update(canonical_usize(value));
+                    digest.raw(&canonical_usize(value));
                 }
             }
         }
         if let Some(kernel) = call.binding.system_call() {
-            digest.update([2]);
+            digest.raw(&[2]);
             hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
-            digest.update(kernel.number.to_le_bytes());
-            digest.update(kernel.provider_plan_report_identity.to_le_bytes());
-            digest.update(kernel.provider_plan_commitment);
+            digest.raw(&kernel.number.to_le_bytes());
+            digest.raw(&kernel.provider_plan_report_identity.to_le_bytes());
+            digest.raw(&kernel.provider_plan_commitment);
             hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
             continue;
         }
         let Some((locator, contribution)) = call.binding.import() else {
             continue;
         };
-        digest.update([1]);
-        digest.update(locator.identity_digest().as_bytes());
-        digest.update(
-            contribution
+        digest.raw(&[1]);
+        digest.raw(&locator.identity_digest().as_bytes());
+        digest.raw(
+            &contribution
                 .report_identity()
                 .normalized_identity()
                 .to_le_bytes(),
         );
-        digest.update(contribution.commitment().as_bytes());
-        digest.update(contribution.provider_plan_report_identity().to_le_bytes());
-        digest.update(contribution.provider_plan_commitment().as_bytes());
+        digest.raw(&contribution.commitment().as_bytes());
+        digest.raw(&contribution.provider_plan_report_identity().to_le_bytes());
+        digest.raw(&contribution.provider_plan_commitment().as_bytes());
         hash_bytes(&mut digest, contribution.requirement_identity().as_bytes());
-        digest.update(contribution.receipt().normalized_identity().to_le_bytes());
-        digest.update(contribution.bytes().to_le_bytes());
-        digest.update(contribution.alignment().to_le_bytes());
+        digest.raw(&contribution.receipt().normalized_identity().to_le_bytes());
+        digest.raw(&contribution.bytes().to_le_bytes());
+        digest.raw(&contribution.alignment().to_le_bytes());
     }
-    digest.finalize().into()
+    digest.finish()
 }
 
-fn hash_optional_digest(digest: &mut Sha256, value: Option<[u8; 32]>) {
+fn hash_optional_digest(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    value: Option<[u8; 32]>,
+) {
     match value {
-        None => digest.update([0]),
+        None => digest.raw(&[0]),
         Some(value) => {
-            digest.update([1]);
-            digest.update(value);
+            digest.raw(&[1]);
+            digest.raw(&value);
         }
     }
 }
 
-fn hash_optional_digest_and_report(digest: &mut Sha256, value: Option<([u8; 32], u64)>) {
+fn hash_optional_digest_and_report(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    value: Option<([u8; 32], u64)>,
+) {
     match value {
-        None => digest.update([0]),
+        None => digest.raw(&[0]),
         Some((strong_digest, report_fingerprint)) => {
-            digest.update([1]);
-            digest.update(strong_digest);
-            digest.update(report_fingerprint.to_le_bytes());
+            digest.raw(&[1]);
+            digest.raw(&strong_digest);
+            digest.raw(&report_fingerprint.to_le_bytes());
         }
     }
 }

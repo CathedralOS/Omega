@@ -513,7 +513,7 @@ fn resolve_requester(
 /// diagnostic coordinate, never identity (matching the repository's
 /// fingerprint rule).
 pub(crate) fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNode]) -> u64 {
-    use crate::reflection::fnv::{byte, bytes, optional_text, query_authority, text, uint};
+    use crate::fnv::{byte, bytes, optional_text, query_authority, text, uint};
     fn handle(hash: &mut u64, value: SchemaNodeHandle) {
         uint(hash, value.0 as u64);
     }

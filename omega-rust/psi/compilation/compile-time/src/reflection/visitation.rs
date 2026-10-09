@@ -342,7 +342,7 @@ pub fn replay_runtime_visitation_plan(
 /// diagnostic coordinate, never identity (matching the graph and snapshot
 /// fingerprints).
 fn plan_revision(plan: &RuntimeVisitationPlan) -> u64 {
-    use crate::reflection::fnv::{byte, bytes, optional_text, query_authority, text, uint};
+    use crate::fnv::{byte, bytes, optional_text, query_authority, text, uint};
 
     let mut hash = crate::fnv::OFFSET_BASIS;
     bytes(&mut hash, b"omega.reflect.visitation.v1");

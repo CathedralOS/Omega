@@ -44,22 +44,21 @@ pub(crate) fn boundary_application_coverage_identity(
     coverage: Option<&TerminalBoundaryApplicationCoverage>,
 ) -> Option<[u8; 32]> {
     let coverage = coverage?;
-    let mut digest = Sha256::new();
-    digest.update(CUSTODY_IDENTITY_DOMAIN);
-    digest.update(canonical_usize(coverage.references().len()));
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(CUSTODY_IDENTITY_DOMAIN);
+    digest.raw(&canonical_usize(coverage.references().len()));
     for reference in coverage.references() {
-        digest.update(reference.terminal().vocabulary_marker.get().to_le_bytes());
-        digest.update(reference.terminal().program_fingerprint.as_bytes());
-        digest.update(reference.terminal_operation().get().to_le_bytes());
-        digest.update(reference.coverage().as_bytes());
+        digest.raw(&reference.terminal().vocabulary_marker.get().to_le_bytes());
+        digest.raw(reference.terminal().program_fingerprint.as_bytes());
+        digest.raw(&reference.terminal_operation().get().to_le_bytes());
+        digest.raw(reference.coverage().as_bytes());
     }
     let applications = coverage.opaque_applications();
-    digest.update(canonical_usize(applications.rows().len()));
+    digest.raw(&canonical_usize(applications.rows().len()));
     for application in applications.rows() {
         hash_bytes(&mut digest, application.requirement_identity.as_bytes());
-        digest.update(application.shape_root.to_le_bytes());
-        digest.update(application.application_report_fingerprint.to_le_bytes());
-        digest.update(application.selected_application_commitment);
+        digest.raw(&application.shape_root.to_le_bytes());
+        digest.raw(&application.application_report_fingerprint.to_le_bytes());
+        digest.raw(&application.selected_application_commitment);
     }
-    Some(digest.finalize().into())
+    Some(digest.finish())
 }

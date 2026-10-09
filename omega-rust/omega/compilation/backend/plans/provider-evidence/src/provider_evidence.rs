@@ -728,7 +728,7 @@ impl crate::provider_evidence::providers::provider_plan::DigestFeed
     for SelectedProviderClosureDigestEncoder
 {
     fn raw(&mut self, bytes: &[u8]) {
-        self.0.update(bytes);
+        self.0.raw(bytes);
     }
 }
 
