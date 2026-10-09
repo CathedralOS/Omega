@@ -234,13 +234,9 @@ pub(crate) fn type_reference_slug(
             access,
             lifetime: None,
         } => {
-            let access = match access {
-                language_core::ReferenceAccess::Shared => "",
-                language_core::ReferenceAccess::Mutable => "mut ",
-                language_core::ReferenceAccess::WriteOnly => "write ",
-            };
+            let access = access.borrow_prefix();
             Some(format!(
-                "&{access}{}",
+                "{access}{}",
                 type_reference_slug(syntax, *referee)?
             ))
         }

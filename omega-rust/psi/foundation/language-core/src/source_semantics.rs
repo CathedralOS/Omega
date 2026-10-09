@@ -286,6 +286,17 @@ impl ReferenceAccess {
         }
     }
 
+    /// Access modifier spelling without the `&`: the qualifier a borrow
+    /// spelling carries when a lifetime sits between the `&` and the access
+    /// (`&'a mut T`).
+    pub const fn borrow_modifier(self) -> &'static str {
+        match self {
+            Self::Mutable => "mut ",
+            Self::WriteOnly => "write ",
+            Self::Shared => "",
+        }
+    }
+
     /// Lowercase spelling used in inspection snapshots.
     pub const fn name(self) -> &'static str {
         match self {

@@ -421,12 +421,8 @@ fn render_evidence_type(
         TypeReferenceNode::Reference {
             referee, access, ..
         } => format!(
-            "&{}{}",
-            match access {
-                language_core::ReferenceAccess::Shared => "",
-                language_core::ReferenceAccess::Mutable => "mut ",
-                language_core::ReferenceAccess::WriteOnly => "write ",
-            },
+            "{}{}",
+            access.borrow_prefix(),
             render_evidence_type(program, *referee, substitutions)
         ),
         TypeReferenceNode::Constrained {

@@ -12,8 +12,7 @@ impl TypeReference {
     ) -> String {
         match self {
             TypeReference::Reference(reference) => {
-                let qualifier = reference_qualifier(reference.access);
-                format!("&{qualifier}<type>")
+                format!("{}<type>", reference.access.borrow_prefix())
             }
             TypeReference::Constrained(constrained) => constrained_name(constrained),
             TypeReference::FixedArray(fixed_array) => {
@@ -68,14 +67,6 @@ impl TypeReference {
                 comma_join_display(constraints.iter(), TypeConstraint::display_name)
             )
         })
-    }
-}
-
-fn reference_qualifier(access: language_core::ReferenceAccess) -> &'static str {
-    match access {
-        language_core::ReferenceAccess::Shared => "",
-        language_core::ReferenceAccess::Mutable => "mut ",
-        language_core::ReferenceAccess::WriteOnly => "write ",
     }
 }
 

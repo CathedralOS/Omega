@@ -15,8 +15,7 @@ impl TypeReferenceNode {
                 // by the borrow analysis, not by type equality (decision 15).
                 lifetime: _,
             } => {
-                let qualifier = reference_qualifier(*access);
-                format!("&{qualifier}{}", table.display_name(*referee))
+                format!("{}{}", access.borrow_prefix(), table.display_name(*referee))
             }
             TypeReferenceNode::Constrained {
                 base_type,
@@ -78,9 +77,9 @@ impl TypeReferenceNode {
                 // not participate in structural type equality.
                 lifetime: _,
             } => {
-                let qualifier = reference_qualifier(*access);
                 format!(
-                    "&{qualifier}{}",
+                    "{}{}",
+                    access.borrow_prefix(),
                     table.display_name_with_constraints(*referee, expressions)
                 )
             }
@@ -138,14 +137,6 @@ impl TypeReferenceNode {
             TypeReferenceNode::Named { name, .. } => name.to_string(),
             TypeReferenceNode::Unit => "()".to_owned(),
         }
-    }
-}
-
-fn reference_qualifier(access: language_core::ReferenceAccess) -> &'static str {
-    match access {
-        language_core::ReferenceAccess::Shared => "",
-        language_core::ReferenceAccess::Mutable => "mut ",
-        language_core::ReferenceAccess::WriteOnly => "write ",
     }
 }
 

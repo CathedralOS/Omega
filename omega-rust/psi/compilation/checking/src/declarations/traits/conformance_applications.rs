@@ -506,11 +506,7 @@ pub fn substituted_type_identity_with_lifetimes(
                     .unwrap_or_else(|| name.as_str());
                 format!("'{lifetime} ")
             }),
-            match access {
-                language_semantics::ReferenceAccess::Shared => "",
-                language_semantics::ReferenceAccess::Mutable => "mut ",
-                language_semantics::ReferenceAccess::WriteOnly => "write ",
-            },
+            access.borrow_modifier(),
             substituted_type_identity_with_lifetimes(
                 program,
                 *referee,
@@ -730,7 +726,9 @@ fn application_identity(
         bytes.push(0xfe);
     }
     let mut hash = semantic_vocabulary::Fnv1a::new();
-    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(b"omega.psi.closed-conformance-application.v3\0");
+    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.psi.closed-conformance-application.v3\0",
+    );
     strong.raw(&bytes);
     hash.bytes(&bytes);
     ApplicationIdentity {

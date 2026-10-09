@@ -387,15 +387,8 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
         TypeReferenceNode::Reference {
             referee, access, ..
         } => {
-            let qualifier = match access {
-                language_semantics::ReferenceAccess::Shared => "",
-                language_semantics::ReferenceAccess::Mutable => "mut ",
-                language_semantics::ReferenceAccess::WriteOnly => "write ",
-            };
-            format!(
-                "&{qualifier}{}",
-                type_reference_name(syntax_trees, *referee)
-            )
+            let qualifier = access.borrow_prefix();
+            format!("{qualifier}{}", type_reference_name(syntax_trees, *referee))
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_name(syntax_trees, *base_type)
