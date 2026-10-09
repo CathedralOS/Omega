@@ -330,6 +330,9 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     // occurrence preorder, so an enclosing call can claim its operand calls
     // before they are considered independent statement operations. This does
     // not schedule execution; retained operand plans keep authored effect order.
+    // Structural owners (value-walk calls and the structural operands of
+    // scheduled calls) claim their argument calls before each visit, so a call
+    // nested in a structural operand is owned before preorder reaches it.
     let mut occurrence_order = calls
         .iter()
         .filter(|call| !scalar_intrinsic(call) && !omitted(call))
@@ -341,7 +344,21 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     }) {
         return None;
     }
+    let mut claimed_structural = 0;
+    let expands = |call: &checked_trees::FlowCallFact| !scalar_intrinsic(call) && !omitted(call);
     for call in occurrence_order {
+        claim_structural_operand_calls(
+            program,
+            facts,
+            owner,
+            state,
+            calls,
+            &mut structural,
+            &mut claimed_structural,
+            &mut consumed,
+            &expands,
+            trace,
+        )?;
         if consumed
             .iter()
             .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), call))
@@ -363,7 +380,6 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         outer.push(call);
         trace.phase("outer calls: structural operands");
         trace.statement(u32::try_from(call.statement_index).ok());
-        let owner = program.machine_by_symbol(machine)?;
         for nested in structural_operands::for_call(program, facts, owner, state, call)? {
             // The value graph and canonical-place operand can name the same
             // captured occurrence. This is one catalog entry, not a second
@@ -468,46 +484,19 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             &mut consumed,
         )?;
     }
-    // Calls reached through the structural value walk (a record or case
-    // initializer holding a call node) skip the outer-call loop's operand
-    // gathering. Their own structural argument calls still need the roster —
-    // union each operand call into `structural` so transitively nested calls
-    // are not reported unconsumed.
-    let mut structural_index = 0;
-    while let Some(call) = structural.get(structural_index).copied() {
-        structural_index += 1;
-        if scalar_intrinsic(call) || omitted(call) {
-            continue;
-        }
-        let owner = program.machine_by_symbol(machine)?;
-        for nested in structural_operands::for_call(program, facts, owner, state, call)? {
-            if !structural.iter().any(|prior| std::ptr::eq(*prior, nested)) {
-                structural.push(nested);
-            }
-        }
-    }
-    for call in &structural {
-        trace.phase("outer calls: structural argument calls");
-        trace.statement(u32::try_from(call.statement_index).ok());
-        let site = validation::find_call_site(
-            program,
-            machine,
-            state.symbol,
-            call.statement_index,
-            call.call_ordinal,
-        )?;
-        let arguments = validation::call_site_argument_expressions(program, &site);
-        collect_argument_calls(
-            program,
-            facts,
-            machine,
-            state.symbol,
-            call,
-            arguments,
-            calls,
-            &mut consumed,
-        )?;
-    }
+    // The last scheduled call's structural operands claim theirs here.
+    claim_structural_operand_calls(
+        program,
+        facts,
+        owner,
+        state,
+        calls,
+        &mut structural,
+        &mut claimed_structural,
+        &mut consumed,
+        &expands,
+        trace,
+    )?;
     trace.phase("outer calls: unconsumed nested calls");
     trace.statement(None);
     if let Some(unconsumed) = calls
@@ -554,4 +543,58 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         return None;
     }
     Some(outer)
+}
+
+/// Calls reached through the structural value walk (a record or case
+/// initializer holding a call node) and the structural operands of scheduled
+/// calls skip the outer-call loop's operand gathering. Claim each pending
+/// one's structural operand calls into `structural` and its argument calls
+/// into `consumed`, so transitively nested calls are owned before the loop
+/// visits them and are not reported unconsumed. In
+/// `combine(produce(&mut count), tick(&mut count), produce(&mut count)).value`
+/// the value-walk call `combine` must claim `tick` before preorder reaches it.
+#[allow(clippy::too_many_arguments)]
+fn claim_structural_operand_calls<'a>(
+    program: &dyn ::validation::CheckingInput,
+    facts: &'a CheckFacts,
+    owner: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    calls: &'a [checked_trees::FlowCallFact],
+    structural: &mut Vec<&'a checked_trees::FlowCallFact>,
+    claimed: &mut usize,
+    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    expands: &dyn Fn(&checked_trees::FlowCallFact) -> bool,
+    trace: &LocalConstructionTrace,
+) -> Option<()> {
+    while let Some(call) = structural.get(*claimed).copied() {
+        *claimed += 1;
+        if expands(call) {
+            for nested in structural_operands::for_call(program, facts, owner, state, call)? {
+                if !structural.iter().any(|prior| std::ptr::eq(*prior, nested)) {
+                    structural.push(nested);
+                }
+            }
+        }
+        trace.phase("outer calls: structural argument calls");
+        trace.statement(u32::try_from(call.statement_index).ok());
+        let site = validation::find_call_site(
+            program,
+            owner.symbol,
+            state.symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )?;
+        let arguments = validation::call_site_argument_expressions(program, &site);
+        collect_argument_calls(
+            program,
+            facts,
+            owner.symbol,
+            state.symbol,
+            call,
+            arguments,
+            calls,
+            consumed,
+        )?;
+    }
+    Some(())
 }
