@@ -61,7 +61,7 @@ pub fn harvest_behavior_exclusions(
             }
             checked_interpreter::ExecutedBehaviorExclusionKind::Service => {
                 match authored_service_exclusion(typed, row.site, source_span) {
-                    Ok(trait_symbol) => AuthoredBehaviorExclusionKind::Service { trait_symbol },
+                    Ok(identity) => AuthoredBehaviorExclusionKind::Service { identity },
                     Err(diagnostic) => {
                         diagnostics.push(diagnostic.with_source_span(source_span));
                         continue;
@@ -98,7 +98,10 @@ pub fn harvest_behavior_exclusions(
     }
 }
 
-/// The exact boundary trait a `Build::exclude_service<Trait>(builder)` call names.
+/// Retain the service identity selected by `Build::exclude_service<Trait>`.
+/// Resolve it in the executed Build's product-declaration environment, not its
+/// own executable declarations: dependencies need not be executable Build code.
+/// native realization must not reopen typed source to interpret this selection.
 /// The call retains exactly one plain type path in its product namespace. Data,
 /// ordinary traits, machines and unresolved paths reject: a service name is
 /// an authorized declaration, never a label.
@@ -106,13 +109,14 @@ fn authored_service_exclusion(
     typed: &TypedTrees,
     site: checked_interpreter::ExecutedBehaviorExclusionSite,
     occurrence: source::SourceSpan,
-) -> Result<SymbolHandle, Diagnostic> {
+) -> Result<String, Diagnostic> {
     let checked_interpreter::ExecutedBehaviorExclusionSite::Expression(expression) = site else {
         return Err(Diagnostic::error(
             "service exclusion must retain its checked static Build call",
         ));
     };
     validation::compiler_operations::resolve_build_declaration_operand(typed, expression, 0, occurrence)
+        .and_then(|symbol| effects::boundary_trait_identity(typed.product_declarations(), symbol))
         .ok_or_else(|| Diagnostic::error(
             "service exclusion does not resolve to an exact visible product boundary trait declaration",
         ))

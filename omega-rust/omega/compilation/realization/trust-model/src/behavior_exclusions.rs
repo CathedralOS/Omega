@@ -50,8 +50,7 @@ pub fn verify_entry_behavior_exclusions(
         )]
     })?;
     let module = &lowered.semantic_module;
-    let trait_identity = |symbol| effects::boundary_trait_identity(checked, symbol);
-    let exclusions = authored_behavior_exclusion_set_in(authored, module, &trait_identity);
+    let exclusions = authored_behavior_exclusion_set_in(authored, module);
     if exclusions.is_empty() {
         // Every authored row named a service this composition never
         // declares: nothing in it can invoke that service.
@@ -73,7 +72,6 @@ pub fn verify_entry_behavior_exclusions(
                 authored,
                 module,
                 &provenance,
-                &trait_identity,
                 &report,
             ))
         }
@@ -84,7 +82,6 @@ fn behavior_exclusion_diagnostics(
     authored: &[AuthoredBehaviorExclusion],
     module: &terminal_psi::TerminalModule,
     provenance: &LoweredMachineProvenance,
-    trait_identity: &dyn Fn(symbols::SymbolHandle) -> Option<String>,
     report: &BehaviorExclusionReport,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::with_capacity(2 * (report.prohibited.len() + report.gaps.len()) + 1);
@@ -103,7 +100,7 @@ fn behavior_exclusion_diagnostics(
         // named the requirement, not an internal Terminal coordinate.
         if let Some(row) = authored
             .iter()
-            .find(|row| row.resolve(module, trait_identity) == Some(prohibited.exclusion))
+            .find(|row| row.resolve(module) == Some(prohibited.exclusion))
         {
             diagnostic = diagnostic.with_source_span(row.source_span);
         }

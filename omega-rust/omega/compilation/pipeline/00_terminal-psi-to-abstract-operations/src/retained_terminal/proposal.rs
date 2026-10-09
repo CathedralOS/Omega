@@ -16,7 +16,6 @@ use diagnostics::Diagnostic;
 /// canonical artifact. Completed callback bodies arrive in placement order;
 /// neither their cardinality nor their identity is trusted.
 pub struct TerminalNativeProposalRequest<'input> {
-    pub checked: &'input checked_trees::CheckedTrees,
     pub target_profile: Option<target::TargetProfile>,
     pub boundaries: crate::BoundaryApplicationSettlement<'input>,
     pub native_target: Option<target::NativeTarget>,
@@ -148,11 +147,7 @@ pub fn project_terminal_native_realization_proposal(
             coverage: boundary_application_coverage,
         },
         request.package_terminal_authority_permissions,
-        effects::authored_behavior_exclusion_set_in(
-            request.behavior_exclusions,
-            terminal_module,
-            &|symbol| effects::boundary_trait_identity(request.checked, symbol),
-        ),
+        effects::authored_behavior_exclusion_set_in(request.behavior_exclusions, terminal_module),
     ))
 }
 

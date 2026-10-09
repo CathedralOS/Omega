@@ -10,10 +10,10 @@ use crate::{BehaviorExclusion, BehaviorExclusions, TerminalAuthorityClass};
 use symbols::SymbolHandle;
 use terminal_psi::{CrashCause, TerminalModule};
 
-/// One authored exclusion kind with its exact typed-stage declaration
-/// identity. The terminal-facing [`BehaviorExclusion`] set derives from these
+/// One authored exclusion kind with its selected semantic identity.
+/// The terminal-facing [`BehaviorExclusion`] set derives from these
 /// rows at the product-admission join, once selected service identities exist.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthoredBehaviorExclusionKind {
     /// `Build::exclude_crash(builder, CrashCause::X)`: the terminal crash cause plus
     /// the exact toolchain `CrashCause` case symbol the authored value named.
@@ -26,11 +26,10 @@ pub enum AuthoredBehaviorExclusionKind {
         class: TerminalAuthorityClass,
         case_symbol: SymbolHandle,
     },
-    /// `Build::exclude_service<Trait>(builder)`: the exact boundary-trait symbol
-    /// the authored type path resolved to. The Terminal service identity it
-    /// names exists only per module, so the row resolves at the
-    /// product-admission join against that module's service catalog.
-    Service { trait_symbol: SymbolHandle },
+    /// `Build::exclude_service<Trait>(builder)`: the selected boundary trait's
+    /// canonical service identity, retained while Build owns its typed inputs.
+    /// Only the module-local ServiceId remains to be resolved after Terminal.
+    Service { identity: String },
 }
 
 /// One authored exclusion selection retained from the root build machine's
@@ -49,30 +48,21 @@ pub struct AuthoredBehaviorExclusion {
 
 impl AuthoredBehaviorExclusion {
     /// The canonical exclusion this authored row selects in `module`.
-    /// `trait_identity` maps a checked boundary-trait symbol to the identity
-    /// Terminal service declarations carry. A service exclusion whose
-    /// identity `module` never declares resolves to `None`: no boundary in
+    /// A service identity `module` never declares resolves to `None`: no boundary in
     /// that composition can invoke it, so it imposes no requirement there.
-    pub fn resolve(
-        &self,
-        module: &TerminalModule,
-        trait_identity: &dyn Fn(SymbolHandle) -> Option<String>,
-    ) -> Option<BehaviorExclusion> {
-        match self.kind {
+    pub fn resolve(&self, module: &TerminalModule) -> Option<BehaviorExclusion> {
+        match &self.kind {
             AuthoredBehaviorExclusionKind::CrashCause { cause, .. } => {
-                Some(BehaviorExclusion::CrashCause(cause))
+                Some(BehaviorExclusion::CrashCause(*cause))
             }
             AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { class, .. } => {
-                Some(BehaviorExclusion::PhysicalAuthorityClass(class))
+                Some(BehaviorExclusion::PhysicalAuthorityClass(*class))
             }
-            AuthoredBehaviorExclusionKind::Service { trait_symbol } => {
-                let identity = trait_identity(trait_symbol)?;
-                module
-                    .services
-                    .iter()
-                    .find(|service| service.identity == identity)
-                    .map(|service| BehaviorExclusion::Service(service.id))
-            }
+            AuthoredBehaviorExclusionKind::Service { identity } => module
+                .services
+                .iter()
+                .find(|service| service.identity == *identity)
+                .map(|service| BehaviorExclusion::Service(service.id)),
         }
     }
 }
@@ -83,12 +73,12 @@ impl AuthoredBehaviorExclusion {
 pub fn authored_behavior_exclusion_set(
     exclusions: &[AuthoredBehaviorExclusion],
 ) -> BehaviorExclusions {
-    BehaviorExclusions::from_selections(exclusions.iter().filter_map(|row| match row.kind {
+    BehaviorExclusions::from_selections(exclusions.iter().filter_map(|row| match &row.kind {
         AuthoredBehaviorExclusionKind::CrashCause { cause, .. } => {
-            Some(BehaviorExclusion::CrashCause(cause))
+            Some(BehaviorExclusion::CrashCause(*cause))
         }
         AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { class, .. } => {
-            Some(BehaviorExclusion::PhysicalAuthorityClass(class))
+            Some(BehaviorExclusion::PhysicalAuthorityClass(*class))
         }
         AuthoredBehaviorExclusionKind::Service { .. } => None,
     }))
@@ -101,11 +91,6 @@ pub fn authored_behavior_exclusion_set(
 pub fn authored_behavior_exclusion_set_in(
     exclusions: &[AuthoredBehaviorExclusion],
     module: &TerminalModule,
-    trait_identity: &dyn Fn(SymbolHandle) -> Option<String>,
 ) -> BehaviorExclusions {
-    BehaviorExclusions::from_selections(
-        exclusions
-            .iter()
-            .filter_map(|row| row.resolve(module, trait_identity)),
-    )
+    BehaviorExclusions::from_selections(exclusions.iter().filter_map(|row| row.resolve(module)))
 }

@@ -2428,8 +2428,10 @@ crash and native exit behavior.
   and the [pipeline](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization).
   - Boundary applications and comparisons now settle from canonical demands,
     checked body candidates and selected Build rows; no checked-application scope
-    crosses publication. Finish the remaining entry, callback, behavior-exclusion
-    and provider-installation joins without checked/lowered source inputs.
+    crosses publication. Build exclusions retain selected service identities,
+    and native proposal construction no longer takes checked trees. Finish the
+    remaining entry, callback, exclusion-admission and provider-installation
+    joins without checked/lowered source inputs.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`
     decisions: target-family body substitution, calling plans, program-entry

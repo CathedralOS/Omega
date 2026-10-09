@@ -50,7 +50,6 @@ impl CheckedCompilation {
         let execution = self.execution();
         let providers = self.providers();
         TerminalNativeProposalRequest {
-            checked: self,
             target_profile: execution.selected_target_profile,
             boundaries: BoundaryApplicationSettlement {
                 selected_provider_plans: &execution.selected_provider_plan_facts,

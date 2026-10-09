@@ -2128,7 +2128,6 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
- "checked-trees",
  "diagnostics",
  "effects",
  "function-identity",
@@ -2152,7 +2151,6 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
- "typed-trees",
 ]
 
 [[package]]
