@@ -48,7 +48,7 @@ pub fn resolved_machine_layout_identity(
             hasher.raw(&custody.selections().bytes());
             hasher.raw(&custody.post_allocation_machine_selections().bytes());
             hasher.raw(&custody.source().bytes());
-            hasher.u64((custody.action_count() as u64);
+            hasher.u64(custody.action_count() as u64);
             hasher.raw(&custody.baseline_bytes().to_le_bytes());
             hasher.raw(&custody.selected_bytes().to_le_bytes());
         }

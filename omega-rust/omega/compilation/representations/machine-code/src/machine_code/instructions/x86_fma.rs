@@ -119,15 +119,15 @@ pub(crate) fn x86_scalar_fma_fragment_identity(
         target::ObjectFormat::MachO => 1,
         target::ObjectFormat::Coff => 2,
     });
-    hasher.u64((fragment.target.pointer_size as u64);
-    hasher.u64((fragment.target.pointer_alignment as u64);
+    hasher.u64(fragment.target.pointer_size as u64);
+    hasher.u64(fragment.target.pointer_alignment as u64);
     hasher.byte(match fragment.format {
         X86ScalarFmaFormat::Binary32 => 1,
         X86ScalarFmaFormat::Binary64 => 2,
     });
     hasher.byte(destination, addend, multiplicand);
-    hasher.u64((fragment.code_offset as u64);
-    hasher.u64((fragment.byte_count as u64);
+    hasher.u64(fragment.code_offset as u64);
+    hasher.u64(fragment.byte_count as u64);
     Some(hasher.finish())
 }
 

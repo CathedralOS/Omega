@@ -122,5 +122,5 @@ fn encode_return_address(hasher: &mut crate::digest_encoder::DomainDigestEncoder
 }
 
 fn encode_len(hasher: &mut crate::digest_encoder::DomainDigestEncoder, value: usize) {
-    hasher.u64((value as u64);
+    hasher.u64(value as u64);
 }
