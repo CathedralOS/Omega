@@ -113,8 +113,7 @@ pub(in crate::function_fragments) fn validate_function(
             })
             .ok_or_else(invalid)?;
         let call_span = fragment
-            .instructions()
-            .find(|row| row.instruction == contract.instruction)
+            .instruction_span(contract.instruction)
             .ok_or_else(invalid)?;
         if actual.owner != contract.owner
             || expected.target != target_operations::NativeCallTarget::Machine(actual.target)
@@ -543,8 +542,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
                 | selected_instructions::SelectedBoundarySettlementPayload::HostedReadByte { .. }
                 | selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 { .. }
         ) {
-            let block = function.block(located.block)
-                .ok_or_else(invalid)?;
+            let block = function.block(located.block).ok_or_else(invalid)?;
             let instruction = block
                 .instructions
                 .get(located.instruction_index as usize)
@@ -559,8 +557,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
                 })
                 .ok_or_else(invalid)?;
             fragment
-                .instructions()
-                .find(|span| span.instruction == instruction.id)
+                .instruction_span(instruction.id)
                 .ok_or_else(invalid)?
                 .bytes
                 .len()

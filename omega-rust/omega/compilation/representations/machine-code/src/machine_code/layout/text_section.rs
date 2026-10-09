@@ -118,6 +118,15 @@ impl PlacedFunctionFragment {
     pub fn instructions(&self) -> impl Iterator<Item = &PlacedInstructionSpan> + '_ {
         self.blocks.iter().flat_map(|block| &block.instructions)
     }
+
+    /// The span covering `instruction`, when the placed fragment carries one.
+    pub fn instruction_span(
+        &self,
+        instruction: SelectedInstructionId,
+    ) -> Option<&PlacedInstructionSpan> {
+        self.instructions()
+            .find(|span| span.instruction == instruction)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

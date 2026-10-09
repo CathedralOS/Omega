@@ -29,7 +29,8 @@ pub(super) fn settlement(
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
     let (abstracted, _) = source::function(container, machine)?;
-    let instruction = function.block(located.block)
+    let instruction = function
+        .block(located.block)
         .and_then(|block| block.instructions.get(located.instruction_index as usize))
         .ok_or(Error::Mismatch("selected byte output instruction"))?;
     let slot = LocalStorageSlotId::Boundary { operation };
@@ -43,8 +44,7 @@ pub(super) fn settlement(
         ));
     }
     let span = fragment
-        .instructions()
-        .find(|span| span.instruction == instruction.id)
+        .instruction_span(instruction.id)
         .ok_or(Error::Mismatch("selected byte output span"))?;
     let native = container.source().text_section().target;
     let (register, offset) =
@@ -110,7 +110,8 @@ pub(super) fn settlement(
     };
     let placed = container
         .source()
-        .text_section().function(machine)
+        .text_section()
+        .function(machine)
         .ok_or(Error::Mismatch("byte output placed function"))?;
     Ok(ObjectBoundarySettlement {
         machine,
@@ -138,7 +139,8 @@ pub(super) fn validate(
     };
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
-    let row = function.block(located.block)
+    let row = function
+        .block(located.block)
         .and_then(|block| block.instructions.get(located.instruction_index as usize))
         .ok_or_else(invalid)?;
     let slot = LocalStorageSlotId::Boundary { operation };
@@ -149,15 +151,13 @@ pub(super) fn validate(
     {
         return Err(invalid());
     }
-    let span = fragment
-        .instructions()
-        .find(|span| span.instruction == row.id)
-        .ok_or_else(invalid)?;
+    let span = fragment.instruction_span(row.id).ok_or_else(invalid)?;
     let frame = source::frame(container, machine)?.ok_or_else(invalid)?;
     let scratch = frame.local_storage_slot(slot).ok_or_else(invalid)?;
     let placed = container
         .source()
-        .text_section().function(machine)
+        .text_section()
+        .function(machine)
         .ok_or_else(invalid)?;
     let settlement = &proposed.settlement;
     let [argument] = settlement.runtime_scalar_arguments.as_slice() else {

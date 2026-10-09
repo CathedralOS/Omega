@@ -105,7 +105,8 @@ pub(super) fn settlement(
     };
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
-    let instruction = function.block(located.block)
+    let instruction = function
+        .block(located.block)
         .and_then(|block| block.instructions.get(located.instruction_index as usize))
         .ok_or_else(invalid)?;
     let slot = LocalStorageSlotId::Structural {
@@ -120,8 +121,7 @@ pub(super) fn settlement(
         return Err(invalid());
     }
     let span = fragment
-        .instructions()
-        .find(|span| span.instruction == instruction.id)
+        .instruction_span(instruction.id)
         .ok_or_else(invalid)?;
     let offset =
         decoded_home(container.source().text_section().target, &span.bytes).ok_or_else(invalid)?;
@@ -173,7 +173,8 @@ pub(super) fn settlement(
     };
     let placed = container
         .source()
-        .text_section().function(machine)
+        .text_section()
+        .function(machine)
         .ok_or_else(invalid)?;
     Ok(ObjectBoundarySettlement {
         machine,
@@ -202,7 +203,8 @@ pub(super) fn validate(
     };
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
-    let row = function.block(located.block)
+    let row = function
+        .block(located.block)
         .and_then(|block| block.instructions.get(located.instruction_index as usize))
         .ok_or_else(invalid)?;
     let slot = LocalStorageSlotId::Structural {
@@ -216,15 +218,13 @@ pub(super) fn validate(
     {
         return Err(invalid());
     }
-    let span = fragment
-        .instructions()
-        .find(|span| span.instruction == row.id)
-        .ok_or_else(invalid)?;
+    let span = fragment.instruction_span(row.id).ok_or_else(invalid)?;
     let frame = source::frame(container, machine)?.ok_or_else(invalid)?;
     let home = frame.local_storage_slot(slot).ok_or_else(invalid)?;
     let placed = container
         .source()
-        .text_section().function(machine)
+        .text_section()
+        .function(machine)
         .ok_or_else(invalid)?;
     let record = &proposed.settlement;
     let BoundaryResultRecord::Structural(produced) = &record.native_result else {

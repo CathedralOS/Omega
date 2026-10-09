@@ -40,7 +40,8 @@ fn selected(
         .source()
         .source()
         .source()
-        .selected_plan().function(machine)
+        .selected_plan()
+        .function(machine)
         .ok_or(Error::Mismatch("function has no selected contract"))
 }
 fn fragment(
@@ -299,8 +300,7 @@ fn copy_extent(
             )
     }) {
         let span = fragment
-            .instructions()
-            .find(|span| span.instruction == access.instruction)
+            .instruction_span(access.instruction)
             .ok_or(Error::Mismatch("memory operation has no physical span"))?;
         spans.push((host(span.offset)?, span.bytes.len()));
     }
@@ -323,7 +323,8 @@ fn settlement_offset(
     fragment: &machine_code::FunctionFragment,
     row: &SelectedBoundarySettlement,
 ) -> Result<usize, Error> {
-    let block = function.block(row.block)
+    let block = function
+        .block(row.block)
         .ok_or(Error::Mismatch("settlement has no block"))?;
     let index = usize::try_from(row.instruction_index).map_err(|_| Error::Overflow)?;
     let instruction = if let Some(instruction) = block.instructions.get(index) {
@@ -352,8 +353,7 @@ fn settlement_offset(
         return Err(Error::Mismatch("settlement position is outside block"));
     };
     fragment
-        .instructions()
-        .find(|span| span.instruction == instruction.id)
+        .instruction_span(instruction.id)
         .ok_or(Error::Mismatch("settlement has no physical anchor"))
         .and_then(|span| host(span.offset))
 }
@@ -425,8 +425,7 @@ pub(super) fn populate(
             })
             .ok_or(Error::Mismatch("Unit call has no attributed span"))?;
         let call_span = fragment
-            .instructions()
-            .find(|row| row.instruction == contract.instruction)
+            .instruction_span(contract.instruction)
             .ok_or(Error::Mismatch("Unit call has no instruction span"))?;
         let frame_bytes = u32::try_from(
             source::frame(source, function.machine)?.map_or(0, |frame| frame.frame_size_bytes),

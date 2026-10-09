@@ -108,9 +108,10 @@ pub(super) fn establishment(
     {
         return None;
     }
-    let block = selected.blocks.iter().find(|block| {
-        block.instruction(address.instruction).is_some()
-    })?;
+    let block = selected
+        .blocks
+        .iter()
+        .find(|block| block.instruction(address.instruction).is_some())?;
     let address_position = block.instruction_index(address.instruction)?;
     let store_position = block.instruction_index(store.instruction)?;
     let address_instruction = &block.instructions[address_position];

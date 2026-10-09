@@ -30,7 +30,8 @@ pub(super) fn settlement(
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
     let (abstracted, _) = source::function(container, machine)?;
-    let block = function.block(located.block)
+    let block = function
+        .block(located.block)
         .ok_or(Error::Mismatch("process exit block"))?;
     let SelectedTerminator::HostedExitProcess {
         instruction,
@@ -49,8 +50,7 @@ pub(super) fn settlement(
         return Err(Error::Mismatch("process exit source substitution"));
     }
     let span = fragment
-        .instructions()
-        .find(|span| span.instruction == instruction.id)
+        .instruction_span(instruction.id)
         .ok_or(Error::Mismatch("process exit span"))?;
     if span.control
         != (machine_code::FunctionFragmentControlProvenance::HostedExitProcess {
@@ -107,7 +107,8 @@ pub(super) fn settlement(
     };
     let placed = container
         .source()
-        .text_section().function(machine)
+        .text_section()
+        .function(machine)
         .ok_or(Error::Mismatch("process exit placed function"))?;
     Ok(ObjectBoundarySettlement {
         machine,
@@ -136,8 +137,7 @@ pub(super) fn validate(
     };
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
-    let block = function.block(located.block)
-        .ok_or_else(invalid)?;
+    let block = function.block(located.block).ok_or_else(invalid)?;
     let SelectedTerminator::HostedExitProcess {
         instruction,
         completion_edge,
@@ -164,7 +164,8 @@ pub(super) fn validate(
     };
     let placed = container
         .source()
-        .text_section().function(machine)
+        .text_section()
+        .function(machine)
         .ok_or_else(invalid)?;
     let (abstracted, _) = source::function(container, machine)?;
     if located.instruction_index as usize != block.instructions.len()

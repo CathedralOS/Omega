@@ -342,8 +342,7 @@ pub fn fragment_instruction_span(
     instruction: selected_instructions::SelectedInstructionId,
 ) -> Option<(u64, u64)> {
     fragment
-        .instructions()
-        .find(|span| span.instruction == instruction)
+        .instruction_span(instruction)
         .map(|span| (span.section_offset, span.byte_count))
 }
 

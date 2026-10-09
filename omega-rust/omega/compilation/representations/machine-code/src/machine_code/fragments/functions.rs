@@ -27,6 +27,15 @@ impl FunctionFragment {
     pub fn instructions(&self) -> impl Iterator<Item = &FunctionFragmentInstructionSpan> + '_ {
         self.blocks.iter().flat_map(|block| &block.instructions)
     }
+
+    /// The span covering `instruction`, when the fragment carries one.
+    pub fn instruction_span(
+        &self,
+        instruction: SelectedInstructionId,
+    ) -> Option<&FunctionFragmentInstructionSpan> {
+        self.instructions()
+            .find(|span| span.instruction == instruction)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

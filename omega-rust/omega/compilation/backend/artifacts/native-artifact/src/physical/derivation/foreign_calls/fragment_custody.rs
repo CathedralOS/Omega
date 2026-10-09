@@ -153,8 +153,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                 .function(occurrence.machine())
                 .ok_or("kernel entry has no placed caller")?;
             let span = fragment
-                .instructions()
-                .find(|span| span.instruction == instruction.id)
+                .instruction_span(instruction.id)
                 .ok_or("kernel entry has no placed instruction")?;
             let start =
                 usize::try_from(span.section_offset).map_err(|_| "kernel entry offset overflow")?;
