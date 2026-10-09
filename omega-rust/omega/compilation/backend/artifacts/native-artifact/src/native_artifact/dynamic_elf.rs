@@ -25,7 +25,7 @@ const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
 /// candidate.  This identity is domain-separated from [`crate::NativeArtifactIdentity`]
 /// so equal output bytes cannot collapse the two authority classes.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct DynamicElfNativeArtifactIdentity([u8; 32]);
+pub struct DynamicElfNativeArtifactIdentity([u8; 32]);
 
 impl DynamicElfNativeArtifactIdentity {
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -83,7 +83,7 @@ pub struct DynamicElfNativeArtifact {
 
 /// Reconstructible parts of one non-installable dynamic-ELF native candidate.
 #[derive(Debug)]
-pub(crate) struct DynamicElfNativeArtifactParts {
+pub struct DynamicElfNativeArtifactParts {
     pub target: target::NativeTarget,
     pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
     pub object: image_emission::ObjectArtifact,
@@ -415,9 +415,6 @@ impl DynamicElfNativeArtifact {
         self.boundary_application_coverage.as_ref()
     }
 
-    pub(crate) fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
-        self.physical_evidence_scope.clone()
-    }
 
     pub const fn physical_evidence(&self) -> Option<&NativePhysicalEvidence> {
         self.physical_evidence.as_ref()

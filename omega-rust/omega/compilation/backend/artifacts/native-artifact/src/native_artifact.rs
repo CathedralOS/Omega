@@ -71,7 +71,7 @@ pub struct NativeArtifact {
 }
 
 #[derive(Debug)]
-pub(crate) struct NativeArtifactParts {
+pub struct NativeArtifactParts {
     pub target: target::NativeTarget,
     pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
     pub object: image_emission::ObjectArtifact,
@@ -100,7 +100,7 @@ pub(crate) struct NativeArtifactParts {
 /// request consumed by [`RequestedNativeArtifact::emit`]. It does not change
 /// the evidence required by either image product.
 #[derive(Debug)]
-pub(crate) struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> {
+pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> {
     pub target: target::NativeTarget,
     pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
     pub object: image_emission::ObjectArtifact,
@@ -502,7 +502,7 @@ impl NativeArtifact {
 /// [`NativeArtifact`]. It is derived by this owner and cannot be supplied by a
 /// caller reconstructing an artifact from parts.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct NativeArtifactIdentity([u8; 32]);
+pub struct NativeArtifactIdentity([u8; 32]);
 
 impl NativeArtifactIdentity {
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -531,7 +531,7 @@ impl std::fmt::Display for NativeArtifactIdentity {
 /// The digest is derived by the selected-closure owner and independently
 /// replayed when the standalone component candidate rejoins source policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct NativeSelectedProviderClosureDigest([u8; 32]);
+pub struct NativeSelectedProviderClosureDigest([u8; 32]);
 
 impl NativeSelectedProviderClosureDigest {
     pub const fn from_digest(digest: [u8; 32]) -> Self {
@@ -547,7 +547,7 @@ impl NativeSelectedProviderClosureDigest {
 /// digest. Unlike the compact report coordinate, these bytes bind every plan
 /// field and can be carried into D41 physical-parent custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct NativeSelectedProviderPlanDigest([u8; 32]);
+pub struct NativeSelectedProviderPlanDigest([u8; 32]);
 
 impl NativeSelectedProviderPlanDigest {
     pub const fn from_digest(digest: [u8; 32]) -> Self {
@@ -566,7 +566,7 @@ impl NativeSelectedProviderPlanDigest {
 /// projection. Unsupported boundary/provider mechanisms still produce no
 /// evidence during native replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum NativePhysicalEvidenceScope {
+pub enum NativePhysicalEvidenceScope {
     Unavailable,
     UnoptimizedCompleteBoundaryEvidence,
     ValidatedOptimizedProjection(ValidatedOptimizedNativePhysicalEvidenceScope),
@@ -624,7 +624,7 @@ impl NativePhysicalEvidenceScope {
 /// complete for this selected plan; the compact plan coordinate is not
 /// authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NativeSelectedProviderPlan {
+pub struct NativeSelectedProviderPlan {
     report_identity: u64,
     plan_digest: NativeSelectedProviderPlanDigest,
     requirement_identities: Vec<String>,
@@ -700,7 +700,7 @@ impl NativeSelectedProviderPlan {
 /// provider authority stays with the non-constructible evidence borrowed by
 /// lowering and the selected-closure digest retained by the artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NativeProviderExecution {
+pub struct NativeProviderExecution {
     requirement_identity: String,
     provider_plan_report_identity: u64,
     provider_execution_report_identity: u64,

@@ -106,17 +106,6 @@ impl DynamicElfPublicationReceipt {
         self.container_digest
     }
 
-    /// Recompute the installation commitment from the retained fields.
-    pub(crate) fn has_consistent_installation_identity(&self) -> bool {
-        self.installation_evidence_digest
-            == dynamic_elf_installation_evidence_digest(
-                &self.dynamic_elf_artifact_identity,
-                self.compiler_text_validation_digest,
-                &self.output_path,
-                self.container_byte_count,
-                self.container_digest,
-            )
-    }
 }
 
 /// Domain-separated installation commitment. The dynamic domain keeps equal
