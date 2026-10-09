@@ -10,6 +10,8 @@ mod resolved_closure;
 pub(crate) use dependency_paths::DependencyRequestPaths;
 
 pub(crate) use super::root_request::PackageRootSourceRequest;
+pub use resolved_closure::{
+};
 pub(crate) use resolved_closure::{
     ExactTargetPackageSourceClosure, ResolvedDependencySourceRequest, ResolvedPackageSourceClosure,
     ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest};
@@ -27,7 +29,7 @@ use std::fmt;
 
 /// One exact requester-local edge in a root-to-dependency path.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DependencyRequestPathStep {
+pub(crate) struct DependencyRequestPathStep {
     requester: PackageKey,
     purpose: DependencyPurpose,
     dependency_index: usize,
@@ -65,7 +67,7 @@ impl DependencyRequestPathStep {
 /// The root custody has an empty `steps` sequence. Dependency-row ordinals
 /// keep repeated otherwise-identical authored requests distinguishable.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DependencyRequestPath {
+pub(crate) struct DependencyRequestPath {
     root: PackageKey,
     steps: Vec<DependencyRequestPathStep>,
 }
@@ -83,7 +85,7 @@ impl DependencyRequestPath {
 /// One distinct custody observed for a conflicted `PackageKey`, together with
 /// every dependency path that produced that exact custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageSourceClosureConflictCandidate {
+pub(crate) struct PackageSourceClosureConflictCandidate {
     custody: PackageSourceCustody,
     requesting_paths: Vec<DependencyRequestPath>,
 }
@@ -100,7 +102,7 @@ impl PackageSourceClosureConflictCandidate {
 
 /// All distinct source custodies observed for one conflicting package key.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageSourceClosureConflict {
+pub(crate) struct PackageSourceClosureConflict {
     key: PackageKey,
     candidates: Vec<PackageSourceClosureConflictCandidate>,
 }
@@ -134,14 +136,14 @@ impl Default for PackageSourceClosureLimits {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageSourceClosureLimitKind {
+pub(crate) enum PackageSourceClosureLimitKind {
     Packages,
     DependencyRequests,
     Depth,
 }
 
 #[derive(Debug)]
-pub enum PackageSourceClosureResolutionError<E> {
+pub(crate) enum PackageSourceClosureResolutionError<E> {
     /// The adapter could not resolve one projected dependency request.
     Adapter {
         requester: PackageKey,

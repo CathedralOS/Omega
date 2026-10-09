@@ -14,12 +14,16 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
 use package_source::{IdentityError, ImmutableSourceResolution};
+pub use reconcile::{
+};
 pub(crate) use reconcile::{
     DependencyRequestPath, DependencyRequestPathStep, ExactTargetPackageSourceClosure,
     PackageSourceClosureConflict, PackageSourceClosureConflictCandidate,
     PackageSourceClosureLimitKind, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
     ResolvedDependencySourceRequest, ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
     ResolvedRootPackageSourceRequest};
+pub use resolve::{
+};
 pub(crate) use resolve::{
     GitDependencyPins, GitDependencyPinsError, GitResolutionOptions, ResolveDependencySourceError,
     ResolveExternalLocalPackageClosureError, ResolveGitPackageClosureError,
@@ -29,11 +33,15 @@ pub(crate) use resolve::{
     resolve_selected_git_project_closure, resolve_staged_external_local_project_closure,
     resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
     resolve_workspace_project_closure, resolve_workspace_project_closure_in_context};
+pub use resolve::{
+};
 pub(crate) use resolve::{
     ResolveLockedPackageClosureError, resolve_locked_local_project_closure,
     resolve_locked_package_source_closure};
 pub(crate) use root_request::PackageRootSourceRequest;
 use std::collections::{BTreeMap, BTreeSet};
+pub use subject::{
+};
 pub(crate) use subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
@@ -272,7 +280,7 @@ impl ResolvedPackageClosure {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageClosureValidationError {
+pub(crate) enum PackageClosureValidationError {
     InvalidRootRole {
         role: BuildDeclarationKind,
     },

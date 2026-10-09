@@ -24,12 +24,16 @@ mod validation;
 use self::PackageLockError as Error;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
+pub use decisions::{
+};
 pub(crate) use decisions::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
     HistoricalPackagePolicyRecoveryUsage};
 pub(crate) use error::PackageLockError;
 pub(crate) use limits::PackageLockRecoveryLimits;
+pub use occurrences::{
+};
 pub(crate) use occurrences::{
     PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
     PackagePurposeCoverage};

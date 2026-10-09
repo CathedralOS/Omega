@@ -21,12 +21,16 @@ pub(crate) use error::ResolvePackageSourceError;
 pub(crate) use git::resolve_selected_git_package_source_from_pin_in_lanes;
 pub(crate) use git::resolve_selected_git_project_source_from_pin_in_lanes;
 pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
+pub use git::{
+};
 pub(crate) use git::{
     GitPackageSourceRequest, resolve_git_package_source, resolve_selected_git_package_source,
     resolve_selected_git_project_source};
 pub(crate) use git::{
     resolve_selected_git_package_source_at_revision_in_lanes,
     resolve_selected_git_project_source_at_revision_in_lanes,
+};
+pub use local::{
 };
 pub(crate) use local::{
     bind_staged_external_local_project_source, resolve_external_local_package_source,
@@ -41,6 +45,8 @@ pub(crate) use resolved::ResolvedPackageSource;
 pub(crate) use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
 pub(crate) use workspace::resolve_workspace_member_package_source_in_lane;
 pub(crate) use workspace::resolve_workspace_member_project_source_in_lane;
+pub use workspace::{
+};
 pub(crate) use workspace::{
     resolve_workspace_member_package_source, resolve_workspace_member_project_source};
 

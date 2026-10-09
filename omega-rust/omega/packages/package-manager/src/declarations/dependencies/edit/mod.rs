@@ -7,6 +7,8 @@ mod rendering;
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, validate_static_dependency_source,
 };
+pub use planning::{
+};
 pub(crate) use planning::{
     plan_dependency_addition, plan_dependency_addition_from_source, plan_dependency_replacement,
     plan_dependency_replacement_from_source};

@@ -32,7 +32,7 @@ use crate::resolution::graph::DependencyRequestPath;
 /// record carries the occurrence's shortest root-to-package route alongside
 /// its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UngrantedRestrictedBuildRequest {
+pub(crate) struct UngrantedRestrictedBuildRequest {
     package: PackageKeyIdentity,
     context: PackageCheckedContext,
     request_meaning: String,
