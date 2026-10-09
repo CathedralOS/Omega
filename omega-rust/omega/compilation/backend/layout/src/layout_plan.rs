@@ -14,7 +14,7 @@ use typed_trees::name::Identifier;
 /// Size (and alignment) of the i32 case tag that prefixes every enum-shaped
 /// data value. Comparing an enum value against a case constant compares ONLY
 /// this prefix (tag-only equality); payload bytes never participate.
-pub const ENUM_TAG_BYTES: usize = 4;
+pub(crate) const ENUM_TAG_BYTES: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {
@@ -32,7 +32,7 @@ impl Default for TypeLayout {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum TypeLayoutDescriptor {
+pub(crate) enum TypeLayoutDescriptor {
     Reference {
         referee: Box<TypeLayoutDescriptor>,
         is_mutable: bool,
@@ -112,7 +112,7 @@ impl TypeLayoutDescriptor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FieldLayout {
+pub(crate) struct FieldLayout {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub offset: usize,
@@ -137,7 +137,7 @@ impl Default for FieldLayout {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BitFieldFragment {
+pub(crate) struct BitFieldFragment {
     /// Byte offset relative to the containing record.
     pub container_byte_offset: usize,
     pub container_width_bits: u16,
@@ -147,7 +147,7 @@ pub struct BitFieldFragment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BitFieldLayout {
+pub(crate) struct BitFieldLayout {
     pub field: SymbolHandle,
     pub fragments: Vec<BitFieldFragment>,
 }
@@ -157,7 +157,7 @@ pub struct BitFieldLayout {
 /// storage consumers must use this record for the exact load width and
 /// extension rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StoredIntegerLayout {
+pub(crate) struct StoredIntegerLayout {
     pub field: SymbolHandle,
     pub stored_width_bits: u16,
     pub interpretation: layout_plans::IntegerInterpretation,
@@ -168,13 +168,13 @@ pub struct StoredIntegerLayout {
 /// fixed-array field. The field's ordinary layout retains the semantic array
 /// width; only indexing that outer array consumes this stride.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RepeatedFieldLayout {
+pub(crate) struct RepeatedFieldLayout {
     pub field: SymbolHandle,
     pub element_stride: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VariantLayout {
+pub(crate) struct VariantLayout {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     /// Payload field layouts for this case. Offsets are ABSOLUTE within the
@@ -194,7 +194,7 @@ impl Default for VariantLayout {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DataShape {
+pub(crate) enum DataShape {
     /// Case-bearing data: pure sums AND mixed shapes (common fields + cases).
     ///
     /// Layout (owned HERE, decided once): the i32 tag sits at offset 0 for
@@ -226,7 +226,7 @@ impl Default for DataShape {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DataLayout {
+pub(crate) struct DataLayout {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub shape: DataShape,

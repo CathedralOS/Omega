@@ -23,7 +23,7 @@ pub(super) fn fat_descriptor_layout(target: NativeTarget) -> TypeLayout {
 /// selection, omega-runtime-storage). Each caller supplies the pointer geometry
 /// from its own ABI context, so this helper stays free of any ABI-plan dependency
 /// while collapsing the byte-width match that previously lived in three crates.
-pub fn primitive_layout(
+pub(crate) fn primitive_layout(
     pointer_size: usize,
     pointer_alignment: usize,
     primitive_type: PrimitiveType,
