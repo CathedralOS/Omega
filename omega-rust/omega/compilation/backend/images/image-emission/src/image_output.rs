@@ -13,6 +13,7 @@ mod application_metadata;
 pub use application_metadata::ImageApplicationMetadataError;
 
 use diagnostics::Diagnostic;
+use installation_evidence::ObjectEvidence;
 use image::{EmittedImageOutput, FinalImageInput, emitted_direct_executable_output};
 use object_file::{ObjectContainerOutput, };
 use target::{Architecture, NativeTarget, NormalizedElfInterpreterPlan, ObjectFormat};
