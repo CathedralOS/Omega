@@ -41,7 +41,7 @@ impl FunctionFragmentEmissionManifest {
         if cursor.take(8)? != MANIFEST_MAGIC {
             return Err(FunctionFragmentEmissionManifestDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != MANIFEST_VERSION {
             return Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(version));
         }
@@ -58,14 +58,14 @@ impl FunctionFragmentEmissionManifest {
         let source_realization =
             FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes(cursor.array()?);
         let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-        let marker = u16::from_le_bytes(cursor.array()?);
+        let marker = cursor.u16()?;
         let vocabulary_marker = VocabularyMarker::new(marker)
             .ok_or(FunctionFragmentEmissionManifestDecodeError::UnknownVocabulary(marker))?;
         let psi = TerminalPsiIdentity {
             vocabulary_marker,
             program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
         };
-        let fuel_marker = u32::from_le_bytes(cursor.array()?);
+        let fuel_marker = cursor.u32()?;
         let fuel_schedule = FuelScheduleIdentity::new(fuel_marker)
             .ok_or(FunctionFragmentEmissionManifestDecodeError::InvalidFuelSchedule)?;
         let selected =
@@ -82,14 +82,14 @@ impl FunctionFragmentEmissionManifest {
         let fragments = FunctionFragmentEmissionIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;
         let statistics = FunctionFragmentEmissionStatistics {
-            functions: u64::from_le_bytes(cursor.array()?),
-            blocks: u64::from_le_bytes(cursor.array()?),
-            instruction_spans: u64::from_le_bytes(cursor.array()?),
-            zero_byte_instruction_spans: u64::from_le_bytes(cursor.array()?),
-            bytes: u64::from_le_bytes(cursor.array()?),
-            resolved_conditional_branches: u64::from_le_bytes(cursor.array()?),
-            logical_fuel_settlements: u64::from_le_bytes(cursor.array()?),
-            unresolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
+            functions: cursor.u64()?,
+            blocks: cursor.u64()?,
+            instruction_spans: cursor.u64()?,
+            zero_byte_instruction_spans: cursor.u64()?,
+            bytes: cursor.u64()?,
+            resolved_conditional_branches: cursor.u64()?,
+            logical_fuel_settlements: cursor.u64()?,
+            unresolved_internal_machine_fixups: cursor.u64()?,
         };
         for _ in 0..6 {
             if cursor.byte()? != 1 {
@@ -185,9 +185,9 @@ fn decode_target(
         3 => ObjectFormat::Coff,
         tag => return Err(FunctionFragmentEmissionManifestDecodeError::UnknownObjectFormat(tag)),
     };
-    let pointer_size = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_size = usize::try_from(cursor.u64()?)
         .map_err(|_| FunctionFragmentEmissionManifestDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_alignment = usize::try_from(cursor.u64()?)
         .map_err(|_| FunctionFragmentEmissionManifestDecodeError::TargetLayoutOverflow)?;
     Ok(NativeTarget {
         architecture,

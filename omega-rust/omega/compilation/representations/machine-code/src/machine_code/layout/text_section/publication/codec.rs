@@ -47,7 +47,7 @@ impl FunctionFragmentTextSectionManifest {
         if cursor.take(8)? != MANIFEST_MAGIC {
             return Err(FunctionFragmentTextSectionManifestDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(cursor.array()?);
+        let version = cursor.u32()?;
         if version != MANIFEST_VERSION {
             return Err(
                 FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(version),
@@ -65,14 +65,14 @@ impl FunctionFragmentTextSectionManifest {
         let source_realization =
             FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes(cursor.array()?);
         let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-        let marker = u16::from_le_bytes(cursor.array()?);
+        let marker = cursor.u16()?;
         let vocabulary_marker = VocabularyMarker::new(marker)
             .ok_or(FunctionFragmentTextSectionManifestDecodeError::UnknownVocabulary(marker))?;
         let psi = TerminalPsiIdentity {
             vocabulary_marker,
             program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
         };
-        let fuel_marker = u32::from_le_bytes(cursor.array()?);
+        let fuel_marker = cursor.u32()?;
         let fuel_schedule = FuelScheduleIdentity::new(fuel_marker)
             .ok_or(FunctionFragmentTextSectionManifestDecodeError::InvalidFuelSchedule)?;
         let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
@@ -86,10 +86,10 @@ impl FunctionFragmentTextSectionManifest {
             WholeFunctionExitContractIdentity::from_bytes(cursor.array()?);
         let fragments = FunctionFragmentEmissionIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;
-        let semantic_entry_raw = u64::from_le_bytes(cursor.array()?);
+        let semantic_entry_raw = cursor.u64()?;
         let semantic_entry = MachineId::new(semantic_entry_raw)
             .ok_or(FunctionFragmentTextSectionManifestDecodeError::InvalidSemanticEntry)?;
-        let semantic_entry_offset = u64::from_le_bytes(cursor.array()?);
+        let semantic_entry_offset = cursor.u64()?;
         let placement_policy = match cursor.byte()? {
             1 => TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
             tag => {
@@ -112,16 +112,16 @@ impl FunctionFragmentTextSectionManifest {
             }
         };
         let statistics = FunctionFragmentTextSectionStatistics {
-            functions: u64::from_le_bytes(cursor.array()?),
-            blocks: u64::from_le_bytes(cursor.array()?),
-            instruction_spans: u64::from_le_bytes(cursor.array()?),
-            zero_byte_instruction_spans: u64::from_le_bytes(cursor.array()?),
-            bytes: u64::from_le_bytes(cursor.array()?),
-            padding_bytes: u64::from_le_bytes(cursor.array()?),
-            relocation_requirements: u64::from_le_bytes(cursor.array()?),
-            source_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
-            resolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
-            remaining_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
+            functions: cursor.u64()?,
+            blocks: cursor.u64()?,
+            instruction_spans: cursor.u64()?,
+            zero_byte_instruction_spans: cursor.u64()?,
+            bytes: cursor.u64()?,
+            padding_bytes: cursor.u64()?,
+            relocation_requirements: cursor.u64()?,
+            source_internal_machine_fixups: cursor.u64()?,
+            resolved_internal_machine_fixups: cursor.u64()?,
+            remaining_internal_machine_fixups: cursor.u64()?,
         };
         for _ in 0..6 {
             if cursor.byte()? != 1 {
@@ -251,9 +251,9 @@ fn decode_target(
             return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownObjectFormat(tag));
         }
     };
-    let pointer_size = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_size = usize::try_from(cursor.u64()?)
         .map_err(|_| FunctionFragmentTextSectionManifestDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let pointer_alignment = usize::try_from(cursor.u64()?)
         .map_err(|_| FunctionFragmentTextSectionManifestDecodeError::TargetLayoutOverflow)?;
     Ok(NativeTarget {
         architecture,
