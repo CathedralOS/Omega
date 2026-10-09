@@ -260,7 +260,7 @@ mod tests {
         );
 
         let mut unknown = PsiOptimizationSelections::default().encode();
-        crate::codec_bytes::patch_encoded(&mut unknown, 12, 1_u32.to_le_bytes());
+        unknown[12..16].copy_from_slice(&1_u32.to_le_bytes());
         unknown.push(255);
         assert_eq!(
             PsiOptimizationSelections::decode(&unknown),
