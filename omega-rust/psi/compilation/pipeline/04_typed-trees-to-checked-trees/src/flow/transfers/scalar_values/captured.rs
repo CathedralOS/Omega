@@ -35,7 +35,7 @@ impl LiveValues<'_, '_> {
     }
 }
 
-pub(super) trait CapturedValue: Sized + Clone {
+pub(super) trait CapturedValue: Sized {
     const REQUIRES_SELECTED_ARGUMENTS: bool;
     fn literal(expression: &ExpressionNode) -> Option<Self>;
     fn at_place(place: &CanonicalPlace, live: &LiveValues<'_, '_>) -> Option<Self>;

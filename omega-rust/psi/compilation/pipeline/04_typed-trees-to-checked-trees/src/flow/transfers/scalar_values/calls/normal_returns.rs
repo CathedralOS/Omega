@@ -286,10 +286,12 @@ impl NormalReturnCapture<'_, '_> {
                 if static_machine_parameter.is_valid() || !evidence_arguments.is_empty() {
                     return None;
                 }
-                let target_state = typed_trees::state::state_by_symbol(
-                    self.program.machine_states(self.machine),
-                    path.symbol,
-                )?;
+                let target_index =
+                    validation::internal_state_index(self.program, self.machine, path.symbol)?;
+                let target_state = self
+                    .program
+                    .machine_states(self.machine)
+                    .get(target_index)?;
                 let arguments = self.program.statement_table.expression_handles(*arguments);
                 let parameters = self.program.state_parameters(target_state);
                 if parameters.len() != arguments.len() {

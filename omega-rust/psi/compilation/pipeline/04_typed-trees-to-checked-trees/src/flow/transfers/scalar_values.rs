@@ -471,7 +471,6 @@ fn selected_scalar_argument(
 /// caller storage. Mutable formals leave holes in the immutable namespace.
 /// `fields` carries each retained self-field read of a receiver call, already
 /// resolved against the caller's receiver place.
-#[derive(Clone)]
 struct CallValues<Value = ScalarValue> {
     bindings: Vec<Option<Value>>,
     storage: Vec<(SymbolHandle, Value)>,
