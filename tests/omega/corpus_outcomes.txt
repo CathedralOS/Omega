@@ -3486,6 +3486,7 @@ pass/proofs/runtime_sequential_relational_accumulator_exit checked 754ms check-t
 pass/proofs/runtime_two_state_accumulator_exit checked 1028ms check-target:macos_arm64 @ccbf3802c51a
 pass/providers/bare_byte_array_boundary_argument checked 1466ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/borrowed_service_field_forward_exit checked 944ms check-target:macos_arm64 @5745c7562b65
+pass/providers/boundary_declaration_structural_result_return_exit checked 1396ms check-target:macos_arm64 @6b4fa65d3f94+wt
 pass/providers/boundary_primitive_array_argument_exit checked 4140ms check-target:macos_arm64 @cfe60a3a242
 pass/providers/boundary_scalar_field_store checked 1609ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 2440ms check-target:macos_arm64 @6cbb1bbbe86

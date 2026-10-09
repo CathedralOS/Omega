@@ -322,8 +322,9 @@ impl Builder<'_, '_> {
         {
             let call_target = validation::call_target_symbol(self.program, call);
             // Only a machine body produces a structural value here. A boundary
-            // requirement or dynamic slot completes through its own call
-            // route, which binds the result to the authored statement.
+            // requirement, a bodyless boundary declaration or a dynamic slot
+            // completes through its own call route, which binds the result
+            // to the authored statement.
             if !crate::execution::terminal_unit::calls::completes_in_machine_body(
                 self.program,
                 call_target,

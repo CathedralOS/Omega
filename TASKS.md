@@ -229,14 +229,10 @@ helper that passes does not close an item.
   - Customer: `tests/omega/pass/core/task_lifecycle_operations`. `omega
     --check` accepts it; product realization refuses the
     `suspend block Task::finish(task)` in `Task::settle_claim`'s
-    specialization: "has no executable body: this compiler does not lower an
-    expression of it yet (call operation: claim transfers)", the
-    `call_claim_transfers` join in stage 04's
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/call_operations.rs`.
-    Stage 05's suspension-frontier join
+    specialization at stage 05's suspension-frontier join
     (`05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`,
     "suspension frontier has live claims without an exact Terminal ClaimId
-    join") lies beyond it. Join checked claim identities to the operation's
+    join"). Join checked claim identities to the operation's
     exact Terminal claims; do not discard the claim roster or infer claims
     from carrier types. Receiver and implicit persistent-field origins have
     been removed from the crossing representation.
@@ -1008,13 +1004,6 @@ defines the complete product bar.
     Known limits that still fail closed: aggregate re-views refuse case path
     segments, `ViewByte` storage is read-only, and a literal byte place cannot be
     lent mutably.
-  - `pass/providers/{generic_provider_structural_result_composition_exit,specialized_mixed_structural_result_operator_hosted_native}`
-    stop at "`main` has no executable body ... (call operation: claim
-    transfers)" since 59abe20b936 (bisected with the corpus runner; its
-    parent 75e99dbe4a1 checks them). The construction trace names only the
-    last phase set; instrumenting `call_claim_transfers`' explicit refusal
-    branches showed none firing, so look first at that commit's new
-    loan-group `?` returns in `statement_sequence/result_consumption.rs`.
   - A restricted scalar field passed by reference as a call argument
     (`take(&byte.value)` into a `&u8` formal, where `byte.value` carries a
     record `where` bound) fails Terminal validation with "structural path must

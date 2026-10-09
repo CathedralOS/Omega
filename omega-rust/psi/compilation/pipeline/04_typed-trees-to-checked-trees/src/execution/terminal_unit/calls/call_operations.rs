@@ -191,12 +191,9 @@ pub(in crate::execution) fn build_call_operation(
         );
     }
     phase("call operation: target state");
-    // Source custody can name a machine head or an exact stored state. A
-    // machine invokes its entry; an explicitly selected state keeps its own
-    // signature. Resolve that executable pair without rewriting the flow
-    // occurrence, which still authenticates the authored call and operands.
-    let (target_machine, target_state) = validation::find_machine_head(program, call.target_symbol)
-        .or_else(|| validation::find_state_with_machine(program, call.target_symbol))?;
+    // Resolve the executable pair without rewriting the flow occurrence,
+    // which still authenticates the authored call and operands.
+    let (target_machine, target_state) = executable_target(program, call.target_symbol)?;
     phase("call operation: target contract");
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     let call_target = CheckedUnitCallTarget {
@@ -641,13 +638,28 @@ pub(super) fn boundary_requirement(
     }
 }
 
-/// Whether a call to `target` produces its result through a machine body.
-/// A boundary requirement or a dynamic slot completes through its own call
-/// route, which binds the result to the authored statement instead.
+/// The machine and state a call to `target` executes. Source custody can name
+/// a machine head or an exact stored state: a machine invokes its entry, and
+/// an explicitly selected state keeps its own signature.
+fn executable_target(
+    program: &dyn ::validation::CheckingInput,
+    target: SymbolHandle,
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
+    validation::find_machine_head(program, target)
+        .or_else(|| validation::find_state_with_machine(program, target))
+}
+
+/// Whether a call to `target` produces its result through a machine body:
+/// the executable target `build_call_operation` resolves supplies a checked
+/// body. A boundary requirement, a bodyless `boundary machine` declaration
+/// and a dynamic slot each complete through their own call route, which
+/// binds the result to the authored statement instead.
 pub(crate) fn completes_in_machine_body(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> bool {
     matches!(boundary_requirement(program, target), BoundaryTarget::Body)
         && program.dynamic_slot_by_symbol(target).is_none()
+        && executable_target(program, target)
+            .is_some_and(|(machine, _)| machine.supplies_checked_body())
 }

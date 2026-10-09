@@ -1289,6 +1289,7 @@ pass/proofs/runtime_sequential_relational_accumulator_exit built 888ms exit:70 @
 pass/proofs/runtime_two_state_accumulator_exit built 1153ms exit:70 @ccbf3802c51a+wt
 pass/providers/bare_byte_array_boundary_argument built 1411ms exit:0 @bed5f45e9185+wt
 pass/providers/borrowed_service_field_forward_exit built 1142ms exit:70 stdout:match @5745c7562b65
+pass/providers/boundary_declaration_structural_result_return_exit built 1553ms exit:0 @6b4fa65d3f94+wt
 pass/providers/boundary_primitive_array_argument_exit built 2144ms exit:70 @9beb2be72f2d+wt
 pass/providers/boundary_scalar_field_store built 591ms exit:70
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 1583ms exit:70 @c8e8e86a6e1b
