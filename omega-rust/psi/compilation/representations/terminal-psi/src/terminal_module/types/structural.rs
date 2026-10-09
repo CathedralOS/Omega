@@ -542,8 +542,14 @@ pub fn structural_type_contains_reference(
                     push_fields(&case.fields);
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. }
-            | StructuralTypeShape::ElementView { element } => pending.push(*element),
+            StructuralTypeShape::FixedArray { element, length } => {
+                // An empty carrier stores no element payload, so it cannot
+                // contain a reference either.
+                if *length != 0 {
+                    pending.push(*element);
+                }
+            }
+            StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::FusedServiceBinding
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_) => {}
@@ -610,4 +616,53 @@ pub fn structural_case_position(
     id: StructuralCaseId,
 ) -> Option<usize> {
     cases.iter().position(|case| case.id == id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_fixed_array_contains_no_reference() {
+        let referent = StructuralTypeId::new(1).unwrap();
+        let reference = StructuralTypeId::new(2).unwrap();
+        let element = StructuralTypeId::new(3).unwrap();
+        let array = StructuralTypeId::new(4).unwrap();
+        let types = vec![
+            StructuralTypeDeclaration {
+                id: reference,
+                identity: "ref".to_owned(),
+                shape: StructuralTypeShape::Reference {
+                    referent,
+                    access: crate::StructuralAccess::Owned,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: referent,
+                identity: "pointee".to_owned(),
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+            },
+            StructuralTypeDeclaration {
+                id: element,
+                identity: "elem".to_owned(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "holds".to_owned(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(reference),
+                        storage: None,
+                    }],
+                    storage: None,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: array,
+                identity: "empty".to_owned(),
+                shape: StructuralTypeShape::FixedArray { element, length: 0 },
+            },
+        ];
+        assert!(structural_type_contains_reference(&types, reference));
+        assert!(!structural_type_contains_reference(&types, array));
+    }
 }
