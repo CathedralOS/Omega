@@ -30,18 +30,6 @@ pub(super) fn structural_call_carrier_matches(
     program.normalized_type_identity(returned) == program.normalized_type_identity(expected)
 }
 
-/// Lifetime arguments erase without specializing the record's field types.
-/// Construction and whole-place moves must agree on that runtime carrier;
-/// type arguments still require substitution and remain outside this lookup.
-pub(super) fn closed_data_symbol(
-    program: &dyn ::validation::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    program
-        .type_reference_table
-        .closed_nominal_symbol(reference)
-}
-
 // Classify the destination before inserting scalar operand roots. A scalar or
 // array Match must not leave partial structural plans when a later arm fails.
 // A match arm may also select an owned child projected by exact field or
@@ -108,10 +96,7 @@ pub(in crate::values::scalar::computations) fn is_record_value(
         shared_referent.is_some() && program.primitive_type_reference(reference).is_some();
     let mut record_symbol = SymbolHandle::invalid();
     if !primitive_referent {
-        let Some(record) = program.data_definitions().iter().find(|record| {
-            closed_data_symbol(program, reference) == Some(record.symbol)
-                || validation::member_type_substitutions(program, record, reference).is_some()
-        }) else {
+        let Some(record) = program.closed_data_definition(reference) else {
             return false;
         };
         let symbol = record.symbol;
@@ -129,7 +114,10 @@ pub(in crate::values::scalar::computations) fn is_record_value(
     while let Some(expression) = pending.pop() {
         match program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(literal)
-                if literal.case_symbol.is_none() && literal.type_symbol == *symbol => {}
+                if literal.case_symbol.is_none()
+                    && program
+                        .closed_data_constructor_definition(reference, literal.type_symbol)
+                        .is_some_and(|record| record.symbol == *symbol) => {}
             ExpressionNode::Name(_)
                 if validation::affine_owned_value_source(program, expression, expected)
                     .is_some() => {}

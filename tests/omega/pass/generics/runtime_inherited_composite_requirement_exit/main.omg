@@ -2,6 +2,18 @@ data Selected<'storage> { reference: &'storage i32; }
 data Envelope<Value> { value: Value; }
 data Pair<First, Second> { first: First; second: Second; }
 
+// Authored dependent bodies are neither concrete views nor invented loans.
+// Selected instances still check their complete return and store frontiers.
+machine choose<Value>(first: bool, left: Value, right: Value) -> Value {
+    transition first { true -> left false -> right }
+}
+machine relay<Value>(first: bool, left: Value, right: Value) -> Value {
+    choose(first, left, right)
+}
+machine Envelope::replace<Value>(envelope: &mut Envelope<Value>, value: Value) {
+    envelope.value = value;
+}
+
 trait Identity<Value> { machine forward(value: Value) -> Value; }
 trait Wrapped<Value>: Identity<Envelope<Value>> {}
 
@@ -66,13 +78,16 @@ machine run_nested<'storage>(source: &'storage mut i32) -> i32 {
 }
 
 machine main() crashes Trap {
+    let mut choice: Envelope<i32> = relay(false, Envelope { value: 0 }, Envelope { value: 17 });
+    let chosen: i32 = choice.value;
+    Envelope::replace(&mut choice, 43);
     let mut source: i32 = 17;
     let observed: i32 = run(&mut source);
     let mut first: i32 = 17;
     let mut second: i32 = 25;
     let pair_observed: i64 = run_pair(&mut first, &mut second);
     let nested_observed: i32 = run_nested(&mut source);
-    transition observed == 17 && source == 9 && pair_observed == 42 && first == 5 && second == 7 && nested_observed == 7 {
+    transition chosen == 17 && choice.value == 43 && observed == 17 && source == 9 && pair_observed == 42 && first == 5 && second == 7 && nested_observed == 7 {
         true -> passed()
         false -> failed()
     }

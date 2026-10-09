@@ -142,12 +142,13 @@ fn frontier_requires_application(
     parameters: &[typed_trees::signature::StateParameter],
     type_parameters: &[symbols::SymbolHandle],
 ) -> bool {
-    declaration_lifetime_frontier(program, result, type_parameters)
-        == DeclarationLifetimeFrontier::TemplateDependent
-        && parameters.iter().all(|parameter| {
-            declaration_lifetime_frontier(program, parameter.type_reference, type_parameters)
-                != DeclarationLifetimeFrontier::Incomplete
-        })
+    matches!(
+        declaration_lifetime_frontier(program, result, type_parameters),
+        DeclarationLifetimeFrontier::TemplateDependent { .. }
+    ) && parameters.iter().all(|parameter| {
+        declaration_lifetime_frontier(program, parameter.type_reference, type_parameters)
+            != DeclarationLifetimeFrontier::Incomplete
+    })
 }
 
 fn check_bodyless_signature(

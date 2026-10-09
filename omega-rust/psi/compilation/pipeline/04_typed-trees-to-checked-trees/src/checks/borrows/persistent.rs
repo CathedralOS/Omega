@@ -9,6 +9,7 @@
 //! parameter. Non-static sources remain fenced until the flow plan propagates
 //! a persistent owner's loan through every outgoing transition.
 
+use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
 use diagnostics::Diagnostic;
 use language_core::place_label;
 use symbols::SymbolHandle;
@@ -386,6 +387,12 @@ fn analyze_persistent_state(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     report_diagnostics: bool,
 ) -> (Vec<StaticPersistentPath>, Vec<Diagnostic>) {
+    let type_parameters = program
+        .machine_type_parameters(machine)
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type))
+        .map(|parameter| parameter.symbol)
+        .collect::<Vec<_>>();
     let mut static_persistent_places = Vec::new();
     let mut static_persistent_paths = entry_paths.to_vec();
     let mut diagnostics = Vec::new();
@@ -434,7 +441,9 @@ fn analyze_persistent_state(
         };
         let target_field = persistent_field_and_tail(&place, persistent);
         let target_path = stable_persistent_path(program, state, &place, persistent);
-        let Some((name, target_type)) = persistent_target_type(program, &place, persistent) else {
+        let Some((name, target_type)) =
+            persistent_target_type(program, state.symbol, statement_index, &place, persistent)
+        else {
             static_persistent_places
                 .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
             invalidate_static_persistent_paths(
@@ -444,7 +453,16 @@ fn analyze_persistent_state(
             );
             continue;
         };
-        if !crate::borrow::view_link::returns_borrow(program, target_type) {
+        // Only known leaves establish a declaration's borrow-store obligation.
+        // A dependent operand is checked again in every selected closed body;
+        // missing or malformed structure remains conservatively borrow-bearing.
+        let has_borrows =
+            match declaration_lifetime_frontier(program, target_type, &type_parameters) {
+                DeclarationLifetimeFrontier::Complete { has_borrows }
+                | DeclarationLifetimeFrontier::TemplateDependent { has_borrows } => has_borrows,
+                DeclarationLifetimeFrontier::Incomplete => true,
+            };
+        if !has_borrows {
             static_persistent_places
                 .retain(|known| !static_provenance_invalidated_by_mutation(program, known, &place));
             invalidate_static_persistent_paths(
@@ -1114,37 +1132,30 @@ fn state_returns_only_static_borrows(
 
 fn persistent_target_type<'program>(
     program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
     place: &validation::CanonicalPlace,
     persistent: &[(SymbolHandle, &'program str, TypeReferenceHandle)],
 ) -> Option<(&'program str, TypeReferenceHandle)> {
-    if let Some(symbol) = place.root.as_symbol()
-        && let Some((_, name, root_type)) = persistent
-            .iter()
-            .find(|(candidate, _, _)| *candidate == symbol)
-    {
-        let target_type =
-            validation::project_type_reference_from_segments(program, *root_type, &place.segments)?;
-        return Some((*name, target_type));
-    }
-
-    place
-        .segments
+    let name = persistent
         .iter()
-        .enumerate()
-        .find_map(|(index, segment)| {
-            let facts::PlaceSegment::Field { symbol } = segment else {
-                return None;
-            };
-            let (_, name, root_type) = persistent
-                .iter()
-                .find(|(candidate, _, _)| candidate == symbol)?;
-            let target_type = validation::project_type_reference_from_segments(
-                program,
-                *root_type,
-                &place.segments[index + 1..],
-            )?;
-            Some((*name, target_type))
-        })
+        .find(|(candidate, _, _)| Some(*candidate) == place.root.as_symbol())
+        .map(|(_, name, _)| *name)
+        .or_else(|| {
+            place.segments.iter().find_map(|segment| {
+                let facts::PlaceSegment::Field { symbol } = segment else {
+                    return None;
+                };
+                persistent
+                    .iter()
+                    .find_map(|(candidate, name, _)| (candidate == symbol).then_some(*name))
+            })
+        })?;
+    // Qualification selects a declaration, not a storage type. The explicit
+    // destination retains its actual application and substituted field type.
+    let target_type =
+        validation::canonical_place_type_reference(program, state, statement_index, place)?;
+    Some((name, target_type))
 }
 
 fn attached_persistent_fields<'program>(

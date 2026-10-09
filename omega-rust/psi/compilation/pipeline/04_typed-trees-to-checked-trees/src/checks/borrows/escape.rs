@@ -26,7 +26,7 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 use crate::borrow::accesses::borrow_access_place;
-use crate::borrow::view_link::returns_borrow;
+use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
 use checked_trees::CheckFacts;
 
 pub(super) fn check_view_return_escape(
@@ -35,8 +35,25 @@ pub(super) fn check_view_return_escape(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines() {
+        let type_parameters = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter(|parameter| {
+                matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+            })
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
         for state in program.machine_states(machine) {
-            if !returns_borrow(program, state.return_type) {
+            // A template operand is not an invented loan into a local carrier.
+            // Known reference leaves still owe escape checking even when a
+            // sibling is dependent; selected instances check their full type.
+            let has_borrows =
+                match declaration_lifetime_frontier(program, state.return_type, &type_parameters) {
+                    DeclarationLifetimeFrontier::Complete { has_borrows }
+                    | DeclarationLifetimeFrontier::TemplateDependent { has_borrows } => has_borrows,
+                    DeclarationLifetimeFrontier::Incomplete => true,
+                };
+            if !has_borrows {
                 continue;
             }
 

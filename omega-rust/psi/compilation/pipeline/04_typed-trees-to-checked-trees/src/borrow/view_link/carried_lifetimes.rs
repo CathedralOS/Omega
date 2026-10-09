@@ -15,8 +15,8 @@ pub(super) struct CarriedLifetime {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DeclarationLifetimeFrontier {
-    Complete,
-    TemplateDependent,
+    Complete { has_borrows: bool },
+    TemplateDependent { has_borrows: bool },
     Incomplete,
 }
 
@@ -52,6 +52,7 @@ pub(crate) fn declaration_lifetime_frontier(
         parameters,
         dependent: false,
     };
+    let mut leaves = Vec::new();
     let complete = collect_type(
         program,
         reference,
@@ -59,16 +60,20 @@ pub(crate) fn declaration_lifetime_frontier(
         TypeScope::default(),
         &[],
         &mut Vec::new(),
-        &mut Vec::new(),
+        &mut leaves,
         false,
         &mut template,
     );
     if !complete {
         DeclarationLifetimeFrontier::Incomplete
     } else if template.dependent {
-        DeclarationLifetimeFrontier::TemplateDependent
+        DeclarationLifetimeFrontier::TemplateDependent {
+            has_borrows: !leaves.is_empty(),
+        }
     } else {
-        DeclarationLifetimeFrontier::Complete
+        DeclarationLifetimeFrontier::Complete {
+            has_borrows: !leaves.is_empty(),
+        }
     }
 }
 

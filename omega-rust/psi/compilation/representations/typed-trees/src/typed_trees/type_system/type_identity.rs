@@ -254,6 +254,32 @@ impl TypedTrees {
         data.type_parameters.is_empty().then_some(data)
     }
 
+    /// Join an authored constructor owner to its exact prepared carrier.
+    /// Specialization changes member storage symbols, not the declaration the
+    /// source selected. Only that carrier's retained application can establish
+    /// the correspondence; another specialization or a same-named owner cannot.
+    pub fn closed_data_constructor_definition(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+    ) -> Option<&crate::data::DataDefinition> {
+        let instance = self.closed_data_definition(reference)?;
+        if authored == instance.symbol {
+            return Some(instance);
+        }
+        let origin = instance.generic_instance?;
+        if !self.type_reference_table.contains_type_reference(origin) {
+            return None;
+        }
+        let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
+            self.type_reference_table.type_reference(origin)
+        else {
+            return None;
+        };
+        (*base_symbol == authored && self.closed_data_definition(origin)?.symbol == instance.symbol)
+            .then_some(instance)
+    }
+
     /// Rejoin a record member to the closed receiver's substituted field.
     /// Normalization may retain the template selection; only the matching
     /// declaration position, identity and relevance authorize its translation.

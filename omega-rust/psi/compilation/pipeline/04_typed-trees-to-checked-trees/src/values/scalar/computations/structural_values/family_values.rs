@@ -127,19 +127,13 @@ impl Builder<'_, '_> {
             return None;
         }
         let reference = validation::unwrapped_type_reference(self.program, expected)?;
-        let Some(data) = self.program.data_definitions().iter().find(|data| {
-            validation::member_type_substitutions(self.program, data, reference).is_some()
-        }) else {
-            return None;
-        };
-        if literal.case_name.is_some() || literal.type_symbol != data.symbol {
+        let data = self
+            .program
+            .closed_data_constructor_definition(reference, literal.type_symbol)?;
+        if literal.case_name.is_some() {
             return None;
         }
-        let substitutions = validation::member_type_substitutions(self.program, data, reference)?;
-        let program = self.program;
-        let member_type = |field: &typed_trees::data::DataField| {
-            validation::substituted_member_reference(program, field.type_reference, &substitutions)
-        };
+        let data_symbol = data.symbol;
         let declared = self.program.data_members(data);
         if declared
             .iter()
@@ -147,11 +141,29 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let authored = self
+        let mut authored = self
             .program
             .expression_table
             .struct_fields(literal.fields)
             .to_vec();
+        // Consume the prepared schema, including nested applications and const
+        // extents. Source fields may still select the template; the retained
+        // member correspondence, not a name-only search, translates that use.
+        for initializer in &mut authored {
+            if !declared.iter().any(|member| {
+                matches!(member, typed_trees::data::DataMember::Field(field)
+                    if field.symbol == initializer.field_symbol)
+            }) {
+                initializer.field_symbol = self
+                    .program
+                    .closed_data_member_field(
+                        reference,
+                        initializer.field_symbol,
+                        initializer.name.as_str(),
+                    )?
+                    .symbol;
+            }
+        }
         let relevant = self.program.live_data_fields(declared).collect::<Vec<_>>();
         let erased = declared
             .iter()
@@ -186,8 +198,8 @@ impl Builder<'_, '_> {
                     })
                 })
                 || omitted.iter().any(|field| {
-                    zeroed_scalar_array_parts(self.program, member_type(field)).is_none()
-                        && !validation::zeroed_structural_parts(self.program, member_type(field))
+                    zeroed_scalar_array_parts(self.program, field.type_reference).is_none()
+                        && !validation::zeroed_structural_parts(self.program, field.type_reference)
                 }))
         {
             return None;
@@ -210,12 +222,12 @@ impl Builder<'_, '_> {
                 // checked value keeps its exact initializer for interpretation
                 // while emission skips it below the lowered representations.
                 let value = checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                    self.structural_value(initializer.value, member_type(field))?,
+                    self.structural_value(initializer.value, field.type_reference)?,
                 );
                 fields.push(checked_trees::CheckedStructuralRecordField {
                     field: field.symbol,
                     expression: initializer.value,
-                    type_reference: member_type(field),
+                    type_reference: field.type_reference,
                     value,
                 });
                 continue;
@@ -237,7 +249,7 @@ impl Builder<'_, '_> {
                 && matches!(
                     crate::execution::terminal_unit::types::byte_sequence_carrier(
                         self.program,
-                        member_type(field),
+                        field.type_reference,
                         &[],
                     ),
                     Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
@@ -247,14 +259,14 @@ impl Builder<'_, '_> {
             {
                 if !validation::field_domains::string_literal_grants_view_domains(
                     self.program,
-                    member_type(field),
+                    field.type_reference,
                     initializer.value,
                 ) {
                     return None;
                 }
                 let node = self.publish_structural_value(
                     initializer.value,
-                    member_type(field),
+                    field.type_reference,
                     CheckedStructuralValueKind::ByteLiteralView {
                         bytes: bytes.to_vec(),
                     },
@@ -262,12 +274,12 @@ impl Builder<'_, '_> {
                 fields.push(checked_trees::CheckedStructuralRecordField {
                     field: field.symbol,
                     expression: initializer.value,
-                    type_reference: member_type(field),
+                    type_reference: field.type_reference,
                     value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
                 });
                 continue;
             }
-            let declared = member_type(field);
+            let declared = field.type_reference;
             // A stored reference owns its descriptor, not the primitive
             // referent's value. The declared-storage query retains reference
             // shells; referent normalization is not a field-value classifier.
@@ -295,7 +307,7 @@ impl Builder<'_, '_> {
             });
         }
         for field in omitted {
-            let declared = member_type(&field);
+            let declared = field.type_reference;
             if zeroed_scalar_array_parts(self.program, declared).is_none() {
                 // Structural members carry no element roster: the emitted
                 // EstablishZeroedStructural owns the whole shape's zeros.
@@ -343,7 +355,7 @@ impl Builder<'_, '_> {
             });
         }
         Some(CheckedStructuralValueKind::Record {
-            data_symbol: literal.type_symbol,
+            data_symbol,
             fields: self.structural_values.record_fields.insert_many(fields),
         })
     }
