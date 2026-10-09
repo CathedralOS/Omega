@@ -36,7 +36,7 @@ pub(in crate::record) struct Scope<'a> {
     pub domain_subject: bool,
 }
 impl Scope<'_> {
-    pub fn static_kind(&self, ordinal: u32) -> Option<BinderKind<'_>> {
+    pub(crate) fn static_kind(&self, ordinal: u32) -> Option<BinderKind<'_>> {
         let ordinal = ordinal as usize;
         if ordinal < self.static_offset {
             self.outer?.static_kind(ordinal as u32)

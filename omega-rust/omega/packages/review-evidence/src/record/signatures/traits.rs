@@ -10,13 +10,13 @@ use crate::record::PackageReviewTypeIdentity;
 use crate::record::PackageReviewTypeParameter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewTraitCompositionKind {
+pub(crate) enum PackageReviewTraitCompositionKind {
     Policy,
     ServiceReach,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewTraitParent {
+pub(crate) struct PackageReviewTraitParent {
     pub(crate) kind: PackageReviewTraitCompositionKind,
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) lifetime_arguments: Vec<u32>,
@@ -42,7 +42,7 @@ impl PackageReviewTraitParent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewTraitRequirement {
+pub(crate) struct PackageReviewTraitRequirement {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) spelling: Option<language_core::OperatorSpelling>,
     /// Body presence is public conformance behavior. The body itself remains
@@ -65,7 +65,7 @@ pub struct PackageReviewTraitRequirement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewTraitShape {
+pub(crate) struct PackageReviewTraitShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) is_boundary: bool,
     pub(crate) lifetime_parameter_count: usize,
@@ -82,7 +82,7 @@ pub struct PackageReviewTraitShape {
 /// identity are deliberately absent: they are private implementation, not a
 /// receiver-nameable package contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewConformanceShape {
+pub(crate) struct PackageReviewConformanceShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,

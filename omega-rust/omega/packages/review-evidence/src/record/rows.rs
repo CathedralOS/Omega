@@ -2,7 +2,7 @@ use super::identity::PackageReviewToolchainSourceIdentity;
 use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum PackageReviewSourceLocationRole {
+pub(crate) enum PackageReviewSourceLocationRole {
     Suspension,
     Blocking,
     ServiceReach,
@@ -12,7 +12,7 @@ pub enum PackageReviewSourceLocationRole {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum PackageReviewSourceLocationOwner {
+pub(crate) enum PackageReviewSourceLocationOwner {
     Package(PackageKeyIdentity),
     Toolchain(PackageReviewToolchainSourceIdentity),
 }
@@ -20,7 +20,7 @@ pub enum PackageReviewSourceLocationOwner {
 /// Compiler-validated package-relative source coordinate used only to explain
 /// a canonical review row. Absolute resolver/cache paths never enter it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PackageReviewSourceLocation {
+pub(crate) struct PackageReviewSourceLocation {
     pub(crate) owner: PackageReviewSourceLocationOwner,
     pub(crate) relative_path: String,
     pub(crate) start_byte: u64,

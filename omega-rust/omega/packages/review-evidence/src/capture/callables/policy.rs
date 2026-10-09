@@ -16,7 +16,7 @@ use target::TargetProfile;
 
 /// Capture semantics only; this neither accepts assumptions nor reconstitutes
 /// compiler certificates, build replay, or native authority.
-pub fn project_checked_callable_policy<'a>(
+pub(crate) fn project_checked_callable_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,

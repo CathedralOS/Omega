@@ -18,7 +18,7 @@ impl PackagePolicyBaseline {
     /// Return the same text and the aggregate sequence/recursive-entry charge
     /// from its single encoding traversal. Enclosing documents can account for
     /// multiple baselines without resetting their element ceiling.
-    pub fn canonical_text_with_element_count(
+    pub(crate) fn canonical_text_with_element_count(
         &self,
     ) -> Result<(String, usize), PackageReviewEncodingError> {
         render_with_element_count(self, Writer::new(MAXIMUM_TEXT_BYTES, None))

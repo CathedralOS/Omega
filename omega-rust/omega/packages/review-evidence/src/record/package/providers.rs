@@ -3,7 +3,7 @@ use super::super::signatures::PackageReviewTypeIdentity;
 
 /// Exact declarations bound to one selected provider realization row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewCompilerIntrinsicExecution {
+pub(crate) enum PackageReviewCompilerIntrinsicExecution {
     HostedExitProcessI32,
     HostedWriteByteI32,
     HostedReadByte,
@@ -79,13 +79,13 @@ pub enum PackageReviewProviderFamilyCoverage {
 /// Nonempty applications retain declaration-ordered category/ordinal bindings;
 /// the enclosing operator declaration owns the binder telescope.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewBoundaryApplication {
+pub(crate) enum PackageReviewBoundaryApplication {
     Empty,
     Exact(Vec<PackageReviewBoundaryApplicationArgument>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewBoundaryApplicationArgument {
+pub(crate) enum PackageReviewBoundaryApplicationArgument {
     Type {
         binder_ordinal: u32,
         type_identity: PackageReviewTypeIdentity,
@@ -99,7 +99,7 @@ pub enum PackageReviewBoundaryApplicationArgument {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewSymbolicBoundaryApplicationArgument {
+pub(crate) enum PackageReviewSymbolicBoundaryApplicationArgument {
     TypeBinder {
         requirement_binder_ordinal: u32,
         producer_binder_ordinal: u32,
@@ -114,7 +114,7 @@ pub enum PackageReviewSymbolicBoundaryApplicationArgument {
 /// Keeping them as disjoint variants prevents absent fields from being
 /// mistaken for evidence supplied by another role.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageReviewBoundaryApplicationRealization {
+pub(crate) enum PackageReviewBoundaryApplicationRealization {
     NongenericCheckedBody {
         realization_machine: PackageReviewNominalIdentity,
         realization_state: PackageReviewNominalIdentity,
@@ -139,7 +139,7 @@ pub enum PackageReviewBoundaryApplicationRealization {
 /// compiler-rechecked semantic relation for review and makes no claim that
 /// machine code was emitted or that any external authority admitted it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedPackageBoundaryApplicationRealizationReview {
+pub(crate) struct CheckedPackageBoundaryApplicationRealizationReview {
     pub(crate) requirement_identity: String,
     pub(crate) operator_declaration: PackageReviewNominalIdentity,
     pub(crate) application: PackageReviewBoundaryApplication,

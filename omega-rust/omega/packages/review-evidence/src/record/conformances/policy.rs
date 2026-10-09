@@ -6,7 +6,7 @@ use crate::record::{PackageReviewNominalIdentity, PackageReviewTypeIdentity};
 /// declaration's telescope, including the independently typed const carriers.
 /// This records policy meaning; it grants no conformance or package authority.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyClosedConformanceApplication {
+pub(crate) struct PackagePolicyClosedConformanceApplication {
     pub(crate) declaration: PackageReviewNominalIdentity,
     pub(crate) lifetime_arguments: Vec<u32>,
     pub(crate) type_arguments: Vec<PackageReviewTypeIdentity>,
@@ -19,7 +19,7 @@ pub struct PackagePolicyClosedConformanceApplication {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyConformanceConstArgument {
+pub(crate) enum PackagePolicyConformanceConstArgument {
     Evaluated {
         parameter_carrier: PackageReviewTypeIdentity,
         declared_carrier: PackageReviewTypeIdentity,
@@ -33,7 +33,7 @@ pub enum PackagePolicyConformanceConstArgument {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyConformanceRow {
+pub(crate) struct PackagePolicyConformanceRow {
     pub(crate) declaring_trait: PackageReviewNominalIdentity,
     pub(crate) requirement: PackageReviewNominalIdentity,
     pub(crate) realization_machine: PackageReviewNominalIdentity,

@@ -12,7 +12,7 @@ pub struct PackagePolicyTypeParameter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyTypeParameterKind {
+pub(crate) enum PackagePolicyTypeParameterKind {
     Type,
     /// A positional code selection linked to the owner's conformance bounds.
     Implementation,
@@ -25,7 +25,7 @@ pub enum PackagePolicyTypeParameterKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyMachineParameterContract {
+pub(crate) enum PackagePolicyMachineParameterContract {
     RequirementIdentity,
     Nominal {
         trait_identity: PackageReviewNominalIdentity,
@@ -36,7 +36,7 @@ pub enum PackagePolicyMachineParameterContract {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyMachineParameterSignature {
+pub(crate) struct PackagePolicyMachineParameterSignature {
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) parameters: Vec<PackageReviewMachineParameterValue>,

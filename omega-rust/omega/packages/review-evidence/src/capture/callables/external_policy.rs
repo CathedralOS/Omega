@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 
 /// A legacy review row cannot recover result absence or nested static policy.
 /// Resolve the exact checked leaf and project those fields from their owners.
-pub fn project_checked_external_supply_policy<'a>(
+pub(crate) fn project_checked_external_supply_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     symbol: SymbolHandle,
 ) -> Result<Vec<PackagePolicyExternalExecutableSupply>, Vec<Diagnostic>> {

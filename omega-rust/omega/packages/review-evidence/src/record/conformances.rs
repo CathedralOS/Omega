@@ -3,6 +3,7 @@
 mod policy;
 
 pub use policy::{
-    PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
-    PackagePolicyConformanceRow,
 };
+pub(crate) use policy::{
+    PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
+    PackagePolicyConformanceRow};

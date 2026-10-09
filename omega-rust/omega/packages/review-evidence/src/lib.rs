@@ -10,6 +10,5 @@
 mod capture;
 pub mod encoding;
 pub mod record;
-pub use encoding::PACKAGE_CALLABLE_POLICY_VERSION;
 
 pub use capture::{project_checked_package_policy, project_checked_terminal_permission_policy};

@@ -8,11 +8,14 @@ mod expressions;
 mod propositions;
 
 pub use callable_contracts::{
-    PackageReviewCallableContract, PackageReviewContractFact, PackageReviewResultCaseIdentity,
+    PackageReviewCallableContract,
     PackageReviewSynchronousInvocation,
 };
-pub use declarations::{PackageReviewConstShape, PackageReviewOperatorShape};
+pub(crate) use callable_contracts::{ PackageReviewContractFact, PackageReviewResultCaseIdentity};
+pub(crate) use declarations::{PackageReviewConstShape, PackageReviewOperatorShape};
 pub use expressions::{
+};
+pub(crate) use expressions::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
     PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
     PackageReviewCastForm, PackageReviewCollectionViewOperation, PackageReviewConstructorField,
@@ -21,13 +24,13 @@ pub use expressions::{
     PackageReviewContractExpression, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewOperatorCoordinate,
-    PackageReviewOperatorRealization, PackageReviewReferenceAccess,
-};
+    PackageReviewOperatorRealization, PackageReviewReferenceAccess};
 pub use propositions::{
+};
+pub(crate) use propositions::{
     PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement,
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
     PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
     PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
-    PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
-};
+    PackageReviewPropositionShape, PackageReviewPublicPropositionBody};

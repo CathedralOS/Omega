@@ -4,7 +4,7 @@ use symbols::BuiltinFunction;
 mod operator_policy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewCallableRole {
+pub(crate) enum PackageReviewCallableRole {
     Boundary,
     Public,
     Build,
@@ -30,7 +30,7 @@ pub enum PackageReviewContractKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewContractBinaryOperator {
+pub(crate) enum PackageReviewContractBinaryOperator {
     Add,
     And,
     BitwiseAnd,
@@ -52,27 +52,27 @@ pub enum PackageReviewContractBinaryOperator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewContractUnaryOperator {
+pub(crate) enum PackageReviewContractUnaryOperator {
     BitwiseNot,
     LogicalNot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewReferenceAccess {
+pub(crate) enum PackageReviewReferenceAccess {
     Shared,
     Mutable,
     WriteOnly,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewAtomicLoadOrdering {
+pub(crate) enum PackageReviewAtomicLoadOrdering {
     NoOrdering,
     Receive,
     GlobalOrder,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewArithmeticDomain {
+pub(crate) enum PackageReviewArithmeticDomain {
     Exact,
     Wrapping,
     Saturating,
@@ -80,14 +80,14 @@ pub enum PackageReviewArithmeticDomain {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewCastForm {
+pub(crate) enum PackageReviewCastForm {
     Value,
     RecastShared,
     RecastMutable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewContractStaticArgument {
+pub(crate) enum PackageReviewContractStaticArgument {
     /// One exact concrete type identity.
     Type(PackageReviewTypeIdentity),
     /// One type parameter from the containing declaration's canonical static
@@ -136,7 +136,7 @@ pub enum PackageReviewContractStaticArgument {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewByteSequencePredicate {
+pub(crate) enum PackageReviewByteSequencePredicate {
     ValidUtf8,
     NoNul,
     AsciiOnly,
@@ -144,7 +144,7 @@ pub enum PackageReviewByteSequencePredicate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewCollectionViewOperation {
+pub(crate) enum PackageReviewCollectionViewOperation {
     SharedSlice,
     MutableSlice,
     TextView,
@@ -152,7 +152,7 @@ pub enum PackageReviewCollectionViewOperation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewContractCallTarget {
+pub(crate) enum PackageReviewContractCallTarget {
     Nominal(PackageReviewNominalIdentity),
     /// One exact compiler-installed root builtin-function slot. The spelling
     /// is diagnostic only; package declarations with the same name remain
@@ -176,7 +176,7 @@ pub enum PackageReviewContractCallTarget {
 /// proof-expression call. Local aliases are excluded; declaration ownership,
 /// contract lane kind, and ordinal are semantic identity.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewContractEvidenceTerm {
+pub(crate) struct PackageReviewContractEvidenceTerm {
     pub(crate) owner: PackageReviewNominalIdentity,
     pub(crate) kind: PackageReviewContractKind,
     pub(crate) lane_position: u32,
@@ -198,7 +198,7 @@ impl PackageReviewContractEvidenceTerm {
 
 /// One exact source-to-parameter binding in an erased evidence call lane.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewContractEvidenceArgument {
+pub(crate) struct PackageReviewContractEvidenceArgument {
     pub(crate) lane_position: u32,
     pub(crate) source: PackageReviewContractEvidenceTerm,
     pub(crate) parameter: PackageReviewContractEvidenceTerm,
@@ -235,7 +235,7 @@ impl PackageReviewOperatorCoordinate {
         &self.identity
     }
 
-    pub fn parameter_dispatch(&self) -> &str {
+    pub(crate) fn parameter_dispatch(&self) -> &str {
         &self.parameter_dispatch
     }
 
@@ -266,7 +266,7 @@ impl PackageReviewOperatorRealization {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewContractOperatorMeaning {
+pub(crate) enum PackageReviewContractOperatorMeaning {
     Builtin,
     Declared(PackageReviewOperatorCoordinate),
 }
@@ -314,7 +314,7 @@ impl PackageReviewContractCallTarget {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewContractExpression {
+pub(crate) enum PackageReviewContractExpression {
     Boolean(bool),
     Integer(String),
     /// One width-landed IEEE literal. Exact checked bits, including signed
@@ -421,13 +421,13 @@ pub enum PackageReviewContractExpression {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewFloatLiteral {
+pub(crate) enum PackageReviewFloatLiteral {
     F32(u32),
     F64(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewConstructorField {
+pub(crate) struct PackageReviewConstructorField {
     pub(crate) field: PackageReviewNominalIdentity,
     pub(crate) value: PackageReviewContractExpression,
 }

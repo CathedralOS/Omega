@@ -17,7 +17,7 @@ impl PackageReviewTypeIdentity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewTypeParameterKind {
+pub(crate) enum PackageReviewTypeParameterKind {
     Type,
     /// A positional implementation selection; its exact contract is retained
     /// in the owner's declaration-ordered conformance bounds.
@@ -32,7 +32,7 @@ pub enum PackageReviewTypeParameterKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewPropositionParameterSignature {
+pub(crate) struct PackageReviewPropositionParameterSignature {
     pub(crate) parameters: Vec<PackageReviewPropositionParameterValue>,
 }
 
@@ -43,7 +43,7 @@ impl PackageReviewPropositionParameterSignature {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewPropositionParameterValue {
+pub(crate) struct PackageReviewPropositionParameterValue {
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,
     pub(crate) is_mutable: bool,
@@ -64,7 +64,7 @@ impl PackageReviewPropositionParameterValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewMachineParameterContract {
+pub(crate) enum PackageReviewMachineParameterContract {
     Structural(PackageReviewMachineParameterSignature),
     Nominal {
         trait_identity: PackageReviewNominalIdentity,
@@ -76,7 +76,7 @@ pub enum PackageReviewMachineParameterContract {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewMachineParameterSignature {
+pub(crate) struct PackageReviewMachineParameterSignature {
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(crate) parameters: Vec<PackageReviewMachineParameterValue>,
@@ -92,7 +92,7 @@ pub struct PackageReviewMachineParameterSignature {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewMachineParameterValue {
+pub(crate) struct PackageReviewMachineParameterValue {
     pub(crate) name: String,
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,
@@ -104,7 +104,7 @@ impl PackageReviewMachineParameterValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewTypeParameter {
+pub(crate) struct PackageReviewTypeParameter {
     pub(crate) kind: PackageReviewTypeParameterKind,
     pub(crate) bounds: PackageReviewDataProperties,
 }

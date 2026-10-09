@@ -6,7 +6,7 @@ use crate::record::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyCallbacks {
+pub(crate) struct PackagePolicyCallbacks {
     pub(crate) binders: Vec<PackagePolicyCallbackBinder>,
     pub(crate) demands: Vec<PackagePolicyCallbackDemand>,
     pub(crate) materializations: Vec<PackagePolicyCallbackMaterialization>,
@@ -14,7 +14,7 @@ pub struct PackagePolicyCallbacks {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyCallbackBinder {
+pub(crate) struct PackagePolicyCallbackBinder {
     pub(crate) parameter: PackageReviewNominalIdentity,
     pub(crate) static_parameter_ordinal: u32,
     pub(crate) static_machine_ordinal: u32,
@@ -25,7 +25,7 @@ pub struct PackagePolicyCallbackBinder {
 /// telescope. Field destinations reference this component's canonical layout
 /// catalog; the catalog retains the complete named path, never compact IDs.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyCallbackDestination {
+pub(crate) enum PackagePolicyCallbackDestination {
     Parameter {
         native_ordinal: u32,
     },
@@ -36,19 +36,19 @@ pub enum PackagePolicyCallbackDestination {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyCallbackDemand {
+pub(crate) struct PackagePolicyCallbackDemand {
     pub(crate) destination: PackagePolicyCallbackDestination,
     pub(crate) requirement: PackageReviewNominalIdentity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyCallbackMaterialization {
+pub(crate) struct PackagePolicyCallbackMaterialization {
     pub(crate) binder_index: u32,
     pub(crate) destination: PackagePolicyCallbackDestination,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyCallbackLayout {
+pub(crate) struct PackagePolicyCallbackLayout {
     pub(crate) formal_ordinal: u32,
     pub(crate) native_ordinal: u32,
     pub(crate) root_layout: PackagePolicyCallbackLayoutApplication,
@@ -64,7 +64,7 @@ pub struct PackagePolicyCallbackLayout {
 /// The policy declaration is authored selection; its evaluator machine and
 /// generated concrete data name are implementation details, not this identity.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyCallbackLayoutApplication {
+pub(crate) struct PackagePolicyCallbackLayoutApplication {
     pub(crate) policy: PackageReviewNominalIdentity,
     pub(crate) schema: PackageReviewTypeIdentity,
     pub(crate) byte_size: u64,
@@ -72,7 +72,7 @@ pub struct PackagePolicyCallbackLayoutApplication {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyCallbackInlineField {
+pub(crate) struct PackagePolicyCallbackInlineField {
     pub(crate) field: PackageReviewNominalIdentity,
     pub(crate) offset: u64,
     pub(crate) extent: u64,

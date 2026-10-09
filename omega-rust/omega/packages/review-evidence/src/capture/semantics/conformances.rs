@@ -14,5 +14,5 @@ mod projected_application;
 
 pub(crate) use application::project_selected_conformance_application;
 pub(crate) use bounds::project_conformance_bounds;
-pub use policy::project_checked_conformance_policy;
+pub(crate) use policy::project_checked_conformance_policy;
 pub(crate) use policy_callables::callable_identity as policy_callable_identity;

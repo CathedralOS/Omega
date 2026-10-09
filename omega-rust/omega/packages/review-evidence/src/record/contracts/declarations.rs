@@ -14,7 +14,7 @@ pub struct PackageReviewConstShape {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewOperatorShape {
+pub(crate) struct PackageReviewOperatorShape {
     pub(crate) coordinate: PackageReviewOperatorCoordinate,
     pub(crate) is_boundary: bool,
     pub(crate) spelling: Option<language_core::OperatorSpelling>,
@@ -35,7 +35,7 @@ impl PackageReviewConstShape {
         &self.declared_type
     }
 
-    pub fn canonical_value_encoding(&self) -> &str {
+    pub(crate) fn canonical_value_encoding(&self) -> &str {
         &self.canonical_value_encoding
     }
 }

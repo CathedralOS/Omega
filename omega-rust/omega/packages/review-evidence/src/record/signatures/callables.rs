@@ -6,7 +6,7 @@ use crate::record::PackageReviewTypeIdentity;
 /// telescopes are matched positionally by conformance checking. The complete
 /// requirement overload remains distinct from an operator coordinate.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewRequirementRealization {
+pub(crate) struct PackageReviewRequirementRealization {
     pub(crate) requirement_identity: PackageReviewNominalIdentity,
     pub(crate) alias: Option<String>,
 }
@@ -22,7 +22,7 @@ impl PackageReviewRequirementRealization {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewTraitRequirementParameter {
+pub(crate) struct PackageReviewTraitRequirementParameter {
     pub(crate) name: String,
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,

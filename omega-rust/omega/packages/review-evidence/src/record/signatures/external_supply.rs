@@ -5,7 +5,7 @@ use crate::record::PackageReviewTypeIdentity;
 /// String fields are foreign ABI identifiers, not package-authored policy or
 /// capability classifications.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewExternalBinding {
+pub(crate) enum PackageReviewExternalBinding {
     /// Ordinary typed `ForeignBinding::DllImport` evaluation: the only import row.
     /// The string-backed `Import { library, symbol }` row is retired, as is
     /// the typed identity behind it; review never reinterprets two
@@ -31,7 +31,7 @@ pub enum PackageReviewExternalBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewForeignLocator {
+pub(crate) enum PackageReviewForeignLocator {
     PeByName {
         library: Vec<u8>,
         export: Vec<u8>,
@@ -55,7 +55,7 @@ impl PackageReviewForeignLocator {
     /// The review-record locator for one provider-plan candidate: a
     /// byte-for-byte carry of the candidate's coordinates into the review
     /// vocabulary.
-    pub fn from_candidate(candidate: &target::ForeignLocatorCandidate) -> Self {
+    pub(crate) fn from_candidate(candidate: &target::ForeignLocatorCandidate) -> Self {
         match candidate {
             target::ForeignLocatorCandidate::PeByName { library, export } => Self::PeByName {
                 library: library.clone(),
@@ -88,11 +88,11 @@ impl PackageReviewForeignLocator {
 }
 
 /// The review record retains the provider's evaluated-usage carrier verbatim.
-pub type PackageReviewEvaluatedBindingUsage = effects::provider_plan::EvaluatedBindingUsage;
+pub(crate) type PackageReviewEvaluatedBindingUsage = effects::provider_plan::EvaluatedBindingUsage;
 
 /// Stable, source-handle-free review identity for one evaluated import.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewEvaluatedImport {
+pub(crate) struct PackageReviewEvaluatedImport {
     pub(crate) target: String,
     pub(crate) locator: PackageReviewForeignLocator,
     pub(crate) locator_identity_digest: [u8; 32],
@@ -169,7 +169,7 @@ impl PackageReviewEvaluatedImport {
 
 /// Stable, source-handle-free review identity for one evaluated syscall.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewEvaluatedSyscall {
+pub(crate) struct PackageReviewEvaluatedSyscall {
     pub(crate) target: String,
     pub(crate) number: i64,
     pub(crate) binding_identity_digest: [u8; 32],
@@ -245,7 +245,7 @@ impl PackageReviewEvaluatedSyscall {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewExternalCallableParameter {
+pub(crate) struct PackageReviewExternalCallableParameter {
     pub(crate) type_identity: PackageReviewTypeIdentity,
     pub(crate) is_const: bool,
     pub(crate) is_mutable: bool,

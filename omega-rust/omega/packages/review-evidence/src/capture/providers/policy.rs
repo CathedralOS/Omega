@@ -21,7 +21,7 @@ use target::TargetProfile;
 
 /// Retain the root activation's complete selected provider meaning without
 /// evaluator, calling, native, or admission receipts. This grants no authority.
-pub fn project_checked_selected_provider_policy<'a>(
+pub(crate) fn project_checked_selected_provider_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,

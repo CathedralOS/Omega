@@ -17,7 +17,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 /// Project one package's representation policy in the checked activation.
 /// The package owns declarations/producer availability independently of use;
 /// the selecting package owns activation selections and actual demands.
-pub fn project_checked_representation_policy<'a>(
+pub(crate) fn project_checked_representation_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyRepresentation, Vec<Diagnostic>> {

@@ -16,7 +16,7 @@ impl PackagePolicyPhysicalCallingContract {
     /// containing policy must separately retain exact requirement/target,
     /// native-parameter origins, and semantic callback materializations.
     /// No validator or native implementation receipt enters this value.
-    pub fn from_validated_plan(plan: &ValidatedBoundaryEntryPlan) -> Self {
+    pub(crate) fn from_validated_plan(plan: &ValidatedBoundaryEntryPlan) -> Self {
         project(plan.plan())
     }
 }

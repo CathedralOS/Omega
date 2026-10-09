@@ -23,7 +23,7 @@ use validation::CheckingProjection;
 /// eligible: callback layout slots need not be part of the public API.
 /// Lifetime ordinals refer to the explicitly supplied containing telescope;
 /// the containing policy must retain that context. An unbound name is rejected.
-pub fn project_checked_conformance_policy<'a>(
+pub(crate) fn project_checked_conformance_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     application: &ClosedConformanceApplication,
     lifetime_binders: &[Identifier],

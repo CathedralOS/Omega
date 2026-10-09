@@ -16,7 +16,7 @@ use target::TargetProfile;
 
 /// The restricted operation one retained request asks of the host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyRestrictedBuildOperation {
+pub(crate) enum PackagePolicyRestrictedBuildOperation {
     /// Scoped real filesystem roots: reads under granted read roots, writes
     /// under granted write roots, anything else refused.
     ScopedFilesystemExecution,
@@ -32,7 +32,7 @@ pub enum PackagePolicyRestrictedBuildOperation {
 
 /// The logical grant root a retained request names, by compiler vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyRestrictedBuildGrantRoot {
+pub(crate) enum PackagePolicyRestrictedBuildGrantRoot {
     /// The package's source inventory.
     SourceInventory,
     /// The activation's staged build-output tree.
@@ -43,7 +43,7 @@ pub enum PackagePolicyRestrictedBuildGrantRoot {
 
 /// One logical root grant inside a retained request.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyRestrictedBuildGrant {
+pub(crate) struct PackagePolicyRestrictedBuildGrant {
     pub(crate) root: PackagePolicyRestrictedBuildGrantRoot,
     /// The granted root's canonical metadata index narrows every operation
     /// to captured membership and kind.
@@ -57,7 +57,7 @@ pub struct PackagePolicyRestrictedBuildGrant {
 /// The shared filesystem sponsor account's staging ceilings, present when a
 /// caller-installed sponsor binds every granted operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyFilesystemSponsorLimits {
+pub(crate) struct PackagePolicyFilesystemSponsorLimits {
     pub(crate) maximum_entries: u64,
     pub(crate) maximum_total_logical_bytes: u64,
     pub(crate) maximum_object_extent: u64,
@@ -66,7 +66,7 @@ pub struct PackagePolicyFilesystemSponsorLimits {
 /// The evaluation sponsor's resource ceilings, present when a
 /// caller-installed sponsor caps this activation's evaluator.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyEvaluationSponsorLimits {
+pub(crate) struct PackagePolicyEvaluationSponsorLimits {
     pub(crate) maximum_fuel_units: u64,
     pub(crate) maximum_build_log_bytes: u64,
     pub(crate) maximum_filesystem_operation_attempts: u64,
@@ -79,7 +79,7 @@ pub struct PackagePolicyEvaluationSponsorLimits {
 
 /// The bounds admission attached to one retained request.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyRestrictedBuildBounds {
+pub(crate) struct PackagePolicyRestrictedBuildBounds {
     pub(crate) filesystem_sponsor_limits: Option<PackagePolicyFilesystemSponsorLimits>,
     pub(crate) evaluation_sponsor_limits: Option<PackagePolicyEvaluationSponsorLimits>,
     /// Declared sealed outputs that must complete in the staged-output tree

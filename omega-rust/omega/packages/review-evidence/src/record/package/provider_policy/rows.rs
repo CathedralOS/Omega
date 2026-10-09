@@ -40,7 +40,7 @@ impl PackagePolicyProviderRow {
         &self.binding
     }
 
-    pub fn compiler_intrinsic_execution(&self) -> Option<PackageReviewCompilerIntrinsicExecution> {
+    pub(crate) fn compiler_intrinsic_execution(&self) -> Option<PackageReviewCompilerIntrinsicExecution> {
         self.compiler_intrinsic_execution
     }
 
@@ -50,7 +50,7 @@ impl PackagePolicyProviderRow {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyProviderEvaluatedSyscall {
+pub(crate) struct PackagePolicyProviderEvaluatedSyscall {
     pub(crate) target: String,
     pub(crate) producer: PackagePolicyEvaluatedBindingProducer,
 }

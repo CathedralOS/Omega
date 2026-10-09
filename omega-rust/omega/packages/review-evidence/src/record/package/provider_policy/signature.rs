@@ -17,19 +17,19 @@ pub struct PackagePolicyServiceSignature {
 }
 
 impl PackagePolicyServiceSignature {
-    pub fn schema_arguments(&self) -> &[PackageReviewTypeIdentity] {
+    pub(crate) fn schema_arguments(&self) -> &[PackageReviewTypeIdentity] {
         &self.schema_arguments
     }
-    pub fn schema_lifetime_parameter_count(&self) -> u32 {
+    pub(crate) fn schema_lifetime_parameter_count(&self) -> u32 {
         self.schema_lifetime_parameter_count
     }
-    pub fn requirement_arguments(&self) -> &[PackageReviewTypeIdentity] {
+    pub(crate) fn requirement_arguments(&self) -> &[PackageReviewTypeIdentity] {
         &self.requirement_arguments
     }
-    pub fn requirement_lifetime_arguments(&self) -> &[u32] {
+    pub(crate) fn requirement_lifetime_arguments(&self) -> &[u32] {
         &self.requirement_lifetime_arguments
     }
-    pub fn requirement_lifetime_parameter_count(&self) -> u32 {
+    pub(crate) fn requirement_lifetime_parameter_count(&self) -> u32 {
         self.requirement_lifetime_parameter_count
     }
     pub fn static_parameters(&self) -> &[PackagePolicyTypeParameter] {

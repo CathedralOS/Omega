@@ -49,7 +49,7 @@ impl PackagePolicyProviderPlan {
         &self.plan_name
     }
 
-    pub fn realizing_package(&self) -> Option<PackageKeyIdentity> {
+    pub(crate) fn realizing_package(&self) -> Option<PackageKeyIdentity> {
         self.realizing_package
     }
 
