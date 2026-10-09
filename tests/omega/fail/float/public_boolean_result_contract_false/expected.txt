@@ -1,1 +1,1 @@
-ensures contract proof fact
+cannot prove ensures contract for exit
