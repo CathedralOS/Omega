@@ -21,7 +21,7 @@ use validation::{
 /// Assemble initial-install review input. Pure candidates remain represented
 /// in deterministic triage but receive source packets only when compiler facts
 /// already recommend audit.
-pub(crate) fn assemble_initial_source_review(
+pub fn assemble_initial_source_review(
     candidate_reviews: &CompilerIssuedPackageReviewSet,
     candidate_sources: &ResolvedPackageSourceClosure,
     limits: PackageSourceReviewLimits,
@@ -39,7 +39,7 @@ pub(crate) fn assemble_initial_source_review(
 ///
 /// Missing old custody is derived here and cannot erase the accepted compiler
 /// baseline. It selects standalone candidate review for that exact package.
-pub(crate) fn assemble_update_source_review(
+pub fn assemble_update_source_review(
     baseline_reviews: &CompilerIssuedPackageReviewSet,
     candidate_reviews: &CompilerIssuedPackageReviewSet,
     recovered_baseline_sources: &[PackageSourceCustody],

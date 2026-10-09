@@ -7,15 +7,24 @@ mod policy;
 mod projection;
 mod source_literal;
 
-pub(crate) use aliases::DependencyAliasError;
-pub(crate) use error::DependencyProjectionError;
-pub(crate) use extraction::{extract_build_dependency_projection};
+pub use aliases::DependencyAliasError;
+pub use error::DependencyProjectionError;
+pub use extraction::{extract_build_dependency_projection, extract_dependency_projection};
+pub(crate) use projection::extract_build_projection_from_source;
+
 use crate::declarations::roles::BuildDeclaration;
 use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
+/// Which authorized context one direct dependency edge serves.
+///
+/// `depend`/`depend_as` rows authorize product imports. `build_depend`/
+/// `build_depend_as` rows authorize the host build context. The two scopes
+/// are distinct: an alias or a package may appear in both, and neither scope
+/// falls back to the other. The vocabulary lives in `build_declarations`
+/// so package management and the compiler share one grammar.
 pub use build_declarations::DependencyPurpose;
 pub(crate) use extraction::extract_scoped_from_source;
-pub(crate) use projection::{extract_build_projection_from_source, validate_static_dependency_source};
+pub(crate) use projection::validate_static_dependency_source;
 
 /// Package selection inside one acquired repository source.
 ///
@@ -29,7 +38,7 @@ pub enum PackageSelection {
 
 /// One source request projected without evaluating `build.omg`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DependencySourceRequest {
+pub enum DependencySourceRequest {
     Path {
         explicit_alias: Option<AliasName>,
         location: String,
@@ -45,19 +54,22 @@ pub(crate) enum DependencySourceRequest {
 /// The one ordered set of unconditional direct dependency rows within a
 /// single purpose scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ProjectedDependencies {
+pub struct ProjectedDependencies {
     authored_dependencies: Vec<DependencySourceRequest>,
 }
 
 impl ProjectedDependencies {
-    pub(crate) fn authored_dependencies(&self) -> &[DependencySourceRequest] {
+    pub fn authored_dependencies(&self) -> &[DependencySourceRequest] {
         &self.authored_dependencies
     }
 
+    pub fn into_authored_dependencies(self) -> Vec<DependencySourceRequest> {
+        self.authored_dependencies
+    }
 
     /// Validate requester-local aliases after every selected package name is
     /// known. Names follow [`Self::authored_dependencies`] order.
-    pub(crate) fn validate_aliases(
+    pub fn validate_aliases(
         &self,
         selected_package_names: &[PackageName],
     ) -> Result<(), DependencyAliasError> {
@@ -79,7 +91,7 @@ impl From<Vec<DependencySourceRequest>> for ProjectedDependencies {
 /// alias scopes. One package may appear in both scopes, and each scope's
 /// aliases are validated independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DependencyProjections {
+pub struct DependencyProjections {
     product: ProjectedDependencies,
     build: ProjectedDependencies,
 }
@@ -104,19 +116,25 @@ impl DependencyProjections {
         }
     }
 
+    pub fn into_product(self) -> ProjectedDependencies {
+        self.product
+    }
 
     pub fn requests(&self, purpose: DependencyPurpose) -> &[DependencySourceRequest] {
         self.projections(purpose).authored_dependencies()
     }
 
-    pub(crate) fn authored_request_count(&self) -> usize {
+    pub fn authored_request_count(&self) -> usize {
         self.product.authored_dependencies().len() + self.build.authored_dependencies().len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.authored_request_count() == 0
+    }
 
     /// Validate requester-local aliases for one purpose scope after every
     /// selected package name is known for that scope.
-    pub(crate) fn validate_aliases(
+    pub fn validate_aliases(
         &self,
         purpose: DependencyPurpose,
         selected_package_names: &[PackageName],
@@ -147,6 +165,12 @@ impl DependencySourceRequest {
         }
     }
 
+    pub const fn package_selection(&self) -> Option<&PackageSelection> {
+        match self {
+            Self::Path { .. } => None,
+            Self::Git { selection, .. } => Some(selection),
+        }
+    }
 
     /// Resolve the requester-local import name after source custody has read
     /// the dependency's own package declaration.
@@ -164,7 +188,7 @@ impl DependencySourceRequest {
 /// One authoritative project role and its direct dependency requests,
 /// projected from the same parsed `build.omg` tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BuildDependencyProjection {
+pub struct BuildDependencyProjection {
     declaration: BuildDeclaration,
     dependencies: DependencyProjections,
 }
@@ -177,9 +201,21 @@ impl BuildDependencyProjection {
         }
     }
 
+    pub const fn declaration(&self) -> &BuildDeclaration {
+        &self.declaration
+    }
 
+    pub fn product_dependencies(&self) -> &[DependencySourceRequest] {
+        self.dependencies.requests(DependencyPurpose::Product)
+    }
 
+    pub fn build_dependencies(&self) -> &[DependencySourceRequest] {
+        self.dependencies.requests(DependencyPurpose::Build)
+    }
 
+    pub const fn dependency_projections(&self) -> &DependencyProjections {
+        &self.dependencies
+    }
 
     pub fn into_parts(self) -> (BuildDeclaration, DependencyProjections) {
         (self.declaration, self.dependencies)

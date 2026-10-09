@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use platform_custody::record_file::RecordFileError;
 
 #[derive(Debug)]
-pub(crate) enum PackagePublicationError {
+pub enum PackagePublicationError {
     Io {
         path: PathBuf,
         message: String,

@@ -8,7 +8,7 @@ use crate::resolution::graph::{CanonicalDependencySourceSelection, CanonicalSour
 /// The existing binding whose selected package changed. Neither package names
 /// nor authored row positions pair otherwise unrelated graph changes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PackagePolicyReplacementSite {
+pub enum PackagePolicyReplacementSite {
     Root,
     Dependency {
         requester: PackageKey,
@@ -18,7 +18,7 @@ pub(crate) enum PackagePolicyReplacementSite {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackagePolicySourceReplacement {
+pub struct PackagePolicySourceReplacement {
     site: PackagePolicyReplacementSite,
     baseline: PackageKey,
     candidate: PackageKey,

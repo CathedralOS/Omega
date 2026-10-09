@@ -9,7 +9,7 @@ use super::BUILDER_PARAMETER_NAME;
 /// Render one ordinary Omega statement for the row's authorized scope.
 /// Caller-controlled strings cannot add syntax, lines, comments, or review
 /// prose because they remain escaped bytes inside string literals.
-pub(crate) fn canonical_dependency_statement(
+pub fn canonical_dependency_statement(
     purpose: DependencyPurpose,
     request: &DependencySourceRequest,
 ) -> String {

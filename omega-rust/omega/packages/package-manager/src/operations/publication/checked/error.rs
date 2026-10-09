@@ -1,7 +1,7 @@
 use std::fmt;
 
 #[derive(Debug)]
-pub(crate) enum PublishReviewedPackageChangeError {
+pub enum PublishReviewedPackageChangeError {
     Association(&'static str),
     Publication(super::super::PackagePublicationError),
     Source(package_source::SourceResolveError),

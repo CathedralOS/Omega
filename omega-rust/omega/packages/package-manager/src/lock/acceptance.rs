@@ -16,7 +16,7 @@ use target::TargetProfile;
 /// Independently retained consent for one exact checked package occurrence.
 /// The execution profile is recorded context, never inferred from this host.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackagePolicyOccurrence {
+pub struct PackagePolicyOccurrence {
     pub(super) acceptance: PackagePolicyAcceptance,
     pub(super) context: super::PackageCheckedContext,
     // Version 3 records remain usable as review baselines, not compile inputs.
@@ -24,7 +24,7 @@ pub(crate) struct PackagePolicyOccurrence {
 }
 
 impl PackagePolicyOccurrence {
-    pub(crate) fn from_policy(
+    pub fn from_policy(
         policy: &PackagePolicyBaseline,
         context: super::PackageCheckedContext,
         compiler_identity: [u8; 32],
@@ -71,7 +71,7 @@ impl PackagePolicyOccurrence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackagePolicyAcceptance {
+pub struct PackagePolicyAcceptance {
     pub(super) schema_version: u16,
     pub(super) package: PackageKeyIdentity,
     pub(super) target: TargetProfile,
@@ -121,7 +121,7 @@ impl PackagePolicyAcceptance {
     /// retained consent, without reconstructing any other package-review rows.
     /// The caller selects the root Product occurrence; dependency and Build
     /// bindings do not supply root terminal authority.
-    pub(crate) fn validate_terminal_permissions(
+    pub fn validate_terminal_permissions(
         &self,
         permissions: &PackagePolicyTerminalPermissions,
     ) -> Result<(), PackageLockError> {
@@ -164,7 +164,7 @@ impl PackagePolicyAcceptance {
 /// acceptance meaning. The digest shortens repeated signature-shaped keys; it
 /// does not replace the meaning or authorize a different reconstructed row.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageAcceptanceRow {
+pub struct PackageAcceptanceRow {
     pub(super) kind: PackagePolicyRowKind,
     pub(super) key: [u8; 32],
     pub(super) text: String,

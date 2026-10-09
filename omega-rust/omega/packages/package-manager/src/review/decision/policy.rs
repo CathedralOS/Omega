@@ -10,7 +10,7 @@ use crate::review::{PackagePolicyChangeFingerprint, PackagePolicyChangeSet};
 use std::fmt;
 
 mod document;
-pub(crate) use document::{
+pub use document::{
     PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review,
 };
 
@@ -18,7 +18,7 @@ pub(crate) use document::{
 /// root-role compatibility change. Digests come from the comparison; they are
 /// identifiers, not authorization until checked against that comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackagePolicyDecisionSubject {
+pub enum PackagePolicyDecisionSubject {
     RootRole,
     SourceReplacement([u8; 32]),
     Row([u8; 32]),
@@ -27,7 +27,7 @@ pub(crate) enum PackagePolicyDecisionSubject {
 /// Caller-supplied project choice. A parser or UI may construct it directly;
 /// completeness and association are checked by `resolve_package_policy_decisions`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PackagePolicyDecision {
+pub struct PackagePolicyDecision {
     pub subject: PackagePolicyDecisionSubject,
     pub disposition: ReviewOnlyRootPolicyDisposition,
 }
@@ -35,7 +35,7 @@ pub(crate) struct PackagePolicyDecision {
 /// Complete choices for one comparison, not a proof, audit receipt, or file
 /// transaction. A rejection is retained and prevents permission to proceed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackagePolicyResolution {
+pub struct PackagePolicyResolution {
     comparison: PackagePolicyChangeFingerprint,
     decisions: Vec<PackagePolicyDecision>,
 }
@@ -52,7 +52,7 @@ impl PackagePolicyResolution {
     /// All represented required choices accept their changes. This alone is
     /// not permission to publish: compiler obligations, explicit command intent,
     /// and source/project-file consistency need their own transaction checks.
-    pub(crate) fn all_required_changes_accepted(&self) -> bool {
+    pub fn all_required_changes_accepted(&self) -> bool {
         self.decisions.iter().all(|decision| {
             decision.disposition == ReviewOnlyRootPolicyDisposition::AcceptCandidateChange
         })
@@ -60,7 +60,7 @@ impl PackagePolicyResolution {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackagePolicyDecisionError {
+pub enum PackagePolicyDecisionError {
     WrongComparison,
     TooManyDecisions,
     UnknownSubject(PackagePolicyDecisionSubject),
@@ -122,7 +122,7 @@ impl std::error::Error for PackagePolicyDecisionError {}
 /// subjects and complete policy findings. Unknown, missing, duplicate, stale,
 /// and advisory-only choices reject. Removed packages remain ordinary row
 /// subjects: neither their checkout nor a candidate package index is needed.
-pub(crate) fn resolve_package_policy_decisions(
+pub fn resolve_package_policy_decisions(
     changes: &PackagePolicyChangeSet,
     comparison: [u8; 32],
     decisions: &[PackagePolicyDecision],

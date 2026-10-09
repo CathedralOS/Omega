@@ -7,6 +7,7 @@ use crate::review::timings;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use package_evidence::record::{PackagePolicyRowKind, PackageReviewDangerousAuthorityClass};
 use std::collections::{BTreeMap, BTreeSet};
+
 use super::render::{self, TriageRenderError};
 
 /// Deterministic package-manager disposition for source review.
@@ -14,7 +15,7 @@ use super::render::{self, TriageRenderError};
 /// This is review-only orchestration state. It is neither accepted lock
 /// evidence nor proof that a human or model audited source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageTriageDisposition {
+pub enum PackageTriageDisposition {
     NoReviewBlocker,
     NoReviewBlockerWithAuditRecommended,
     BlockedMissingAdmissionBaseline,
@@ -23,7 +24,7 @@ pub(crate) enum PackageTriageDisposition {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageTriageReason {
+pub enum PackageTriageReason {
     InitialAdmission,
     NewTransitivePackage,
     RemovedPackage,
@@ -42,7 +43,7 @@ pub(crate) enum PackageTriageReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageTriageDecision {
+pub struct PackageTriageDecision {
     package_name: String,
     baseline_key: Option<PackageKey>,
     candidate_key: Option<PackageKey>,
@@ -55,7 +56,7 @@ impl PackageTriageDecision {
         &self.package_name
     }
 
-    pub(crate) fn baseline_key(&self) -> Option<&PackageKey> {
+    pub fn baseline_key(&self) -> Option<&PackageKey> {
         self.baseline_key.as_ref()
     }
 
@@ -73,7 +74,7 @@ impl PackageTriageDecision {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CompilerReviewTriage {
+pub struct CompilerReviewTriage {
     decisions: Vec<PackageTriageDecision>,
 }
 
@@ -101,7 +102,7 @@ impl CompilerReviewTriage {
 /// Initial installation is comparison against an empty baseline. Dangerous
 /// authority and opaque representation-TCB rows recommend audit immediately;
 /// the absence of an old package is not itself a conflict.
-pub(crate) fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> CompilerReviewTriage {
+pub fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> CompilerReviewTriage {
     let _stage = timings::stage("triage");
     CompilerReviewTriage {
         decisions: candidate
@@ -136,7 +137,7 @@ pub(crate) fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet)
 /// where retained accepted rows still govern capability comparison. A caller
 /// may leave this state only by starting the explicit full-graph fresh-
 /// admission flow; it may not reinterpret the update as unchanged.
-pub(crate) fn triage_update_without_admission_baseline(
+pub fn triage_update_without_admission_baseline(
     candidate: &CompilerIssuedPackageReviewSet,
 ) -> CompilerReviewTriage {
     let _stage = timings::stage("triage");
@@ -159,6 +160,21 @@ pub(crate) fn triage_update_without_admission_baseline(
             .collect(),
     }
 }
+
+/// Compare compiler-issued candidate evidence with a valid accepted baseline.
+///
+/// `unavailable_baseline_sources` affects source-audit guidance only: the
+/// canonical baseline rows still govern capability comparison. A package-key
+/// change is a replacement/provenance conflict; exact-key source revisions are
+/// ordinary updates. Advisory model output is deliberately not accepted here.
+pub fn triage_review_update(
+    baseline: &CompilerIssuedPackageReviewSet,
+    candidate: &CompilerIssuedPackageReviewSet,
+    unavailable_baseline_sources: &BTreeSet<PackageKey>,
+) -> CompilerReviewTriage {
+    triage_review_update_records(baseline.reviews(), candidate, unavailable_baseline_sources)
+}
+
 pub(crate) fn triage_review_update_records<B: PackageReviewEvidence>(
     baseline: &[B],
     candidate: &CompilerIssuedPackageReviewSet,

@@ -7,7 +7,7 @@ use std::fmt;
 
 /// Failure to validate requester-local aliases after package selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DependencyAliasError {
+pub enum DependencyAliasError {
     SelectedPackageCountMismatch {
         dependency_occurrences: usize,
         selected_packages: usize,

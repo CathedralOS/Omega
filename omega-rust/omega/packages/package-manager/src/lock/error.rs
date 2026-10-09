@@ -4,7 +4,7 @@ use package_evidence::encoding::{PackagePolicyMembershipError, PackageReviewEnco
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PackageLockError {
+pub enum PackageLockError {
     UnsupportedVersion,
     CompilerIdentity,
     MissingCompilationInputs,

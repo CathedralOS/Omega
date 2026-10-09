@@ -8,7 +8,7 @@ use package_source::{ResolvedLocalSource, SourceContentDigest};
 /// selected members may share one commit/root tree while exposing different
 /// immutable package subtrees.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageSourceMaterialization {
+pub struct PackageSourceMaterialization {
     content: SourceContentDigest,
     file_count: usize,
     byte_count: u64,
@@ -27,5 +27,11 @@ impl PackageSourceMaterialization {
         &self.content
     }
 
+    pub const fn file_count(&self) -> usize {
+        self.file_count
+    }
 
+    pub const fn byte_count(&self) -> u64 {
+        self.byte_count
+    }
 }

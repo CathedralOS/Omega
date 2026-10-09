@@ -7,7 +7,7 @@ const REVIEW_INPUT_SCHEMA: &str = "OMEGA_PACKAGE_REVIEW_INPUT_V1\n";
 /// Resource policy for assembling source packets. The final combined review
 /// input has a separate caller-supplied ceiling at render time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PackageSourceReviewLimits {
+pub struct PackageSourceReviewLimits {
     maximum_source_patches: usize,
     source_patch: PackageSourcePatchLimits,
 }
@@ -44,7 +44,7 @@ impl Default for PackageSourceReviewLimits {
 /// separately framed hostile-data lanes and cannot alter deterministic
 /// dispositions or mint admission evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageSourceReviewInput {
+pub struct PackageSourceReviewInput {
     pub(super) triage: CompilerReviewTriage,
     pub(super) source_patches: Vec<PackageSourcePatch>,
 }
@@ -54,12 +54,12 @@ impl PackageSourceReviewInput {
         &self.triage
     }
 
-    pub(crate) fn source_patches(&self) -> &[PackageSourcePatch] {
+    pub fn source_patches(&self) -> &[PackageSourcePatch] {
         &self.source_patches
     }
 
 
-    pub(crate) fn render_bounded(
+    pub fn render_bounded(
         &self,
         maximum_bytes: usize,
     ) -> Result<String, PackageSourceReviewRenderError> {

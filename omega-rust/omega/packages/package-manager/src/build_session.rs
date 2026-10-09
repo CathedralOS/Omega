@@ -5,14 +5,15 @@
 //! checked results retain immutable output custody after session disposal.
 
 mod component_publication;
+pub(crate) use component_publication::publish_checked_component;
 mod inputs;
 mod order;
 mod preparation;
-pub(crate) use component_publication::publish_checked_component;
 pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
 pub(crate) use order::{dependency_first_package_order, package_build_root};
-pub(crate) use preparation::PackageSourcePreparation;
+pub use preparation::PackageSourcePreparation;
 pub(crate) use preparation::PreparedPackageSource;
+
 use crate::review::CompileResolvedPackageReviewsError;
 use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 use filesystem_authority::FilesystemSponsor;

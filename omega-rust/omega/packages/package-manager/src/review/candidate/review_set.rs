@@ -14,7 +14,7 @@ use super::semantic_bindings::SemanticBindingReviewCandidate;
 /// review projection are joined only by compiling resolver-owned custody in
 /// `compile_resolved_package_reviews`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CompilerIssuedPackageReview {
+pub struct CompilerIssuedPackageReview {
     pub(super) key: PackageKey,
     pub(super) resolution: ImmutableSourceResolution,
     pub(super) source_consumption_commitment: PackageSourceConsumptionCommitment,
@@ -39,7 +39,7 @@ pub(crate) struct CompilerIssuedPackageReview {
 impl CompilerIssuedPackageReview {
     /// The checked activation that produced these findings. Equal package
     /// sources do not make build and product reviews interchangeable.
-    pub(crate) fn checked_context(&self) -> crate::lock::PackageCheckedContext {
+    pub fn checked_context(&self) -> crate::lock::PackageCheckedContext {
         crate::lock::PackageCheckedContext::new(
             self.generated_source_bundle.purpose(),
             self.generated_source_bundle.target(),
@@ -97,7 +97,7 @@ impl CompilerIssuedPackageReview {
     /// preliminary pass. Consumers may inspect their exact checked schemas to
     /// author policy for a final recompilation; the candidates themselves are
     /// neither accepted bindings nor permission grants.
-    pub(crate) fn semantic_binding_candidates(&self) -> &[SemanticBindingReviewCandidate] {
+    pub fn semantic_binding_candidates(&self) -> &[SemanticBindingReviewCandidate] {
         &self.semantic_binding_candidates
     }
 
@@ -142,12 +142,12 @@ pub(super) fn policy_rows_and_commitment(
 /// Rows are dependency-first and deterministic. This remains review material,
 /// not an accepted package instance, certificate, or lock payload.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CompilerIssuedPackageReviewSet {
+pub struct CompilerIssuedPackageReviewSet {
     pub(super) reviews: Vec<CompilerIssuedPackageReview>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackageSourceVerificationPhase {
+pub enum PackageSourceVerificationPhase {
     BeforeCompilation,
     AfterCompilation,
 }
@@ -165,7 +165,7 @@ impl CompilerIssuedPackageReviewSet {
         matching.next().is_none().then_some(review)
     }
 
-    pub(crate) fn reviews_for<'a>(
+    pub fn reviews_for<'a>(
         &'a self,
         key: &'a PackageKey,
     ) -> impl Iterator<Item = &'a CompilerIssuedPackageReview> {
@@ -174,7 +174,7 @@ impl CompilerIssuedPackageReviewSet {
             .filter(move |review| review.key() == key)
     }
 
-    pub(crate) fn review_occurrence(
+    pub fn review_occurrence(
         &self,
         key: &PackageKey,
         purpose: crate::declarations::DependencyPurpose,

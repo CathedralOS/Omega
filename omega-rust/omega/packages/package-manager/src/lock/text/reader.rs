@@ -12,7 +12,7 @@ use target::TargetProfile;
 impl PackageLock {
     /// Recover project records without filesystem access, source acquisition,
     /// compiler execution, or conversion of history into fresh authorization.
-    pub(crate) fn recover_text(text: &str, limits: PackageLockRecoveryLimits) -> Result<Self, Error> {
+    pub fn recover_text(text: &str, limits: PackageLockRecoveryLimits) -> Result<Self, Error> {
         let lock = Self::recover_version(text, limits, HEADER)?;
         if lock
             .targets
@@ -31,7 +31,7 @@ impl PackageLock {
     /// Retain version 3 source pins and schema-4 consent for a fresh
     /// explicit review. Missing compilation inputs stay absent: this route does
     /// not upgrade historical consent into ordinary compilation authority.
-    pub(crate) fn recover_review_baseline(
+    pub fn recover_review_baseline(
         text: &str,
         limits: PackageLockRecoveryLimits,
     ) -> Result<Self, Error> {

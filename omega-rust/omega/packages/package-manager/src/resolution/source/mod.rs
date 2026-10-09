@@ -15,31 +15,37 @@ mod selection;
 mod workspace;
 pub(crate) mod workspace_path;
 
-pub(crate) use custody::PackageSourceCustody;
+pub use custody::PackageSourceCustody;
 pub(crate) use custody::{CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE};
-pub(crate) use error::ResolvePackageSourceError;
+pub use error::ResolvePackageSourceError;
 pub(crate) use git::resolve_selected_git_package_source_from_pin_in_lanes;
 pub(crate) use git::resolve_selected_git_project_source_from_pin_in_lanes;
 pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
-pub(crate) use git::{
-    GitPackageSourceRequest};
+pub use git::{
+    GitPackageSourceRequest, resolve_git_package_source, resolve_selected_git_package_source,
+    resolve_selected_git_project_source,
+};
 pub(crate) use git::{
     resolve_selected_git_package_source_at_revision_in_lanes,
     resolve_selected_git_project_source_at_revision_in_lanes,
 };
-pub(crate) use local::{
-    bind_staged_external_local_project_source,
-    resolve_external_local_project_source};
+pub use local::{
+    bind_staged_external_local_project_source, resolve_external_local_package_source,
+    resolve_external_local_project_source,
+};
 pub(crate) use local::{
     capture_external_local_project_source, recover_cached_external_local_source,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
 };
-pub(crate) use materialization::PackageSourceMaterialization;
-pub(crate) use navigation::PackageSourceNavigation;
-pub(crate) use resolved::ResolvedPackageSource;
-pub(crate) use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
+pub use materialization::PackageSourceMaterialization;
+pub use navigation::PackageSourceNavigation;
+pub use resolved::ResolvedPackageSource;
+pub use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
 pub(crate) use workspace::resolve_workspace_member_package_source_in_lane;
 pub(crate) use workspace::resolve_workspace_member_project_source_in_lane;
+pub use workspace::{
+    resolve_workspace_member_package_source, resolve_workspace_member_project_source,
+};
 
 /// The accessor surface every resolved-package-source record shares:
 /// custody and resolved shapes carry identically-named projection fields and

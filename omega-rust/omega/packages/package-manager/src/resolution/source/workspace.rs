@@ -6,7 +6,7 @@ use package_source::{
     ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
-use package_source::{LocalSourceLimits, ResolvedLocalSnapshot};
+use package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolver};
 use std::path::{Path, PathBuf};
 
 pub(crate) fn resolve_workspace_member_package_source_in_lane(
@@ -65,6 +65,45 @@ fn resolve_workspace_member_declared_source_in_lane(
         application_root_allowed,
     )
 }
+
+pub fn resolve_workspace_member_package_source(
+    workspace_root_source: &SourceLineage,
+    member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    storage: &SourceResolver,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    storage.verify_path_identity()?;
+    let result = resolve_workspace_member_package_source_in_lane(
+        workspace_root_source,
+        member_path,
+        live_workspace_root,
+        storage.workspace_members(),
+        limits,
+    );
+    storage.verify_path_identity()?;
+    result
+}
+
+pub fn resolve_workspace_member_project_source(
+    workspace_root_source: &SourceLineage,
+    member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    storage: &SourceResolver,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    storage.verify_path_identity()?;
+    let result = resolve_workspace_member_project_source_in_lane(
+        workspace_root_source,
+        member_path,
+        live_workspace_root,
+        storage.workspace_members(),
+        limits,
+    );
+    storage.verify_path_identity()?;
+    result
+}
+
 fn validate_workspace_member_root(
     requested_workspace_root: &Path,
     member_path: &SourceRelativePath,
