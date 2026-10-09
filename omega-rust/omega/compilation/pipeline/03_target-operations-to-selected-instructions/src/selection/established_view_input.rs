@@ -25,6 +25,13 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
                         if semantic.place == place)),
                 LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                     .structural_arguments.iter().any(|argument| argument.place == place),
+                // A selected descendant needs its descriptor in the original
+                // home; only whole observations can use retained SSA coordinates.
+                LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
+                | LegalizedScalarInstructionKind::ElementViewLength { source, .. }
+                | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
+                | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. } =>
+                    source.place == place && !source.path.is_empty(),
                 // Scalar observations can use the retained view coordinates.
                 // Capturing or copying its value needs the address/length
                 // descriptor itself, independent of how the view was formed.

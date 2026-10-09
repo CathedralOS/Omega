@@ -18,14 +18,23 @@ fn supplies(actual: A, requested: A) -> bool {
 
 pub(in crate::selection) fn view_access(
     function: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<A> {
+    let budget = function.structural.as_ref()?.structural_places.len();
+    view_access_with_budget(function, place, budget)
+}
+
+fn view_access_with_budget(
+    function: &LegalizedScalarFunction,
     mut place: PlaceId,
+    budget: usize,
 ) -> Option<A> {
     let signature = function.structural.as_ref()?;
     let mut required = A::SharedBorrow;
     let mut initial = None;
     let mut expected_type = None;
     let mut copied_whole = false;
-    for _ in 0..signature.structural_places.len() {
+    for remaining in (0..budget).rev() {
         if let Some((_, result)) = super::completed_descriptor(function, place) {
             return (required == A::SharedBorrow
                 && expected_type.is_none_or(|identity| identity == result.structural_type))
@@ -174,9 +183,8 @@ pub(in crate::selection) fn view_access(
                 }
             }
             I::ByteSequenceSubslice { source, .. } | I::ElementViewSubslice { source, .. } => {
-                required = access;
-                expected_type = Some(structural_type);
-                place = *source;
+                projected_source_access(function, source, access, remaining)?;
+                return initial;
             }
             I::EstablishElementView {
                 source,
@@ -194,27 +202,116 @@ pub(in crate::selection) fn view_access(
                                 if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8))))) {
                     return None;
                 }
-                let parent_access = signature
-                    .parameters
-                    .iter()
-                    .map(|parameter| &parameter.semantic)
-                    .chain(function.block_structural_parameters())
-                    .find(|parameter| parameter.place == source.place)
-                    .map(|parameter| parameter.access)
-                    .or_else(|| {
-                        (crate::selection::aggregate_result_input::home(function, source.place)
-                            .is_some()
-                            || crate::selection::aggregate_result_input::block_home(
-                                function,
-                                source.place,
-                            )
-                            .is_some())
-                        .then_some(A::Owned)
-                    })?;
-                return supplies(parent_access, source.access).then_some(initial?);
+                projected_source_access(function, source, access, remaining)?;
+                return initial;
             }
             _ => return None,
         }
     }
     None
+}
+
+/// Join a selected descriptor to its real carrier permission. The operand's
+/// requested access does not grant backing access: each stored reference and
+/// byte-field descriptor attenuates the permission retained by its root.
+fn projected_source_access(
+    function: &LegalizedScalarFunction,
+    source: &terminal_psi::StructuralArgument,
+    requested: A,
+    budget: usize,
+) -> Option<()> {
+    use crate::structural_inputs::structural_reference_input as geometry;
+    use optimization_unit_semantics::StructuralStorageProjection;
+    let signature = function.structural.as_ref()?;
+    let types = &signature.structural_types;
+    let mut current = crate::selection::reference_input::root_type(function, source.place)
+        .or_else(|| {
+            signature.structural_places.iter().find_map(|declaration| {
+                if declaration.id != source.place {
+                    return None;
+                }
+                match declaration.kind {
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    } => Some(structural_type),
+                    _ => None,
+                }
+            })
+        })?;
+    let mut authority = if types.iter().any(|row| {
+        row.id == current
+            && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                || row.shape.is_borrowed_byte_view())
+    }) {
+        view_access_with_budget(function, source.place, budget)?
+    } else if let Some(parameter) = signature
+        .parameters
+        .iter()
+        .map(|parameter| &parameter.semantic)
+        .chain(function.block_structural_parameters())
+        .find(|parameter| parameter.place == source.place)
+    {
+        parameter.access
+    } else {
+        crate::selection::aggregate_result_input::home(function, source.place)?;
+        A::Owned
+    };
+    if !supplies(source.access, requested) || authority == A::WriteOnlyBorrow {
+        return None;
+    }
+    let mut prefix_start = 0;
+    for (position, segment) in source.path.iter().enumerate() {
+        if *segment != terminal_psi::StructuralPathSegment::Referent {
+            continue;
+        }
+        let (reference, _, _) =
+            geometry::runtime_projection(current, &source.path[prefix_start..position], types)?;
+        let StructuralTypeShape::Reference { referent, access } =
+            types.iter().find(|row| row.id == reference)?.shape
+        else {
+            return None;
+        };
+        authority = if supplies(authority, access) {
+            access
+        } else if supplies(access, authority) {
+            authority
+        } else {
+            return None;
+        };
+        if authority == A::WriteOnlyBorrow {
+            return None;
+        }
+        current = referent;
+        prefix_start = position + 1;
+    }
+    let selected = optimization_unit_semantics::structural_borrowed_storage_projection(
+        types.iter(),
+        current,
+        &source.path[prefix_start..],
+        requested,
+    )?;
+    let ceiling = match selected {
+        StructuralStorageProjection::ByteField { carrier, .. } => match carrier {
+            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. } => {
+                access.unwrap_or(A::SharedBorrow)
+            }
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => A::Owned,
+        },
+        StructuralStorageProjection::Endpoint(identity) => {
+            match types.iter().find(|row| row.id == identity)?.shape {
+                StructuralTypeShape::ElementView { .. } => authority,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+                ) => access.unwrap_or(authority),
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                ) => A::Owned,
+                _ => return None,
+            }
+        }
+        StructuralStorageProjection::ByteWindow { .. } => return None,
+    };
+    (supplies(authority, requested) && supplies(ceiling, requested)).then_some(())
 }
