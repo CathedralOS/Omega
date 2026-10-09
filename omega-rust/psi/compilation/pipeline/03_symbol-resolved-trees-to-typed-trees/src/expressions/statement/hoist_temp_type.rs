@@ -23,7 +23,6 @@
 
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
-use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
@@ -404,14 +403,9 @@ fn declared_projection_type(
     let root_type = lower_type_reference_into_table(lowerer, &declared_root)?;
     let mut current = root_type;
     let mut path = Vec::with_capacity(steps.len());
-    let mut element_constraints = HandleSpan::empty();
     for step in steps.into_iter().rev() {
         match step {
             ProjectionStep::Element(selector) => {
-                let constraints = collection_constraints(&lowerer.typed_trees, current);
-                if !constraints.is_empty() {
-                    element_constraints = constraints;
-                }
                 let selector =
                     crate::expressions::expression::lower_expression_handle(lowerer, selector)?;
                 path.push(facts::PlaceSegment::Index {
@@ -424,7 +418,6 @@ fn declared_projection_type(
                     return Ok(None);
                 };
                 path.push(facts::PlaceSegment::Field { symbol });
-                element_constraints = HandleSpan::empty();
             }
         }
         let Some(projected) = validation::project_type_reference_from_segments(
@@ -436,42 +429,10 @@ fn declared_projection_type(
         };
         current = projected;
     }
-    // Collection arithmetic/range constraints characterize each element;
-    // encoding domains instead describe the collection storage as a whole.
-    let applicable: Vec<_> = lowerer
-        .typed_trees
-        .type_reference_table
-        .constraints(element_constraints)
-        .iter()
-        .filter(|constraint| !matches!(constraint, typed::types::TypeConstraintNode::Domain(_)))
-        .cloned()
-        .collect();
-    if applicable.is_empty() {
-        return Ok(Some(current));
-    }
-    let constraints = lowerer
-        .typed_trees
-        .type_reference_table
-        .insert_constraints(applicable);
-    Ok(Some(lowerer.typed_trees.type_reference_table.insert(
-        typed::types::TypeReferenceNode::Constrained {
-            base_type: current,
-            constraints,
-        },
-    )))
-}
-
-fn collection_constraints(
-    program: &typed::TypedTrees,
-    reference: typed::types::TypeReferenceHandle,
-) -> HandleSpan<typed::types::TypeConstraintNode> {
-    match program.type_reference_table.type_reference(reference) {
-        typed::types::TypeReferenceNode::Reference { referee, .. } => {
-            collection_constraints(program, *referee)
-        }
-        typed::types::TypeReferenceNode::Constrained { constraints, .. } => *constraints,
-        _ => HandleSpan::empty(),
-    }
+    // Projection owns inherited arithmetic policy and retains the element's
+    // complete declaration. Container predicates are not element predicates;
+    // reappending the container constraints changes the captured value's type.
+    Ok(Some(current))
 }
 
 fn declared_projection_field(
