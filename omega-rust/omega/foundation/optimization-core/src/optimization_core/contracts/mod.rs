@@ -19,6 +19,5 @@ pub(crate) use error::CoreContractDecodeError;
 pub use rule::{ OptimizationRuleContract};
 
 pub(crate) use budget::InvalidOptimizationWorkBudget;
-pub(crate) use rule::InvalidOptimizationRuleContract;
 #[cfg(test)]
 mod tests;
