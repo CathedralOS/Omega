@@ -21,7 +21,8 @@ machine main() crashes Trap {
     let result: f32 in Trapping = closed_scale();
     let scaled: f32 in Trapping = scale(1.5f32 as f32 in Trapping);
     let narrowed: f32 in Trapping = finite_narrow(2.5f64 as f64 in Trapping);
-    transition result == 3.0f32 && scaled == 3.0f32 && narrowed == 2.5f32 {
+    let composed: f32 in Trapping = scale((0.75f32 * 2.0f32) as f32 in Trapping);
+    transition result == 3.0f32 && scaled == 3.0f32 && narrowed == 2.5f32 && composed == 3.0f32 {
         true -> done()
         _ -> bad()
     }

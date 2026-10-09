@@ -6,6 +6,7 @@ use crate::labels::symbol_name;
 mod destinations;
 mod float_semantic;
 pub(crate) use float_semantic::{
+    closed_float_boolean_requirement, closed_float_boolean_term,
     context_proves_float_semantic_term, finite_float_semantic_term,
     instantiated_float_semantic_term,
 };

@@ -85,13 +85,6 @@ pub(super) fn raw_result_is_finite(
     if operands.len() != parameters.len() {
         return false;
     }
-    if validation::closed_float_semantic_meaning_with_inputs(
-        program, raw_result, parameters, &operands,
-    )
-    .is_some_and(|meaning| meaning.is_finite())
-    {
-        return true;
-    }
     let contexts = super::super::operators::InvocationContexts::for_selected_expression(
         program,
         facts,
@@ -108,6 +101,9 @@ pub(super) fn raw_result_is_finite(
     else {
         return false;
     };
+    if super::super::operators::closed_float_boolean_term(&required) == Some(true) {
+        return true;
+    }
     contexts
         .for_expressions(program, parameters, [raw_result])
         .iter()

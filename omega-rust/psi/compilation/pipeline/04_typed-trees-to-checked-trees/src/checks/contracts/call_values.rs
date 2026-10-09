@@ -88,13 +88,12 @@ pub(crate) fn observation_actual<'program>(
     )
 }
 
-fn captured_operand<'facts>(
+fn captured_operands<'facts>(
     program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
-    actual: &Actual<'_>,
-) -> Option<&'facts checked_trees::FlowOperandFact> {
+) -> Option<(&'facts [checked_trees::FlowOperandFact], usize)> {
     let site = validation::find_call_site(
         program,
         state.machine_symbol,
@@ -108,6 +107,7 @@ fn captured_operand<'facts>(
         }
         _ => None,
     };
+    let receiver_offset = usize::from(receiver.is_some());
     let expected = receiver.into_iter().chain(
         validation::call_site_argument_expressions(program, &site)
             .iter()
@@ -121,7 +121,40 @@ fn captured_operand<'facts>(
     {
         return None;
     }
-    operands.get(actual.operand_position)
+    Some((operands, receiver_offset))
+}
+
+fn captured_operand<'facts>(
+    program: &dyn ::validation::CheckingInput,
+    facts: &'facts CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    actual: &Actual<'_>,
+) -> Option<&'facts checked_trees::FlowOperandFact> {
+    captured_operands(program, facts, state, call)?
+        .0
+        .get(actual.operand_position)
+}
+
+/// The complete call telescope in exact captured source order. Static namespace
+/// receivers are evaluation positions but not explicit argument parameters;
+/// retain the same receiver offset used by individual captured observations.
+pub(crate) fn captured_argument_expressions(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+) -> Option<Vec<ExpressionHandle>> {
+    if !call.authored_source_custody_valid {
+        return None;
+    }
+    let (operands, receiver_offset) = captured_operands(program, facts, state, call)?;
+    Some(
+        operands[receiver_offset..]
+            .iter()
+            .map(|operand| operand.expression)
+            .collect(),
+    )
 }
 
 pub(crate) fn captured_values<'facts>(

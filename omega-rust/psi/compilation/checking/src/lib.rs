@@ -228,9 +228,7 @@ pub use proof_contracts::default_domains::{
     standing_facts_prove_requirement,
 };
 pub use proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract;
-pub use proof_contracts::float_projection_bindings::semantic_values::{
-    closed_float_semantic_meaning_with_inputs, exact_toolchain_float_format_const,
-};
+pub use proof_contracts::float_projection_bindings::semantic_values::exact_toolchain_float_format_const;
 pub use proof_contracts::float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,
     float_boolean_semantic_contract, float_format_conversion_contract,

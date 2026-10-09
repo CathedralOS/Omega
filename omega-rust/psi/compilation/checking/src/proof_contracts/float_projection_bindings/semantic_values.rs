@@ -70,37 +70,6 @@ fn closed_meaning(
     expression: ExpressionHandle,
     remaining_work: &mut usize,
 ) -> Option<ClosedFloatMeaning> {
-    closed_meaning_with_inputs(program, expression, remaining_work, &[])
-}
-
-/// Evaluate a sealed semantic term over literal actual operands with the same
-/// catalog kernel used for closed meaning equalities. Unknown storage reads
-/// remain unknown; only the selected callable's own formals are substituted.
-pub fn closed_float_semantic_meaning_with_inputs(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    parameters: &[typed_trees::signature::StateParameter],
-    operands: &[ExpressionHandle],
-) -> Option<FloatMeaning> {
-    if parameters.len() != operands.len() {
-        return None;
-    }
-    let inputs = parameters
-        .iter()
-        .zip(operands)
-        .map(|(parameter, operand)| (parameter.symbol, *operand))
-        .collect::<Vec<_>>();
-    let mut remaining_work = 1024;
-    closed_meaning_with_inputs(program, expression, &mut remaining_work, &inputs)
-        .map(|value| value.meaning)
-}
-
-fn closed_meaning_with_inputs(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    remaining_work: &mut usize,
-    inputs: &[(symbols::SymbolHandle, ExpressionHandle)],
-) -> Option<ClosedFloatMeaning> {
     *remaining_work = remaining_work.checked_sub(1)?;
     let call = program.expression_table.call_node(expression)?;
     let arguments = program.expression_table.expression_handles(call.arguments);
@@ -111,7 +80,7 @@ fn closed_meaning_with_inputs(
     {
         let [source] = arguments else { return None };
         let (format, meaning) =
-            closed_projection_expression(operation, program, *source, remaining_work, inputs)?;
+            closed_projection_expression(operation, program, *source, remaining_work)?;
         let operator = program.operator_definition_by_symbol(selected_operator)?;
         return Some(ClosedFloatMeaning {
             format,
@@ -138,7 +107,7 @@ fn closed_meaning_with_inputs(
                 }));
             }
             FloatSemanticValueKind::Meaning => {
-                let value = closed_meaning_with_inputs(program, *argument, remaining_work, inputs)?;
+                let value = closed_meaning(program, *argument, remaining_work)?;
                 if operand_format.is_some_and(|previous| previous != value.format) {
                     return None;
                 }
@@ -163,28 +132,20 @@ fn closed_meaning_with_inputs(
     })
 }
 
-/// Substitution acts only at the projection's input. It cannot read a
-/// normal-return result fact, fold unknown mutable storage, or evaluate an
-/// operation by recognizing its source spelling.
+/// A closed projection cannot read a normal-return result fact or unknown
+/// mutable storage, nor evaluate an operation from its source spelling.
 fn closed_projection_expression(
     operation: FloatProjectionOperation,
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     remaining_work: &mut usize,
-    inputs: &[(symbols::SymbolHandle, ExpressionHandle)],
 ) -> Option<(IeeeFloatFormat, FloatMeaning)> {
     *remaining_work = remaining_work.checked_sub(1)?;
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => {
-            let (_, operand) = inputs
-                .iter()
-                .find(|(parameter, _)| *parameter == path.symbol)?;
-            closed_projection_expression(operation, program, *operand, remaining_work, &[])
-        }
         ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
             // An admitted numeric cast preserves denotation; it is not a
             // rounding operation or a result-policy failure site.
-            closed_projection_expression(operation, program, cast.value, remaining_work, inputs)
+            closed_projection_expression(operation, program, cast.value, remaining_work)
         }
         source => closed_projection_source(operation, source),
     }
