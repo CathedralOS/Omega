@@ -34,7 +34,7 @@ const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
 /// turn into a report: the retained product, the settled rollback receipt, the
 /// post-production timing ladder.
 /// None of it is a report, an admission or a publication.
-pub struct ProducedTerminalProduct {
+pub(crate) struct ProducedTerminalProduct {
     pub artifact: compilation_products::RetainedTerminalArtifact,
     pub rollback_receipt: Option<optimization_core::OptimizationRollbackReceipt>,
     pub timings: Vec<artifacts::compile_timings::PhaseTiming>,
@@ -44,7 +44,7 @@ pub struct ProducedTerminalProduct {
 /// stop, its Build requirements and its package production custody were
 /// settled by `CheckedCompilation::prepare_product_report`; this owner never
 /// re-admits them.
-pub fn produce_terminal_product(
+pub(crate) fn produce_terminal_product(
     mut checked: CheckedCompilation,
     rollback: &OptimizationRollback,
 ) -> Result<ProducedTerminalProduct, Vec<Diagnostic>> {

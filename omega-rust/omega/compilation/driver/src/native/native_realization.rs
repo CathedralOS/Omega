@@ -28,7 +28,7 @@ pub struct RealizedNativeProduct {
 /// so a requested absence holds whether or not the request carries a receiver
 /// permission policy, and a violated exclusion publishes no product. Failure
 /// returns the exact image request; no product is silently substituted.
-pub fn realize_native_artifact(
+pub(crate) fn realize_native_artifact(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RealizedNativeProduct, RequestedNativeArtifactError> {

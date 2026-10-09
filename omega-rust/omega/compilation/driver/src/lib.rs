@@ -34,7 +34,8 @@ pub use crate::checked::{
     prepare_package_build, settled_check_totals, source_assembly_invocation_count,
     typed_frontier_reuse_count,
 };
-pub use crate::native::{RealizedNativeProduct, realize_retained_native_artifact};
+pub use crate::native::{ realize_retained_native_artifact};
+pub(crate) use crate::native::{RealizedNativeProduct};
 pub use build_evaluation::BuildSnapshotRequest;
 pub use compilation_products::RetainedNativeRealizationRequest;
 pub use compilation_products::{

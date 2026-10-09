@@ -8,7 +8,7 @@ use compilation_products::NativeProductRequest;
 /// What one native stage sequence produces for the admitted settlement to turn
 /// into a report: the realized image, the settled rollback receipt, the
 /// post-production timing ladder.
-pub struct ProducedNativeProduct {
+pub(crate) struct ProducedNativeProduct {
     pub artifact: native_artifact::RequestedNativeArtifact,
     pub runtime_provisions: Option<compilation_products::TerminalRuntimeProvisions>,
     pub rollback_receipt: Option<optimization_core::OptimizationRollbackReceipt>,
@@ -19,7 +19,7 @@ pub struct ProducedNativeProduct {
 /// consume it through the single source-free native pipeline. The stop and its
 /// Build requirements were admitted by
 /// `CheckedCompilation::prepare_product_report`; nothing is re-admitted here.
-pub fn produce_native_product(
+pub(crate) fn produce_native_product(
     request: NativeProductRequest,
     mut checked: CheckedCompilation,
 ) -> Result<ProducedNativeProduct, Vec<Diagnostic>> {

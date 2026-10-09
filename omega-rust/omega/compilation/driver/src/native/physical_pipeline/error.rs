@@ -3,7 +3,7 @@ use register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePip
 use target_operations_to_selected_instructions::OptimizedSelectionPipelineError;
 
 #[derive(Debug)]
-pub enum OptimizedVerifiedPhysicalPipelineError {
+pub(crate) enum OptimizedVerifiedPhysicalPipelineError {
     SelectedOptimization(
         selected_instructions_to_selected_instructions::SelectedInstructionOptimizationError,
     ),
