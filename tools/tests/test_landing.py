@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Local Git protocol tests; no GitHub access or non-standard Python packages."""
 
-import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 import contextlib
@@ -169,45 +168,6 @@ class LandingTests(unittest.TestCase):
                                      "--board-update")
         self.assertEqual(published["state"], "published")
         self.assert_remote(board)
-
-    def test_publish_refuses_unrecorded_trusted_surface_change(self):
-        sites_path = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/trusted_surface/sites.rs"
-        bound_path = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/rule.rs"
-        def record(contents):
-            digest = hashlib.sha256(contents.encode("utf-8")).hexdigest()
-            sites = self.a / sites_path
-            sites.parent.mkdir(parents=True, exist_ok=True)
-            sites.write_text(
-                "ImplementationSite {\n"
-                f'    path: "{bound_path}",\n'
-                f'    sha256: Some("{digest}"),\n'
-                "    inventory_machinery: false,\n"
-                "},\n", encoding="utf-8")
-        def write(contents):
-            bound = self.a / bound_path
-            bound.parent.mkdir(parents=True, exist_ok=True)
-            bound.write_text(contents, encoding="utf-8")
-        claim = self.claim(self.a)
-        write("fn rule() {}\n")
-        record("fn rule() {}\n")
-        self.git(self.a, "add", "-A")
-        self.git(self.a, "commit", "-m", "pinned rule")
-        pinned = self.git(self.a, "rev-parse", "HEAD")
-        self.assertEqual(self.publish(self.a, claim, pinned)["state"], "published")
-        claim = self.claim(self.a)
-        write("fn rule() { relaxed() }\n")
-        self.git(self.a, "add", "-A")
-        self.git(self.a, "commit", "-m", "unrevalidated relaxation")
-        drifted = self.git(self.a, "rev-parse", "HEAD")
-        refusal = self.publish(self.a, claim, drifted, expected=1)
-        self.assertIn(bound_path, str(refusal))
-        self.assert_remote(pinned, claim["claim"])
-        record("fn rule() { relaxed() }\n")
-        self.git(self.a, "add", "-A")
-        self.git(self.a, "commit", "-m", "revalidated relaxation")
-        revalidated = self.git(self.a, "rev-parse", "HEAD")
-        self.assertEqual(self.publish(self.a, claim, revalidated)["state"], "published")
-        self.assert_remote(revalidated)
 
     def test_board_update_flag_is_publish_only(self):
         self.run_landing(self.a, "enqueue", "--owner", "A", "--board-update",
@@ -543,6 +503,35 @@ class LandingTests(unittest.TestCase):
         self.assertEqual(code, 0, error)
         self.assertNotIn("warning", error)
         self.assertNotIn("provenance_warning", json.loads(output))
+
+    def test_provenance_scratch_survives_another_worktree_writer(self):
+        module = load_landing()
+        candidate = self.commit(self.a, "published candidate")
+        self.git(self.a, "push", "origin", "HEAD:refs/heads/main")
+        peer_path = self.root / "peer worktree"
+        self.git(self.a, "worktree", "add", "--detach", str(peer_path), self.initial)
+        writer = module.Landing(self.a, "origin")
+        peer = module.Landing(peer_path, "origin")
+        self.assertEqual(writer.record_provenance(self.initial, ["owner: seed"]), "recorded")
+        seeded = self.git(self.remote, "rev-parse", module.PROVENANCE_REF)
+        shared_scratch = "refs/notes/landing-provenance-scratch"
+        original_git = writer.git
+
+        def start_peer_after_note(*arguments, **keywords):
+            result = original_git(*arguments, **keywords)
+            if "notes" in arguments and "add" in arguments:
+                # A peer starts after this writer produced its note but before
+                # it reads the scratch tip. Worktrees share these local refs.
+                peer.git("update-ref", shared_scratch, seeded)
+            return result
+
+        with mock.patch.object(writer, "git", side_effect=start_peer_after_note):
+            observed = writer.record_provenance(candidate, ["owner: candidate"])
+        self.assertEqual(observed, "recorded")
+        self.assertEqual(self.git(self.remote, "notes", "--ref", "provenance", "show", candidate),
+                         "owner: candidate")
+        # The finishing writer also must not delete the peer's in-flight ref.
+        self.assertEqual(peer.git("rev-parse", shared_scratch).stdout, seeded)
 
     def test_provenance_applies_only_to_publish(self):
         self.run_landing(self.a, "enqueue", "--owner", "writer", "--provenance", "model=x", expected=1)

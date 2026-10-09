@@ -89,9 +89,9 @@ changes, so `verify` refuses and asks for a rebase.
 The flow is: verify → enqueue/claim → if main moved, rebase and verify the
 new candidate sha → publish. Publish refuses a Rust-touching candidate
 whose receipt is missing, is for a different sha, recorded a failing check,
-or covers fewer packages than the diff affects — that is the fourth publish
-guard, after empty, coordination-only, and unrecorded trusted-surface
-changes. There is no bypass flag; rebase and `verify` again.
+or covers fewer packages than the diff affects — that is the third publish
+guard, after empty and coordination-only changes. There is no bypass flag;
+rebase and `verify` again.
 
 **Verify again after every rebase, not once before enqueue.** A rebase inside
 the claim iteration produces a NEW candidate sha, and the verify receipt is

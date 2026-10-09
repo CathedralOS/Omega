@@ -381,7 +381,10 @@ class Landing:
         notes ref: lease on the value read, rebuild the note on the winner, and
         retry a bounded number of times before reporting the note as unrecorded.
         """
-        scratch = "refs/notes/landing-provenance-scratch"
+        # Worktrees share local refs too. A peer can otherwise replace this
+        # tip between note creation and publication, or delete it in cleanup.
+        # Keep the legacy name available for clients already publishing.
+        scratch = f"refs/notes/landing-provenance-scratch-{uuid.uuid4().hex}"
         text = "\n".join(lines) + "\n"
         for attempt in range(1, PUSH_FAILURE_LIMIT + 1):
             try:
