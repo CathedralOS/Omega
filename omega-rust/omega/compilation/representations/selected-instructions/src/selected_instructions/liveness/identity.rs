@@ -4,7 +4,6 @@ use target::{Architecture, ObjectFormat};
 
 use crate::{FunctionLiveness, LivenessIdentity, LivenessPlan};
 
-
 /// `liveness_identity` from the digests of `plan.functions`, in order.
 pub fn liveness_identity_from_digests(
     plan: &LivenessPlan,
@@ -30,7 +29,10 @@ pub fn liveness_identity_from_digests(
         ObjectFormat::Coff => 2,
     });
     crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_size as u64).to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_alignment as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        (plan.target.pointer_alignment as u64).to_le_bytes(),
+    );
     encode_len(&mut bytes, digests.len());
     for digest in digests {
         bytes.extend_from_slice(digest);
@@ -119,16 +121,21 @@ fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
 }
 
 fn encode_vregs(bytes: &mut Vec<u8>, values: &[crate::VirtualRegisterId]) {
-    encode_len(bytes, values.len());
-    for value in values {
-        crate::codec_bytes::push_encoded(bytes, value.0.to_le_bytes());
-    }
+    encode_le_list(bytes, values, |value| value.0.to_le_bytes());
 }
 
 fn encode_units(bytes: &mut Vec<u8>, values: &[register_model::RegisterUnitId]) {
+    encode_le_list(bytes, values, |value| value.0.to_le_bytes());
+}
+
+fn encode_le_list<T, const N: usize>(
+    bytes: &mut Vec<u8>,
+    values: &[T],
+    to_le: impl Fn(&T) -> [u8; N],
+) {
     encode_len(bytes, values.len());
     for value in values {
-        crate::codec_bytes::push_encoded(bytes, value.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, to_le(value));
     }
 }
 
