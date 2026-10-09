@@ -117,6 +117,7 @@ pub struct CompilerEntryRegionBindingEvidence {
 }
 
 impl CompilerEntryRegionBindingEvidence {
+
     pub(crate) fn recomputed_evidence_digest(&self) -> CompilerEntryRegionBindingDigest {
         let mut digest = Sha256::new();
         digest.update(b"omega.compiler-entry-region-binding.sha256.v2\0");
@@ -194,6 +195,7 @@ pub struct CompilerEntryFootprintBindingEvidence {
 }
 
 impl CompilerEntryFootprintBindingEvidence {
+
     pub fn recomputed_evidence_digest(self) -> CompilerEntryFootprintBindingDigest {
         let mut digest = Sha256::new();
         digest.update(b"omega.compiler-entry-footprint-binding.sha256.v1\0");
