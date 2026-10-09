@@ -581,13 +581,22 @@ pub(crate) fn lower_structural_arguments(
                     StructuralPlaceKind::OperationResult { structural_type, .. }
                     | StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. } => structural_type,
                     StructuralPlaceKind::BlockParameter { .. } => {
-                        // A completed block arrival owns its published whole value.
-                        // Projected arrival typing is handled by its storage binding.
-                        return Ok(StructuralArgument {
-                            place: source.id,
-                            path: Vec::new(),
-                            access: terminal_access(argument.access),
-                        });
+                        // A completed arrival retains its typed binding, just
+                        // like an operation result. Borrowed descriptor uses
+                        // still walk through Referent, preserving the selected
+                        // backing and codec instead of erasing their projection.
+                        let mut bindings = completed_results.iter()
+                            .filter(|(ordinal, _)| *ordinal == binding_ordinal);
+                        let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                            "structural block arrival has no typed binding",
+                        ))?;
+                        if bindings.next().is_some()
+                            || binding.place() != source.id
+                            || !binding.path().is_empty()
+                        {
+                            return unsupported("structural block arrival disagrees with its typed binding");
+                        }
+                        binding.structural_type()
                     }
                     _ => return unsupported("structural result argument has no declared type"),
                 };
@@ -702,9 +711,6 @@ fn structural_result_source<'results>(
                 | StructuralPlaceKind::ByteSequenceLiteral { .. }
                 | StructuralPlaceKind::BlockParameter { .. }
         )
-        || (matches!(source.kind, StructuralPlaceKind::BlockParameter { .. })
-            && (!argument.path.is_empty()
-                || argument.access != checked_trees::CheckedStructuralAccess::Owned))
     {
         return unsupported("Unit structural result argument disagrees with its producer cleanup");
     }
