@@ -157,7 +157,7 @@ pub(crate) enum LoweredDirectExpression {
         bound_decided: bool,
     },
     ElementViewLength {
-        source: PlaceId,
+        source: terminal_psi::StructuralArgument,
         scalar_type: ScalarType,
     },
     /// One scalar of one element of an established view: the element itself

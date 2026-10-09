@@ -586,11 +586,13 @@ pub enum OperationKind {
         element: StructuralTypeId,
         region: ElementViewRegion,
     },
-    /// Observe the exact element count of one whole borrowed element view.
-    /// The result is unsigned 64-bit; the source place and its custody remain
-    /// unchanged.
+    /// Observe the exact element count of a borrowed element descriptor at
+    /// the selected structural path. The result is unsigned 64-bit. Observation
+    /// retains the live source, its access, and its captured selector identities;
+    /// it neither copies the descriptor nor consumes its backing. An empty path
+    /// observes the whole home.
     ElementViewLength {
-        source: PlaceId,
+        source: StructuralArgument,
     },
     /// Read one scalar of one element using the exact source's dominating
     /// element-length observation. Source checking proves index < length for

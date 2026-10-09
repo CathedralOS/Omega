@@ -156,7 +156,7 @@ pub enum StructuralEffectObservation {
         region: terminal_psi::ElementViewRegion,
     },
     ElementViewLengthRead {
-        source: PlaceId,
+        source: terminal_psi::StructuralArgument,
         result: ValueId,
     },
     /// Read one element from the exact immutable element view after
@@ -405,7 +405,7 @@ pub fn structural_effect_leaf_observation_in(
             StructuralEffectAction::ReadElementViewLength,
             OperationKind::ElementViewLength { source },
         ) => StructuralEffectObservation::ElementViewLengthRead {
-            source: *source,
+            source: source.clone(),
             result: operation.result.expect_scalar().id,
         },
         (
