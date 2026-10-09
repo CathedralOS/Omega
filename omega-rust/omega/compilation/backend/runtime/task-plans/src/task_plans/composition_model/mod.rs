@@ -20,7 +20,6 @@
 //! neither.
 
 use crate::task_plans::identities::CompositionModelId;
-use crate::task_plans::report_fingerprints::composition_model_report_fingerprint;
 use crate::{
     ActivationCarryObligations, ActivationPlanId, CallingPlanId, MachineContractId, MachineEntryId,
     SelectedTaskRuntimeProviderFact, StackPlan, StackPlanProjectionId, SuspensionCrossingId,
