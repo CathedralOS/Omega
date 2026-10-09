@@ -729,14 +729,7 @@ fn invalidates_location(
     roots_may_alias: &impl Fn(PlaceId, PlaceId) -> bool,
 ) -> bool {
     let called_arguments = match operation {
-        AbstractOperation::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | AbstractOperation::BoundaryCall {
-            structural_arguments,
-            ..
-        }
+        crate::boundary_or_structural_call_pair_pattern!(structural_arguments, ..)
         | AbstractOperation::ExternalCompletion {
             structural_arguments,
             ..

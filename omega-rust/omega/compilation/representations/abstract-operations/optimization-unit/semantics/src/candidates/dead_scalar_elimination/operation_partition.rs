@@ -35,8 +35,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
         | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | abstract_operations::structural_establish_triple_pattern!(..)
-        | O::CallStructural { .. }
-        | O::BoundaryCall { .. }
+        | abstract_operations::boundary_or_structural_call_pair_pattern!(..)
         | O::PortWrite { .. }
         | O::Call { .. }
         | O::IeeeFloatConstant { .. }

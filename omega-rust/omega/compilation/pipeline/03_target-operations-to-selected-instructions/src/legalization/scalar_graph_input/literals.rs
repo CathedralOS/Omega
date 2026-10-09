@@ -8,8 +8,7 @@ pub(super) fn producer(
     source: PlaceId,
 ) -> Option<(OperationId, semantic_vocabulary::StructuralTypeId)> {
     function.block_nodes().find(|node| {
-        matches!(&node.operation, AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
-            | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
+        matches!(&node.operation, abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..)
             if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == source))
     })?;
     declaration_producer(function, source)

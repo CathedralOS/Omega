@@ -450,8 +450,7 @@ fn owned_byte_loan(
     .ok_or(LegalizationError::custody())?;
     let after = site(&|operation| {
         matches!(operation,
-            AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
-            | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
+            abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..)
             if *psi_operation == call_operation && structural_arguments.contains(semantic))
     })
     .ok_or(LegalizationError::custody())?;
@@ -592,8 +591,7 @@ fn established_view(
         optimization_unit_semantics::structural_place_access(caller, place),
         Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
     ) || !caller.block_nodes().any(|node| {
-        matches!(&node.operation, AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
-            | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
+        matches!(&node.operation, abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..)
             if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == place))
     }) {
         return None;

@@ -1374,3 +1374,11 @@ macro_rules! byte_literal_establish_pair_pattern {
             | $crate::AbstractOperation::EstablishTrivialAffineLocal { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! boundary_or_structural_call_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::BoundaryCall { $($fields)* }
+            | $crate::AbstractOperation::CallStructural { $($fields)* }
+    };
+}

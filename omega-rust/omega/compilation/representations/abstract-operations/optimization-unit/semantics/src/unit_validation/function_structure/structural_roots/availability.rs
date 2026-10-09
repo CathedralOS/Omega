@@ -112,14 +112,7 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         O::PrimitiveLocalStore { destination, .. } => vec![*destination],
         O::WriteOnlyPrimitiveStore { destination, .. } => vec![destination.place()],
         O::StructuralScalarFieldStore { destination, .. } => vec![destination.place()],
-        O::BoundaryCall {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
-            structural_arguments,
-            ..
-        } => structural_arguments
+        abstract_operations::boundary_or_structural_call_pair_pattern!(structural_arguments, ..) => structural_arguments
             .iter()
             .map(|argument| argument.place)
             .collect(),

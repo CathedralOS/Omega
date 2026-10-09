@@ -182,14 +182,7 @@ pub(crate) fn validate_operation_places(
             require(destination.place(), known)?;
             require(value.place, known)?;
         }
-        O::BoundaryCall {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
-            structural_arguments,
-            ..
-        } => {
+        abstract_operations::boundary_or_structural_call_pair_pattern!(structural_arguments, ..) => {
             for argument in structural_arguments {
                 require(argument.place, known)?;
             }

@@ -294,16 +294,7 @@ fn call_site(
     argument: &terminal_psi::StructuralArgument,
 ) -> Result<(semantic_vocabulary::BlockId, usize), LegalizationError> {
     node_site(caller, |operation| match operation {
-        AbstractOperation::CallStructural {
-            psi_operation,
-            structural_arguments,
-            ..
-        }
-        | AbstractOperation::BoundaryCall {
-            psi_operation,
-            structural_arguments,
-            ..
-        } => *psi_operation == call_operation && structural_arguments.contains(argument),
+        abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..) => *psi_operation == call_operation && structural_arguments.contains(argument),
         _ => false,
     })
     .ok_or(LegalizationError::custody())

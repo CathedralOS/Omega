@@ -46,8 +46,7 @@ pub(super) fn argument(
         .iter()
         .find_map(|block| {
             block.nodes.iter().position(|node| matches!(&node.operation,
-            AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
-            | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
+            abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation,structural_arguments, ..)
             if *psi_operation == call_operation && structural_arguments.contains(actual)
         )).map(|position| (block.id, position))
         })
