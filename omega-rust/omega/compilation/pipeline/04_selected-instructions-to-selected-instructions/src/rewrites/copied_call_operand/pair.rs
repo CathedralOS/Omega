@@ -109,6 +109,8 @@ pub(super) struct CopiedCallOperandRule {
     effects: CopiedCallOperandEffects,
 }
 
+declared_kind_matchers!(CopiedCallOperandRule);
+
 impl CopiedCallOperandRule {
     /// Shared declaration of every copied-call-operand pair: the producer
     /// is the `CopyI64` transparent move, the copied operands are the
@@ -156,16 +158,6 @@ impl CopiedCallOperandRule {
     /// keeps its declared effect surface verbatim.
     pub(super) const fn rewritten(self) -> MachineSemanticKind {
         self.consumer
-    }
-
-    /// Whether `kind` is the consumer this rule declares.
-    pub(super) fn matches_consumer(&self, kind: SelectedInstructionKind) -> bool {
-        machine_semantic_kind(kind) == self.consumer
-    }
-
-    /// Whether `kind` is the producer this rule declares.
-    pub(super) fn matches_producer(&self, kind: SelectedInstructionKind) -> bool {
-        machine_semantic_kind(kind) == self.producer
     }
 
     /// The declared operand roster, checked against one operand list —

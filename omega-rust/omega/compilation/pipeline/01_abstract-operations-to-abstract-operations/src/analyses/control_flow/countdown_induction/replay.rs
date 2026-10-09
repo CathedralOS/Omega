@@ -5,7 +5,7 @@ use super::{
     ExactUnsignedTripCount, MachineId, O, OptimizerCycleComponent,
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
     ScalarType, UnsignedCountdownLoopSummary, ValidatedOptimizerCycleComponents,
-    recompute_psi_optimization_unit_identity, region,
+    recompute_psi_optimization_unit_identity, region, shape,
 };
 use std::collections::BTreeMap;
 
@@ -129,8 +129,4 @@ fn single_edge(
         return Err(shape(machine));
     };
     Ok(*edge)
-}
-
-fn shape(machine: MachineId) -> CountedLoopAnalysisError {
-    CountedLoopAnalysisError::UnsupportedCountdownShape { machine }
 }

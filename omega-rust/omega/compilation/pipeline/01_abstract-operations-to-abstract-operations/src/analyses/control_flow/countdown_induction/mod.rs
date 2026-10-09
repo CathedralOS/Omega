@@ -96,3 +96,7 @@ impl std::fmt::Display for CountedLoopAnalysisError {
 }
 
 impl std::error::Error for CountedLoopAnalysisError {}
+
+pub(super) fn shape(machine: MachineId) -> CountedLoopAnalysisError {
+    CountedLoopAnalysisError::UnsupportedCountdownShape { machine }
+}

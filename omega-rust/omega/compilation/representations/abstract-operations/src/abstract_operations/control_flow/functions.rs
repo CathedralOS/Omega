@@ -27,6 +27,25 @@ pub struct AbstractFunction {
     pub operations: Vec<AbstractOperation>,
 }
 
+/// Blocks and functions answer the same structural-parameter lookup:
+/// `find_by_place` over their declared `structural_parameters`. One row per
+/// owner expands that accessor.
+macro_rules! structural_parameter_accessor {
+    ($name:ty) => {
+        impl $name {
+            /// The structural parameter arriving at `place`, when declared.
+            pub fn structural_parameter(
+                &self,
+                place: PlaceId,
+            ) -> Option<&StructuralParameterDeclaration> {
+                StructuralParameterDeclaration::find_by_place(&self.structural_parameters, place)
+            }
+        }
+    };
+}
+
+structural_parameter_accessor!(AbstractFunction);
+
 impl AbstractFunction {
     /// The block entry registered at `block`.
     pub fn block_entry(&self, block: BlockId) -> Option<&AbstractBlockEntry> {
@@ -89,18 +108,11 @@ impl AbstractFunction {
         }
         found
     }
-    /// The structural parameter arriving at `place`, when declared.
-    pub fn structural_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
-        StructuralParameterDeclaration::find_by_place(&self.structural_parameters, place)
-    }
 }
 
-impl AbstractBlockEntry {
-    /// The structural parameter arriving at `place`, when declared.
-    pub fn structural_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
-        StructuralParameterDeclaration::find_by_place(&self.structural_parameters, place)
-    }
-}
+structural_parameter_accessor!(AbstractBlockEntry);
+
+impl AbstractBlockEntry {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractBlockEntry {

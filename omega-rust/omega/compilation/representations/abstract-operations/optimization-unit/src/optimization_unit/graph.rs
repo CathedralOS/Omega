@@ -154,6 +154,23 @@ pub struct OptimizationNode {
     pub ownership: Vec<OwnershipEvent>,
 }
 
+/// Blocks and functions answer the same structural-parameter lookup:
+/// `find_by_place` over their declared `structural_parameters`. One row per
+/// owner expands that accessor.
+macro_rules! structural_parameter_accessor {
+    ($name:ty) => {
+        impl $name {
+            /// The structural parameter arriving at `place`, when declared.
+            pub fn structural_parameter(
+                &self,
+                place: PlaceId,
+            ) -> Option<&StructuralParameterDeclaration> {
+                StructuralParameterDeclaration::find_by_place(&self.structural_parameters, place)
+            }
+        }
+    };
+}
+
 impl OptimizationEdge {
     pub fn binding(&self, parameter: ValueId) -> Option<&ValueBinding> {
         self.bindings
@@ -187,6 +204,8 @@ pub struct OptimizationBlock {
     pub parameters: Vec<ValueDefinition>,
     pub nodes: Vec<OptimizationNode>,
 }
+
+structural_parameter_accessor!(OptimizationBlock);
 
 impl OptimizationBlock {
     /// Every node's value definitions, in node order.
@@ -247,6 +266,8 @@ pub struct PsiOptimizationFunction {
     pub blocks: Vec<OptimizationBlock>,
 }
 
+structural_parameter_accessor!(PsiOptimizationFunction);
+
 impl PsiOptimizationFunction {
     /// The block keyed `block`, when the function declares it.
     pub fn block(&self, block: BlockId) -> Option<&OptimizationBlock> {
@@ -256,11 +277,6 @@ impl PsiOptimizationFunction {
     /// The block keyed `block`, mutably, when the function declares it.
     pub fn block_mut(&mut self, block: BlockId) -> Option<&mut OptimizationBlock> {
         self.blocks.iter_mut().find(|row| row.id == block)
-    }
-
-    /// The structural parameter arriving at `place`, when declared.
-    pub fn structural_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
-        StructuralParameterDeclaration::find_by_place(&self.structural_parameters, place)
     }
 
     /// The structural place keyed `place`, when the function declares it.
@@ -352,12 +368,5 @@ impl PsiOptimizationFunction {
             _ => return None,
         }
         Some(parameter)
-    }
-}
-
-impl OptimizationBlock {
-    /// The structural parameter arriving at `place`, when declared.
-    pub fn structural_parameter(&self, place: PlaceId) -> Option<&StructuralParameterDeclaration> {
-        StructuralParameterDeclaration::find_by_place(&self.structural_parameters, place)
     }
 }

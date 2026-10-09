@@ -80,6 +80,25 @@ macro_rules! receipt_selected_identities {
     };
 }
 
+/// A rule that declares a consumer and a producer `MachineSemanticKind`
+/// answers the same kind-probe twice: whether an instruction kind is the
+/// declared consumer or producer. One row per rule expands both probes.
+macro_rules! declared_kind_matchers {
+    ($name:ident) => {
+        impl $name {
+            /// Whether `kind` is the consumer this rule declares.
+            pub(super) fn matches_consumer(&self, kind: SelectedInstructionKind) -> bool {
+                machine_semantic_kind(kind) == self.consumer
+            }
+
+            /// Whether `kind` is the producer this rule declares.
+            pub(super) fn matches_producer(&self, kind: SelectedInstructionKind) -> bool {
+                machine_semantic_kind(kind) == self.producer
+            }
+        }
+    };
+}
+
 mod address_fold;
 mod allocation_recovery;
 mod block_edges;

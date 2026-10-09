@@ -95,11 +95,7 @@ impl<'input> ReadByteImport<'input> {
     }
 }
 
-impl TerminalImportAdapter for ReadByteImport<'_> {
-    fn implemented_signature(&self) -> TerminalImportSignature {
-        self.signature.clone()
-    }
-}
+import_signature_via_clone!(ReadByteImport<'_>);
 
 impl TerminalEffectHandler for ReadByteImport<'_> {
     fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {

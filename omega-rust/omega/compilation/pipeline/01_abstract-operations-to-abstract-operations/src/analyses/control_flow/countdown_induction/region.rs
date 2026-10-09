@@ -2,7 +2,7 @@
 
 use super::{
     CountedLoopAnalysisError, LoopRegion, MachineId, OptimizerCycleComponent,
-    OptimizerUnsignedCountdownRankingCertificate,
+    OptimizerUnsignedCountdownRankingCertificate, shape,
 };
 
 /// Project a certificate-bearing component into the reducible `LoopRegion`
@@ -35,8 +35,4 @@ pub(super) fn derive(
         blocks: component.members.clone(),
         irreducible: false,
     })
-}
-
-fn shape(machine: MachineId) -> CountedLoopAnalysisError {
-    CountedLoopAnalysisError::UnsupportedCountdownShape { machine }
 }

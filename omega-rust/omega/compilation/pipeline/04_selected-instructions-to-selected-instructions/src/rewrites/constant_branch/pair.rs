@@ -100,6 +100,8 @@ pub(super) struct TerminatorPairRule {
     control: TerminatorPairControlFlow,
 }
 
+declared_kind_matchers!(TerminatorPairRule);
+
 impl TerminatorPairRule {
     /// Shared declaration of every decided-branch pair: the rewrite is the
     /// `Jump` row, the flag uses retire while the control unit and the
@@ -176,16 +178,6 @@ impl TerminatorPairRule {
     }
     pub(super) const fn control(self) -> TerminatorPairControlFlow {
         self.control
-    }
-
-    /// Whether `kind` is the consumer this rule declares.
-    pub(super) fn matches_consumer(&self, kind: SelectedInstructionKind) -> bool {
-        machine_semantic_kind(kind) == self.consumer
-    }
-
-    /// Whether `kind` is the producer this rule declares.
-    pub(super) fn matches_producer(&self, kind: SelectedInstructionKind) -> bool {
-        machine_semantic_kind(kind) == self.producer
     }
 
     /// The declared consumer kind pairs with exactly one terminator

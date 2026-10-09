@@ -95,11 +95,7 @@ impl NumericImport {
     }
 }
 
-impl TerminalImportAdapter for NumericImport {
-    fn implemented_signature(&self) -> TerminalImportSignature {
-        self.signature.clone()
-    }
-}
+import_signature_via_clone!(NumericImport);
 
 impl TerminalEffectHandler for NumericImport {
     fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {

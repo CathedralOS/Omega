@@ -108,6 +108,8 @@ pub(super) struct ConditionMaterializationRule {
     effects: ConditionMaterializationEffects,
 }
 
+declared_kind_matchers!(ConditionMaterializationRule);
+
 impl ConditionMaterializationRule {
     /// Shared declaration of every decided-materialization pair: the rewrite
     /// is the `MaterializeI64` row, the flag uses retire under the resolved
@@ -214,16 +216,6 @@ impl ConditionMaterializationRule {
     }
     pub(super) const fn operand_resolution(self) -> ConditionOperandResolution {
         self.operand_resolution
-    }
-
-    /// Whether `kind` is the consumer this rule declares.
-    pub(super) fn matches_consumer(&self, kind: SelectedInstructionKind) -> bool {
-        machine_semantic_kind(kind) == self.consumer
-    }
-
-    /// Whether `kind` is the producer this rule declares.
-    pub(super) fn matches_producer(&self, kind: SelectedInstructionKind) -> bool {
-        machine_semantic_kind(kind) == self.producer
     }
 
     /// The zero or one the consumer publishes for the decided `(left,

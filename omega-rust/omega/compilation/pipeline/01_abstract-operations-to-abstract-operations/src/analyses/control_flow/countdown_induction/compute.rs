@@ -4,7 +4,7 @@ use super::{
     CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, ExactUnsignedTripCount, LoopRegion,
     MachineId, O, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
     PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, UnsignedCountdownLoopSummary,
-    ValidatedOptimizerCycleComponents, recompute_psi_optimization_unit_identity, region,
+    ValidatedOptimizerCycleComponents, recompute_psi_optimization_unit_identity, region, shape,
 };
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
@@ -115,8 +115,4 @@ fn validate_roots(
         return Err(CountedLoopAnalysisError::CertificateComponentRosterMismatch);
     }
     Ok(())
-}
-
-fn shape(machine: MachineId) -> CountedLoopAnalysisError {
-    CountedLoopAnalysisError::UnsupportedCountdownShape { machine }
 }

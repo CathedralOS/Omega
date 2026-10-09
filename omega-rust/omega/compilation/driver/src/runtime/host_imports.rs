@@ -4,6 +4,19 @@
 //! Output stays buffered; input consumes only the caller's finite replay stream
 //! with an instance-private cursor. Checked compound operations remain guest code.
 
+/// Every hosted import adapter reports its declared signature the same
+/// way: cloning the `signature` the constructor recorded. One row per
+/// adapter expands that impl.
+macro_rules! import_signature_via_clone {
+    ($name:ty) => {
+        impl TerminalImportAdapter for $name {
+            fn implemented_signature(&self) -> TerminalImportSignature {
+                self.signature.clone()
+            }
+        }
+    };
+}
+
 mod borrowed_storage;
 mod buffered_output;
 pub(super) mod clock;

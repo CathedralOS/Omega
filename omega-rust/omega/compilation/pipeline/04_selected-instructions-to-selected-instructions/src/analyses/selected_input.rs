@@ -189,53 +189,9 @@ impl ValidatedSelectedAnalysis for ValidatedFixedViewCopies {
     }
 }
 
-impl sealed::Sealed for ValidatedLiteralFold {}
+validated_selected_analysis!(ValidatedLiteralFold);
 
-impl ValidatedSelectedAnalysis for ValidatedLiteralFold {
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedPressureRematerialization {}
-
-impl ValidatedSelectedAnalysis for ValidatedPressureRematerialization {
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
+validated_selected_analysis!(ValidatedPressureRematerialization);
 
 validated_selected_analysis!(ValidatedCopiedCallOperand);
 

@@ -86,11 +86,7 @@ impl BufferedOutput {
     }
 }
 
-impl TerminalImportAdapter for BufferedOutput {
-    fn implemented_signature(&self) -> TerminalImportSignature {
-        self.signature.clone()
-    }
-}
+import_signature_via_clone!(BufferedOutput);
 
 impl TerminalEffectHandler for BufferedOutput {
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {

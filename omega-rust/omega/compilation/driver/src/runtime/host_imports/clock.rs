@@ -226,11 +226,7 @@ fn wait(
     Ok(result)
 }
 
-impl TerminalImportAdapter for ClockImport {
-    fn implemented_signature(&self) -> TerminalImportSignature {
-        self.signature.clone()
-    }
-}
+import_signature_via_clone!(ClockImport);
 
 impl TerminalEffectHandler for ClockImport {
     fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
