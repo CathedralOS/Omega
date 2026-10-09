@@ -19,7 +19,6 @@ use crate::dynamic_executable::load_placement::load_layout::{
     ElfResolvedSectionHeaderPlacement, ElfSectionPlacementResolutionKind,
     ValidatedElfDynamicLoadLayout, public_section_kind,
 };
-use crate::dynamic_executable::section_headers::section_header_bytes::ElfSectionHeaderPlacementFixupKind;
 use crate::dynamic_executable::section_headers::section_roster::ElfNumericSectionDescriptor;
 use diagnostics::Diagnostic;
 
@@ -189,14 +188,7 @@ fn derive_contents(
         .iter()
         .zip(load_layout.section_header_resolutions())
     {
-        let expected_kind = match fixup.kind {
-            ElfSectionHeaderPlacementFixupKind::VirtualAddress => {
-                ElfSectionPlacementResolutionKind::VirtualAddress
-            }
-            ElfSectionHeaderPlacementFixupKind::FileOffset => {
-                ElfSectionPlacementResolutionKind::FileOffset
-            }
-        };
+        let expected_kind = fixup.kind;
         require(
             fixup.row_index == resolution.row_index()
                 && public_section_kind(fixup.section_kind) == resolution.section_kind()
@@ -290,14 +282,7 @@ fn validate_contents(
         .zip(resolutions)
         .zip(&contents.applications)
     {
-        let expected_kind = match fixup.kind {
-            ElfSectionHeaderPlacementFixupKind::VirtualAddress => {
-                ElfSectionPlacementResolutionKind::VirtualAddress
-            }
-            ElfSectionHeaderPlacementFixupKind::FileOffset => {
-                ElfSectionPlacementResolutionKind::FileOffset
-            }
-        };
+        let expected_kind = fixup.kind;
         require(
             fixup.row_index == resolution.row_index()
                 && public_section_kind(fixup.section_kind) == resolution.section_kind()

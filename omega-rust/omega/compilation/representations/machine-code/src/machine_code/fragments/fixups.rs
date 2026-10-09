@@ -1,12 +1,10 @@
 //! Typed internal call fields awaiting whole-text placement.
 
+use crate::{SelectedFormInternalMachineFixupKind, SelectedFormNormalizedForeignCallFixupKind};
 use semantic_vocabulary::MachineId;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentInternalMachineFixupKind {
-    X86Relative32FromNextInstructionToInternalMachineV1,
-    Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
-}
+/// The fragment retains the selected-form fixup kind verbatim.
+pub type FunctionFragmentInternalMachineFixupKind = SelectedFormInternalMachineFixupKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentInternalMachineFixupState {
@@ -27,11 +25,9 @@ pub struct FunctionFragmentInternalMachineFixup {
     pub addend: i64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentNormalizedForeignCallFixupKind {
-    X86Relative32FromNextInstructionToNormalizedForeignImportV1,
-    Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
-}
+/// The fragment retains the selected-form fixup kind verbatim.
+pub type FunctionFragmentNormalizedForeignCallFixupKind =
+    SelectedFormNormalizedForeignCallFixupKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentNormalizedForeignCallFixupState {

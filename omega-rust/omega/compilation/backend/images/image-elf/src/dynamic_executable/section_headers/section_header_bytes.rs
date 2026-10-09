@@ -116,12 +116,8 @@ pub(crate) struct ElfSectionHeaderTableTemplateContents {
     pub(crate) placement_fixups: Vec<ElfSectionHeaderPlacementFixup>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub(crate) enum ElfSectionHeaderPlacementFixupKind {
-    VirtualAddress = 1,
-    FileOffset = 2,
-}
+/// The fixup retains the placement resolution kind verbatim.
+pub(crate) type ElfSectionHeaderPlacementFixupKind = crate::ElfSectionPlacementResolutionKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ElfSectionHeaderPlacementFixup {

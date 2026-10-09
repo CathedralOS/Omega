@@ -182,19 +182,8 @@ pub(crate) struct ElfDynamicSemanticRow {
     pub(crate) value: ElfDynamicValue,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub(crate) enum ElfDynamicAddressTarget {
-    ProcedureGot = 1,
-    SystemVHash = 2,
-    DynamicString = 3,
-    DynamicSymbol = 4,
-    ProcedureRelocation = 5,
-    GnuSymbolVersion = 6,
-    GnuVersionRequirement = 7,
-    GnuHash = 8,
-    GeneralRelocation = 9,
-}
+/// The tag retains the applied address target verbatim.
+pub(crate) type ElfDynamicAddressTarget = crate::ElfDynamicAddressApplicationTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ElfDynamicAddressObligation {

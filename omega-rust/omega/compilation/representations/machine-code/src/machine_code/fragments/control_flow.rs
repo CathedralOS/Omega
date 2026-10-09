@@ -2,34 +2,17 @@
 
 use abstract_operations::ValueBinding;
 use optimization_unit::FuelSettlement;
-use register_model::RegisterViewId;
-use selected_instructions::{MachineEncodedEffects, SelectedBlockId};
+use selected_instructions::SelectedBlockId;
 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunctionFragmentBranchEvidence {
-    Conditional(FunctionFragmentConditionalBranchEvidence),
-    Jump(FunctionFragmentJumpEvidence),
-}
+use crate::machine_code::layout::{
+    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
+    ResolvedJumpEvidence,
+};
 
-impl FunctionFragmentBranchEvidence {
-    pub const fn as_conditional(&self) -> Option<&FunctionFragmentConditionalBranchEvidence> {
-        match self {
-            Self::Conditional(value) => Some(value),
-            Self::Jump(_) => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionFragmentJumpEvidence {
-    pub source_block: SelectedBlockId,
-    pub target_edge: EdgeId,
-    pub target_block: SelectedBlockId,
-    pub target_offset: u64,
-    pub byte_displacement: i64,
-    pub decoded_effects: MachineEncodedEffects,
-}
+/// The fragment retains the resolved branch evidence verbatim.
+pub type FunctionFragmentBranchEvidence = ResolvedBranchEvidence;
+pub type FunctionFragmentJumpEvidence = ResolvedJumpEvidence;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentControlProvenance {
@@ -69,12 +52,7 @@ pub enum FunctionFragmentControlProvenance {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentConditionalBranchPredicate {
-    NonZeroV1,
-    U64LessThanV1,
-    I64LessThanV1,
-}
+pub type FunctionFragmentConditionalBranchPredicate = ResolvedConditionalBranchPredicate;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentSuccessorProvenance {
@@ -86,17 +64,4 @@ pub struct FunctionFragmentSuccessorProvenance {
     pub fuel: Vec<FuelSettlement>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionFragmentConditionalBranchEvidence {
-    pub predicate: FunctionFragmentConditionalBranchPredicate,
-    pub source_block: SelectedBlockId,
-    pub when_taken_edge: EdgeId,
-    pub when_taken_block: SelectedBlockId,
-    pub when_taken_offset: u64,
-    pub when_fallthrough_edge: EdgeId,
-    pub when_fallthrough_block: SelectedBlockId,
-    pub when_fallthrough_offset: u64,
-    pub byte_displacement: i64,
-    pub decoded_register_reads: Vec<RegisterViewId>,
-    pub decoded_effects: MachineEncodedEffects,
-}
+pub type FunctionFragmentConditionalBranchEvidence = ResolvedConditionalBranchEvidence;

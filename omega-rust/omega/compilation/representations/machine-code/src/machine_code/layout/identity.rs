@@ -5,10 +5,7 @@ use target::NativeTarget;
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 
-use super::{
-    ResolvedConditionalBranchPredicate, ResolvedSelectedFunctionLayout,
-    SelectedFunctionLayoutPolicy,
-};
+use super::{ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy};
 use crate::{
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState,
@@ -87,11 +84,7 @@ pub fn resolved_machine_layout_identity(
                     None => hasher.update([0]),
                     Some(super::ResolvedBranchEvidence::Conditional(branch)) => {
                         hasher.update([1]);
-                        hasher.update([match branch.predicate {
-                            ResolvedConditionalBranchPredicate::NonZeroV1 => 0,
-                            ResolvedConditionalBranchPredicate::U64LessThanV1 => 1,
-                            ResolvedConditionalBranchPredicate::I64LessThanV1 => 2,
-                        }]);
+                        hasher.update([branch.predicate.rank()]);
                         hasher.update(branch.source_block.0.to_le_bytes());
                         hasher.update(branch.when_taken_edge.get().to_le_bytes());
                         hasher.update(branch.when_taken_block.0.to_le_bytes());

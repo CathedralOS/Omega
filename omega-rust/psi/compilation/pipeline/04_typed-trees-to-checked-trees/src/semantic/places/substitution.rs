@@ -3,11 +3,8 @@ use checked_trees::ContractCallFact;
 use facts::FactPlan;
 use language_core::is_self_receiver;
 
-#[derive(Debug, Clone)]
-pub(crate) struct ContractPlaceSubstitution {
-    pub(crate) root: facts::PlaceRoot,
-    pub(crate) segments: Vec<facts::PlaceSegment>,
-}
+/// The canonical fact place — retained verbatim.
+pub(crate) type ContractPlaceSubstitution = validation::CanonicalPlace;
 
 pub(crate) fn call_contract_place_substitution(
     program: &dyn ::validation::CheckingInput,

@@ -35,6 +35,16 @@ pub enum ResolvedConditionalBranchPredicate {
     I64LessThanV1,
 }
 
+impl ResolvedConditionalBranchPredicate {
+    pub const fn rank(self) -> u8 {
+        match self {
+            Self::NonZeroV1 => 0,
+            Self::U64LessThanV1 => 1,
+            Self::I64LessThanV1 => 2,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedConditionalBranchEvidence {
     pub predicate: ResolvedConditionalBranchPredicate,

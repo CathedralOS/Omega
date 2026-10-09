@@ -2,11 +2,10 @@
 
 use super::{ResolvedFragmentEmissionError, control, require};
 use machine_code::{
-    FunctionFragmentBranchEvidence, FunctionFragmentConditionalBranchPredicate,
-    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixupKind,
-    FunctionFragmentInternalMachineFixupState, ResolvedBranchEvidence,
-    ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow,
-    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
+    FunctionFragmentBranchEvidence, FunctionFragmentInstructionSpan,
+    FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
+    ResolvedBranchEvidence, ResolvedSelectedFormRow, SelectedFormInternalMachineFixupKind,
+    SelectedFormInternalMachineFixupState,
 };
 use selected_instructions::{SelectedBlock, SelectedInstruction, SelectedInstructionKind};
 
@@ -72,19 +71,8 @@ pub(super) fn check(
             Some(FunctionFragmentBranchEvidence::Conditional(actual)),
         ) => {
             require(
-                matches!(
-                    (source.predicate, actual.predicate),
-                    (
-                        ResolvedConditionalBranchPredicate::NonZeroV1,
-                        FunctionFragmentConditionalBranchPredicate::NonZeroV1
-                    ) | (
-                        ResolvedConditionalBranchPredicate::U64LessThanV1,
-                        FunctionFragmentConditionalBranchPredicate::U64LessThanV1
-                    ) | (
-                        ResolvedConditionalBranchPredicate::I64LessThanV1,
-                        FunctionFragmentConditionalBranchPredicate::I64LessThanV1
-                    )
-                ) && actual.source_block == source.source_block
+                source.predicate == actual.predicate
+                    && actual.source_block == source.source_block
                     && actual.when_taken_edge == source.when_taken_edge
                     && actual.when_taken_block == source.when_taken_block
                     && actual.when_taken_offset == source.when_taken_offset

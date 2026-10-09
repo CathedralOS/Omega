@@ -1,7 +1,6 @@
 use machine_code::{
-    FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
-    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
-    FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
+    FunctionFragmentConditionalBranchEvidence, FunctionFragmentInstructionSpan,
+    FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupState,
     FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
     FunctionFragmentNormalizedForeignCallFixupState,
 };
@@ -10,9 +9,8 @@ use selected_instructions::{
 };
 
 use machine_code::{
-    ResolvedSelectedFormRow, SelectedFormInternalMachineFixupKind,
-    SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixupKind,
-    SelectedFormNormalizedForeignCallFixupState,
+    ResolvedSelectedFormRow, SelectedFormInternalMachineFixupState,
+    SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
 
 use super::control;
@@ -47,30 +45,13 @@ pub(super) fn emit(
                 machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
                 machine_code::ResolvedBranchEvidence::Jump(jump) => {
                     return Box::new(machine_code::FunctionFragmentBranchEvidence::Jump(
-                        machine_code::FunctionFragmentJumpEvidence {
-                            source_block: jump.source_block,
-                            target_edge: jump.target_edge,
-                            target_block: jump.target_block,
-                            target_offset: jump.target_offset,
-                            byte_displacement: jump.byte_displacement,
-                            decoded_effects: jump.decoded_effects.clone(),
-                        },
+                        jump.clone(),
                     ));
                 }
             };
             Box::new(machine_code::FunctionFragmentBranchEvidence::Conditional(
                 FunctionFragmentConditionalBranchEvidence {
-                    predicate: match branch.predicate {
-                        machine_code::ResolvedConditionalBranchPredicate::NonZeroV1 => {
-                            FunctionFragmentConditionalBranchPredicate::NonZeroV1
-                        }
-                        machine_code::ResolvedConditionalBranchPredicate::U64LessThanV1 => {
-                            FunctionFragmentConditionalBranchPredicate::U64LessThanV1
-                        }
-                        machine_code::ResolvedConditionalBranchPredicate::I64LessThanV1 => {
-                            FunctionFragmentConditionalBranchPredicate::I64LessThanV1
-                        }
-                    },
+                    predicate: branch.predicate,
                     source_block: branch.source_block,
                     when_taken_edge: branch.when_taken_edge,
                     when_taken_block: branch.when_taken_block,
@@ -181,10 +162,7 @@ fn translate_fixup(
             .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)
     };
     Ok(Some(FunctionFragmentInternalMachineFixup {
-        kind: match fixup.kind {
-            SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => FunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
-            SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => FunctionFragmentInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
-        },
+        kind: fixup.kind,
         state: FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1,
         callee,
         opcode_function_offset: translate(fixup.opcode_row_offset)?,
@@ -292,9 +270,7 @@ fn selected<'a>(
     block
         .instructions
         .iter()
-        .chain(std::iter::once(terminator_instruction(
-            &block.terminator,
-        )))
+        .chain(std::iter::once(terminator_instruction(&block.terminator)))
         .find(|instruction| instruction.id == row.instruction)
         .ok_or(ResolvedFragmentEmissionError::MissingInstruction(
             row.instruction,

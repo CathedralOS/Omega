@@ -138,11 +138,8 @@ pub struct PlacedInstructionSpan {
     pub byte_count: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InternalMachineCallResolutionKind {
-    X86Relative32FromNextInstructionToInternalMachineV1,
-    Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
-}
+/// The resolution kind is the selected-form fixup kind verbatim.
+pub type InternalMachineCallResolutionKind = crate::SelectedFormInternalMachineFixupKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InternalMachineCallResolutionState {
@@ -176,11 +173,8 @@ pub struct PlacedInternalMachineCallResolution {
     pub displacement: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NormalizedForeignCallResolutionKind {
-    X86Relative32FromNextInstructionToNormalizedForeignImportV1,
-    Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
-}
+/// The resolution kind is the selected-form fixup kind verbatim.
+pub type NormalizedForeignCallResolutionKind = crate::SelectedFormNormalizedForeignCallFixupKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NormalizedForeignCallResolutionState {

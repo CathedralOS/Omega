@@ -38,34 +38,7 @@ pub enum ElfPlacedDynamicSectionKind {
 pub(crate) const fn public_section_kind(
     kind: ElfDynamicRosterSectionKind,
 ) -> ElfPlacedDynamicSectionKind {
-    match kind {
-        ElfDynamicRosterSectionKind::Null => ElfPlacedDynamicSectionKind::Null,
-        ElfDynamicRosterSectionKind::Interpreter => ElfPlacedDynamicSectionKind::Interpreter,
-        ElfDynamicRosterSectionKind::DynamicString => ElfPlacedDynamicSectionKind::DynamicString,
-        ElfDynamicRosterSectionKind::DynamicSymbol => ElfPlacedDynamicSectionKind::DynamicSymbol,
-        ElfDynamicRosterSectionKind::SystemVHash => ElfPlacedDynamicSectionKind::SystemVHash,
-        ElfDynamicRosterSectionKind::GnuSymbolVersion => {
-            ElfPlacedDynamicSectionKind::GnuSymbolVersion
-        }
-        ElfDynamicRosterSectionKind::GnuVersionRequirement => {
-            ElfPlacedDynamicSectionKind::GnuVersionRequirement
-        }
-        ElfDynamicRosterSectionKind::GnuHash => ElfPlacedDynamicSectionKind::GnuHash,
-        ElfDynamicRosterSectionKind::ProcedureLinkage => {
-            ElfPlacedDynamicSectionKind::ProcedureLinkage
-        }
-        ElfDynamicRosterSectionKind::ProcedureGot => ElfPlacedDynamicSectionKind::ProcedureGot,
-        ElfDynamicRosterSectionKind::ProcedureRelocation => {
-            ElfPlacedDynamicSectionKind::ProcedureRelocation
-        }
-        ElfDynamicRosterSectionKind::GeneralRelocation => {
-            ElfPlacedDynamicSectionKind::GeneralRelocation
-        }
-        ElfDynamicRosterSectionKind::DynamicTable => ElfPlacedDynamicSectionKind::DynamicTable,
-        ElfDynamicRosterSectionKind::SectionNameTable => {
-            ElfPlacedDynamicSectionKind::SectionNameTable
-        }
-    }
+    kind
 }
 
 /// Absolute geometry for one future `Elf64_Phdr`.

@@ -124,24 +124,8 @@ pub(crate) struct ElfDynamicSectionRosterContents {
     pub(crate) section_name_table_index: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub(crate) enum ElfDynamicRosterSectionKind {
-    Null = 0,
-    Interpreter = 1,
-    DynamicString = 2,
-    DynamicSymbol = 3,
-    SystemVHash = 4,
-    GnuSymbolVersion = 5,
-    GnuVersionRequirement = 6,
-    GnuHash = 7,
-    ProcedureLinkage = 8,
-    ProcedureGot = 9,
-    ProcedureRelocation = 10,
-    GeneralRelocation = 11,
-    DynamicTable = 12,
-    SectionNameTable = 13,
-}
+/// The roster retains the placed section kind verbatim.
+pub(crate) type ElfDynamicRosterSectionKind = crate::ElfPlacedDynamicSectionKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ElfNumericSectionDescriptor {

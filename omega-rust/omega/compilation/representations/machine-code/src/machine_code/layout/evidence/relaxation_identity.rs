@@ -2,10 +2,7 @@ use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use sha2::{Digest, Sha256};
 use target::NativeTarget;
 
-use crate::{
-    ResolvedConditionalBranchPredicate, ResolvedSelectedFormLayoutIdentity,
-    ResolvedSelectedFunctionLayout,
-};
+use crate::{ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout};
 
 use super::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
@@ -122,11 +119,7 @@ fn encode_functions(hasher: &mut Sha256, functions: &[ResolvedSelectedFunctionLa
                     None => hasher.update([0]),
                     Some(crate::ResolvedBranchEvidence::Conditional(branch)) => {
                         hasher.update([1]);
-                        hasher.update([match branch.predicate {
-                            ResolvedConditionalBranchPredicate::NonZeroV1 => 0,
-                            ResolvedConditionalBranchPredicate::U64LessThanV1 => 1,
-                            ResolvedConditionalBranchPredicate::I64LessThanV1 => 2,
-                        }]);
+                        hasher.update([branch.predicate.rank()]);
                         hasher.update(branch.source_block.0.to_le_bytes());
                         hasher.update(branch.when_taken_edge.get().to_le_bytes());
                         hasher.update(branch.when_taken_block.0.to_le_bytes());

@@ -139,17 +139,8 @@ pub(crate) enum ElfProcedureLinkageFixupStorage {
     RelaDyn = 5,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub(crate) enum ElfProcedureLinkageFixupKind {
-    X86PcRelative32 = 1,
-    Aarch64Page21 = 2,
-    Aarch64Load64Low12 = 3,
-    Aarch64AddLow12 = 4,
-    Aarch64Branch26 = 5,
-    Absolute64 = 6,
-    Elf64RelaOffset = 7,
-}
+/// The template retains the applied linkage kind verbatim.
+pub(crate) type ElfProcedureLinkageFixupKind = crate::ElfAppliedProcedureLinkageKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ElfProcedureLinkageSemanticTarget {

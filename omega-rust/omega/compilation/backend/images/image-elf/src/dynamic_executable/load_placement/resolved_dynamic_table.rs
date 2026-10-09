@@ -549,25 +549,7 @@ fn semantic_plan(placed: &ValidatedElfPlacedSectionHeaderTable) -> &ValidatedElf
 }
 
 const fn public_target(target: ElfDynamicAddressTarget) -> ElfDynamicAddressApplicationTarget {
-    match target {
-        ElfDynamicAddressTarget::ProcedureGot => ElfDynamicAddressApplicationTarget::ProcedureGot,
-        ElfDynamicAddressTarget::SystemVHash => ElfDynamicAddressApplicationTarget::SystemVHash,
-        ElfDynamicAddressTarget::GnuHash => ElfDynamicAddressApplicationTarget::GnuHash,
-        ElfDynamicAddressTarget::DynamicString => ElfDynamicAddressApplicationTarget::DynamicString,
-        ElfDynamicAddressTarget::DynamicSymbol => ElfDynamicAddressApplicationTarget::DynamicSymbol,
-        ElfDynamicAddressTarget::ProcedureRelocation => {
-            ElfDynamicAddressApplicationTarget::ProcedureRelocation
-        }
-        ElfDynamicAddressTarget::GnuSymbolVersion => {
-            ElfDynamicAddressApplicationTarget::GnuSymbolVersion
-        }
-        ElfDynamicAddressTarget::GnuVersionRequirement => {
-            ElfDynamicAddressApplicationTarget::GnuVersionRequirement
-        }
-        ElfDynamicAddressTarget::GeneralRelocation => {
-            ElfDynamicAddressApplicationTarget::GeneralRelocation
-        }
-    }
+    target
 }
 
 const fn target_section_index(target: ElfDynamicAddressApplicationTarget) -> u32 {

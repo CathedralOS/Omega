@@ -34,11 +34,8 @@ pub(crate) enum RecheckedSemanticFactPlace {
     TypeReference(typed_trees::types::TypeReferenceHandle),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RecheckedFactPlace {
-    pub(crate) root: facts::PlaceRoot,
-    pub(crate) segments: Vec<facts::PlaceSegment>,
-}
+/// The canonical fact place — retained verbatim.
+pub(crate) type RecheckedFactPlace = validation::CanonicalPlace;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RecheckedDataDefinitionEvidence {

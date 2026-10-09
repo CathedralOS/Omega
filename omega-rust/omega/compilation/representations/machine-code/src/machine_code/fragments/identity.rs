@@ -353,9 +353,5 @@ fn encode_branch_predicate(
     hasher: &mut Sha256,
     predicate: FunctionFragmentConditionalBranchPredicate,
 ) {
-    hasher.update([match predicate {
-        FunctionFragmentConditionalBranchPredicate::NonZeroV1 => 0,
-        FunctionFragmentConditionalBranchPredicate::U64LessThanV1 => 1,
-        FunctionFragmentConditionalBranchPredicate::I64LessThanV1 => 2,
-    }]);
+    hasher.update([predicate.rank()]);
 }
