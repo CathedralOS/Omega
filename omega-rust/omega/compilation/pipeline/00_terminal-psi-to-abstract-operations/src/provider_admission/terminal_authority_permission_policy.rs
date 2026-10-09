@@ -2,7 +2,9 @@
 
 pub use effects::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
 use effects::{
-    TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
+    provider_plan::ServiceSchemaDigest, TerminalAuthorityDisposition,
+    TerminalAuthorityPermissionPolicyIdentity,
+};
 
 pub(crate) const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
 
