@@ -637,7 +637,8 @@ pub enum LegalizedScalarInstructionKind {
     },
     ByteSequenceSubslice {
         result: terminal_psi::StructuralOperationResult,
-        source: semantic_vocabulary::PlaceId,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         start: ValueId,
         end: ValueId,
         length: ValueId,
@@ -661,7 +662,8 @@ pub enum LegalizedScalarInstructionKind {
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     ByteSequenceLength {
-        source: semantic_vocabulary::PlaceId,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         length_byte_offset: u32,
     },
     /// One verifier-admitted byte-sequence predicate evaluation. The operand
@@ -704,7 +706,8 @@ pub enum LegalizedScalarInstructionKind {
     },
     ElementViewSubslice {
         result: terminal_psi::StructuralOperationResult,
-        source: semantic_vocabulary::PlaceId,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         start: ValueId,
         end: ValueId,
         length: ValueId,
