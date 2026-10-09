@@ -463,15 +463,15 @@ pub(super) fn encode_float_comparison(bytes: &mut CanonicalBytes, value: IeeeFlo
         IeeeFloatComparisonKind::NotLessOrEqual => 6,
     });
 }
-pub(super) fn encode_float_field(bytes: &mut CanonicalBytes, value: &IeeeFloatStructuralField) {
-    bytes.id(value.root());
-    encode_canonical_path(bytes, value.path());
+macro_rules! encode_rooted_field {
+    ($name:ident, $t:ty) => {
+        pub(super) fn $name(bytes: &mut CanonicalBytes, value: &$t) {
+            bytes.id(value.root());
+            encode_canonical_path(bytes, value.path());
+        }
+    };
 }
-pub(super) fn encode_byte_field(bytes: &mut CanonicalBytes, value: &ByteSequenceStructuralField) {
-    bytes.id(value.root());
-    encode_canonical_path(bytes, value.path());
-}
-pub(super) fn encode_case_subject(bytes: &mut CanonicalBytes, value: &StructuralCaseSubject) {
-    bytes.id(value.root());
-    encode_canonical_path(bytes, value.path());
-}
+
+encode_rooted_field!(encode_float_field, IeeeFloatStructuralField);
+encode_rooted_field!(encode_byte_field, ByteSequenceStructuralField);
+encode_rooted_field!(encode_case_subject, StructuralCaseSubject);

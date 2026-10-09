@@ -9,7 +9,7 @@
 //! admission between stages.
 
 use crate::provider_admission::{
-    AdmittedNativeProviders, ProviderAdmissionRequest, admit_native_providers,
+    AdmittedNativeProviders, ProviderAdmissionRequest, admit_native_providers, realization_error,
 };
 use crate::{ArtifactLoweringError, VerifiedNativeArtifactInput};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
@@ -174,10 +174,4 @@ pub fn artifact_lowering_error(error: ArtifactLoweringError) -> Vec<Diagnostic> 
         }
         error => realization_error("native artifact lowering", error),
     }
-}
-
-fn realization_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "native artifact {context} failed: {error}"
-    ))]
 }
