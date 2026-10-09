@@ -622,13 +622,12 @@ pub(crate) fn lower_scalar_expression(
                     ArithmeticDomain::Exact,
                 ));
             }
-            if matches!(target_type, PrimitiveType::F32 | PrimitiveType::F64)
-                && cast.domain == ArithmeticDomain::Exact
-            {
-                // Arithmetic policy changes later operations, not stored bits.
-                // Explicit same-format erasure therefore retains the ordinary
-                // operand read. Format conversions still need their selected
-                // boundary operation; never reinterpret a different carrier.
+            if matches!(target_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                // Every numeric qualification cast preserves stored denotation.
+                // Retain the same-format payload with its authored policy so
+                // pure argument custody and future selected operations share
+                // the ordinary scalar route. Format conversion still needs
+                // its selected boundary operation.
                 let (operand, _) = lower_scalar_expression(
                     program,
                     operators,
@@ -640,7 +639,7 @@ pub(crate) fn lower_scalar_expression(
                     exact_integer_casts,
                 )?;
                 return (scalar_expression_type(&operand) == Some(target_type))
-                    .then_some((operand, ArithmeticDomain::Exact));
+                    .then_some((operand, cast.domain));
             }
             if !is_integer(target_type) {
                 return None;

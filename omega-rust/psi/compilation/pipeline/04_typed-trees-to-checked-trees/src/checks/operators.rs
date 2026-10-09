@@ -4,6 +4,11 @@ use diagnostics::Diagnostic;
 use crate::labels::symbol_name;
 
 mod destinations;
+mod float_semantic;
+pub(crate) use float_semantic::{
+    context_proves_float_semantic_term, finite_float_semantic_term,
+    instantiated_float_semantic_term,
+};
 mod requires;
 
 pub(crate) use requires::{

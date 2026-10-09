@@ -7,8 +7,6 @@
 //!
 //! - `boolean_facts` matches a retained true fact or domain clause to an
 //!   exact leaf label within one caller-selected context;
-//! - `float_semantic` transports observed public Boolean predicates through
-//!   their selected sealed semantic equations over exact quiet expressions;
 //! - `names` names a machine, a call target (a free machine's implicit
 //!   `entry` state takes the machine's name) and any symbol;
 //! - `places` labels a borrow access, a place with extra segments, and the
@@ -25,16 +23,12 @@
 //! facts, and `semantic::places` matches parameters by `symbol_name`.
 
 mod boolean_facts;
-mod float_semantic;
 mod kinds;
 mod names;
 mod operators;
 mod places;
 
 pub(crate) use boolean_facts::context_proves_boolean_label;
-pub(crate) use float_semantic::{
-    context_proves_float_semantic_predicate, instantiated_float_semantic_label,
-};
 pub(crate) use kinds::{semantic_contract_fact_kind, semantic_proof_obligation_kind};
 pub(crate) use names::{call_target_label, machine_name, symbol_name};
 pub(crate) use operators::{

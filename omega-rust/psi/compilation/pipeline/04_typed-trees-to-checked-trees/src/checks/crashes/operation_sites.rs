@@ -98,37 +98,20 @@ pub(super) fn raw_result_is_finite(
         operation.selected,
         &operands,
     );
-    let Some(raw_label) = crate::labels::instantiated_float_semantic_label(
+    let Some(raw_term) = super::super::operators::instantiated_float_semantic_term(
         program, facts, raw_result, parameters, &operands,
     ) else {
         return false;
     };
-    // The Boolean query uses the existing exact fact-label vocabulary; the
-    // predicate's identity comes from the closed sealed semantic catalog.
-    let finite = program.operators().iter().find(|candidate| {
-        validation::exact_toolchain_float_semantic_contract(program, candidate)
-            .is_some_and(|(row, _)| row.name == "is_finite")
-    });
-    let Some(finite) = finite else {
+    let Some(required) = super::super::operators::finite_float_semantic_term(program, raw_term)
+    else {
         return false;
     };
-    let finite_name = program
-        .operator_path_members(finite.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
-    let required = format!("{finite_name}({raw_label})");
     contexts
         .for_expressions(program, parameters, [raw_result])
         .iter()
         .any(|context| {
-            crate::labels::context_proves_boolean_label(
-                program,
-                &facts.semantic,
-                *context,
-                &required,
-            ) || crate::labels::context_proves_float_semantic_predicate(
+            super::super::operators::context_proves_float_semantic_term(
                 program, facts, *context, &required,
             )
         })
