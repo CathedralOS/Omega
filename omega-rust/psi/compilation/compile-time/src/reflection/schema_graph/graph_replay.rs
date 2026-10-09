@@ -513,7 +513,7 @@ fn resolve_requester(
 /// diagnostic coordinate, never identity (matching the repository's
 /// fingerprint rule).
 pub(crate) fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNode]) -> u64 {
-    use crate::reflection::fnv::{byte, bytes, optional_text, text, uint};
+    use crate::reflection::fnv::{byte, bytes, optional_text, query_authority, text, uint};
     fn handle(hash: &mut u64, value: SchemaNodeHandle) {
         uint(hash, value.0 as u64);
     }
@@ -532,16 +532,7 @@ pub(crate) fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNo
 
     let mut hash = 0xcbf29ce484222325u64;
     bytes(&mut hash, b"omega.reflect.schema.v1");
-    match authority {
-        SchemaQueryAuthority::OwningScope { requester_identity } => {
-            byte(&mut hash, 0);
-            text(&mut hash, requester_identity);
-        }
-        SchemaQueryAuthority::ForeignScope { requester_identity } => {
-            byte(&mut hash, 1);
-            text(&mut hash, requester_identity);
-        }
-    }
+    query_authority(&mut hash, authority);
     uint(&mut hash, nodes.len() as u64);
     for node in nodes {
         match node {

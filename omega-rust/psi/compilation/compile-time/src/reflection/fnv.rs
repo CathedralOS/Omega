@@ -27,3 +27,18 @@ pub(super) fn optional_text(hash: &mut u64, value: &Option<String>) {
         None => byte(hash, 0),
     }
 }
+
+
+/// One query authority: its scope tag then the requester's identity.
+pub(super) fn query_authority(hash: &mut u64, authority: &super::SchemaQueryAuthority) {
+    match authority {
+        super::SchemaQueryAuthority::OwningScope { requester_identity } => {
+            byte(hash, 0);
+            text(hash, requester_identity);
+        }
+        super::SchemaQueryAuthority::ForeignScope { requester_identity } => {
+            byte(hash, 1);
+            text(hash, requester_identity);
+        }
+    }
+}

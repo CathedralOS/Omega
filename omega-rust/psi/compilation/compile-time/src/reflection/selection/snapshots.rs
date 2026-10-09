@@ -167,22 +167,13 @@ pub fn replay_selection_snapshot(
 /// and diagnostic coordinate, never identity (the repository's
 /// report-only-fingerprint rule, matching `schema_graph`).
 pub(crate) fn snapshot_revision(snapshot: &SelectionSnapshot) -> u64 {
-    use crate::reflection::fnv::{byte, bytes, optional_text, text, uint};
+    use crate::reflection::fnv::{byte, bytes, optional_text, query_authority, text, uint};
 
     let mut hash = 0xcbf29ce484222325u64;
     bytes(&mut hash, b"omega.reflect.selection.v1");
     text(&mut hash, &snapshot.subject_owner_identity);
     optional_text(&mut hash, &snapshot.subject_application_identity);
-    match &snapshot.authority {
-        SchemaQueryAuthority::OwningScope { requester_identity } => {
-            byte(&mut hash, 0);
-            text(&mut hash, requester_identity);
-        }
-        SchemaQueryAuthority::ForeignScope { requester_identity } => {
-            byte(&mut hash, 1);
-            text(&mut hash, requester_identity);
-        }
-    }
+    query_authority(&mut hash, &snapshot.authority);
     match &snapshot.projection {
         SelectionProjection::DeclaredMembers => byte(&mut hash, 0),
         SelectionProjection::RuntimeMembers => byte(&mut hash, 1),
