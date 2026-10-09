@@ -183,6 +183,15 @@ impl RegisterOperandAccess {
     const fn writes(self) -> bool {
         matches!(self, Self::Def | Self::UseDef)
     }
+
+    /// The canonical wire tag codecs write for this access kind.
+    pub const fn access_tag(self) -> u8 {
+        match self {
+            Self::Use => 0,
+            Self::Def => 1,
+            Self::UseDef => 2,
+        }
+    }
 }
 
 /// Allocation constraints for one explicit instruction operand.
