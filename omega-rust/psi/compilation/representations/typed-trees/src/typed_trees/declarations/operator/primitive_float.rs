@@ -25,13 +25,7 @@ const fn operation_spelling(
         BinaryOperator::Subtract => OperatorSpelling::Subtract,
         BinaryOperator::Multiply => OperatorSpelling::Multiply,
         BinaryOperator::Divide => OperatorSpelling::Divide,
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return None,
+        _ => return super::spellings::comparison_operator_spelling(operation),
     })
 }
 

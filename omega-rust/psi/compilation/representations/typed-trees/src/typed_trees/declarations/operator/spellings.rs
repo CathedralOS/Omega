@@ -91,13 +91,7 @@ pub fn binary_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpel
         BinaryOperator::Multiply => OperatorSpelling::Multiply,
         BinaryOperator::Divide => OperatorSpelling::Divide,
         BinaryOperator::Modulo => OperatorSpelling::Modulo,
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return None,
+        _ => return comparison_operator_spelling(operator),
     })
 }
 
@@ -116,7 +110,7 @@ pub fn arithmetic_operator_spelling(operator: BinaryOperator) -> Option<Operator
 
 /// The authored [`OperatorSpelling`] of a comparison operator — the equality
 /// and ordering tests. Every other operator maps to `None`.
-pub fn comparison_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
+pub const fn comparison_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
     Some(match operator {
         BinaryOperator::Equal => OperatorSpelling::Equal,
         BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
