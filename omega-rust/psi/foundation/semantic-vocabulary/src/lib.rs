@@ -43,13 +43,13 @@ pub use authored_storage::{
 };
 pub use bounded_integer_type::BoundedIntegerType;
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
-pub use fnv1a::Fnv1a;
 pub use content::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
     ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-    content_conservation_report_fingerprint,
+    content_conservation_report_fingerprint, encode_fingerprint_string,
 };
+pub use fnv1a::Fnv1a;
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryInvocationSite, BoundaryMachineId,
     BoundaryRequirementKind, ClaimId, ContentDomainId, ContractId, CycleComponentId,

@@ -202,7 +202,10 @@ fn encode_fingerprint_term(
         } => {
             output.push(1);
             output.extend_from_slice(&u32::try_from(projection.domain.get()).ok()?.to_le_bytes());
-            crate::codec_bytes::push_encoded(output, projection.projection_report_fingerprint.to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                output,
+                projection.projection_report_fingerprint.to_le_bytes(),
+            );
             output.push(match subject.version {
                 ContentPlaceVersion::Entry => 1,
                 ContentPlaceVersion::Current => 2,
@@ -258,7 +261,8 @@ fn encode_fingerprint_term(
     Some(())
 }
 
-fn encode_fingerprint_string(value: &str, output: &mut Vec<u8>) {
+/// Length-prefixed string fragment shared by fingerprint encoders.
+pub fn encode_fingerprint_string(value: &str, output: &mut Vec<u8>) {
     crate::codec_bytes::push_encoded(output, (value.len() as u64).to_le_bytes());
     output.extend_from_slice(value.as_bytes());
 }
