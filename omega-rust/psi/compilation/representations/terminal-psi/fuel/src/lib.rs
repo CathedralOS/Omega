@@ -63,8 +63,7 @@ impl TerminalFuelSchedule {
             | OperationKind::Call { .. }
             | OperationKind::CallUnit { .. }
             | OperationKind::CallStructuralScalar { .. }
-            | OperationKind::CallStructural { .. }
-            | OperationKind::CallStructuralWithScalarArguments { .. }
+            | terminal_psi::call_structural_pair_pattern!(..)
             | OperationKind::SelectImplementation { .. }
             | OperationKind::CallDynamic { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }

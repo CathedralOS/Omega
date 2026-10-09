@@ -1356,3 +1356,11 @@ macro_rules! structural_leaf_copy_pair_pattern {
             | $crate::OperationKind::StructuralCaseLeafCopy { .. }
     };
 }
+
+#[macro_export]
+macro_rules! call_structural_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::OperationKind::CallStructural { $($fields)* }
+            | $crate::OperationKind::CallStructuralWithScalarArguments { $($fields)* }
+    };
+}

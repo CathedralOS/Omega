@@ -192,22 +192,11 @@ pub(super) fn validate_call_structural(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let (OperationKind::CallStructural {
-        callee,
+    let (terminal_psi::call_structural_pair_pattern!(callee,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
-        crash_continuations,
-        ..
-    }
-    | OperationKind::CallStructuralWithScalarArguments {
-        callee,
-        structural_arguments,
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-        ..
-    }) = &operation.kind
+        crash_continuations, ..)) = &operation.kind
     else {
         unreachable!("dispatched validate_call_structural")
     };

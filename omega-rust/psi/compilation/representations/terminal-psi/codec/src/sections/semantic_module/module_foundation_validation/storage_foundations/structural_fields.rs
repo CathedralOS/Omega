@@ -501,8 +501,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                     | OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
                     | OperationKind::EstablishStructuralLocal { .. }
-                    | OperationKind::CallStructural { .. }
-                    | OperationKind::CallStructuralWithScalarArguments { .. }
+                    | terminal_psi::call_structural_pair_pattern!(..)
                     // A boundary call's result is the same class of readable
                     // observation source: the call's declared result custody
                     // is the local's own, as it is for an in-module call.

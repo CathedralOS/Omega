@@ -453,8 +453,7 @@ pub(super) fn lower(
         ),
         OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
-        | OperationKind::CallStructural { .. }
-        | OperationKind::CallStructuralWithScalarArguments { .. }
+        | terminal_psi::call_structural_pair_pattern!(..)
         | OperationKind::BoundaryCall { .. }
         | OperationKind::Call { .. } => calls::lower(operation, machine),
         OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {

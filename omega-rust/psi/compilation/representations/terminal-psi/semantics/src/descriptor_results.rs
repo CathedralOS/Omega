@@ -219,8 +219,7 @@ pub fn call_origins_in(
 ) -> Option<Vec<DescriptorCallOrigin>> {
     if !matches!(
         operation.kind,
-        OperationKind::CallStructural { .. }
-            | OperationKind::CallStructuralWithScalarArguments { .. }
+        terminal_psi::call_structural_pair_pattern!(..)
     ) {
         return None;
     }

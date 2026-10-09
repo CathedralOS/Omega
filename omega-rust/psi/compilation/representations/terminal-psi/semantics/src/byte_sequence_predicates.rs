@@ -179,8 +179,7 @@ fn authenticated_call_result<'machine>(
 ) -> Option<&'machine terminal_psi::StructuralOperationResult> {
     let (operation, structural_type) = operation_producer(machine, source)?;
     let callee = match operation.kind {
-        OperationKind::CallStructural { callee, .. }
-        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
+        terminal_psi::call_structural_pair_pattern!(callee, ..) => callee,
         _ => return None,
     };
     let result = operation.result.structural()?;
@@ -275,8 +274,7 @@ fn byte_result_predicates(
     let (operation, structural_type) = operation_producer(machine, source)?;
     let result = if matches!(
         operation.kind,
-        OperationKind::CallStructural { .. }
-            | OperationKind::CallStructuralWithScalarArguments { .. }
+        terminal_psi::call_structural_pair_pattern!(..)
     ) {
         authenticated_call_result(module, machine, source)?
     } else {

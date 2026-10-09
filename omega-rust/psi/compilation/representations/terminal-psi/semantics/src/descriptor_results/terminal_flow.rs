@@ -378,16 +378,8 @@ pub(super) fn adapt(
                     structural_arguments,
                     ..
                 }
-                | OperationKind::CallStructural {
-                    callee,
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::CallStructuralWithScalarArguments {
-                    callee,
-                    structural_arguments,
-                    ..
-                } => {
+                | terminal_psi::call_structural_pair_pattern!(callee,
+                    structural_arguments, ..) => {
                     let mut matching = module
                         .machines
                         .iter()

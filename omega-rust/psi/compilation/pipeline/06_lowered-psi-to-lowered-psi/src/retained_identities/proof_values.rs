@@ -76,14 +76,7 @@ pub(crate) fn crash_continuations(kind: &O) -> &[CrashRouteBucket] {
             crash_continuations,
             ..
         }
-        | O::CallStructural {
-            crash_continuations,
-            ..
-        }
-        | O::CallStructuralWithScalarArguments {
-            crash_continuations,
-            ..
-        } => crash_continuations,
+        | terminal_psi::call_structural_pair_pattern!(crash_continuations, ..) => crash_continuations,
         _ => &[],
     }
 }

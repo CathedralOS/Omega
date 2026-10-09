@@ -646,8 +646,7 @@ fn validate_operation_foundation(
                 StructuralArgumentPresentation::Ordinary,
             )?;
         }
-        OperationKind::CallStructural { .. }
-        | OperationKind::CallStructuralWithScalarArguments { .. } => {
+        terminal_psi::call_structural_pair_pattern!(..) => {
             call_foundations::validate_call_structural(module, machine, operation)?
         }
         OperationKind::BoundaryCall { .. } => {
