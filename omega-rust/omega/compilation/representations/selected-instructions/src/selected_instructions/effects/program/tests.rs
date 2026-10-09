@@ -128,7 +128,7 @@ fn float_result_policy_effect_envelope_round_trips_and_rejects_stale_vocabulary(
         assert_eq!(PreAllocationMachineEffectPlan::decode(&encoded), Ok(source));
         for version in [30_u32, 31_u32, 33_u32] {
             let mut wrong_version = encoded.clone();
-            wrong_version[8..12].copy_from_slice(&version.to_le_bytes());
+            crate::codec_bytes::patch_encoded(&mut wrong_version, 8, version.to_le_bytes());
             assert_eq!(
                 PreAllocationMachineEffectPlan::decode(&wrong_version),
                 Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
@@ -143,7 +143,7 @@ fn float_result_policy_effect_envelope_round_trips_and_rejects_stale_vocabulary(
 fn float_result_policy_envelope_revision_rejects_old_kind_rows_before_payload_decode() {
     let source = plan();
     let mut stale = source.encode();
-    stale[8..12].copy_from_slice(&28_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut stale, 8, 28_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&stale),
         Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
@@ -1105,7 +1105,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
     );
-    bytes[8..12].copy_from_slice(&9_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut bytes, 8, 9_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes),
         Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(9))
@@ -1140,7 +1140,7 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
     );
     for version in 0_u32..29 {
         let mut stale = encoded.clone();
-        stale[8..12].copy_from_slice(&version.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut stale, 8, version.to_le_bytes());
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&stale),
             Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
@@ -1266,7 +1266,7 @@ fn codec_u32_zero_extension_round_trips_and_rejects_all_prior_versions() {
     );
     for version in 0_u32..20 {
         let mut stale = encoded.clone();
-        stale[8..12].copy_from_slice(&version.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut stale, 8, version.to_le_bytes());
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&stale),
             Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
@@ -1289,7 +1289,7 @@ fn codec_rejects_framing_corruption_and_stale_identity() {
     );
 
     let mut unsupported_version = encoded.clone();
-    unsupported_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut unsupported_version, 8, 2_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&unsupported_version),
         Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(2))

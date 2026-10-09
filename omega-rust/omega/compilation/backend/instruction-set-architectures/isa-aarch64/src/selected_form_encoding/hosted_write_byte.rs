@@ -488,7 +488,7 @@ mod tests {
             (8, 0x5400_004c),     // B.GT instead of exact equality.
         ] {
             let mut changed = bytes.clone();
-            changed[word * 4..word * 4 + 4].copy_from_slice(&replacement.to_le_bytes());
+            crate::codec_bytes::patch_encoded(changed, word * 4, replacement.to_le_bytes());
             assert!(decode(NativeTarget::macos_arm64(), &changed).is_none());
         }
     }

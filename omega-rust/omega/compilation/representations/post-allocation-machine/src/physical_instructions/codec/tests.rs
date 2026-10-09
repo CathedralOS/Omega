@@ -239,7 +239,7 @@ fn physical_current_format_rejects_all_retired_versions() {
     let encoded = plan().encode();
     for version in 0..18_u32 {
         let mut stale = encoded.clone();
-        stale[8..12].copy_from_slice(&version.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut stale, 8, version.to_le_bytes());
         assert_eq!(
             PostAllocationMachinePlan::decode(&stale),
             Err(PostAllocationMachineDecodeError::UnsupportedVersion(
@@ -296,7 +296,7 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
                 Ok(source.clone())
             );
             let mut stale = encoded.clone();
-            stale[8..12].copy_from_slice(&17_u32.to_le_bytes());
+            crate::codec_bytes::patch_encoded(&mut stale, 8, 17_u32.to_le_bytes());
             assert_eq!(
                 PostAllocationMachinePlan::decode(&stale),
                 Err(PostAllocationMachineDecodeError::UnsupportedVersion(17))
@@ -390,7 +390,7 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
         );
 
         let mut stale = encoded.clone();
-        stale[8..12].copy_from_slice(&16_u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut stale, 8, 16_u32.to_le_bytes());
         assert_eq!(
             PostAllocationMachinePlan::decode(&stale),
             Err(PostAllocationMachineDecodeError::UnsupportedVersion(16))
@@ -438,7 +438,7 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
     let current_version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
     for version in [current_version - 1, current_version.checked_add(1).unwrap()] {
         let mut unsupported_version = encoded.clone();
-        unsupported_version[8..12].copy_from_slice(&version.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut unsupported_version, 8, version.to_le_bytes());
         assert_eq!(
             PostAllocationMachinePlan::decode(&unsupported_version),
             Err(PostAllocationMachineDecodeError::UnsupportedVersion(

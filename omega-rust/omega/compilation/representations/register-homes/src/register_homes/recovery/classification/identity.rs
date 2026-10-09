@@ -447,7 +447,7 @@ mod tests {
         );
 
         let mut wrong_version = encoded;
-        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 3_u32.to_le_bytes());
         assert_eq!(
             RecoveryClassificationPlan::decode(&wrong_version),
             Err(RecoveryClassificationDecodeError::UnsupportedVersion(3))

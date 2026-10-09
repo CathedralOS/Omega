@@ -791,7 +791,7 @@ mod evaluation_usage_controls {
     fn unsupported_storage_and_fuel_schedules_are_rejected() {
         for (offset, value) in [(5, 0_u32), (5, 2), (9, 0), (9, 2)] {
             let mut bytes = encoded(&measured(terminal()));
-            bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::patch_encoded(bytes, offset, value.to_le_bytes());
             assert!(recover_build_evaluation_usage(&mut Cursor::new(&bytes)).is_none());
         }
     }
@@ -800,16 +800,16 @@ mod evaluation_usage_controls {
     fn schema_schedule_and_sponsor_flags_cannot_default() {
         let base = encoded(&measured(EvaluationMeasurementIdentity::CheckedTree));
         let mut wrong_schema = base.clone();
-        wrong_schema[5..9].copy_from_slice(&8_u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(wrong_schema, 5, 8_u32.to_le_bytes());
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&wrong_schema)).is_none());
         let mut wrong_schedule = base.clone();
-        wrong_schedule[9..13].copy_from_slice(&2_u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(wrong_schedule, 9, 2_u32.to_le_bytes());
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&wrong_schedule)).is_none());
         let mut invalid_flag = base.clone();
         invalid_flag[21] = 2;
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&invalid_flag)).is_none());
         let mut wrong_sponsor_schema = base;
-        wrong_sponsor_schema[22..26].copy_from_slice(&0_u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(wrong_sponsor_schema, 22, 0_u32.to_le_bytes());
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&wrong_sponsor_schema)).is_none());
     }
 

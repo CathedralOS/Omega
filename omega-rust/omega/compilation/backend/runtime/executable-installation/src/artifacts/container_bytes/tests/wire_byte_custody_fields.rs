@@ -110,15 +110,15 @@ fn section_offset(bytes: &[u8], index: usize) -> usize {
 }
 
 fn write_u16(bytes: &mut [u8], offset: usize, value: u16) {
-    bytes[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
+    crate::codec_bytes::patch_encoded(bytes, offset, value.to_le_bytes());
 }
 
 fn write_u32(bytes: &mut [u8], offset: usize, value: u32) {
-    bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+    crate::codec_bytes::patch_encoded(bytes, offset, value.to_le_bytes());
 }
 
 fn write_u64(bytes: &mut [u8], offset: usize, value: u64) {
-    bytes[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+    crate::codec_bytes::patch_encoded(bytes, offset, value.to_le_bytes());
 }
 
 /// The fixture's canonical directory order.

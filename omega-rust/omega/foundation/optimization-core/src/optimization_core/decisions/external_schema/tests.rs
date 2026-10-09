@@ -205,14 +205,14 @@ fn strict_v2_round_trip_binds_context_point_order_and_authoritative_features() {
 fn v1_wire_versions_are_rejected_before_payload_admission() {
     let log = ExternalDecisionLog::new(context(), [point()]).unwrap();
     let mut v1_log = log.encode();
-    v1_log[8..12].copy_from_slice(&1_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut v1_log, 8, 1_u32.to_le_bytes());
     assert_eq!(
         ExternalDecisionLog::decode(&v1_log),
         Err(ExternalDecisionSchemaError::UnsupportedLogVersion(1))
     );
 
     let mut v1_point = point().encode();
-    v1_point[8..12].copy_from_slice(&1_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut v1_point, 8, 1_u32.to_le_bytes());
     assert_eq!(
         ExternalDecisionPoint::decode(&v1_point),
         Err(ExternalDecisionSchemaError::UnsupportedPointVersion(1))

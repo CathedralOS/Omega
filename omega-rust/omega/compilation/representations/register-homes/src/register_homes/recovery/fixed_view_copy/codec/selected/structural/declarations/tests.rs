@@ -172,7 +172,7 @@ fn block_parameter_place_rejects_zero_block_and_truncated_coordinates() {
             Err(FixedViewCopyDecodeError::Truncated)
         ));
     }
-    encoded[9..17].copy_from_slice(&0_u64.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut encoded, 9, 0_u64.to_le_bytes());
     assert!(matches!(
         decode_place(&mut Cursor::new(&encoded)),
         Err(FixedViewCopyDecodeError::InvalidSemanticId(0))

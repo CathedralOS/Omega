@@ -125,14 +125,14 @@ fn canonical_home_codec_rejects_framing_and_identity_corruption() {
         Err(RegisterHomeDecodeError::WrongMagic)
     );
     let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 4_u32.to_le_bytes());
     assert_eq!(
         RegisterHomePlan::decode(&wrong_version),
         Err(RegisterHomeDecodeError::UnsupportedVersion(4))
     );
     let mut invalid_machine = encoded;
     let machine_offset = 8 + 4 + 32 + (4 * 32) + 8;
-    invalid_machine[machine_offset..machine_offset + 8].copy_from_slice(&0_u64.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut invalid_machine, machine_offset, 0_u64.to_le_bytes());
     assert_eq!(
         RegisterHomePlan::decode(&invalid_machine),
         Err(RegisterHomeDecodeError::InvalidMachineId(0))

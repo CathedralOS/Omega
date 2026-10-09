@@ -337,7 +337,7 @@ fn movn_validation_rejects_opcode_destination_value_recipe_and_order_corruption(
     };
 
     let mut wrong_opcode = encoded.bytes().to_vec();
-    wrong_opcode[..4].copy_from_slice(&0xd280_0009_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(wrong_opcode, , 0xd280_0009_u32.to_le_bytes());
     rejects(&wrong_opcode);
 
     let mut wrong_destination = encoded.bytes().to_vec();

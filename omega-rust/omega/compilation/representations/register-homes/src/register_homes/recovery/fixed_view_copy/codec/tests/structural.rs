@@ -447,7 +447,7 @@ fn owned_entry_slot_round_trip_binds_parameter_place_and_origin() {
     let encoded = source.encode().unwrap();
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), source);
     let mut stale = encoded.clone();
-    stale[8..12].copy_from_slice(&32_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut stale, 8, 32_u32.to_le_bytes());
     assert_eq!(
         FixedViewCopyPlan::decode(&stale),
         Err(FixedViewCopyDecodeError::UnsupportedVersion(32))

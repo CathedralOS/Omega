@@ -11,6 +11,8 @@
 //! finished products and publication belong to the independent
 //! `compilation_products` owner; this crate only sequences their production.
 
+mod codec_bytes;
+
 mod compiler;
 mod identity;
 pub mod inspection;

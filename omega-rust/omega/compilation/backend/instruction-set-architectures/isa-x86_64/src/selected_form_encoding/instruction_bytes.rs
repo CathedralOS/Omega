@@ -60,7 +60,7 @@ pub(crate) fn assemble_labeled_stream<L: Copy + Eq, I: Copy>(
         let relative = *position as i64 - (*offset as i64 + 4);
         let relative = i32::try_from(relative)
             .map_err(|_| X86_64SelectedFormEncodingError::MalformedEncoding)?;
-        bytes[*offset..*offset + 4].copy_from_slice(&relative.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut bytes, *offset, relative.to_le_bytes());
     }
     Ok(bytes)
 }

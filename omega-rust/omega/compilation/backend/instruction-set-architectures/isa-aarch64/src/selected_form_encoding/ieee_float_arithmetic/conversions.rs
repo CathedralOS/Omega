@@ -143,10 +143,10 @@ mod tests {
         assert_eq!(encode(selected, &[3, 4]).unwrap(), expected);
         validate(selected, &[3, 4], &expected).unwrap();
         let mut changed = expected.clone();
-        changed[6 * 4..7 * 4].copy_from_slice(&0xb500_0084_u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(changed, 6 * 4, 0xb500_0084_u32.to_le_bytes());
         assert!(validate(selected, &[3, 4], &changed).is_err());
         changed = expected;
-        changed[7 * 4..8 * 4].copy_from_slice(&0xd503_201f_u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(changed, 7 * 4, 0xd503_201f_u32.to_le_bytes());
         assert!(validate(selected, &[3, 4], &changed).is_err());
     }
 

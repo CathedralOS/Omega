@@ -17,6 +17,8 @@
 //! entry writer protocol) and `owned_image_provider` (the resident-buffer
 //! provider that performs the operations and mints the receipts).
 
+mod codec_bytes;
+
 mod artifacts;
 mod authority_digests;
 mod digest_encoder;

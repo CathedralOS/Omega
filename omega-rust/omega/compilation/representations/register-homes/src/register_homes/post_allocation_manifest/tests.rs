@@ -252,7 +252,7 @@ fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
         Err(PostAllocationOptimizationManifestDecodeError::WrongMagic)
     );
     let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 5_u32.to_le_bytes());
     assert_eq!(
         PostAllocationOptimizationManifest::decode(&wrong_version),
         Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(5))

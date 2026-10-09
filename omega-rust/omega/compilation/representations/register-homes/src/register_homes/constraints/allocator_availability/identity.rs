@@ -113,7 +113,7 @@ mod tests {
             Err(super::super::AllocatorAvailabilityDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 2_u32.to_le_bytes());
         assert_eq!(
             AllocatorAvailabilityPlan::decode(&wrong_version),
             Err(super::super::AllocatorAvailabilityDecodeError::UnsupportedVersion(

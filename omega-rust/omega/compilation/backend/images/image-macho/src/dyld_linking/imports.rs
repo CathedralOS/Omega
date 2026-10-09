@@ -326,7 +326,7 @@ pub(crate) fn patch_import_thunks(
                     )));
                 };
                 slot[..2].copy_from_slice(&[0xff, 0x25]);
-                slot[2..6].copy_from_slice(&displacement.to_le_bytes());
+                crate::codec_bytes::patch_encoded(slot, 2, displacement.to_le_bytes());
             }
         }
     }

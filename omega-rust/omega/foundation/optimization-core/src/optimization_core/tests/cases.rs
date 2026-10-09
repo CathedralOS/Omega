@@ -106,7 +106,7 @@ fn decoder_rejects_noncanonical_and_trailing_encodings() {
     );
 
     let mut old_version = selections.encode();
-    old_version[8..12].copy_from_slice(&10_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut old_version, 8, 10_u32.to_le_bytes());
     assert_eq!(
         OptimizationSelections::decode(&old_version),
         Err(SelectionDecodeError::UnsupportedVersion(10))

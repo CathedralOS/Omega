@@ -26,7 +26,7 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
     let current_version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
     for version in [current_version - 1, current_version.checked_add(1).unwrap()] {
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&version.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut wrong_version, 8, version.to_le_bytes());
         assert_eq!(
             FixedViewCopyPlan::decode(&wrong_version),
             Err(FixedViewCopyDecodeError::UnsupportedVersion(version))
@@ -144,7 +144,7 @@ fn every_previous_wire_generation_rejects_before_payload_decoding() {
         .unwrap();
     for version in 0..32_u32 {
         let mut stale = encoded.clone();
-        stale[8..12].copy_from_slice(&version.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut stale, 8, version.to_le_bytes());
         assert_eq!(
             FixedViewCopyPlan::decode(&stale),
             Err(FixedViewCopyDecodeError::UnsupportedVersion(version))

@@ -308,9 +308,9 @@ fn add_optional_section(mut bytes: Vec<u8>, kind: u16, payload: &[u8]) -> Vec<u8
     }
     let payload_offset = bytes.len() as u64;
     bytes.extend_from_slice(payload);
-    bytes[14..16].copy_from_slice(&7_u16.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut bytes, 14, 7_u16.to_le_bytes());
     let total_length = bytes.len() as u64;
-    bytes[24..32].copy_from_slice(&total_length.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut bytes, 24, total_length.to_le_bytes());
     let identity =
         non_authoritative_informational_section_fingerprint(kind, payload).compatibility_value();
     write_record(
@@ -406,7 +406,7 @@ fn truncation_directory_overlap_and_bad_reserved_bits_reject() {
 
     let mut prefix_overlap = canonical_bytes();
     let first_section = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize;
-    prefix_overlap[first_section + 16..first_section + 24].copy_from_slice(&64_u64.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut prefix_overlap, first_section + 16, 64_u64.to_le_bytes());
     let error = decode_executable_container(&prefix_overlap, container_test_limits()).expect_err("prefix overlap");
     assert!(error.0.contains("header/directory"));
 
@@ -423,13 +423,13 @@ fn payload_gaps_and_unreferenced_trailing_bytes_reject() {
     let code_offset =
         u64::from_le_bytes(gap[code_record + 16..code_record + 24].try_into().unwrap());
     gap[code_record + 16..code_record + 24].copy_from_slice(&(code_offset + 1).to_le_bytes());
-    gap[code_record + 24..code_record + 32].copy_from_slice(&63_u64.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut gap, code_record + 24, 63_u64.to_le_bytes());
     let error = decode_executable_container(&gap, container_test_limits()).expect_err("payload gap");
     assert!(error.0.contains("leaves a gap"));
 
     let mut trailing = canonical_bytes();
     let entries_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize + 5 * 32;
-    trailing[entries_record + 24..entries_record + 32].copy_from_slice(&15_u64.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut trailing, entries_record + 24, 15_u64.to_le_bytes());
     let error =
         decode_executable_container(&trailing, container_test_limits()).expect_err("unreferenced trailing");
     assert!(error.0.contains("unreferenced bytes"));
@@ -444,20 +444,20 @@ fn malformed_counts_unknown_required_and_identity_drift_reject() {
             .try_into()
             .unwrap(),
     ) as usize;
-    count[relocation_payload..relocation_payload + 8].copy_from_slice(&2_u64.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut count, relocation_payload, 2_u64.to_le_bytes());
     let error = decode_executable_container(&count, container_test_limits()).expect_err("count mismatch");
     assert!(error.0.contains("does not match 2"));
 
     let mut unknown = canonical_bytes();
     let code_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize;
-    unknown[code_record..code_record + 2].copy_from_slice(&99_u16.to_le_bytes());
-    unknown[code_record + 8..code_record + 16].copy_from_slice(&99_u64.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut unknown, code_record, 99_u16.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut unknown, code_record + 8, 99_u64.to_le_bytes());
     let error = decode_executable_container(&unknown, container_test_limits()).expect_err("unknown required");
     assert!(error.0.contains("unknown required"));
 
     let mut identity = canonical_bytes();
     let contracts_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize + 2 * 32;
-    identity[contracts_record + 8..contracts_record + 16].copy_from_slice(&99_u64.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut identity, contracts_record + 8, 99_u64.to_le_bytes());
     let error = decode_executable_container(&identity, container_test_limits()).expect_err("identity drift");
     assert!(error.0.contains("payload identity"));
 }

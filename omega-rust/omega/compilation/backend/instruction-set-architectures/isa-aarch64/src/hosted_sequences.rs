@@ -179,7 +179,7 @@ pub fn encode_linux_write_line_literal(
     }
     let immediate = adr_distance as u32 & 0x1f_ffff;
     let adr = 0x1000_0000 | ((immediate & 0x3) << 29) | (((immediate >> 2) & 0x7ffff) << 5) | 1;
-    bytes[adr_offset..adr_offset + 4].copy_from_slice(&adr.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut bytes, adr_offset, adr.to_le_bytes());
     bytes[trap_branch_offset..trap_branch_offset + 4].copy_from_slice(
         &encode_conditional_branch_less_or_equal(
             isize::try_from(trap_offset).unwrap() - isize::try_from(trap_branch_offset).unwrap(),

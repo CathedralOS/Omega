@@ -668,8 +668,8 @@ impl NativeTarget {
             ObjectFormat::MachO => 1,
             ObjectFormat::Coff => 2,
         };
-        bytes[2..10].copy_from_slice(&(self.pointer_size as u64).to_le_bytes());
-        bytes[10..18].copy_from_slice(&(self.pointer_alignment as u64).to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut bytes, 2, (self.pointer_size as u64).to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut bytes, 10, (self.pointer_alignment as u64).to_le_bytes());
         bytes
     }
 
@@ -687,8 +687,8 @@ impl NativeTarget {
             ObjectFormat::MachO => 2,
             ObjectFormat::Coff => 3,
         };
-        bytes[2..10].copy_from_slice(&(self.pointer_size as u64).to_le_bytes());
-        bytes[10..18].copy_from_slice(&(self.pointer_alignment as u64).to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut bytes, 2, (self.pointer_size as u64).to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut bytes, 10, (self.pointer_alignment as u64).to_le_bytes());
         bytes
     }
 

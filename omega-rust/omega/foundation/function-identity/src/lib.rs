@@ -6,6 +6,8 @@
 //! Keeping the caller's canonical identity prevents equal local placement slots
 //! from aliasing across independently compiled programs.
 
+mod codec_bytes;
+
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -39,9 +41,9 @@ impl MachineFunctionIdentity {
     /// This is an identity encoding, not proof that the callback was admitted.
     pub fn to_bytes(self) -> [u8; 42] {
         let mut bytes = [0; 42];
-        bytes[..2].copy_from_slice(&self.caller.vocabulary_marker.get().to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut bytes, 0, self.caller.vocabulary_marker.get().to_le_bytes());
         bytes[2..34].copy_from_slice(self.caller.program_fingerprint.as_bytes());
-        bytes[34..].copy_from_slice(&(self.placement_index as u64).to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut bytes, 34, (self.placement_index as u64).to_le_bytes());
         bytes
     }
 

@@ -287,7 +287,7 @@ fn loader_mapping_accepts_storage_variations() {
 fn loader_mapping_accepts_eager_import_storage() {
     for name in ["_write", "_objc_msgSend"] {
         let mut image = storage_image(13, 24, 16);
-        image.memory.text[..4].copy_from_slice(&0x9400_0000u32.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut image.memory.text, 0, 0x9400_0000u32.to_le_bytes());
         let imported = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: name.into(),
             kind: SymbolKind::Import,
@@ -417,7 +417,7 @@ fn loader_mapping_rejects_malformed_command_envelopes() {
         (32, 0x8000_0034),
     ] {
         let mut output = original.clone();
-        output.bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut output.bytes, offset, value.to_le_bytes());
         assert!(
             validate_mapping(&output).is_err(),
             "offset {offset}, value {value}"

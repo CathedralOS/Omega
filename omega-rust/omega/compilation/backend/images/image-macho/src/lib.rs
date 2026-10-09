@@ -79,6 +79,8 @@
 //! the loader; `entry_symbol.rs` and `code_signature.rs` stay at the root
 //! beside the emitter.
 
+mod codec_bytes;
+
 use diagnostics::Diagnostic;
 use image::{
     ExecutableImageOutput, FinalImage, PlacedDataRegionInventory, place_data_regions,

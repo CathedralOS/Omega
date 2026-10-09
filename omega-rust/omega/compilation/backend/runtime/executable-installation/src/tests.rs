@@ -120,7 +120,7 @@ fn canonical_materializer_patches_x86_relative_targets_and_binds_the_receipt() {
 fn aarch64_materialization_validates_the_relocated_instruction_shape() {
     let target = RelocationTarget::Entry(entry_id(1002));
     let mut branch = vec![0; 64];
-    branch[..4].copy_from_slice(&0x9400_0000u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut branch, 0, 0x9400_0000u32.to_le_bytes());
     let candidate = relocatable_artifact(
         2,
         Architecture::Aarch64,
@@ -164,8 +164,8 @@ fn aarch64_materialization_validates_the_relocated_instruction_shape() {
 fn aarch64_materialization_patches_page_pairs_and_absolute_data() {
     let target = RelocationTarget::Entry(entry_id(1004));
     let mut code = vec![0; 64];
-    code[..4].copy_from_slice(&0x9000_0000u32.to_le_bytes());
-    code[4..8].copy_from_slice(&0x9100_0000u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut code, 0, 0x9000_0000u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut code, 4, 0x9100_0000u32.to_le_bytes());
     let candidate = relocatable_artifact(
         4,
         Architecture::Aarch64,

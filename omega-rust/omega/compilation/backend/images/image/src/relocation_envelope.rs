@@ -263,8 +263,8 @@ mod tests {
     fn initialized_data_envelope_accepts_only_declared_slot_mutation() {
         let encoded = vec![0x5a; 24];
         let mut final_data = encoded.clone();
-        final_data[0..8].copy_from_slice(&0x1122_3344_5566_7788u64.to_le_bytes());
-        final_data[16..24].copy_from_slice(&0x8877_6655_4433_2211u64.to_le_bytes());
+        crate::codec_bytes::patch_encoded(final_data, 0, 0x1122_3344_5566_7788u64.to_le_bytes());
+        crate::codec_bytes::patch_encoded(final_data, 16, 0x8877_6655_4433_2211u64.to_le_bytes());
         let mut relocations = RelocationPlan::with_target(NativeTarget::host());
         relocations.push_record(data_relocation(0));
         relocations.push_record(data_relocation(16));

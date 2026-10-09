@@ -29,7 +29,7 @@ use std::fmt;
 pub(crate) fn encode_work_counters(fields: [u64; 5]) -> [u8; 40] {
     let mut encoded = [0; 40];
     for (index, value) in fields.into_iter().enumerate() {
-        encoded[index * 8..index * 8 + 8].copy_from_slice(&value.to_le_bytes());
+        crate::codec_bytes::patch_encoded(&mut encoded, index * 8, value.to_le_bytes());
     }
     encoded
 }

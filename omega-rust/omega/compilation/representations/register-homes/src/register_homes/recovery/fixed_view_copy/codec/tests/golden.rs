@@ -16,7 +16,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
 fn runtime_selector_envelope_rejects_previous_format() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let mut encoded = plan.encode().unwrap();
-    encoded[8..12].copy_from_slice(&51_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut encoded, 8, 51_u32.to_le_bytes());
     assert_eq!(
         FixedViewCopyPlan::decode(&encoded),
         Err(crate::FixedViewCopyDecodeError::UnsupportedVersion(51))
@@ -27,7 +27,7 @@ fn runtime_selector_envelope_rejects_previous_format() {
 fn float_result_policy_envelope_rejects_previous_format() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let mut encoded = plan.encode().unwrap();
-    encoded[8..12].copy_from_slice(&38_u32.to_le_bytes());
+    crate::codec_bytes::patch_encoded(&mut encoded, 8, 38_u32.to_le_bytes());
     assert_eq!(
         FixedViewCopyPlan::decode(&encoded),
         Err(crate::FixedViewCopyDecodeError::UnsupportedVersion(38))

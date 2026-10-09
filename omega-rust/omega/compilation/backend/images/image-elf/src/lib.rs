@@ -95,6 +95,8 @@
 //! entry and groups its stages by phase, and `bytes.rs`, `constants.rs`,
 //! `entry_symbol.rs` and `imports.rs` hold what both lanes share.
 
+mod codec_bytes;
+
 mod bytes;
 mod constants;
 mod dynamic_executable;
