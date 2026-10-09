@@ -63,8 +63,6 @@ pub(crate) use analyses::{
 };
 // Selected-CFG rewrites: the executed catalog slices, the recovery rewrites
 // register assignment replays, and the unexecuted families.
-#[cfg(any(test, feature = "test-support"))]
-pub use rewrites::test_support;
 pub use rewrites::unexecuted;
 pub(crate) use rewrites::{
     AddressFoldError, ConstantBooleanError, ConstantBranchError, CopiedCallOperandError,
