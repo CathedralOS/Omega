@@ -46,4 +46,8 @@ impl<'a> Cursor<'a> {
     pub(crate) fn u64(&mut self) -> Result<u64, Truncated> {
         Ok(u64::from_le_bytes(self.array()?))
     }
+
+    pub(crate) fn i64(&mut self) -> Result<i64, Truncated> {
+        Ok(i64::from_le_bytes(self.array()?))
+    }
 }

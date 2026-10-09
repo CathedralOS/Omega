@@ -545,7 +545,10 @@ fn encode_plan_content(
 ) -> Result<Vec<u8>, RelocationFreeObjectError> {
     let mut output = Vec::new();
     output.extend_from_slice(&object.source_text_section.bytes());
-    crate::codec_bytes::push_encoded(&mut output, object.psi.vocabulary_marker.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut output,
+        object.psi.vocabulary_marker.get().to_le_bytes(),
+    );
     output.extend_from_slice(object.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut output, object.fuel_schedule.marker().to_le_bytes());
     output.extend_from_slice(&object.selected.bytes());
@@ -575,7 +578,10 @@ fn encode_plan_content(
         });
     }
     crate::codec_bytes::push_encoded(&mut output, object.semantic_entry.get().to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut output, object.semantic_entry_symbol.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut output,
+        object.semantic_entry_symbol.get().to_le_bytes(),
+    );
     output.extend_from_slice(
         &u64::try_from(object.normalized_imports.len())
             .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
@@ -633,15 +639,15 @@ fn encode_plan_content(
 fn decode_implementation_table_address(
     cursor: &mut Cursor<'_>,
 ) -> Result<machine_code::PlacedImplementationTableAddress, RelocationFreeObjectDecodeError> {
-    let machine = MachineId::new(cursor.u64()?)
-        .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
+    let machine =
+        MachineId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
     let block = SelectedBlockId(cursor.u32()?);
     let instruction = SelectedInstructionId(cursor.u32()?);
     let reference = machine_code::ImplementationTableReference {
         table: cursor.u32()?,
     };
-    let operation = OperationId::new(cursor.u64()?)
-        .ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?;
+    let operation =
+        OperationId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?;
     let instruction_function_offset = cursor.u64()?;
     let instruction_section_offset = cursor.u64()?;
     let instruction_byte_count = cursor.u64()?;
@@ -671,12 +677,12 @@ fn decode_implementation_table_address(
 fn decode_byte_literal_address(
     cursor: &mut Cursor<'_>,
 ) -> Result<machine_code::PlacedByteLiteralAddress, RelocationFreeObjectDecodeError> {
-    let machine = MachineId::new(cursor.u64()?)
-        .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
+    let machine =
+        MachineId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
     let block = SelectedBlockId(cursor.u32()?);
     let instruction = SelectedInstructionId(cursor.u32()?);
-    let operation = OperationId::new(cursor.u64()?)
-        .ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?;
+    let operation =
+        OperationId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?;
     let place = semantic_vocabulary::PlaceId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidPlace)?;
     let instruction_function_offset = cursor.u64()?;
@@ -728,8 +734,14 @@ fn encode_normalized_foreign_resolution(
     crate::codec_bytes::push_encoded(output, resolution.opcode_section_offset.to_le_bytes());
     crate::codec_bytes::push_encoded(output, resolution.field_function_offset.to_le_bytes());
     crate::codec_bytes::push_encoded(output, resolution.field_section_offset.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.next_instruction_function_offset.to_le_bytes());
-    crate::codec_bytes::push_encoded(output, resolution.next_instruction_section_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        output,
+        resolution.next_instruction_function_offset.to_le_bytes(),
+    );
+    crate::codec_bytes::push_encoded(
+        output,
+        resolution.next_instruction_section_offset.to_le_bytes(),
+    );
     output.push(resolution.field_byte_width);
     crate::codec_bytes::push_encoded(output, resolution.addend.to_le_bytes());
     encode_placed_callback_materializations(output, &resolution.callback_materializations);
@@ -765,7 +777,10 @@ fn encode_placed_callback_materializations(
                 crate::codec_bytes::push_encoded(output, byte_offset.to_le_bytes());
             }
         }
-        crate::codec_bytes::push_encoded(output, materialization.code_function_offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(
+            output,
+            materialization.code_function_offset.to_le_bytes(),
+        );
         crate::codec_bytes::push_encoded(output, materialization.code_section_offset.to_le_bytes());
         crate::codec_bytes::push_encoded(output, materialization.code_byte_count.to_le_bytes());
         match materialization.encoding {
@@ -784,10 +799,22 @@ fn encode_placed_callback_materializations(
                 page_offset_relocation_section_offset,
             } => {
                 output.push(2);
-                crate::codec_bytes::push_encoded(output, page_relocation_function_offset.to_le_bytes());
-                crate::codec_bytes::push_encoded(output, page_relocation_section_offset.to_le_bytes());
-                crate::codec_bytes::push_encoded(output, page_offset_relocation_function_offset.to_le_bytes());
-                crate::codec_bytes::push_encoded(output, page_offset_relocation_section_offset.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    output,
+                    page_relocation_function_offset.to_le_bytes(),
+                );
+                crate::codec_bytes::push_encoded(
+                    output,
+                    page_relocation_section_offset.to_le_bytes(),
+                );
+                crate::codec_bytes::push_encoded(
+                    output,
+                    page_offset_relocation_function_offset.to_le_bytes(),
+                );
+                crate::codec_bytes::push_encoded(
+                    output,
+                    page_offset_relocation_section_offset.to_le_bytes(),
+                );
             }
         }
     }
@@ -830,8 +857,8 @@ fn decode_plan_content(
         let symbol = ObjectLocalSymbolId::new(cursor.u64()?)
             .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
         let source_function_index = cursor.u64()?;
-        let machine = MachineId::new(cursor.u64()?)
-            .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
+        let machine =
+            MachineId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
         let name = cursor_string(cursor)?;
         let section_offset = cursor.u64()?;
         let byte_count = cursor.u64()?;
@@ -857,8 +884,8 @@ fn decode_plan_content(
             role,
         });
     }
-    let semantic_entry = MachineId::new(cursor.u64()?)
-        .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
+    let semantic_entry =
+        MachineId::new(cursor.u64()?).ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?;
     let semantic_entry_symbol = ObjectLocalSymbolId::new(cursor.u64()?)
         .ok_or(RelocationFreeObjectDecodeError::InvalidSymbolId)?;
     let import_count = cursor_length(cursor)?;
@@ -992,7 +1019,7 @@ fn decode_normalized_foreign_resolution(
         next_instruction_function_offset: cursor.u64()?,
         next_instruction_section_offset: cursor.u64()?,
         field_byte_width: cursor.byte()?,
-        addend: i64::from_le_bytes(cursor.array()?),
+        addend: cursor.i64()?,
         callback_materializations: decode_placed_callback_materializations(cursor)?,
     })
 }
@@ -1136,11 +1163,8 @@ fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), RelocationFree
     Ok(())
 }
 
-fn cursor_length(
-    cursor: &mut Cursor,
-) -> Result<usize, RelocationFreeObjectDecodeError> {
-    usize::try_from(cursor.u64()?)
-        .map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)
+fn cursor_length(cursor: &mut Cursor) -> Result<usize, RelocationFreeObjectDecodeError> {
+    usize::try_from(cursor.u64()?).map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)
 }
 
 fn cursor_bytes(cursor: &mut Cursor) -> Result<Vec<u8>, RelocationFreeObjectDecodeError> {
