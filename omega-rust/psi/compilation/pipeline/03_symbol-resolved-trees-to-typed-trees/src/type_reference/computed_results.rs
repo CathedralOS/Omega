@@ -29,7 +29,10 @@ pub(crate) fn retain_computed_result_types(
         }
     };
     let collection_policy = program.type_reference_table.arithmetic_domain(reference);
-    if collection_policy != ArithmeticDomain::Exact
+    if program
+        .type_reference_table
+        .element_inherits_collection_arithmetic_policy(element, source_symbols)
+        && collection_policy != ArithmeticDomain::Exact
         && program.type_reference_table.arithmetic_domain(element) == ArithmeticDomain::Exact
     {
         // A collection policy is inherited by an element with no non-Exact

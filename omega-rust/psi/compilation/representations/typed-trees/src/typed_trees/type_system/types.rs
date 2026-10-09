@@ -646,6 +646,48 @@ impl TypeReferenceTable {
         })
     }
 
+    /// Collection arithmetic policy qualifies numeric element values and
+    /// nested collection operations. A structural element keeps its declared
+    /// type: the containing array's bounds policy grants no policy to a record,
+    /// case value, Boolean or borrowed reference. Exact builtin identity owns
+    /// numeric membership; a declaration's diagnostic spelling supplies none.
+    pub fn element_inherits_collection_arithmetic_policy(
+        &self,
+        mut element: TypeReferenceHandle,
+        symbols: &symbols::SymbolTable,
+    ) -> bool {
+        let mut visited = Vec::new();
+        while self.contains_type_reference(element) && !visited.contains(&element) {
+            visited.push(element);
+            match self.type_reference(element) {
+                TypeReferenceNode::Constrained { base_type, .. } => element = *base_type,
+                TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => {
+                    return true;
+                }
+                TypeReferenceNode::Named { symbol, .. } => {
+                    return matches!(
+                        symbols.builtin_type_atom(*symbol),
+                        Some(
+                            symbols::BuiltinTypeAtom::I8
+                                | symbols::BuiltinTypeAtom::I16
+                                | symbols::BuiltinTypeAtom::I32
+                                | symbols::BuiltinTypeAtom::I64
+                                | symbols::BuiltinTypeAtom::U8
+                                | symbols::BuiltinTypeAtom::U16
+                                | symbols::BuiltinTypeAtom::U32
+                                | symbols::BuiltinTypeAtom::U64
+                                | symbols::BuiltinTypeAtom::Address
+                                | symbols::BuiltinTypeAtom::F32
+                                | symbols::BuiltinTypeAtom::F64
+                        )
+                    );
+                }
+                _ => return false,
+            }
+        }
+        false
+    }
+
     pub fn display_name(&self, handle: TypeReferenceHandle) -> String {
         self.type_reference(handle).display_name(self)
     }

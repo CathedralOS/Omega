@@ -157,8 +157,9 @@ pub fn loan_carrier_has_owned_storage(
 /// same element a half-open window shares with its collection, so
 /// `&[Box<Context>]` resumes at `Box<Context>`. A reference with no element
 /// (a record, a scalar, an unbound parameter) has none to resume at.
-/// A non-Exact collection policy is inherited only when the element has no
-/// non-Exact policy of its own. Typing retains the complete qualified element;
+/// Numeric and nested collection elements inherit a non-Exact collection
+/// policy only when they have no non-Exact policy of their own. Structural
+/// elements retain their declaration. Typing keeps the complete qualification;
 /// this query never substitutes a bare carrier or manufactures a new type.
 pub fn collection_element_type_reference(
     program: &dyn crate::CheckingInput,
@@ -333,7 +334,10 @@ fn indexed_element_type_reference(
         | typed_trees::types::TypeReferenceNode::Unit => None,
     }?;
     let collection_policy = program.arithmetic_domain_for_type_reference(type_reference);
-    if collection_policy != numerics::arithmetic::ArithmeticDomain::Exact
+    if program
+        .type_reference_table
+        .element_inherits_collection_arithmetic_policy(element, &program.symbols)
+        && collection_policy != numerics::arithmetic::ArithmeticDomain::Exact
         && program.arithmetic_domain_for_type_reference(element)
             == numerics::arithmetic::ArithmeticDomain::Exact
     {
