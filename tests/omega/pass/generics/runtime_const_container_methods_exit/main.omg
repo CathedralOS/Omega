@@ -25,6 +25,9 @@ machine FixedBuffer::capacity<const N: u64>(buffer: &FixedBuffer<N>, witness: &[
     transition { _ -> N }
 }
 
+// A symbolic extent changes layout, not the empty lifetime frontier of u8.
+machine preserve<const N: u64>(items: [u8; N]) -> [u8; N] { items }
+
 data Main {
     console: Binding<Console>;
     small: FixedBuffer<2>;
@@ -34,7 +37,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     FixedBuffer::set_first(&mut main.small, 30);
     FixedBuffer::set_first(&mut main.large, 40);
-    let small_witness: [u8; 2] = [0, 0];
+    let small_witness: [u8; 2] = preserve<2>([0, 0]);
     let small_capacity: u64 = FixedBuffer::capacity(&main.small, &small_witness);
     transition small_capacity == 2 {
         true -> check_large(main)
@@ -42,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check_large(main: &mut Main) {
-        let large_witness: [u8; 4] = [0, 0, 0, 0];
+        let large_witness: [u8; 4] = preserve<4>([0, 0, 0, 0]);
         let large_capacity: u64 = FixedBuffer::capacity(&main.large, &large_witness);
         transition large_capacity == 4 {
             true -> finish(main)
