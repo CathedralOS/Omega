@@ -12,11 +12,11 @@ use target::NativeTarget;
 use crate::machine_effects::{X86_64SelectedAbi, x86_64_selected_abi};
 use crate::{x86_64_register_constraint_catalog_for, x86_64_system_v_register_call_keys};
 
-pub const X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT: usize = 5;
-pub const X86_64_SCALAR_CALL_OPCODE_OFFSET: u16 = 0;
-pub const X86_64_SCALAR_CALL_PATCH_OFFSET: u16 = 1;
-pub const X86_64_SCALAR_CALL_REFERENCE_OFFSET: u16 = 5;
-pub const X86_64_SCALAR_CALL_PATCH_WIDTH: u8 = 4;
+pub(crate) const X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT: usize = 5;
+pub(crate) const X86_64_SCALAR_CALL_OPCODE_OFFSET: u16 = 0;
+pub(crate) const X86_64_SCALAR_CALL_PATCH_OFFSET: u16 = 1;
+pub(crate) const X86_64_SCALAR_CALL_REFERENCE_OFFSET: u16 = 5;
+pub(crate) const X86_64_SCALAR_CALL_PATCH_WIDTH: u8 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X86_64ScalarCallFixupKind {

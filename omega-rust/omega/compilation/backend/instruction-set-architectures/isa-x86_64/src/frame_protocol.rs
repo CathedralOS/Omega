@@ -24,7 +24,7 @@ pub struct X86_64StackProbe {
 }
 
 /// The stack-commit granule every admitted x86-64 target guarantees.
-pub const X86_64_STACK_PROBE_INTERVAL_BYTES: u64 = 4_096;
+pub(crate) const X86_64_STACK_PROBE_INTERVAL_BYTES: u64 = 4_096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum X86_64FrameProtocolError {

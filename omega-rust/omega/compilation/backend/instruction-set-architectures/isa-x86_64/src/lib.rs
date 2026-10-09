@@ -59,16 +59,15 @@ pub use selected_form_encoding::system_call::{
     encode_x86_64_selected_system_call_form, validate_x86_64_selected_system_call_form,
 };
 pub use selected_form_encoding::{
-    encode_x86_64_selected_floating_control_form, validate_x86_64_selected_floating_control_form,
 };
 mod semantic_unit_wrapper_encoding;
 
 pub use fma::{
-    DecodedScalarFmaFormat, DecodedVfmadd132Scalar, decode_vfmadd132_scalar, encode_vfmadd132sd,
+    DecodedScalarFmaFormat, decode_vfmadd132_scalar, encode_vfmadd132sd,
     encode_vfmadd132ss,
 };
-pub use frame_protocol::{
-    X86_64_STACK_PROBE_INTERVAL_BYTES, X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
+pub use fma::{ DecodedVfmadd132Scalar};
+pub use frame_protocol::{ X86_64FrameProtocolError, X86_64FrameSlot, X86_64StackProbe,
     encode_system_v_amd64_frame_protocol,
 };
 pub use ieee_float::{
@@ -88,9 +87,10 @@ pub use post_handoff_writer::{
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width,
 };
-pub use preservation_storage::{
-    X86_64PreservationStorageCatalogError, x86_64_preservation_storage_catalog,
+pub use preservation_storage::{ x86_64_preservation_storage_catalog,
 };
+pub use preservation_storage::{
+    X86_64PreservationStorageCatalogError};
 pub use register_model::X86_64_HOSTED_WRITE_BYTE_I32;
 pub use register_model::x86_64_microsoft_normalized_foreign_call_keys;
 pub use register_model::x86_64_microsoft_register_call_keys;
@@ -98,18 +98,18 @@ pub use register_model::x86_64_system_v_normalized_foreign_call_keys;
 pub use register_model::x86_64_system_v_register_call_keys;
 pub use register_model::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_IMMEDIATE,
-    X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
-    X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_JUMP, X86_64_LINUX_SYSTEM_CALL, X86_64_MATERIALIZE_I64,
-    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT,
-    X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
-    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN,
-    X86_64_SYSTEM_V_RETURN_UNIT, X86_64RegisterConstraintCatalogValidationError,
-    canonical_x86_64_physical_register_model_identity, validate_x86_64_register_constraint_catalog,
+    X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_JUMP, X86_64_MATERIALIZE_I64,
+    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
+    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_RETURN,
+    X86_64_SYSTEM_V_RETURN_UNIT, X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
     validated_x86_64_physical_register_model, x86_64_fixed_register_view,
-    x86_64_physical_register_model, x86_64_physical_register_model_ref,
+    x86_64_physical_register_model,
     x86_64_preservation_convention_for_target, x86_64_register_constraint_catalog,
-    x86_64_register_constraint_catalog_for,
 };
+pub(crate) use register_model::{
+    X86_64_REQUIRED_REGISTER_CONSTRAINTS,
+    canonical_x86_64_physical_register_model_identity, x86_64_physical_register_model_ref,
+    x86_64_register_constraint_catalog_for};
 pub use register_model::{
     X86_64_LOAD_PACKED, X86_64_STORE_PACKED, x86_64_microsoft_aggregate_call_keys,
     x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_mixed_aggregate_call_keys,
@@ -127,39 +127,20 @@ pub use selected_form_encoding::hosted_read_byte::{
 };
 pub use selected_form_encoding::hosted_write_byte::decode_x86_64_selected_hosted_write_byte_i32;
 pub use selected_form_encoding::materialization::mov_r32_imm32::{
-    ValidatedX86_64MovR32Imm32I64Materialization, X86_64DecodedMovR32Imm32I64Materialization,
-    X86_64MovR32Imm32I64MaterializationError, X86_64MovR32Imm32I64MaterializationFootprint,
-    decode_x86_64_mov_r32_imm32_i64_materialization,
-    encode_x86_64_mov_r32_imm32_i64_materialization,
-    validate_x86_64_mov_r32_imm32_i64_materialization,
+    X86_64MovR32Imm32I64MaterializationError,
 };
 pub use selected_form_encoding::materialization::mov_r64_imm32_sign_extended::{
-    ValidatedX86_64MovR64Imm32SignExtendedI64Materialization,
-    X86_64DecodedMovR64Imm32SignExtendedI64Materialization,
     X86_64MovR64Imm32SignExtendedI64MaterializationError,
-    X86_64MovR64Imm32SignExtendedI64MaterializationFootprint,
-    decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
-    encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
-    validate_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
 };
 pub use selected_form_encoding::materialization::xor_zero::{
-    ValidatedX86_64XorZeroI64Materialization, X86_64DecodedXorZeroI64Materialization,
-    decode_x86_64_xor_zero_i64_materialization, encode_x86_64_xor_zero_i64_materialization,
-    validate_x86_64_xor_zero_i64_materialization,
 };
 pub use selected_form_encoding::{
-    ValidatedX86_64SelectedFormEncoding, ValidatedX86_64SelectedNormalizedForeignCallTemplate,
-    ValidatedX86_64SelectedScalarCallTemplate, X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET,
-    X86_64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, X86_64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
-    X86_64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, X86_64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
-    X86_64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, X86_64_SCALAR_CALL_OPCODE_OFFSET,
-    X86_64_SCALAR_CALL_PATCH_OFFSET, X86_64_SCALAR_CALL_PATCH_WIDTH,
-    X86_64_SCALAR_CALL_REFERENCE_OFFSET, X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
+    ValidatedX86_64SelectedFormEncoding, X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET,
     X86_64CallbackAddressMaterialization, X86_64CallbackMaterializationDestination,
     X86_64NormalizedForeignCallFixup, X86_64NormalizedForeignCallFixupKind,
     X86_64NormalizedForeignCallFixupState, X86_64NormalizedForeignCallTemplateError,
     X86_64ScalarCallFixup, X86_64ScalarCallFixupKind, X86_64ScalarCallFixupState,
-    X86_64ScalarCallTemplateError, X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
+    X86_64ScalarCallTemplateError, X86_64SelectedFormEncodingError,
     encode_x86_64_selected_dynamic_call_template, encode_x86_64_selected_form,
     encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_jump_form,
     encode_x86_64_selected_memory_form, encode_x86_64_selected_nonzero_branch_form,
@@ -173,32 +154,24 @@ pub use selected_form_encoding::{
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
+pub use selected_form_encoding::{ ValidatedX86_64SelectedNormalizedForeignCallTemplate,
+    ValidatedX86_64SelectedScalarCallTemplate, X86_64SelectedFormFootprint};
 pub use selected_form_encoding::{
     encode_x86_64_selected_hosted_write_byte_form, validate_x86_64_selected_hosted_write_byte_form,
 };
-pub use semantic_unit_wrapper_encoding::{
-    ValidatedX86_64ResolvedSemanticUnitWrapper, ValidatedX86_64SemanticUnitWrapperTemplate,
-    X86_64_SEMANTIC_UNIT_WRAPPER_CALL_BUNDLE_BYTE_COUNT,
-    X86_64_SEMANTIC_UNIT_WRAPPER_CALL_OPCODE_OFFSET,
+pub use semantic_unit_wrapper_encoding::{ ValidatedX86_64SemanticUnitWrapperTemplate,
     X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT,
-    X86_64_SEMANTIC_UNIT_WRAPPER_NEXT_INSTRUCTION_OFFSET,
-    X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_MAX_BYTE_COUNT,
-    X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_SLOT_BYTE_OFFSET,
-    X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_OFFSET,
-    X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH, X86_64_SEMANTIC_UNIT_WRAPPER_RETURN_OFFSET,
-    X86_64SemanticUnitWrapperArgumentBinding, X86_64SemanticUnitWrapperCallEffect,
-    X86_64SemanticUnitWrapperCleanupEffect, X86_64SemanticUnitWrapperCopy,
+    X86_64SemanticUnitWrapperArgumentBinding, X86_64SemanticUnitWrapperCopy,
     X86_64SemanticUnitWrapperEncodingError, X86_64SemanticUnitWrapperEncodingPolicy,
-    X86_64SemanticUnitWrapperEncodingRequest, X86_64SemanticUnitWrapperFootprint,
-    X86_64SemanticUnitWrapperReceiverSlot, X86_64SemanticUnitWrapperRelocation,
-    X86_64SemanticUnitWrapperRelocationKind, X86_64SemanticUnitWrapperResolution,
-    X86_64SemanticUnitWrapperResolutionError, X86_64SemanticUnitWrapperResolutionState,
-    X86_64SemanticUnitWrapperTrapBehavior, canonical_x86_64_semantic_unit_wrapper_encoding_request,
+    X86_64SemanticUnitWrapperEncodingRequest,
+    X86_64SemanticUnitWrapperReceiverSlot,
+    X86_64SemanticUnitWrapperResolutionError, canonical_x86_64_semantic_unit_wrapper_encoding_request,
     canonical_x86_64_semantic_unit_wrapper_encoding_request_for_receiver,
     encode_x86_64_semantic_unit_wrapper_template,
-    resolve_x86_64_semantic_unit_wrapper_private_continuation,
-    validate_x86_64_resolved_semantic_unit_wrapper, validate_x86_64_semantic_unit_wrapper_template,
+    resolve_x86_64_semantic_unit_wrapper_private_continuation, validate_x86_64_semantic_unit_wrapper_template,
 };
+pub use semantic_unit_wrapper_encoding::{
+    ValidatedX86_64ResolvedSemanticUnitWrapper, X86_64SemanticUnitWrapperRelocation, X86_64SemanticUnitWrapperResolution};
 
 pub use hosted_kernel::{
     encode_darwin_read_byte_to_stack, encode_hosted_exit_process_i32_for_target,

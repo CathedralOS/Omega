@@ -9,7 +9,7 @@ use crate::{
 /// idiom. Keeping this separate from the baseline `MaterializeI64` form makes
 /// the added RFLAGS clobber explicit to a later post-allocation rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64DecodedXorZeroI64Materialization {
+pub(crate) struct X86_64DecodedXorZeroI64Materialization {
     destination: RegisterViewId,
     value_bits: u64,
     footprint: X86_64SelectedFormFootprint,
@@ -32,7 +32,7 @@ impl X86_64DecodedXorZeroI64Materialization {
 /// Canonical three-byte `xor r64, r64` bytes plus their independently decoded
 /// destination, zero value, and complete machine-state footprint.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedX86_64XorZeroI64Materialization {
+pub(crate) struct ValidatedX86_64XorZeroI64Materialization {
     bytes: Vec<u8>,
     decoded: X86_64DecodedXorZeroI64Materialization,
 }
@@ -62,7 +62,7 @@ impl ValidatedX86_64XorZeroI64Materialization {
 /// Encode the unique three-byte dependency-breaking realization of an exact
 /// i64 zero in one canonical allocatable 64-bit GPR. This is an optimizer form,
 /// not a second always-applicable selected-instruction catalog alternative.
-pub fn encode_x86_64_xor_zero_i64_materialization(
+pub(crate) fn encode_x86_64_xor_zero_i64_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     destination: RegisterViewId,
 ) -> Result<ValidatedX86_64XorZeroI64Materialization, X86_64SelectedFormEncodingError> {
@@ -74,7 +74,7 @@ pub fn encode_x86_64_xor_zero_i64_materialization(
 /// Decode exactly one canonical `REX.W + 31 /r` dependency-breaking zero
 /// idiom. The ModRM register and r/m fields must name the same allocatable
 /// 64-bit GPR; alternate prefixes, noncanonical REX bits, and suffixes fail.
-pub fn decode_x86_64_xor_zero_i64_materialization(
+pub(crate) fn decode_x86_64_xor_zero_i64_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     bytes: &[u8],
 ) -> Result<X86_64DecodedXorZeroI64Materialization, X86_64SelectedFormEncodingError> {
@@ -104,7 +104,7 @@ pub fn decode_x86_64_xor_zero_i64_materialization(
 /// Validate canonical XOR-zero bytes against the post-allocation destination
 /// selected by the caller. Destination and zero semantics come from the byte
 /// decoder rather than from the request.
-pub fn validate_x86_64_xor_zero_i64_materialization(
+pub(crate) fn validate_x86_64_xor_zero_i64_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     destination: RegisterViewId,
     bytes: &[u8],
