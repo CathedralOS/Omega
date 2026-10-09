@@ -205,10 +205,6 @@ pub enum InstallationError {
     InvalidBoundaryOpaqueApplicationCustody(&'static str),
 }
 
-impl std::fmt::Display for InstallationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+diagnostics::debug_display!(InstallationError);
 
 impl std::error::Error for InstallationError {}

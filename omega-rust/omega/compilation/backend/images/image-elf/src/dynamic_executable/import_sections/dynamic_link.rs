@@ -69,11 +69,7 @@ impl ElfDynamicLinkInputPlanningError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicLinkInputPlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicLinkInputPlanningError);
 
 impl std::error::Error for ElfDynamicLinkInputPlanningError {}
 

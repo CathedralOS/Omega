@@ -122,11 +122,7 @@ impl ElfDynamicSectionDescriptorPlanningError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicSectionDescriptorPlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicSectionDescriptorPlanningError);
 
 impl std::error::Error for ElfDynamicSectionDescriptorPlanningError {}
 

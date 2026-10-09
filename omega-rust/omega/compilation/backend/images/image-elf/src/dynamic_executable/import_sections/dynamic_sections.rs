@@ -52,9 +52,6 @@ impl ValidatedElfDynamicSectionPlan {
         &self.inputs
     }
 
-
-
-
     pub(crate) fn needed_object_count(&self) -> usize {
         self.contents.needed.len()
     }
@@ -104,11 +101,7 @@ impl ElfDynamicSectionPlanningError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicSectionPlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicSectionPlanningError);
 
 impl std::error::Error for ElfDynamicSectionPlanningError {}
 

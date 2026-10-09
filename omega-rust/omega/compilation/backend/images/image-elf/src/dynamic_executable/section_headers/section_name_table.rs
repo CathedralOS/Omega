@@ -96,11 +96,7 @@ impl ElfSectionNameTablePlanningError {
     }
 }
 
-impl std::fmt::Display for ElfSectionNameTablePlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfSectionNameTablePlanningError);
 
 impl std::error::Error for ElfSectionNameTablePlanningError {}
 

@@ -85,11 +85,7 @@ impl ElfDynamicTableSerializationError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicTableSerializationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicTableSerializationError);
 
 impl std::error::Error for ElfDynamicTableSerializationError {}
 

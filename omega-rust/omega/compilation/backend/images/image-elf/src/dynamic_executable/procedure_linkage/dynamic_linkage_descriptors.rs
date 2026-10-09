@@ -107,11 +107,7 @@ impl ElfProcedureLinkageSectionDescriptorPlanningError {
     }
 }
 
-impl std::fmt::Display for ElfProcedureLinkageSectionDescriptorPlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfProcedureLinkageSectionDescriptorPlanningError);
 
 impl std::error::Error for ElfProcedureLinkageSectionDescriptorPlanningError {}
 

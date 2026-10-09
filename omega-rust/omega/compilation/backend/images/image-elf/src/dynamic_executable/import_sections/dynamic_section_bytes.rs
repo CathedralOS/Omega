@@ -112,11 +112,7 @@ impl ElfDynamicSectionSerializationError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicSectionSerializationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicSectionSerializationError);
 
 impl std::error::Error for ElfDynamicSectionSerializationError {}
 
@@ -407,7 +403,11 @@ fn decode_dynsym(bytes: &[u8], symbol_count: usize) -> Result<Vec<ElfDynamicSymb
     )?;
     let mut symbols = Vec::with_capacity(symbol_count);
     for index in 0..symbol_count {
-        let offset = crate::dynamic_executable::checked::checked_product(index, ELF64_SYMBOL_SIZE, "ELF64 symbol row offset")?;
+        let offset = crate::dynamic_executable::checked::checked_product(
+            index,
+            ELF64_SYMBOL_SIZE,
+            "ELF64 symbol row offset",
+        )?;
         symbols.push(ElfDynamicSymbol {
             name: read_u32(bytes, offset, "Elf64_Sym.st_name")?,
             info: read_u8(bytes, offset + 4, "Elf64_Sym.st_info")?,
@@ -435,9 +435,13 @@ fn decode_sysv_hash(bytes: &[u8]) -> Result<ElfSysvHash, Diagnostic> {
         .ok()
         .and_then(|buckets| buckets.checked_add(chain_count as usize))
         .ok_or_else(|| Diagnostic::error("System V hash decoded word count overflow"))?;
-    let expected_size = crate::dynamic_executable::checked::checked_product(word_count, 4, "System V decoded word byte count")?
-        .checked_add(8)
-        .ok_or_else(|| Diagnostic::error("System V decoded payload size overflow"))?;
+    let expected_size = crate::dynamic_executable::checked::checked_product(
+        word_count,
+        4,
+        "System V decoded word byte count",
+    )?
+    .checked_add(8)
+    .ok_or_else(|| Diagnostic::error("System V decoded payload size overflow"))?;
     require(
         bytes.len() == expected_size,
         "System V hash counts do not consume the exact payload bytes",
@@ -497,14 +501,21 @@ fn decode_gnu_hash(bytes: &[u8], dynamic_symbol_count: usize) -> Result<ElfGnuHa
         "GNU hash symbol offset exceeds the dynamic symbol count",
     )?;
     let chain_count = dynamic_symbol_count - symbol_offset;
-    let bloom_bytes =
-        crate::dynamic_executable::checked::checked_product(bloom_count as usize, 8, "GNU hash decoded bloom byte count")?;
+    let bloom_bytes = crate::dynamic_executable::checked::checked_product(
+        bloom_count as usize,
+        8,
+        "GNU hash decoded bloom byte count",
+    )?;
     let bucket_bytes = crate::dynamic_executable::checked::checked_product(
         bucket_count as usize,
         4,
         "GNU hash decoded bucket byte count",
     )?;
-    let chain_bytes = crate::dynamic_executable::checked::checked_product(chain_count, 4, "GNU hash decoded chain byte count")?;
+    let chain_bytes = crate::dynamic_executable::checked::checked_product(
+        chain_count,
+        4,
+        "GNU hash decoded chain byte count",
+    )?;
     let expected_size = checked_add(16, bloom_bytes, "GNU hash decoded bloom end")?
         .checked_add(bucket_bytes)
         .and_then(|size| size.checked_add(chain_bytes))
@@ -574,8 +585,11 @@ fn decode_gnu_hash(bytes: &[u8], dynamic_symbol_count: usize) -> Result<ElfGnuHa
 }
 
 fn decode_versym(bytes: &[u8], symbol_count: usize) -> Result<Vec<u16>, Diagnostic> {
-    let expected_size =
-        crate::dynamic_executable::checked::checked_product(symbol_count, 2, "decoded GNU symbol-version payload size")?;
+    let expected_size = crate::dynamic_executable::checked::checked_product(
+        symbol_count,
+        2,
+        "decoded GNU symbol-version payload size",
+    )?;
     require(
         bytes.len() == expected_size,
         "GNU symbol-version payload has a truncated row or trailing bytes",
@@ -731,7 +745,6 @@ fn read_array<const N: usize>(
         .and_then(|slice| slice.try_into().ok())
         .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))
 }
-
 
 fn checked_add(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
     left.checked_add(right)

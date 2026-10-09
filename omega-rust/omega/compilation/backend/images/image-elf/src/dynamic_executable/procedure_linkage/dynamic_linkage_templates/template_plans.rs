@@ -88,11 +88,7 @@ impl ElfProcedureLinkageTemplatePlanningError {
     }
 }
 
-impl std::fmt::Display for ElfProcedureLinkageTemplatePlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfProcedureLinkageTemplatePlanningError);
 
 impl std::error::Error for ElfProcedureLinkageTemplatePlanningError {}
 

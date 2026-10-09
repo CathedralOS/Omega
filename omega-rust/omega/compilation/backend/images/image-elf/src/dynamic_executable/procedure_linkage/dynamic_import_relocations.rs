@@ -114,11 +114,7 @@ impl ElfProcedureLinkageRelocationPlanningError {
     }
 }
 
-impl std::fmt::Display for ElfProcedureLinkageRelocationPlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfProcedureLinkageRelocationPlanningError);
 
 impl std::error::Error for ElfProcedureLinkageRelocationPlanningError {}
 
@@ -665,7 +661,6 @@ const fn section_tag(section: FinalImageSection) -> u8 {
         FinalImageSection::None => 4,
     }
 }
-
 
 #[cfg(test)]
 mod tests;

@@ -112,11 +112,7 @@ impl ElfDynamicFileEnvelopeSerializationError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicFileEnvelopeSerializationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicFileEnvelopeSerializationError);
 
 impl std::error::Error for ElfDynamicFileEnvelopeSerializationError {}
 
@@ -389,7 +385,8 @@ fn validate_section_header_fragment_geometry(
         file_offset,
         byte_count,
         "dynamic ELF section-header fragment end",
-     "Elf64_Off")?;
+        "Elf64_Off",
+    )?;
     require(
         file_offset >= ELF64_HEADER_PREFIX_SIZE as u64,
         "dynamic ELF section-header fragment overlaps the header prefix",
@@ -406,7 +403,8 @@ fn validate_section_header_fragment_geometry(
             load.file_offset(),
             load.file_size(),
             "dynamic ELF PT_LOAD file end",
-         "Elf64_Off")?;
+            "Elf64_Off",
+        )?;
         require(
             file_offset >= load_end,
             "dynamic ELF section-header fragment overlaps a loadable file extent",
@@ -544,7 +542,6 @@ const fn segment_type(kind: ElfLoadProgramHeaderKind) -> u32 {
         ElfLoadProgramHeaderKind::Dynamic => PT_DYNAMIC,
     }
 }
-
 
 fn non_authoritative_envelope_compatibility_fingerprint(
     resolved: &ValidatedElfResolvedDynamicTable,

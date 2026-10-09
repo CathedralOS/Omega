@@ -102,11 +102,7 @@ impl ElfSectionHeaderTableSerializationError {
     }
 }
 
-impl std::fmt::Display for ElfSectionHeaderTableSerializationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfSectionHeaderTableSerializationError);
 
 impl std::error::Error for ElfSectionHeaderTableSerializationError {}
 

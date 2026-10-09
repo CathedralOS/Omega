@@ -110,11 +110,7 @@ impl ElfDynamicSectionRosterPlanningError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicSectionRosterPlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicSectionRosterPlanningError);
 
 impl std::error::Error for ElfDynamicSectionRosterPlanningError {}
 

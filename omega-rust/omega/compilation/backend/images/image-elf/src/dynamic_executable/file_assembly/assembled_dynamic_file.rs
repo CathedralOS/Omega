@@ -146,11 +146,7 @@ impl ElfDynamicExecutableAdmissionError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicExecutableAdmissionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicExecutableAdmissionError);
 
 impl std::error::Error for ElfDynamicExecutableAdmissionError {}
 
@@ -172,11 +168,7 @@ impl ElfDynamicFileAssemblyError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicFileAssemblyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicFileAssemblyError);
 
 impl std::error::Error for ElfDynamicFileAssemblyError {}
 
@@ -714,7 +706,8 @@ fn validate_file_extents(
             header.file_offset(),
             header.file_size(),
             "dynamic ELF program-header file extent",
-         "Elf64_Xword")?;
+            "Elf64_Xword",
+        )?;
         crate::dynamic_executable::checked::require(
             end <= file_byte_count,
             "assembled dynamic ELF file does not contain a complete program-header extent",
@@ -725,7 +718,8 @@ fn validate_file_extents(
         image.data_file_offset(),
         image.data_size(),
         "assembled source-data extent",
-     "Elf64_Xword")?;
+        "Elf64_Xword",
+    )?;
     crate::dynamic_executable::checked::require(
         data_end <= file_byte_count
             && checked_u64(load.retained_image().memory.text.len(), "source text size")?
@@ -747,7 +741,8 @@ fn expected_file_byte_count(
             "dynamic ELF section-header table size",
         )?,
         "dynamic ELF file end",
-     "Elf64_Xword")?;
+        "Elf64_Xword",
+    )?;
     usize::try_from(end)
         .map_err(|_| Diagnostic::error("dynamic ELF assembled file exceeds host address space"))
 }
@@ -831,8 +826,6 @@ fn checked_u32(value: usize, context: &str) -> Result<u32, Diagnostic> {
 fn checked_u64(value: usize, context: &str) -> Result<u64, Diagnostic> {
     u64::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Xword")))
 }
-
-
 
 #[cfg(test)]
 mod tests;

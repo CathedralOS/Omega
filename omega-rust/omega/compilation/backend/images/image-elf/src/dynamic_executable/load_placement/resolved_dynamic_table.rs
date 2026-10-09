@@ -181,11 +181,7 @@ impl ElfDynamicAddressApplicationError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicAddressApplicationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicAddressApplicationError);
 
 impl std::error::Error for ElfDynamicAddressApplicationError {}
 

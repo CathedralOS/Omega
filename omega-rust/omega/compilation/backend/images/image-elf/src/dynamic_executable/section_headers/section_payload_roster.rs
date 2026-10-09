@@ -86,11 +86,7 @@ impl ElfIndexedSectionPayloadPlanningError {
     }
 }
 
-impl std::fmt::Display for ElfIndexedSectionPayloadPlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfIndexedSectionPayloadPlanningError);
 
 impl std::error::Error for ElfIndexedSectionPayloadPlanningError {}
 
@@ -591,7 +587,6 @@ fn hash_procedure_target(hash: &mut Fnv1a, target: ElfProcedureLinkageSemanticTa
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests;

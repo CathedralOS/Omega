@@ -95,11 +95,7 @@ impl ElfSectionHeaderPlacementApplicationError {
     }
 }
 
-impl std::fmt::Display for ElfSectionHeaderPlacementApplicationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfSectionHeaderPlacementApplicationError);
 
 impl std::error::Error for ElfSectionHeaderPlacementApplicationError {}
 

@@ -111,11 +111,7 @@ impl ElfDynamicTagPlanningError {
     }
 }
 
-impl std::fmt::Display for ElfDynamicTagPlanningError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfDynamicTagPlanningError);
 
 impl std::error::Error for ElfDynamicTagPlanningError {}
 

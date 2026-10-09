@@ -86,7 +86,6 @@ impl ElfAppliedProcedureLinkageFixup {
         self.byte_width
     }
 
-
     pub const fn kind(&self) -> ElfAppliedProcedureLinkageKind {
         self.kind
     }
@@ -94,7 +93,6 @@ impl ElfAppliedProcedureLinkageFixup {
     pub const fn target(&self) -> ElfAppliedProcedureLinkageTarget {
         self.target
     }
-
 
     pub const fn target_address(&self) -> u64 {
         self.target_address
@@ -178,10 +176,6 @@ impl ElfProcedureLinkageApplicationError {
     }
 }
 
-impl std::fmt::Display for ElfProcedureLinkageApplicationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
+diagnostics::diagnostic_display!(ElfProcedureLinkageApplicationError);
 
 impl std::error::Error for ElfProcedureLinkageApplicationError {}

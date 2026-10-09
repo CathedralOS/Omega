@@ -298,10 +298,6 @@ pub enum ObjectError {
     TextSizeOverflow,
 }
 
-impl std::fmt::Display for ObjectError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
+diagnostics::debug_display!(ObjectError);
 
 impl std::error::Error for ObjectError {}
