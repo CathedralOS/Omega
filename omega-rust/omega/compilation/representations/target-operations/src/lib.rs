@@ -32,7 +32,8 @@ pub use target_operations::{
     TargetStructuralHomeRequirement, TargetStructuralParameter, TargetStructuralReturnSource,
     TargetStructuralRuntimeIndex, TargetUnitOperation, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
-    TargetUnitWriteOnlyPrimitiveStoreSource, TargetViewExtent, TargetX86ScalarFmaSettlement,
+    TargetUnitWriteOnlyPrimitiveStoreSource, TargetViewExtent,
     TerminalPsiProvenance, boundary, calls, control_flow, conventional_float_class_layout,
     operations, provenance, selector_carrier_type, storage, values,
 };
+pub(crate) use target_operations::{ TargetX86ScalarFmaSettlement};
