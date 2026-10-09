@@ -435,9 +435,7 @@ impl TerminalExecution<'_> {
                 missing: vec![demand],
             });
         }
-        let declaration = self.program.boundary_machines().get(boundary).ok_or(
-            TerminalInterpretError::VerifiedBoundaryMachineMissing(*boundary),
-        )?;
+        let declaration = self.program.verified_boundary_machine(boundary)?;
         if declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
             || arguments.len() != 1
             || !structural_arguments.is_empty()

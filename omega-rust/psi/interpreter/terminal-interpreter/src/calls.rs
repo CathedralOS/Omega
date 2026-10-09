@@ -275,9 +275,7 @@ impl TerminalExecution<'_> {
         // Keep the admitted declaration owner independent of mutable result
         // storage; no declaration or program contents are copied for a call.
         let program = std::sync::Arc::clone(&self.program);
-        let boundary_declaration = program.boundary_machines().get(&boundary).ok_or(
-            TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
-        )?;
+        let boundary_declaration = program.verified_boundary_machine(&boundary)?;
         let scalar_arguments = scalar_argument_ids
             .iter()
             .map(|argument| {

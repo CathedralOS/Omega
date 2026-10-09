@@ -103,9 +103,7 @@ pub(crate) fn check(
                         None
                     }
                     OperationKind::BoundaryCall { boundary, .. } => {
-                        let declaration = program.boundary_machines().get(boundary).ok_or(
-                            TerminalInterpretError::VerifiedBoundaryMachineMissing(*boundary),
-                        )?;
+                        let declaration = program.verified_boundary_machine(boundary)?;
                         if let terminal_psi::BoundaryCompletion::External(kind) =
                             declaration.completion
                         {

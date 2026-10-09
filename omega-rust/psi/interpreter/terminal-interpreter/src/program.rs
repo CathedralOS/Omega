@@ -55,6 +55,17 @@ impl AdmittedTerminalProgram<'_> {
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(machine))
     }
 
+    /// The boundary machine keyed `boundary` — admission proves the catalog
+    /// entry exists, so a miss reports a defect through the verified arm.
+    pub(crate) fn verified_boundary_machine(
+        &self,
+        boundary: &BoundaryMachineId,
+    ) -> Result<&BoundaryMachineDeclaration, TerminalInterpretError> {
+        self.boundary_machines().get(boundary).ok_or(
+            TerminalInterpretError::VerifiedBoundaryMachineMissing(*boundary),
+        )
+    }
+
     pub(crate) fn structural_types(&self) -> ProgramDeclarations<'_, StructuralTypeDeclaration> {
         ProgramDeclarations::new(&self.catalogs.structural_types)
     }
