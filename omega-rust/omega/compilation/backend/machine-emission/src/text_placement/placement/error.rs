@@ -4,7 +4,6 @@ use semantic_vocabulary::MachineId;
 pub(crate) enum TextPlacementError {
     DuplicateFunction(MachineId),
     MissingSemanticEntry(MachineId),
-    DuplicateSemanticEntry(MachineId),
     OffsetOverflow,
     StatisticsOverflow,
     SourceShapeMismatch,

@@ -10,7 +10,6 @@ pub enum RelocationFreeTextSectionPlacementError {
     FrameSource(FunctionFragmentFrameApplicationError),
     DuplicateFunction(MachineId),
     MissingSemanticEntry(MachineId),
-    DuplicateSemanticEntry(MachineId),
     OffsetOverflow,
     StatisticsOverflow,
     SourceShapeMismatch,
@@ -49,7 +48,6 @@ impl From<TextPlacementError> for RelocationFreeTextSectionPlacementError {
             Source::ArtifactMismatch => Self::ArtifactMismatch,
             Source::DuplicateFunction(machine) => Self::DuplicateFunction(machine),
             Source::MissingSemanticEntry(machine) => Self::MissingSemanticEntry(machine),
-            Source::DuplicateSemanticEntry(machine) => Self::DuplicateSemanticEntry(machine),
             Source::MissingInternalMachineTarget(machine) => {
                 Self::MissingInternalMachineTarget(machine)
             }
