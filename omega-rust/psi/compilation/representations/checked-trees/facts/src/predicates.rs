@@ -587,11 +587,3 @@ macro_rules! checked_boolean_triple_pattern {
     };
 }
 
-#[macro_export]
-macro_rules! integer_widen_triple_pattern {
-    ($($fields:tt)*) => {
-        $crate::CheckedScalarExpression::IntegerBitwiseNot { $($fields)* }
-            | $crate::CheckedScalarExpression::IntegerExactCast { $($fields)* }
-            | $crate::CheckedScalarExpression::IntegerWiden { $($fields)* }
-    };
-}

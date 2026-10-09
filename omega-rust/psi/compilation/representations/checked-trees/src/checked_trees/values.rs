@@ -409,3 +409,12 @@ pub enum CheckedSubsliceSite {
     /// The initializer of the statement's own immutable view local.
     LocalBinding,
 }
+
+#[macro_export]
+macro_rules! integer_widen_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::CheckedScalarExpression::IntegerBitwiseNot { $($fields)* }
+            | $crate::CheckedScalarExpression::IntegerExactCast { $($fields)* }
+            | $crate::CheckedScalarExpression::IntegerWiden { $($fields)* }
+    };
+}
