@@ -3,7 +3,7 @@
 //! This is meaning custody, not an overflow proof. Normal source formation and
 //! Terminal operation obligations still independently discharge Exact arithmetic.
 use super::{
-    CheckFacts, ExpressionHandle, ExpressionNode, OperatorSpelling, PrimitiveType,
+    CheckFacts, ExpressionHandle, ExpressionNode, PrimitiveType,
     StateParameter, SymbolHandle, TypeReferenceHandle,
 };
 use crate::checks::contracts::call_bounds::context::comparison_is_supported;
