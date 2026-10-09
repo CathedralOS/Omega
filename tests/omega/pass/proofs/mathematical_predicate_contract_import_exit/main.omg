@@ -19,6 +19,12 @@ ensures helpers::predicate(value) {}
 machine generic(value: u8)
 ensures helpers::identity<u8>(value) == value {}
 
+let apply(predicate: u8 -> core::Strict<0>, value: u8): core::Strict<0> =
+    predicate(value);
+
+machine higher_order(value: u8)
+ensures apply(reflexive(), value) {}
+
 machine typed_result()
 ensures helpers::byte_mask() == helpers::byte_mask() {}
 
@@ -28,6 +34,7 @@ machine main() crashes Trap {
     returned(13u8);
     generic(17u8);
     typed_result();
+    higher_order(19u8);
     let observed: u8 = identity(11u8);
     transition observed == 11u8 {
         true -> done()

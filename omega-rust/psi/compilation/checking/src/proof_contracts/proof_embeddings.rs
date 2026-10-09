@@ -16,7 +16,7 @@ use typed_trees::expression::{
 };
 use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::proposition::{PropositionBody, PropositionFormula};
-use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::statement::{StatementNode, StatementRootRole};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use crate::expression_traversal::collect_expression_nodes;
@@ -483,43 +483,16 @@ fn collect_statement_nodes(
     nodes: &mut Vec<ExpressionHandle>,
     seen: &mut HashSet<ExpressionHandle>,
 ) {
-    match statement {
-        StatementNode::RootBinding(_) => {}
-        StatementNode::AssemblyFact(fact) => {
-            collect_expression_nodes(program, fact.expression, nodes, seen)
+    // Statement and expression argument spans have distinct arena owners.
+    // Borrow the statement table's roots rather than interpreting its handles
+    // in the expression table. Static root bindings supply no executable value.
+    for (role, expression) in program.statement_table.expression_roots(statement) {
+        if matches!(
+            role,
+            StatementRootRole::BindingReceiver | StatementRootRole::BindingImplementation
+        ) {
+            continue;
         }
-        StatementNode::Assignment(assignment) => {
-            collect_expression_nodes(program, assignment.target, nodes, seen);
-            collect_expression_nodes(program, assignment.value, nodes, seen);
-        }
-        StatementNode::Call(call) => {
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_nodes(program, *argument, nodes, seen);
-            }
-        }
-        StatementNode::Expression(expression) => {
-            collect_expression_nodes(program, *expression, nodes, seen)
-        }
-        StatementNode::LocalData(local) => {
-            collect_expression_nodes(program, local.initial_value, nodes, seen)
-        }
-        StatementNode::Transition(transition) => {
-            if let TransitionGuardNode::When(guard) = transition.guard {
-                collect_expression_nodes(program, guard, nodes, seen);
-            }
-            for target in [transition.target, transition.continuation] {
-                match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Value(expression) => {
-                        collect_expression_nodes(program, *expression, nodes, seen)
-                    }
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        for argument in program.expression_table.expression_handles(*arguments) {
-                            collect_expression_nodes(program, *argument, nodes, seen);
-                        }
-                    }
-                    TransitionTargetNode::Terminal => {}
-                }
-            }
-        }
+        collect_expression_nodes(program, expression, nodes, seen);
     }
 }
