@@ -40,15 +40,17 @@ pub use register_allocation::{RegisterAllocationError, stage_register_allocation
 
 // Stages sequenced by `stage_register_allocation`, in route order.
 pub use assignment::baseline::{
+};
+pub(crate) use assignment::baseline::{
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
-};
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies};
 pub use assignment::home_assignment::{
-    FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeError, RegisterHomeIdentity,
-    RegisterHomePlan, RegisterHomeValidationReceipt, ValidatedRegisterHomes, VirtualRegisterHome,
-    assign_register_homes, register_home_identity,
+    FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeIdentity,
+    RegisterHomePlan, ValidatedRegisterHomes, VirtualRegisterHome, register_home_identity,
 };
+pub(crate) use assignment::home_assignment::{ RegisterHomeError, RegisterHomeValidationReceipt,
+    assign_register_homes};
 pub use assignment::post_allocation_manifest::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,
     PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
@@ -56,45 +58,50 @@ pub use assignment::post_allocation_manifest::{
     PostAllocationUnavailableData, ValidatedPostAllocationOptimizationManifest,
 };
 pub use assignment::recovery::{
+};
+pub(crate) use assignment::recovery::{
     stage_active_resident_register_allocation,
     stage_leaf_local_fixed_view_register_allocation_composing,
     stage_pre_allocation_register_allocation, stage_selected_lowering_register_allocation,
-    stage_shared_entry_fixed_view_register_allocation,
-};
-pub use assignment::runtime_spill::RuntimeSpillAllocationError;
+    stage_shared_entry_fixed_view_register_allocation};
+pub(crate) use assignment::runtime_spill::RuntimeSpillAllocationError;
 pub use assignment::transformed::{
+};
+pub(crate) use assignment::transformed::{
     OptimizedPostPreAllocationHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
-};
+    StagedOptimizedRegisterHomesAfterSelectedLowering};
 
 // Rematerialization staged by the active-resident recovery rule.
 pub use rewrites::{
+};
+pub(crate) use rewrites::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,
     StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
-    stage_optimized_active_resident_rematerialization_pressure,
-};
+    stage_optimized_active_resident_rematerialization_pressure};
 
 // Current allocation facts.
-pub use output::{
-    AllocationAdmissionError, AllocationEvidence, AllocationOutput, RetainedAllocation,
+pub use output::{ AllocationEvidence, AllocationOutput, RetainedAllocation,
 };
+pub(crate) use output::{
+    AllocationAdmissionError};
 
 // Allocation-visible callee-saved requirements.
 pub use preservation::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementIdentity,
-    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy,
-    AllocatedCalleeSavedRequirementReceipt, AllocatedCalleeSavedUnitRequirement,
+    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy, AllocatedCalleeSavedUnitRequirement,
     CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
-    ValidatedAllocatedCalleeSavedRequirements, allocated_callee_saved_requirement_identity,
+    ValidatedAllocatedCalleeSavedRequirements,
     encode_callee_saved_modification_witness_identity, stage_allocated_callee_saved_requirements,
     validate_allocated_callee_saved_requirements,
 };
+pub(crate) use preservation::{
+    AllocatedCalleeSavedRequirementReceipt, allocated_callee_saved_requirement_identity};
 
 // Validated spill boundaries not yet sequenced by `stage_register_allocation`.
 

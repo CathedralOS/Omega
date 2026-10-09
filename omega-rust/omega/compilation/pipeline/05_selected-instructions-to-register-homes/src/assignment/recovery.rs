@@ -95,7 +95,7 @@ fn fixed_view_allocation(
 /// a pressured source exercises the same fixed-view sequence after legality
 /// staging — including the runtime-spill composition a residual
 /// `NoCompatibleHome` admits.
-pub fn stage_shared_entry_fixed_view_register_allocation(
+pub(crate) fn stage_shared_entry_fixed_view_register_allocation(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     fixed_view_allocation(
@@ -108,7 +108,7 @@ pub fn stage_shared_entry_fixed_view_register_allocation(
 /// default allocation path takes on unresolved fixed-site transitions,
 /// publishing one retained allocation whether post-copy homes or the
 /// runtime-spill composition resolved the program.
-pub fn stage_leaf_local_fixed_view_register_allocation_composing(
+pub(crate) fn stage_leaf_local_fixed_view_register_allocation_composing(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     fixed_view_allocation(
@@ -126,7 +126,7 @@ pub fn stage_leaf_local_fixed_view_register_allocation_composing(
 /// the produced manifest and the declared selection binds through replayed
 /// custody evidence. Every other failure keeps the existing typed error
 /// surface.
-pub fn stage_active_resident_register_allocation(
+pub(crate) fn stage_active_resident_register_allocation(
     ranges: StagedOptimizedLiveRanges,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     let budget = ranges.budget_per_pass();
@@ -174,7 +174,7 @@ pub fn stage_active_resident_register_allocation(
 /// the run's final facts hands custody to runtime spill instead of failing
 /// the route. Any other assignment failure keeps the post-lowering homes
 /// error surface.
-pub fn stage_selected_lowering_register_allocation(
+pub(crate) fn stage_selected_lowering_register_allocation(
     run: StagedSelectedLoweringOptimizationRun,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     match crate::assignment::transformed::assign_optimized_register_homes_after_selected_lowering(
@@ -202,7 +202,7 @@ pub fn stage_selected_lowering_register_allocation(
 /// `NoCompatibleHome` pressure over the run's final facts hands custody to
 /// runtime spill instead of failing the route. Any other assignment
 /// failure keeps the post-run homes error surface.
-pub fn stage_pre_allocation_register_allocation(
+pub(crate) fn stage_pre_allocation_register_allocation(
     run: StagedPreAllocationOptimizationRun,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     match crate::assignment::transformed::assign_optimized_register_homes_after_pre_allocation(&run)

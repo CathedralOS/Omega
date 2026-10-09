@@ -73,7 +73,7 @@ pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignmen
 /// complete append-only fold chain remains owned and the manifest ledger is
 /// derived from it rather than accepted from a caller.
 #[derive(Debug)]
-pub struct StagedOptimizedRegisterHomesAfterLiteralFolds {
+pub(crate) struct StagedOptimizedRegisterHomesAfterLiteralFolds {
     folds: StagedOptimizedLiteralFolds,
     homes: ValidatedRegisterHomes,
     manifest: ValidatedPostAllocationOptimizationManifest,
@@ -142,7 +142,7 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
+pub(crate) struct StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
     source: StagedOptimizedLiteralFoldCustodyReceipt,
     homes: RegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
@@ -172,7 +172,7 @@ impl StagedOptimizedPostLiteralFoldHomeCustodyReceipt {
 /// completion identity is retained even when its transformation ledger is
 /// empty because the source was already at the validated fixed point.
 #[derive(Debug)]
-pub struct StagedOptimizedRegisterHomesAfterSelectedLowering {
+pub(crate) struct StagedOptimizedRegisterHomesAfterSelectedLowering {
     run: StagedSelectedLoweringOptimizationRun,
     homes: ValidatedRegisterHomes,
     manifest: ValidatedPostAllocationOptimizationManifest,
@@ -255,7 +255,7 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
+pub(crate) struct StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
     source: StagedSelectedLoweringOptimizationCustodyReceipt,
     homes: RegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
@@ -282,7 +282,7 @@ impl StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedPostSelectedLoweringHomeCustodyError {
+pub(crate) enum OptimizedPostSelectedLoweringHomeCustodyError {
     UpstreamSelectedLowering(OptimizedLiteralFoldCustodyError),
     Assignment(RegisterHomeError),
     Manifest(PostAllocationOptimizationManifestError),
@@ -304,7 +304,7 @@ impl std::error::Error for OptimizedPostSelectedLoweringHomeCustodyError {}
 /// completion identity is retained even when its transformation ledger is
 /// empty because every candidate declined on the admitted source program.
 #[derive(Debug)]
-pub struct StagedOptimizedRegisterHomesAfterPreAllocation {
+pub(crate) struct StagedOptimizedRegisterHomesAfterPreAllocation {
     run: StagedPreAllocationOptimizationRun,
     homes: ValidatedRegisterHomes,
     manifest: ValidatedPostAllocationOptimizationManifest,
@@ -374,7 +374,7 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostPreAllocationHomeCustodyReceipt {
+pub(crate) struct StagedOptimizedPostPreAllocationHomeCustodyReceipt {
     source: StagedPreAllocationOptimizationCustodyReceipt,
     homes: RegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
@@ -401,7 +401,7 @@ impl StagedOptimizedPostPreAllocationHomeCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedPostPreAllocationHomeCustodyError {
+pub(crate) enum OptimizedPostPreAllocationHomeCustodyError {
     UpstreamPreAllocation(OptimizedPreAllocationCustodyError),
     Assignment(RegisterHomeError),
     Manifest(PostAllocationOptimizationManifestError),

@@ -34,7 +34,7 @@ use selected_instructions_to_selected_instructions::{
 /// prefix to runtime-spill recovery when residual `NoCompatibleHome`
 /// pressure remains.
 #[allow(clippy::too_many_arguments)]
-pub fn stage_optimized_active_resident_rematerialization_pressure(
+pub(crate) fn stage_optimized_active_resident_rematerialization_pressure(
     source: StagedOptimizedAllocationLegality,
     choice_policy: SpillChoicePolicy,
     classification_policy: RecoveryClassificationPolicy,
@@ -73,7 +73,7 @@ pub(crate) fn complete_optimized_active_resident_rematerialization(
 /// homes, and a typed post-allocation manifest rebuilt from the transformed
 /// selected CFG. The source analyses remain retained only as input custody.
 #[derive(Debug)]
-pub struct StagedOptimizedActiveResidentRematerialization {
+pub(crate) struct StagedOptimizedActiveResidentRematerialization {
     source: StagedOptimizedAllocationLegality,
     choices: ValidatedSpillChoices,
     classifications: ValidatedRecoveryClassifications,
@@ -150,7 +150,7 @@ impl StagedOptimizedActiveResidentRematerialization {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+pub(crate) struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     source: StagedOptimizedAllocationLegalityCustodyReceipt,
     choices: SpillChoiceIdentity,
     choice_policy: SpillChoicePolicy,
@@ -252,7 +252,7 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
 /// which keeps the rematerialization as the first recorded transformation
 /// and independently replays this whole prefix before any spill step.
 #[derive(Debug)]
-pub struct StagedOptimizedActiveResidentRematerializationPressure {
+pub(crate) struct StagedOptimizedActiveResidentRematerializationPressure {
     source: StagedOptimizedAllocationLegality,
     choices: ValidatedSpillChoices,
     classifications: ValidatedRecoveryClassifications,
@@ -290,7 +290,7 @@ impl StagedOptimizedActiveResidentRematerializationPressure {
 /// the terminal or composing completion must reproduce, without homes or
 /// manifest — those belong to whichever path resolves the residual pressure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
+pub(crate) struct StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
     source: StagedOptimizedAllocationLegalityCustodyReceipt,
     choices: SpillChoiceIdentity,
     choice_policy: SpillChoicePolicy,
@@ -322,7 +322,7 @@ impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedActiveResidentRematerializationError {
+pub(crate) enum OptimizedActiveResidentRematerializationError {
     UnsupportedPolicy,
     SpillChoice(SpillChoiceError),
     Classification(RecoveryClassificationError),

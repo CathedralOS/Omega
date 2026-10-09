@@ -5,7 +5,7 @@ use super::{
     AllocatedCalleeSavedRequirementPolicy, encode_callee_saved_modification_witness_identity,
 };
 
-pub fn allocated_callee_saved_requirement_identity(
+pub(crate) fn allocated_callee_saved_requirement_identity(
     plan: &AllocatedCalleeSavedRequirementPlan,
 ) -> AllocatedCalleeSavedRequirementIdentity {
     let mut hasher = Sha256::new();

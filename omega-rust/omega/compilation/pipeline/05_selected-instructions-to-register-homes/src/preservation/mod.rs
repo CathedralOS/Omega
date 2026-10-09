@@ -12,7 +12,7 @@ mod replay;
 mod validation;
 
 pub use error::AllocatedCalleeSavedRequirementError;
-pub use identity::allocated_callee_saved_requirement_identity;
+pub(crate) use identity::allocated_callee_saved_requirement_identity;
 pub use validation::validate_allocated_callee_saved_requirements;
 
 use optimization_core::OptimizationWorkBudget;
@@ -43,7 +43,7 @@ pub fn stage_allocated_callee_saved_requirements(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocatedCalleeSavedRequirementReceipt {
+pub(crate) struct AllocatedCalleeSavedRequirementReceipt {
     pub(in crate::preservation) identity: AllocatedCalleeSavedRequirementIdentity,
     pub(in crate::preservation) selected: SelectedInstructionPlanIdentity,
     pub(in crate::preservation) homes: RegisterHomeIdentity,
