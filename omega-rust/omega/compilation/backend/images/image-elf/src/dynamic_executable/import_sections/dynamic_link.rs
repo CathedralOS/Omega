@@ -15,7 +15,7 @@ use target::{NormalizedElfInterpreterPlan, TargetProfile};
 /// no loader, publication, admission, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "planned ELF dynamic-link inputs retain the exact final image and interpreter"]
-pub(crate) struct PlannedElfDynamicLinkInputs {
+pub struct PlannedElfDynamicLinkInputs {
     image: FinalImage,
     interpreter: NormalizedElfInterpreterPlan,
     imports: Vec<ElfImportRequest>,

@@ -72,7 +72,7 @@ impl ElfDynamicFileFragmentPlacement {
 /// Independently replayed, non-runnable dynamic ELF file bytes.
 #[derive(Debug)]
 #[must_use = "assembled dynamic ELF bytes retain complete non-runnable linkage custody"]
-pub(crate) struct ValidatedElfAssembledDynamicFile {
+pub struct ValidatedElfAssembledDynamicFile {
     resolved_linkage: ValidatedElfResolvedProcedureLinkage,
     contents: ElfAssembledDynamicFileContents,
     non_authoritative_assembled_file_compatibility_fingerprint: u64,

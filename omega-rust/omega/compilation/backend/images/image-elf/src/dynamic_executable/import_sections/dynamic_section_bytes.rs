@@ -33,7 +33,7 @@ const ELF64_VERSION_AUXILIARY_SIZE: usize = 16;
 /// effects, publication state, or runnable-image authority.
 #[derive(Debug)]
 #[must_use = "validated ELF payloads retain the exact structural section plan"]
-pub(crate) struct ValidatedElfDynamicSectionPayloads {
+pub struct ValidatedElfDynamicSectionPayloads {
     plan: ValidatedElfDynamicSectionPlan,
     payloads: ElfDynamicSectionPayloadBytes,
     non_authoritative_payload_compatibility_fingerprint: u64,

@@ -125,9 +125,6 @@ impl ElfPlacedDynamicSection {
         self.byte_size
     }
 
-    pub const fn alignment(&self) -> u64 {
-        self.alignment
-    }
 }
 
 /// Meaning of a retained section-header placement resolution.

@@ -86,9 +86,6 @@ impl ElfAppliedProcedureLinkageFixup {
         self.byte_width
     }
 
-    pub const fn mutable_mask(&self) -> u64 {
-        self.mutable_mask
-    }
 
     pub const fn kind(&self) -> ElfAppliedProcedureLinkageKind {
         self.kind
@@ -98,9 +95,6 @@ impl ElfAppliedProcedureLinkageFixup {
         self.target
     }
 
-    pub const fn source_address(&self) -> u64 {
-        self.source_address
-    }
 
     pub const fn target_address(&self) -> u64 {
         self.target_address
@@ -115,7 +109,7 @@ impl ElfAppliedProcedureLinkageFixup {
 /// dynamic ELF file-envelope custody chain.
 #[derive(Debug)]
 #[must_use = "resolved ELF procedure linkage retains exact non-runnable envelope custody"]
-pub(crate) struct ValidatedElfResolvedProcedureLinkage {
+pub struct ValidatedElfResolvedProcedureLinkage {
     pub(crate) envelope: ValidatedElfDynamicFileEnvelope,
     pub(crate) contents: ElfResolvedProcedureLinkageContents,
     pub(crate) non_authoritative_resolved_linkage_compatibility_fingerprint: u64,
