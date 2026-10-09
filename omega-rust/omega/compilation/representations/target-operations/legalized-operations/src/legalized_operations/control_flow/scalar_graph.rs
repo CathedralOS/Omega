@@ -170,7 +170,8 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::PrimitiveLocalStore { value, .. } => {
                 visit(value.value)
             }
-            LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
+            LegalizedScalarInstructionKind::ByteSequenceLength { indices, .. }
+            | LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
             | LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
                 indices, ..
@@ -185,11 +186,22 @@ impl LegalizedScalarInstruction {
                 .into_iter()
                 .for_each(|operand| visit(operand.length())),
             LegalizedScalarInstructionKind::ByteSequenceSubslice {
-                start, end, length, ..
+                start,
+                end,
+                length,
+                indices,
+                ..
             }
             | LegalizedScalarInstructionKind::ElementViewSubslice {
-                start, end, length, ..
-            } => [*start, *end, *length].into_iter().for_each(visit),
+                start,
+                end,
+                length,
+                indices,
+                ..
+            } => {
+                indices.iter().for_each(|index| visit(index.operand.value));
+                [*start, *end, *length].into_iter().for_each(visit);
+            }
             LegalizedScalarInstructionKind::ByteSequenceStore { length, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => {
                 visit(*length)

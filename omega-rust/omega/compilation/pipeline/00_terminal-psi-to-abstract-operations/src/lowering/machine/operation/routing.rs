@@ -289,7 +289,7 @@ pub(super) fn lower(
             Ok(AbstractOperation::ByteSequenceSubslice {
                 psi_operation: operation.id,
                 result: result.clone(),
-                source: *source,
+                source: source.clone(),
                 start: *start,
                 end: *end,
                 length: *length,
@@ -308,7 +308,7 @@ pub(super) fn lower(
             Ok(AbstractOperation::ByteSequenceLength {
                 psi_operation: operation.id,
                 result: result.into(),
-                source: *source,
+                source: source.clone(),
             })
         }
         OperationKind::EstablishElementView {
@@ -426,7 +426,7 @@ pub(super) fn lower(
             Ok(AbstractOperation::ElementViewSubslice {
                 psi_operation: operation.id,
                 result: result.clone(),
-                source: *source,
+                source: source.clone(),
                 start: *start,
                 end: *end,
                 length: *length,

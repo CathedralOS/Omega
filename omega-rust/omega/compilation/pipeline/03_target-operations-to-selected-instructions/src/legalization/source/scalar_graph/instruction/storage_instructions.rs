@@ -329,7 +329,19 @@ pub(super) fn project_byte_sequence_subslice(
     let kind = {
         LegalizedScalarInstructionKind::ByteSequenceSubslice {
             result: result.clone(),
-            source: *source,
+            source: source.clone(),
+            indices: crate::legalization::runtime_indices::operands(
+                optimized,
+                unit,
+                *psi_operation,
+                &scalar_graph_input::element_views::descriptor_geometry(
+                    optimized,
+                    source,
+                    &unit.structural_types,
+                )
+                .ok_or(LegalizationError::custody())?
+                .elements,
+            )?,
             start: *start,
             end: *end,
             length: *length,
@@ -658,7 +670,19 @@ pub(super) fn project_element_view_subslice(
     let kind = {
         LegalizedScalarInstructionKind::ElementViewSubslice {
             result: result.clone(),
-            source: *source,
+            source: source.clone(),
+            indices: crate::legalization::runtime_indices::operands(
+                optimized,
+                unit,
+                *psi_operation,
+                &scalar_graph_input::element_views::descriptor_geometry(
+                    optimized,
+                    source,
+                    &unit.structural_types,
+                )
+                .ok_or(LegalizationError::custody())?
+                .elements,
+            )?,
             start: *start,
             end: *end,
             length: *length,

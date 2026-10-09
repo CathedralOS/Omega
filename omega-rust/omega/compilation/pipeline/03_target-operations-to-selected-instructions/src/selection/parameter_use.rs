@@ -35,7 +35,10 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
             .any(|row| match &row.kind {
                 // Forming a reference needs the incoming address even when
                 // this activation never reads the referent's contents.
-                LegalizedScalarInstructionKind::EstablishReference { source, .. } => source.place == place,
+                LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
+                | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
+                | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. }
+                | LegalizedScalarInstructionKind::EstablishReference { source, .. } => source.place == place,
                 LegalizedScalarInstructionKind::AtomicAccess { location, .. } => location.place == place,
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
                 LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,
@@ -77,11 +80,8 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
                 | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
                 | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
-                | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
                 | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
-                | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
-                | LegalizedScalarInstructionKind::ElementViewRead { source, .. }
-                | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. } => {
+                | LegalizedScalarInstructionKind::ElementViewRead { source, .. } => {
                     *source == place
                 }
                 // `self.arr.as_slice()` roots a view in the parameter's

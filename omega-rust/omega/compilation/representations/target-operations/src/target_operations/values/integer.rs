@@ -28,8 +28,8 @@ pub enum TargetIntegerExpression {
     ByteSequenceLength {
         psi_operation: OperationId,
         source_value: ValueId,
-        source: PlaceId,
-        view: Box<TargetByteView>,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         length_byte_offset: u32,
     },
     /// Exact element observation over an element-view descriptor. The index

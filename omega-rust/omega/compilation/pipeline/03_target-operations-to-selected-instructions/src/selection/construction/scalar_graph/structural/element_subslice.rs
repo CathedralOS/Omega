@@ -1,5 +1,4 @@
 //! Retain original backing with exact element-scaled offset and length homes.
-use super::element_views::{element_backing_pointer, element_stride};
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
@@ -19,6 +18,7 @@ pub(super) fn create(
     let LegalizedScalarInstructionKind::ElementViewSubslice {
         result,
         source,
+        indices,
         start,
         end,
         length,
@@ -29,7 +29,8 @@ pub(super) fn create(
         return Err(invalid());
     };
     if row.result.is_some()
-        || crate::selection::established_view_input::element_view_type(function, *source)
+        || super::descriptor_operands::source_geometry(function, source)
+            .map(|(geometry, _)| geometry.selected)
             != Some(result.structural_type)
         || crate::selection::established_view_input::view_access(function, result.place).is_none()
         || !result.qualifications.is_empty()
@@ -52,9 +53,17 @@ pub(super) fn create(
     if start_type != integer || end_type != integer || length_type != integer {
         return Err(invalid());
     }
-    let stride = element_stride(function, builder, *source).ok_or_else(|| invalid())?;
-    let backing = element_backing_pointer(builder, row, *source)?;
-    let parent = builder.transport.element_view(*source).copied();
+    let stride =
+        super::descriptor_operands::element_stride(function, source).ok_or_else(|| invalid())?;
+    let parent = source
+        .path
+        .is_empty()
+        .then(|| builder.transport.element_view(source.place).copied())
+        .flatten();
+    let backing = match parent {
+        Some(parent) => parent.backing_pointer,
+        None => super::descriptor_operands::backing(function, builder, row, source, indices)?,
+    };
     // Scale the element start into the root's byte units. Bounds give
     // s <= e <= L <= R elements and L * stride <= R * stride <= root bytes, so
     // the stride product cannot overflow either.

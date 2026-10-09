@@ -105,9 +105,13 @@ impl Checker<'_> {
                         if operation == psi_operation && result.value == resolved && expected == source
                         && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
             }
-            Expression::ByteSequenceLength { psi_operation, source_value, source, view, length_byte_offset } => {
-                *length_byte_offset == if super::super::byte_views::reads_owner_layout(self.optimized, *source, self.types) { 0 } else { 8 } && *source_value == resolved
-                    && (self.byte_view(view, *source, aliases) || self.mutable_byte_view(view, *source))
+            Expression::ByteSequenceLength { psi_operation, source_value, source, indices, length_byte_offset } => {
+                *source_value == resolved
+                    && super::super::element_views::byte_length_geometry(self.optimized, source, self.types)
+                        .is_some_and(|(geometry, carrier)| {
+                            *length_byte_offset == if matches!(carrier, terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) { 8 } else { 0 }
+                            && super::unit::runtime_indices_rejoin(indices, &geometry.elements, self.available.unwrap_or(&[]))
+                        })
                     && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                         AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
                         if operation == psi_operation && result.value == resolved && expected == source))
@@ -140,8 +144,8 @@ impl Checker<'_> {
                 match &node.operation {
                     AbstractOperation::IntegerConstant {result,value:actual,..} => *result == resolved && actual == literal,
                     AbstractOperation::ByteSequenceLength {result,source,..} => result.value == resolved
-                        && super::super::byte_views::bounded_view_capacity(self.optimized, *source, self.types)
-                            .is_some_and(|capacity| *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity))),
+                        && super::super::element_views::byte_length_geometry(self.optimized, source, self.types)
+                            .is_some_and(|(_, carrier)| matches!(carrier, terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } if *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)))),
                     _ => false,
                 }),
             Expression::Parameter {source_value,parameter_index,location} => {

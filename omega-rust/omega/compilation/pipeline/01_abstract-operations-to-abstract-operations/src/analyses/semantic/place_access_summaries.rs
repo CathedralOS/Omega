@@ -620,7 +620,7 @@ fn scan_operation(
             };
             pending.attribute(context, *source, view, AccessKind::Read);
         }
-        O::ByteSequenceRead { source, .. } | O::ByteSequenceLength { source, .. } => {
+        O::ByteSequenceRead { source, .. } => {
             pending.attribute(context, *source, Vec::new(), AccessKind::Read);
         }
         O::ByteSequencePredicate { operand, .. } => match operand {
@@ -633,7 +633,10 @@ fn scan_operation(
                 pending.attribute(context, source.place, view, AccessKind::Read);
             }
         },
-        O::ElementViewLength { source, .. } => {
+        O::ElementViewLength { source, .. }
+        | O::ByteSequenceLength { source, .. }
+        | O::ByteSequenceSubslice { source, .. }
+        | O::ElementViewSubslice { source, .. } => {
             pending.attribute(
                 context,
                 source.place,

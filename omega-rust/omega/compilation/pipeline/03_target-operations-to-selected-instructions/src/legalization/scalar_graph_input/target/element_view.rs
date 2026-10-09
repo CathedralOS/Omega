@@ -231,26 +231,26 @@ impl Checker<'_> {
                 psi_operation,
                 place,
                 source: original,
+                indices,
                 start,
                 end,
                 length,
                 obligation,
             } => {
-                *place == source
-                    && self.optimized.block_nodes().any(|node| {
-                        let AbstractOperation::ElementViewSubslice {
-                            psi_operation: operation,
-                            result,
-                            source: expected_source,
-                            start: expected_start,
-                            end: expected_end,
-                            length: expected_length,
-                            obligation: expected_obligation,
-                        } = &node.operation
-                        else {
-                            return false;
-                        };
-                        operation == psi_operation
+                *place == source && self.optimized.block_nodes().any(|node| {
+                    let AbstractOperation::ElementViewSubslice {
+                        psi_operation: operation,
+                        result,
+                        source: expected_source,
+                        start: expected_start,
+                        end: expected_end,
+                        length: expected_length,
+                        obligation: expected_obligation,
+                    } = &node.operation
+                    else {
+                        return false;
+                    };
+                    operation == psi_operation
                         && result.place == source
                         && matches!(
                             (actual, result.multiplicity),
@@ -277,10 +277,23 @@ impl Checker<'_> {
                         })
                         && length == expected_length
                         && obligation == expected_obligation
-                        && self.element_view_access(original, *expected_source, aliases, actual)
+                        && original == expected_source
+                        && super::super::element_views::descriptor_geometry(
+                            self.optimized,
+                            original,
+                            self.types,
+                        )
+                        .is_some_and(|geometry| {
+                            geometry.readable
+                                && super::unit::runtime_indices_rejoin(
+                                    indices,
+                                    &geometry.elements,
+                                    self.available.unwrap_or(&[]),
+                                )
+                        })
                         && self.integer_source(start, *expected_start, aliases)
                         && self.integer_source(end, *expected_end, aliases)
-                    })
+                })
             }
         }
     }

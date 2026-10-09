@@ -548,6 +548,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 LegalizedScalarInstructionKind::ByteSequenceSubslice {
                     result,
                     source,
+                    indices,
                     start,
                     end,
                     length,
@@ -603,6 +604,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 }
                 LegalizedScalarInstructionKind::ByteSequenceLength {
                     source,
+                    indices,
                     length_byte_offset,
                 } => {
                     bytes.push(7);
@@ -680,6 +682,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 LegalizedScalarInstructionKind::ElementViewSubslice {
                     result,
                     source,
+                    indices,
                     start,
                     end,
                     length,

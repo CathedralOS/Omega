@@ -268,13 +268,63 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         provenance.push(*psi_operation);
         return Ok(true);
     }
-    let (psi_operation, result, source) = match operation {
-        AbstractOperation::ByteSequenceLength {
-            psi_operation,
-            result,
-            source,
+    if let AbstractOperation::ByteSequenceLength {
+        psi_operation,
+        result,
+        source,
+    } = operation
+    {
+        let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+        let Some(scalar_type) = result.scalar_type.as_integer() else {
+            return Err(invalid());
+        };
+        if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+            return Err(invalid());
         }
-        | AbstractOperation::ByteSequenceRead {
+        let (selected, indices) = super::descriptor_operands::descriptor_projection(
+            function,
+            structural_types,
+            backings,
+            source,
+        )?;
+        let Some(terminal_psi::StructuralTypeDeclaration {
+            shape: StructuralTypeShape::ByteSequence(carrier),
+            ..
+        }) = structural_types.get(&selected).copied()
+        else {
+            return Err(invalid());
+        };
+        let value = match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                KnownInteger::Immediate(semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                    *capacity,
+                )))
+            }
+            _ => KnownInteger::Runtime(TargetIntegerExpression::ByteSequenceLength {
+                psi_operation: *psi_operation,
+                source_value: result.value,
+                source: source.clone(),
+                indices,
+                length_byte_offset: if matches!(
+                    carrier,
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                ) {
+                    0
+                } else {
+                    8
+                },
+            }),
+        };
+        insert_value(
+            values,
+            result.value,
+            KnownScalar::Integer { scalar_type, value },
+        )?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
+    let (psi_operation, result, source) = match operation {
+        AbstractOperation::ByteSequenceRead {
             psi_operation,
             result,
             source,
@@ -296,41 +346,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
     let Some(scalar_type) = result.scalar_type.as_integer() else {
         return Err(invalid());
     };
-    if let AbstractOperation::ByteSequenceLength { .. } = operation
-        && let Some(capacity) = bounded_view_capacity(function, structural_types, source)
-    {
-        // The bounded view's extent is declared on the type — there is no
-        // descriptor field to load it from.
-        insert_value(
-            values,
-            result.value,
-            KnownScalar::Integer {
-                scalar_type,
-                value: KnownInteger::Immediate(semantic_vocabulary::IntegerValue::Unsigned(
-                    u128::from(capacity),
-                )),
-            },
-        )?;
-        provenance.push(psi_operation);
-        return Ok(true);
-    }
     let expression = match operation {
-        AbstractOperation::ByteSequenceLength { .. } => {
-            if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
-                return Err(invalid());
-            }
-            TargetIntegerExpression::ByteSequenceLength {
-                psi_operation,
-                source_value: result.value,
-                source,
-                length_byte_offset: if reads_owner_layout(function, structural_types, &view) {
-                    0
-                } else {
-                    8
-                },
-                view: Box::new(view),
-            }
-        }
         AbstractOperation::ByteSequenceRead {
             index,
             length,
@@ -583,21 +599,21 @@ pub(in crate::lowering) fn resolve_byte_view(
     };
     let start = endpoint(*start)?;
     let end = endpoint(*end)?;
-    if !observes_length(values, lengths, *length, *source) {
+    if !super::descriptor_operands::observes_count(function, values, *length, source, true) {
         return Err(invalid());
     }
-    active.push(place);
-    let (source, source_access) = resolve_byte_view(
+    let (selected, indices) = super::descriptor_operands::descriptor_projection(
         function,
         structural_types,
-        parameters,
         backings,
-        values,
-        lengths,
-        *source,
-        active,
+        source,
     )?;
-    active.pop();
+    if !structural_types.get(&selected).is_some_and(|declaration| {
+        matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+    }) {
+        return Err(invalid());
+    }
+    let source_access = source.access;
     let access = match result.multiplicity {
         StructuralMultiplicity::Unrestricted
             if matches!(
@@ -616,7 +632,8 @@ pub(in crate::lowering) fn resolve_byte_view(
         TargetByteView::Subslice {
             psi_operation: *psi_operation,
             place,
-            source: Box::new(source),
+            source: source.clone(),
+            indices,
             start,
             end,
             length: *length,
@@ -675,7 +692,7 @@ fn observes_length(
             source: observed,
             source_value,
             ..
-        }) => *observed == source && *source_value == length,
+        }) => observed.place == source && observed.path.is_empty() && *source_value == length,
         KnownInteger::Runtime(TargetIntegerExpression::ScalarHome(home)) => {
             home.source_value == length
                 && home.scalar_type == ScalarType::Integer(*scalar_type)

@@ -102,6 +102,7 @@ pub(in crate::selection) fn read(
     let definition = row.result.ok_or_else(|| invalid())?;
     let observes_descriptor_home = matches!(&row.kind,
         LegalizedScalarInstructionKind::ElementViewLength { source, .. }
+        | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
         if source.path.is_empty());
     let pointer = if pointer_slots.is_empty() && !observes_descriptor_home {
         super::runtime_address::projection_base(source, builder, row, place, byte_offset)?
@@ -124,7 +125,8 @@ pub(in crate::selection) fn read(
     let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
         LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
         | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { indices, .. }
-        | LegalizedScalarInstructionKind::ElementViewLength { indices, .. } => indices,
+        | LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
+        | LegalizedScalarInstructionKind::ByteSequenceLength { indices, .. } => indices,
         _ => &[],
     };
     if let Some((address, codec)) = super::runtime_address::scalar_reference(

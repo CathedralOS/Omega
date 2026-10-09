@@ -26,6 +26,7 @@ mod byte_field_read;
 mod byte_field_store;
 mod byte_view_field_store;
 mod byte_views;
+mod descriptor_operands;
 mod leaf_copy;
 mod literals;
 mod local_storage;

@@ -97,6 +97,7 @@ impl Checker<'_> {
                 psi_operation,
                 place,
                 source: original,
+                indices,
                 start,
                 end,
                 length,
@@ -120,7 +121,20 @@ impl Checker<'_> {
                             && result.place == source
                             && length == expected_length
                             && obligation == expected_obligation
-                            && self.byte_view(original, *expected_source, aliases)
+                            && original == expected_source
+                            && super::super::element_views::descriptor_geometry(
+                                self.optimized,
+                                original,
+                                self.types,
+                            )
+                            .is_some_and(|geometry| {
+                                geometry.readable
+                                    && super::unit::runtime_indices_rejoin(
+                                        indices,
+                                        &geometry.elements,
+                                        self.available.unwrap_or(&[]),
+                                    )
+                            })
                             && self.integer_source(start, *expected_start, aliases)
                             && self.integer_source(end, *expected_end, aliases)
                     })

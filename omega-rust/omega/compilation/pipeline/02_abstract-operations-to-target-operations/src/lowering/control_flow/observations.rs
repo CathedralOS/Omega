@@ -31,7 +31,7 @@ pub(super) fn lower(
 ) -> Result<(), LoweringError> {
     let mut values = scalar_values(live, &prepared.scalar_parameters)?;
     match operation {
-        abstract_operations::byte_read_subslice_triple_pattern!(source, ..) => {
+        AbstractOperation::ByteSequenceRead { source, .. } => {
             // A live byte-owner address join observes its own storage. The
             // semantic operation, not the pointer layout, determines whether
             // this is a metadata or payload observation.
@@ -83,7 +83,10 @@ pub(super) fn lower(
                 &mut provenance.operations,
             )?;
         }
-        AbstractOperation::ElementViewLength { source, .. } => {
+        AbstractOperation::ElementViewLength { source, .. }
+        | AbstractOperation::ByteSequenceLength { source, .. }
+        | AbstractOperation::ByteSequenceSubslice { source, .. }
+        | AbstractOperation::ElementViewSubslice { source, .. } => {
             if super::references::check_projected_shared_access(
                 function,
                 live,
@@ -94,19 +97,35 @@ pub(super) fn lower(
             ) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            element_views::lower_element_observation_with_lengths(
-                operation,
-                function,
-                structural_types,
-                &prepared.parameters,
-                live.element_view_backings(),
-                &mut values,
-                &live.lengths,
-                &mut provenance.operations,
-            )?;
+            match operation {
+                AbstractOperation::ElementViewLength { .. } => {
+                    element_views::lower_element_observation_with_lengths(
+                        operation,
+                        function,
+                        structural_types,
+                        &prepared.parameters,
+                        live.element_view_backings(),
+                        &mut values,
+                        &live.lengths,
+                        &mut provenance.operations,
+                    )?;
+                }
+                AbstractOperation::ByteSequenceLength { .. } => {
+                    byte_views::lower_byte_observation_with_lengths(
+                        operation,
+                        function,
+                        structural_types,
+                        &prepared.parameters,
+                        live.element_view_backings(),
+                        &mut values,
+                        &live.lengths,
+                        &mut provenance.operations,
+                    )?;
+                }
+                _ => {}
+            }
         }
-        AbstractOperation::ElementViewRead { source, .. }
-        | AbstractOperation::ElementViewSubslice { source, .. } => {
+        AbstractOperation::ElementViewRead { source, .. } => {
             if !prepared.parameter(*source).is_some()
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
@@ -359,7 +378,9 @@ pub(super) fn lower(
             result,
             source,
         } => {
-            live.lengths.insert(result.value, *source);
+            if source.path.is_empty() {
+                live.lengths.insert(result.value, source.place);
+            }
             let expression =
                 removed_scalar_expression(&mut values, function.machine, result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)

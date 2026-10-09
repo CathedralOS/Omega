@@ -50,7 +50,8 @@ pub enum TargetElementView {
     Subslice {
         psi_operation: OperationId,
         place: PlaceId,
-        source: Box<TargetElementView>,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         start: Box<TargetIntegerExpression>,
         end: Box<TargetIntegerExpression>,
         length: ValueId,

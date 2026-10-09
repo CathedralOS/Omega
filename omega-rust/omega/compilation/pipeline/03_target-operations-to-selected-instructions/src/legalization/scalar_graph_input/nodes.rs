@@ -770,7 +770,7 @@ pub(super) fn validate(
                 ScalarType::Integer(u8_type())
             }
             AbstractOperation::ByteSequenceLength { source, .. } => {
-                if !super::byte_views::contains_readable_bytes(optimized, *source, types) {
+                if super::element_views::byte_length_geometry(optimized, source, types).is_none() {
                     return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(u64_type())

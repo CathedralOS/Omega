@@ -29,7 +29,9 @@ pub(crate) fn validate_structural_place_availability(
                 .or(match &node.operation {
                     // These establishments publish a declaration directly,
                     // rather than a StructuralOperationResult contract.
-                    abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => Some(place.id),
+                    abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => {
+                        Some(place.id)
+                    }
                     _ => None,
                 });
             if let Some(place) = place {
@@ -112,15 +114,14 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         O::PrimitiveLocalStore { destination, .. } => vec![*destination],
         O::WriteOnlyPrimitiveStore { destination, .. } => vec![destination.place()],
         O::StructuralScalarFieldStore { destination, .. } => vec![destination.place()],
-        abstract_operations::boundary_or_structural_call_pair_pattern!(structural_arguments, ..) => structural_arguments
+        abstract_operations::boundary_or_structural_call_pair_pattern!(
+            structural_arguments,
+            ..
+        ) => structural_arguments
             .iter()
             .map(|argument| argument.place)
             .collect(),
-        abstract_operations::byte_sequence_store_pair_pattern!(
-            destination,
-            source,
-            ..
-        )
+        abstract_operations::byte_sequence_store_pair_pattern!(destination, source, ..)
         | O::StructuralByteViewFieldStore {
             destination,
             source,
@@ -137,12 +138,12 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         O::StructuralLeafCopy { source, .. } => vec![*source],
         O::EstablishReference { source, .. }
         | O::EstablishElementView { source, .. }
-        | O::ElementViewLength { source, .. } => {
+        | O::ElementViewLength { source, .. }
+        | O::ElementViewSubslice { source, .. } => {
             vec![source.place]
         }
         O::ReleaseReference { source, .. } => vec![*source],
         abstract_operations::scalar_read_or_membership_pattern!(source, ..)
-        | O::ByteSequenceSubslice { source, .. }
         | O::StructuralCase { source, .. }
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceWrite {
@@ -157,9 +158,7 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
             destination: source,
             ..
         }
-        | O::ByteSequenceLength { source, .. }
         | O::ElementViewRead { source, .. }
-        | O::ElementViewSubslice { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }
         | O::ReturnStructural { source, .. } => {

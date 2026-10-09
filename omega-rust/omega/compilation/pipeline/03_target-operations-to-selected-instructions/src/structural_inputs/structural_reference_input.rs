@@ -157,10 +157,50 @@ pub(crate) fn element_view_length_geometry(
     Some(geometry)
 }
 
+pub(crate) fn descriptor_source_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ReferenceSourceGeometry> {
+    reference_source_geometry_with_leaf_shape(root, path, declarations, |field| {
+        field
+            .byte_sequence_carrier()
+            .map(|carrier| {
+                StructuralTypeShape::ByteSequence(match carrier {
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+                    }
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                        terminal_psi::ByteSequenceCarrier::BoundedView {
+                            access: None,
+                            capacity,
+                        }
+                    }
+                    owned => owned,
+                })
+            })
+            .or_else(|| field.canonical_leaf_shape())
+    })
+}
+
 pub(crate) fn reference_source_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ReferenceSourceGeometry> {
+    reference_source_geometry_with_leaf_shape(
+        root,
+        path,
+        declarations,
+        StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+fn reference_source_geometry_with_leaf_shape(
     mut root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Option<ReferenceSourceGeometry> {
     let mut segment_start = 0;
     let mut elements = Vec::new();
@@ -202,7 +242,7 @@ pub(crate) fn reference_source_geometry(
         segment_start = position + 1;
     }
     let (selected, byte_offset, leaf_elements) =
-        runtime_projection(root, &path[segment_start..], declarations)?;
+        runtime_projection_with_leaf_shape(root, &path[segment_start..], declarations, leaf_shape)?;
     elements.extend(leaf_elements);
     Some(ReferenceSourceGeometry {
         region_root: root,

@@ -251,6 +251,45 @@ pub(super) fn read_geometry(
 )> {
     let scalar = row.result?.scalar_type;
     match &row.kind {
+        Instruction::ByteSequenceLength {
+            source: argument,
+            indices,
+            length_byte_offset,
+        } => {
+            let signature = source.structural.as_ref()?;
+            let root = super::reference_input::root_type(source, argument.place)?;
+            let mut geometry =
+                crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
+                    root,
+                    &argument.path,
+                    &signature.structural_types,
+                )?;
+            let terminal_psi::StructuralTypeShape::ByteSequence(carrier) = signature
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == geometry.selected)?
+                .shape
+            else {
+                return None;
+            };
+            let expected = match carrier {
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 8,
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => 0,
+                terminal_psi::ByteSequenceCarrier::BoundedView { .. } => return None,
+            };
+            geometry.byte_offset = geometry.byte_offset.checked_add(expected)?;
+            (geometry.readable
+                && *length_byte_offset == expected
+                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                    indices,
+                    &geometry.elements,
+                ))
+            .then_some((
+                argument.place,
+                geometry.byte_offset,
+                geometry.pointer_slots,
+            ))
+        }
         Instruction::ElementViewLength {
             source: argument,
             indices,

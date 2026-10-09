@@ -71,7 +71,7 @@ pub enum AbstractOperation {
     ByteSequenceSubslice {
         psi_operation: OperationId,
         result: StructuralOperationResult,
-        source: PlaceId,
+        source: StructuralArgument,
         start: ValueId,
         end: ValueId,
         length: ValueId,
@@ -178,7 +178,7 @@ pub enum AbstractOperation {
     ByteSequenceLength {
         psi_operation: OperationId,
         result: AbstractResult,
-        source: PlaceId,
+        source: StructuralArgument,
     },
     /// Establish one borrowed element view over a structural collection place.
     /// The view is a descriptor loan, not an element copy; `source.access`
@@ -225,7 +225,7 @@ pub enum AbstractOperation {
     ElementViewSubslice {
         psi_operation: OperationId,
         result: StructuralOperationResult,
-        source: PlaceId,
+        source: StructuralArgument,
         start: ValueId,
         end: ValueId,
         length: ValueId,
@@ -890,7 +890,10 @@ impl AbstractOperation {
             }
             Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
-            | Self::ElementViewLength { source, .. } => {
+            | Self::ElementViewLength { source, .. }
+            | Self::ByteSequenceLength { source, .. }
+            | Self::ByteSequenceSubslice { source, .. }
+            | Self::ElementViewSubslice { source, .. } => {
                 vec![source.path.as_slice()]
             }
             Self::EstablishStructuralArray {

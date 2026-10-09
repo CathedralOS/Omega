@@ -1,5 +1,4 @@
 //! Retain original backing with exact integer offset and length homes.
-use super::byte_views::backing_pointer;
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
@@ -18,6 +17,7 @@ pub(super) fn create(
     let LegalizedScalarInstructionKind::ByteSequenceSubslice {
         result,
         source,
+        indices,
         start,
         end,
         length,
@@ -28,8 +28,9 @@ pub(super) fn create(
         return Err(invalid());
     };
     if row.result.is_some()
-        || crate::selection::established_view_input::view_type(function, *source)
-            != Some(result.structural_type)
+        || super::descriptor_operands::source_geometry(function, source)
+            .map(|(_, shape)| matches!(shape, terminal_psi::StructuralTypeShape::ByteSequence(_)))
+            != Some(true)
         || crate::selection::established_view_input::view_access(function, result.place).is_none()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
@@ -55,8 +56,15 @@ pub(super) fn create(
     if start_type != integer || end_type != integer || length_type != integer {
         return Err(invalid());
     }
-    let backing = backing_pointer(function, builder, row, *source)?;
-    let parent = builder.transport.view(*source).copied();
+    let parent = source
+        .path
+        .is_empty()
+        .then(|| builder.transport.view(source.place).copied())
+        .flatten();
+    let backing = match parent {
+        Some(parent) => parent.backing_pointer,
+        None => super::descriptor_operands::backing(function, builder, row, source, indices)?,
+    };
     let (byte_offset, root_length) = if let Some(parent) = parent {
         let byte_offset = transport_register(builder, result.place, 0)?;
         // With parent offset O, length L, and root length R, the retained chain
@@ -101,14 +109,14 @@ pub(super) fn create(
     )?;
     builder.transport.views.push(ByteViewHomes {
         place: result.place,
-        source: *source,
+        source: source.place,
         // The child's root is the parent's retained root; a first-level view
         // cut from a block-parameter view keeps a dynamic backing that edge
         // bindings resolve at access time.
         root: if let Some(parent) = parent {
             parent.root
         } else {
-            crate::selection::byte_view_homes::own_view_root(function, *source)
+            crate::selection::byte_view_homes::own_view_root(function, source.place)
         },
         backing_pointer: backing,
         byte_offset,

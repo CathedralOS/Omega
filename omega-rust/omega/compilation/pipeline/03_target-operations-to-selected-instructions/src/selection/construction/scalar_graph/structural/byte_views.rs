@@ -126,40 +126,56 @@ pub(in crate::selection) fn byte_observation(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let source = match row.kind {
-        LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
-        | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. } => source,
-        _ => return Err(invalid()),
-    };
-    // An addressable record is not a byte descriptor. Reconstruct the semantic
-    // view type before interpreting any pointer home as backing and length.
-    if crate::selection::established_view_input::readable_byte_type(function, source).is_none() {
-        return Err(invalid());
-    }
-    if let LegalizedScalarInstructionKind::ByteSequenceLength {
-        length_byte_offset, ..
-    } = row.kind
-    {
-        let expected =
-            if crate::selection::byte_concatenation_input::owner_layout_type(function, source)
-                .is_some()
+    match &row.kind {
+        LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
+            if crate::selection::established_view_input::readable_byte_type(function, *source)
+                .is_none()
             {
-                0
-            } else {
-                8
-            };
-        if length_byte_offset != expected {
-            return Err(invalid());
-        }
-    }
-    match row.kind {
-        LegalizedScalarInstructionKind::ByteSequenceRead { .. } => {
+                return Err(invalid());
+            }
             byte_sequence_read(function, builder, row)
         }
         LegalizedScalarInstructionKind::ByteSequenceLength {
             source,
             length_byte_offset,
-        } => byte_sequence_length(builder, row, source, length_byte_offset),
+            ..
+        } => {
+            let (_, terminal_psi::StructuralTypeShape::ByteSequence(carrier)) =
+                super::descriptor_operands::source_geometry(function, source).ok_or(invalid())?
+            else {
+                return Err(invalid());
+            };
+            if let terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } = carrier {
+                let result = row.result.ok_or(invalid())?;
+                let output =
+                    builder.register(result.value, result.definition_site, result.scalar_type)?;
+                builder.emit(
+                    SelectedInstructionKind::MaterializeI64 {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)),
+                    },
+                    builder.constraints.keys.materialize_i64,
+                    &[output],
+                    provenance(row),
+                )?;
+                return Ok(output);
+            }
+            let expected = if matches!(
+                carrier,
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+            ) {
+                0
+            } else {
+                8
+            };
+            if *length_byte_offset != expected {
+                return Err(invalid());
+            }
+            if source.path.is_empty() && builder.transport.view(source.place).is_some() {
+                byte_sequence_length(builder, row, source.place, *length_byte_offset)
+            } else {
+                super::primitive_locals::read(function, builder, row)
+            }
+        }
         _ => Err(invalid()),
     }
 }

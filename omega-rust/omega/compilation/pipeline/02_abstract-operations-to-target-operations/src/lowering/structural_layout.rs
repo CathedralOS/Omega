@@ -935,8 +935,7 @@ pub(super) fn case_projection(
                 )
             }
             Segment::Field(identity) => {
-                let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = shape
-                else {
+                let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = shape else {
                     return Err(invalid());
                 };
                 let (field_position, field) = fields
@@ -1166,6 +1165,41 @@ type RuntimeProjection = (
 /// same address in path order. Each segment's bound is the obligation the
 /// terminal verifier discharged; only array shape is read.
 #[allow(clippy::type_complexity)]
+/// Descriptor geometry keeps an inline byte field in its original storage.
+/// Its carrier declaration is a type coordinate, not a copied descriptor.
+pub(super) fn runtime_descriptor_projection(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<RuntimeProjection, LoweringError> {
+    runtime_projection_with_leaf_shape(
+        root,
+        path,
+        declarations,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+        |field| {
+            field
+                .byte_sequence_carrier()
+                .map(|carrier| {
+                    StructuralTypeShape::ByteSequence(match carrier {
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+                        }
+                        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                            terminal_psi::ByteSequenceCarrier::BoundedView {
+                                access: None,
+                                capacity,
+                            }
+                        }
+                        owned => owned,
+                    })
+                })
+                .or_else(|| field.canonical_leaf_shape())
+        },
+    )
+}
+
 pub(super) fn runtime_projection(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],

@@ -39,7 +39,8 @@ pub enum TargetByteView {
     Subslice {
         psi_operation: OperationId,
         place: PlaceId,
-        source: Box<TargetByteView>,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<crate::TargetStructuralRuntimeIndex>,
         start: Box<TargetIntegerExpression>,
         end: Box<TargetIntegerExpression>,
         length: ValueId,

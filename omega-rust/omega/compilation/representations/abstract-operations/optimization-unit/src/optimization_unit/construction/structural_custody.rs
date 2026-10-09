@@ -58,11 +58,11 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             );
         }
         O::ByteSequenceSubslice { source, result, .. } => {
-            places.insert(*source);
+            places.insert(source.place);
             places.insert(result.place);
         }
         O::ElementViewSubslice { source, result, .. } => {
-            places.insert(*source);
+            places.insert(source.place);
             places.insert(result.place);
         }
         O::EstablishElementView { result, source, .. } => {
@@ -103,7 +103,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(result.place);
             places.insert(source.place);
         }
-        O::ElementViewLength { source, .. } => {
+        O::ElementViewLength { source, .. } | O::ByteSequenceLength { source, .. } => {
             places.insert(source.place);
         }
         O::ReleaseReference { source, .. } => {
@@ -127,7 +127,6 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
         | O::StructuralCase { source, .. }
-        | O::ByteSequenceLength { source, .. }
         | O::ElementViewRead { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }

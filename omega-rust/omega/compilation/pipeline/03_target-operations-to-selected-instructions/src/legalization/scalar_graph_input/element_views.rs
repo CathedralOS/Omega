@@ -4,7 +4,7 @@
 use optimization_unit::PsiOptimizationFunction;
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclaration};
 
-pub(in crate::legalization) fn length_geometry(
+pub(in crate::legalization) fn descriptor_geometry(
     function: &PsiOptimizationFunction,
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
@@ -42,9 +42,61 @@ pub(in crate::legalization) fn length_geometry(
                 .ok()
                 .map(|(_, result)| result.structural_type)
         })?;
-    crate::structural_inputs::structural_reference_input::element_view_length_geometry(
+    crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
         root,
         &source.path,
         types,
     )
+}
+
+/// Element counts use the selected two-word descriptor, in elements.
+pub(in crate::legalization) fn length_geometry(
+    function: &PsiOptimizationFunction,
+    source: &StructuralArgument,
+    types: &[StructuralTypeDeclaration],
+) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
+    let mut geometry = descriptor_geometry(function, source, types)?;
+    if !geometry.readable
+        || !types.iter().any(|declaration| {
+            declaration.id == geometry.selected
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                )
+        })
+    {
+        return None;
+    }
+    geometry.byte_offset = geometry.byte_offset.checked_add(8)?;
+    Some(geometry)
+}
+
+/// Byte counts select their own carrier: inline owners have a live header,
+/// dynamic views a two-word descriptor, and bounded views a declared extent.
+pub(in crate::legalization) fn byte_length_geometry(
+    function: &PsiOptimizationFunction,
+    source: &StructuralArgument,
+    types: &[StructuralTypeDeclaration],
+) -> Option<(
+    crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry,
+    terminal_psi::ByteSequenceCarrier,
+)> {
+    let mut geometry = descriptor_geometry(function, source, types)?;
+    if !geometry.readable {
+        return None;
+    }
+    let terminal_psi::StructuralTypeShape::ByteSequence(carrier) = types
+        .iter()
+        .find(|declaration| declaration.id == geometry.selected)?
+        .shape
+    else {
+        return None;
+    };
+    if matches!(
+        carrier,
+        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+    ) {
+        geometry.byte_offset = geometry.byte_offset.checked_add(8)?;
+    }
+    Some((geometry, carrier))
 }

@@ -112,15 +112,16 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead { source, .. }
-            | LegalizedScalarInstructionKind::ElementViewLength { source, .. } => source.place == place,
+            | LegalizedScalarInstructionKind::ElementViewLength { source, .. }
+            | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
+            | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
+            | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. } => source.place == place,
             LegalizedScalarInstructionKind::StructuralCaseMembership { source, path, .. } => *source == place && !path.is_empty(),
             // Projected primitive reads need the same addressable owned home
             // as field observations, including arrays passed in ABI registers.
             LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
-            | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
-            | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
-            | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
+            | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => *source == place,
             LegalizedScalarInstructionKind::EstablishStructuralArray { elements, .. } => elements.iter().any(|argument|
                 argument.place == place && !argument.path.is_empty()),
             LegalizedScalarInstructionKind::EstablishRecord { fields, .. }
