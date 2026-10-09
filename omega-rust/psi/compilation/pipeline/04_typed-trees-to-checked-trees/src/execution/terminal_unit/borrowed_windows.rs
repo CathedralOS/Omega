@@ -154,8 +154,9 @@ pub(super) fn capture_assignment_destination(
 
 /// Restoration debt and the selected access route are separate coordinates.
 /// Canonical storage identifies the hole even through forwarding; the emitted
-/// operand must still use the retained loan whose child suspends that storage's
-/// original parameter. Replacing the route by the debt root loses authority.
+/// operand must still use the retained reference loan whose child suspends that
+/// storage's original parameter. Replacing the route by the debt root loses
+/// authority. An element view has no such route (see `window_place`).
 pub(in crate::execution::terminal_unit) struct WindowPlace {
     parameter_index: u32,
     storage_path: Vec<CheckedUnitStructuralPathSegment>,
@@ -248,12 +249,20 @@ pub(in crate::execution::terminal_unit) fn window_place(
     // authored parameter list containing scalar and erased formals. Keep the
     // same dense coordinate in the window ledger and both emitted plans.
     let parameter_index = u32::try_from(parameter_index).ok()?;
-    let (source, path) = if program
+    // The operand keeps the retained loan when its carrier can spell the
+    // route: a reference local crosses into its referent with `Referent`. A
+    // slice view has no such crossing; Terminal selects a view's elements only
+    // through view operations bounded by its runtime length. The storage
+    // rebase peels only whole-collection views, which preserve their
+    // collection's element coordinates, so such a window names that storage.
+    let retained_carrier = program
         .state_local_declaration(state, root_symbol)
         .is_some_and(|(ordinal, local)| {
             ordinal < statement_index
                 && crate::checks::type_reference_is_reference(program, local.type_reference)
-        }) {
+                && validation::slice_view_shell(program, local.type_reference, &[]).is_none()
+        });
+    let (source, path) = if retained_carrier {
         (
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol: root_symbol,

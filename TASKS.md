@@ -1393,11 +1393,11 @@ defines the complete product bar.
   on macOS ARM64. A byte store preserves `Utf8` only with carrier/byte
   evidence: `ValidUtf8` does not imply `AsciiOnly`.
 
-  The Dungeon Crawler is migrated to explicit parameters and checks, but its
-  native build stops in lowering at `UnpinnedBorrowedStorageWindow { place:
-  "local[0]" }` ("index or referent routes do not resolve through the
-  declared records and fixed arrays"), with no source span; it met its README
-  runtime oracle natively before.
+  The Dungeon Crawler is migrated to explicit parameters and checks. On macOS
+  ARM64 it meets its README closed-stdin oracle natively
+  (`tools/sample_native_gate.py --filter dungeon_crawler`), and its
+  `help`/`exit` input route prints command help and the goodbye message and
+  exits 0; the other hosts are not re-qualified.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established

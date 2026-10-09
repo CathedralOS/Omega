@@ -2746,6 +2746,7 @@ pass/collections/runtime_shared_fixed_array_cycle_exit checked 62943ms check-tar
 pass/collections/runtime_signed_element_offset_read_exit checked 1469ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_slice_record_copy_exit checked 1181ms check-target:macos_arm64 @83d1d7229173+wt
 pass/collections/runtime_vec_u32_growth_exit checked 22933ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_view_element_structural_replacement_exit checked 1860ms check-target:macos_arm64 @681dbb56eb54+wt
 pass/collections/runtime_whole_array_value_copy_exit checked 834ms check-target:macos_arm64 @a59d5a661528+wt
 pass/collections/shared_slice_view_dropped_receiver checked 1238ms check-target:macos_arm64 @ca8c127c90c5
 pass/collections/std_option_runtime_match_exit checked 1470ms check-target:macos_arm64 @2d8ed253669f

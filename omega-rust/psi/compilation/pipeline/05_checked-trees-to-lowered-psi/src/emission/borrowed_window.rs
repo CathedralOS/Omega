@@ -556,16 +556,20 @@ fn resolve_window_place(
             restoration_required,
         });
     }
-    let (steps, leaf) = lower_window_path(root_type, &plan.path, structural_types).map_err(|_| {
-        let reason = if plan.path.iter().any(|segment| {
-            !matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
-        }) {
-            "index or referent routes do not resolve through the declared records and              fixed arrays"
-        } else {
-            "the route does not resolve through the declared records and fixed arrays"
-        };
-        unpinned(&spelling, reason)
-    })?;
+    let (steps, leaf) =
+        lower_window_path(root_type, &plan.path, structural_types).map_err(|_| {
+            let reason = if plan
+                .path
+                .iter()
+                .any(|segment| !matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
+            {
+                "index or referent routes do not resolve through the declared records and \
+             fixed arrays"
+            } else {
+                "the route does not resolve through the declared records and fixed arrays"
+            };
+            unpinned(&spelling, reason)
+        })?;
     let (field, hole_type) = match leaf {
         WindowLeaf::Field(field) => {
             let Some(hole_type) = field.field_type.as_structural() else {
