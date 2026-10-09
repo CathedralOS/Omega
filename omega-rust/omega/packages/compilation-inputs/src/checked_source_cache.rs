@@ -48,6 +48,7 @@
 use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
 #[cfg(unix)]
 use crate::canonical_fs::require_canonical_mode;
+use crate::cursor::{Cursor, TakeError, Truncated};
 use filesystem_authority::{
     CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT, CanonicalFilesystemMetadataIndex,
     CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind,
@@ -678,12 +679,12 @@ fn decode_record(
     if computed.as_slice() != stored_digest {
         return Err("checked-source cache record digest mismatch".to_owned());
     }
-    let mut cursor = RecordCursor { bytes: payload };
+    let mut cursor = Cursor::new(payload);
     let magic = cursor.take(RECORD_MAGIC.len())?;
     if magic != RECORD_MAGIC {
         return Err("checked-source cache record magic mismatch".to_owned());
     }
-    let stored_root = cursor.take_framed()?;
+    let stored_root = take_framed(&mut cursor)?;
     let expected_root = os_str_bytes(canonical_root.as_os_str())?;
     if stored_root != expected_root.as_slice() {
         return Err("checked-source cache record names a different root".to_owned());
@@ -695,31 +696,31 @@ fn decode_record(
     if &stored_fingerprint != fingerprint {
         return Err("checked-source cache record fingerprint mismatch".to_owned());
     }
-    let row_count = cursor.take_u64()? as usize;
+    let row_count = cursor.u64()? as usize;
     if row_count > CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT {
         return Err("checked-source cache record exceeds the row ceiling".to_owned());
     }
     let mut rows = Vec::with_capacity(row_count.min(1024));
     for _ in 0..row_count {
-        let path = cursor.take_framed()?;
+        let path = take_framed(&mut cursor)?;
         if path.len() > FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT {
             return Err("checked-source cache record path exceeds the byte limit".to_owned());
         }
-        let kind_tag = cursor.take(1)?[0];
+        let kind_tag = cursor.byte()?;
         let kind = match kind_tag {
             0 => CanonicalFilesystemMetadataRowKind::Directory,
             1 => {
-                let executable = cursor.take(1)?[0];
+                let executable = cursor.byte()?;
                 if executable > 1 {
                     return Err("checked-source cache record file flag is noncanonical".to_owned());
                 }
                 CanonicalFilesystemMetadataRowKind::File {
                     executable: executable == 1,
-                    logical_byte_length: cursor.take_u64()?,
+                    logical_byte_length: cursor.u64()?,
                 }
             }
             2 => CanonicalFilesystemMetadataRowKind::Symlink {
-                target_spelling_logical_byte_length: cursor.take_u64()?,
+                target_spelling_logical_byte_length: cursor.u64()?,
             },
             _ => return Err("checked-source cache record kind tag is unknown".to_owned()),
         };
@@ -735,44 +736,11 @@ fn decode_record(
             .try_into()
             .map_err(|_| "checked-source cache record policy version is truncated".to_owned())?,
     );
-    if !cursor.is_empty() {
+    if cursor.remaining() != 0 {
         return Err("checked-source cache record has trailing bytes".to_owned());
     }
     CanonicalFilesystemMetadataIndex::new(policy_version, commitment, rows)
         .map_err(|error| format!("checked-source cache record rows are not canonical: {error}"))
-}
-
-struct RecordCursor<'a> {
-    bytes: &'a [u8],
-}
-
-impl<'a> RecordCursor<'a> {
-    fn take(&mut self, count: usize) -> Result<&'a [u8], String> {
-        if self.bytes.len() < count {
-            return Err("checked-source cache record is truncated".to_owned());
-        }
-        let (taken, rest) = self.bytes.split_at(count);
-        self.bytes = rest;
-        Ok(taken)
-    }
-
-    fn take_framed(&mut self) -> Result<&'a [u8], String> {
-        let length = self.take_u64()?;
-        let length = usize::try_from(length)
-            .map_err(|_| "checked-source cache record field length exceeds usize".to_owned())?;
-        self.take(length)
-    }
-
-    fn take_u64(&mut self) -> Result<u64, String> {
-        let field = self.take(8)?;
-        Ok(u64::from_le_bytes(field.try_into().map_err(|_| {
-            "checked-source cache record u64 is truncated".to_owned()
-        })?))
-    }
-
-    fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
-    }
 }
 
 fn push_u64(buffer: &mut Vec<u8>, value: u64) {
@@ -792,4 +760,19 @@ fn hex(bytes: &[u8]) -> String {
         text.push(DIGITS[(byte & 0xf) as usize] as char);
     }
     text
+}
+
+impl From<Truncated> for String {
+    fn from(_: Truncated) -> Self {
+        "checked-source cache record is truncated".to_owned()
+    }
+}
+
+fn take_framed<'a>(cursor: &mut Cursor<'a>) -> Result<&'a [u8], String> {
+    cursor.length_prefixed().map_err(|error| match error {
+        TakeError::Truncated => "checked-source cache record is truncated".to_owned(),
+        TakeError::LengthOverflow => {
+            "checked-source cache record field length exceeds usize".to_owned()
+        }
+    })
 }
