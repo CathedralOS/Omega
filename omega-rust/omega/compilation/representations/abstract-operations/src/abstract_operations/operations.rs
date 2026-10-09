@@ -3,7 +3,8 @@
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
     AbstractStructuralCallResult, AbstractStructuralCaseSuccessor, AbstractSuccessor,
-    AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource, ValueBinding,
+    AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource, IntegerArithmetic,
+    IntegerArithmeticOperator, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -993,6 +994,35 @@ impl AbstractOperation {
         }
     }
 
+    /// One `IntegerArithmetic` row's operand wiring — its authored operation,
+    /// result, scalar type, arithmetic payload and operand pair — when the
+    /// row's operator is `operator`. Every other shape admits no such
+    /// operands.
+    pub fn integer_arithmetic_operands(
+        &self,
+        operator: IntegerArithmeticOperator,
+    ) -> Option<IntegerArithmeticOperands> {
+        let Self::IntegerArithmetic {
+            psi_operation,
+            result,
+            scalar_type,
+            arithmetic,
+            left,
+            right,
+        } = self
+        else {
+            return None;
+        };
+        (arithmetic.operator() == operator).then_some(IntegerArithmeticOperands {
+            psi_operation: *psi_operation,
+            result: *result,
+            scalar_type: *scalar_type,
+            arithmetic: *arithmetic,
+            left: *left,
+            right: *right,
+        })
+    }
+
     /// Whether the operation reads or writes an existing byte sequence —
     /// every `ByteSequence*` operation plus the structural field accessors
     /// over one. Establishment operations that produce a new sequence, and
@@ -1011,4 +1041,22 @@ impl AbstractOperation {
                 | Self::StructuralByteSequenceFieldByteStore { .. }
         )
     }
+}
+
+/// One `IntegerArithmetic` row's operand wiring, as returned by
+/// [`AbstractOperation::integer_arithmetic_operands`].
+#[derive(Debug, Clone, Copy)]
+pub struct IntegerArithmeticOperands {
+    /// The authored Terminal operation this row realizes.
+    pub psi_operation: OperationId,
+    /// The scalar result the row defines.
+    pub result: ValueId,
+    /// The integer type of the result and operands.
+    pub scalar_type: IntegerType,
+    /// The policy/operator/obligation payload the row carries.
+    pub arithmetic: IntegerArithmetic,
+    /// The dividend or left operand.
+    pub left: ValueId,
+    /// The divisor or right operand.
+    pub right: ValueId,
 }

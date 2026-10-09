@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Proof-check elision, cataloged by the exact scalar identity being proved.
 
-use abstract_operations::{AbstractOperation as O, IntegerArithmeticOperator};
+use abstract_operations::IntegerArithmeticOperator;
 use optimization_core::{AnalysisKind, OptimizationRuleContract};
 use optimization_unit::{
     IntegerConstantRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
@@ -94,35 +94,29 @@ fn propose_proof_certified_remainder_by_constant(
     for function in &unit.functions {
         for block in &function.blocks {
             for (node_index, node) in block.nodes.iter().enumerate() {
-                let (psi_operation, result, scalar_type, left, right) = match &node.operation {
-                    O::IntegerArithmetic {
-                        psi_operation,
-                        result,
-                        scalar_type,
-                        left,
-                        right,
-                        arithmetic,
-                        ..
-                    } if arithmetic.operator() == IntegerArithmeticOperator::Remainder => {
-                        (psi_operation, result, scalar_type, left, right)
-                    }
-                    _ => continue,
+                let Some(operands) = node
+                    .operation
+                    .integer_arithmetic_operands(IntegerArithmeticOperator::Remainder)
+                else {
+                    continue;
                 };
-                if left == right
-                    || scalar_type.carrier() != IntegerCarrier::Fixed
-                    || (signed_only && scalar_type.sign() != IntegerSign::Signed)
+                if operands.left == operands.right
+                    || operands.scalar_type.carrier() != IntegerCarrier::Fixed
+                    || (signed_only && operands.scalar_type.sign() != IntegerSign::Signed)
                     || !use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == *result
+                        *machine == function.machine && use_site.value == operands.result
                     })
                 {
                     continue;
                 }
                 let Some((constant, constant_fact)) =
-                    constants.literal_integer_constant(function.machine, *right)
+                    constants.literal_integer_constant(function.machine, operands.right)
                 else {
                     continue;
                 };
-                if !expected_constant(*scalar_type, constant) || !scalar_type.admits(constant) {
+                if !expected_constant(operands.scalar_type, constant)
+                    || !operands.scalar_type.admits(constant)
+                {
                     continue;
                 }
                 let node_index =
@@ -132,7 +126,7 @@ fn propose_proof_certified_remainder_by_constant(
                     continue;
                 }
                 let Ok(obligation_fact) =
-                    accepted_obligation_fact(unit, function.machine, *psi_operation)
+                    accepted_obligation_fact(unit, function.machine, operands.psi_operation)
                 else {
                     continue;
                 };
@@ -158,10 +152,10 @@ fn propose_proof_certified_remainder_by_constant(
                         -1,
                         IntegerConstantRewrite {
                             location,
-                            source_operation: *psi_operation,
-                            result: *result,
-                            scalar_type: *scalar_type,
-                            constant: scalar_type.zero(),
+                            source_operation: operands.psi_operation,
+                            result: operands.result,
+                            scalar_type: operands.scalar_type,
+                            constant: operands.scalar_type.zero(),
                         },
                     )
                     .map_err(RuleProposalError::InvalidCandidate)?,

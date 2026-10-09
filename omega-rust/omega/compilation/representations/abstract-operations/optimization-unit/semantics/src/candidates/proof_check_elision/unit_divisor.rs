@@ -57,37 +57,18 @@ pub(crate) fn independent_remainder_unit_constant(
     operation: &O,
     divisor: IndependentRemainderUnitDivisor,
 ) -> Option<IndependentRemainderUnitConstant> {
-    let (psi_operation, obligation, result, scalar_type, left, right) = match operation {
-        O::IntegerArithmetic {
-            psi_operation,
-            result,
-            scalar_type,
-            arithmetic,
-            left,
-            right,
-        } if arithmetic.operator() == IntegerArithmeticOperator::Remainder
-            && scalar_type.carrier() == IntegerCarrier::Fixed
-            && left != right =>
-        {
-            (
-                *psi_operation,
-                arithmetic.obligation()?,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-            )
-        }
-        _ => return None,
-    };
-    divisor.value(scalar_type)?;
+    let operands = operation.integer_arithmetic_operands(IntegerArithmeticOperator::Remainder)?;
+    if operands.scalar_type.carrier() != IntegerCarrier::Fixed || operands.left == operands.right {
+        return None;
+    }
+    divisor.value(operands.scalar_type)?;
     Some(IndependentRemainderUnitConstant {
-        psi_operation,
-        obligation,
-        result,
-        scalar_type,
-        left,
-        right,
+        psi_operation: operands.psi_operation,
+        obligation: operands.arithmetic.obligation()?,
+        result: operands.result,
+        scalar_type: operands.scalar_type,
+        left: operands.left,
+        right: operands.right,
     })
 }
 
