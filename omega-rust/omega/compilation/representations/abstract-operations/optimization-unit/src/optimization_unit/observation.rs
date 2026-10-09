@@ -380,8 +380,7 @@ fn operation_observations(
         | O::BooleanConstant { .. }
         | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | abstract_operations::integer_equal_less_pair_pattern!(..)
-        | O::IntegerLessOrEqual { .. }
-        | O::IntegerBitwiseNot { .. }
+        | abstract_operations::bitwise_not_or_less_pair_pattern!(..)
         | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
         | O::ScalarRepresentationView { .. }
         | O::IntegerBitwiseAnd { .. }

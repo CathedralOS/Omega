@@ -1350,3 +1350,11 @@ macro_rules! byte_view_triple_pattern {
             | $crate::AbstractOperation::ByteSequenceSubslice { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! bitwise_not_or_less_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::IntegerBitwiseNot { $($fields)* }
+            | $crate::AbstractOperation::IntegerLessOrEqual { $($fields)* }
+    };
+}

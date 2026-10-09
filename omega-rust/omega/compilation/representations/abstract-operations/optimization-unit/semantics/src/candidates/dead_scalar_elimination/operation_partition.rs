@@ -13,8 +13,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         O::IntegerConstant { .. } | O::BooleanConstant { .. } => Some(DeadScalarFamily::Literal),
         abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | abstract_operations::integer_equal_less_pair_pattern!(..)
-        | O::IntegerLessOrEqual { .. }
-        | O::IntegerBitwiseNot { .. }
+        | abstract_operations::bitwise_not_or_less_pair_pattern!(..)
         | O::IntegerWiden { .. }
         | O::IntegerBitwiseAnd { .. }
         | abstract_operations::bitwise_or_xor_pair_pattern!(..) => Some(DeadScalarFamily::UnconditionallyTotal),

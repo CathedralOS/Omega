@@ -62,8 +62,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | abstract_operations::integer_equal_less_pair_pattern!(..)
-        | O::IntegerLessOrEqual { .. }
-        | O::IntegerBitwiseNot { .. }
+        | abstract_operations::bitwise_not_or_less_pair_pattern!(..)
         | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
         | O::ScalarRepresentationView { .. }
         | O::IntegerBitwiseAnd { .. }
