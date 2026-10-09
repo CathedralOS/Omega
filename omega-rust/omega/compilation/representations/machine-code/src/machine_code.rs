@@ -33,22 +33,22 @@ pub use calls::{
     Aarch64ForeignCallFloatingControlRecord, CallbackAddressDestination, CallbackAddressEncoding,
     CallbackAddressMaterialization, ForeignCallRelocation, ForeignCallScalarArgumentRecord,
     ForeignCallScalarResultRecord, InstalledProviderUnitScalarCallRecord, InternalCallRelocation,
-    InternalStructuralCallResult,
-    InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitCallSource,
-    InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallArgumentRecord,
-    InternalUnitScalarCallRecord, InternalUnitScalarCallResultRecord,
-    InternalUnitStructuralArgumentSourceRecord, SelectedFormCallbackMaterialization,
-    SelectedFormCallbackMaterializationEncoding, SelectedFormInternalMachineFixup,
-    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
-    SelectedFormNormalizedForeignCallFixup, SelectedFormNormalizedForeignCallFixupKind,
-    SelectedFormNormalizedForeignCallFixupState, StructuralCallScalarReturnEvidence,
-    StructuralReturnRecord, arguments, callbacks, foreign, internal, results, unit_call_arguments,
+    InternalStructuralCallResult, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
+    InternalUnitCallSource, InternalUnitScalarArgumentSourceRecord,
+    InternalUnitScalarCallArgumentRecord, InternalUnitScalarCallRecord,
+    InternalUnitScalarCallResultRecord, InternalUnitStructuralArgumentSourceRecord,
+    SelectedFormCallbackMaterialization, SelectedFormCallbackMaterializationEncoding,
+    SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
+    SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixup,
+    SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
+    StructuralCallScalarReturnEvidence, StructuralReturnRecord, arguments, callbacks, foreign,
+    internal, results, unit_call_arguments,
 };
 pub use control_flow::{
-    BooleanStructuralConditionEvidence,
-    ScalarConditionalBranchEvidence, ScalarConditionalCondition, ScalarControlBlockEvidence,
-    ScalarControlFlowEvidence, ScalarControlTerminatorEvidence,
-    ScalarDirectConditionalBranchEvidence, ScalarDivisionBranchEvidence, ScalarJoinBranchEvidence,
+    BooleanStructuralConditionEvidence, ScalarConditionalBranchEvidence,
+    ScalarConditionalCondition, ScalarControlBlockEvidence, ScalarControlFlowEvidence,
+    ScalarControlTerminatorEvidence, ScalarDirectConditionalBranchEvidence,
+    ScalarDivisionBranchEvidence, ScalarJoinBranchEvidence,
 };
 pub use encoding::{
     DeferredControlEncodingReason, ResolvedPhysicalAddress, SelectedFormDecodedFootprint,
@@ -66,23 +66,21 @@ pub use fragments::{
     FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
     FunctionFragmentEmissionUnavailableData, FunctionFragmentInstructionSpan,
     FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
-    FunctionFragmentInternalMachineFixupState,
-    FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
-    FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance, fixups, identity, publication,
+    FunctionFragmentInternalMachineFixupState, FunctionFragmentNormalizedForeignCallFixup,
+    FunctionFragmentNormalizedForeignCallFixupKind,
+    FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance, fixups,
+    identity, publication,
 };
-pub(crate) use fragments::{ FunctionFragmentJumpEvidence,
-    function_fragment_emission_identity};
+pub(crate) use fragments::{FunctionFragmentJumpEvidence, function_fragment_emission_identity};
+pub(crate) use functions::exit_policy_tag;
 pub use functions::{
-    CompilerPrivateMachineCodeFunction, MachineCodeFunction,
-    WholeFunctionCrashEvidence, WholeFunctionEntryAssumption, WholeFunctionExitContract,
-    WholeFunctionExitContractIdentity, WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody,
-    WholeFunctionExitPolicy, WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
-    WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
-    WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence, exit_contract,
-    whole_function_exit_contract_identity,
+    CompilerPrivateMachineCodeFunction, MachineCodeFunction, WholeFunctionCrashEvidence,
+    WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
+    WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
+    WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionProcessExitEvidence,
+    WholeFunctionReturnEvidence, WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
+    WholeFunctionReturnValueEvidence, exit_contract, whole_function_exit_contract_identity,
 };
-pub(crate) use functions::{ exit_policy_tag};
 pub use implementation_tables::{
     FunctionFragmentImplementationTableAddressFixup, ImplementationTableReference,
     PlacedImplementationTableAddress, SelectedFormImplementationTableAddressFixup,
@@ -91,8 +89,7 @@ pub use instructions::{
     X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,
     X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord, x86_fma,
 };
-pub(crate) use instructions::{ X86ScalarFmaOperandRecord,
-    x86_scalar_fma_fragment_identity};
+pub(crate) use instructions::{X86ScalarFmaOperandRecord, x86_scalar_fma_fragment_identity};
 pub use layout::text_section::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
@@ -116,18 +113,21 @@ pub use ownership::{
     UnitContinuationRecord,
 };
 pub use provenance::{SemanticCodeAttribution, SemanticCodeSite, semantic_code_site};
-pub use storage::{ CalleeSaveFrameSlot, FrameProtocolByteSpan, FrameUnwindPlan,
-    FrameUnwindRestore, FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol,
-    FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,
-    FunctionNonAuthoritativeCalleeSaveStorage,
+pub(crate) use storage::{
+    Aarch64ReturnLinkEvidence, FunctionSpillFrameRequirements,
+    NonAuthoritativeSpillFrameRequirementPlan, NonAuthoritativeSpillFrameRequirementPolicy,
+};
+pub use storage::{
+    CalleeSaveFrameSlot, FrameProtocolByteSpan, FrameUnwindPlan, FrameUnwindRestore,
+    FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
+    FunctionFragmentFrameApplicationIdentity, FunctionNonAuthoritativeCalleeSaveStorage,
     FunctionTargetFrameLayout, FunctionTargetFrameProtocolEncoding, LocalStorageFrameSlot,
     NonAuthoritativeCalleeSaveSlot, NonAuthoritativeCalleeSaveSlotId,
     NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
-    NonAuthoritativeCalleeSaveStoragePolicy,
-    OutgoingAbiFrameArea, ParameterFunctionAbiRecord, ReturnAddressFrameCustody,
-    ScalarCallStackEvidence, ScalarStackEvidence, ScalarStackMutation, ScalarStackMutationKind,
-    ScalarStructuralScalarFieldStoreRecord, StackAdjustmentPair, StackProbePlan,
-    StructuralSourceLocation, TargetFrameLayoutIdentity, TargetFrameLayoutPlan,
+    NonAuthoritativeCalleeSaveStoragePolicy, OutgoingAbiFrameArea, ParameterFunctionAbiRecord,
+    ReturnAddressFrameCustody, ScalarCallStackEvidence, ScalarStackEvidence, ScalarStackMutation,
+    ScalarStackMutationKind, ScalarStructuralScalarFieldStoreRecord, StackAdjustmentPair,
+    StackProbePlan, StructuralSourceLocation, TargetFrameLayoutIdentity, TargetFrameLayoutPlan,
     TargetFrameLayoutPolicy, TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingPlan,
     TargetFrameProtocolEncodingPolicy, UnitAffineScalarRecordEstablishmentRecord,
     UnitCallStackEvidence, UnitEntryRegisterSpillRecord, UnitIntegerConstantRecord,
@@ -138,9 +138,6 @@ pub use storage::{ CalleeSaveFrameSlot, FrameProtocolByteSpan, FrameUnwindPlan,
     parameters, scalars, stack, stores, target_frame_layout_identity,
     target_frame_protocol_encoding_identity,
 };
-pub(crate) use storage::{
-    Aarch64ReturnLinkEvidence, FunctionSpillFrameRequirements,
-    NonAuthoritativeSpillFrameRequirementPlan, NonAuthoritativeSpillFrameRequirementPolicy};
 
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;

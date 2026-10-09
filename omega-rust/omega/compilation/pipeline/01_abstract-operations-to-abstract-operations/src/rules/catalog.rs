@@ -10,7 +10,8 @@ use optimization::PsiOptimization;
 use crate::rules::{
     control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering,
     proof_check_elision, representation_specialization_rule_registrations,
-    sparse_conditional_constant_propagation, state_specialization};
+    sparse_conditional_constant_propagation, state_specialization,
+};
 use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 
 type RuleCatalog = fn() -> Vec<BuiltInRuleRegistration>;
@@ -22,25 +23,29 @@ enum PsiPassCatalogPayload {
     /// The session-level unique-preheader relocation boundary: it owns no
     /// leaf-rule registry — the pass manager drives its
     /// propose/validate/apply loop directly.
-    LoopInvariantScalarMotion}
+    LoopInvariantScalarMotion,
+}
 
 /// One visible route from an exact Psi selection to its scheduled pass step.
 #[derive(Clone, Copy)]
 pub(crate) struct PsiPassCatalogEntry {
     optimization: PsiOptimization,
-    payload: PsiPassCatalogPayload}
+    payload: PsiPassCatalogPayload,
+}
 
 impl PsiPassCatalogEntry {
     const fn new(optimization: PsiOptimization, rule_catalog: RuleCatalog) -> Self {
         Self {
             optimization,
-            payload: PsiPassCatalogPayload::RuleCatalog(rule_catalog)}
+            payload: PsiPassCatalogPayload::RuleCatalog(rule_catalog),
+        }
     }
 
     const fn session_step(optimization: PsiOptimization) -> Self {
         Self {
             optimization,
-            payload: PsiPassCatalogPayload::LoopInvariantScalarMotion}
+            payload: PsiPassCatalogPayload::LoopInvariantScalarMotion,
+        }
     }
 
     pub const fn optimization(self) -> PsiOptimization {
@@ -104,13 +109,15 @@ pub(crate) const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 9] = [
 #[derive(Debug, Clone)]
 pub(crate) struct BuiltInRuleRegistration {
     schedule_ordinal: u16,
-    rule: Arc<dyn PsiOptimizationRule>}
+    rule: Arc<dyn PsiOptimizationRule>,
+}
 
 impl BuiltInRuleRegistration {
     pub(crate) fn new(schedule_ordinal: u16, rule: impl PsiOptimizationRule + 'static) -> Self {
         Self {
             schedule_ordinal,
-            rule: Arc::new(rule)}
+            rule: Arc::new(rule),
+        }
     }
 }
 

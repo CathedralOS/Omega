@@ -23,7 +23,6 @@ use crate::task_plans::identities::CompositionModelId;
 use crate::{
     ActivationCarryObligations, ActivationPlanId, CallingPlanId, MachineContractId, MachineEntryId,
     SelectedTaskRuntimeProviderFact, StackPlan, StackPlanProjectionId, SuspensionCrossingId,
-    TaskSpecializationCommitment, TaskStartOperation,
-    ValueLayoutId};
+    TaskSpecializationCommitment, TaskStartOperation, ValueLayoutId,
+};
 use symbols::SymbolHandle;
-

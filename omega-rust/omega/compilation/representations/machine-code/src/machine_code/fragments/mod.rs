@@ -6,12 +6,12 @@ pub mod functions;
 pub mod identity;
 pub mod publication;
 
+pub(crate) use control_flow::FunctionFragmentJumpEvidence;
 pub use control_flow::{
     FunctionFragmentBranchEvidence, FunctionFragmentConditionalBranchEvidence,
-    FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance, FunctionFragmentSuccessorProvenance,
+    FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
+    FunctionFragmentSuccessorProvenance,
 };
-pub(crate) use control_flow::{
-    FunctionFragmentJumpEvidence};
 pub use fixups::{
     FunctionFragmentCallbackMaterialization, FunctionFragmentCallbackMaterializationEncoding,
     FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,

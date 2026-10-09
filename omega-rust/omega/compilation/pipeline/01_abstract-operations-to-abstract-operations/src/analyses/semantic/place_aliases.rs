@@ -64,9 +64,7 @@ impl PlaceAliasesAnalysis {
     }
 }
 
-impl PlaceAliasFunction {
-
-}
+impl PlaceAliasFunction {}
 
 #[cfg(any(test, feature = "test-support"))]
 fn is_referent(segment: &StructuralPathSegment) -> bool {

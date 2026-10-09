@@ -8,7 +8,8 @@ use register_model::FrameAbiPreservationConvention;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum NonAuthoritativeSpillFrameRequirementPolicy {
-    AbstractSpillAreaAndPreservationConventionV1}
+    AbstractSpillAreaAndPreservationConventionV1,
+}
 
 /// Requirements only. This artifact has no selected base, offset, frame size,
 /// red-zone placement, shadow space, instruction, fault, unwind, or probing field.
@@ -20,7 +21,8 @@ pub(crate) struct NonAuthoritativeSpillFrameRequirementPlan {
     pub policy: NonAuthoritativeSpillFrameRequirementPolicy,
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
-    pub functions: Vec<FunctionSpillFrameRequirements>}
+    pub functions: Vec<FunctionSpillFrameRequirements>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FunctionSpillFrameRequirements {
@@ -30,4 +32,5 @@ pub(crate) struct FunctionSpillFrameRequirements {
     pub abi_preservation_convention: FrameAbiPreservationConvention,
     pub abi_stack_alignment: u16,
     /// ABI capacity fact only; this is never a decision to use the red zone.
-    pub abi_red_zone_capacity_bytes: u16}
+    pub abi_red_zone_capacity_bytes: u16,
+}
