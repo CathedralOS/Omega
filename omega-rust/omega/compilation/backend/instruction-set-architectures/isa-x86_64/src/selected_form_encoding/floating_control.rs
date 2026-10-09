@@ -116,7 +116,7 @@ fn request(
     Ok(semantic == MachineSemanticKind::RestoreFloatingControl)
 }
 
-pub fn encode_x86_64_selected_floating_control_form(
+pub(crate) fn encode_x86_64_selected_floating_control_form(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
@@ -142,7 +142,7 @@ pub fn encode_x86_64_selected_floating_control_form(
     )
 }
 
-pub fn validate_x86_64_selected_floating_control_form(
+pub(crate) fn validate_x86_64_selected_floating_control_form(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,

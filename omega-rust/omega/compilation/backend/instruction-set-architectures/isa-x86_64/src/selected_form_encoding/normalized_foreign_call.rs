@@ -16,20 +16,20 @@ use target::NativeTarget;
 
 use crate::machine_effects::x86_64_selected_abi;
 
-pub const X86_64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT: usize = 5;
-pub const X86_64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET: u16 = 0;
-pub const X86_64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET: u16 = 1;
-pub const X86_64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET: u16 = 5;
-pub const X86_64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH: u8 = 4;
+pub(crate) const X86_64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT: usize = 5;
+pub(crate) const X86_64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET: u16 = 0;
+pub(crate) const X86_64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET: u16 = 1;
+pub(crate) const X86_64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET: u16 = 5;
+pub(crate) const X86_64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH: u8 = 4;
 
 /// Callback-bearing rows place one address-materialization group per private
 /// callback destination before the call itself: a `lea <destination>,
 /// [rip+disp32]` for a private parameter slot, or a `lea r11,
 /// [rip+disp32]` + `mov [root+offset], r11` pair for a record-field
 /// destination — then the canonical 5-byte call.
-pub const X86_64_CALLBACK_MATERIALIZATION_BYTE_COUNT: u16 = 7;
-pub const X86_64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT: u16 = 14;
-pub const X86_64_CALLBACK_MATERIALIZATION_RELOCATION_OFFSET: u16 = 3;
+pub(crate) const X86_64_CALLBACK_MATERIALIZATION_BYTE_COUNT: u16 = 7;
+pub(crate) const X86_64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT: u16 = 14;
+pub(crate) const X86_64_CALLBACK_MATERIALIZATION_RELOCATION_OFFSET: u16 = 3;
 
 /// Where one callback materialization's resolved private-function address
 /// lands: an ABI parameter register, or a private field inside the record a

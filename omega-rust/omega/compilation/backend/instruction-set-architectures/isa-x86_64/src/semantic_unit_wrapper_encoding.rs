@@ -11,13 +11,13 @@ use target::NativeTarget;
 
 use crate::X86_64ScalarCallFixupState;
 
-pub const X86_64_SEMANTIC_UNIT_WRAPPER_CALL_BUNDLE_BYTE_COUNT: usize = 89;
+pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_CALL_BUNDLE_BYTE_COUNT: usize = 89;
 pub const X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT: usize = 90;
-pub const X86_64_SEMANTIC_UNIT_WRAPPER_CALL_OPCODE_OFFSET: u16 = 80;
-pub const X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_OFFSET: u16 = 81;
-pub const X86_64_SEMANTIC_UNIT_WRAPPER_NEXT_INSTRUCTION_OFFSET: u16 = 85;
-pub const X86_64_SEMANTIC_UNIT_WRAPPER_RETURN_OFFSET: u16 = 89;
-pub const X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH: u8 = 4;
+pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_CALL_OPCODE_OFFSET: u16 = 80;
+pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_OFFSET: u16 = 81;
+pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_NEXT_INSTRUCTION_OFFSET: u16 = 85;
+pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_RETURN_OFFSET: u16 = 89;
+pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH: u8 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X86_64SemanticUnitWrapperEncodingPolicy {
@@ -72,24 +72,24 @@ pub struct X86_64SemanticUnitWrapperEncodingRequest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64SemanticUnitWrapperTrapBehavior {
+pub(crate) enum X86_64SemanticUnitWrapperTrapBehavior {
     MayArchitecturalFaultV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64SemanticUnitWrapperCallEffect {
+pub(crate) enum X86_64SemanticUnitWrapperCallEffect {
     DirectPrivateContinuationUnitV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64SemanticUnitWrapperCleanupEffect {
+pub(crate) enum X86_64SemanticUnitWrapperCleanupEffect {
     NoneV1,
 }
 
 /// Physical effects retained beside the exact target bytes. This is target
 /// validation evidence, not permission to invoke the wrapper.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64SemanticUnitWrapperFootprint {
+pub(crate) struct X86_64SemanticUnitWrapperFootprint {
     pub root_reads: [X86_64SemanticUnitWrapperCopy; 4],
     pub caller_copy_writes: [X86_64SemanticUnitWrapperCopy; 4],
     /// Bytes the wrapper zero-fills inside its own frame to provision the
@@ -203,14 +203,14 @@ pub enum X86_64SemanticUnitWrapperResolutionError {
 
 /// The receiver residence always follows both extent copies so their frame
 /// coordinates never move between source shapes.
-pub const X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_SLOT_BYTE_OFFSET: u32 = 64;
+pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_SLOT_BYTE_OFFSET: u32 = 64;
 /// The tail pad after the last slot keeps `sub rsp, N` at `N ≡ 8 (mod 16)` for
 /// the call site, exactly like the receiver-free frame.
-pub const X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_FRAME_TAIL_PAD: u32 = 8;
+pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_FRAME_TAIL_PAD: u32 = 8;
 
 /// The widest receiver residence the compact `sub rsp, imm8` form admits:
 /// `64 + slot + 8 <= 127` leaves slots of 16, 32, or 48 bytes.
-pub const X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_MAX_BYTE_COUNT: u32 = 48;
+pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_MAX_BYTE_COUNT: u32 = 48;
 
 pub const fn canonical_x86_64_semantic_unit_wrapper_encoding_request(
     target: NativeTarget,
@@ -489,7 +489,7 @@ pub fn resolve_x86_64_semantic_unit_wrapper_private_continuation(
     )
 }
 
-pub fn validate_x86_64_resolved_semantic_unit_wrapper(
+pub(crate) fn validate_x86_64_resolved_semantic_unit_wrapper(
     template: &ValidatedX86_64SemanticUnitWrapperTemplate,
     relocation: X86_64SemanticUnitWrapperRelocation,
     wrapper_section_offset: u64,

@@ -1319,7 +1319,7 @@ pub fn validate_x86_64_register_constraint_catalog(
 /// validate paths run once per instruction row; reusing the process-wide
 /// canonical instance keeps each row at a hash lookup instead of rebuilding
 /// the full inventory.
-pub fn x86_64_register_constraint_catalog_for(
+pub(crate) fn x86_64_register_constraint_catalog_for(
     model: &ValidatedPhysicalRegisterModel,
 ) -> std::borrow::Cow<'static, RegisterConstraintCatalog> {
     static CANONICAL: std::sync::OnceLock<RegisterConstraintCatalog> = std::sync::OnceLock::new();

@@ -7,7 +7,7 @@ use semantic_vocabulary::IntegerValue;
 /// Exact machine-state footprint of a 32-bit GPR write used to realize a
 /// zero-extended 64-bit value.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64MovR32Imm32I64MaterializationFootprint {
+pub(crate) struct X86_64MovR32Imm32I64MaterializationFootprint {
     pub register_reads: Vec<RegisterViewId>,
     /// Semantic selected-instruction destination: the complete 64-bit view.
     pub register_writes: Vec<RegisterViewId>,
@@ -25,7 +25,7 @@ pub struct X86_64MovR32Imm32I64MaterializationFootprint {
 
 /// Meaning reconstructed directly from canonical x86-64 instruction bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64DecodedMovR32Imm32I64Materialization {
+pub(crate) struct X86_64DecodedMovR32Imm32I64Materialization {
     destination: RegisterViewId,
     encoded_write_view: RegisterViewId,
     value_bits: u64,
@@ -53,7 +53,7 @@ impl X86_64DecodedMovR32Imm32I64Materialization {
 /// Canonical bytes together with independently decoded destination, value,
 /// view, storage, and effect evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedX86_64MovR32Imm32I64Materialization {
+pub(crate) struct ValidatedX86_64MovR32Imm32I64Materialization {
     bytes: Vec<u8>,
     decoded: X86_64DecodedMovR32Imm32I64Materialization,
 }
@@ -107,7 +107,7 @@ impl std::error::Error for X86_64MovR32Imm32I64MaterializationError {}
 /// Produce the canonical `MOV r32, imm32` form for one exact i64 bit pattern
 /// in `0..=u32::MAX`. Low GPRs use five bytes; r8d-r15d use canonical REX.B
 /// and six bytes.
-pub fn encode_x86_64_mov_r32_imm32_i64_materialization(
+pub(crate) fn encode_x86_64_mov_r32_imm32_i64_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     destination: RegisterViewId,
     value: IntegerValue,
@@ -139,7 +139,7 @@ pub fn encode_x86_64_mov_r32_imm32_i64_materialization(
 /// Independently decode exactly one canonical `MOV r32, imm32`. No producer
 /// encoding routine or producer-derived expected byte sequence participates
 /// in this reconstruction.
-pub fn decode_x86_64_mov_r32_imm32_i64_materialization(
+pub(crate) fn decode_x86_64_mov_r32_imm32_i64_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     bytes: &[u8],
 ) -> Result<X86_64DecodedMovR32Imm32I64Materialization, X86_64MovR32Imm32I64MaterializationError> {
@@ -211,7 +211,7 @@ pub fn decode_x86_64_mov_r32_imm32_i64_materialization(
 /// Check byte-reconstructed semantics against the requested 64-bit selected
 /// destination and exact value. The decoder, rather than the request, owns the
 /// recovered 32-bit write view and architectural zero-extension evidence.
-pub fn validate_x86_64_mov_r32_imm32_i64_materialization(
+pub(crate) fn validate_x86_64_mov_r32_imm32_i64_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     destination: RegisterViewId,
     value: IntegerValue,

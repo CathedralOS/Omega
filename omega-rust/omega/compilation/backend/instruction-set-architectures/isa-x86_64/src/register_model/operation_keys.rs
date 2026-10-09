@@ -184,12 +184,12 @@ pub const X86_64_BYTE_LITERAL_IMAGE_ADDRESS: RegisterConstraintKey = RegisterCon
     variant: 791,
 };
 
-pub const X86_64_LINUX_SYSTEM_CALL: RegisterConstraintKey = RegisterConstraintKey {
+pub(crate) const X86_64_LINUX_SYSTEM_CALL: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::SystemCall,
     variant: 0,
 };
 
-pub const X86_64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey = RegisterConstraintKey {
+pub(crate) const X86_64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::InlineAssembly,
     variant: 0,
 };
@@ -467,7 +467,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 99] = [
+pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 99] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,

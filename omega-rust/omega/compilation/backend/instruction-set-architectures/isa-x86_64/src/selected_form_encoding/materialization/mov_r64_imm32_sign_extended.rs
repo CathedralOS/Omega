@@ -5,7 +5,7 @@ use selected_instructions::MachineEncodedEffects;
 use semantic_vocabulary::IntegerValue;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64MovR64Imm32SignExtendedI64MaterializationFootprint {
+pub(crate) struct X86_64MovR64Imm32SignExtendedI64MaterializationFootprint {
     pub register_reads: Vec<RegisterViewId>,
     pub register_writes: Vec<RegisterViewId>,
     pub encoded_write_view: RegisterViewId,
@@ -17,7 +17,7 @@ pub struct X86_64MovR64Imm32SignExtendedI64MaterializationFootprint {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64DecodedMovR64Imm32SignExtendedI64Materialization {
+pub(crate) struct X86_64DecodedMovR64Imm32SignExtendedI64Materialization {
     destination: RegisterViewId,
     value_bits: u64,
     footprint: X86_64MovR64Imm32SignExtendedI64MaterializationFootprint,
@@ -39,7 +39,7 @@ impl X86_64DecodedMovR64Imm32SignExtendedI64Materialization {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedX86_64MovR64Imm32SignExtendedI64Materialization {
+pub(crate) struct ValidatedX86_64MovR64Imm32SignExtendedI64Materialization {
     bytes: Vec<u8>,
     decoded: X86_64DecodedMovR64Imm32SignExtendedI64Materialization,
 }
@@ -84,7 +84,7 @@ impl std::fmt::Display for X86_64MovR64Imm32SignExtendedI64MaterializationError 
 }
 impl std::error::Error for X86_64MovR64Imm32SignExtendedI64MaterializationError {}
 
-pub fn encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization(
+pub(crate) fn encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     destination: RegisterViewId,
     value: IntegerValue,
@@ -112,7 +112,7 @@ pub fn encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization(
     )
 }
 
-pub fn decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization(
+pub(crate) fn decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     bytes: &[u8],
 ) -> Result<
@@ -164,7 +164,7 @@ pub fn decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization(
     })
 }
 
-pub fn validate_x86_64_mov_r64_imm32_sign_extended_i64_materialization(
+pub(crate) fn validate_x86_64_mov_r64_imm32_sign_extended_i64_materialization(
     physical: &ValidatedPhysicalRegisterModel,
     destination: RegisterViewId,
     value: IntegerValue,
