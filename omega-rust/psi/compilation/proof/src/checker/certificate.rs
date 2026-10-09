@@ -583,7 +583,7 @@ fn guarded_bounds_certificate(
         if *right == atom
             && let IntegerMathTerm::IntegerLiteral(bound) = left
         {
-            let bound = math_literal_bignum(*bound);
+            let bound = proof_admission::big_integer_literal(*bound);
             if lower_anchor
                 .as_ref()
                 .is_none_or(|(_, strongest)| bound > *strongest)
@@ -594,7 +594,7 @@ fn guarded_bounds_certificate(
         if *left == atom
             && let IntegerMathTerm::IntegerLiteral(bound) = right
         {
-            let bound = math_literal_bignum(*bound);
+            let bound = proof_admission::big_integer_literal(*bound);
             if upper_anchor
                 .as_ref()
                 .is_none_or(|(_, strongest)| bound < *strongest)
@@ -1353,7 +1353,9 @@ fn closed_math_term(
 /// emitted term independently and remains the authority.
 fn eval_math_term(term: &IntegerMathTerm) -> Option<BigInt> {
     match term {
-        IntegerMathTerm::IntegerLiteral(literal) => Some(math_literal_bignum(*literal)),
+        IntegerMathTerm::IntegerLiteral(literal) => {
+            Some(proof_admission::big_integer_literal(*literal))
+        }
         IntegerMathTerm::Add(left, right) => {
             Some(eval_math_term(left)?.add(&eval_math_term(right)?))
         }
@@ -1375,15 +1377,6 @@ fn math_literal_term(value: BigInt) -> Option<IntegerMathTerm> {
     Some(IntegerMathTerm::IntegerLiteral(bigint_math_literal(
         &value,
     )?))
-}
-
-fn math_literal_bignum(literal: IntegerMathLiteral) -> BigInt {
-    let magnitude = BigInt::from_u128(literal.magnitude());
-    if literal.negative() {
-        magnitude.negate()
-    } else {
-        magnitude
-    }
 }
 
 fn bigint_math_literal(value: &BigInt) -> Option<IntegerMathLiteral> {
