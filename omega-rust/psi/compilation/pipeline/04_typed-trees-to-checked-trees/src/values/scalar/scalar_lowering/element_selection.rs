@@ -53,15 +53,20 @@ pub(in crate::values::scalar) fn selected_element(
     ) {
         return None;
     }
-    let collection_type = program
+    let collection_carrier = program
         .type_reference_table
         .peeled_type_reference(collection_type);
-    let (element_type, through_view) =
-        match program.type_reference_table.type_reference(collection_type) {
-            TypeReferenceNode::FixedArray { element_type, .. } => (*element_type, false),
-            TypeReferenceNode::Slice { element_type } => (*element_type, true),
-            _ => return None,
-        };
+    let through_view = match program
+        .type_reference_table
+        .type_reference(collection_carrier)
+    {
+        TypeReferenceNode::FixedArray { .. } => false,
+        TypeReferenceNode::Slice { .. } => true,
+        _ => return None,
+    };
+    // Geometry uses the storage carrier; the observed value keeps the exact
+    // effective element policy retained by the shared projection owner.
+    let element_type = validation::collection_element_type_reference(program, collection_type)?;
     let index =
         land_anonymous_scalar_expression(program, operators, indexed.index, PrimitiveType::U64)
             .or_else(|| {

@@ -537,14 +537,12 @@ pub(super) fn fixed_index_element_type(
 ) -> Option<TypeReferenceHandle> {
     let carrier = peeled_indexed_carrier(program, reference)?;
     match program.type_reference_table.type_reference(carrier) {
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-        } => {
+        TypeReferenceNode::FixedArray { length, .. } => {
             let typed_trees::types::FixedArrayLength::Literal(length) = length else {
                 return None;
             };
-            (element_index < u64::try_from(*length).ok()?).then_some(*element_type)
+            (element_index < u64::try_from(*length).ok()?)
+                .then(|| validation::collection_element_type_reference(program, reference))?
         }
         _ => None,
     }
@@ -559,12 +557,10 @@ pub(super) fn runtime_index_element_type(
 ) -> Option<TypeReferenceHandle> {
     let carrier = peeled_indexed_carrier(program, reference)?;
     match program.type_reference_table.type_reference(carrier) {
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-            ..
-        } => matches!(length, typed_trees::types::FixedArrayLength::Literal(_))
-            .then_some(*element_type),
+        TypeReferenceNode::FixedArray { length, .. } => {
+            matches!(length, typed_trees::types::FixedArrayLength::Literal(_))
+                .then(|| validation::collection_element_type_reference(program, reference))?
+        }
         _ => None,
     }
 }
