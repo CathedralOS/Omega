@@ -195,9 +195,7 @@ pub(crate) fn hosted_write_byte_custody_is_exact(
         _ => return false,
     };
     let source_is_exact = match argument.source {
-        InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
-        | InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
-        | InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => return false,
+        machine_code::internal_arg_source_triple_pattern!(..) => return false,
         InternalUnitScalarArgumentSourceRecord::Parameter { .. } => false,
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,

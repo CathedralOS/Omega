@@ -172,3 +172,12 @@ pub struct InternalUnitScalarCallArgumentRecord {
     pub code_offset: usize,
     pub byte_count: usize,
 }
+
+#[macro_export]
+macro_rules! internal_arg_source_triple_pattern {
+    ($($fields:tt)*) => {
+        $crate::InternalUnitScalarArgumentSourceRecord::SelectedBoundary { $($fields)* }
+            | $crate::InternalUnitScalarArgumentSourceRecord::SelectedCall { $($fields)* }
+            | $crate::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { $($fields)* }
+    };
+}

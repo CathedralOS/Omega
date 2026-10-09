@@ -69,9 +69,7 @@ fn validate_store(
         return None;
     }
     let (source_is_exact, byte_size, bits) = match store.source {
-        InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
-        | InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
-        | InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => return None,
+        machine_code::internal_arg_source_triple_pattern!(..) => return None,
         InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
             source_value,

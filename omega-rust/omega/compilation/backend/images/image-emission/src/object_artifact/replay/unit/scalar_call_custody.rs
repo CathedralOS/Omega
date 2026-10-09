@@ -372,9 +372,7 @@ pub(crate) fn validate_source(
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitScalarCallEvidence(function.machine);
     match source {
-        InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
-        | InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
-        | InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => return Err(invalid()),
+        machine_code::internal_arg_source_triple_pattern!(..) => return Err(invalid()),
         InternalUnitScalarArgumentSourceRecord::Parameter {
             parameter_index,
             source_value,
@@ -716,9 +714,7 @@ pub(crate) fn expected_argument_bytes(
             }
             let mut value_register = register;
             match argument.source {
-                InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
-                | InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
-                | InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => return None,
+                machine_code::internal_arg_source_triple_pattern!(..) => return None,
                 InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } => {
                     match location {
                         machine_code::UnitScalarParameterLocationRecord::Register(source) => {
@@ -791,9 +787,7 @@ pub(crate) fn expected_argument_bytes(
             }
             let mut value_register = register;
             match argument.source {
-                InternalUnitScalarArgumentSourceRecord::SelectedBoundary { .. }
-                | InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { .. }
-                | InternalUnitScalarArgumentSourceRecord::SelectedCall { .. } => return None,
+                machine_code::internal_arg_source_triple_pattern!(..) => return None,
                 InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } => {
                     match location {
                         machine_code::UnitScalarParameterLocationRecord::Register(source) => {
