@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 4.15, "load1_start": 4.15, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 5.64, "load1_start": 1.76, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -108,6 +108,8 @@ fail/arithmetic/implicit_store_conversion_rejected rejected 216ms expected @2d8e
 	store in machine `Main::main` state `main` assignment implicitly converts `u32` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/arithmetic/implicit_store_widening_rejected rejected 277ms expected @2d8ed253669f
 	store in machine `Main::main` state `main` assignment implicitly converts `u8` to `u16`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u16`)
+fail/arithmetic/lifetime_provider_slice_count_cast_requires_fit rejected 221ms expected @cba4ef8c9ab1
+	Exact integer cast in machine `CellSourceProvider::read_impl` state `read_impl` from `u64` to `u16` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/match_constructor_divisor_requires_nonzero rejected 446ms expected @c5d32a00863
 	partial exact division in construction of `QuotientBox` field `value`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 	partial exact division in machine `make` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
@@ -124,9 +126,9 @@ fail/arithmetic/numeric_operand_abs_unrepresentable rejected 587ms expected @8c1
 fail/arithmetic/qualified_cast_decision_wrong_arm rejected 181ms expected @3031abcffbe7
 	Exact integer cast in machine `narrow` state `entry` cast expression from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `narrow` state `entry` return value from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/arithmetic/qualified_float_cast_specification_fraction_rejected rejected 543ms expected @677f9e11ef44
+fail/arithmetic/qualified_float_cast_specification_fraction_rejected rejected 587ms expected @cba4ef8c9ab1
 	Exact numeric cast in proposition `fractional` to `u8` is not provably denotation preserving; prove source integrality and exact representability independently or use a named numeric conversion
-fail/arithmetic/qualified_float_cast_specification_rounding_rejected rejected 542ms expected @677f9e11ef44
+fail/arithmetic/qualified_float_cast_specification_rounding_rejected rejected 587ms expected @cba4ef8c9ab1
 	Exact numeric cast in proposition `rounded` to `f32` is not provably denotation preserving; prove source integrality and exact representability independently or use a named numeric conversion
 fail/arithmetic/saturating_shift_count_unproven rejected 267ms expected @2d8ed253669f
 	shift count in machine `Main::main` state `main` local `shifted` is not provably below the operand width for `u32` (`Saturating` governs value overflow, not count validity -- its count obligation is Exact's): exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
@@ -172,8 +174,8 @@ fail/arithmetic/unknown_field_write_rejected rejected 249ms expected @2d8ed25366
 	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/arithmetic/unqualified_case_value_rejected rejected 39ms expected @2d8ed253669f
 	case value `On` requires its carrier-qualified `Type::On` path
-fail/arithmetic/wrapping_guard_does_not_bound_original rejected 146ms expected @6197860b335c+wt
-	cannot prove assignment value `values.source` satisfies bounded target `values.result` in `Values::store.bounded`; expected 0..=10
+fail/arithmetic/wrapping_guard_does_not_bound_original rejected 264ms expected @cba4ef8c9ab1
+	machine `Values::store` state `bounded` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/arithmetic/wrapping_target_plain_operands_rejected rejected 127ms expected @d9720a4fa49b+wt
 	exact arithmetic in machine `Main::pick` state `pick` local `v` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
 	store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
@@ -864,6 +866,8 @@ fail/control_flow/transition_target_undeclared_state rejected 195ms expected @74
 	machine `Main::main` transitions to `vanished`, which names no state of this machine and no machine entry or requirement
 fail/control_flow/tuple_destructure_duplicate_binding_rejected rejected 8ms expected @2d8ed253669f
 	tests/omega/fail/control_flow/tuple_destructure_duplicate_binding_rejected/main.omg:7:9: tuple destructure binding `value` is introduced by more than one subject; rename one binding with `as`
+fail/core/constant_false_crash_ceiling_forbids_body_crash rejected 410ms expected @cba4ef8c9ab1
+	machine `main` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/content_conservation_unqualified_place rejected 326ms expected @2d8ed253669f
 	callable `InvalidSplit::split` has an invalid content-conservation contract: projection `Owned::content` requires exact qualification `Region::Owned`, but `old(&whole)` is not qualified by its type or an ordinary callable contract
 fail/core/content_projection_arbitrary_call rejected 425ms expected @5718c89849d
@@ -876,21 +880,17 @@ fail/core/extent_root_adapter_direct_call_does_not_grant rejected 564ms expected
 	cannot prove requires contract for call consume_granted from direct_adapter_call_does_not_grant: unqualified in Extent::Granted
 fail/core/extent_scope_loss rejected 865ms expected @2d8ed253669f
 	linear value `extent` reaches scope exit without being consumed or transferred
-fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 692ms expected @f53544b209b2+wt
-	uncovered Trap crash in machine `narrow` state `entry` cast expression: Trapping conversion of `input` from `u16` to `i8` traps when that value lies outside `i8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-	uncovered Trap crash in machine `narrow` state `entry` terminal expression: Trapping conversion of `input` from `u16` to `i8` traps when that value lies outside `i8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 634ms expected @f53544b209b2+wt
-	uncovered Trap crash in machine `narrow` state `entry` cast expression: Trapping conversion of `input` from `i16` to `i8` traps when that value lies outside `i8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-	uncovered Trap crash in machine `narrow` state `entry` terminal expression: Trapping conversion of `input` from `i16` to `i8` traps when that value lies outside `i8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-fail/core/guarded_trap_ceiling_other_site_rejected rejected 630ms expected @f53544b209b2+wt
-	uncovered Trap crash in machine `pack` state `entry` cast expression: Trapping conversion of `high` from `u16` to `u8` traps when that value lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-	uncovered Trap crash in machine `pack` state `entry` local `high_byte`: Trapping conversion of `high` from `u16` to `u8` traps when that value lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 869ms expected @cba4ef8c9ab1
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 871ms expected @cba4ef8c9ab1
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/core/guarded_trap_ceiling_other_site_rejected rejected 871ms expected @cba4ef8c9ab1
+	machine `pack` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/guarded_trap_ceiling_unbounded_addend_rejected rejected 725ms expected @f53544b209b2+wt
 	uncovered Trap crash in machine `accumulate` state `entry` cast expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
 	uncovered Trap crash in machine `accumulate` state `entry` terminal expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 581ms expected @f53544b209b2+wt
-	uncovered Trap crash in machine `narrow` state `entry` cast expression: Trapping conversion of `input` from `u16` to `u8` traps when that value lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-	uncovered Trap crash in machine `narrow` state `entry` terminal expression: Trapping conversion of `input` from `u16` to `u8` traps when that value lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 869ms expected @cba4ef8c9ab1
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/interrupt_obligation_construction_rejected rejected 464ms expected @c5d32a00863
 	construction of `InterruptAcknowledgement` field `root` lost its exact declared owner
 	construction of `InterruptAcknowledgement` field `provider_execution` lost its exact declared owner
@@ -915,36 +915,48 @@ fail/core/numeric_widened_result_narrow_carrier_rejected rejected 394ms expected
 	store in machine `Main::main` state `main` local `widened` implicitly converts `u16` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
 fail/core/placed_construction_rejected rejected 16ms expected @2d8ed253669f
 	`Placed<Native, Packet>` must select one exact `Native::plan` machine
-fail/core/qualified_integer_cast_argument_requires_representability rejected 219ms expected @677f9e11ef44
+fail/core/qualified_integer_cast_argument_requires_representability rejected 222ms expected @cba4ef8c9ab1
 	Exact integer cast in machine `caller` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/core/qualified_integer_cast_call_all_returns_require_fit rejected 216ms expected @677f9e11ef44
+fail/core/qualified_integer_cast_call_all_returns_require_fit rejected 222ms expected @cba4ef8c9ab1
 	Exact integer cast in machine `reject` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/core/qualified_integer_cast_ensures_requires_representability rejected 216ms expected @677f9e11ef44
+fail/core/qualified_integer_cast_ensures_requires_representability rejected 223ms expected @cba4ef8c9ab1
 	Exact integer cast in machine `promise` state `entry` from `i16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/core/qualified_integer_cast_requires_representability rejected 218ms expected @677f9e11ef44
+fail/core/qualified_integer_cast_requires_representability rejected 225ms expected @cba4ef8c9ab1
 	Exact integer cast in machine `wrapping` state `entry` from `i16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `saturating` state `entry` from `i16` to `i8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `trapping` state `entry` from `u16` to `i8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `constant_saturating` state `entry` from `i16` to `i8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `negative_wrapping` state `entry` from `i16` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/core/qualified_integer_cast_specification_requires_representability rejected 220ms expected @677f9e11ef44
+fail/core/qualified_integer_cast_specification_requires_representability rejected 228ms expected @cba4ef8c9ab1
 	Exact integer cast in proposition `invalid` to `u8` is not provably representable; constrain the source with an independently accepted prior fact or use a named numeric conversion
 	Exact integer cast in domain `i16::Invalid` predicate to `u8` is not provably representable; constrain the source with an independently accepted prior fact or use a named numeric conversion
 	Exact integer cast in domain `u16::SelfBound` predicate to `u8` is not provably representable; constrain the source with an independently accepted prior fact or use a named numeric conversion
 	Exact integer cast in machine `premise` state `entry` from `i16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/core/resident_index_identity_mismatch_rejected rejected 800ms expected @2d8ed253669f
 	index compatibility condition `index-equality:Resident:mismatch::entry:exit-0:Resident<Native, Packet>==Resident<Network, Packet>` is not established: actual `Resident<Native, Packet>` and expected `Resident<Network, Packet>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/core/scoped_integer_call_actual_requires_selected_meaning rejected 400ms expected @677f9e11ef44
+fail/core/scoped_integer_call_abstract_trait_operator_requires_formation rejected 325ms expected @cba4ef8c9ab1
+	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+fail/core/scoped_integer_call_actual_requires_selected_meaning rejected 428ms expected @cba4ef8c9ab1
 	cannot prove ensures contract for exit from caller at statement 0: identity(left + right) as i16  == result
-fail/core/scoped_integer_call_guarantee_requires_formation rejected 217ms expected @677f9e11ef44
+fail/core/scoped_integer_call_guarantee_requires_formation rejected 249ms expected @cba4ef8c9ab1
 	cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact
-fail/core/scoped_integer_call_guarantee_requires_published_equality rejected 401ms expected @677f9e11ef44
+fail/core/scoped_integer_call_guarantee_requires_published_equality rejected 430ms expected @cba4ef8c9ab1
 	cannot prove ensures contract for exit from caller at statement 0: lower(value) as i16  == result
-fail/core/scoped_integer_call_guarantee_retains_actual rejected 400ms expected @677f9e11ef44
+fail/core/scoped_integer_call_guarantee_retains_actual rejected 423ms expected @cba4ef8c9ab1
 	cannot prove ensures contract for exit from caller at statement 0: identity(value + 1) as i16  == result
-fail/core/scoped_integer_call_guarantees_cannot_form_cycle rejected 406ms expected @677f9e11ef44
+fail/core/scoped_integer_call_guarantees_cannot_form_cycle rejected 426ms expected @cba4ef8c9ab1
 	cannot prove ensures contract for exit from first at statement 0: second(value) as i16  == result
 	cannot prove ensures contract for exit from second at statement 0: first(value) as i16  == result
+fail/core/scoped_integer_call_inherited_trait_operator_requires_formation rejected 328ms expected @cba4ef8c9ab1
+	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+fail/core/scoped_integer_call_primitive_operator_requires_formation rejected 340ms expected @cba4ef8c9ab1
+	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+fail/core/scoped_integer_call_wrapping_actual_requires_formation rejected 340ms expected @cba4ef8c9ab1
+	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
 fail/core/translation_unmap_before_activation rejected 594ms expected @2d8ed253669f
 	cannot prove requires contract for call unmap from unmap_early: pending in Mapping::Installed
 	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
@@ -1234,6 +1246,10 @@ fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 10ms expe
 	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped, Wrapped); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 31ms expected @2d8ed253669f
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
+fail/float/closed_public_float_predicate_requires_bound_actual rejected 1326ms expected @cba4ef8c9ab1
+	cannot prove requires contract for call finite_right from main: F32.is_finite(340282346638528859811704183484516925440.0 * 2.0) (needs fact `F32.is_finite(right * 2.0)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/float/closed_public_float_predicate_requires_finite_actual rejected 1322ms expected @cba4ef8c9ab1
+	cannot prove requires contract for call finite_value from main: F32.is_finite(divide(0.0, 0.0)) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/constant_exact_integer_coercion_fractional rejected 60ms expected @aef1e846927f+wt
 	constant initializer: constant cast needs a total integer conversion or checked partial-conversion evidence
 fail/float/digit_separator_format_mismatch_rejected rejected 3132ms expected @e129ea486356
@@ -1298,12 +1314,12 @@ fail/float/local_initializer_range_unproven rejected 666ms expected @9ef088fc5f8
 	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
 fail/float/named_argument_format_rejected rejected 244ms expected @2d8ed253669f
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
-fail/float/named_call_computed_policy_erasure rejected 518ms expected @677f9e11ef44
+fail/float/named_call_computed_policy_erasure rejected 547ms expected @cba4ef8c9ab1
 	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `right` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	store in machine `invalid` state `combine` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `addend` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/float/named_call_implicit_policy_erasure rejected 2022ms expected @677f9e11ef44
+fail/float/named_call_implicit_policy_erasure rejected 2060ms expected @cba4ef8c9ab1
 	store in machine `invalid` state `combine` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `left` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
@@ -1314,6 +1330,8 @@ fail/float/named_float_to_integer_no_context_unproven rejected 431ms expected @c
 	machine `Main::main` state `main` cannot prove unqualified `I32::from_f64` operand `main.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/named_nan_runtime_materialization rejected 4324ms expected @2d8ed253669f
 	constant initializer: undetermined NaN has no representation for a raw-bit recast
+fail/float/named_trapping_cast_operand_requires_site_coverage rejected 2180ms expected @cba4ef8c9ab1
+	`F32.multiply_then_add(3.4028234663852886e38 as f32 , 2.0, 0.0)` in machine `overflow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/negated_ordered_guard_cast rejected 479ms expected @aef1e846927f+wt
 	machine `Guarded::convert` state `bounded` cannot prove Exact float-to-`i32` cast operand `guarded.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `Guarded::convert` state `bounded` cannot prove unqualified `I32::from_f64` operand `guarded.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
@@ -1349,17 +1367,17 @@ fail/float/suffix_format_disagrees_rejected rejected 260ms expected @2d8ed253669
 fail/float/total_order_wrong_carrier rejected 412ms expected @d83ae44b78cd
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `left`: expected `f64`, got `f32`
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `right`: expected `f64`, got `f32`
-fail/float/trapping_arithmetic_requires_same_cause_ceiling rejected 1274ms expected @677f9e11ef44
+fail/float/trapping_arithmetic_requires_same_cause_ceiling rejected 1319ms expected @cba4ef8c9ab1
 	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_named_conversion_requires_site_coverage rejected 1289ms expected @677f9e11ef44
+fail/float/trapping_named_conversion_requires_site_coverage rejected 1318ms expected @cba4ef8c9ab1
 	`F32.from_f64(value)` in machine `narrow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_nonentry_site_requires_matching_path rejected 1292ms expected @677f9e11ef44
+fail/float/trapping_nonentry_site_requires_matching_path rejected 1317ms expected @cba4ef8c9ab1
 	`multiply(value, 2.0)` in machine `scale` state `risky` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 1274ms expected @677f9e11ef44
+fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 1316ms expected @cba4ef8c9ab1
 	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 1259ms expected @677f9e11ef44
+fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 1342ms expected @cba4ef8c9ab1
 	`multiply(value, 3.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 1221ms expected @677f9e11ef44
+fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 1330ms expected @cba4ef8c9ab1
 	`divide(value, 0.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 	`F32.from_f64(value)` in machine `wrong_format` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/generics/attached_machine_undeclared_data_extent_rejected rejected 300ms expected @ada91cf0bd16+wt
@@ -1785,13 +1803,15 @@ fail/proofs/runtime_case_guarantee_wrong_borrow_subject rejected 3884ms expected
 	cannot prove requires contract for call observe from main: other == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/runtime_case_guarantee_wrong_return rejected 3897ms expected @0919e048c9f8+wt
 	cannot prove ensures contract for exit from make at statement 0: result == Choice::Cell
-fail/proofs/scalar_state_return_outside_byte_class rejected 397ms expected @677f9e11ef44
+fail/proofs/scalar_state_return_outside_byte_class rejected 408ms expected @cba4ef8c9ab1
 	cannot prove requires contract for call consume from Main::write_byte: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8)
 	cannot prove default-domain field requirement for return from Main::write_byte at statement 3: main.bytes requires [u8; N]::Utf8
 fail/proofs/structural_ensures_unjudged_rejected rejected 337ms expected @2d8ed253669f
 	machine `bogus` ensures contract proof fact `result == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 fail/proofs/value_call_refuted_inequality_rejected rejected 280ms expected @2d8ed253669f
 	machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `value != Nat`: the instantiated fact is structurally false
+fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 531ms expected @cba4ef8c9ab1
+	cannot prove ensures contract for exit from claimed_zero at statement 0: result == 0
 fail/proofs/zero_value_executable_rejected rejected 249ms expected @2d8ed253669f
 	machine `Main::main` state `main` uses `zero_value<Choice>()` in executable code; `zero_value<T>()` is a proof-only representation observation and may appear only in contracts
 fail/proofs/zero_value_gated_home_rejected rejected 256ms expected @2d8ed253669f
@@ -2237,7 +2257,7 @@ fail/wire/wire_compatibility_migration_route_missing rejected 761ms expected @2d
 	wire compatibility demand `ArchiveStore` is unsatisfied for local schema `Counter` and peer schema `CounterV1`: migration coverage (no complete `CounterLineage` migration route exists from `CounterV1` to `Counter`)
 fail/wire/wire_compatibility_preservation_unmet rejected 729ms expected @2d8ed253669f
 	wire compatibility demand `RelayChannel` is unsatisfied for local schema `LocalMessage` and peer schema `PeerMessage`: unknown preservation (compact_binary publishes strict unknown-member behavior)
-fail/wire/wire_policy_plan_disagrees rejected 53ms expected @2d8ed253669f
+fail/wire/wire_policy_plan_disagrees rejected 32ms expected @cba4ef8c9ab1
 	wire grammar policy `CompactBinary::plan` disagrees with the schema walk for `Message`: the policy authored [LengthPrefixed { tag: 0 }, LengthPrefixed { tag: 1 }], the codec expects [Varint { tag: 0 }, Varint { tag: 1 }]
 pass/arithmetic/anonymous_rational_arguments checked 313ms @2d8ed253669f
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @2d8ed253669f
@@ -2247,8 +2267,8 @@ pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 1526ms chec
 pass/arithmetic/exact_integer_cast_proven checked 306ms @2d8ed253669f
 pass/arithmetic/narrowing_flow_and_widen_permitted checked 1602ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/qualified_cast_in_entry_body_exit checked 1185ms check-target:macos_arm64 @2e29bd5fedcf
-pass/arithmetic/qualified_float_cast_abstract_prior_fact checked 1426ms @677f9e11ef44
-pass/arithmetic/qualified_float_cast_specification_declared_sources checked 1461ms @677f9e11ef44
+pass/arithmetic/qualified_float_cast_abstract_prior_fact checked 1458ms @cba4ef8c9ab1
+pass/arithmetic/qualified_float_cast_specification_declared_sources checked 1528ms @cba4ef8c9ab1
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 5261ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 1514ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_boolean_alias_shift_count_exit checked 1789ms check-target:macos_arm64 @50b7e26fea31+wt
@@ -2779,7 +2799,7 @@ pass/collections/runtime_fixed_vec_contract_chain_exit checked 1171ms check-targ
 pass/collections/runtime_fixed_vec_round_trip_exit checked 1036ms check-target:macos_arm64 @dab35460b4c5+wt
 pass/collections/runtime_frame_indexed_param_read_exit checked 1240ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_guarded_computed_index_exit checked 1952ms check-target:macos_arm64 @98f54226c10c
-pass/collections/runtime_hoisted_index_write_exit checked 1411ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_hoisted_index_write_exit checked 1866ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/collections/runtime_indexed_assignment_selector_snapshot_exit checked 1698ms check-target:macos_arm64 @86ae3811c141+wt
 pass/collections/runtime_indexed_boolean_field_guard_exit checked 1882ms check-target:macos_arm64 @bea382792161+wt
 pass/collections/runtime_indexed_bounded_element_read_exit checked 1219ms check-target:macos_arm64 @2d8ed253669f
@@ -2944,26 +2964,28 @@ pass/core/extent_core_surface checked 283ms @2d8ed253669f
 pass/core/extent_root_provider_adapter checked 679ms check-target:macos_arm64 @2d8ed253669f
 pass/core/interrupt_obligations_surface checked 427ms @9a54cbcf1d68+wt
 pass/core/numeric_cross_signed_conversion_surface checked 23922ms check-target:macos_arm64 @2d8ed253669f
-pass/core/numeric_signed_narrowing_policies checked 24471ms check-target:macos_arm64 @5a7ed5b57d00+wt
-pass/core/numeric_signed_to_unsigned_policies checked 21009ms check-target:macos_arm64 @5a7ed5b57d00+wt
-pass/core/numeric_signed_wide_to_unsigned_policies checked 20515ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_signed_narrowing_policies checked 2342ms check-target:macos_arm64 @cba4ef8c9ab1
+pass/core/numeric_signed_to_unsigned_policies checked 2331ms check-target:macos_arm64 @cba4ef8c9ab1
+pass/core/numeric_signed_wide_to_unsigned_policies checked 2269ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/core/numeric_trapping_conversion_overflow checked 1701ms check-target:macos_arm64 @2d8ed253669f
-pass/core/numeric_trapping_direct_conversion_negative checked 10608ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_direct_conversion_negative checked 1755ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/core/numeric_trapping_discarded_conversion checked 7842ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_trapping_negative_to_unsigned checked 7223ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_trapping_signed_narrowing_above_maximum checked 6580ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_trapping_signed_narrowing_below_minimum checked 6331ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_trapping_unsigned_above_signed_maximum checked 6145ms check-target:macos_arm64 @5a7ed5b57d00+wt
-pass/core/numeric_unsigned_64_to_signed_policies checked 8768ms check-target:macos_arm64 @5a7ed5b57d00+wt
-pass/core/numeric_unsigned_narrowing_policies checked 9671ms check-target:macos_arm64 @5a7ed5b57d00+wt
-pass/core/numeric_unsigned_to_signed_policies checked 10728ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_unsigned_64_to_signed_policies checked 2016ms check-target:macos_arm64 @cba4ef8c9ab1
+pass/core/numeric_unsigned_narrowing_policies checked 2124ms check-target:macos_arm64 @cba4ef8c9ab1
+pass/core/numeric_unsigned_to_signed_policies checked 2083ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/core/numeric_widening_preserves_values checked 6823ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_widening_published_ranges checked 8095ms check-target:macos_arm64 @5a7ed5b57d00+wt
-pass/core/qualified_integer_cast_preserves_value_exit checked 1602ms check-target:macos_arm64 @677f9e11ef44
+pass/core/qualified_integer_cast_preserves_value_exit checked 1339ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/core/runtime_guarded_trapping_addition_exit checked 4838ms check-target:macos_arm64 @f53544b209b2+wt
-pass/core/runtime_guarded_trapping_conversion_exit checked 1359ms check-target:macos_arm64 @2d8ed253669f
+pass/core/runtime_guarded_trapping_conversion_exit checked 2080ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/core/runtime_natural_termination_exit checked 417ms check-target:macos_arm64 @2d8ed253669f
-pass/core/scoped_integer_call_guarantees_composed_exit checked 1599ms check-target:macos_arm64 @677f9e11ef44
+pass/core/scoped_integer_call_exact_actual_requires_formation checked 1235ms check-target:macos_arm64 @cba4ef8c9ab1
+pass/core/scoped_integer_call_guarantees_composed_exit checked 1322ms check-target:macos_arm64 @cba4ef8c9ab1
+pass/core/scoped_integer_call_unrelated_trait_operator_requires_formation checked 1278ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/core/self_read_only_receiver_compile checked 293ms @2d8ed253669f
 pass/core/task_lifecycle_operations rejected 2541ms check-target:macos_arm64 @c4e692442075+wt
 	terminal-artifact production failed: Lowering(Unsupported("suspension frontier has live claims without an exact Terminal ClaimId join"))
@@ -3188,7 +3210,7 @@ pass/filesystem/native_metadata_blocks checked 11359ms check-target:macos_arm64 
 pass/filesystem/native_metadata_ctime_dev checked 25811ms check-target:macos_arm64 @e01f73c689de+wt
 pass/filesystem/native_metadata_ino checked 13246ms check-target:macos_arm64 @2740301f86f+wt
 pass/filesystem/native_metadata_nlink checked 5611ms check-target:macos_arm64 @e01f73c689de+wt
-pass/filesystem/native_read_dir_iter checked 5138ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_read_dir_iter checked 4953ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/filesystem/native_wrapper_write_all_result rejected 17172ms check-target:macos_arm64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/runtime_local_host_result_dispatch_exit checked 3625ms check-target:macos_arm64 @e01f73c689de+wt
@@ -3278,8 +3300,12 @@ pass/float/runtime_qualified_carrier_conversion_exit checked 4549ms check-target
 pass/float/runtime_refined_conversion_target_exit checked 4693ms check-target:macos_arm64 @4c0f436bf3b8+wt
 pass/float/runtime_std_is_finite_exit checked 5045ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_total_order_satisfiers_exit checked 33742ms check-target:macos_arm64 @e8239f945e8
+pass/float/saturating_named_operations_retain_ordered_inputs checked 6492ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/float/scalar_helper_boundary_sequence_exit checked 4671ms check-target:macos_arm64 @2d8ed253669f
 pass/float/state_loop_field_refinement_restoration_exit checked 1625ms check-target:macos_arm64 @163770eba39c
+pass/float/trapping_float_sites_share_nonentry_guard_coverage checked 6273ms check-target:macos_arm64 @cba4ef8c9ab1
+pass/float/trapping_raw_finite_operand_capture_proof checked 1478ms @cba4ef8c9ab1
+pass/float/trapping_raw_finite_semantic_result_proof checked 6319ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/float/x86_fma_plan_association rejected 7718ms check-target:linux_x86_64 @95e4e5c52dc
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Elf, pointer_size: 8, pointer_alignment: 8 }
 pass/generics/closed_generic_local_field_observation_exit checked 3179ms check-target:macos_arm64 @9719c66eb4a
@@ -3296,7 +3322,7 @@ pass/generics/machine_bound_satisfied_at_call checked 303ms @2d8ed253669f
 pass/generics/machine_type_equations checked 343ms @2d8ed253669f
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 293ms @2d8ed253669f
 pass/generics/omitted_data_binder_range_equation checked 1106ms check-target:macos_arm64 @f64782b89114+wt
-pass/generics/open_computed_quantity_result checked 1664ms check-target:macos_arm64 @58e4f6f8667
+pass/generics/open_computed_quantity_result checked 1938ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/generics/ranged_const_parameter_attached_shape checked 1334ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_const_container_methods_exit checked 678ms check-target:macos_arm64 @ca8c127c90c5
 pass/generics/runtime_const_data_array_length_exit checked 1237ms check-target:macos_arm64 @2d8ed253669f
@@ -3363,7 +3389,7 @@ pass/inline_asm/asm_where_exact_clobbers_compile checked 353ms @4e4bfed13aee+wt
 pass/layouts/access_plan_inaccessible_seed checked 444ms @2d8ed253669f
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 276ms @d1ebe54629b8
 pass/layouts/integer_at_owned_local_borrow_call_exit checked 1327ms check-target:macos_arm64 @313322813ba5+wt
-pass/layouts/placed_view_source_access_compile checked 1502ms @2d8ed253669f
+pass/layouts/placed_view_source_access_compile checked 2159ms @cba4ef8c9ab1
 pass/layouts/private_callback_slot_demand_compile checked 3542ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
 pass/layouts/runtime_callee_integer_at_fitting_write_exit checked 1759ms check-target:macos_arm64 @acdf102c21ea+wt
@@ -3593,7 +3619,7 @@ pass/proofs/runtime_ranked_intermediary_accumulator_exit checked 769ms check-tar
 pass/proofs/runtime_sequential_ranked_components_exit checked 1029ms check-target:macos_arm64 @3ed38434a87f+wt
 pass/proofs/runtime_sequential_relational_accumulator_exit checked 754ms check-target:macos_arm64 @abeaf0e29f04+wt
 pass/proofs/runtime_two_state_accumulator_exit checked 1028ms check-target:macos_arm64 @ccbf3802c51a
-pass/proofs/scalar_state_return_keeps_byte_class checked 431ms @677f9e11ef44
+pass/proofs/scalar_state_return_keeps_byte_class checked 436ms @cba4ef8c9ab1
 pass/providers/bare_byte_array_boundary_argument checked 1466ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/borrowed_service_field_forward_exit checked 944ms check-target:macos_arm64 @5745c7562b65
 pass/providers/boundary_declaration_structural_result_return_exit checked 1396ms check-target:macos_arm64 @6b4fa65d3f94+wt
@@ -3614,7 +3640,7 @@ pass/providers/foreign_owned_record_exit checked 5220ms check-target:macos_arm64
 pass/providers/foreign_record_result_exit checked 4756ms check-target:macos_arm64 @cfe60a3a242
 pass/providers/generic_provider_structural_result_composition_exit checked 3447ms check-target:macos_arm64 @9719c66eb4a
 pass/providers/kernel_import_result_chain_exit checked 654ms check-target:linux_x86_64 @ee08fad015b6+wt
-pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1238ms check-target:macos_arm64 @2d8ed253669f
+pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1865ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/providers/local_record_foreign_borrow_exit checked 2194ms check-target:macos_arm64 @59d57ace39f0+wt
 pass/providers/owned_array_operand_epochs_exit checked 1500ms check-target:macos_arm64 @c27519066a03+wt
 pass/providers/provider_type_target_default_override checked 653ms check-target:macos_arm64 @2d8ed253669f
@@ -3996,7 +4022,7 @@ pass/traits/runtime_trait_default_requirement_scope_exit checked 3622ms check-ta
 pass/traits/trait_generic_bound_static_dispatch checked 3015ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/transparent_refinement_declaration checked 823ms check-target:macos_arm64 @2d8ed253669f
 pass/types/runtime_addr_algebra_exit checked 1286ms check-target:macos_arm64 @ca8c127c90c5
-pass/types/runtime_addr_conversion_trap_exit checked 891ms check-target:macos_arm64 @16c68d48b859
+pass/types/runtime_addr_conversion_trap_exit checked 1869ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/types/runtime_addr_field_exit checked 900ms check-target:macos_arm64 @16c68d48b859
 pass/types/runtime_exact_address_subtraction_exit checked 4796ms check-target:macos_arm64 @2e2913321f6b+wt
 pass/types/runtime_i16_signed_arith_exit checked 2777ms check-target:macos_arm64 @2d8ed253669f
@@ -4011,8 +4037,9 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 6670ms check-ta
 pass/wire/runtime_wire_encode_byte_slice_exit checked 3388ms check-target:macos_arm64 @58e4f6f8667
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 11673ms check-target:macos_arm64 @cfe60a3a242
 pass/wire/runtime_wire_exact_array_without_count_exit checked 6175ms check-target:macos_arm64 @1da616075c39+wt
-pass/wire/runtime_wire_policy_authored_plan_exit checked 38801ms check-target:macos_arm64 @866d948d5b4a
+pass/wire/runtime_wire_policy_authored_plan_exit checked 4063ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 125343ms check-target:macos_arm64 @011fd400e8c1+wt
+pass/wire/runtime_wire_signed_extremes_roundtrip_exit checked 3148ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 29239ms check-target:macos_arm64 @58e4f6f8667
 pass/wire/wire_compatibility_migration_across_shapes checked 971ms check-target:macos_arm64 @2d8ed253669f
 pass/wire/wire_data_reserved_field checked 842ms check-target:macos_arm64 @2d8ed253669f
