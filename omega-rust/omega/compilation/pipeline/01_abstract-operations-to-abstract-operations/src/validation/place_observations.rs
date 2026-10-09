@@ -513,8 +513,7 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         | O::BooleanEqual { .. }
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | O::IntegerLessOrEqual { .. }
-        | O::IntegerBitwiseNot { .. }
-        | O::IntegerBitwiseAnd { .. }
+        | abstract_operations::bitwise_not_and_pair_pattern!(..)
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | O::IntegerWiden { .. }
         | O::IntegerExactCast { .. }

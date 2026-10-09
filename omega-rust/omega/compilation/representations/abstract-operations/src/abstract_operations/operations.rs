@@ -1229,3 +1229,11 @@ macro_rules! byte_len_or_field_read_pattern {
             | $crate::AbstractOperation::StructuralByteSequenceFieldRead { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! bitwise_not_and_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::IntegerBitwiseNot { $($fields)* }
+            | $crate::AbstractOperation::IntegerBitwiseAnd { $($fields)* }
+    };
+}

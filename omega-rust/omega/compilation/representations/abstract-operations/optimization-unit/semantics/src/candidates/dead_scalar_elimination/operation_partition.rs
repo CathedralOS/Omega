@@ -147,18 +147,9 @@ pub(crate) fn independently_validated_dead_scalar_shape(
         ) => Some((*psi_operation, *result, ScalarType::Boolean, None)),
         (
             DeadScalarFamily::UnconditionallyTotal,
-            O::IntegerBitwiseNot {
-                psi_operation,
+            abstract_operations::bitwise_not_and_pair_pattern!(psi_operation,
                 result,
-                scalar_type,
-                ..
-            }
-            | O::IntegerBitwiseAnd {
-                psi_operation,
-                result,
-                scalar_type,
-                ..
-            }
+                scalar_type, ..)
             | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
                 result,
                 scalar_type, ..),

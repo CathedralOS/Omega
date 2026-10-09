@@ -47,16 +47,8 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::IeeeFloatCompare { result, .. }
         | abstract_operations::integer_equal_less_pair_pattern!(result, ..)
         | O::IntegerLessOrEqual { result, .. } => Some((*result, ScalarType::Boolean)),
-        O::IntegerBitwiseNot {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::IntegerBitwiseAnd {
-            result,
-            scalar_type,
-            ..
-        }
+        abstract_operations::bitwise_not_and_pair_pattern!(result,
+            scalar_type, ..)
         | abstract_operations::bitwise_or_xor_pair_pattern!(result,
             scalar_type, ..)
         | O::IntegerArithmetic {
