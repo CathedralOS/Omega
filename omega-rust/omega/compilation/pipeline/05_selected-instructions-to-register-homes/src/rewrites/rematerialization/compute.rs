@@ -167,8 +167,6 @@ pub(super) fn complete_active_resident_rematerialization(
     );
     Ok(StagedOptimizedActiveResidentRematerialization {
         source,
-        choices,
-        classifications,
         rematerialization,
         liveness,
         ranges,

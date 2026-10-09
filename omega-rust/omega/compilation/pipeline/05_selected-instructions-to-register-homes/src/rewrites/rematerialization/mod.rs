@@ -75,8 +75,6 @@ pub(crate) fn complete_optimized_active_resident_rematerialization(
 #[derive(Debug)]
 pub(crate) struct StagedOptimizedActiveResidentRematerialization {
     source: StagedOptimizedAllocationLegality,
-    choices: ValidatedSpillChoices,
-    classifications: ValidatedRecoveryClassifications,
     rematerialization: ValidatedPressureRematerialization,
     liveness: ValidatedLiveness,
     ranges: ValidatedLiveRanges,
@@ -90,9 +88,6 @@ impl StagedOptimizedActiveResidentRematerialization {
     /// The retained legality stage the proven sweep consumed. Replay and
     /// custody validation inspect it; ordinary consumers read the current
     /// program and rebuilt analyses directly.
-    pub const fn source(&self) -> &StagedOptimizedAllocationLegality {
-        &self.source
-    }
     /// The register environment admitted with the retained source — the sweep
     /// preserves it, so the source's environment is the current one.
     pub const fn register_environment(
@@ -119,12 +114,6 @@ impl StagedOptimizedActiveResidentRematerialization {
             .liveness_stage()
             .selected_stage()
             .optimized_target_owner()
-    }
-    pub const fn choices(&self) -> &ValidatedSpillChoices {
-        &self.choices
-    }
-    pub const fn classifications(&self) -> &ValidatedRecoveryClassifications {
-        &self.classifications
     }
     pub const fn rematerialization(&self) -> &ValidatedPressureRematerialization {
         &self.rematerialization
