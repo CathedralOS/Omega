@@ -19,28 +19,23 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 fn proof_certified_exact_signed_integer_negative_one_shift_right_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
-    let O::IntegerShift {
-        psi_operation,
-        result,
-        value_type,
-        value,
-        policy: IntegerShiftPolicy::Exact { .. },
-        direction: IntegerShiftDirection::Right,
-        ..
-    } = operation
-    else {
+    let Some(operands) = operation.integer_shift() else {
         return Vec::new();
     };
-    if value_type.carrier() != IntegerCarrier::Fixed || value_type.sign() != IntegerSign::Signed {
+    if !matches!(operands.policy, IntegerShiftPolicy::Exact { .. })
+        || operands.direction != IntegerShiftDirection::Right
+        || operands.value_type.carrier() != IntegerCarrier::Fixed
+        || operands.value_type.sign() != IntegerSign::Signed
+    {
         return Vec::new();
     }
     vec![(
         ProofCertifiedScalarIdentityShape {
-            source_operation: *psi_operation,
-            result: *result,
-            replacement: *value,
-            identity_operand: *value,
-            scalar_type: *value_type,
+            source_operation: operands.psi_operation,
+            result: operands.result,
+            replacement: operands.value,
+            identity_operand: operands.value,
+            scalar_type: operands.value_type,
             identity: ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue,
         },
         IntegerValue::Signed(-1),

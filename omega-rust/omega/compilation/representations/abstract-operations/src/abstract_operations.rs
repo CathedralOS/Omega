@@ -94,7 +94,7 @@ pub use integer_arithmetic::{
     IntegerShiftPolicy,
 };
 pub mod operations;
-pub use operations::{AbstractOperation, IntegerArithmeticOperands};
+pub use operations::{AbstractOperation, IntegerArithmeticOperands, IntegerShiftOperands};
 mod structural_stores;
 pub use structural_stores::{StructuralScalarStoreDestination, StructuralWindowRoot};
 mod structural_copy;
