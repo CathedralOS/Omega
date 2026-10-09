@@ -427,7 +427,13 @@ impl SymbolTable {
     }
 
     pub(super) fn has_namespace_context(&self, reference: SourceSpan) -> bool {
-        !self.module_symbols.is_empty()
+        // Base user units retain file-local import authority even when no
+        // module was declared. A build extension is a separately assembled
+        // namespace; its complete retained stratum keeps the existing route.
+        self.source_file(reference).is_some_and(|file| {
+            file.origin == source::SourceOrigin::User
+                && file.resolution_stratum == source::SourceResolutionStratum::Base
+        }) || !self.module_symbols.is_empty()
             || self.source_scoped_top_level_bindings.iter().any(|binding| {
                 binding.reference_source == reference.source_id
                     && binding
@@ -444,6 +450,9 @@ impl SymbolTable {
         reference: SourceSpan,
     ) -> SymbolLookup {
         let current_module = self.source_module(reference.source_id);
+        let shared_extension = self.source_file(reference).is_some_and(|file| {
+            file.resolution_stratum == source::SourceResolutionStratum::CurrentActivationExtension
+        });
         let local = candidates
             .iter()
             .copied()
@@ -456,9 +465,15 @@ impl SymbolTable {
                             if current_module.is_valid() {
                                 self.same_source_package(reference, span)
                             } else {
-                                // An absent module is not a shared namespace:
-                                // sibling files retain distinct local owners.
+                                // Base files have distinct lexical owners. Build
+                                // extension roots share their checked package's
+                                // assembled stratum even beside named modules.
                                 span.source_id == reference.source_id
+                                    || (shared_extension
+                                        && self.same_source_package(reference, span)
+                                        && self.sources.as_deref().is_some_and(|sources| {
+                                            !sources.resolution_strata_separate(reference, span)
+                                        }))
                             }
                         })
             })
@@ -507,12 +522,16 @@ impl SymbolTable {
         if !imported.is_empty() {
             return SymbolLookup::from_candidates(imported.into_iter());
         }
-        // Keep unmoduled package discovery below exact local/import selection.
-        // A shared spelling in another checked occurrence must not compete
-        // with this occurrence's existing package vocabulary (including the
-        // toolchain's declaration dependencies). This is still a candidate
-        // set: multiple declarations in this package remain ambiguous.
-        if !current_module.is_valid() {
+        // Package membership is visibility, not a lexical import. Unmoduled
+        // user files see their own declarations and exact direct imports above;
+        // discovering a helper's imports must not widen the caller's vocabulary.
+        // Toolchain and build-extension assembly retain their package-local
+        // vocabulary; a shared extension's own stratum has already won above.
+        if !current_module.is_valid()
+            && self.source_file(reference).is_none_or(|file| {
+                file.origin == source::SourceOrigin::Toolchain || shared_extension
+            })
+        {
             let package = candidates.iter().copied().filter(|candidate| {
                 self.name(*candidate) == name
                     && !self.symbol_module(*candidate).is_valid()
@@ -525,25 +544,13 @@ impl SymbolTable {
                 return package;
             }
         }
-        // In a module-less closure this selector is reached only because an
-        // exact loader import supplied namespace custody. A missing imported
-        // name must not fall back to the other checked scope. Preserve ordinary
-        // unmoduled discovery within the scope: package admission still checks
-        // whether a selected declaration is a direct dependency. Toolchain
-        // vocabulary and declared-module fallback retain their existing rules.
-        let exact_file_context = self.module_symbols.is_empty();
+        // Compiler-installed vocabulary remains available without an authored
+        // import. Loaded user declarations have no such authority: every one
+        // must have been selected by the local/module or direct-import routes.
         SymbolLookup::from_candidates(candidates.iter().copied().filter(|candidate| {
             self.name(*candidate) == name
                 && !self.symbol_module(*candidate).is_valid()
-                && (!exact_file_context
-                    || self.symbol_source_origin(*candidate) != Some(source::SourceOrigin::User)
-                    || self
-                        .symbol_provenance_source_span(*candidate)
-                        .and_then(|span| self.source_file(span))
-                        .zip(self.source_file(reference))
-                        .is_none_or(|(declaration, reference)| {
-                            declaration.dependency_scope == reference.dependency_scope
-                        }))
+                && self.symbol_source_origin(*candidate) != Some(source::SourceOrigin::User)
         }))
     }
 

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 1.91, "load1_start": 2.26, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "4", "load1_end": 0.49, "load1_start": 0.49, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1695,6 +1695,14 @@ fail/modules/generic_scoped_constant_private_owner rejected 66ms expected @74385
 	module type-scoped constants require an exact accessible data carrier selected in their declaring source
 fail/modules/generic_scoped_constant_wrong_constructor rejected 79ms expected @743851d348c6+wt
 	module-owned nominal constant `VALUE` is invalid: const constructor `Other` selects a different nominal carrier than `Holder<u32>`
+fail/modules/imported_file_cannot_use_callers_imports rejected 541ms expected @30eb6513ae80+wt
+	data `B` field `value` references unknown data type `A`
+fail/modules/nontransitive_file_constant_import rejected 518ms expected @30eb6513ae80+wt
+	machine `result` state `entry` uses `SEED`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/modules/nontransitive_file_imports rejected 507ms expected @30eb6513ae80+wt
+	data `Holder` field `value` references unknown data type `A`
+fail/modules/nontransitive_file_machine_import rejected 39ms expected @30eb6513ae80+wt
+	a value-machine call in a guard comparison needs the callee's return type declared: annotate `seed` with an explicit `-> Type`, or bind the call to a typed `let` first and guard the local
 fail/modules/runtime_fixed_array_index rejected 21ms expected @2d8ed253669f
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/modules/unused_scalar_constant_range rejected 12ms expected @2d8ed253669f
@@ -3724,6 +3732,7 @@ pass/modules/comparison_machine_indices checked 347ms @2d8ed253669f
 pass/modules/compound_constant_indices checked 323ms @2d8ed253669f
 pass/modules/computed_constant_initializers checked 395ms @2d8ed253669f
 pass/modules/computed_nominal_constants checked 326ms @2d8ed253669f
+pass/modules/direct_file_imports checked 968ms @30eb6513ae80+wt
 pass/modules/domain_constant_indices checked 315ms @2d8ed253669f
 pass/modules/fixed_array_machine_indices checked 308ms @2d8ed253669f
 pass/modules/literal_boolean_indices checked 328ms @2d8ed253669f

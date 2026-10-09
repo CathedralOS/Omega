@@ -178,7 +178,7 @@ fn unmoduled_local_owner_precedes_same_package_imported_spelling() {
 }
 
 #[test]
-fn unmoduled_package_discovery_keeps_checked_occurrences_separate() {
+fn unmoduled_user_lookup_requires_imports_and_toolchain_instances_stay_separate() {
     let (ambiguous, _, _) = namespace_table(
         [1, 1, 1],
         vec![SourceScopedTopLevelBinding::module_import(
@@ -195,7 +195,7 @@ fn unmoduled_package_discovery_keeps_checked_occurrences_separate() {
             reference(0),
             |_| true,
         ),
-        crate::SymbolLookup::Ambiguous { .. }
+        crate::SymbolLookup::NotFound
     ));
     let (_, _, sources) = namespace_table([1, 1, 1], Vec::new());
     let mut files = sources.files().cloned().collect::<Vec<_>>();

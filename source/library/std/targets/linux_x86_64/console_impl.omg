@@ -1,3 +1,5 @@
+use console;
+
 // Complete linux_x86_64 Console provider closure over compiler-known native
 // byte/runtime leaves. Friendly line and write adapters live in std/console.omg on the
 // same nominal provider type.

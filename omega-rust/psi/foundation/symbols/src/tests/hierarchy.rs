@@ -287,7 +287,7 @@ fn current_activation_extension_is_invisible_to_base_but_sees_the_complete_exten
         ],
     ))
     .collect::<Vec<_>>();
-    let symbols = builder.finish();
+    let mut symbols = builder.finish();
     let reference = |source_id| SourceSpan::new(source_id, Span::new(0, 1));
 
     assert_eq!(
@@ -334,4 +334,22 @@ fn current_activation_extension_is_invisible_to_base_but_sees_the_complete_exten
         Some(package_identity),
         "resolution stratum must not alter package provenance",
     );
+    // An unrelated authored module must not turn the assembled extension's
+    // shared root vocabulary into file-local imports.
+    symbols
+        .register_source_module(base_source, [("base", reference(base_source))])
+        .expect("one base namespace");
+    for (name, expected) in [
+        ("Value", declarations[1]),
+        ("ExtensionOnly", declarations[2]),
+    ] {
+        assert_eq!(
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                name,
+                &[SymbolKind::Data],
+                reference(second_extension),
+            ),
+            Some(expected),
+        );
+    }
 }

@@ -4832,12 +4832,13 @@ wait for Cathedral's instruction coverage. The interpreter is
     `fail/build/package_local_calling_copy` do not exercise the loose route.
     Open: what the negative should pin once loose roots carry owners (for
     example, a policy built from copied types must not select as `std::calling`).
-  - Nontransitive imports for ordinary names: the Rust resolver binds a
-    declaration only another module's `use` reached (`data A` in `m::a`,
-    named in `main.omg` that imports only `m::b`, which imports `m::a`).
-    modules.md and the product resolver (`source/psi/resolve/imports.omg`)
-    reject it; `source/psi/parse/{types,data}.omg` relied on it for
-    `SourceSpan` before importing `psi::source::source`.
+  - Runtime direct-import witness:
+    `tests/omega/pending/modules/direct_file_import_exit` retains native and
+    interpreter exit 7. Reviewed fixture compilation stops at missing portable
+    target-family contracts for Console byte operations, also reproduced on
+    the base compiler. On the Linux cloud sandbox, `omega run --both` stops
+    earlier at private cache ancestry custody (`/` is owned by `nobody`).
+    Resume the witness after those existing dependencies are resolved.
   - Indexed constraints and operator homes through typed/checked/Terminal:
     extend normalization and exact declaration selection in
     `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/`,

@@ -1,0 +1,10 @@
+use m::b;
+use m::a;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let item: A = A { value: 7 };
+    main.console.exit_process(item.value);
+}

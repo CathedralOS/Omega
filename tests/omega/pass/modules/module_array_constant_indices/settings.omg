@@ -1,4 +1,5 @@
 module settings;
+use main;
 const SIZE: [u64; 2] = [2, 1];
 machine keep(value: Indexed<SIZE>) -> Indexed<OTHER> { value }
 data Sizes {}

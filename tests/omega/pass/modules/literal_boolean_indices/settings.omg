@@ -1,2 +1,3 @@
 module settings;
+use main;
 machine keep(value: Flag<(true == false)>) -> Flag<false> { value }

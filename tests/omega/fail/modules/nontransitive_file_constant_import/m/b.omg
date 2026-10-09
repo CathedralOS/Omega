@@ -1,0 +1,2 @@
+use m::a;
+pub data B {}

@@ -1,3 +1,4 @@
 module settings;
+use main;
 const ENABLED: bool = false;
 machine keep(value: Flag<(ENABLED || false)>) -> Flag<false> { value }

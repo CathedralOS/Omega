@@ -1,3 +1,4 @@
 module rooms;
+use main;
 const SIZE: u64 = 3;
 data Packet { value: Buffer<SIZE>; }

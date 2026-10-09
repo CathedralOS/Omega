@@ -1,3 +1,4 @@
 module combat;
+use main;
 const SIZE: u64 = 2;
 data Packet { value: Buffer<SIZE>; }

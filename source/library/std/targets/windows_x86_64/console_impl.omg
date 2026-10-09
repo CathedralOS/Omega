@@ -1,3 +1,5 @@
+use console;
+
 // Complete windows_x86_64 Console provider closure. Friendly line and write
 // adapters live in std/console.omg on the same nominal provider type.
 //
