@@ -35,7 +35,7 @@ pub(crate) fn stage_target_frame_protocol_encoding(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TargetFrameProtocolEncodingReceipt {
+pub(crate) struct TargetFrameProtocolEncodingReceipt {
     identity: TargetFrameProtocolEncodingIdentity,
     frame_layout: TargetFrameLayoutIdentity,
     target: NativeTarget,
@@ -64,7 +64,7 @@ impl TargetFrameProtocolEncodingReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedTargetFrameProtocolEncoding {
+pub(crate) struct ValidatedTargetFrameProtocolEncoding {
     pub(in crate::frame_protocol) plan: std::sync::Arc<TargetFrameProtocolEncodingPlan>,
     pub(in crate::frame_protocol) receipt: TargetFrameProtocolEncodingReceipt,
 }

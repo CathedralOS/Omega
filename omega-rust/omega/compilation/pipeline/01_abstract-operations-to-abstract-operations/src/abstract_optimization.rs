@@ -50,7 +50,7 @@ use crate::rules::built_in_psi_steps_for_selections;
 use crate::rules::registry::OrderedRuleRegistry;
 
 #[derive(Debug)]
-pub(crate) enum AbstractOptimizationError {
+pub enum AbstractOptimizationError {
     UnconsumedOptimizationPhase(OptimizationExecutionPhase),
     UnitBuild(VerifiedPsiOptimizationUnitBuildError),
     Run(OptimizationRunError),

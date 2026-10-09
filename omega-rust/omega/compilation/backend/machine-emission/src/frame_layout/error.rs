@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TargetFrameLayoutError {
+pub(crate) enum TargetFrameLayoutError {
     RootMismatch,
     UnsupportedPolicy,
     UnsupportedTarget,

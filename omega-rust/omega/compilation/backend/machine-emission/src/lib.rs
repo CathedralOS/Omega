@@ -52,11 +52,11 @@ pub use function_realization::{
 pub use function_realization::{
     FunctionRelativeOptimizationRealizationError,
 };
-pub use function_realization::{
+pub(crate) use function_realization::{
     StagedFixedFrameFunctionRelativeRealization};
-pub use function_realization::{
+pub(crate) use function_realization::{
     ValidatedFunctionRelativeOptimizationRealizationManifest};
-pub use function_realization::{ FunctionRelativeOptimizationRealizationManifest};
+pub(crate) use function_realization::{ FunctionRelativeOptimizationRealizationManifest};
 
 // Evidence the realization joins: frame geometry, frame bytes, exit contract.
 mod exit_contract;
@@ -76,7 +76,7 @@ pub use exit_contract::{ WholeFunctionEntryAssumption, WholeFunctionExitContract
     WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
     WholeFunctionReturnValueEvidence,
 };
-pub use exit_contract::{
+pub(crate) use exit_contract::{
     ValidatedWholeFunctionExitContract};
 
 // 2. Fragment emission.
@@ -91,9 +91,9 @@ pub use fragment_emission::{ FunctionFragmentEmissionManifest,
     FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
     StagedOptimizedFunctionFragmentEmissionSource,
 };
-pub use fragment_emission::{
+pub(crate) use fragment_emission::{
     FunctionFragmentEmissionError};
-pub use fragment_emission::{ StagedOptimizedFunctionFragmentEmission, ValidatedFunctionFragmentEmissionManifest};
+pub(crate) use fragment_emission::{ StagedOptimizedFunctionFragmentEmission, ValidatedFunctionFragmentEmissionManifest};
 
 
 // 3. Frame application.
@@ -107,9 +107,9 @@ pub use frame_application::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity,
     function_fragment_frame_application_identity,
 };
-pub use frame_application::{
+pub(crate) use frame_application::{
     FunctionFragmentFrameApplicationError};
-pub use frame_application::{ StagedFunctionFragmentFrameApplication};
+pub(crate) use frame_application::{ StagedFunctionFragmentFrameApplication};
 
 
 // 4. Text placement.
@@ -124,7 +124,7 @@ pub use text_placement::{
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
     FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError, StagedOptimizedFixedFrameTextSection,
 };
-pub use text_placement::{
+pub(crate) use text_placement::{
     StagedFixedFrameTextSectionCustodyReceipt,
     ValidatedFunctionFragmentTextSectionManifest};
 

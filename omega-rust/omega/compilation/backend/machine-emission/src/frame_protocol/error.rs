@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TargetFrameProtocolEncodingError {
+pub(crate) enum TargetFrameProtocolEncodingError {
     RootMismatch,
     UnsupportedPolicy,
     /// The (architecture, object-format) pair declares no codec or unwind

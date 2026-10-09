@@ -18,7 +18,7 @@ mod error;
 mod fixed_frame;
 mod frame;
 
-pub use carriers::{
+pub(crate) use carriers::{
     StagedFixedFrameFunctionRelativeRealization};
 pub use error::FunctionRelativeOptimizationRealizationError;
 pub use fixed_frame::{
@@ -39,19 +39,19 @@ use selected_instructions::SelectedInstructionPlanIdentity;
 use target::NativeTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeOptimizationRealizationStage {
+pub(crate) enum FunctionRelativeOptimizationRealizationStage {
     ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeOptimizationRealizationScope {
+pub(crate) enum FunctionRelativeOptimizationRealizationScope {
     FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeOptimizationUnavailableData {
+pub(crate) enum FunctionRelativeOptimizationUnavailableData {
     Unavailable}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FunctionRelativeOptimizationRealizationStatistics {
+pub(crate) struct FunctionRelativeOptimizationRealizationStatistics {
     pub functions: u64,
     pub blocks: u64,
     pub instructions: u64,
@@ -60,7 +60,7 @@ pub struct FunctionRelativeOptimizationRealizationStatistics {
     pub unresolved_internal_machine_fixups: u64}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeFrameDisposition {
+pub(crate) enum FunctionRelativeFrameDisposition {
     Unavailable,
     CanonicalFixedFrameV1 {
         layout: TargetFrameLayoutIdentity,
