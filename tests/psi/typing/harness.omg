@@ -745,6 +745,8 @@ machine TypingHarness::diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
         TypeDiagnosticCode::TargetArgumentCount -> tag(32)
         TypeDiagnosticCode::UninferredGenericArgument -> tag(33)
         TypeDiagnosticCode::SatisfierMismatch -> tag(34)
+        TypeDiagnosticCode::SilentDiscard -> tag(35)
+        TypeDiagnosticCode::DiscardsNoCall -> tag(36)
     }
 
     state tag(number: u8) -> u8 {

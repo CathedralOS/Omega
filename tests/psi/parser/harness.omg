@@ -1226,6 +1226,7 @@ crashes Trap
             StatementKind::Tail -> statement_kind(parser_harness, output, index, statement, 4)
             StatementKind::Crash -> statement_kind(parser_harness, output, index, statement, 5)
             StatementKind::Transition -> statement_kind(parser_harness, output, index, statement, 6)
+            StatementKind::Discard -> statement_kind(parser_harness, output, index, statement, 7)
         }
     }
 

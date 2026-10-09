@@ -31,7 +31,7 @@ DIAGNOSTICS = (
     "DuplicateConstructionField", "NotConstructible", "CaseOfOtherData", "UnknownPatternField",
     "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
     "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
-    "SatisfierMismatch",
+    "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length")
 ADAPTATIONS = ("", "landed", "lent")
@@ -782,6 +782,27 @@ def main() -> None:
         b"data V { x: u64; }\nmachine f(a: V, b: V) -> V { a * b }",
         "OperandMismatch",
         b"a * b",
+    )
+    # A non-Unit result is dropped only through `_ = call();`.
+    accepted(
+        program,
+        "intentional-discard",
+        b"machine g() -> u8 { 1 }\nmachine f() { _ = g(); }",
+        ((b"g()!2", "u8"),),
+    )
+    rejected(
+        program,
+        "silent-discard",
+        b"machine g() -> u8 { 1 }\nmachine f() { g(); }",
+        "SilentDiscard",
+        b"g()!2",
+    )
+    rejected(
+        program,
+        "discard-of-a-value",
+        b"machine f(x: u8) { _ = x; }",
+        "DiscardsNoCall",
+        b"x!2",
     )
 
     # A `satisfies` machine's signature is its requirement's under the

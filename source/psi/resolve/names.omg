@@ -317,6 +317,7 @@ crashes Trap
         StatementKind::Let -> optional_value(resolver, sources, syntax, scope, statement)
         StatementKind::Assign -> assignment(resolver, sources, syntax, scope, statement)
         StatementKind::Expression -> value(resolver, sources, syntax, scope, statement.value)
+        StatementKind::Discard -> value(resolver, sources, syntax, scope, statement.value)
         StatementKind::Tail -> value(resolver, sources, syntax, scope, statement.value)
         StatementKind::Crash -> done()
         StatementKind::Transition -> subject(resolver, sources, syntax, scope, statement)

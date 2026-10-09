@@ -2873,6 +2873,16 @@ def main() -> None:
         arguments=(1,),
     )
     body("crash-abort", b"machine f() { crash Abort; }", (), ((5, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 14, 26),))
+    # `_ = value;` is the intentional discard, its own statement kind.
+    body(
+        "intentional-discard",
+        b"machine f() { _ = g(); }",
+        (
+            (1, 0, 0, 0, 0, 0, 0, 1, 18, 19, 0, 1, 18, 19),
+            (11, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 18, 21),
+        ),
+        ((7, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 14, 22),),
+    )
 
     # Transitions: arm rows carry the pattern kind (guard 1, wildcard 2,
     # literal 3, case 4), pattern handle, field range, target kind (call 1,

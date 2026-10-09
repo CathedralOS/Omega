@@ -9,7 +9,10 @@ use psi::typing::typer;
 
 // One body's statements in authored order. A `let` initializer meets its
 // declared type, an assignment its place's, and a final unterminated
-// expression the body's result. A transition's case arm binds its payload
+// expression the body's result. A non-Unit result cannot be silently
+// discarded: an expression statement's value is Unit (or `Never`), and the
+// intentional discard `_ = call();` drops a call's result
+// (wiki/spec/language/effects.md). A transition's case arm binds its payload
 // binders before its target types; a target state's arguments meet its
 // parameters, a terminal machine call's result the body's result, and `-> {}`
 // completes a unit body (wiki/spec/language/state_contracts.md).
@@ -49,6 +52,7 @@ crashes Trap
         StatementKind::Let -> local(typer, sources, syntax, resolution, statement)
         StatementKind::Assign -> assign(typer, sources, syntax, resolution, statement)
         StatementKind::Expression -> evaluated(typer, sources, syntax, resolution, statement)
+        StatementKind::Discard -> discarded(typer, sources, syntax, resolution, statement)
         StatementKind::Tail -> tail(typer, sources, syntax, resolution, statement, result)
         StatementKind::Crash -> done()
         StatementKind::Transition -> transition_statement(typer, sources, syntax, resolution, statement, result)
@@ -91,6 +95,31 @@ crashes Trap
 
     state evaluated(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement) {
         Typer::type_tree(typer, sources, syntax, resolution, statement.value);
+        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, statement.value);
+        let never: bool = Typer::never_type(typer, value_type);
+        transition !typer.output.accepted || value_type == typer.output.unit || never {
+            true -> done()
+            _ -> silently_discarded(typer, syntax, statement)
+        }
+    }
+
+    state silently_discarded(typer: &mut Typer, syntax: &SyntaxTrees, statement: Statement) {
+        let value: Expression = SyntaxTrees::expression(syntax, statement.value);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::SilentDiscard, value.source_span);
+    }
+
+    // Only a call's result is dropped intentionally.
+    state discarded(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement) {
+        let value: Expression = SyntaxTrees::expression(syntax, statement.value);
+        Typer::type_tree(typer, sources, syntax, resolution, statement.value);
+        transition !typer.output.accepted || value.kind == ExpressionKind::Call {
+            true -> done()
+            _ -> discards_no_call(typer, value)
+        }
+    }
+
+    state discards_no_call(typer: &mut Typer, value: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::DiscardsNoCall, value.source_span);
     }
 
     state tail(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, result: u64 in Trapping) {
@@ -449,4 +478,12 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// Whether type `handle` is `Never`.
+machine Typer::never_type(typer: &Typer, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    row.kind == TypeKind::Builtin && row.builtin == BuiltinType::Never
 }

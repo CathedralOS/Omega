@@ -235,7 +235,8 @@ pub data CrashCause [copy] {
 // `Expression` evaluates `value` for its effect; `Tail` is a body's final
 // unterminated expression, its result; `Crash` ends the body with `cause`;
 // `Transition` selects among its arms, over the subject in `value` when
-// `has_value` holds.
+// `has_value` holds; `Discard` (`_ = value;`) evaluates `value` and drops its
+// result intentionally.
 pub data StatementKind [copy] {
     case Let;
     case Assign;
@@ -243,6 +244,7 @@ pub data StatementKind [copy] {
     case Tail;
     case Crash;
     case Transition;
+    case Discard;
 }
 
 // One arm of a `transition` block. `Guard` arms (subjectless blocks) hold a

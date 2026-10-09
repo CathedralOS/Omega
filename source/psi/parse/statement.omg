@@ -7,7 +7,8 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // Statement grammar for machine and state bodies: `let [mut] name: Type
-// [= value];`, `crash Trap;` or `crash Abort;`, `place = value;`, `value;`,
+// [= value];`, `crash Trap;` or `crash Abort;`, `place = value;`, the
+// intentional discard `_ = value;` (wiki/spec/language/effects.md), `value;`,
 // `transition [subject] { arms }`, and a final unterminated `value` before
 // the body's `}`, its result; a value-position `match` is a value like any
 // other. Statements end at the body's `}` or, in a machine body, at its
@@ -46,13 +47,60 @@ crashes Trap
         }
     }
 
-    // `crash` is a contextual word: it always opens a crash statement.
+    // `crash` is a contextual word: it always opens a crash statement. `_`
+    // before `=` opens an intentional discard.
     state word(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         let crash: bool = Parser::at_word(parser, input, "crash");
+        let underscore: bool = Parser::at_word(parser, input, "_");
+        let assigned: bool = Parser::next_is_punctuation(parser, input, PunctuationKind::Equal);
         transition crash {
             true -> crash_statement(parser, input, unsupported)
+            _ -> discard_or_value(parser, input, unsupported, underscore && assigned)
+        }
+    }
+
+    state discard_or_value(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, discard: bool) {
+        transition discard {
+            true -> discard_statement(parser, input, unsupported)
             _ -> expression_statement(parser, input, unsupported)
         }
+    }
+
+    state discard_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::take_current(parser, input);
+        Parser::take_current(parser, input);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedAssignmentValue, true, true);
+        transition parser.output.accepted {
+            true -> discard_end(parser, input, unsupported, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    state discard_end(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon,
+            ParseDiagnosticCode::ExpectedAssignmentSemicolon
+        );
+        transition parser.output.accepted {
+            true -> discard_retained(parser, input, unsupported, value)
+            _ -> done()
+        }
+    }
+
+    state discard_retained(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
+        let statement: Statement = Statement {
+            kind: StatementKind::Discard,
+            name: Parser::identifier_span(parser, 0, 0),
+            is_mutable: false,
+            type_reference: 0,
+            has_value: true,
+            value: value,
+            target: 0,
+            cause: CrashCause::Trap,
+            first_arm: 0,
+            arm_count: 0,
+            source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
+        };
+        transition { _ -> store(parser, input, unsupported, statement) }
     }
 
     state crash_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {

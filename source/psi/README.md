@@ -38,8 +38,9 @@ another fact, and otherwise ends the declaration; a trait member's `;` before
 `requires` ends the member, whose trait reads `requires Parent;` as its body
 parent ([`parse/clause.omg`](parse/clause.omg)).
 Statements are `let [mut] name: Type [= value];`,
-`crash Trap;`/`crash Abort;`, `place = value;`, `value;`,
-`transition [subject] { arms }` and a final unterminated result expression.
+`crash Trap;`/`crash Abort;`, `place = value;`, the intentional discard
+`_ = value;`, `value;`, `transition [subject] { arms }` and a final
+unterminated result expression.
 Arms are guards in a subjectless block and `_`, literal or case patterns
 (`Path { binder, field as name, field as _, field: value }`, renaming or
 waiving a binder) over a subject, each with a call target
@@ -300,7 +301,10 @@ parameters of its own rejects as unsupported. An arithmetic or order
 operator with a data operand selects, by its operands, the one visible
 non-generic machine binding its token at an operand's data, admitting both
 operands as a call admits arguments, and records the selection
-([`typing/operators.omg`](typing/operators.omg)). Exact integer values and
+([`typing/operators.omg`](typing/operators.omg)). A statement drops a non-Unit
+result only through `_ = call();` (wiki/spec/language/effects.md): an
+expression statement's value must be Unit or `Never`, and `_ =` must precede
+a call. Exact integer values and
 their arithmetic, which literal folding uses, live in
 [`integers/integers.omg`](integers/integers.omg).
 

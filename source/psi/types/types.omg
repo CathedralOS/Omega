@@ -118,6 +118,10 @@ pub data TypeDiagnosticCode [copy] {
     // A machine's signature is not the requirement's it `satisfies`, under
     // the clause's trait arguments.
     case SatisfierMismatch;
+    // An expression statement drops a non-Unit result without `_ =`.
+    case SilentDiscard;
+    // `_ =` before something other than a call.
+    case DiscardsNoCall;
 }
 
 pub data TypeDiagnostic [copy] {
