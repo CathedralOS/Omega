@@ -1276,11 +1276,17 @@ defines the complete product bar.
   Linux; Windows rejected), `pass/termination/runtime_named_state_remainder_endpoint_exit`
   and `pass/termination/rank_endpoint_borrows_recovery` (exit 0).
 
-  Current native witness:
-  `omega run tests/omega/pass/termination/runtime_saved_rank_cycle_exit/main.omg`
-  exits 0 natively and interpreted on macOS ARM64 with saved scalar values,
-  named-state requirements, unrelated nominal operators and disjoint writes.
-  This supplies no saved-value proof.
+  Current executable controls:
+  `pass/termination/runtime_saved_rank_cycle_exit` runs with saved scalar
+  values, named-state requirements, unrelated nominal operators and disjoint
+  writes; it supplies no saved-value proof. Free and attached mutual tail
+  owners share exact machine-head discovery and retain each state's authored
+  owner for claim reservation. Keep
+  `pass/ownership/linear_call_result_members_fused_owner_exit` and
+  `pass/calls/runtime_static_tail_{local_custody,reordered_local_custody}_exit`
+  for fresh and call-produced linear claims, acyclic exits and reordered
+  parameter positions. These controls exit 0 natively and in Terminal on
+  macOS ARM64; nondecreasing and stale-premise cycles still reject.
   Unproved arrivals, overwritten requirement inputs and actual `u32` overrides
   still reject; machine-entry requirements are not imported at internal arrivals.
 

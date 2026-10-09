@@ -3745,6 +3745,7 @@ pass/ownership/linear_assignment_establishes checked 289ms @2d8ed253669f
 pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_call_result_claims_exit checked 3292ms check-target:macos_arm64 @e007e1d70f35+wt
+pass/ownership/linear_call_result_members_fused_owner_exit checked 3353ms check-target:macos_arm64 @4f5eb9941fad
 pass/ownership/linear_call_result_place_assignment_exit checked 2933ms check-target:macos_arm64 @9c376f77b213+wt
 pass/ownership/linear_computed_call_claim_transfers_exit checked 2651ms check-target:macos_arm64 @c70a706629c8+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit checked 3119ms check-target:macos_arm64 @9c376f77b213+wt

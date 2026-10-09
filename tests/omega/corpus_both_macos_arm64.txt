@@ -208,6 +208,8 @@ pass/calls/runtime_selected_reference_field_result_exit built 3405ms exit:0 inte
 pass/calls/runtime_selected_trivial_local_cleanup_exit built 3656ms exit:0 interpreter-exit:0 interpreter:agrees @16bba2bbc2d5+wt
 pass/calls/runtime_state_reference_field_result_exit built 4327ms exit:0 interpreter-exit:0 interpreter:agrees @28b8fce37cfd+wt
 pass/calls/runtime_static_entry_context_exit built 1440ms exit:0 interpreter-exit:0 interpreter:agrees @2424b17e715c
+pass/calls/runtime_static_tail_local_custody_exit built 3515ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
+pass/calls/runtime_static_tail_reordered_local_custody_exit built 3604ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
 pass/calls/runtime_stored_constructor_snapshots_exit built 1611ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
 pass/calls/runtime_stored_equal_observations_exit built 1476ms exit:0 interpreter-exit:0 interpreter:agrees @d1b87ec8b23e+wt
 pass/calls/runtime_stored_reference_computation_argument_exit built 1923ms exit:0 interpreter-exit:0 interpreter:agrees @472cfc2f9777+wt
@@ -471,8 +473,12 @@ pass/locals/runtime_local_record_array_element_field_reads_exit built 1979ms exi
 pass/operators/crash_routes built 640ms exit:0 interpreter-exit:0 interpreter:agrees @5ed90973d982+wt
 pass/operators/division_value_entry_selection built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/operators/runtime_constructed_operand_result_exit built 12708ms exit:0 interpreter-exit:0 interpreter:agrees @dfece6e7f6a1+wt
+pass/ownership/linear_call_result_members_fused_owner_exit built 3570ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
+pass/ownership/linear_computed_call_claim_transfers_exit built 3567ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
+pass/ownership/linear_inline_constructed_argument_claims_exit built 3616ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
 pass/ownership/linear_result_member_projection_arguments_exit built 1702ms exit:0 interpreter-exit:0 interpreter:agrees @6605065c28a7
 pass/ownership/linear_result_owners_residual_cleanup_exit built 1788ms exit:0 interpreter-exit:0 interpreter:agrees @6605065c28a7
+pass/ownership/linear_state_graph_claim_transport_exit built 3418ms exit:0 interpreter-exit:0 interpreter:agrees @4f5eb9941fad
 pass/ownership/runtime_borrowed_captured_selector_exit built 1842ms exit:0 interpreter-exit:0 interpreter:agrees @fc0dd94dcf25
 pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit built 1683ms exit:42 interpreter-exit:42 interpreter:agrees @6cb668db83ab
 pass/ownership/runtime_borrowed_carried_loan_transform_exit built 1774ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
