@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.83, "load1_start": 3.99, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 1.88, "load1_start": 2.05, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -3298,24 +3298,8 @@ pass/filesystem/wrapper_open_with_exit rejected 22102ms check-target:macos_arm64
 pass/float/admitted_float_conversion_crash checked 4848ms check-target:macos_arm64 @673b838f6d76+wt
 pass/float/admitted_float_lower_boundary_crash checked 4847ms check-target:macos_arm64 @673b838f6d76+wt
 pass/float/admitted_numeric_imports_preserve_semantics checked 7827ms check-target:macos_arm64 @673b838f6d76+wt
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 9115ms check-target:windows_x86_64 @d83ae44b78cd
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_finite(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_finite(named(name(f32)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_normal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_normal(named(name(f32)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::classify(named(name(f64)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` for Terminal boundary `operator::F64::classify(named(name(f64)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_finite(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_finite(named(name(f64)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_normal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_normal(named(name(f64)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` has no native boundary realization
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 9392ms check-target:linux_x86_64 @d83ae44b78cd
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_finite(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_finite(named(name(f32)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_normal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_normal(named(name(f32)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` for Terminal boundary `operator::F32::is_subnormal(named(name(f32)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::classify(named(name(f64)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` for Terminal boundary `operator::F64::classify(named(name(f64)))->named(name(nominal\\(toolchain-owner\\,path\\(FloatClass\\)\\)))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_finite(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_finite(named(name(f64)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_normal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_normal(named(name(f64)))->named(name(bool))` has no native boundary realization
-	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` has no native boundary realization
+pass/float/build_runtime_semantics_twins_windows_x64 checked 250765ms check-target:windows_x86_64 @d537c1f08618
+pass/float/build_runtime_semantics_twins_x86_baseline checked 262632ms check-target:linux_x86_64 @d537c1f08618
 pass/float/builtin_extrema_field_store_exit checked 5149ms check-target:macos_arm64 @2d8ed253669f
 pass/float/closed_integer_conversion_predicate_proof_exit checked 6380ms check-target:macos_arm64 @d0e40a213f35
 pass/float/computed_comparison_literal_landing_exit checked 5759ms check-target:macos_arm64 @7a3fe5365463

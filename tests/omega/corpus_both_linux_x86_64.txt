@@ -2,11 +2,12 @@
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
 # `expected` or `unexpected` when its expected.txt fragments were weighed,
 # then any execution facts such as exit:70 or stdout:match, then
-# `@<revision>` recording which commit measured the row (`+wt` = dirty
-# tree; rows measured before stamping have no token).
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 16, "jobs": null, "load1_end": 4.55, "load1_start": 3.9, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "1", "load1_end": 2.39, "load1_start": 2.08, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/atomics/runtime_atomic_bitwise_widths_exit built 5472ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/atomics/shared_receiver_atomic_store built 5511ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/borrows/mut_loan_local_write_through_exit built 4818ms exit:9 interpreter-exit:9 interpreter:agrees @944fb1232f17
@@ -16,6 +17,9 @@ pass/borrows/runtime_record_primitive_reference_capture_exit built 5943ms exit:0
 pass/contracts/ensures_saturating_field_arithmetic_exit built 1802ms exit:70 interpreter-exit:70 interpreter:agrees @c13c39a874dc+wt
 pass/control_flow/runtime_later_state_shared_array_loan built 1003ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
 pass/control_flow/runtime_namespace_local_state_loan built 983ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
+pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 6296ms exit:0 interpreter-exit:0 interpreter:agrees @d537c1f08618
+pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 5398ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d537c1f08618
+pass/float/build_runtime_semantics_twins_x86_baseline built 259139ms @d537c1f08618
 pass/float/runtime_float_digit_separators_exit built 162056ms exit:0 interpreter-exit:0 interpreter:agrees @e129ea486356
 pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interpreter-exit:92 interpreter:agrees @f64782b89114+wt
 pass/generics/runtime_grouped_decimal_const_argument_exit built 6818ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189
