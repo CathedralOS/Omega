@@ -1,4 +1,16 @@
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+/// The symbol kinds a scoped path may resolve through at each member:
+/// fields, states, parameters, variants and the mathematical/constant
+/// declarations — the same roster every path-walk step consults.
+const SCOPED_PATH_MEMBER_KINDS: &[SymbolKind] = &[
+    SymbolKind::Field,
+    SymbolKind::State,
+    SymbolKind::Parameter,
+    SymbolKind::Variant,
+    SymbolKind::MathematicalDefinition,
+    SymbolKind::Const,
+];
+
 
 mod base;
 
@@ -57,14 +69,7 @@ pub(super) fn resolve_path_members_from_head(
         current = child_or_attached_data_child_symbol_by_kinds(
             symbols,
             current,
-            &[
-                SymbolKind::Field,
-                SymbolKind::State,
-                SymbolKind::Parameter,
-                SymbolKind::Variant,
-                SymbolKind::MathematicalDefinition,
-                SymbolKind::Const,
-            ],
+            SCOPED_PATH_MEMBER_KINDS,
             member.as_str(),
         );
         if !current.is_valid() {
@@ -108,14 +113,7 @@ pub(super) fn resolve_state_scoped_members(
         current = child_or_attached_data_child_symbol_by_kinds(
             symbols,
             current,
-            &[
-                SymbolKind::Field,
-                SymbolKind::State,
-                SymbolKind::Parameter,
-                SymbolKind::Variant,
-                SymbolKind::MathematicalDefinition,
-                SymbolKind::Const,
-            ],
+            SCOPED_PATH_MEMBER_KINDS,
             member.as_str(),
         );
         if !current.is_valid() {
@@ -159,14 +157,7 @@ fn resolve_state_scoped_table_members(
             child_indexed_symbol_by_kinds(
                 symbols,
                 current,
-                &[
-                    SymbolKind::Field,
-                    SymbolKind::State,
-                    SymbolKind::Parameter,
-                    SymbolKind::Variant,
-                    SymbolKind::MathematicalDefinition,
-                    SymbolKind::Const,
-                ],
+                SCOPED_PATH_MEMBER_KINDS,
                 member.as_str(),
                 last_index,
             )
@@ -174,14 +165,7 @@ fn resolve_state_scoped_table_members(
             child_or_attached_data_child_symbol_by_kinds(
                 symbols,
                 current,
-                &[
-                    SymbolKind::Field,
-                    SymbolKind::State,
-                    SymbolKind::Parameter,
-                    SymbolKind::Variant,
-                    SymbolKind::MathematicalDefinition,
-                    SymbolKind::Const,
-                ],
+                SCOPED_PATH_MEMBER_KINDS,
                 member.as_str(),
             )
         };
