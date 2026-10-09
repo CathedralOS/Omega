@@ -220,12 +220,41 @@ pub(crate) fn projected_borrowed_path(
     )
 }
 
-/// `projected_borrowed_path` for a case observation of a runtime-selected
+/// `projected_borrowed_path` for an observation of a runtime-selected
 /// element, whose selector may also be an immutable scalar local:
 /// `local_selector` resolves one selector expression to its `Local` position
 /// in the observing computation's own scalar namespace. Only the observation
-/// owner holds that namespace. A retained local descriptor is crossed here;
-/// a borrowed parameter already denotes its referee's storage.
+/// owner holds that namespace. The path ends at the place itself, so a
+/// reference-typed place names its descriptor: a byte operand observes the
+/// view (base and extent), not the bytes behind it.
+pub(crate) fn projected_selected_path(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &validation::CanonicalPlace,
+    local_selector: &dyn Fn(
+        typed_trees::expression::ExpressionHandle,
+    ) -> Option<checked_trees::CheckedRuntimeIndex>,
+) -> Option<(
+    typed_trees::types::TypeReferenceHandle,
+    Vec<CheckedUnitStructuralPathSegment>,
+)> {
+    projected_argument_path_impl(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        Some(machine),
+        Some(&|expression| {
+            local_selector(expression).map(CheckedUnitStructuralPathSegment::RuntimeIndex)
+        }),
+    )
+}
+
+/// `projected_selected_path` for a case observation, which reads the case
+/// value's storage rather than a descriptor. A retained local descriptor is
+/// crossed here; a borrowed parameter already denotes its referee's storage.
 pub(crate) fn projected_observed_path(
     program: &dyn ::validation::CheckingInput,
     machine: SymbolHandle,
@@ -239,15 +268,13 @@ pub(crate) fn projected_observed_path(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
-    let (mut projected, mut path) = projected_argument_path_impl(
+    let (mut projected, mut path) = projected_selected_path(
         program,
+        machine,
         state_symbol,
         statement_index,
         place,
-        Some(machine),
-        Some(&|expression| {
-            local_selector(expression).map(CheckedUnitStructuralPathSegment::RuntimeIndex)
-        }),
+        local_selector,
     )?;
     if let facts::PlaceRoot::Symbol(root) = place.root
         && let Some(state) = program.state_by_symbol(state_symbol)

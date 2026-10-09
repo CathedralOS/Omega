@@ -103,7 +103,7 @@ fn place(
     } else {
         Source::StructuralLocal { symbol: root }
     };
-    let (projected, path) = calls::projected_observed_path(
+    let (projected, path) = calls::projected_selected_path(
         program,
         machine.symbol,
         state.symbol,
