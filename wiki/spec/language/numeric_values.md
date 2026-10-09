@@ -419,7 +419,11 @@ through Terminal Psi. Trapping integer operations retain their operation-level
 through the same architectural trap as a `Crash` terminator on x86-64 and
 AArch64 at every fixed 8/16/32/64-bit carrier.
 
-Remaining host qualification and float crash-ceiling work is tracked under
+Trapping float result adapters are checked against the published `Trap`
+ceiling at their exact operation site, including nonentry states. Raw-result
+finiteness proofs retain the selected operation and original operands.
+
+Remaining matching-host numeric qualification is tracked under
 `ARITHMETIC-POLICY-REALIZATION` on [TASKS.md](../../../TASKS.md).
 The `core/numeric_*` and `core/qualified_integer_cast_*` corpus fixtures pin
 named conversion behavior and exact coercion formation separately.
