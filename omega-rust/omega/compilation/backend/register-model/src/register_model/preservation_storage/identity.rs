@@ -1,5 +1,5 @@
-
 use super::PreservationStorageCatalog;
+use crate::register_model::identities::{length, string};
 
 const IDENTITY_WIDTH: usize = 32;
 const IDENTITY_DOMAIN: &[u8] = b"omega.preservation-storage-catalog-identity.v1\0";
@@ -37,20 +37,11 @@ pub(crate) fn preservation_storage_catalog_identity(
     }
 
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(IDENTITY_DOMAIN);
-    digest.raw(&u64::try_from(canonical.len()) .expect("canonical preservation-storage identity length fits u64") .to_le_bytes(),);
-    digest.raw(&canonical);
-    PreservationStorageCatalogIdentity(digest.finish())
-}
-
-fn string(bytes: &mut Vec<u8>, value: &str) {
-    length(bytes, value.len());
-    bytes.extend_from_slice(value.as_bytes());
-}
-
-fn length(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
+    digest.raw(
+        &u64::try_from(canonical.len())
             .expect("canonical preservation-storage identity length fits u64")
             .to_le_bytes(),
     );
+    digest.raw(&canonical);
+    PreservationStorageCatalogIdentity(digest.finish())
 }

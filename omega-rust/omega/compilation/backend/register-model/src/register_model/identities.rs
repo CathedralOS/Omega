@@ -12,7 +12,11 @@ const IDENTITY_WIDTH: usize = 32;
 
 fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
-    digest.raw(&u64::try_from(canonical.len()) .expect("canonical register identity input length fits u64") .to_le_bytes(),);
+    digest.raw(
+        &u64::try_from(canonical.len())
+            .expect("canonical register identity input length fits u64")
+            .to_le_bytes(),
+    );
     digest.raw(&canonical);
     digest.finish()
 }
@@ -361,12 +365,12 @@ fn optional_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
     }
 }
 
-fn string(bytes: &mut Vec<u8>, value: &str) {
+pub(crate) fn string(bytes: &mut Vec<u8>, value: &str) {
     length(bytes, value.len());
     bytes.extend_from_slice(value.as_bytes());
 }
 
-fn length(bytes: &mut Vec<u8>, value: usize) {
+pub(crate) fn length(bytes: &mut Vec<u8>, value: usize) {
     u64_value(
         bytes,
         u64::try_from(value).expect("canonical register identity length fits u64"),
