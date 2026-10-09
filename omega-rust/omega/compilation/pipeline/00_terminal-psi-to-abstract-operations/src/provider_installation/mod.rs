@@ -30,7 +30,7 @@ pub struct SelectedProviderAdapter {
 /// row selected for its requirement. Private fields prevent target lowering
 /// from reconstructing this authority from a candidate machine ID alone.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedInstalledProviderCall {
+pub(crate) struct AdmittedInstalledProviderCall {
     pub(crate) caller: MachineId,
     pub(crate) psi_operation: OperationId,
     pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
@@ -100,7 +100,7 @@ impl AdmittedProviderInstallation {
         &self.terminal_selection
     }
 
-    pub fn installed_candidates(&self) -> &[ProviderCandidateConformance] {
+    pub(crate) fn installed_candidates(&self) -> &[ProviderCandidateConformance] {
         &self.installed_candidates
     }
 
