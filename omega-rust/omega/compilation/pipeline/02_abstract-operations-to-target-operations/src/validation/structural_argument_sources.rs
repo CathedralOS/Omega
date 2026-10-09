@@ -16,13 +16,6 @@ use target_operations::TargetStructuralHomeRequirement;
 use terminal_psi::StructuralOperationResult;
 
 
-/// A retained structural-result `Call` producer: its semantic result, retained
-/// home requirement, and published result placement.
-type ResultCall<'a> = (
-    &'a StructuralOperationResult,
-    Option<&'a TargetStructuralHomeRequirement>,
-    Option<&'a ValuePlacement>,
-);
 
 
 
