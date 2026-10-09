@@ -18,3 +18,28 @@ mod reporter;
 pub use diagnostic::{CoverageForm, Diagnostic, DiagnosticSeverity, ExceededProvision};
 pub use phase_snapshot::PhaseSnapshot;
 pub use reporter::{bracketed_display_names, comma_join_display, format_diagnostics};
+
+/// `Display` that delegates to `Debug`: the standard shape for
+/// compiler-internal error enums whose rendered message is their variant data.
+#[macro_export]
+macro_rules! debug_display {
+    ($type:ty) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Debug::fmt(self, formatter)
+            }
+        }
+    };
+}
+
+/// `Display` that delegates to a `diagnostic` payload field.
+#[macro_export]
+macro_rules! diagnostic_display {
+    ($type:ty) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.diagnostic.fmt(formatter)
+            }
+        }
+    };
+}
