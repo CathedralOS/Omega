@@ -1365,7 +1365,7 @@ fn owned_argument_claim_transfers(
         if argument.access != CheckedStructuralAccess::Owned {
             continue;
         }
-        let Some(place) = crate::canonical_place_from_expression_in_state(
+        let Some(mut place) = crate::canonical_place_from_expression_in_state(
             program,
             source_state.symbol,
             call.statement_index,
@@ -1373,6 +1373,32 @@ fn owned_argument_claim_transfers(
         ) else {
             continue;
         };
+        // The checked transfer roster authenticates the actual's owned root.
+        // A result ordinal can denote either a named local or an anonymous
+        // extraction; it cannot distinguish them by itself. A borrowed
+        // extraction moves machine-local claims at its completed expression,
+        // while an existing owned home retains its canonical storage root.
+        if argument
+            .source_structural_result_binding_ordinal()
+            .is_some()
+            && place.root.as_symbol().is_some()
+            && transfers
+                .iter()
+                .any(|event| event.root == facts::PlaceRoot::Expression(*authored_argument))
+        {
+            if transfers.iter().any(|event| {
+                event.root == place.root
+                    && segments
+                        .span_or_empty(event.segments)
+                        .starts_with(&place.segments)
+            }) {
+                return Err("owned actual has ambiguous storage and completed-value custody");
+            }
+            place = crate::CanonicalPlace {
+                root: facts::PlaceRoot::Expression(*authored_argument),
+                segments: Vec::new(),
+            };
+        }
         for (event_index, event) in transfers.iter().enumerate() {
             if event.root != place.root
                 || !segments
@@ -1393,6 +1419,7 @@ fn owned_argument_claim_transfers(
                 },
             )
             .ok_or("owned argument has no canonical root type")?;
+            let root_type = crate::assignment_value_type(program, root_type);
             let (event_path, _) =
                 structural_owned_path(program, root_type, segments.span_or_empty(event.segments))?;
             let path = event_path

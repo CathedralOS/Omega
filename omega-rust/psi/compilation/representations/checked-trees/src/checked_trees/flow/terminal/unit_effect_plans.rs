@@ -362,11 +362,15 @@ pub enum CheckedUnitEffectOperationPlan {
     AtomicAccess(crate::CheckedAtomicAccessPlan),
     /// Move one whole structural field out of exclusive borrowed storage into
     /// a fresh owned binding, opening a repair window the body must close.
-    /// The source is a parameter-rooted exact field chain; the result binding
-    /// names the authored local that receives the moved value.
+    /// The source retains its exact storage path; the result binds a named
+    /// local or the completed value of an anonymous call operand.
     MoveStructuralField {
         result: CheckedUnitStructuralResultBindingPlan,
         source: CheckedUnitStructuralArgumentPlan,
+        /// Evaluated value occurrence whose anonymous custody the checker
+        /// established. Named results instead retain their declared home.
+        /// Zero denotes an internal displacement with no authored value owner.
+        expression: typed_trees::expression::ExpressionHandle,
     },
     /// Finish the body after cleanup, yielding its retained structural/scalar
     /// binding or scalar control result when present, and Unit otherwise.

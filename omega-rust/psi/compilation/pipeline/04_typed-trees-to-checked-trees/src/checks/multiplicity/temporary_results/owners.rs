@@ -7,7 +7,6 @@ use super::CheckFacts;
 use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::type_carries_linear_obligation;
 use language_semantics::PermissionEventSource;
-use typed_trees::expression::ExpressionNode;
 
 /// How the consuming call uses the anonymous owner.
 pub(crate) enum TemporaryConsumption {
@@ -31,10 +30,10 @@ pub(crate) struct TemporaryOwner {
 }
 
 /// The claim-bearing type of a by-value operand an anonymous producer
-/// completes. Its claims are established at the producer, not borrowed from
-/// another owner. A conversion or selection that conserves an existing owner
-/// (a qualification cast, a dispatch result) is not such a producer and keeps
-/// its source custody; claim-free operands keep the affine temporary rules.
+/// completes. Existing owned storage keeps its claim identities; an exclusive
+/// borrowed extraction establishes machine-local custody, because the caller's
+/// claims stay suspended with its loan. Canonical storage, not source spelling,
+/// distinguishes those producers from an ordinary owned transfer.
 pub(crate) fn owned_temporary_type(
     program: &dyn ::validation::CheckingInput,
     state_symbol: symbols::SymbolHandle,
@@ -45,12 +44,6 @@ pub(crate) fn owned_temporary_type(
     if parameter.is_const
         || parameter.relevance.is_erased()
         || type_reference_is_reference(program, parameter.type_reference)
-        || !matches!(
-            program.expression_table.expression(argument),
-            ExpressionNode::StructLiteral(_)
-                | ExpressionNode::ArrayLiteral(_)
-                | ExpressionNode::Call(_)
-        )
     {
         return None;
     }
@@ -60,11 +53,34 @@ pub(crate) fn owned_temporary_type(
         statement_index,
         argument,
     )?;
-    if place.root != facts::PlaceRoot::Expression(argument) || !place.segments.is_empty() {
+    let anonymous_value =
+        place.root == facts::PlaceRoot::Expression(argument) && place.segments.is_empty();
+    let borrowed_value = super::super::projected_affine::has_reference_prefix(
+        program,
+        state_symbol,
+        statement_index,
+        &place,
+    ) && validation::find_state_with_machine(program, state_symbol)
+        .is_some_and(|(machine, state)| {
+            super::super::borrowed_windows::authored_route_exclusive(
+                program,
+                machine,
+                state,
+                statement_index,
+                place.root,
+                &place.segments,
+            )
+        });
+    if !anonymous_value && !borrowed_value {
         return None;
     }
     let type_reference =
         validation::canonical_place_type_reference(program, state_symbol, statement_index, &place)?;
+    let type_reference = if borrowed_value {
+        validation::assignment_value_type(program, type_reference)
+    } else {
+        type_reference
+    };
     type_carries_linear_obligation(program, type_reference).then_some(type_reference)
 }
 

@@ -561,6 +561,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     &mut result_count,
                     root.root,
                     trace,
+                    &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
                 )?;
                 mark(SuccessorGuard::EstablishedArgument);
                 let result = checked_trees::CheckedUnitStructuralResultBindingPlan {

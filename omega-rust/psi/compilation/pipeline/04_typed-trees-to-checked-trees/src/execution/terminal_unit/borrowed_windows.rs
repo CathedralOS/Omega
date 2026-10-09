@@ -439,6 +439,81 @@ impl OpenWindows {
                 program, machine, state, local,
             ),
         };
+        self.bind_extraction(program, facts, place, result, local.initial_value)
+    }
+
+    /// Materialize an owned argument by vacating its borrowed storage. This is
+    /// the same move as a named extraction, at the argument's actual evaluation
+    /// point. Owned homes keep their ordinary call transfer; only an exclusive
+    /// borrowed referent needs a separate restoration debt.
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::execution::terminal_unit) fn move_call_operand(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        shapes: &mut ShapeCollector<'_>,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        statement_index: u32,
+        expression: ExpressionHandle,
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        binding_ordinal: u32,
+    ) -> Option<(
+        CheckedUnitEffectOperationPlan,
+        CheckedUnitStructuralResultBindingPlan,
+    )> {
+        let ordinal = usize::try_from(statement_index).ok()?;
+        let place = validation::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            ordinal,
+            expression,
+        )?;
+        let place = window_place(
+            program,
+            state,
+            program.statement_table.statements(state.statement_nodes),
+            ordinal,
+            structural_parameters,
+            &place,
+            &|selector| {
+                super::calls::value_index_segment(
+                    program,
+                    &facts.operators,
+                    state,
+                    ordinal,
+                    selector,
+                )
+            },
+        )?;
+        let result = CheckedUnitStructuralResultBindingPlan {
+            statement_index,
+            binding_ordinal,
+            type_identity: shapes.add_type(
+                type_reference,
+                &super::types::machine_binders(program, machine),
+                &[],
+            )?,
+            multiplicity: program.type_multiplicity(type_reference),
+            local: Default::default(),
+        };
+        self.bind_extraction(program, facts, place, result, expression)
+    }
+
+    fn bind_extraction(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        place: WindowPlace,
+        result: CheckedUnitStructuralResultBindingPlan,
+        expression: ExpressionHandle,
+    ) -> Option<(
+        CheckedUnitEffectOperationPlan,
+        CheckedUnitStructuralResultBindingPlan,
+    )> {
+        let type_identity = result.type_identity.clone();
+        let binding_ordinal = result.binding_ordinal;
         if self
             .open
             .iter()
@@ -453,6 +528,7 @@ impl OpenWindows {
         Some((
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result: result.clone(),
+                expression,
                 source: CheckedUnitStructuralArgumentPlan {
                     source: place.source,
                     path: place.path,
@@ -689,6 +765,7 @@ impl OpenWindows {
                         local: Default::default(),
                     },
                     source: place.clone(),
+                    expression: assignment.target,
                 }
             }),
             cleanup: needs_cleanup.then(|| {

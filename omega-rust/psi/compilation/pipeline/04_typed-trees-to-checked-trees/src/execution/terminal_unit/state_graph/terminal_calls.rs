@@ -285,6 +285,7 @@ pub(super) fn arm_call(
         &mut structural_count,
         call,
         trace,
+        &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
     )?;
     if let Some(binding) = &mut structural_result {
         binding.statement_index = statement_ordinal;

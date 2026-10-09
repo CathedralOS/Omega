@@ -440,6 +440,7 @@ pub(super) fn return_value_operation(
         count,
         root.root,
         trace,
+        &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
     )?;
     // The expression produces a value, including a permission descriptor when
     // returning a reference. Argument presentation peels its shell and names

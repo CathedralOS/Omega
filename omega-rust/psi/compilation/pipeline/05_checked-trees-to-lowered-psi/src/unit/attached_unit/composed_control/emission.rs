@@ -149,7 +149,7 @@ pub(super) fn emit_call_operations(
                 staged_ranges[operation].push((ordinal, place));
                 continue;
             }
-            Step::Call(index) | Step::Constructor(index) if retained_source_count.is_some() => {
+            Step::Call(index) | Step::Produce(index) if retained_source_count.is_some() => {
                 (index, true)
             }
             Step::Ordinary(index) if retained_source_count.is_none() => (index, false),

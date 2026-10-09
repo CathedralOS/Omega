@@ -1364,9 +1364,7 @@ impl MachineEmission<'_> {
             argument_schedule::Step::Call(index) if self.retained_scalar_prefix.is_some() => {
                 (index, true)
             }
-            argument_schedule::Step::Constructor(index)
-                if self.retained_scalar_prefix.is_some() =>
-            {
+            argument_schedule::Step::Produce(index) if self.retained_scalar_prefix.is_some() => {
                 (index, true)
             }
             argument_schedule::Step::Ordinary(index) if self.retained_scalar_prefix.is_none() => {

@@ -227,6 +227,7 @@ pub(super) fn plan(
                 &mut *structural_count,
                 root.root,
                 trace,
+                windows,
             )?;
             super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
             let result = CheckedUnitStructuralResultBindingPlan {
@@ -591,6 +592,7 @@ pub(super) fn plan(
             &mut *structural_count,
             root.root,
             trace,
+            windows,
         )?;
         local_phase("statement sequence: local data: structural value: source custody");
         if facts

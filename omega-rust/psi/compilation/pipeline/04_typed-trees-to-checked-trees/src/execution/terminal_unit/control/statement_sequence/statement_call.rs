@@ -2,12 +2,14 @@
 //!
 //! After a statement's own producer binds (or declines to bind) the call's
 //! result, this matches the statement to its one flow call, establishes the
-//! call's structural operands (scalar arrays, constructed values, nested
-//! structural calls), builds the call operation, and binds its result: a
+//! call's structural operands, including extraction from borrowed storage,
+//! builds the call operation, and binds its result: a
 //! discarded structural result is disposed on the call's continuation, a
 //! bound one joins the body's structural results, a scalar one binds in the
 //! dense namespace. The statement's pending result stores follow as the
-//! call's immediate continuation, then the call's cleanup.
+//! call's immediate continuation, then the call's cleanup. Select structural
+//! replacement only after operand preparation updates the open-window ledger;
+//! selecting it earlier would dispose an actual that the call already consumed.
 use super::{
     CheckFacts, CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
@@ -28,6 +30,8 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) machine: &'program typed_trees::machine::Machine,
     pub(super) state: &'program typed_trees::state::State,
     pub(super) structural_parameters: &'a mut [CheckedUnitStructuralParameterPlan],
+    pub(super) scalar_parameters: &'a [super::CheckedStructuralScalarParameterPlan],
+    pub(super) parameter_storage: &'a [checked_trees::CheckedUnitParameterStoragePlan],
     pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
     pub(super) trivial_affine_locals:
         &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
@@ -36,6 +40,7 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
     pub(super) structural_count: &'a mut usize,
     pub(super) call_count: &'a mut usize,
+    pub(super) windows: &'a mut super::super::super::borrowed_windows::OpenWindows,
     pub(super) structural_local_symbols: &'a mut Vec<SymbolHandle>,
     pub(super) array_bindings: &'a mut Vec<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>,
     pub(super) returned_call: &'a mut Option<CheckedUnitStructuralResultBindingPlan>,
@@ -53,8 +58,6 @@ pub(super) struct StatementCall {
     pub(super) structural_result: Option<CheckedUnitStructuralResultBindingPlan>,
     /// Stores consuming the call's result, run as its continuation.
     pub(super) result_stores: Vec<CheckedUnitEffectOperationPlan>,
-    /// Structural bindings those stores mint beyond the call's own result.
-    pub(super) structural_store_bindings: usize,
 }
 
 pub(super) fn plan(
@@ -72,6 +75,8 @@ pub(super) fn plan(
         machine,
         state,
         structural_parameters,
+        scalar_parameters,
+        parameter_storage,
         entry_claims,
         trivial_affine_locals,
         calls,
@@ -79,6 +84,7 @@ pub(super) fn plan(
         operations,
         structural_count,
         call_count,
+        windows,
         structural_local_symbols,
         array_bindings,
         returned_call,
@@ -89,7 +95,6 @@ pub(super) fn plan(
         result,
         mut structural_result,
         result_stores: mut call_result_stores,
-        structural_store_bindings,
     } = statement_call;
     // Guard-group markers beneath the statement phase keep the statement
     // position that `phase` resets.
@@ -143,120 +148,28 @@ pub(super) fn plan(
         structural_count,
         call,
         trace,
+        windows,
     )?;
+    let mut structural_store_bindings = 0;
     if let Some(result) = &mut structural_result {
-        let binding_ordinal = u32::try_from(*structural_count).ok()?;
-        // Assignment planning reserves the result before operand establishment.
-        // Copies and nested calls take earlier slots; rebind the store to its
-        // actual producer. Only an occupied destination has a displaced value.
-        if !call_result_stores.is_empty() {
-            let (store, displacement) = call_result_stores.split_last_mut()?;
-            let CheckedUnitEffectOperationPlan::Store(store) = store else {
-                return None;
-            };
-            if let Some(value) = store.installed_value_mut() {
-                let old_source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: result.binding_ordinal,
-                };
-                if value.source != old_source {
-                    return None;
-                }
-                value.source =
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal };
-            } else {
-                let value = store.value.bytes_mut()?;
-                let source = match value.nodes.get_mut(value.root) {
-                    checked_trees::CheckedByteSequenceValue::CallResult {
-                        binding_ordinal: source,
-                        state: source_state,
-                        statement_index: source_statement,
-                        ..
-                    } if *source_state == state.symbol && *source_statement == statement_index => {
-                        source
-                    }
-                    checked_trees::CheckedByteSequenceValue::Descriptor { source, .. }
-                        if source.path.is_empty() =>
-                    {
-                        let CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal,
-                        } = &mut source.source
-                        else {
-                            return None;
-                        };
-                        binding_ordinal
-                    }
-                    _ => return None,
-                };
-                if *source != result.binding_ordinal {
-                    return None;
-                }
-                *source = binding_ordinal;
-            }
-            let old_displaced = result.binding_ordinal.checked_add(1)?;
-            let new_displaced = binding_ordinal.checked_add(1)?;
-            let mut moved_bindings = 0;
-            for operation in displacement {
-                match operation {
-                    CheckedUnitEffectOperationPlan::MoveStructuralField {
-                        result: displaced,
-                        ..
-                    } => {
-                        if displaced.binding_ordinal != old_displaced {
-                            return None;
-                        }
-                        displaced.binding_ordinal = new_displaced;
-                        moved_bindings += 1;
-                    }
-                    CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                        boundary:
-                            checked_trees::CheckedUnitCleanupBoundary::Replacement {
-                                statement_index: boundary_statement,
-                                old_value,
-                                ..
-                            },
-                        cleanup_actions,
-                    } if *boundary_statement == statement_index => {
-                        if let CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal,
-                        } = &mut old_value.source
-                        {
-                            if *binding_ordinal != old_displaced {
-                                return None;
-                            }
-                            *binding_ordinal = new_displaced;
-                        }
-                        for action in cleanup_actions {
-                            let source = match action {
-                                checked_trees::CheckedNormalCleanupAction::Discard(action) => {
-                                    &mut action.source
-                                }
-                                checked_trees::CheckedNormalCleanupAction::InvokeNominal(
-                                    action,
-                                ) => &mut action.source,
-                                checked_trees::CheckedNormalCleanupAction::RetireHome {
-                                    source,
-                                    ..
-                                } => source,
-                            };
-                            if let CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                binding_ordinal,
-                            } = source
-                            {
-                                if *binding_ordinal != old_displaced {
-                                    return None;
-                                }
-                                *binding_ordinal = new_displaced;
-                            }
-                        }
-                    }
-                    _ => return None,
-                }
-            }
-            if moved_bindings != structural_store_bindings {
-                return None;
-            }
+        result.binding_ordinal = u32::try_from(*structural_count).ok()?;
+        if let StatementNode::Assignment(assignment) = statement {
+            let replacement = super::assignments::call_result_replacement(
+                program,
+                facts,
+                machine,
+                state,
+                structural_parameters,
+                scalar_parameters,
+                parameter_storage,
+                windows,
+                assignment,
+                result,
+                trace,
+            )?;
+            structural_store_bindings = usize::from(replacement.move_out.is_some());
+            call_result_stores.extend(replacement.into_operations());
         }
-        result.binding_ordinal = binding_ordinal;
     }
     call_phase("statement sequence: call: call operation");
     let mut operation = build_call_operation(

@@ -991,6 +991,7 @@ impl OperationFrame<'_, '_> {
                 multiplicity: language_semantics::Multiplicity::Unrestricted,
                 local: Default::default(),
             },
+            typed_trees::expression::ExpressionHandle::invalid(),
         )?;
         // The moved-out leaf is an internal temporary, not an authored
         // result — declare it as a private temporary so the verifier finds

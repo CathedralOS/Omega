@@ -238,20 +238,38 @@ impl OperationFrame<'_, '_> {
         statement_index: u32,
         moved: &CheckedUnitStructuralArgumentPlan,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        expression: typed_trees::expression::ExpressionHandle,
     ) -> Result<PlaceId, LoweringError> {
         // Extraction completes an owned value just like any other structural
         // producer. Reuse its checked establishment identities rather than
         // dropping contained claims because the source home was borrowed.
         // A displacement is not a new lexical establishment. Its old value
         // is governed by the selected replacement death instead.
-        let prepared_claims = if result.local.is_named() {
+        let owner = if result.local.is_named() {
+            Some((
+                facts::PlaceRoot::Symbol(result.local.symbol),
+                result.local.declared_type,
+            ))
+        } else if expression.is_valid() {
+            let reference = self.checked.facts.resolved_types.result(expression);
+            if !reference.is_valid() {
+                return unsupported("extracted value occurrence has no checked type");
+            }
+            Some((
+                facts::PlaceRoot::Expression(expression),
+                validation::assignment_value_type(&self.checked.typed, reference),
+            ))
+        } else {
+            None
+        };
+        let prepared_claims = if let Some((owner, reference)) = owner {
             crate::emission::claim_bindings::prepare_establishment_claims(
                 self.checked,
                 self.machine,
                 self.state,
                 statement_index as usize,
-                facts::PlaceRoot::Symbol(result.local.symbol),
-                result.local.declared_type,
+                owner,
+                reference,
                 lookup_type_id(self.type_ids, &result.type_identity)?,
                 self.structural_types.declarations(),
             )?
@@ -329,11 +347,12 @@ impl OperationFrame<'_, '_> {
         &mut self,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
+        expression: typed_trees::expression::ExpressionHandle,
     ) -> Result<(), LoweringError> {
         self.results
             .require_next(result, "borrowed-window move result binding is not dense")?;
         require_parameter_window_root(self.parameters, source, self.evaluation)?;
-        let moved = self.emit_window_move(result.statement_index, source, result)?;
+        let moved = self.emit_window_move(result.statement_index, source, result, expression)?;
         let producer = self
             .operations
             .operations

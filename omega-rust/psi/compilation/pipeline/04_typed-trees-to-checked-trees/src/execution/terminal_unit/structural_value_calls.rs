@@ -219,10 +219,7 @@ fn caller_operations(
         .iter()
         .enumerate()
         .filter(|(_, plan)| plan.machine == machine)
-        .find_map(|(owner, plan)| {
-            plan.state_position(state)
-                .map(|index| (owner, index))
-        })
+        .find_map(|(owner, plan)| plan.state_position(state).map(|index| (owner, index)))
     {
         return Some(&mut plans.composed_machines[owner].states[index].operations);
     }
@@ -351,5 +348,6 @@ fn schedule(
         &mut count,
         root.root,
         &LocalConstructionTrace::default(),
+        &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
     )
 }

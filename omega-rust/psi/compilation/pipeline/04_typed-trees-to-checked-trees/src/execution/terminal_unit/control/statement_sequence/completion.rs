@@ -76,7 +76,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         mut scalar_count,
         mut structural_count,
         structural_local_symbols,
-        windows,
+        mut windows,
         array_bindings,
         returned_call,
         mut returned_scalar_call,
@@ -214,6 +214,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 &mut structural_count,
                 root.root,
                 trace,
+                &mut windows,
             )?;
             if facts
                 .flow

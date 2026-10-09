@@ -1,11 +1,11 @@
 //! A shared call retains its complete temporary owner through normal completion.
 //! Admission rejoins the published loan and each exact claim occurrence;
 //! source checking owns eligibility and contextual hook requirements.
-use super::{
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, SymbolHandle,
-};
+use super::{Multiplicity, SymbolHandle};
 use crate::execution::terminal_unit::MachineSupplyMode;
+use crate::execution::terminal_unit::{
+    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+};
 
 pub(crate) fn validate(
     program: &dyn ::validation::CheckingInput,

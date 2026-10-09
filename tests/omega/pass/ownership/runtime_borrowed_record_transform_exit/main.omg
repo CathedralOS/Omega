@@ -24,10 +24,7 @@ data Main {
 }
 
 machine apply(holder: &mut Holder) -> i32 {
-    let taken: Inventory = holder.inventory;
-    // `bump` takes its subject BY VALUE, so the call consumes `taken` and
-    // carries no `&`; the result restores the owner the move emptied.
-    holder.inventory = move Inventory::bump(taken);
+    holder.inventory = Inventory::bump(holder.inventory);
     holder.inventory.slots
 }
 

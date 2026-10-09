@@ -55,11 +55,10 @@ pub(super) enum AssignmentPlan {
         result: CheckedUnitScalarResultBindingPlan,
         store: CheckedUnitEffectOperationPlan,
     },
-    /// The right-hand side is a structural call whose whole result replaces
-    /// the field through `replacement`'s store and optional displacement.
+    /// The right-hand side produces an owned structural value. Its store is
+    /// planned after argument evaluation establishes the actual window frontier.
     StructuralCall {
         result: CheckedUnitStructuralResultBindingPlan,
-        replacement: FieldReplacement,
     },
 }
 
@@ -181,6 +180,7 @@ pub(super) fn plan(
             &mut *structural_count,
             root.root,
             trace,
+            windows,
         )?;
         assignment_phase("statement sequence: assignment: structural source custody");
         if facts
@@ -348,51 +348,68 @@ pub(super) fn plan(
         let mut result = checked_structural_result_type(program, shapes, result_type, binders)?;
         result.statement_index = statement_index;
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;
-        if super::super::super::types::byte_sequence_carrier(program, result_type, &[]).is_some() {
-            let store = super::super::super::structural_scalar_store::build_byte_call_result_store(
-                program,
-                facts,
-                machine,
-                state,
-                structural_parameters,
-                scalar_parameters,
-                parameter_storage,
-                statement_index,
-                assignment,
-                result.binding_ordinal,
-                result_type,
-                trace,
-            )?;
-            return Some(AssignmentPlan::StructuralCall {
-                result,
-                replacement: FieldReplacement {
-                    move_out: None,
-                    store,
-                    cleanup: None,
-                },
-            });
-        }
-        let replacement = windows.replace(
+        Some(AssignmentPlan::StructuralCall { result })
+    }
+}
+
+/// Plan the completed call's replacement against the post-operand frontier.
+/// Destination selectors were captured before the RHS. Operand transfers may
+/// have vacated that destination; selecting its old-value death before those
+/// transfers would dispose an already-consumed value. Binding ordinals are
+/// final here, so neither the store nor its cleanup needs later renumbering.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn call_result_replacement(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
+    windows: &mut OpenWindows,
+    assignment: &typed_trees::statement::TableAssignment,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    trace: &LocalConstructionTrace,
+) -> Option<FieldReplacement> {
+    let result_type =
+        validation::call_target_return_type(program, statement_call_target(program, assignment)?)?;
+    if super::super::super::types::byte_sequence_carrier(program, result_type, &[]).is_some() {
+        let store = super::super::super::structural_scalar_store::build_byte_call_result_store(
             program,
             facts,
             machine,
             state,
             structural_parameters,
-            statement_index,
+            scalar_parameters,
+            parameter_storage,
+            result.statement_index,
             assignment,
-            &result,
-            result.binding_ordinal.checked_add(1)?,
-            CheckedUnitStructuralArgumentPlan::structural_result(
-                result.binding_ordinal,
-                result.type_identity.clone(),
-                CheckedStructuralAccess::Owned,
-            ),
+            result.binding_ordinal,
+            result_type,
+            trace,
         )?;
-        Some(AssignmentPlan::StructuralCall {
-            result,
-            replacement,
-        })
+        return Some(FieldReplacement {
+            move_out: None,
+            store,
+            cleanup: None,
+        });
     }
+    windows.replace(
+        program,
+        facts,
+        machine,
+        state,
+        structural_parameters,
+        result.statement_index,
+        assignment,
+        result,
+        result.binding_ordinal.checked_add(1)?,
+        CheckedUnitStructuralArgumentPlan::structural_result(
+            result.binding_ordinal,
+            result.type_identity.clone(),
+            CheckedStructuralAccess::Owned,
+        ),
+    )
 }
 
 /// `place = [e0, e1, ..]` over a fixed array of structural elements. Terminal
@@ -470,6 +487,7 @@ fn element_replacements(
             &mut *structural_count,
             leaf.value,
             trace,
+            windows,
         )?;
         consume_value_places(facts, leaf.value, structural_results, &mut *operations)?;
         super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;

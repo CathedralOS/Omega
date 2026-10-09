@@ -908,9 +908,7 @@ impl Emission<'_, '_, '_> {
                         "structural value call requires retained slice argument transport",
                     );
                 }
-                Step::Constructor(index) | Step::Call(index) if source_count.is_some() => {
-                    (index, true)
-                }
+                Step::Produce(index) | Step::Call(index) if source_count.is_some() => (index, true),
                 Step::Ordinary(index) if source_count.is_none() => (index, false),
                 _ => return unsupported("structural operand argument schedule is unbalanced"),
             };

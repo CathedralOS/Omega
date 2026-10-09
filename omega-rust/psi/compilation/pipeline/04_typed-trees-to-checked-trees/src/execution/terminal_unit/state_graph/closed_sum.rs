@@ -867,6 +867,7 @@ fn subject_call(
         &mut structural_count,
         call,
         trace,
+        &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
     )?;
     // Preparations bind their own results first. The saved subject receives
     // the next ordinary result ordinal and consumes those exact operands.

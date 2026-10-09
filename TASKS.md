@@ -692,15 +692,17 @@ defines the complete product bar.
     `pass/drops/runtime_case_selected_cleanup_continuations_exit` (0) for
     captured scalar returns, computed temporaries, parent retention and
     projected return/state-transfer custody across selected cleanup blocks.
-    Complete inline consuming-call replacement: in
-    `runtime_borrowed_sum_retag_exit`, replacing `repair`'s detached local with
-    `choice = transform(choice, increment)` accepts source but
-    `omega run --both main.omg` refuses `repair`'s executable body at
-    `sequence cleanup actions` on macOS ARM64 at `6ee6dbeacec`.
-    `control/structural_operands.rs` and `control/statement_sequence/` must
-    join operand extraction to `OpenWindows` before selecting replacement
-    death, preserving operand order and the captured destination. Do not
-    invent another displaced value after the call consumes that storage.
+    Keep direct consuming replacements in `runtime_borrowed_sum_retag_exit`
+    and `runtime_borrowed_record_transform_exit`, plus
+    `runtime_borrowed_operand_order_exit` (0) for scalar evaluation before
+    extraction and `fail/ownership/borrowed_operand_later_read` for reversed
+    order rejection; qualify remaining hosts.
+    Complete nested consuming-call replacement: changing the retag helper to
+    `choice = transform(identity(choice), increment)`, with an owned identity
+    helper, is still rejected as a bound value-call argument in
+    `checking/src/machine_calls/calls/expression_scanning/result_realization.rs`.
+    The shared operand sequence, rather than a bind-to-local workaround, must
+    govern that composition's source admission and custody.
     Keep `runtime_borrowed_sum_empty_restore_exit` as the direct empty/full
     assignment control; do not explicitly detach and drop its old value.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.

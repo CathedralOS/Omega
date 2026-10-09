@@ -380,7 +380,6 @@ pub(in crate::execution::terminal_unit) fn build(
         // A structural call-result field store also mints the moved-out
         // displaced binding, so it consumes one more structural ordinal than
         // the call's own result.
-        let mut structural_store_bindings = 0_usize;
         // An affine field value displaced by the overwrite needs an explicit
         // discard on the call's continuation; unrestricted drops for free.
         if atomic_result.is_some()
@@ -440,12 +439,7 @@ pub(in crate::execution::terminal_unit) fn build(
                     call_result_stores.push(store);
                     Some(result)
                 }
-                assignments::AssignmentPlan::StructuralCall {
-                    result,
-                    replacement,
-                } => {
-                    structural_store_bindings = usize::from(replacement.move_out.is_some());
-                    call_result_stores.extend(replacement.into_operations());
+                assignments::AssignmentPlan::StructuralCall { result } => {
                     // The store consumes this call's whole result, so the
                     // binding stays anonymous: no local claims it, and the
                     // discard gate below must not retire it before the store
@@ -590,6 +584,8 @@ pub(in crate::execution::terminal_unit) fn build(
                 machine,
                 state,
                 structural_parameters: &mut *structural_parameters,
+                scalar_parameters,
+                parameter_storage,
                 entry_claims,
                 trivial_affine_locals,
                 calls,
@@ -597,6 +593,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 operations: &mut operations,
                 structural_count: &mut structural_count,
                 call_count: &mut call_count,
+                windows: &mut windows,
                 structural_local_symbols: &mut structural_local_symbols,
                 array_bindings: &mut array_bindings,
                 returned_call: &mut returned_call,
@@ -610,7 +607,6 @@ pub(in crate::execution::terminal_unit) fn build(
                 result,
                 structural_result,
                 result_stores: call_result_stores,
-                structural_store_bindings,
             },
         )?;
     }

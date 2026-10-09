@@ -158,12 +158,32 @@ pub(super) fn is_borrowed_place_transfer(
     // Include the endpoint: consuming an exact referent can cross a reference
     // at an empty root path. A descriptor transfer was excluded above by its
     // selected value type, so this never turns forwarding into referent custody.
-    (0..=path.len()).any(|length| {
-        let prefix = validation::CanonicalPlace {
+    has_reference_prefix(
+        program,
+        state.symbol,
+        statement_index,
+        &validation::CanonicalPlace {
             root: event.root,
-            segments: path[..length].to_vec(),
+            segments: path.to_vec(),
+        },
+    )
+}
+
+/// A reference prefix selects storage owned elsewhere, including the exact
+/// referent at an empty root path. The selected value's carrier is classified
+/// separately so forwarding a descriptor never becomes referent ownership.
+pub(super) fn has_reference_prefix(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement_index: usize,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    (0..=place.segments.len()).any(|length| {
+        let prefix = validation::CanonicalPlace {
+            root: place.root,
+            segments: place.segments[..length].to_vec(),
         };
-        validation::canonical_place_type_reference(program, state.symbol, statement_index, &prefix)
+        validation::canonical_place_type_reference(program, state, statement_index, &prefix)
             .is_some_and(|reference| type_reference_is_reference(program, reference))
     })
 }

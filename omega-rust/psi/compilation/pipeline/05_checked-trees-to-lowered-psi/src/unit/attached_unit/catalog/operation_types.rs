@@ -50,7 +50,7 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
         CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { type_identity, .. } => {
             roots.push(type_identity.clone());
         }
-        CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } => {
+        CheckedUnitEffectOperationPlan::MoveStructuralField { result, source, .. } => {
             roots.push(result.type_identity.clone());
             roots.push(source.type_identity.clone());
         }

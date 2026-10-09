@@ -1,17 +1,14 @@
 //! Schedule scalar evaluation around nested structural producers without
 //! changing checked call coordinates or inventing source-local bindings. Every
-//! argument-owned construction or copy belongs to its enclosing call's exact
-//! formal position. Moving a copy before an earlier scalar argument can observe
-//! stale storage; moving it after a later argument can observe a later mutation.
+//! produced argument belongs to the formal that consumes its exact result
+//! binding. Construction, copy, extraction and nested call results therefore
+//! share one schedule. Hoisting extraction or a copy before an earlier scalar
+//! argument reads absent or stale storage; delaying it observes later mutation.
 //! Constructor leaves use the selective evaluator, not additional scheduled calls.
 
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     byte_subslices, unsupported,
-};
-use checked_trees::{
-    CheckedArrayConstructionSource, CheckedUnitCallCoordinate,
-    CheckedUnitStructuralResultBindingPlan,
 };
 pub(crate) enum Step {
     CaptureBefore(u32),
@@ -19,45 +16,9 @@ pub(crate) enum Step {
     Begin,
     Argument { operation: usize, ordinal: usize },
     Subslice { operation: usize, ordinal: usize },
-    Constructor(usize),
+    Produce(usize),
     Call(usize),
     End,
-}
-
-/// Construction kind does not determine evaluation order. Both specialized
-/// scalar-array construction and general structural construction/copy retain
-/// the same source owner and produced value identity.
-pub(crate) fn argument_construction(
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Option<(
-    CheckedUnitCallCoordinate,
-    u32,
-    &CheckedUnitStructuralResultBindingPlan,
-)> {
-    let (source, result) = match operation {
-        CheckedUnitEffectOperationPlan::EstablishScalarArray { source, result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            operand_source: Some(source),
-            result,
-            ..
-        } => (source, result),
-        _ => return None,
-    };
-    let CheckedArrayConstructionSource::CallArgument {
-        call_ordinal,
-        parameter_position,
-    } = source
-    else {
-        return None;
-    };
-    Some((
-        CheckedUnitCallCoordinate {
-            statement_index: result.statement_index,
-            call_ordinal: *call_ordinal,
-        },
-        *parameter_position,
-        result,
-    ))
 }
 
 pub(super) fn build(
@@ -109,22 +70,24 @@ pub(super) fn build_operations(
             index += 1;
             continue;
         }
-        let statement = if let Some((coordinate, _, _)) = argument_construction(&operations[index])
-        {
-            coordinate.statement_index
-        } else {
-            match &operations[index] {
-                // A nested call with a structural result, ordinary or boundary.
-                CheckedUnitEffectOperationPlan::Call(call)
-                    if call.structural_result().is_some() && call.coordinate.call_ordinal != 0 =>
-                {
-                    call.coordinate.statement_index
-                }
-                _ => {
-                    steps.push(Step::Ordinary(index));
-                    index += 1;
-                    continue;
-                }
+        let statement = match operations[index].structural_result_binding() {
+            Some(result)
+                if operations[index + 1..].iter().any(|operation| {
+                    operation.call().is_some_and(|call| {
+                        call.coordinate.statement_index == result.statement_index
+                            && call.structural_arguments.iter().any(|argument| {
+                                argument.source_structural_result_binding_ordinal()
+                                    == Some(result.binding_ordinal)
+                            })
+                    })
+                }) =>
+            {
+                result.statement_index
+            }
+            _ => {
+                steps.push(Step::Ordinary(index));
+                index += 1;
+                continue;
             }
         };
         let start = index;
@@ -185,34 +148,16 @@ pub(crate) fn operand_preparation(
 
 /// Source ordinals identify occurrences, not an execution stream's root. A
 /// state arrival, return arm, or ordinary statement may retain a different
-/// portion of that occurrence tree. Constructor ownership and exact produced
-/// binding uses identify the enclosing calls without renumbering them.
+/// portion of that occurrence tree. Exact produced binding uses identify the
+/// enclosing calls without classifying producer spelling or renumbering them.
 fn call_group_root(
     operations: &[CheckedUnitEffectOperationPlan],
     start: usize,
     statement: u32,
 ) -> Result<usize, LoweringError> {
-    let mut root = if let Some((owner, _, _)) = argument_construction(&operations[start]) {
-        let mut owners = (start + 1..operations.len()).filter(|index| {
-            operations[*index]
-                .call()
-                .is_some_and(|call| call.coordinate == owner)
-        });
-        let owner = owners.next().ok_or(LoweringError::Unsupported(
-            "argument construction has no retained consuming call",
-        ))?;
-        if owners.next().is_some() {
-            return unsupported("argument construction has duplicate consuming calls");
-        }
-        owner
-    } else {
-        start
-    };
+    let mut root = start;
     loop {
-        let call = operations[root].call().ok_or(LoweringError::Unsupported(
-            "argument group root is not a call",
-        ))?;
-        let Some(result) = call.structural_result() else {
+        let Some(result) = operations[root].structural_result_binding() else {
             return Ok(root);
         };
         let mut consumers = (root + 1..operations.len()).filter(|index| {
@@ -249,9 +194,10 @@ fn append(
     if active.contains(&index) || emitted.contains(&index) || !group.contains(&index) {
         return unsupported("nested argument schedule repeats or escapes its producer group");
     }
-    if argument_construction(&operations[index]).is_some() {
+    if operations[index].call().is_none() && operations[index].structural_result_binding().is_some()
+    {
         emitted.push(index);
-        steps.push(Step::Constructor(index));
+        steps.push(Step::Produce(index));
         return Ok(());
     }
     let Some(call) = operations[index].call() else {
@@ -303,36 +249,6 @@ fn append(
         }
         let argument_ordinal = structural_ordinal;
         structural_ordinal += 1;
-        let mut constructors = group.clone().filter_map(|producer| {
-            let (source, formal, result) = argument_construction(&operations[producer])?;
-            (source == coordinate && formal as usize == position).then_some((producer, result))
-        });
-        if let Some((constructor, result)) = constructors.next() {
-            if constructors.next().is_some() {
-                return unsupported("structural argument has duplicate retained constructors");
-            }
-            if !structural_arguments
-                .get(argument_ordinal)
-                .is_some_and(|argument| {
-                    argument.source_structural_result_binding_ordinal()
-                        == Some(result.binding_ordinal)
-                })
-            {
-                return unsupported("structural argument schedule has a different result binding");
-            }
-            append(
-                checked,
-                machine,
-                state,
-                operations,
-                group.clone(),
-                constructor,
-                active,
-                emitted,
-                steps,
-            )?;
-            continue;
-        }
         if byte_subslices::arguments(&operations[index])
             .get(argument_ordinal)
             .is_some_and(|argument| byte_subslices::range(argument).is_some())
@@ -343,7 +259,7 @@ fn append(
             });
             continue;
         }
-        // The plan names the call result this argument consumes; a producer
+        // The plan names the produced value this argument consumes; a producer
         // in this group is scheduled first, and a result bound earlier in the
         // body needs no scheduling.
         let joined = structural_arguments
@@ -352,8 +268,7 @@ fn append(
             .and_then(|binding| {
                 group.clone().find(|producer| {
                     operations[*producer]
-                        .call()
-                        .and_then(|call| call.structural_result())
+                        .structural_result_binding()
                         .is_some_and(|result| result.binding_ordinal == binding)
                 })
             });

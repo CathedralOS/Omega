@@ -579,6 +579,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                 CheckedUnitEffectOperationPlan::MoveStructuralField {
                                     result,
                                     source,
+                                    ..
                                 } => {
                                     seeded.push(result.type_identity.as_str());
                                     seeded.push(source.type_identity.as_str());
@@ -659,7 +660,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 retained_type_identities.insert(type_identity.as_str());
                 retained_type_identities.insert(value.type_identity.as_str());
             }
-            CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } => {
+            CheckedUnitEffectOperationPlan::MoveStructuralField { result, source, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());
                 retained_type_identities.insert(source.type_identity.as_str());
             }

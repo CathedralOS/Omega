@@ -8,12 +8,8 @@ use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralResultBindingPlan;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
-use crate::execution::terminal_unit::PermissionAccess;
-use crate::execution::terminal_unit::PermissionClaimIdentity;
-use crate::execution::terminal_unit::PermissionEventKind;
-use crate::execution::terminal_unit::PermissionEventSource;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, state_flow, structural_access_for_type_reference,
+    base_type_identity, structural_access_for_type_reference,
 };
 
 use crate::execution::terminal_unit::StateParameter;
@@ -60,6 +56,7 @@ pub(super) fn argument(
         result,
         parameter,
         target_identity,
+        operations,
     )?;
     // Bind producer operands to the current home without replacing an explicit
     // loan descriptor: its source already retains captured geometry and access.
@@ -87,6 +84,7 @@ fn argument_contract(
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
     target_identity: &str,
+    operations: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let (source_machine, source_state) = validation::find_state_with_machine(program, state)?;
     if let Some(argument) = super::super::reference_results::record_argument(
@@ -522,19 +520,6 @@ fn argument_contract(
         } else {
             base_type_identity(program, referent, &[])? == result.type_identity
         };
-    // An anonymous literal constructs its operand in place under the
-    // structural-construction contents family: its interval-domain scalar members
-    // are legal because the construction proves each member's range
-    // obligation, so moving that result whole keeps the mint's requirement.
-    let constructed_literal = matches!(
-        place.root,
-        facts::PlaceRoot::Expression(source)
-            if source == value_expression
-                && !matches!(
-                    program.expression_table.expression(source),
-                    ExpressionNode::Call(_)
-                )
-    );
     // A projection selects the referent's type, not the containing owner's
     // multiplicity: an affine owner can hold linear members. Its resolved
     // storage/formal correspondence was checked by the presentation above;
@@ -578,8 +563,11 @@ fn argument_contract(
             // Moving a record that carries shared view descriptors preserves
             // those views' independently retained referent loans.
             && !validation::has_contents(program, referent, validation::ContentsRequirement::OwnedOrSharedView)
-            && !(constructed_literal
-                && validation::has_contents(program, referent, validation::ContentsRequirement::StructuralConstruction)))
+            // The value is already established. Finite owned storage retains
+            // its member predicates regardless of its producer; this query
+            // grants no construction authority. Exact type correspondence and
+            // the consuming call's custody plan carry those obligations.
+            && !validation::has_contents(program, referent, validation::ContentsRequirement::BorrowFree))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
@@ -622,7 +610,7 @@ fn argument_contract(
                 let owned_contents = validation::has_contents(
                     program,
                     local.type_reference,
-                    validation::ContentsRequirement::LinearOwned,
+                    validation::ContentsRequirement::BorrowFree,
                 );
                 // A loan retains the complete owner's claims and disposal debt.
                 // Captured access authorizes this observation, and the exact
@@ -678,200 +666,78 @@ fn argument_contract(
                 }
             }
         }
-        // A construction or copied place is established as a
-        // state-local value at the consuming statement itself; the binding
-        // replays like an anonymous result but carries no producer call.
-        facts::PlaceRoot::Expression(source)
-            if source == value_expression
-                && !projected
-                && !matches!(
-                    program.expression_table.expression(source),
-                    ExpressionNode::Call(_)
-                ) =>
-        {
-            if usize::try_from(result.statement_index).ok()? != call.statement_index {
-                return None;
-            }
-            let root = facts.values.structural_values.root_for_expression(
-                state,
-                u32::try_from(call.statement_index).ok()?,
-                source,
-            )?;
-            if root.machine != machine
-                || !facts.values.structural_values.nodes.is_valid(root.root)
-                || facts
-                    .values
-                    .structural_values
-                    .nodes
-                    .get(root.root)
-                    .expression
-                    != source
-                || program.type_multiplicity(root.type_reference) != result.multiplicity
-                || program.normalized_type_identity(root.type_reference)
-                    != program.normalized_type_identity(referent)
-            {
-                return None;
-            }
-            // The already matched qualified source/formal type retains its
-            // declared predicates. The result separately names the storage
-            // carrier every structural producer shares, under the structural
-            // identity rule: unqualified, except a bounded byte owner's.
-            validation::structural_result_contract(program, root.type_reference).ok()?;
-            if validation::structural_type_identity(program, root.type_reference, &[], &[])
-                != result.type_identity
-            {
-                return None;
-            }
-        }
-        // Ordinary and boundary affine producers own anonymous results.
-        // Rejoin their exact captured
-        // preorder coordinate; the shared sequencer executes it in postorder.
+        // Anonymous values are admitted by their already sequenced producer,
+        // not by whether their source spells a constructor, copy or call.
+        // Extraction keeps the authored storage coordinate for the transfer
+        // evidence below while the call reads its newly owned result slot.
         facts::PlaceRoot::Expression(source) if source == value_expression || projected => {
-            if projected
-                && validation::canonical_place_from_expression_in_state(
-                    program,
-                    state,
-                    call.statement_index,
-                    expression,
-                )
-                .as_ref()
-                    != Some(place)
+            if usize::try_from(result.statement_index).ok()? != call.statement_index
+                || operations
+                    .iter()
+                    .filter_map(|operation| operation.structural_result_binding())
+                    .filter(|binding| *binding == result)
+                    .count()
+                    != 1
+                || (projected
+                    && validation::canonical_place_from_expression_in_state(
+                        program,
+                        state,
+                        call.statement_index,
+                        expression,
+                    )
+                    .as_ref()
+                        != Some(place))
             {
                 return None;
             }
-            if usize::try_from(result.statement_index).ok()? != call.statement_index {
-                return None;
-            }
-            let flow = state_flow(facts, machine, state)?;
-            let mut producers =
-                facts
-                    .flow
-                    .control
-                    .calls
-                    .span(flow.calls)?
-                    .iter()
-                    .filter(|producer| {
-                        producer.statement_index == call.statement_index
-                            && producer.authored_expression == source
-                    });
-            let producer = producers.next()?;
-            if producers.next().is_some() || producer.call_ordinal <= call.call_ordinal {
-                return None;
-            }
-            let authored = program.expression_table.call_node(source)?;
-            let completed = super::super::control::structural_operands::result(
-                program,
-                machine,
-                source,
-                &mut ShapeCollector::new(program),
-            )?;
-            if validation::call_target_symbol(program, authored) != producer.target_symbol
-                || completed.type_identity != result.type_identity
-                || (access == CheckedStructuralAccess::Owned
-                    && completed.qualifications
-                        != validation::structural_result_contract(program, referent)
-                            .ok()?
-                            .qualifications)
+            let source_type = facts
+                .values
+                .structural_values
+                .root_for_expression(state, result.statement_index, source)
+                .map(|root| root.type_reference)
+                .or_else(|| {
+                    validation::declared_place_type_raw(
+                        program,
+                        source_machine,
+                        Some(source_state),
+                        source,
+                    )
+                })?;
+            let source_type = if access == CheckedStructuralAccess::Owned {
+                validation::assignment_value_type(program, source_type)
+            } else {
+                source_type
+            };
+            let contract = validation::structural_result_contract(program, source_type).ok()?;
+            if program.type_multiplicity(source_type) != result.multiplicity
+                || validation::structural_type_identity(program, source_type, &[], &[])
+                    != result.type_identity
+                || (!projected
+                    && access == CheckedStructuralAccess::Owned
+                    && (program.normalized_type_identity(source_type)
+                        != program.normalized_type_identity(referent)
+                        || contract.qualifications
+                            != validation::structural_result_contract(program, referent)
+                                .ok()?
+                                .qualifications))
             {
                 return None;
             }
         }
         _ => return None,
     }
-    // Borrowed arguments loan the binding's storage into the callee: no
-    // owned custody moves at the edge, so the owned-move permission replay
-    // below does not apply to them.
-    if access != CheckedStructuralAccess::Owned || unrestricted {
-        return Some(CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: result.binding_ordinal,
-            },
-            path: path.clone(),
-            type_identity: target_identity.to_owned(),
-            access,
-        });
-    }
-    // A projected owned reference-record operand moves a subtree, not its
-    // still-live root, so permission production records no place-move event
-    // for it: `projected_affine` publishes projected transfer events only for
-    // plain affine contents, while a reference-bearing subtree's custody lives
-    // in its leaf-loan roster. `projected_record_argument` above already
-    // proved every captured leaf under this edge stays live until this
-    // consuming statement, and the bare reference result's `result_loan`
-    // replay pins the call as that leaf's last use; requiring the absent
-    // whole-place event here would double-count custody the loans carry.
-    if !(projected && owned_reference_record) {
-        let mut events = facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .map(|(_, event)| event)
-            .filter(|event| {
-                event.machine_symbol == machine
-                    && event.state_symbol == state
-                    && event.source
-                        == PermissionEventSource::Call {
-                            statement_index: call.statement_index,
-                            call_ordinal: call.call_ordinal,
-                            target_symbol: call.target_symbol,
-                        }
-                    && event.root == place.root
-                    && event.access == PermissionAccess::Owned
-                    && facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(event.segments)
-                        .starts_with(place.segments.as_slice())
-            });
-        // Permission production tracks a claim-free owner as one affine row,
-        // and a claimed owner through its exact descendant claim frontier.
-        // Root multiplicity cannot classify those claims: an affine record
-        // can contain linear children. The enclosing custody replay checks
-        // the complete roster against the callee's entry/outcome set; the
-        // owned storage contract carries its residual affine complement.
-        let mut affine_transfer = false;
-        let mut claims = Vec::new();
-        for event in events.by_ref() {
-            let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
-            if event.kind != PermissionEventKind::Transfer || segments.len() != event.segments.len()
-            {
-                return None;
-            }
-            if event.claim_identity == PermissionClaimIdentity::Unknown {
-                if affine_transfer
-                    || event.obligation_live
-                    || event.multiplicity != selected_multiplicity
-                    || event.multiplicity == Multiplicity::Linear
-                    || segments != place.segments.as_slice()
-                {
-                    return None;
-                }
-                affine_transfer = true;
-            } else {
-                let relative = segments.strip_prefix(place.segments.as_slice())?;
-                if event.multiplicity != Multiplicity::Linear
-                    || !event.obligation_live
-                    || claims.contains(&event.claim_identity)
-                    || validation::structural_claim_path(program, formal_type, relative).is_err()
-                {
-                    return None;
-                }
-                claims.push(event.claim_identity);
-            }
-        }
-        if !affine_transfer && claims.is_empty() {
-            return None;
-        }
-    }
+    // Checking already established this actual's access and consuming edge.
+    // The call's shared claim-transfer planner carries its captured frontier;
+    // result presentation must not demand a second permission replay here.
+    // A borrowed referent has no owned-ingress permission rows to replay:
+    // its extraction operation relocates custody into this same result slot.
     Some(CheckedUnitStructuralArgumentPlan {
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
         path,
         type_identity: target_identity.to_owned(),
-        access: CheckedStructuralAccess::Owned,
+        access,
     })
 }
 

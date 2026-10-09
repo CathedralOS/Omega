@@ -260,9 +260,11 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {
                 self.establish_scalar_array(operation)
             }
-            CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } => {
-                self.move_structural_field(result, source)
-            }
+            CheckedUnitEffectOperationPlan::MoveStructuralField {
+                result,
+                source,
+                expression,
+            } => self.move_structural_field(result, source, *expression),
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary,
                 cleanup_actions,

@@ -213,7 +213,7 @@ impl Preparation<'_> {
                     }
                     results.push((binding.binding_ordinal, result.into()));
                 }
-                argument_schedule::Step::Constructor(operation) => {
+                argument_schedule::Step::Produce(operation) => {
                     let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                         result,
                         value,

@@ -25,8 +25,7 @@ machine transform(choice: Choice, increment: bool) -> Choice {
 }
 
 machine repair(choice: &mut Choice, increment: bool) {
-    let detached: Choice = choice;
-    choice = transform(detached, increment);
+    choice = transform(choice, increment);
 }
 
 machine read_and_drop(token: Token) -> u64 {

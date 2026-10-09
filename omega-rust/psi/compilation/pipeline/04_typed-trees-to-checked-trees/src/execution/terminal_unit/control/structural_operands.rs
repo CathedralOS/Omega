@@ -2,6 +2,11 @@
 //! captured preorder coordinates rather than renumbering by execution order.
 //! Recursive collection retains each value's consuming call and formal slot;
 //! flattening evaluation order must not relabel a nested operand as an outer one.
+//! A borrowed owned actual uses the same extraction ledger as a named move.
+//! Its checked expression retains detached custody while the original place
+//! retains repair debt. Replacement planning runs after this preparation, so
+//! it never invents a second displaced value. Terminal's shared argument
+//! scheduler interleaves these producers with scalar operands in authored order.
 use super::super::{
     CheckedStructuralResultPlan, CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
 };
@@ -24,6 +29,12 @@ use crate::execution::terminal_unit::control::call_results::checked_structural_r
 
 pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     Call(&'facts checked_trees::FlowCallFact),
+    /// Existing storage transferred to an owned formal. Borrowed referents
+    /// first materialize their value and retain exact restoration debt.
+    Storage {
+        expression: typed_trees::expression::ExpressionHandle,
+        type_reference: typed_trees::types::TypeReferenceHandle,
+    },
     /// A construction or copied place retained by the checker as a
     /// structural value rooted at the authored argument expression. The statement
     /// sequence establishes it as a state-local operand before the
@@ -32,6 +43,7 @@ pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     Value {
         root: &'facts checked_trees::CheckedStructuralValueRoot,
         source: checked_trees::CheckedArrayConstructionSource,
+        access: checked_trees::CheckedStructuralAccess,
     },
 }
 
@@ -136,6 +148,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     count: &mut usize,
     root: checked_trees::CheckedStructuralValueHandle,
     trace: &LocalConstructionTrace,
+    windows: &mut super::super::borrowed_windows::OpenWindows,
 ) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
     let plans = &facts.values.structural_values;
     let mut scoped_results = results.to_vec();
@@ -173,6 +186,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     count,
                     call,
                     trace,
+                    windows,
                 )?;
                 let reference = validation::call_target_return_type(program, call.target_symbol)?;
                 let mut result = checked_structural_result_type(
@@ -358,7 +372,7 @@ pub(in crate::execution::terminal_unit) fn for_call<'a>(
             .into_iter()
             .filter_map(|operand| match operand {
                 Operand::Call(call) => Some(call),
-                Operand::Value { .. } => None,
+                Operand::Value { .. } | Operand::Storage { .. } => None,
             })
             .collect(),
     )
@@ -373,54 +387,8 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
 ) -> Option<Vec<Operand<'a>>> {
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span(flow.calls)?;
-    let has_value_operands = validation::find_call_site(
-        program,
-        machine.symbol,
-        state.symbol,
-        call.statement_index,
-        call.call_ordinal,
-    )
-    .map(|site| {
-        let arguments = validation::call_site_argument_expressions(program, &site);
-        let Some(parameters) = validation::call_target_parameters(program, call.target_symbol)
-        else {
-            return false;
-        };
-        let parameters = parameters.iter().collect::<Vec<_>>();
-        parameters.len() == arguments.len()
-            && arguments
-                .iter()
-                .zip(parameters.iter())
-                .any(|(argument, parameter)| {
-                    evaluated_value_root(
-                        program,
-                        facts,
-                        machine.symbol,
-                        state.symbol,
-                        call.statement_index,
-                        *argument,
-                        parameter,
-                    )
-                    .is_some()
-                })
-    })
-    .unwrap_or(false);
-    if !has_value_operands
-        && !calls.iter().any(|nested| {
-            nested.statement_index == call.statement_index
-                && nested.call_ordinal != 0
-                && !facts.flow.control.is_retired(state.symbol, nested)
-                && result(
-                    program,
-                    machine.symbol,
-                    nested.authored_expression,
-                    &mut ShapeCollector::new(program),
-                )
-                .is_some()
-        })
-    {
-        return Some(Vec::new());
-    }
+    // Enumerate each actual operand. A constructor/nested-call eligibility
+    // probe would omit the ordinary transfer out of a borrowed place.
     let mut output = Vec::new();
     collect(
         program,
@@ -483,7 +451,14 @@ fn collect<'a>(
             }) {
                 return None;
             }
-            output.push(Operand::Value { root, source });
+            output.push(Operand::Value {
+                root,
+                source,
+                access: super::super::types::structural_access_for_type_reference(
+                    program,
+                    parameter.type_reference,
+                )?,
+            });
             continue;
         }
         let place = validation::canonical_place_from_expression_in_state(
@@ -492,6 +467,20 @@ fn collect<'a>(
             call.statement_index,
             *argument,
         );
+        if place
+            .as_ref()
+            .is_some_and(|place| place.root.as_symbol().is_some())
+            && !parameter.is_const
+            && !parameter.relevance.is_erased()
+            && !crate::checks::type_reference_is_reference(program, parameter.type_reference)
+            && program.type_multiplicity(parameter.type_reference) != Multiplicity::Unrestricted
+        {
+            output.push(Operand::Storage {
+                expression: *argument,
+                type_reference: parameter.type_reference,
+            });
+            continue;
+        }
         let expression = match place {
             Some(place)
                 if place.segments.iter().all(|segment| {
@@ -632,12 +621,47 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
     structural_count: &mut usize,
     call: &checked_trees::FlowCallFact,
     trace: &LocalConstructionTrace,
+    windows: &mut super::super::borrowed_windows::OpenWindows,
 ) -> Option<()> {
     let statement_index = u32::try_from(call.statement_index).ok()?;
     let binders = machine_binders(program, machine);
     for operand in operations_for_call(program, facts, machine, state, call)? {
+        let storage = match &operand {
+            Operand::Storage {
+                expression,
+                type_reference,
+            } => Some((*expression, *type_reference)),
+            Operand::Value {
+                root,
+                access: checked_trees::CheckedStructuralAccess::Owned,
+                ..
+            } if program.type_multiplicity(root.type_reference) != Multiplicity::Unrestricted => {
+                Some((root.expression, root.type_reference))
+            }
+            _ => None,
+        };
+        if let Some((expression, type_reference)) = storage
+            && let Some((operation, result)) = windows.move_call_operand(
+                program,
+                facts,
+                shapes,
+                machine,
+                state,
+                structural_parameters,
+                statement_index,
+                expression,
+                type_reference,
+                u32::try_from(*structural_count).ok()?,
+            )
+        {
+            *structural_count = structural_count.checked_add(1)?;
+            structural_results.push((result, facts::PlaceRoot::Expression(expression)));
+            operations.push(operation);
+            continue;
+        }
         let nested = match operand {
-            Operand::Value { root, source } => {
+            Operand::Storage { .. } => continue,
+            Operand::Value { root, source, .. } => {
                 if structural_results
                     .iter()
                     .any(|(_, source)| *source == facts::PlaceRoot::Expression(root.expression))
@@ -663,6 +687,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
                     &mut *structural_count,
                     root.root,
                     trace,
+                    windows,
                 )?;
                 super::statement_sequence::consume_value_places(
                     facts,
