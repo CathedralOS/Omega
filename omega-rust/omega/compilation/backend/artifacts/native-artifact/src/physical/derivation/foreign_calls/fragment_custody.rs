@@ -5,7 +5,7 @@
 //! Neither path can replace the shared source, argument, or result checks.
 
 use crate::OptimizedBoundaryOccurrence;
-use crate::physical::derivation::foreign_calls::{fixed_scalar_shape, floating_control};
+use crate::physical::derivation::foreign_calls::{floating_control, foreign_scalar_shape};
 use crate::physical::fragment_publication::FragmentPublicationBinding;
 use calling_conventions::ValueLocation;
 use image_emission::{
@@ -387,7 +387,7 @@ fn fragment_scalar_argument_custody_rejoin(
         let Ok(native_position) = usize::try_from(argument.parameter_index) else {
             return false;
         };
-        let Some(shape) = fixed_scalar_shape(argument.source.scalar_type()) else {
+        let Some(shape) = foreign_scalar_shape(argument.source.scalar_type()) else {
             return false;
         };
         if scalar_ordinal.checked_sub(1).is_some_and(|previous| {
@@ -562,7 +562,7 @@ fn fragment_scalar_result_custody_rejoin(
     let Some(physical) = physical else {
         return false;
     };
-    let Some(shape) = fixed_scalar_shape(home.scalar_type) else {
+    let Some(shape) = foreign_scalar_shape(home.scalar_type) else {
         return false;
     };
     if Some(home.defining_operation) != record.invocation_site.operation()

@@ -4009,6 +4009,9 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     matching hosts. Linux x86-64 uses caller-owned result storage through
     foreign calls, ordinary helpers and owned state arrivals; retain
     `providers/foreign_indirect_record_{result,relay}_exit` at exit 70.
+    Preserve `providers/foreign_indirect_record_distinct_exit` at exit 70
+    during remaining host qualification: earlier snapshots survive allocation,
+    later results and release.
 
   Acceptance: corpus fixtures pass a borrowed descriptor and receive an
   indirect aggregate result from C with exact values, register/stack placement

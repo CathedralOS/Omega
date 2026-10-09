@@ -150,7 +150,7 @@ pub(crate) fn derive_normalized_foreign_child(
         .scalar_parameters
         .iter()
         .copied()
-        .map(fixed_scalar_shape)
+        .map(foreign_scalar_shape)
         .collect::<Option<Vec<_>>>()
     else {
         return Ok(None);
@@ -233,7 +233,7 @@ pub(crate) fn derive_normalized_foreign_child(
             && physical.home.source_value == value.id
             && physical.home.scalar_type == *declared =>
         {
-            let Some(shape) = fixed_scalar_shape(*declared) else {
+            let Some(shape) = foreign_scalar_shape(*declared) else {
                 return Ok(None);
             };
             Some(shape)
@@ -258,7 +258,7 @@ pub(crate) fn derive_normalized_foreign_child(
             {
                 return Err("normalized foreign D41 child changed its scalar result custody");
             }
-            let Some(shape) = fixed_scalar_shape(*declared) else {
+            let Some(shape) = foreign_scalar_shape(*declared) else {
                 return Ok(None);
             };
             if home.shape != shape {
@@ -1097,28 +1097,13 @@ pub(crate) fn derive_normalized_foreign_child(
     ))
 }
 
-fn fixed_scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
-    use calling_conventions::ValueShape;
-    match scalar_type {
-        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::IeeeFloat(format) => Some(ValueShape::float(format.byte_size())),
-        ScalarType::Integer(_) => fixed_integer_shape(scalar_type),
-    }
-}
-
-fn fixed_integer_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
-    let integer = scalar_type.as_integer()?;
-    let bits = integer.bits();
-    if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-        || !matches!(bits, 8 | 16 | 32 | 64)
-    {
-        return None;
-    }
-    let bytes = bits / 8;
-    Some(calling_conventions::ValueShape::integer(
-        u32::from(bytes),
-        bytes,
-    ))
+/// Classify the retained semantic type through the same closed ABI vocabulary
+/// as object custody. The hosted address carrier has an eight-byte integer
+/// slot without becoming a fixed integer type; reconstructing only fixed
+/// carriers rejects valid address results and their later foreign consumers.
+/// Exact source types, placements and producer spans still rejoin separately.
+fn foreign_scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
+    calling_conventions::ValueShape::for_scalar(scalar_type)
 }
 
 /// Rejoin the expected structural-argument custody of one normalized foreign
