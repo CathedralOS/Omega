@@ -10,7 +10,7 @@ use crate::lowering::statement::match_subject_hoisting::{
     is_reference_struct_parameter_member,
 };
 use crate::lowering::statement::place_operand_capture::{
-    capture_address_operands, capture_reference_initializer_selectors,
+    SelectorCapture, capture_address_operands, capture_reference_initializer_selectors,
 };
 use crate::lowering::statement::value_call_hoisting::{
     hoist_scalar_value_call_comparison, hoist_terminal_value_machine_call,
@@ -351,7 +351,12 @@ pub(crate) fn lower_statement_node(
             };
             declaration.initial_value = initial_value;
             if initial_value.is_valid() {
-                capture_reference_initializer_selectors(lowerer, initial_value, &mut hoisted);
+                capture_reference_initializer_selectors(
+                    lowerer,
+                    initial_value,
+                    SelectorCapture::BeforeWrites,
+                    &mut hoisted,
+                );
             }
             hoisted.push(Statement::LocalData(declaration));
             Ok(hoisted)

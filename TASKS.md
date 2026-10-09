@@ -2578,26 +2578,29 @@ crash and native exit behavior.
   runtime oracle and no longer do. Most goldens still claim these successes,
   so `python3 tools/corpus_scoreboard.py` undercounts them: measure with
   `python3 tools/corpus_gate.py` and `--native`, then route by cause, not by
-  the revision that recorded a row. Losses observed at 21cec730b99:
+  the revision that recorded a row. Losses observed at ebf381240e2:
 
-  - Hoisted operands: recast offsets and subslice bounds report `__hoist_14`
-    instead of the authored operand. `pass/dependent/{boundary_equality_recast_witness,call_requires_saved_local_arithmetic_bound}_compile`
-    and `pass/recast/runtime_interior_slice_congruent_offset_exit` reject;
-    `fail/ranges/slice_bound_unbound_container_binder_rejected` and five
-    `fail/recast/` fixtures lose their expected fragments.
+  - `pass/dependent/call_requires_saved_local_arithmetic_bound_compile` no
+    longer proves `items.len < n` from `let n: u64 = items.len + 1`; it
+    checked before 70f52a27868, whose operand hoisting hid this refusal.
+  - Read-selector capture (ebf381240e2) names `__hoist_14` instead of the
+    authored index: `fail/collections/non_integer_index_rejected` loses its
+    fragment.
   - Argument domain weakening preempts the callee's requires check:
     `fail/core/translation_unmap_before_activation` and
     `fail/memory/bump_allocator_place_into_occupied` lose their fragments.
-  - Lowering declines: `pass/collections/policy_array_enum_element_dispatch_exit`
-    ("statement sequence: local data: structural call binding"),
-    `pass/domains/runtime_result_domain_machine_overload_exit` ("outer calls:
-    statement window") and `fail/ports/asm_port_in_unsettled` ("outer calls:
-    argument calls" instead of its pinned "call operation: target state").
+  - Lowering declines: `pass/domains/runtime_result_domain_machine_overload_exit`
+    ("outer calls: statement window") and `fail/ports/asm_port_in_unsettled`
+    ("outer calls: argument calls" instead of its pinned "call operation:
+    target state").
   - `pass/memory/bump_allocator_canary`: "cleanup effect dependency in
-    `exercise_fallible` has no exact structural residual disposition".
+    `exercise_fallible` has no exact structural residual disposition". Any
+    transition that moves the payloads of a sum with a linear payload case
+    into states reproduces it.
   - `pass/tasks/task_runtime_machine_selection_compile` reads a `StartOutcome`
     payload without case knowledge, which checking now refuses
-    ([data and literals](wiki/spec/language/data_and_literals.md)); its sibling
+    ([data and literals](wiki/spec/language/data_and_literals.md)); the lawful
+    case transition hits the linear-payload cleanup refusal above. Its sibling
     `fail/tasks/task_runtime_machine_selection_effect_mismatch` stops at
     `Task::settle` specialization before its effect-ceiling fragment.
   - `fail/build/build_effects_undeclared` reports "target-tagged machine has no

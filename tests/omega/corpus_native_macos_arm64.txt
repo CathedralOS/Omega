@@ -178,6 +178,7 @@ pass/borrows/runtime_recursive_mutable_array_store_exit built 1300ms exit:70 @ad
 pass/borrows/runtime_recursive_shared_array_read_exit built 2356ms exit:70 @6d05c993ca61
 pass/borrows/runtime_reentered_mutable_array_loan_exit built 1705ms exit:70 @98f54226c10c
 pass/borrows/runtime_reference_array_pressure_exit built 2056ms exit:70 @a195e6cdf066+wt
+pass/borrows/runtime_reference_initializer_selector_before_later_write_exit built 2594ms exit:70 @ebf381240e20+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit built 1162ms exit:70 @104c2da31081
 pass/borrows/runtime_reference_record_array_field_read_exit built 1171ms exit:70 @104c2da31081
 pass/borrows/runtime_reference_record_call_completion_exit built 1159ms exit:70 @104c2da31081
@@ -735,9 +736,10 @@ pass/data/runtime_proof_only_data_declared_exit built 534ms exit:70
 pass/data/runtime_record_field_value_pattern_exit built 923ms exit:70 @3f4da4527c2d+wt
 pass/data/runtime_zeroed_first_case_enum_payload_exit built 1431ms exit:70
 pass/data/runtime_zeroed_first_case_float_payload_exit built 1229ms exit:70
-pass/dependent/boundary_equality_recast_witness_compile checked 1571ms @be8e4cb5674c+wt
+pass/dependent/boundary_equality_recast_witness_compile checked 1571ms @ebf381240e20+wt
 pass/dependent/boundary_requires_caller_field_extent_compile checked 190ms
-pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 209ms
+pass/dependent/call_requires_saved_local_arithmetic_bound_compile rejected 505ms regressed-from:checked @ebf381240e20+wt
+	cannot prove requires contract for call inner from Main::outer: items.len < n (needs fact `rest.len < capacity` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 pass/dependent/case_where_common_field_window checked 183ms
 pass/dependent/case_where_equality_bounds_subtraction checked 1575ms @be8e4cb5674c+wt
 pass/dependent/case_where_generic_type_bound_coverage checked 207ms
@@ -1368,7 +1370,7 @@ pass/recast/runtime_guarded_offset_recast_exit built 1748ms exit:70 @fb2178def92
 pass/recast/runtime_inline_shared_slice_record_read_exit built 1915ms exit:70 @3b624377ec31
 pass/recast/runtime_inline_slice_view_mutable_write_exit built 1715ms exit:70 @3b624377ec31
 pass/recast/runtime_integer_bit_view_recast_exit built 1515ms exit:70 @48008365d839
-pass/recast/runtime_interior_slice_congruent_offset_exit built 2330ms exit:70 @693920652f41
+pass/recast/runtime_interior_slice_congruent_offset_exit built 2330ms exit:70 @ebf381240e20+wt
 pass/recast/runtime_interior_slice_view_mutable_write_exit built 4067ms exit:70 @5a7ed5b57d00+wt
 pass/recast/runtime_mutable_equivalent_domain_recast_exit built 1530ms exit:70 @fb2178def922
 pass/recast/runtime_mutable_equivalent_range_recast_exit built 1178ms exit:70 @48008365d839

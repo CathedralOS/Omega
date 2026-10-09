@@ -7,7 +7,7 @@
 //! (`infer_hoist_temp_type`). Any other declared type is the temp's
 //! annotation.
 
-use super::place_operand_capture::capture_reference_initializer_selectors;
+use super::place_operand_capture::{SelectorCapture, capture_reference_initializer_selectors};
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
@@ -49,7 +49,13 @@ pub(crate) fn mint_hoist_temp(
         Some(existing) => DiagnosticName::generated(existing),
         None => {
             let initial_value = initial(lowerer, hoisted);
-            capture_reference_initializer_selectors(lowerer, initial_value, hoisted);
+            // Later arms and payload receivers read this temp's place again.
+            capture_reference_initializer_selectors(
+                lowerer,
+                initial_value,
+                SelectorCapture::Every,
+                hoisted,
+            );
             let fresh = lowerer.next_hoist_name();
             if let Some(subject) = shared_subject {
                 lowerer.record_match_subject_temp(subject, fresh.clone());

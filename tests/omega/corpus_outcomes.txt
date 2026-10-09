@@ -284,7 +284,7 @@ fail/borrows/borrow_mut_and_read rejected 215ms expected @c08960bee2b1+wt
 	state `copy` receives `main.value` as both mutable and read-only
 fail/borrows/borrow_mut_literal rejected 745ms expected @2d8ed253669f
 	mutable argument for state `write` must be a named place
-fail/borrows/borrow_unknown_index_pair_mut rejected 396ms expected @c910d797b35a
+fail/borrows/borrow_unknown_index_pair_mut rejected 396ms expected @ebf381240e20+wt
 	statement 2 creates local borrow `right` while local borrow `left` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 3 mutates `left` while local borrow `right` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	cannot prove index `left_index` is within length 2 in Main::main::main
@@ -336,7 +336,7 @@ fail/borrows/evidence_bound_record_result_keeps_loan rejected 2564ms expected @b
 	statement 2 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/fixed_element_reference_return_out_of_bounds rejected 429ms expected @3fa817733300+wt
 	cannot prove index `2` is within length 2
-fail/borrows/fresh_selector_borrow_has_no_parent_capture rejected 390ms expected @c910d797b35a
+fail/borrows/fresh_selector_borrow_has_no_parent_capture rejected 390ms expected @ebf381240e20+wt
 	statement 3 creates local borrow `fresh` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 4 mutates `held` while local borrow `fresh` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/generic_reference_forwarding_shared_to_mutable rejected 1575ms expected @f3a79ef091a9
@@ -1952,7 +1952,7 @@ fail/ranges/index_signed_guard_below_zero rejected 327ms expected @c08960bee2b1+
 	cannot prove index `main.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 296ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 4 in Main::main::body
-fail/ranges/slice_bound_unbound_container_binder_rejected rejected 458ms expected @ada91cf0bd16+wt
+fail/ranges/slice_bound_unbound_container_binder_rejected rejected 458ms expected @ebf381240e20+wt
 	cannot prove subslice range end bound `..N` is within const extent `N`
 fail/ranges/subject_guard_compound_index_mutated rejected 310ms expected @f64782b89114+wt
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
@@ -1962,19 +1962,19 @@ fail/recast/boolean_view_requires_byte_region_representation rejected 187ms expe
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; a raw byte region cannot establish the target's representation facts
 fail/recast/boolean_view_requires_source_representation rejected 187ms expected @6e7bf42e4877
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
-fail/recast/boundary_equality_retired_by_out_argument_write rejected 667ms expected @be8e4cb5674c+wt
+fail/recast/boundary_equality_retired_by_out_argument_write rejected 667ms expected @ebf381240e20+wt
 	machine `Main::main` state `read`: cannot bound the recast offset `size` -- the region holds 12 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition size <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
-fail/recast/field_precondition_call_invalidated_before_capture rejected 171ms expected @ef3f9f2b015a
+fail/recast/field_precondition_call_invalidated_before_capture rejected 171ms expected @ebf381240e20+wt
 	machine `capture` state `entry`: cannot bound the recast offset `cursor.offset` -- the region holds 32 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition cursor.offset <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/recast/field_precondition_invalidated_before_capture rejected 123ms expected @d9720a4fa49b+wt
 	machine `capture` state `entry`: the recast target `Desc` needs 16 bytes at offset 32, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
-fail/recast/incoming_offset_call_invalidated_before_capture rejected 171ms expected @ef3f9f2b015a
+fail/recast/incoming_offset_call_invalidated_before_capture rejected 171ms expected @ebf381240e20+wt
 	machine `capture` state `read`: cannot bound the recast offset `offset` -- the region holds 32 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition offset <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/recast/incoming_offset_invalidated_before_capture rejected 132ms expected @d9720a4fa49b+wt
 	machine `capture` state `read`: the recast target `Desc` needs 16 bytes at offset 32, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
 fail/recast/interior_recast_footprint_rejected rejected 183ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: the recast target `u32` needs 4 bytes at offset 9, but the region holds 12 -- the view would read past the buffer (§5b rule 1 is byte-granular)
-fail/recast/interior_slice_exclusive_backing_read rejected 168ms expected @57fc72937714+wt
+fail/recast/interior_slice_exclusive_backing_read rejected 168ms expected @ebf381240e20+wt
 	state `write_words` receives `main.bytes` as mutable while its mutable receiver reads `main.bytes[4]`
 fail/recast/interior_slice_runtime_offset_non_tiling rejected 174ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: cannot prove exact tiling for interior slice `[u16]`: the runtime byte offset may leave a remainder for 2-byte elements; use a statically exact offset or validate the dynamic region before establishing the typed slice
@@ -2013,7 +2013,7 @@ fail/recast/shared_parameter_view_mutable_call_rejected rejected 181ms expected 
 	argument `value` for state `entry` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/recast/slice_view_non_tiling_rejected rejected 161ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: slice target `[u16]` does not exactly tile the source's 7 bytes with 2-byte elements
-fail/recast/unbounded_offset_names_the_bound rejected 152ms expected @ef3f9f2b015a
+fail/recast/unbounded_offset_names_the_bound rejected 152ms expected @ebf381240e20+wt
 	machine `Main::main` state `read`: cannot bound the recast offset `off` -- the region holds 16 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition off <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/relax/retired_relax_statement rejected 5ms expected @2d8ed253669f
 	tests/omega/fail/relax/retired_relax_statement/main.omg:8:5: `relax` is retired: invariant windows (ch11) supersede it -- write plainly; a momentary violation opens a window that must close before any read, call, or terminal exit
@@ -2042,11 +2042,11 @@ fail/slices/call_requires_direct_view_extent rejected 254ms expected @45782ade0c
 	cannot prove requires contract for call read from wrong: 2 < values[1..2].len (needs fact `position < values.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/inclusive_endpoint_equals_length rejected 344ms expected @dd31f301c60c+wt
 	cannot prove subslice range end bound `..4` is within slice length 4
-fail/slices/inclusive_endpoint_maximum rejected 336ms expected @dd31f301c60c+wt
+fail/slices/inclusive_endpoint_maximum rejected 336ms expected @ebf381240e20+wt
 	cannot prove subslice range end bound `..end` is within unknown slice length
 fail/slices/inclusive_last_element_overlap rejected 325ms expected @dd31f301c60c+wt
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/slices/inclusive_negative_endpoint rejected 338ms expected @dd31f301c60c+wt
+fail/slices/inclusive_negative_endpoint rejected 338ms expected @ebf381240e20+wt
 	cannot prove subslice range end bound `0..end` is within unknown slice length
 fail/slices/index_operator_contract_unproven rejected 185ms expected @5aed35f3503f+wt
 	machine `Main::main` state `main` value call to `Slice::index` violates required fact `index < items.len`: the instantiated fact is structurally false
@@ -2516,6 +2516,7 @@ pass/borrows/runtime_recursive_mutable_array_store_exit checked 1300ms check-tar
 pass/borrows/runtime_recursive_shared_array_read_exit checked 3020ms check-target:macos_arm64 @6d05c993ca61
 pass/borrows/runtime_reentered_mutable_array_loan_exit checked 1638ms check-target:macos_arm64 @98f54226c10c
 pass/borrows/runtime_reference_array_pressure_exit checked 2021ms check-target:macos_arm64 @a195e6cdf066+wt
+pass/borrows/runtime_reference_initializer_selector_before_later_write_exit checked 2417ms check-target:macos_arm64 @ebf381240e20+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit checked 1148ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_reference_record_array_field_read_exit checked 1156ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_reference_record_call_completion_exit checked 1144ms check-target:macos_arm64 @104c2da31081
@@ -3095,9 +3096,10 @@ pass/data/runtime_proof_only_data_declared_exit checked 1252ms check-target:maco
 pass/data/runtime_record_field_value_pattern_exit checked 1016ms check-target:macos_arm64 @3f4da4527c2d+wt
 pass/data/runtime_zeroed_first_case_enum_payload_exit checked 1146ms check-target:macos_arm64
 pass/data/runtime_zeroed_first_case_float_payload_exit checked 1144ms check-target:macos_arm64
-pass/dependent/boundary_equality_recast_witness_compile checked 1282ms @be8e4cb5674c+wt
+pass/dependent/boundary_equality_recast_witness_compile checked 1282ms @ebf381240e20+wt
 pass/dependent/boundary_requires_caller_field_extent_compile checked 298ms @2d8ed253669f
-pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 292ms @2d8ed253669f
+pass/dependent/call_requires_saved_local_arithmetic_bound_compile rejected 543ms regressed-from:checked @ebf381240e20+wt
+	cannot prove requires contract for call inner from Main::outer: items.len < n (needs fact `rest.len < capacity` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 pass/dependent/case_where_common_field_window checked 288ms @2d8ed253669f
 pass/dependent/case_where_equality_bounds_subtraction checked 1436ms @be8e4cb5674c+wt
 pass/dependent/case_where_generic_type_bound_coverage checked 292ms @2d8ed253669f
@@ -3758,7 +3760,7 @@ pass/recast/runtime_guarded_offset_recast_exit checked 1534ms check-target:macos
 pass/recast/runtime_inline_shared_slice_record_read_exit checked 2196ms check-target:macos_arm64 @3b624377ec31
 pass/recast/runtime_inline_slice_view_mutable_write_exit checked 1981ms check-target:macos_arm64 @3b624377ec31
 pass/recast/runtime_integer_bit_view_recast_exit checked 1553ms check-target:macos_arm64 @a3bac00e54bb+wt
-pass/recast/runtime_interior_slice_congruent_offset_exit checked 911ms check-target:macos_arm64 @57fc72937714+wt
+pass/recast/runtime_interior_slice_congruent_offset_exit checked 911ms check-target:macos_arm64 @ebf381240e20+wt
 pass/recast/runtime_interior_slice_view_mutable_write_exit checked 3745ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 1046ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_mutable_equivalent_range_recast_exit checked 1194ms check-target:macos_arm64 @a3bac00e54bb+wt

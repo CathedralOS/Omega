@@ -211,16 +211,38 @@ pub(crate) fn hoist_terminal_value_machine_call(
 }
 
 fn expression_contains_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    expression_contains(lowerer, expression, &|node| {
+        matches!(node, ExpressionNode::Call(_))
+    })
+}
+
+/// Whether `expression` evaluates any node `selects`, including nodes inside
+/// match arms that may run. The walk covers every evaluated child.
+pub(super) fn expression_contains(
+    lowerer: &Lowerer,
+    expression: ExpressionHandle,
+    selects: &dyn Fn(&ExpressionNode) -> bool,
+) -> bool {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let contains = |child| expression_contains_call(lowerer, child);
-    match expressions.expression(expression) {
+    let node = expressions.expression(expression);
+    if selects(node) {
+        return true;
+    }
+    let contains = |child| expression_contains(lowerer, child, selects);
+    match node {
         ExpressionNode::Match(dispatch) => {
             contains(dispatch.subject) || expressions.match_arms(dispatch.arms).iter().any(|arm| {
                 matches!(arm.pattern, symbol_resolved_trees::expression::MatchPattern::Value(pattern) if contains(pattern))
                     || contains(arm.value)
             })
         }
-        ExpressionNode::Call(_) => true,
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid() && contains(call.receiver))
+                || expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| contains(*argument))
+        }
         ExpressionNode::Atomic(atomic) => contains(atomic.value),
         ExpressionNode::ArrayLiteral(values) => expressions
             .expression_handles(*values)
